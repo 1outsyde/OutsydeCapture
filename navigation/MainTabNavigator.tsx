@@ -1,68 +1,145 @@
 import React from "react";
+import { StyleSheet, Pressable, View, Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet } from "react-native";
-import HomeStackNavigator from "@/navigation/HomeStackNavigator";
-import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
-import { useTheme } from "@/hooks/useTheme";
+import { useNavigation, NavigationProp } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export type MainTabParamList = {
-  HomeTab: undefined;
-  ProfileTab: undefined;
-};
+import DiscoverStackNavigator from "@/navigation/DiscoverStackNavigator";
+import SearchScreen from "@/screens/SearchScreen";
+import SessionsScreen from "@/screens/SessionsScreen";
+import AccountStackNavigator from "@/navigation/AccountStackNavigator";
+import { useTheme } from "@/hooks/useTheme";
+import { Spacing, Shadows } from "@/constants/theme";
+import { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
+const TAB_BAR_HEIGHT = 83;
+
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
+
+  const handleBookPress = () => {
+    navigation.navigate("SelectPhotographer");
+  };
 
   return (
-    <Tab.Navigator
-      initialRouteName="HomeTab"
-      screenOptions={{
-        tabBarActiveTintColor: theme.tabIconSelected,
-        tabBarInactiveTintColor: theme.tabIconDefault,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: Platform.select({
-            ios: "transparent",
-            android: theme.backgroundRoot,
-          }),
-          borderTopWidth: 0,
-          elevation: 0,
-        },
-        tabBarBackground: () =>
-          Platform.OS === "ios" ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : null,
-        headerShown: false,
-      }}
-    >
-      <Tab.Screen
-        name="HomeTab"
-        component={HomeStackNavigator}
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="home" size={size} color={color} />
-          ),
+    <View style={styles.container}>
+      <Tab.Navigator
+        initialRouteName="DiscoverTab"
+        screenOptions={{
+          tabBarActiveTintColor: theme.tabIconSelected,
+          tabBarInactiveTintColor: theme.tabIconDefault,
+          tabBarStyle: {
+            position: "absolute",
+            backgroundColor: Platform.select({
+              ios: "transparent",
+              android: theme.backgroundRoot,
+            }),
+            borderTopWidth: 0,
+            elevation: 0,
+          },
+          tabBarBackground: () =>
+            Platform.OS === "ios" ? (
+              <BlurView
+                intensity={100}
+                tint={isDark ? "dark" : "light"}
+                style={StyleSheet.absoluteFill}
+              />
+            ) : null,
+          headerShown: false,
         }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStackNavigator}
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="user" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+      >
+        <Tab.Screen
+          name="DiscoverTab"
+          component={DiscoverStackNavigator}
+          options={{
+            title: "Discover",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="compass" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="SearchTab"
+          component={SearchScreen}
+          options={{
+            title: "Search",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="search" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="SessionsTab"
+          component={SessionsScreen}
+          options={{
+            title: "Sessions",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="calendar" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="AccountTab"
+          component={AccountStackNavigator}
+          options={{
+            title: "Account",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="user" size={size} color={color} />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+
+      <View
+        style={[
+          styles.fabContainer,
+          { 
+            bottom: TAB_BAR_HEIGHT + Spacing.sm,
+            pointerEvents: "box-none" 
+          },
+        ]}
+      >
+        <Pressable
+          onPress={handleBookPress}
+          style={({ pressed }) => [
+            styles.fab,
+            {
+              backgroundColor: theme.accent,
+              transform: [{ scale: pressed ? 0.92 : 1 }],
+              opacity: pressed ? 0.9 : 1,
+            },
+            Shadows.fab,
+          ]}
+        >
+          <Feather name="camera" size={24} color="#FFFFFF" />
+        </Pressable>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  fabContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 100,
+  },
+  fab: {
+    width: Spacing.fabSize,
+    height: Spacing.fabSize,
+    borderRadius: Spacing.fabSize / 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

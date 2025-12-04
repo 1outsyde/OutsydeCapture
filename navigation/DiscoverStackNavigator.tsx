@@ -1,19 +1,15 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import HomeScreen from "@/screens/HomeScreen";
-import DetailScreen from "@/screens/DetailScreen";
+
+import DiscoverScreen from "@/screens/DiscoverScreen";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
+import { DiscoverStackParamList } from "@/navigation/types";
 
-export type HomeStackParamList = {
-  Home: undefined;
-  Detail: undefined;
-};
+const Stack = createNativeStackNavigator<DiscoverStackParamList>();
 
-const Stack = createNativeStackNavigator<HomeStackParamList>();
-
-export default function HomeStackNavigator() {
+export default function DiscoverStackNavigator() {
   const { theme, isDark } = useTheme();
 
   return (
@@ -23,16 +19,11 @@ export default function HomeStackNavigator() {
       }}
     >
       <Stack.Screen
-        name="Home"
-        component={HomeScreen}
+        name="Discover"
+        component={DiscoverScreen}
         options={{
-          headerTitle: () => <HeaderTitle title="My App" />,
+          headerTitle: () => <HeaderTitle title="Outsyde" />,
         }}
-      />
-      <Stack.Screen
-        name="Detail"
-        component={DetailScreen}
-        options={{ headerTitle: "Detail" }}
       />
     </Stack.Navigator>
   );
