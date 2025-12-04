@@ -104,3 +104,29 @@ export const CATEGORY_ICONS: Record<PhotographyCategory, string> = {
   nature: "sun",
   fashion: "star",
 };
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  content: string;
+  timestamp: string;
+  isRead: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  participantIds: string[];
+  photographerId: string;
+  photographerName: string;
+  photographerAvatar: string;
+  clientId: string;
+  clientName: string;
+  sessionId?: string;
+  lastMessage?: Message;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}

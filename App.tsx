@@ -10,6 +10,7 @@ import RootNavigator from "@/navigation/RootNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
+import { MessagingProvider } from "@/context/MessagingContext";
 
 export default function App() {
   return (
@@ -19,9 +20,11 @@ export default function App() {
           <KeyboardProvider>
             <AuthProvider>
               <DataProvider>
-                <NavigationContainer>
-                  <RootNavigator />
-                </NavigationContainer>
+                <MessagingProvider>
+                  <NavigationContainer>
+                    <RootNavigator />
+                  </NavigationContainer>
+                </MessagingProvider>
               </DataProvider>
             </AuthProvider>
             <StatusBar style="auto" />

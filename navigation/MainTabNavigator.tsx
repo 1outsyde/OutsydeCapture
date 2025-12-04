@@ -9,8 +9,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DiscoverStackNavigator from "@/navigation/DiscoverStackNavigator";
 import SearchScreen from "@/screens/SearchScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
+import MessagesScreen from "@/screens/MessagesScreen";
 import AccountStackNavigator from "@/navigation/AccountStackNavigator";
 import { useTheme } from "@/hooks/useTheme";
+import { useMessaging } from "@/context/MessagingContext";
 import { Spacing, Shadows } from "@/constants/theme";
 import { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
@@ -22,6 +24,7 @@ export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { getTotalUnreadCount } = useMessaging();
 
   const handleBookPress = () => {
     navigation.navigate("SelectPhotographer");
@@ -82,6 +85,17 @@ export default function MainTabNavigator() {
             tabBarIcon: ({ color, size }) => (
               <Feather name="calendar" size={size} color={color} />
             ),
+          }}
+        />
+        <Tab.Screen
+          name="MessagesTab"
+          component={MessagesScreen}
+          options={{
+            title: "Messages",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="message-circle" size={size} color={color} />
+            ),
+            tabBarBadge: getTotalUnreadCount() > 0 ? getTotalUnreadCount() : undefined,
           }}
         />
         <Tab.Screen

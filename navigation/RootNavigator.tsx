@@ -8,11 +8,15 @@ import PhotographerDetailScreen from "@/screens/PhotographerDetailScreen";
 import BookingScreen from "@/screens/BookingScreen";
 import SessionDetailScreen from "@/screens/SessionDetailScreen";
 import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
+import ConversationScreen from "@/screens/ConversationScreen";
 import { RootStackParamList } from "@/navigation/types";
+import { useTheme } from "@/hooks/useTheme";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
+  const { theme } = useTheme();
+  
   return (
     <Stack.Navigator
       screenOptions={{
@@ -66,6 +70,21 @@ export default function RootNavigator() {
         options={{
           presentation: "fullScreenModal",
           animation: "fade",
+        }}
+      />
+      <Stack.Screen
+        name="Conversation"
+        component={ConversationScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Conversation",
+          headerBackTitle: "Back",
+          headerStyle: {
+            backgroundColor: theme.backgroundRoot,
+          },
+          headerTintColor: theme.textPrimary,
         }}
       />
     </Stack.Navigator>

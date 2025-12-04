@@ -3,18 +3,20 @@ import { Photographer, PhotographyCategory } from "@/types";
 
 export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList>;
-  Auth: undefined;
+  Auth: { returnTo?: string };
   SelectPhotographer: undefined;
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer: Photographer };
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
+  Conversation: { conversationId: string };
 };
 
 export type MainTabParamList = {
   DiscoverTab: NavigatorScreenParams<DiscoverStackParamList>;
   SearchTab: undefined;
   SessionsTab: undefined;
+  MessagesTab: undefined;
   AccountTab: NavigatorScreenParams<AccountStackParamList>;
 };
 
