@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { StyleSheet, View, Pressable, ScrollView, TextInput, Alert } from "react-native";
+import { StyleSheet, View, Pressable, ScrollView, TextInput, Alert, Platform, Modal } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -39,6 +39,8 @@ export default function BookingScreen() {
   const [sessionType, setSessionType] = useState<PhotographyCategory>(photographer.specialty);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [bookedSessionId, setBookedSessionId] = useState<string>("");
 
   const availableDates = photographer.availability.map(a => a.date);
   
@@ -166,41 +168,36 @@ export default function BookingScreen() {
       );
       
       await scheduleBookingConfirmation(session);
-      
-      const sessionPrice = getPriceValue(photographer.priceRange);
-      
-      Alert.alert(
-        "Booking Confirmed",
-        "Your photography session has been booked! Would you like to complete payment now?",
-        [
-          {
-            text: "Pay Later",
-            style: "cancel",
-            onPress: () => {
-              navigation.goBack();
-              navigation.goBack();
-            },
-          },
-          {
-            text: "Pay Now",
-            onPress: () => {
-              navigation.goBack();
-              navigation.goBack();
-              navigation.navigate("Payment", {
-                sessionId: session.id,
-                amount: sessionPrice,
-                photographerName: photographer.name,
-                sessionDate: formatDate(selectedDate),
-              });
-            },
-          },
-        ]
-      );
+      setBookedSessionId(session.id);
+      setShowSuccessModal(true);
     } catch (error) {
-      Alert.alert("Error", "Failed to create booking. Please try again.");
+      if (Platform.OS === "web") {
+        window.alert("Failed to create booking. Please try again.");
+      } else {
+        Alert.alert("Error", "Failed to create booking. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePayLater = () => {
+    setShowSuccessModal(false);
+    navigation.goBack();
+    navigation.goBack();
+  };
+
+  const handlePayNow = () => {
+    const sessionPrice = getPriceValue(photographer.priceRange);
+    setShowSuccessModal(false);
+    navigation.goBack();
+    navigation.goBack();
+    navigation.navigate("Payment", {
+      sessionId: bookedSessionId,
+      amount: sessionPrice,
+      photographerName: photographer.name,
+      sessionDate: formatDate(selectedDate),
+    });
   };
 
   const renderStepIndicator = () => (
@@ -554,6 +551,51 @@ export default function BookingScreen() {
           {step === "review" ? (isSubmitting ? "Confirming..." : "Confirm Booking") : "Continue"}
         </Button>
       </View>
+
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handlePayLater}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.backgroundRoot }]}>
+            <View style={[styles.modalIcon, { backgroundColor: theme.success + "20" }]}>
+              <Feather name="check-circle" size={48} color={theme.success} />
+            </View>
+            <ThemedText type="h3" style={styles.modalTitle}>
+              Booking Confirmed
+            </ThemedText>
+            <ThemedText type="body" style={[styles.modalMessage, { color: theme.textSecondary }]}>
+              Your photography session has been booked! Would you like to complete payment now?
+            </ThemedText>
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={handlePayLater}
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  styles.modalButtonSecondary,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <ThemedText type="button">Pay Later</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={handlePayNow}
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+                  Pay Now
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -713,4 +755,48 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing["2xl"],
+    alignItems: "center",
+  },
+  modalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.xl,
+  },
+  modalTitle: {
+    textAlign: "center",
+    marginBottom: Spacing.md,
+  },
+  modalMessage: {
+    textAlign: "center",
+    marginBottom: Spacing["2xl"],
+  },
+  modalButtons: {
+    flexDirection: "row",
+    width: "100%",
+    gap: Spacing.md,
+  },
+  modalButton: {
+    flex: 1,
+    height: Spacing.buttonHeight,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: BorderRadius.full,
+  },
+  modalButtonSecondary: {},
+  modalButtonPrimary: {},
 });
