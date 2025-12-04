@@ -20,7 +20,7 @@ type AuthMode = "login" | "signup";
 export default function AuthScreen() {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { login, signup, isLoading } = useAuth();
+  const { login, signup, loginAsGuest, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [mode, setMode] = useState<AuthMode>("login");
@@ -227,6 +227,25 @@ export default function AuthScreen() {
             </Pressable>
           </View>
 
+          <Pressable
+            onPress={async () => {
+              const success = await loginAsGuest();
+              if (success) {
+                navigation.goBack();
+              }
+            }}
+            disabled={isLoading}
+            style={({ pressed }) => [
+              styles.guestButton,
+              { borderColor: theme.border, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Feather name="user" size={20} color={theme.textSecondary} />
+            <ThemedText type="button" style={[styles.guestButtonText, { color: theme.textSecondary }]}>
+              Continue as Guest
+            </ThemedText>
+          </Pressable>
+
           <View style={styles.terms}>
             <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
               By continuing, you agree to our{" "}
@@ -352,6 +371,18 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.xs,
   },
   socialButtonText: {
+    marginLeft: Spacing.sm,
+  },
+  guestButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: Spacing.buttonHeight,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.xl,
+  },
+  guestButtonText: {
     marginLeft: Spacing.sm,
   },
   terms: {

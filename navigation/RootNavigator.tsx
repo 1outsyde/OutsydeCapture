@@ -9,6 +9,7 @@ import BookingScreen from "@/screens/BookingScreen";
 import SessionDetailScreen from "@/screens/SessionDetailScreen";
 import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
+import PaymentScreen from "@/screens/PaymentScreen";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -80,6 +81,21 @@ export default function RootNavigator() {
           animation: "slide_from_right",
           headerShown: true,
           headerTitle: "Conversation",
+          headerBackTitle: "Back",
+          headerStyle: {
+            backgroundColor: theme.backgroundRoot,
+          },
+          headerTintColor: theme.textPrimary,
+        }}
+      />
+      <Stack.Screen
+        name="Payment"
+        component={PaymentScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Payment",
           headerBackTitle: "Back",
           headerStyle: {
             backgroundColor: theme.backgroundRoot,

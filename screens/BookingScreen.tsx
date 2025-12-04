@@ -167,15 +167,31 @@ export default function BookingScreen() {
       
       await scheduleBookingConfirmation(session);
       
+      const sessionPrice = getPriceValue(photographer.priceRange);
+      
       Alert.alert(
         "Booking Confirmed",
-        "Your photography session has been booked successfully!",
+        "Your photography session has been booked! Would you like to complete payment now?",
         [
           {
-            text: "View Sessions",
+            text: "Pay Later",
+            style: "cancel",
             onPress: () => {
               navigation.goBack();
               navigation.goBack();
+            },
+          },
+          {
+            text: "Pay Now",
+            onPress: () => {
+              navigation.goBack();
+              navigation.goBack();
+              navigation.navigate("Payment", {
+                sessionId: session.id,
+                amount: sessionPrice,
+                photographerName: photographer.name,
+                sessionDate: formatDate(selectedDate),
+              });
             },
           },
         ]

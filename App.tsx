@@ -12,6 +12,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { MessagingProvider } from "@/context/MessagingContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { PaymentProvider } from "@/context/PaymentContext";
 
 export default function App() {
   return (
@@ -21,13 +22,15 @@ export default function App() {
           <KeyboardProvider>
             <AuthProvider>
               <DataProvider>
-                <NotificationProvider>
-                  <MessagingProvider>
-                    <NavigationContainer>
-                      <RootNavigator />
-                    </NavigationContainer>
-                  </MessagingProvider>
-                </NotificationProvider>
+                <PaymentProvider>
+                  <NotificationProvider>
+                    <MessagingProvider>
+                      <NavigationContainer>
+                        <RootNavigator />
+                      </NavigationContainer>
+                    </MessagingProvider>
+                  </NotificationProvider>
+                </PaymentProvider>
               </DataProvider>
             </AuthProvider>
             <StatusBar style="auto" />

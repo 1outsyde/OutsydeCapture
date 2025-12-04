@@ -10,6 +10,12 @@ export type RootStackParamList = {
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };
+  Payment: {
+    sessionId: string;
+    amount: number;
+    photographerName: string;
+    sessionDate: string;
+  };
 };
 
 export type MainTabParamList = {

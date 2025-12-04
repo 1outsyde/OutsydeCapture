@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, email: string, password: string) => Promise<boolean>;
+  loginAsGuest: () => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
 }
@@ -86,6 +87,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginAsGuest = async (): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const guestUser: User = {
+        id: "guest_" + Date.now(),
+        email: "guest@outsyde.app",
+        name: "Guest User",
+        isPhotographer: false,
+        createdAt: new Date().toISOString(),
+      };
+      
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(guestUser));
+      setUser(guestUser);
+      return true;
+    } catch (error) {
+      console.error("Guest login failed:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async (): Promise<void> => {
     try {
       await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
@@ -116,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         login,
         signup,
+        loginAsGuest,
         logout,
         updateProfile,
       }}
