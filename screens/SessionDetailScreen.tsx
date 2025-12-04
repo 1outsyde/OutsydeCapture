@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, View, Pressable, Alert, Linking, Platform, ScrollView } from "react-native";
+import { StyleSheet, View, Pressable, Alert, Linking, Platform, ScrollView, FlatList, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -11,8 +11,10 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { CATEGORY_LABELS, Session } from "@/types";
+import { CATEGORY_LABELS, Session, SessionPhoto } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
+
+const PHOTO_THUMBNAIL_SIZE = (Dimensions.get("window").width - Spacing.lg * 2 - Spacing.sm * 2) / 3;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "SessionDetail">;
@@ -249,6 +251,57 @@ export default function SessionDetailScreen() {
           </View>
         ) : null}
 
+        {session.photos && session.photos.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="h4" style={styles.sectionTitle}>
+                Photos
+              </ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {session.photos.length} photos
+              </ThemedText>
+            </View>
+            <View style={styles.photoGrid}>
+              {session.photos.slice(0, 6).map((photo, index) => (
+                <Pressable
+                  key={photo.id}
+                  onPress={() => navigation.navigate("PhotoGallery", { sessionId: session.id, initialIndex: index })}
+                  style={({ pressed }) => [
+                    styles.photoThumbnail,
+                    { opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: photo.thumbnailUrl }}
+                    style={styles.thumbnailImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                  {index === 5 && session.photos && session.photos.length > 6 ? (
+                    <View style={styles.morePhotosOverlay}>
+                      <ThemedText type="h4" style={styles.morePhotosText}>
+                        +{session.photos.length - 6}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={() => navigation.navigate("PhotoGallery", { sessionId: session.id })}
+              style={({ pressed }) => [
+                styles.viewAllButton,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="image" size={18} color={theme.primary} />
+              <ThemedText type="button" style={{ color: theme.primary, marginLeft: Spacing.sm }}>
+                View All Photos
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
             Payment
@@ -409,5 +462,44 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: Spacing["2xl"],
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  photoThumbnail: {
+    width: PHOTO_THUMBNAIL_SIZE,
+    height: PHOTO_THUMBNAIL_SIZE,
+    borderRadius: BorderRadius.sm,
+    overflow: "hidden",
+    position: "relative",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
+  },
+  morePhotosOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  morePhotosText: {
+    color: "#FFFFFF",
+  },
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
   },
 });

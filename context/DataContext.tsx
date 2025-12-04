@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Photographer, Session, PhotographyCategory, BookingFormData } from "@/types";
+import { Photographer, Session, PhotographyCategory, BookingFormData, SessionPhoto } from "@/types";
 import { useAuth } from "./AuthContext";
 
 interface DataContextType {
@@ -19,6 +19,112 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const SESSIONS_STORAGE_KEY = "@outsyde_sessions";
+
+const SAMPLE_PHOTOS: SessionPhoto[] = [
+  {
+    id: "photo_1",
+    url: "https://images.unsplash.com/photo-1529636798458-92182e662485?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1529636798458-92182e662485?w=400",
+    caption: "Golden hour portrait",
+    uploadedAt: new Date().toISOString(),
+  },
+  {
+    id: "photo_2",
+    url: "https://images.unsplash.com/photo-1516641051054-9df6a1aad654?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1516641051054-9df6a1aad654?w=400",
+    caption: "Natural lighting",
+    uploadedAt: new Date().toISOString(),
+  },
+  {
+    id: "photo_3",
+    url: "https://images.unsplash.com/photo-1511551203524-9a24350a5771?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1511551203524-9a24350a5771?w=400",
+    caption: "Candid moment",
+    uploadedAt: new Date().toISOString(),
+  },
+  {
+    id: "photo_4",
+    url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400",
+    caption: "Close-up shot",
+    uploadedAt: new Date().toISOString(),
+  },
+  {
+    id: "photo_5",
+    url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
+    uploadedAt: new Date().toISOString(),
+  },
+  {
+    id: "photo_6",
+    url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400",
+    caption: "Urban backdrop",
+    uploadedAt: new Date().toISOString(),
+  },
+  {
+    id: "photo_7",
+    url: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400",
+    caption: "Final edited shot",
+    uploadedAt: new Date().toISOString(),
+  },
+  {
+    id: "photo_8",
+    url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1200",
+    thumbnailUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+    caption: "Professional headshot",
+    uploadedAt: new Date().toISOString(),
+  },
+];
+
+function generateMockPastSessions(userId: string, userName: string): Session[] {
+  const pastDate = new Date();
+  pastDate.setDate(pastDate.getDate() - 7);
+  const pastDateStr = pastDate.toISOString().split("T")[0];
+  
+  const pastDate2 = new Date();
+  pastDate2.setDate(pastDate2.getDate() - 21);
+  const pastDate2Str = pastDate2.toISOString().split("T")[0];
+
+  return [
+    {
+      id: "mock_session_1",
+      photographerId: "p2",
+      photographerName: "Marcus Chen",
+      photographerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
+      clientId: userId,
+      clientName: userName,
+      date: pastDateStr,
+      startTime: "10:00",
+      endTime: "11:00",
+      location: "Griffith Observatory, Los Angeles",
+      sessionType: "portrait",
+      notes: "Outdoor portrait session with city views",
+      status: "completed",
+      totalPrice: 300,
+      createdAt: pastDate.toISOString(),
+      photos: SAMPLE_PHOTOS.slice(0, 8),
+    },
+    {
+      id: "mock_session_2",
+      photographerId: "p1",
+      photographerName: "Sarah Mitchell",
+      photographerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
+      clientId: userId,
+      clientName: userName,
+      date: pastDate2Str,
+      startTime: "14:00",
+      endTime: "15:00",
+      location: "Golden Gate Park, San Francisco",
+      sessionType: "portrait",
+      status: "completed",
+      totalPrice: 500,
+      createdAt: pastDate2.toISOString(),
+      photos: SAMPLE_PHOTOS.slice(2, 6),
+    },
+  ];
+}
 
 const MOCK_PHOTOGRAPHERS: Photographer[] = [
   {
@@ -220,14 +326,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const loadSessions = async () => {
+    if (!user) return;
+    
     try {
       setIsLoading(true);
       const stored = await AsyncStorage.getItem(SESSIONS_STORAGE_KEY);
+      let userSessions: Session[] = [];
+      
       if (stored) {
         const allSessions: Session[] = JSON.parse(stored);
-        const userSessions = allSessions.filter(s => s.clientId === user?.id);
-        setSessions(userSessions);
+        userSessions = allSessions.filter(s => s.clientId === user.id);
       }
+      
+      const mockPastSessions = generateMockPastSessions(user.id, user.name);
+      const existingMockIds = userSessions.map(s => s.id);
+      const newMockSessions = mockPastSessions.filter(s => !existingMockIds.includes(s.id));
+      
+      const combinedSessions = [...userSessions, ...newMockSessions];
+      setSessions(combinedSessions);
     } catch (error) {
       console.error("Failed to load sessions:", error);
     } finally {

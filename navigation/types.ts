@@ -8,6 +8,7 @@ export type RootStackParamList = {
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer: Photographer };
   SessionDetail: { sessionId: string };
+  PhotoGallery: { sessionId: string; initialIndex?: number };
 };
 
 export type MainTabParamList = {

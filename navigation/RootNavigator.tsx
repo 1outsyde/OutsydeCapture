@@ -7,6 +7,7 @@ import SelectPhotographerScreen from "@/screens/SelectPhotographerScreen";
 import PhotographerDetailScreen from "@/screens/PhotographerDetailScreen";
 import BookingScreen from "@/screens/BookingScreen";
 import SessionDetailScreen from "@/screens/SessionDetailScreen";
+import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import { RootStackParamList } from "@/navigation/types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -57,6 +58,14 @@ export default function RootNavigator() {
         options={{
           presentation: "modal",
           animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="PhotoGallery"
+        component={PhotoGalleryScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "fade",
         }}
       />
     </Stack.Navigator>

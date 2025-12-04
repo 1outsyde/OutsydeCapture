@@ -45,6 +45,14 @@ export interface TimeSlot {
   available: boolean;
 }
 
+export interface SessionPhoto {
+  id: string;
+  url: string;
+  thumbnailUrl: string;
+  caption?: string;
+  uploadedAt: string;
+}
+
 export interface Session {
   id: string;
   photographerId: string;
@@ -61,6 +69,7 @@ export interface Session {
   status: SessionStatus;
   totalPrice: number;
   createdAt: string;
+  photos?: SessionPhoto[];
 }
 
 export type SessionStatus = 
