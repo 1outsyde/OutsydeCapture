@@ -1,5 +1,11 @@
-import React, { useState, useCallback } from "react";
-import { StyleSheet, View, Pressable, ScrollView, RefreshControl } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import {
+  StyleSheet,
+  View,
+  Pressable,
+  ScrollView,
+  RefreshControl,
+} from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -8,37 +14,89 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { useData } from "@/context/DataContext";
-import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
-import { Photographer, PhotographyCategory, CATEGORY_LABELS, CATEGORY_ICONS } from "@/types";
+import { Spacing, BorderRadius } from "@/constants/theme";
+import {
+  Photographer,
+  PhotographyCategory,
+  CATEGORY_LABELS,
+  CATEGORY_ICONS,
+} from "@/types";
 import { RootStackParamList } from "@/navigation/types";
+
+import { fetchPhotographers } from "@/api/photographers";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const CATEGORIES: PhotographyCategory[] = ["wedding", "portrait", "events", "product", "nature", "fashion"];
+const CATEGORIES: PhotographyCategory[] = [
+  "wedding",
+  "portrait",
+  "events",
+  "product",
+  "nature",
+  "fashion",
+];
 
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { photographers, refreshPhotographers } = useData();
-  const [selectedCategory, setSelectedCategory] = useState<PhotographyCategory | null>(null);
+
+  // Backend State
+  const [photographers, setPhotographers] = useState<Photographer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedCategory, setSelectedCategory] =
+    useState<PhotographyCategory | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch from backend
+  const loadPhotographers = async () => {
+    try {
+      const data = await fetchPhotographers();
+      setPhotographers(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPhotographers();
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshPhotographers();
-    setRefreshing(false);
-  }, [refreshPhotographers]);
+    await loadPhotographers();
+  }, []);
 
-  const featuredPhotographers = photographers.filter(p => p.featured);
+  if (loading) {
+    return (
+      <ScreenScrollView>
+        <ThemedText type="h4">Loading photographers...</ThemedText>
+      </ScreenScrollView>
+    );
+  }
+
+  if (error) {
+    return (
+      <ScreenScrollView>
+        <ThemedText type="h4">Error loading photographers: {error}</ThemedText>
+      </ScreenScrollView>
+    );
+  }
+
+  const featuredPhotographers = photographers.filter((p) => p.featured);
   const filteredPhotographers = selectedCategory
-    ? photographers.filter(p => p.specialty === selectedCategory)
+    ? photographers.filter((p) => p.specialty === selectedCategory)
     : photographers;
 
   const handlePhotographerPress = (photographer: Photographer) => {
     navigation.navigate("PhotographerDetail", { photographer });
   };
 
+  // FEATURED CARD
   const renderFeaturedCard = (photographer: Photographer) => (
     <Pressable
       key={photographer.id}
@@ -49,12 +107,17 @@ export default function DiscoverScreen() {
       ]}
     >
       <Image
-        source={{ uri: photographer.portfolio[0] }}
+        source={{ uri: photographer.portfolio?.[0] }}
         style={styles.featuredImage}
         contentFit="cover"
-        transition={200}
       />
-      <View style={[styles.featuredOverlay, { backgroundColor: theme.cardOverlay }]}>
+
+      <View
+        style={[
+          styles.featuredOverlay,
+          { backgroundColor: theme.cardOverlay },
+        ]}
+      >
         <View style={styles.featuredContent}>
           <Image
             source={{ uri: photographer.avatar }}
@@ -66,20 +129,24 @@ export default function DiscoverScreen() {
               {photographer.name}
             </ThemedText>
             <ThemedText type="small" style={styles.whiteTextOpacity}>
-              {CATEGORY_LABELS[photographer.specialty]} | {photographer.location}
+              {CATEGORY_LABELS[photographer.specialty]} |{" "}
+              {photographer.location}
             </ThemedText>
           </View>
         </View>
+
         <View style={styles.featuredRating}>
           <Feather name="star" size={14} color="#FFD700" />
           <ThemedText type="small" style={styles.whiteText}>
-            {" "}{photographer.rating}
+            {" "}
+            {photographer.rating}
           </ThemedText>
         </View>
       </View>
     </Pressable>
   );
 
+  // CATEGORY CHIP
   const renderCategoryChip = (category: PhotographyCategory) => {
     const isSelected = selectedCategory === category;
     return (
@@ -89,7 +156,9 @@ export default function DiscoverScreen() {
         style={({ pressed }) => [
           styles.categoryChip,
           {
-            backgroundColor: isSelected ? theme.primary : theme.backgroundDefault,
+            backgroundColor: isSelected
+              ? theme.primary
+              : theme.backgroundDefault,
             opacity: pressed ? 0.8 : 1,
           },
         ]}
@@ -112,7 +181,11 @@ export default function DiscoverScreen() {
     );
   };
 
-  const renderPhotographerCard = (photographer: Photographer, index: number) => {
+  // GRID CARD
+  const renderPhotographerCard = (
+    photographer: Photographer,
+    index: number
+  ) => {
     const isLeftColumn = index % 2 === 0;
     return (
       <Pressable
@@ -132,7 +205,6 @@ export default function DiscoverScreen() {
           source={{ uri: photographer.avatar }}
           style={styles.photographerImage}
           contentFit="cover"
-          transition={200}
         />
         <View style={styles.photographerInfo}>
           <ThemedText type="h4" numberOfLines={1}>
@@ -145,7 +217,8 @@ export default function DiscoverScreen() {
             <View style={styles.ratingContainer}>
               <Feather name="star" size={12} color="#FFD700" />
               <ThemedText type="caption">
-                {" "}{photographer.rating} ({photographer.reviewCount})
+                {" "}
+                {photographer.rating} ({photographer.reviewCount})
               </ThemedText>
             </View>
             <ThemedText type="caption" style={{ color: theme.secondary }}>
@@ -163,10 +236,11 @@ export default function DiscoverScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
+      {/* Featured */}
       <ThemedText type="h3" style={styles.sectionTitle}>
         Featured Photographers
       </ThemedText>
-      
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -176,10 +250,11 @@ export default function DiscoverScreen() {
         {featuredPhotographers.map(renderFeaturedCard)}
       </ScrollView>
 
+      {/* Categories */}
       <ThemedText type="h4" style={styles.sectionTitle}>
         Browse by Category
       </ThemedText>
-      
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -189,8 +264,12 @@ export default function DiscoverScreen() {
         {CATEGORIES.map(renderCategoryChip)}
       </ScrollView>
 
+      {/* Photographer Grid */}
       <ThemedText type="h4" style={styles.sectionTitle}>
-        {selectedCategory ? CATEGORY_LABELS[selectedCategory] : "All"} Photographers
+        {selectedCategory
+          ? CATEGORY_LABELS[selectedCategory]
+          : "All"}{" "}
+        Photographers
       </ThemedText>
 
       <View style={styles.photographerGrid}>
