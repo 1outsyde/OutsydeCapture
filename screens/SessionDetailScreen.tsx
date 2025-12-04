@@ -1,15 +1,13 @@
 import React from "react";
-import { StyleSheet, View, Pressable, Alert, Linking, Platform } from "react-native";
+import { StyleSheet, View, Pressable, Alert, Linking, Platform, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -136,7 +134,13 @@ export default function SessionDetailScreen() {
         <View style={styles.backButton} />
       </View>
 
-      <ScreenScrollView>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + Spacing.xl }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View
           style={[
             styles.statusBanner,
@@ -288,7 +292,7 @@ export default function SessionDetailScreen() {
         ) : null}
 
         <View style={styles.bottomPadding} />
-      </ScreenScrollView>
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -317,6 +321,9 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     marginTop: Spacing.lg,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
   },
   statusBanner: {
     flexDirection: "row",

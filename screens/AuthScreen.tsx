@@ -1,11 +1,10 @@
 import React, { useState } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
@@ -77,168 +76,179 @@ export default function AuthScreen() {
         </Pressable>
       </View>
 
-      <ScreenKeyboardAwareScrollView
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
       >
-        <View style={styles.logoContainer}>
-          <Feather name="camera" size={48} color={theme.primary} />
-          <ThemedText type="h1" style={styles.logoText}>
-            Outsyde
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + Spacing.xl }
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.logoContainer}>
+            <Feather name="camera" size={48} color={theme.primary} />
+            <ThemedText type="h1" style={styles.logoText}>
+              Outsyde
+            </ThemedText>
+          </View>
+
+          <ThemedText type="h2" style={styles.title}>
+            {mode === "login" ? "Welcome back" : "Create account"}
           </ThemedText>
-        </View>
+          <ThemedText type="body" style={[styles.subtitle, { color: theme.textSecondary }]}>
+            {mode === "login"
+              ? "Sign in to continue booking photographers"
+              : "Join Outsyde to book your next photography session"}
+          </ThemedText>
 
-        <ThemedText type="h2" style={styles.title}>
-          {mode === "login" ? "Welcome back" : "Create account"}
-        </ThemedText>
-        <ThemedText type="body" style={[styles.subtitle, { color: theme.textSecondary }]}>
-          {mode === "login"
-            ? "Sign in to continue booking photographers"
-            : "Join Outsyde to book your next photography session"}
-        </ThemedText>
+          {mode === "signup" ? (
+            <View style={styles.fieldContainer}>
+              <ThemedText type="small" style={styles.label}>
+                Full Name
+              </ThemedText>
+              <TextInput
+                style={inputStyle}
+                value={name}
+                onChangeText={setName}
+                placeholder="Your name"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
+            </View>
+          ) : null}
 
-        {mode === "signup" ? (
           <View style={styles.fieldContainer}>
             <ThemedText type="small" style={styles.label}>
-              Full Name
+              Email
             </ThemedText>
             <TextInput
               style={inputStyle}
-              value={name}
-              onChangeText={setName}
-              placeholder="Your name"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="your@email.com"
               placeholderTextColor={theme.textSecondary}
-              autoCapitalize="words"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
               returnKeyType="next"
             />
           </View>
-        ) : null}
 
-        <View style={styles.fieldContainer}>
-          <ThemedText type="small" style={styles.label}>
-            Email
-          </ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="your@email.com"
-            placeholderTextColor={theme.textSecondary}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="next"
-          />
-        </View>
-
-        <View style={styles.fieldContainer}>
-          <ThemedText type="small" style={styles.label}>
-            Password
-          </ThemedText>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[inputStyle, styles.passwordInput]}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter password"
-              placeholderTextColor={theme.textSecondary}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              returnKeyType="done"
-              onSubmitEditing={handleSubmit}
-            />
-            <Pressable
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.passwordToggle}
-            >
-              <Feather
-                name={showPassword ? "eye-off" : "eye"}
-                size={20}
-                color={theme.textSecondary}
+          <View style={styles.fieldContainer}>
+            <ThemedText type="small" style={styles.label}>
+              Password
+            </ThemedText>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[inputStyle, styles.passwordInput]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Enter password"
+                placeholderTextColor={theme.textSecondary}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
               />
-            </Pressable>
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.passwordToggle}
+              >
+                <Feather
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={theme.textSecondary}
+                />
+              </Pressable>
+            </View>
           </View>
-        </View>
 
-        <Button
-          onPress={handleSubmit}
-          disabled={isLoading}
-          style={styles.submitButton}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : mode === "login" ? (
-            "Sign In"
-          ) : (
-            "Create Account"
-          )}
-        </Button>
-
-        <View style={styles.switchMode}>
-          <ThemedText type="body" style={{ color: theme.textSecondary }}>
-            {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-          </ThemedText>
-          <Pressable onPress={() => setMode(mode === "login" ? "signup" : "login")}>
-            <ThemedText type="link">
-              {mode === "login" ? "Sign Up" : "Sign In"}
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        <View style={styles.divider}>
-          <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-          <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
-            or continue with
-          </ThemedText>
-          <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-        </View>
-
-        <View style={styles.socialButtons}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.socialButton,
-              { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-            ]}
+          <Button
+            onPress={handleSubmit}
+            disabled={isLoading}
+            style={styles.submitButton}
           >
-            <Feather name="smartphone" size={20} color={theme.text} />
-            <ThemedText type="button" style={styles.socialButtonText}>
-              Apple
-            </ThemedText>
-          </Pressable>
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : mode === "login" ? (
+              "Sign In"
+            ) : (
+              "Create Account"
+            )}
+          </Button>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.socialButton,
-              { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <Feather name="mail" size={20} color={theme.text} />
-            <ThemedText type="button" style={styles.socialButtonText}>
-              Google
+          <View style={styles.switchMode}>
+            <ThemedText type="body" style={{ color: theme.textSecondary }}>
+              {mode === "login" ? "Don't have an account? " : "Already have an account? "}
             </ThemedText>
-          </Pressable>
-        </View>
-
-        <View style={styles.terms}>
-          <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
-            By continuing, you agree to our{" "}
-          </ThemedText>
-          <View style={styles.termsLinks}>
-            <Pressable>
-              <ThemedText type="caption" style={{ color: theme.link }}>
-                Terms of Service
-              </ThemedText>
-            </Pressable>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {" "}and{" "}
-            </ThemedText>
-            <Pressable>
-              <ThemedText type="caption" style={{ color: theme.link }}>
-                Privacy Policy
+            <Pressable onPress={() => setMode(mode === "login" ? "signup" : "login")}>
+              <ThemedText type="link">
+                {mode === "login" ? "Sign Up" : "Sign In"}
               </ThemedText>
             </Pressable>
           </View>
-        </View>
-      </ScreenKeyboardAwareScrollView>
+
+          <View style={styles.divider}>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
+              or continue with
+            </ThemedText>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+          </View>
+
+          <View style={styles.socialButtons}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.socialButton,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="smartphone" size={20} color={theme.text} />
+              <ThemedText type="button" style={styles.socialButtonText}>
+                Apple
+              </ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.socialButton,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="mail" size={20} color={theme.text} />
+              <ThemedText type="button" style={styles.socialButtonText}>
+                Google
+              </ThemedText>
+            </Pressable>
+          </View>
+
+          <View style={styles.terms}>
+            <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
+              By continuing, you agree to our{" "}
+            </ThemedText>
+            <View style={styles.termsLinks}>
+              <Pressable>
+                <ThemedText type="caption" style={{ color: theme.link }}>
+                  Terms of Service
+                </ThemedText>
+              </Pressable>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {" "}and{" "}
+              </ThemedText>
+              <Pressable>
+                <ThemedText type="caption" style={{ color: theme.link }}>
+                  Privacy Policy
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
@@ -259,8 +269,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  keyboardAvoid: {
+    flex: 1,
+  },
   scrollContent: {
     paddingTop: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
   },
   logoContainer: {
     alignItems: "center",

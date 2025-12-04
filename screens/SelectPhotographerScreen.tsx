@@ -1,12 +1,11 @@
 import React from "react";
-import { StyleSheet, View, Pressable } from "react-native";
+import { StyleSheet, View, Pressable, FlatList } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -110,12 +109,15 @@ export default function SelectPhotographerScreen() {
         <View style={styles.closeButton} />
       </View>
 
-      <ScreenFlatList
+      <FlatList
         data={photographers}
         renderItem={renderPhotographerItem}
         keyExtractor={item => item.id}
         ListHeaderComponent={ListHeader}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + Spacing.xl }
+        ]}
         showsVerticalScrollIndicator={false}
       />
     </ThemedView>
@@ -141,6 +143,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
   },
   header: {
     marginBottom: Spacing.xl,
