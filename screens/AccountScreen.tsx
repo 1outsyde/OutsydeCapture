@@ -11,14 +11,20 @@ import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { RootStackParamList } from "@/navigation/types";
+import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
+import { useNotifications } from "@/context/NotificationContext";
+import { CompositeNavigationProp } from "@react-navigation/native";
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<AccountStackParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { user, isAuthenticated, logout, updateProfile } = useAuth();
+  const { unreadCount } = useNotifications();
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || "");
@@ -215,6 +221,7 @@ export default function AccountScreen() {
             </Pressable>
 
             <Pressable
+              onPress={() => navigation.navigate("Notifications")}
               style={({ pressed }) => [
                 styles.menuItem,
                 { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
@@ -225,6 +232,13 @@ export default function AccountScreen() {
                 <ThemedText type="body" style={styles.menuItemText}>
                   Notifications
                 </ThemedText>
+                {unreadCount > 0 ? (
+                  <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                    <ThemedText type="small" style={{ color: "#FFFFFF" }}>
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </ThemedText>
+                  </View>
+                ) : null}
               </View>
               <Feather name="chevron-right" size={20} color={theme.textSecondary} />
             </Pressable>
@@ -429,5 +443,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: BorderRadius.full,
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: Spacing.sm,
+    minWidth: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

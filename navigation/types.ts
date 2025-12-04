@@ -28,6 +28,7 @@ export type AccountStackParamList = {
   Account: undefined;
   EditProfile: undefined;
   Settings: undefined;
+  Notifications: undefined;
 };
 
 export type BookingStackParamList = {

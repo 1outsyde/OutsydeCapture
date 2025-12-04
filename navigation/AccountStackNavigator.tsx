@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import AccountScreen from "@/screens/AccountScreen";
+import NotificationsScreen from "@/screens/NotificationsScreen";
 import { useTheme } from "@/hooks/useTheme";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
 import { AccountStackParamList } from "@/navigation/types";
@@ -18,6 +19,13 @@ export default function AccountStackNavigator() {
         component={AccountScreen}
         options={{
           title: "Account",
+        }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          title: "Notifications",
         }}
       />
     </Stack.Navigator>

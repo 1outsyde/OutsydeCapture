@@ -11,6 +11,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { PhotographyCategory, CATEGORY_LABELS, TimeSlot } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
@@ -28,6 +29,7 @@ export default function BookingScreen() {
   const route = useRoute<RouteType>();
   const { photographer } = route.params;
   const { createSession } = useData();
+  const { scheduleBookingConfirmation } = useNotifications();
   const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<BookingStep>("date");
@@ -150,7 +152,7 @@ export default function BookingScreen() {
     
     setIsSubmitting(true);
     try {
-      await createSession(
+      const session = await createSession(
         {
           photographerId: photographer.id,
           date: selectedDate,
@@ -162,6 +164,8 @@ export default function BookingScreen() {
         photographer,
         { startTime: selectedTimeSlot.startTime, endTime: selectedTimeSlot.endTime }
       );
+      
+      await scheduleBookingConfirmation(session);
       
       Alert.alert(
         "Booking Confirmed",
