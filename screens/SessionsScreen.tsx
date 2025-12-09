@@ -11,12 +11,26 @@ import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { Session, CATEGORY_LABELS } from "@/types";
+import { Session } from "@/context/DataContext";
+import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type FilterType = "upcoming" | "past";
+
+interface Order {
+  id: string;
+  vendorName: string;
+  status: "processing" | "shipped" | "delivered";
+  itemCount: number;
+  expectedDate?: string;
+}
+
+const MOCK_ACTIVE_ORDERS: Order[] = [
+  { id: "o1", vendorName: "PrintMaster Studio", status: "shipped", itemCount: 2, expectedDate: "Jan 15" },
+  { id: "o2", vendorName: "MemoryBook Co", status: "processing", itemCount: 1 },
+];
 
 export default function SessionsScreen() {
   const { theme } = useTheme();
@@ -39,7 +53,7 @@ export default function SessionsScreen() {
     }
 
     const updateCountdown = () => {
-      const sessionDate = new Date(nextSession.date + "T" + nextSession.startTime);
+      const sessionDate = new Date(nextSession.date + "T" + nextSession.time);
       const now = new Date();
       const diff = sessionDate.getTime() - now.getTime();
 
@@ -98,12 +112,10 @@ export default function SessionsScreen() {
 
   const getStatusColor = (status: Session["status"]) => {
     switch (status) {
-      case "confirmed":
+      case "upcoming":
         return theme.success;
-      case "pending":
-        return theme.warning;
       case "completed":
-        return theme.info;
+        return "#007AFF";
       case "cancelled":
         return theme.error;
       default:
@@ -148,7 +160,7 @@ export default function SessionsScreen() {
           </View>
         </View>
         <ThemedText type="small" style={{ color: theme.textSecondary }}>
-          {CATEGORY_LABELS[session.sessionType]}
+          {CATEGORY_LABELS[session.sessionType as PhotographyCategory] || session.sessionType}
         </ThemedText>
         <View style={styles.sessionMeta}>
           <View style={styles.metaItem}>
@@ -160,7 +172,7 @@ export default function SessionsScreen() {
           <View style={styles.metaItem}>
             <Feather name="clock" size={14} color={theme.textSecondary} />
             <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
-              {formatTime(session.startTime, session.endTime)}
+              {session.time}
             </ThemedText>
           </View>
         </View>
@@ -215,9 +227,48 @@ export default function SessionsScreen() {
               {nextSession.photographerName}
             </ThemedText>
             <ThemedText type="small" style={styles.countdownTextOpacity}>
-              {formatDate(nextSession.date)} at {formatTime(nextSession.startTime, nextSession.endTime).split(" - ")[0]}
+              {formatDate(nextSession.date)} at {nextSession.time}
             </ThemedText>
           </View>
+        </View>
+      ) : null}
+
+      {/* Active Orders Section */}
+      {filter === "upcoming" && MOCK_ACTIVE_ORDERS.length > 0 ? (
+        <View style={styles.ordersSection}>
+          <View style={styles.sectionHeader}>
+            <Feather name="package" size={18} color={theme.primary} />
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
+              Orders In Progress
+            </ThemedText>
+          </View>
+          {MOCK_ACTIVE_ORDERS.map((order) => (
+            <Pressable
+              key={order.id}
+              onPress={() => navigation.navigate("CartOrders")}
+              style={({ pressed }) => [
+                styles.orderCard,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <View style={[styles.orderIcon, { backgroundColor: order.status === "shipped" ? "#007AFF20" : "#FF950020" }]}>
+                <Feather
+                  name={order.status === "shipped" ? "truck" : "clock"}
+                  size={18}
+                  color={order.status === "shipped" ? "#007AFF" : "#FF9500"}
+                />
+              </View>
+              <View style={styles.orderInfo}>
+                <ThemedText type="body" numberOfLines={1}>
+                  {order.vendorName}
+                </ThemedText>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  {order.itemCount} item{order.itemCount > 1 ? "s" : ""} - {order.status === "shipped" ? `Arrives ${order.expectedDate}` : "Processing"}
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+            </Pressable>
+          ))}
         </View>
       ) : null}
 
@@ -377,5 +428,31 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
     textAlign: "center",
+  },
+  ordersSection: {
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  orderCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  orderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  orderInfo: {
+    flex: 1,
   },
 });
