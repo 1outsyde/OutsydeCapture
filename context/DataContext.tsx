@@ -363,11 +363,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const addComment = (postId: string, text: string) => {
-    if (!user || !text.trim()) return;
+    if (!text.trim()) return;
     const newComment: Comment = {
       id: `comment_${Date.now()}`,
-      userId: user.id,
-      userName: user.name || "Anonymous",
+      userId: user?.id || "guest",
+      userName: user?.name || "Guest User",
       userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100",
       text: text.trim(),
       createdAt: new Date().toISOString(),

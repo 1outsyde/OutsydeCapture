@@ -99,6 +99,12 @@ Photographers and vendors can subscribe to one of three tiers:
 Tier badges are displayed on photographer cards in the Discover screen.
 
 ## Recent Changes
+- Transformed Discover tab into Home tab with social media-style feed
+- Added Post and Comment data structures with mock posts from photographers
+- Implemented Instagram-style feed with post cards, images, captions, likes, and comments
+- Added interactive like button (toggles red when liked)
+- Added expandable comments section with ability to add new comments
+- Added "Book" quick action button on each post for photographer booking
 - Added subscription tier badges (Premium/Pro/Basic) to photographer cards
 - Updated theme to gold/yellow color scheme with white/black backgrounds
 - Added Y logo branding to app header
