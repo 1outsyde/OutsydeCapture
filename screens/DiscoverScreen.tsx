@@ -81,20 +81,6 @@ export default function DiscoverScreen() {
     navigation.navigate("PhotographerDetail", { photographer });
   };
 
-  const getTierBadge = (tier?: string) => {
-    if (!tier) return null;
-    const tierConfig = SubscriptionTiers[tier as keyof typeof SubscriptionTiers];
-    if (!tierConfig) return null;
-    return (
-      <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
-        <Feather name="award" size={10} color="#000000" />
-        <ThemedText type="small" style={styles.tierBadgeText}>
-          {tierConfig.label}
-        </ThemedText>
-      </View>
-    );
-  };
-
   // FEATURED CARD
   const renderFeaturedCard = (photographer: Photographer) => (
     <Pressable
@@ -112,8 +98,13 @@ export default function DiscoverScreen() {
       />
 
       {photographer.subscriptionTier ? (
-        <View style={styles.featuredTierBadge}>
-          {getTierBadge(photographer.subscriptionTier)}
+        <View style={styles.featuredTierBadge} key={`tier-${photographer.id}`}>
+          <View style={[styles.tierBadge, { backgroundColor: SubscriptionTiers[photographer.subscriptionTier as keyof typeof SubscriptionTiers]?.color || "#888" }]}>
+            <Feather name="award" size={10} color="#000000" />
+            <ThemedText type="small" style={styles.tierBadgeText}>
+              {SubscriptionTiers[photographer.subscriptionTier as keyof typeof SubscriptionTiers]?.label || ""}
+            </ThemedText>
+          </View>
         </View>
       ) : null}
 
@@ -213,8 +204,13 @@ export default function DiscoverScreen() {
             contentFit="cover"
           />
           {photographer.subscriptionTier ? (
-            <View style={styles.gridTierBadge}>
-              {getTierBadge(photographer.subscriptionTier)}
+            <View style={styles.gridTierBadge} key={`grid-tier-${photographer.id}`}>
+              <View style={[styles.tierBadge, { backgroundColor: SubscriptionTiers[photographer.subscriptionTier as keyof typeof SubscriptionTiers]?.color || "#888" }]}>
+                <Feather name="award" size={10} color="#000000" />
+                <ThemedText type="small" style={styles.tierBadgeText}>
+                  {SubscriptionTiers[photographer.subscriptionTier as keyof typeof SubscriptionTiers]?.label || ""}
+                </ThemedText>
+              </View>
             </View>
           ) : null}
         </View>
