@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   View,
   Pressable,
   ScrollView,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -15,15 +16,9 @@ import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import {
-  Photographer,
-  PhotographyCategory,
-  CATEGORY_LABELS,
-  CATEGORY_ICONS,
-} from "@/types";
+import { CATEGORY_LABELS, CATEGORY_ICONS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
-
-import { fetchPhotographers } from "@/api/photographers";
+import { useData, Photographer, PhotographyCategory } from "@/context/DataContext";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -39,50 +34,40 @@ const CATEGORIES: PhotographyCategory[] = [
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-
-  // Backend State
-  const [photographers, setPhotographers] = useState<Photographer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { photographers, isLoading, error, refreshPhotographers } = useData();
 
   const [selectedCategory, setSelectedCategory] =
     useState<PhotographyCategory | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch from backend
-  const loadPhotographers = async () => {
-    try {
-      const data = await fetchPhotographers();
-      setPhotographers(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPhotographers();
-  }, []);
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadPhotographers();
-  }, []);
+    await refreshPhotographers();
+    setRefreshing(false);
+  }, [refreshPhotographers]);
 
-  if (loading) {
+  if (isLoading && photographers.length === 0) {
     return (
       <ScreenScrollView>
-        <ThemedText type="h4">Loading photographers...</ThemedText>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+            Loading photographers...
+          </ThemedText>
+        </View>
       </ScreenScrollView>
     );
   }
 
-  if (error) {
+  if (error && photographers.length === 0) {
     return (
       <ScreenScrollView>
-        <ThemedText type="h4">Error loading photographers: {error}</ThemedText>
+        <View style={styles.loadingContainer}>
+          <Feather name="alert-circle" size={48} color={theme.error} />
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+            {error}
+          </ThemedText>
+        </View>
       </ScreenScrollView>
     );
   }
@@ -378,5 +363,11 @@ const styles = StyleSheet.create({
   ratingContainer: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: Spacing["3xl"],
   },
 });

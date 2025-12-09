@@ -1,128 +1,114 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
-import { Image } from "expo-image";
-import { Feather } from "@expo/vector-icons";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import { ThemedText } from "@/components/ThemedText";
-import { ScreenScrollView } from "@/components/ScreenScrollView";
-import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import MainTabNavigator from "@/navigation/MainTabNavigator";
+import AuthScreen from "@/screens/AuthScreen";
+import SelectPhotographerScreen from "@/screens/SelectPhotographerScreen";
+import PhotographerDetailScreen from "@/screens/PhotographerDetailScreen";
+import BookingScreen from "@/screens/BookingScreen";
+import SessionDetailScreen from "@/screens/SessionDetailScreen";
+import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
+import ConversationScreen from "@/screens/ConversationScreen";
+import PaymentScreen from "@/screens/PaymentScreen";
+import VendorDetailScreen from "@/screens/VendorDetailScreen";
 
-import { fetchVendorById } from "@/api/vendors";
 import { RootStackParamList } from "@/navigation/types";
+import { useTheme } from "@/hooks/useTheme";
 
-type Props = NativeStackScreenProps<RootStackParamList, "VendorDetail">;
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export default function VendorDetailScreen({ route }: Props) {
+export default function RootNavigator() {
   const { theme } = useTheme();
-  const { vendorId } = route.params;
-
-  const [vendor, setVendor] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadVendor();
-  }, []);
-
-  const loadVendor = async () => {
-    try {
-      const data = await fetchVendorById(vendorId);
-
-      // When using /api/v1/businesses/:id the response is wrapped:
-      // { success: true, data: { business: {...} }}
-      const business =
-        data?.data?.business || data?.business || data;
-
-      setVendor(business);
-    } catch (err: any) {
-      console.error("Failed to fetch vendor:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading || !vendor) {
-    return (
-      <ScreenScrollView>
-        <ActivityIndicator size="large" color={theme.accent} />
-        <ThemedText type="h4" style={{ marginTop: 16 }}>
-          Loading business…
-        </ThemedText>
-      </ScreenScrollView>
-    );
-  }
 
   return (
-    <ScreenScrollView>
-      {/* COVER IMAGE */}
-      <Image
-        source={{ uri: vendor.coverImage || vendor.logo }}
-        style={styles.coverImage}
-        contentFit="cover"
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.backgroundRoot },
+      }}
+    >
+      <Stack.Screen name="Main" component={MainTabNavigator} />
+
+      <Stack.Screen
+        name="Auth"
+        component={AuthScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
       />
 
-      {/* BODY CONTENT */}
-      <View style={styles.content}>
-        <ThemedText type="h2">{vendor.name}</ThemedText>
+      <Stack.Screen
+        name="SelectPhotographer"
+        component={SelectPhotographerScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
 
-        <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-          {vendor.city || "Local Business"}
-        </ThemedText>
+      <Stack.Screen
+        name="PhotographerDetail"
+        component={PhotographerDetailScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
 
-        <View style={styles.ratingRow}>
-          <Feather name="star" size={16} color="#FFD700" />
-          <ThemedText type="caption"> {vendor.rating || "New"}</ThemedText>
-        </View>
+      <Stack.Screen
+        name="Booking"
+        component={BookingScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
+      />
 
-        {vendor.description && (
-          <ThemedText style={styles.description}>
-            {vendor.description}
-          </ThemedText>
-        )}
+      <Stack.Screen
+        name="VendorDetail"
+        component={VendorDetailScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
 
-        {/* PRODUCTS SECTION */}
-        <ThemedText type="h3" style={styles.sectionTitle}>
-          Products
-        </ThemedText>
-        <ThemedText type="caption">
-          Vendor products will appear here soon.
-        </ThemedText>
+      <Stack.Screen
+        name="SessionDetail"
+        component={SessionDetailScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
 
-        {/* SERVICES SECTION */}
-        <ThemedText type="h3" style={styles.sectionTitle}>
-          Services
-        </ThemedText>
-        <ThemedText type="caption">
-          Vendor services will appear here soon.
-        </ThemedText>
-      </View>
-    </ScreenScrollView>
+      <Stack.Screen
+        name="PhotoGallery"
+        component={PhotoGalleryScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "fade",
+        }}
+      />
+
+      <Stack.Screen
+        name="Conversation"
+        component={ConversationScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="Payment"
+        component={PaymentScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+    </Stack.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  coverImage: {
-    width: "100%",
-    height: 220,
-    borderBottomLeftRadius: BorderRadius.lg,
-    borderBottomRightRadius: BorderRadius.lg,
-  },
-  content: {
-    padding: Spacing.lg,
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  description: {
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  sectionTitle: {
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-});

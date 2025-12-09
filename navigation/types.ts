@@ -1,5 +1,5 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
-import { Photographer, PhotographyCategory } from "@/types";
+import { Photographer, PhotographyCategory } from "@/context/DataContext";
 
 export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList>;

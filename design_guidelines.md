@@ -160,21 +160,29 @@
 ## Design System
 
 ### Color Palette
-**Primary:** Deep blue (#1A2B4A) - Trust, professionalism
-**Secondary:** Warm gold (#D4A574) - Premium, creativity
-**Accent:** Soft coral (#FF8A80) - Call-to-action, highlights
-**Neutrals:**
-- Background: #FFFFFF
-- Surface: #F8F9FA
-- Border: #E1E4E8
+**Primary (Light Mode):** Gold (#D4A84B) - Premium, luxury, warmth
+**Primary (Dark Mode):** Light Gold (#E5C77A) - Maintains visibility on dark backgrounds
+**Secondary:** Deep Gold (#C9A227) - Accent highlights
+**Neutrals (Light Mode):**
+- Background Root: #F8F8F8
+- Background Default: #FFFFFF
+- Surface: #F5F5F5
+- Border: #E5E5E5
 - Text Primary: #1A1A1A
-- Text Secondary: #6B7280
+- Text Secondary: #666666
+
+**Neutrals (Dark Mode):**
+- Background Root: #000000
+- Background Default: #1C1C1E
+- Surface: #2C2C2E
+- Border: #38383A
+- Text Primary: #FFFFFF
+- Text Secondary: #A0A0A0
 
 **Status Colors:**
-- Success: #10B981
-- Warning: #F59E0B
-- Error: #EF4444
-- Info: #3B82F6
+- Success: #34C759 (light) / #30D158 (dark)
+- Warning: Same as primary gold
+- Error: #FF3B30 (light) / #FF453A (dark)
 
 ### Typography
 - **Headers:** SF Pro Display (iOS) / Roboto (Android)
@@ -206,12 +214,12 @@
 ### Floating Action Button (Book)
 **Specifications:**
 - Size: 56x56px circle
-- Background: Accent color (#FF8A80)
-- Icon: Camera (Feather icon)
+- Background: Primary gold (#D4A84B light / #E5C77A dark)
+- Icon: Camera (Feather icon), white color
 - Shadow:
-  - shadowOffset: {width: 0, height: 2}
-  - shadowOpacity: 0.10
-  - shadowRadius: 2
+  - shadowOffset: {width: 0, height: 4}
+  - shadowOpacity: 0.30
+  - shadowRadius: 8
 - Position: Center of tab bar, elevated 8px above bar
 
 ### Photography Assets
