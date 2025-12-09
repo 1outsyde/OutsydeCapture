@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Pressable, RefreshControl } from "react-native";
+import { StyleSheet, View, Pressable, RefreshControl, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -77,6 +77,7 @@ const MOCK_ORDERS: Order[] = [
 export default function CartOrdersScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(MOCK_CART);
   const [orders] = useState<Order[]>(MOCK_ORDERS);
@@ -130,7 +131,12 @@ export default function CartOrdersScreen() {
   };
 
   return (
-    <ScreenScrollView
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.background }}
+      contentContainerStyle={{
+        padding: Spacing.lg,
+        paddingBottom: insets.bottom + Spacing.xl,
+      }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Cart Section */}
@@ -280,7 +286,7 @@ export default function CartOrdersScreen() {
           ))
         )}
       </View>
-    </ScreenScrollView>
+    </ScrollView>
   );
 }
 

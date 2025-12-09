@@ -98,7 +98,18 @@ Photographers and vendors can subscribe to one of three tiers:
 
 Tier badges are displayed on photographer cards in the Discover screen.
 
+## Safe Area Patterns
+- **Tab screens**: Use `ScreenScrollView`, `ScreenFlatList`, or `ScreenKeyboardAwareScrollView` - these use `useScreenInsets()` which requires being inside a tab navigator
+- **Modal screens**: Use regular `ScrollView` with manual `useSafeAreaInsets()` - modals are outside the tab navigator so `useBottomTabBarHeight()` will crash
+- DataContext Session uses `time` field (not startTime/endTime), status: "upcoming" | "completed" | "cancelled"
+
 ## Recent Changes
+- Merged vendors functionality into existing tabs:
+  - Shopping bag icon in Home header opens Cart/Orders modal
+  - Sessions/Upcoming tab shows "Orders In Progress" section
+  - Removed Vendors tab (now 5 bottom tabs: Home, Search, Upcoming, Messages, Account)
+- Created CartOrdersScreen with cart items and order history
+- Added Orders In Progress section to SessionsScreen
 - Transformed Discover tab into Home tab with social media-style feed
 - Added Post and Comment data structures with mock posts from photographers
 - Implemented Instagram-style feed with post cards, images, captions, likes, and comments
@@ -107,7 +118,7 @@ Tier badges are displayed on photographer cards in the Discover screen.
 - Added "Book" quick action button on each post for photographer booking
 - Added subscription tier badges (Premium/Pro/Basic) to photographer cards
 - Updated theme to gold/yellow color scheme with white/black backgrounds
-- Added Y logo branding to app header
+- Added Y logo branding to app header (only icon, no text)
 - Fixed type alignment between navigation and DataContext
 - Added push notifications system with booking confirmations
 - Added payment processing with user-scoped storage
