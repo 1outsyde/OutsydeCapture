@@ -15,7 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, SubscriptionTiers } from "@/constants/theme";
 import { CATEGORY_LABELS, CATEGORY_ICONS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
 import { useData, Photographer, PhotographyCategory } from "@/context/DataContext";
@@ -81,6 +81,20 @@ export default function DiscoverScreen() {
     navigation.navigate("PhotographerDetail", { photographer });
   };
 
+  const getTierBadge = (tier?: string) => {
+    if (!tier) return null;
+    const tierConfig = SubscriptionTiers[tier as keyof typeof SubscriptionTiers];
+    if (!tierConfig) return null;
+    return (
+      <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
+        <Feather name="award" size={10} color="#000000" />
+        <ThemedText type="small" style={styles.tierBadgeText}>
+          {tierConfig.label}
+        </ThemedText>
+      </View>
+    );
+  };
+
   // FEATURED CARD
   const renderFeaturedCard = (photographer: Photographer) => (
     <Pressable
@@ -96,6 +110,12 @@ export default function DiscoverScreen() {
         style={styles.featuredImage}
         contentFit="cover"
       />
+
+      {photographer.subscriptionTier ? (
+        <View style={styles.featuredTierBadge}>
+          {getTierBadge(photographer.subscriptionTier)}
+        </View>
+      ) : null}
 
       <View
         style={[
@@ -186,11 +206,18 @@ export default function DiscoverScreen() {
           },
         ]}
       >
-        <Image
-          source={{ uri: photographer.avatar }}
-          style={styles.photographerImage}
-          contentFit="cover"
-        />
+        <View>
+          <Image
+            source={{ uri: photographer.avatar }}
+            style={styles.photographerImage}
+            contentFit="cover"
+          />
+          {photographer.subscriptionTier ? (
+            <View style={styles.gridTierBadge}>
+              {getTierBadge(photographer.subscriptionTier)}
+            </View>
+          ) : null}
+        </View>
         <View style={styles.photographerInfo}>
           <ThemedText type="h4" numberOfLines={1}>
             {photographer.name}
@@ -369,5 +396,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: Spacing["3xl"],
+  },
+  tierBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xxs,
+  },
+  tierBadgeText: {
+    color: "#000000",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  featuredTierBadge: {
+    position: "absolute",
+    top: Spacing.sm,
+    left: Spacing.sm,
+    zIndex: 10,
+  },
+  gridTierBadge: {
+    position: "absolute",
+    top: Spacing.xs,
+    left: Spacing.xs,
   },
 });

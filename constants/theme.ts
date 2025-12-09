@@ -27,6 +27,9 @@ export const Colors = {
     cardElevated: "#FFFFFF",
     cardOverlay: "rgba(0, 0, 0, 0.4)",
     overlay: "rgba(0, 0, 0, 0.5)",
+    tierPremium: "#FFD700",
+    tierPro: "#C0C0C0",
+    tierBasic: "#CD7F32",
   },
   dark: {
     text: "#FFFFFF",
@@ -56,8 +59,17 @@ export const Colors = {
     cardElevated: "#2C2C2E",
     cardOverlay: "rgba(0, 0, 0, 0.6)",
     overlay: "rgba(0, 0, 0, 0.7)",
+    tierPremium: "#FFD700",
+    tierPro: "#C0C0C0",
+    tierBasic: "#CD7F32",
   },
 };
+
+export const SubscriptionTiers = {
+  premium: { label: "Premium", price: "$40/mo", color: "#FFD700" },
+  pro: { label: "Pro", price: "$30/mo", color: "#C0C0C0" },
+  basic: { label: "Basic", price: "$20/mo", color: "#CD7F32" },
+} as const;
 
 export const Spacing = {
   xxs: 2,
