@@ -64,10 +64,10 @@ Outsyde is a mobile app where clients can browse and book photographers, view up
 - **Account**: Profile editing, settings, guest login, logout
 
 ## Design System
-- **Primary**: Deep blue (#1A2B4A)
-- **Secondary**: Warm gold (#D4A574)
-- **Accent**: Soft coral (#FF8A80)
-- **Success**: Green (#4CAF50)
+- **Primary**: Gold/Yellow (#D4A84B light, #E5C77A dark)
+- **Background**: White (light mode), Black (dark mode)
+- **Success**: Green (#34C759)
+- **Tier Colors**: Premium (#FFD700 gold), Pro (#C0C0C0 silver), Basic (#CD7F32 bronze)
 - **iOS 26 Liquid Glass**: Transparent headers, blur effects
 
 ## Tech Stack
@@ -90,7 +90,19 @@ npm run dev
 - Scan QR code with Expo Go (iOS/Android)
 - Web version at http://localhost:8081
 
+## Subscription Tiers
+Photographers and vendors can subscribe to one of three tiers:
+- **Basic**: $20/mo (bronze badge)
+- **Pro**: $30/mo (silver badge)
+- **Premium**: $40/mo (gold badge)
+
+Tier badges are displayed on photographer cards in the Discover screen.
+
 ## Recent Changes
+- Added subscription tier badges (Premium/Pro/Basic) to photographer cards
+- Updated theme to gold/yellow color scheme with white/black backgrounds
+- Added Y logo branding to app header
+- Fixed type alignment between navigation and DataContext
 - Added push notifications system with booking confirmations
 - Added payment processing with user-scoped storage
 - Added in-app messaging between clients and photographers
