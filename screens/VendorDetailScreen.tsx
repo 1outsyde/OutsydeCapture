@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ScreenScrollView } from "@/components/ScreenScrollView";
@@ -11,11 +10,15 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 
 import { fetchVendorById } from "@/api/vendors";
 import { RootStackParamList } from "@/navigation/types";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
+// ⭐ Correct TypeScript typing for navigation props
 type Props = NativeStackScreenProps<RootStackParamList, "VendorDetail">;
 
 export default function VendorDetailScreen({ route }: Props) {
   const { theme } = useTheme();
+
+  // vendorId comes from navigation
   const { vendorId } = route.params;
 
   const [vendor, setVendor] = useState<any | null>(null);
@@ -29,14 +32,11 @@ export default function VendorDetailScreen({ route }: Props) {
     try {
       const data = await fetchVendorById(vendorId);
 
-      // When using /api/v1/businesses/:id the response is wrapped:
-      // { success: true, data: { business: {...} }}
-      const business =
-        data?.data?.business || data?.business || data;
-
-      setVendor(business);
-    } catch (err: any) {
-      console.error("Failed to fetch vendor:", err);
+      // Support both backend structures:
+      // { business: {...}} or { ...vendor }
+      setVendor(data.business ?? data);
+    } catch (err) {
+      console.error("Failed to load vendor:", err);
     } finally {
       setLoading(false);
     }
@@ -46,7 +46,7 @@ export default function VendorDetailScreen({ route }: Props) {
     return (
       <ScreenScrollView>
         <ActivityIndicator size="large" color={theme.accent} />
-        <ThemedText type="h4" style={{ marginTop: 16 }}>
+        <ThemedText type="h4" style={{ marginTop: 20 }}>
           Loading business…
         </ThemedText>
       </ScreenScrollView>
@@ -55,46 +55,43 @@ export default function VendorDetailScreen({ route }: Props) {
 
   return (
     <ScreenScrollView>
-      {/* COVER IMAGE */}
+      {/* Cover Image */}
       <Image
         source={{ uri: vendor.coverImage || vendor.logo }}
         style={styles.coverImage}
         contentFit="cover"
       />
 
-      {/* BODY CONTENT */}
       <View style={styles.content}>
+        {/* Business Name */}
         <ThemedText type="h2">{vendor.name}</ThemedText>
 
-        <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+        {/* City or fallback */}
+        <ThemedText type="small" style={{ color: theme.textSecondary }}>
           {vendor.city || "Local Business"}
         </ThemedText>
 
+        {/* Rating */}
         <View style={styles.ratingRow}>
           <Feather name="star" size={16} color="#FFD700" />
-          <ThemedText type="caption"> {vendor.rating || "New"}</ThemedText>
+          <ThemedText type="small">  {vendor.rating || "New"}</ThemedText>
         </View>
 
-        {vendor.description && (
-          <ThemedText style={styles.description}>
-            {vendor.description}
-          </ThemedText>
-        )}
+        {/* Description */}
+        {vendor.description ? (
+          <ThemedText style={styles.description}>{vendor.description}</ThemedText>
+        ) : null}
 
-        {/* PRODUCTS SECTION */}
-        <ThemedText type="h3" style={styles.sectionTitle}>
-          Products
-        </ThemedText>
+        {/* Products Section */}
+        <ThemedText type="h3" style={styles.sectionTitle}>Products</ThemedText>
         <ThemedText type="caption">
           Vendor products will appear here soon.
         </ThemedText>
 
-        {/* SERVICES SECTION */}
-        <ThemedText type="h3" style={styles.sectionTitle}>
-          Services
-        </ThemedText>
+        {/* Services Section */}
+        <ThemedText type="h3" style={styles.sectionTitle}>Services</ThemedText>
         <ThemedText type="caption">
-          Vendor services will appear here soon.
+          Vendor services will be listed here.
         </ThemedText>
       </View>
     </ScreenScrollView>
@@ -104,7 +101,7 @@ export default function VendorDetailScreen({ route }: Props) {
 const styles = StyleSheet.create({
   coverImage: {
     width: "100%",
-    height: 220,
+    height: 230,
     borderBottomLeftRadius: BorderRadius.lg,
     borderBottomRightRadius: BorderRadius.lg,
   },

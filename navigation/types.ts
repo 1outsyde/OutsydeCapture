@@ -7,6 +7,10 @@ export type RootStackParamList = {
   SelectPhotographer: undefined;
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer: Photographer };
+
+  /** ⭐ Vendor storefront screen */
+  VendorDetail: { vendorId: string };
+
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };
@@ -21,6 +25,10 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   DiscoverTab: NavigatorScreenParams<DiscoverStackParamList>;
   SearchTab: undefined;
+
+  /** ⭐ The new Vendors tab */
+  VendorsTab: undefined;
+
   SessionsTab: undefined;
   MessagesTab: undefined;
   AccountTab: NavigatorScreenParams<AccountStackParamList>;
@@ -40,6 +48,21 @@ export type AccountStackParamList = {
 export type BookingStackParamList = {
   SelectDate: { photographer: Photographer };
   SelectTime: { photographer: Photographer; date: string };
-  BookingDetails: { photographer: Photographer; date: string; timeSlotId: string; startTime: string; endTime: string };
-  ReviewConfirm: { photographer: Photographer; date: string; timeSlotId: string; startTime: string; endTime: string; location: string; sessionType: PhotographyCategory; notes: string };
+  BookingDetails: {
+    photographer: Photographer;
+    date: string;
+    timeSlotId: string;
+    startTime: string;
+    endTime: string;
+  };
+  ReviewConfirm: {
+    photographer: Photographer;
+    date: string;
+    timeSlotId: string;
+    startTime: string;
+    endTime: string;
+    location: string;
+    sessionType: PhotographyCategory;
+    notes: string;
+  };
 };

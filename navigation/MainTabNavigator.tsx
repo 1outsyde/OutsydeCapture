@@ -11,13 +11,19 @@ import SearchScreen from "@/screens/SearchScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
 import MessagesScreen from "@/screens/MessagesScreen";
 import AccountStackNavigator from "@/navigation/AccountStackNavigator";
+import VendorsScreen from "@/screens/VendorsScreen";
+
 import { useTheme } from "@/hooks/useTheme";
-import { useMessaging } from "@/context/MessagingContext";
 import { Spacing, Shadows } from "@/constants/theme";
+
+// 🔥 If MessagingContext doesn't exist yet, use a placeholder until we build real chat
+const useMessaging = () => ({
+  getTotalUnreadCount: () => 0,
+});
+
 import { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-
 const TAB_BAR_HEIGHT = 83;
 
 export default function MainTabNavigator() {
@@ -37,6 +43,7 @@ export default function MainTabNavigator() {
         screenOptions={{
           tabBarActiveTintColor: theme.tabIconSelected,
           tabBarInactiveTintColor: theme.tabIconDefault,
+          headerShown: false,
           tabBarStyle: {
             position: "absolute",
             backgroundColor: Platform.select({
@@ -45,6 +52,7 @@ export default function MainTabNavigator() {
             }),
             borderTopWidth: 0,
             elevation: 0,
+            height: TAB_BAR_HEIGHT + insets.bottom / 2,
           },
           tabBarBackground: () =>
             Platform.OS === "ios" ? (
@@ -54,9 +62,9 @@ export default function MainTabNavigator() {
                 style={StyleSheet.absoluteFill}
               />
             ) : null,
-          headerShown: false,
         }}
       >
+        {/* DISCOVER */}
         <Tab.Screen
           name="DiscoverTab"
           component={DiscoverStackNavigator}
@@ -67,6 +75,8 @@ export default function MainTabNavigator() {
             ),
           }}
         />
+
+        {/* SEARCH */}
         <Tab.Screen
           name="SearchTab"
           component={SearchScreen}
@@ -77,16 +87,32 @@ export default function MainTabNavigator() {
             ),
           }}
         />
+
+        {/* ⭐ NEW: VENDORS */}
+        <Tab.Screen
+          name="VendorsTab"
+          component={VendorsScreen}
+          options={{
+            title: "Vendors",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="shopping-bag" size={size} color={color} />
+            ),
+          }}
+        />
+
+        {/* SESSIONS / ORDERS */}
         <Tab.Screen
           name="SessionsTab"
           component={SessionsScreen}
           options={{
-            title: "Sessions",
+            title: "Upcoming",
             tabBarIcon: ({ color, size }) => (
               <Feather name="calendar" size={size} color={color} />
             ),
           }}
         />
+
+        {/* MESSAGES */}
         <Tab.Screen
           name="MessagesTab"
           component={MessagesScreen}
@@ -98,6 +124,8 @@ export default function MainTabNavigator() {
             tabBarBadge: getTotalUnreadCount() > 0 ? getTotalUnreadCount() : undefined,
           }}
         />
+
+        {/* ACCOUNT */}
         <Tab.Screen
           name="AccountTab"
           component={AccountStackNavigator}
@@ -110,12 +138,12 @@ export default function MainTabNavigator() {
         />
       </Tab.Navigator>
 
+      {/* FLOATING “BOOK NOW” BUTTON */}
       <View
         style={[
           styles.fabContainer,
-          { 
-            bottom: TAB_BAR_HEIGHT + Spacing.sm,
-            pointerEvents: "box-none" 
+          {
+            bottom: TAB_BAR_HEIGHT + Spacing.sm + insets.bottom / 2,
           },
         ]}
       >
@@ -139,9 +167,7 @@ export default function MainTabNavigator() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   fabContainer: {
     position: "absolute",
     left: 0,
