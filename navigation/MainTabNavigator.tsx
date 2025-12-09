@@ -64,14 +64,14 @@ export default function MainTabNavigator() {
             ) : null,
         }}
       >
-        {/* DISCOVER */}
+        {/* HOME */}
         <Tab.Screen
           name="DiscoverTab"
           component={DiscoverStackNavigator}
           options={{
-            title: "Discover",
+            title: "Home",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="compass" size={size} color={color} />
+              <Feather name="home" size={size} color={color} />
             ),
           }}
         />

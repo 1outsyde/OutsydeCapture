@@ -38,9 +38,33 @@ export interface Session {
   photos?: string[];
 }
 
+export interface Comment {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface Post {
+  id: string;
+  photographerId: string;
+  photographerName: string;
+  photographerAvatar: string;
+  subscriptionTier?: "basic" | "pro" | "premium";
+  image: string;
+  caption: string;
+  likes: number;
+  isLiked: boolean;
+  comments: Comment[];
+  createdAt: string;
+}
+
 interface DataContextType {
   photographers: Photographer[];
   sessions: Session[];
+  posts: Post[];
   isLoading: boolean;
   error: string | null;
   refreshPhotographers: () => Promise<void>;
@@ -49,6 +73,8 @@ interface DataContextType {
   getPhotographer: (id: string) => Photographer | undefined;
   getUpcomingSessions: () => Session[];
   getPastSessions: () => Session[];
+  likePost: (postId: string) => void;
+  addComment: (postId: string, text: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -156,10 +182,87 @@ const MOCK_PHOTOGRAPHERS: Photographer[] = [
 
 const getSessionsKey = (userId: string) => `@outsyde_sessions_${userId}`;
 
+const MOCK_POSTS: Post[] = [
+  {
+    id: "post1",
+    photographerId: "p1",
+    photographerName: "Sarah Mitchell",
+    photographerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+    subscriptionTier: "premium",
+    image: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800",
+    caption: "Just wrapped up an amazing portrait session in Central Park! The golden hour light was absolutely perfect today.",
+    likes: 47,
+    isLiked: false,
+    comments: [
+      { id: "c1", userId: "u1", userName: "Emily Rose", userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100", text: "Stunning work as always!", createdAt: "2025-01-10T14:30:00Z" },
+      { id: "c2", userId: "u2", userName: "Mike Chen", userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", text: "Love the lighting!", createdAt: "2025-01-10T15:00:00Z" },
+    ],
+    createdAt: "2025-01-10T12:00:00Z",
+  },
+  {
+    id: "post2",
+    photographerId: "p2",
+    photographerName: "James Chen",
+    photographerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    subscriptionTier: "pro",
+    image: "https://images.unsplash.com/photo-1519741497674-611481863552?w=800",
+    caption: "Behind the scenes from Saturday's wedding. Such an emotional and beautiful ceremony!",
+    likes: 89,
+    isLiked: false,
+    comments: [
+      { id: "c3", userId: "u3", userName: "Lisa Wang", userAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100", text: "This is gorgeous!", createdAt: "2025-01-09T18:00:00Z" },
+    ],
+    createdAt: "2025-01-09T16:00:00Z",
+  },
+  {
+    id: "post3",
+    photographerId: "p4",
+    photographerName: "Marcus Johnson",
+    photographerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
+    subscriptionTier: "premium",
+    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800",
+    caption: "New product shoot for a luxury watch brand. Clean, minimal, timeless.",
+    likes: 156,
+    isLiked: false,
+    comments: [],
+    createdAt: "2025-01-08T10:00:00Z",
+  },
+  {
+    id: "post4",
+    photographerId: "p5",
+    photographerName: "Olivia Park",
+    photographerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
+    subscriptionTier: "pro",
+    image: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800",
+    caption: "Editorial shoot for Vogue Italia. Dreams do come true!",
+    likes: 234,
+    isLiked: false,
+    comments: [
+      { id: "c4", userId: "u4", userName: "Alex Kim", userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100", text: "Congratulations! Well deserved!", createdAt: "2025-01-07T20:00:00Z" },
+      { id: "c5", userId: "u5", userName: "Jordan Lee", userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100", text: "Incredible achievement!", createdAt: "2025-01-07T21:00:00Z" },
+    ],
+    createdAt: "2025-01-07T14:00:00Z",
+  },
+  {
+    id: "post5",
+    photographerId: "p3",
+    photographerName: "Emma Rodriguez",
+    photographerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
+    subscriptionTier: "basic",
+    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800",
+    caption: "Corporate event photography at its finest. Over 500 guests and every moment captured!",
+    likes: 42,
+    isLiked: false,
+    comments: [],
+    createdAt: "2025-01-06T09:00:00Z",
+  },
+];
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const [photographers, setPhotographers] = useState<Photographer[]>(MOCK_PHOTOGRAPHERS);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -249,11 +352,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getPastSessions = () =>
     sessions.filter((s) => s.status === "completed" || s.status === "cancelled").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  const likePost = (postId: string) => {
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? { ...post, isLiked: !post.isLiked, likes: post.isLiked ? post.likes - 1 : post.likes + 1 }
+          : post
+      )
+    );
+  };
+
+  const addComment = (postId: string, text: string) => {
+    if (!user || !text.trim()) return;
+    const newComment: Comment = {
+      id: `comment_${Date.now()}`,
+      userId: user.id,
+      userName: user.name || "Anonymous",
+      userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100",
+      text: text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId ? { ...post, comments: [...post.comments, newComment] } : post
+      )
+    );
+  };
+
   return (
     <DataContext.Provider
       value={{
         photographers,
         sessions,
+        posts,
         isLoading,
         error,
         refreshPhotographers,
@@ -262,6 +393,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         getPhotographer,
         getUpcomingSessions,
         getPastSessions,
+        likePost,
+        addComment,
       }}
     >
       {children}
