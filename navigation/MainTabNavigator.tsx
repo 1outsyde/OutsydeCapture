@@ -11,7 +11,6 @@ import SearchScreen from "@/screens/SearchScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
 import MessagesScreen from "@/screens/MessagesScreen";
 import AccountStackNavigator from "@/navigation/AccountStackNavigator";
-import VendorsScreen from "@/screens/VendorsScreen";
 
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Shadows } from "@/constants/theme";
@@ -84,18 +83,6 @@ export default function MainTabNavigator() {
             title: "Search",
             tabBarIcon: ({ color, size }) => (
               <Feather name="search" size={size} color={color} />
-            ),
-          }}
-        />
-
-        {/* ⭐ NEW: VENDORS */}
-        <Tab.Screen
-          name="VendorsTab"
-          component={VendorsScreen}
-          options={{
-            title: "Vendors",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="shopping-bag" size={size} color={color} />
             ),
           }}
         />

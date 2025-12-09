@@ -11,6 +11,7 @@ import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
 import PaymentScreen from "@/screens/PaymentScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
+import CartOrdersScreen from "@/screens/CartOrdersScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -107,6 +108,19 @@ export default function RootNavigator() {
         options={{
           presentation: "modal",
           animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="CartOrders"
+        component={CartOrdersScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Cart & Orders",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
         }}
       />
     </Stack.Navigator>

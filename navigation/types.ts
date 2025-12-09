@@ -7,13 +7,11 @@ export type RootStackParamList = {
   SelectPhotographer: undefined;
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer: Photographer };
-
-  /** ⭐ Vendor storefront screen */
   VendorDetail: { vendorId: string };
-
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };
+  CartOrders: undefined;
   Payment: {
     sessionId: string;
     amount: number;
@@ -25,10 +23,6 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   DiscoverTab: NavigatorScreenParams<DiscoverStackParamList>;
   SearchTab: undefined;
-
-  /** ⭐ The new Vendors tab */
-  VendorsTab: undefined;
-
   SessionsTab: undefined;
   MessagesTab: undefined;
   AccountTab: NavigatorScreenParams<AccountStackParamList>;
