@@ -1,7 +1,7 @@
-# Outsyde - Photography Booking App
+# Outsyde - Photography & Vendor Marketplace App
 
 ## Overview
-Outsyde is a mobile app where clients can browse and book photographers, view upcoming sessions, manage their account, communicate with photographers, and process payments. Built with Expo/React Native for iOS, Android, and web platforms.
+Outsyde is a social photography and vendor marketplace app where clients browse a mixed feed of photographer and vendor/store posts, interact via likes/comments, book photography sessions, purchase products from vendors, and communicate through in-app messaging. Built with Expo/React Native for iOS, Android, and web platforms.
 
 ## Project Structure
 ```
@@ -104,25 +104,23 @@ Tier badges are displayed on photographer cards in the Discover screen.
 - DataContext Session uses `time` field (not startTime/endTime), status: "upcoming" | "completed" | "cancelled"
 
 ## Recent Changes
+- Mixed feed now supports both photographer AND vendor/store posts:
+  - Photographer posts: show "Photographer" label, "Book" button for booking sessions
+  - Vendor posts: show "Vendor" label, product info (name + price), "Add to Cart" button
+  - Post interface updated with `type: "photographer" | "vendor"` and author fields
+- Cart/Orders updated with diverse vendor products:
+  - PrintMaster Studio, MemoryBook Co, LensCraft Gear, PhotoGear Pro
+  - Products include: canvas prints, photo albums, camera straps, ring lights
+- Orders In Progress section shows orders from various vendors
 - Merged vendors functionality into existing tabs:
   - Shopping bag icon in Home header opens Cart/Orders modal
   - Sessions/Upcoming tab shows "Orders In Progress" section
-  - Removed Vendors tab (now 5 bottom tabs: Home, Search, Upcoming, Messages, Account)
-- Created CartOrdersScreen with cart items and order history
-- Added Orders In Progress section to SessionsScreen
-- Transformed Discover tab into Home tab with social media-style feed
-- Added Post and Comment data structures with mock posts from photographers
+  - Streamlined to 5 bottom tabs: Home, Search, Upcoming, Messages, Account
 - Implemented Instagram-style feed with post cards, images, captions, likes, and comments
-- Added interactive like button (toggles red when liked)
-- Added expandable comments section with ability to add new comments
-- Added "Book" quick action button on each post for photographer booking
-- Added subscription tier badges (Premium/Pro/Basic) to photographer cards
+- Added subscription tier badges (Premium/Pro/Basic) with different icons for vendors vs photographers
 - Updated theme to gold/yellow color scheme with white/black backgrounds
 - Added Y logo branding to app header (only icon, no text)
-- Fixed type alignment between navigation and DataContext
-- Added push notifications system with booking confirmations
-- Added payment processing with user-scoped storage
-- Added in-app messaging between clients and photographers
+- Added push notifications, payment processing, and in-app messaging
 - Added photo galleries for completed sessions
 - Added guest login for testing
 - Fixed booking confirmation modal for web compatibility
