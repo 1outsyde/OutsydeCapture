@@ -1,22 +1,22 @@
 import React from "react";
-import { View, StyleSheet, Image } from "react-native";
+import { View, StyleSheet } from "react-native";
 
-import { BorderRadius } from "@/constants/theme";
+import { ThemedText } from "@/components/ThemedText";
+import { useTheme } from "@/hooks/useTheme";
+import { Spacing } from "@/constants/theme";
 
 interface HeaderTitleProps {
   title?: string;
 }
 
 export function HeaderTitle({ title }: HeaderTitleProps) {
+  const { theme } = useTheme();
+  
   return (
     <View style={styles.container}>
-      <View style={[styles.iconContainer, { backgroundColor: "#000000" }]}>
-        <Image
-          source={require("../assets/logo.jpg")}
-          style={styles.icon}
-          resizeMode="cover"
-        />
-      </View>
+      <ThemedText type="h2" style={[styles.title, { color: theme.primary }]}>
+        Outsyde
+      </ThemedText>
     </View>
   );
 }
@@ -27,14 +27,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
-    overflow: "hidden",
-  },
-  icon: {
-    width: 40,
-    height: 40,
+  title: {
+    fontWeight: "700",
+    letterSpacing: 1,
   },
 });
