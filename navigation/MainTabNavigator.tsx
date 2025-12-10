@@ -1,9 +1,8 @@
 import React from "react";
-import { StyleSheet, Pressable, View, Platform } from "react-native";
+import { StyleSheet, View, Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import DiscoverStackNavigator from "@/navigation/DiscoverStackNavigator";
@@ -13,27 +12,20 @@ import MessagesScreen from "@/screens/MessagesScreen";
 import AccountStackNavigator from "@/navigation/AccountStackNavigator";
 
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, Shadows } from "@/constants/theme";
 
-// 🔥 If MessagingContext doesn't exist yet, use a placeholder until we build real chat
 const useMessaging = () => ({
   getTotalUnreadCount: () => 0,
 });
 
-import { MainTabParamList, RootStackParamList } from "@/navigation/types";
+import { MainTabParamList } from "@/navigation/types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 83;
 
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { getTotalUnreadCount } = useMessaging();
-
-  const handleBookPress = () => {
-    navigation.navigate("SelectPhotographer");
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -124,49 +116,10 @@ export default function MainTabNavigator() {
           }}
         />
       </Tab.Navigator>
-
-      {/* FLOATING “BOOK NOW” BUTTON */}
-      <View
-        style={[
-          styles.fabContainer,
-          {
-            bottom: TAB_BAR_HEIGHT + Spacing.sm + insets.bottom / 2,
-          },
-        ]}
-      >
-        <Pressable
-          onPress={handleBookPress}
-          style={({ pressed }) => [
-            styles.fab,
-            {
-              backgroundColor: theme.accent,
-              transform: [{ scale: pressed ? 0.92 : 1 }],
-              opacity: pressed ? 0.9 : 1,
-            },
-            Shadows.fab,
-          ]}
-        >
-          <Feather name="camera" size={24} color="#FFFFFF" />
-        </Pressable>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  fabContainer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 100,
-  },
-  fab: {
-    width: Spacing.fabSize,
-    height: Spacing.fabSize,
-    borderRadius: Spacing.fabSize / 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 });
