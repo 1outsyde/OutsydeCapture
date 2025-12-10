@@ -14,6 +14,7 @@ import { MessagingProvider } from "@/context/MessagingContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { PaymentProvider } from "@/context/PaymentContext";
 import { LoyaltyProvider } from "@/context/LoyaltyContext";
+import { OrdersProvider } from "@/context/OrdersContext";
 import { Colors } from "@/constants/theme";
 
 export default function App() {
@@ -28,17 +29,19 @@ export default function App() {
           <KeyboardProvider>
             <AuthProvider>
               <DataProvider>
-                <PaymentProvider>
-                  <LoyaltyProvider>
-                    <NotificationProvider>
-                      <MessagingProvider>
-                        <NavigationContainer>
-                          <RootNavigator />
-                        </NavigationContainer>
-                      </MessagingProvider>
-                    </NotificationProvider>
-                  </LoyaltyProvider>
-                </PaymentProvider>
+                <OrdersProvider>
+                  <PaymentProvider>
+                    <LoyaltyProvider>
+                      <NotificationProvider>
+                        <MessagingProvider>
+                          <NavigationContainer>
+                            <RootNavigator />
+                          </NavigationContainer>
+                        </MessagingProvider>
+                      </NotificationProvider>
+                    </LoyaltyProvider>
+                  </PaymentProvider>
+                </OrdersProvider>
               </DataProvider>
             </AuthProvider>
             <StatusBar style={isDark ? "light" : "dark"} />

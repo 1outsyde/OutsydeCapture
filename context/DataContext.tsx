@@ -85,6 +85,7 @@ interface DataContextType {
   getPhotographer: (id: string) => Photographer | undefined;
   getUpcomingSessions: () => Session[];
   getPastSessions: () => Session[];
+  hasCompletedSessionWith: (photographerId: string, photographerName?: string) => boolean;
   likePost: (postId: string) => void;
   addComment: (postId: string, text: string) => void;
 }
@@ -430,6 +431,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       if (storedSessions) {
         setSessions(JSON.parse(storedSessions));
+      } else {
+        const mockCompletedSessions: Session[] = [
+          {
+            id: "demo_session_1",
+            photographerId: "p1",
+            photographerName: "Sarah Mitchell",
+            photographerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+            date: "2024-12-15",
+            time: "10:00 AM",
+            location: "Central Park, New York",
+            sessionType: "Portrait Session",
+            status: "completed",
+            price: 200,
+            photos: [],
+          },
+          {
+            id: "demo_session_2",
+            photographerId: "p2",
+            photographerName: "James Chen",
+            photographerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+            date: "2024-12-10",
+            time: "2:00 PM",
+            location: "Malibu Beach, CA",
+            sessionType: "Wedding Photos",
+            status: "completed",
+            price: 350,
+            photos: [],
+          },
+        ];
+        setSessions(mockCompletedSessions);
+        await AsyncStorage.setItem(getSessionsKey(user.id), JSON.stringify(mockCompletedSessions));
       }
     } catch (err) {
       console.error("Failed to load data:", err);
@@ -490,6 +522,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getPastSessions = () =>
     sessions.filter((s) => s.status === "completed" || s.status === "cancelled").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  const hasCompletedSessionWith = useCallback((photographerId: string, photographerName?: string): boolean => {
+    return sessions.some((session) => {
+      if (session.status !== "completed") return false;
+      if (session.photographerId === photographerId) return true;
+      if (photographerName && session.photographerName.toLowerCase().includes(photographerName.toLowerCase())) return true;
+      return false;
+    });
+  }, [sessions]);
+
   const likePost = (postId: string) => {
     setPosts((prev) =>
       prev.map((post) =>
@@ -531,6 +572,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         getPhotographer,
         getUpcomingSessions,
         getPastSessions,
+        hasCompletedSessionWith,
         likePost,
         addComment,
       }}

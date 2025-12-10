@@ -21,6 +21,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, SubscriptionTiers } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useData, Post } from "@/context/DataContext";
+import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -28,6 +29,7 @@ export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { posts, photographers, isLoading, likePost, addComment, getPhotographer } = useData();
+  const { checkEligibility } = useRatingEligibility();
 
   const [refreshing, setRefreshing] = useState(false);
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
@@ -76,6 +78,17 @@ export default function DiscoverScreen() {
   };
 
   const handleRatePress = (post: Post) => {
+    const eligibility = checkEligibility(post);
+    
+    if (!eligibility.canRate) {
+      Alert.alert(
+        "Rating Not Available",
+        eligibility.reason,
+        [{ text: "OK", style: "default" }]
+      );
+      return;
+    }
+
     const authorType = post.type === "vendor" ? "vendor" : "photographer";
     Alert.alert(
       `Rate ${post.authorName}`,
