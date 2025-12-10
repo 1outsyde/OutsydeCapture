@@ -13,6 +13,7 @@ import { DataProvider } from "@/context/DataContext";
 import { MessagingProvider } from "@/context/MessagingContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { PaymentProvider } from "@/context/PaymentContext";
+import { LoyaltyProvider } from "@/context/LoyaltyContext";
 import { Colors } from "@/constants/theme";
 
 export default function App() {
@@ -28,13 +29,15 @@ export default function App() {
             <AuthProvider>
               <DataProvider>
                 <PaymentProvider>
-                  <NotificationProvider>
-                    <MessagingProvider>
-                      <NavigationContainer>
-                        <RootNavigator />
-                      </NavigationContainer>
-                    </MessagingProvider>
-                  </NotificationProvider>
+                  <LoyaltyProvider>
+                    <NotificationProvider>
+                      <MessagingProvider>
+                        <NavigationContainer>
+                          <RootNavigator />
+                        </NavigationContainer>
+                      </MessagingProvider>
+                    </NotificationProvider>
+                  </LoyaltyProvider>
                 </PaymentProvider>
               </DataProvider>
             </AuthProvider>

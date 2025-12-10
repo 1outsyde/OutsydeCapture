@@ -37,6 +37,7 @@ export type AccountStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   Notifications: undefined;
+  OutsydePoints: undefined;
 };
 
 export type BookingStackParamList = {

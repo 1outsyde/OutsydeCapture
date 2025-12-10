@@ -10,6 +10,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { useLoyalty } from "@/context/LoyaltyContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
 import { useNotifications } from "@/context/NotificationContext";
@@ -24,6 +25,7 @@ export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { user, isAuthenticated, logout, updateProfile } = useAuth();
+  const { points } = useLoyalty();
   const { unreadCount } = useNotifications();
   
   const [isEditing, setIsEditing] = useState(false);
@@ -97,7 +99,7 @@ export default function AccountScreen() {
             Sign in to book photographers, manage sessions, and more
           </ThemedText>
           <Button
-            onPress={() => navigation.navigate("Auth")}
+            onPress={() => (navigation as any).navigate("Auth")}
             style={styles.authButton}
           >
             Sign In or Sign Up
@@ -199,6 +201,29 @@ export default function AccountScreen() {
         </View>
       ) : (
         <>
+          <Pressable
+            onPress={() => navigation.navigate("OutsydePoints")}
+            style={({ pressed }) => [
+              styles.pointsCard,
+              { backgroundColor: theme.primary, opacity: pressed ? 0.9 : 1 },
+            ]}
+          >
+            <View style={styles.pointsCardContent}>
+              <View style={styles.pointsInfo}>
+                <Feather name="star" size={24} color="#FFFFFF" />
+                <View style={styles.pointsTextContainer}>
+                  <ThemedText type="small" style={{ color: "rgba(255,255,255,0.8)" }}>
+                    Outsyde Points
+                  </ThemedText>
+                  <ThemedText type="h2" style={{ color: "#FFFFFF" }}>
+                    {points.toLocaleString()}
+                  </ThemedText>
+                </View>
+              </View>
+              <Feather name="chevron-right" size={24} color="#FFFFFF" />
+            </View>
+          </Pressable>
+
           <View style={styles.section}>
             <ThemedText type="h4" style={styles.sectionTitle}>
               Account
@@ -452,5 +477,22 @@ const styles = StyleSheet.create({
     minWidth: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+  pointsCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    marginBottom: Spacing["2xl"],
+  },
+  pointsCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pointsInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pointsTextContainer: {
+    marginLeft: Spacing.md,
   },
 });
