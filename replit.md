@@ -9,7 +9,9 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 ├── app.json                   # Expo configuration
 ├── context/
 │   ├── AuthContext.tsx        # Authentication (SSO + guest login)
-│   ├── DataContext.tsx        # Photographers and sessions data
+│   ├── DataContext.tsx        # Photographers, sessions, posts data
+│   ├── OrdersContext.tsx      # Orders management with rating eligibility
+│   ├── LoyaltyContext.tsx     # Outsyde Points loyalty system
 │   ├── NotificationContext.tsx # Push notifications system
 │   ├── PaymentContext.tsx     # Payment processing (per-user scoped)
 │   └── MessagesContext.tsx    # In-app messaging
@@ -48,7 +50,8 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 ├── hooks/
 │   ├── useTheme.ts           # Theme hook
 │   ├── useColorScheme.ts     # Color scheme detection
-│   └── useScreenInsets.ts    # Safe area insets
+│   ├── useScreenInsets.ts    # Safe area insets
+│   └── useRatingEligibility.ts # Rating verification hook
 └── types/
     └── index.ts              # TypeScript types
 ```
@@ -125,3 +128,11 @@ Tier badges are displayed on photographer cards in the Discover screen.
 - Added guest login for testing
 - Fixed booking confirmation modal for web compatibility
 - Implemented cross-platform alert handling
+- Added Outsyde Points loyalty system:
+  - Points earned for bookings (50), purchases (10 per $1), reviews (25), referrals (100)
+  - Points card in Account tab, detail screen with history and ways to earn
+- Added rating verification system:
+  - Only users with completed sessions can rate photographers
+  - Only users with delivered orders can rate vendors
+  - Uses useRatingEligibility hook combining DataContext and OrdersContext
+  - Shows friendly message when user is not eligible to rate
