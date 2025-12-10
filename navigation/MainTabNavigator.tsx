@@ -36,7 +36,7 @@ export default function MainTabNavigator() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <Tab.Navigator
         initialRouteName="DiscoverTab"
         screenOptions={{

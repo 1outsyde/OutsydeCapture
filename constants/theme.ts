@@ -30,6 +30,7 @@ export const Colors = {
     tierPremium: "#FFD700",
     tierPro: "#C0C0C0",
     tierBasic: "#CD7F32",
+    link: "#007AFF",
   },
   dark: {
     text: "#FFFFFF",
@@ -62,6 +63,7 @@ export const Colors = {
     tierPremium: "#FFD700",
     tierPro: "#C0C0C0",
     tierBasic: "#CD7F32",
+    link: "#0A84FF",
   },
 };
 
@@ -154,6 +156,11 @@ export const Typography = {
   button: {
     fontSize: 17,
     fontWeight: "600" as const,
+    lineHeight: 22,
+  },
+  link: {
+    fontSize: 17,
+    fontWeight: "400" as const,
     lineHeight: 22,
   },
 };

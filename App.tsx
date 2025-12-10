@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, useColorScheme } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -13,12 +13,17 @@ import { DataProvider } from "@/context/DataContext";
 import { MessagingProvider } from "@/context/MessagingContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { PaymentProvider } from "@/context/PaymentContext";
+import { Colors } from "@/constants/theme";
 
 export default function App() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const theme = Colors[colorScheme ?? "light"];
+
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <GestureHandlerRootView style={styles.root}>
+        <GestureHandlerRootView style={[styles.root, { backgroundColor: theme.backgroundRoot }]}>
           <KeyboardProvider>
             <AuthProvider>
               <DataProvider>
@@ -33,7 +38,7 @@ export default function App() {
                 </PaymentProvider>
               </DataProvider>
             </AuthProvider>
-            <StatusBar style="auto" />
+            <StatusBar style={isDark ? "light" : "dark"} />
           </KeyboardProvider>
         </GestureHandlerRootView>
       </SafeAreaProvider>
