@@ -5,6 +5,39 @@ import { fetchPhotographers } from "@/api/photographers";
 
 export type PhotographyCategory = "portrait" | "wedding" | "events" | "product" | "nature" | "fashion";
 
+export type BusinessType = "photography" | "cinematography" | "food" | "fashion" | "services";
+
+export interface Business {
+  id: string;
+  name: string;
+  avatar: string;
+  type: BusinessType;
+  category: string;
+  city: string;
+  state: string;
+  rating: number;
+  priceRange: string;
+  description: string;
+  featured?: boolean;
+  subscriptionTier?: "basic" | "pro" | "premium";
+}
+
+export const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = {
+  photography: "Photography",
+  cinematography: "Cinematography",
+  food: "Food & Dining",
+  fashion: "Fashion & Clothes",
+  services: "Local Services",
+};
+
+export const BUSINESS_TYPE_ICONS: Record<BusinessType, string> = {
+  photography: "camera",
+  cinematography: "video",
+  food: "coffee",
+  fashion: "shopping-bag",
+  services: "briefcase",
+};
+
 export interface Photographer {
   id: string;
   name: string;
@@ -77,6 +110,7 @@ interface DataContextType {
   photographers: Photographer[];
   sessions: Session[];
   posts: Post[];
+  businesses: Business[];
   isLoading: boolean;
   error: string | null;
   refreshPhotographers: () => Promise<void>;
@@ -397,11 +431,259 @@ const MOCK_POSTS: Post[] = [
   },
 ];
 
+const MOCK_BUSINESSES: Business[] = [
+  // Photography
+  {
+    id: "b1",
+    name: "Sarah Mitchell Photography",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+    type: "photography",
+    category: "Portrait",
+    city: "New York",
+    state: "NY",
+    rating: 4.9,
+    priceRange: "$150-300/hr",
+    description: "Award-winning portrait photographer with 10+ years of experience.",
+    featured: true,
+    subscriptionTier: "premium",
+  },
+  {
+    id: "b2",
+    name: "James Chen Wedding Photos",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    type: "photography",
+    category: "Wedding",
+    city: "Los Angeles",
+    state: "CA",
+    rating: 4.8,
+    priceRange: "$200-500/hr",
+    description: "Capturing the magic of your special day with candid and artistic styles.",
+    subscriptionTier: "pro",
+  },
+  {
+    id: "b3",
+    name: "Miami Product Studios",
+    avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200",
+    type: "photography",
+    category: "Product",
+    city: "Miami",
+    state: "FL",
+    rating: 4.9,
+    priceRange: "$175-400/hr",
+    description: "E-commerce and product photography specialist helping brands shine.",
+    subscriptionTier: "premium",
+  },
+  // Cinematography
+  {
+    id: "b4",
+    name: "Skyline Films",
+    avatar: "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=200",
+    type: "cinematography",
+    category: "Wedding Films",
+    city: "Los Angeles",
+    state: "CA",
+    rating: 4.9,
+    priceRange: "$2000-5000",
+    description: "Cinematic wedding films that tell your love story beautifully.",
+    featured: true,
+    subscriptionTier: "premium",
+  },
+  {
+    id: "b5",
+    name: "Urban Motion Pictures",
+    avatar: "https://images.unsplash.com/photo-1492724441997-5dc865305da7?w=200",
+    type: "cinematography",
+    category: "Commercial",
+    city: "Chicago",
+    state: "IL",
+    rating: 4.7,
+    priceRange: "$3000-10000",
+    description: "Commercial video production for brands and businesses.",
+    subscriptionTier: "pro",
+  },
+  {
+    id: "b6",
+    name: "Documentary Dreams",
+    avatar: "https://images.unsplash.com/photo-1579965342575-16428a7c8881?w=200",
+    type: "cinematography",
+    category: "Documentary",
+    city: "Austin",
+    state: "TX",
+    rating: 4.8,
+    priceRange: "$1500-4000",
+    description: "Authentic documentary-style storytelling for events and projects.",
+    subscriptionTier: "basic",
+  },
+  // Food & Dining
+  {
+    id: "b7",
+    name: "The Golden Fork",
+    avatar: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200",
+    type: "food",
+    category: "Fine Dining",
+    city: "New York",
+    state: "NY",
+    rating: 4.8,
+    priceRange: "$$$$",
+    description: "Upscale American cuisine with a modern twist in Manhattan.",
+    featured: true,
+    subscriptionTier: "premium",
+  },
+  {
+    id: "b8",
+    name: "Bella Italia Trattoria",
+    avatar: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200",
+    type: "food",
+    category: "Italian",
+    city: "Chicago",
+    state: "IL",
+    rating: 4.6,
+    priceRange: "$$$",
+    description: "Authentic Italian dishes made with family recipes since 1985.",
+    subscriptionTier: "pro",
+  },
+  {
+    id: "b9",
+    name: "Sakura Sushi House",
+    avatar: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=200",
+    type: "food",
+    category: "Japanese",
+    city: "San Francisco",
+    state: "CA",
+    rating: 4.9,
+    priceRange: "$$$",
+    description: "Fresh sushi and traditional Japanese cuisine in the heart of SF.",
+    subscriptionTier: "premium",
+  },
+  {
+    id: "b10",
+    name: "Sunrise Cafe",
+    avatar: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200",
+    type: "food",
+    category: "Cafe",
+    city: "Seattle",
+    state: "WA",
+    rating: 4.5,
+    priceRange: "$$",
+    description: "Cozy cafe with artisan coffee and fresh pastries.",
+    subscriptionTier: "basic",
+  },
+  // Fashion & Clothes
+  {
+    id: "b11",
+    name: "Luxe Boutique",
+    avatar: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200",
+    type: "fashion",
+    category: "Designer",
+    city: "New York",
+    state: "NY",
+    rating: 4.8,
+    priceRange: "$$$$",
+    description: "Curated designer fashion and accessories for the discerning shopper.",
+    featured: true,
+    subscriptionTier: "premium",
+  },
+  {
+    id: "b12",
+    name: "Urban Threads",
+    avatar: "https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=200",
+    type: "fashion",
+    category: "Streetwear",
+    city: "Los Angeles",
+    state: "CA",
+    rating: 4.6,
+    priceRange: "$$",
+    description: "Trendy streetwear and urban fashion for the modern youth.",
+    subscriptionTier: "pro",
+  },
+  {
+    id: "b13",
+    name: "Vintage Finds",
+    avatar: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=200",
+    type: "fashion",
+    category: "Vintage",
+    city: "Austin",
+    state: "TX",
+    rating: 4.7,
+    priceRange: "$$",
+    description: "Unique vintage clothing and accessories from the 60s to 90s.",
+    subscriptionTier: "basic",
+  },
+  {
+    id: "b14",
+    name: "Bridal Dreams",
+    avatar: "https://images.unsplash.com/photo-1519741497674-611481863552?w=200",
+    type: "fashion",
+    category: "Bridal",
+    city: "Miami",
+    state: "FL",
+    rating: 4.9,
+    priceRange: "$$$",
+    description: "Exquisite wedding gowns and bridal accessories.",
+    subscriptionTier: "premium",
+  },
+  // Local Services
+  {
+    id: "b15",
+    name: "Elite Event Planning",
+    avatar: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=200",
+    type: "services",
+    category: "Event Planning",
+    city: "New York",
+    state: "NY",
+    rating: 4.8,
+    priceRange: "$$$",
+    description: "Full-service event planning for weddings, corporate, and private events.",
+    featured: true,
+    subscriptionTier: "premium",
+  },
+  {
+    id: "b16",
+    name: "Green Thumb Florists",
+    avatar: "https://images.unsplash.com/photo-1487530811176-3780de880c2d?w=200",
+    type: "services",
+    category: "Florist",
+    city: "Portland",
+    state: "OR",
+    rating: 4.7,
+    priceRange: "$$",
+    description: "Beautiful floral arrangements for all occasions.",
+    subscriptionTier: "pro",
+  },
+  {
+    id: "b17",
+    name: "Melody Music DJ",
+    avatar: "https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=200",
+    type: "services",
+    category: "DJ & Music",
+    city: "Las Vegas",
+    state: "NV",
+    rating: 4.9,
+    priceRange: "$$",
+    description: "Professional DJ services for weddings, parties, and corporate events.",
+    subscriptionTier: "pro",
+  },
+  {
+    id: "b18",
+    name: "Perfect Prints",
+    avatar: "https://images.unsplash.com/photo-1513519245088-0e12902e35a6?w=200",
+    type: "services",
+    category: "Printing",
+    city: "Denver",
+    state: "CO",
+    rating: 4.6,
+    priceRange: "$$",
+    description: "High-quality photo printing, canvas, and custom framing.",
+    subscriptionTier: "basic",
+  },
+];
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const [photographers, setPhotographers] = useState<Photographer[]>(MOCK_PHOTOGRAPHERS);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
+  const [businesses] = useState<Business[]>(MOCK_BUSINESSES);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -564,6 +846,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         photographers,
         sessions,
         posts,
+        businesses,
         isLoading,
         error,
         refreshPhotographers,

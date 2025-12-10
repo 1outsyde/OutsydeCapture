@@ -1,172 +1,170 @@
 import React, { useState, useMemo } from "react";
-import { StyleSheet, View, TextInput, Pressable } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { useData } from "@/context/DataContext";
+import { useData, Business, BusinessType, BUSINESS_TYPE_LABELS, BUSINESS_TYPE_ICONS } from "@/context/DataContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { Photographer, PhotographyCategory, CATEGORY_LABELS, PriceRange } from "@/types";
-import { RootStackParamList } from "@/navigation/types";
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+const BUSINESS_TYPES: BusinessType[] = ["photography", "cinematography", "food", "fashion", "services"];
 
-const PRICE_FILTERS: PriceRange[] = ["$", "$$", "$$$", "$$$$"];
-const CATEGORY_FILTERS: PhotographyCategory[] = ["wedding", "portrait", "events", "product", "nature", "fashion"];
+const TIER_CONFIG: Record<string, { label: string; color: string }> = {
+  premium: { label: "Premium", color: "#FFD700" },
+  pro: { label: "Pro", color: "#C0C0C0" },
+  basic: { label: "Basic", color: "#CD7F32" },
+};
 
 export default function SearchScreen() {
-  const { theme, isDark } = useTheme();
-  const navigation = useNavigation<NavigationProp>();
-  const { photographers } = useData();
+  const { theme } = useTheme();
+  const { businesses } = useData();
   const insets = useSafeAreaInsets();
   
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedPrice, setSelectedPrice] = useState<PriceRange | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<PhotographyCategory | null>(null);
+  const [selectedType, setSelectedType] = useState<BusinessType | null>(null);
 
-  const filteredPhotographers = useMemo(() => {
-    let result = photographers;
+  const filteredBusinesses = useMemo(() => {
+    let result = businesses;
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
-        p =>
-          p.name.toLowerCase().includes(query) ||
-          p.location.toLowerCase().includes(query) ||
-          CATEGORY_LABELS[p.specialty].toLowerCase().includes(query)
+        b =>
+          b.name.toLowerCase().includes(query) ||
+          b.city.toLowerCase().includes(query) ||
+          b.state.toLowerCase().includes(query) ||
+          b.category.toLowerCase().includes(query) ||
+          BUSINESS_TYPE_LABELS[b.type].toLowerCase().includes(query)
       );
     }
 
-    if (selectedPrice) {
-      result = result.filter(p => p.priceRange === selectedPrice);
-    }
-
-    if (selectedCategory) {
-      result = result.filter(p => p.specialty === selectedCategory);
+    if (selectedType) {
+      result = result.filter(b => b.type === selectedType);
     }
 
     return result;
-  }, [photographers, searchQuery, selectedPrice, selectedCategory]);
-
-  const handlePhotographerPress = (photographer: Photographer) => {
-    navigation.navigate("PhotographerDetail", { photographer });
-  };
+  }, [businesses, searchQuery, selectedType]);
 
   const clearFilters = () => {
-    setSelectedPrice(null);
-    setSelectedCategory(null);
+    setSelectedType(null);
     setSearchQuery("");
   };
 
-  const hasActiveFilters = selectedPrice || selectedCategory || searchQuery;
+  const hasActiveFilters = selectedType || searchQuery;
 
-  const renderFilterChip = (
-    label: string,
-    isSelected: boolean,
-    onPress: () => void
-  ) => (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.filterChip,
-        {
-          backgroundColor: isSelected ? theme.primary : theme.backgroundDefault,
-          opacity: pressed ? 0.8 : 1,
-        },
-      ]}
-    >
-      <ThemedText
-        type="caption"
-        style={{ color: isSelected ? "#FFFFFF" : theme.text }}
+  const renderTypeChip = (type: BusinessType) => {
+    const isSelected = selectedType === type;
+    const iconName = BUSINESS_TYPE_ICONS[type] as keyof typeof Feather.glyphMap;
+    
+    return (
+      <Pressable
+        key={type}
+        onPress={() => setSelectedType(isSelected ? null : type)}
+        style={({ pressed }) => [
+          styles.typeChip,
+          {
+            backgroundColor: isSelected ? theme.primary : theme.backgroundDefault,
+            opacity: pressed ? 0.8 : 1,
+          },
+        ]}
       >
-        {label}
-      </ThemedText>
-    </Pressable>
-  );
+        <Feather 
+          name={iconName} 
+          size={14} 
+          color={isSelected ? "#FFFFFF" : theme.text} 
+        />
+        <ThemedText
+          type="caption"
+          style={{ color: isSelected ? "#FFFFFF" : theme.text, marginLeft: Spacing.xs }}
+        >
+          {BUSINESS_TYPE_LABELS[type]}
+        </ThemedText>
+      </Pressable>
+    );
+  };
 
-  const renderPhotographerItem = ({ item }: { item: Photographer }) => (
-    <Pressable
-      onPress={() => handlePhotographerPress(item)}
-      style={({ pressed }) => [
-        styles.photographerCard,
-        {
-          backgroundColor: theme.backgroundDefault,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
-        },
-      ]}
-    >
-      <Image
-        source={{ uri: item.avatar }}
-        style={styles.photographerImage}
-        contentFit="cover"
-        transition={200}
-      />
-      <View style={styles.photographerInfo}>
-        <View style={styles.photographerHeader}>
-          <ThemedText type="h4" numberOfLines={1} style={styles.photographerName}>
-            {item.name}
-          </ThemedText>
-          <ThemedText type="body" style={{ color: theme.secondary }}>
+  const renderBusinessItem = ({ item }: { item: Business }) => {
+    const tierConfig = item.subscriptionTier ? TIER_CONFIG[item.subscriptionTier] : null;
+    const typeIcon = BUSINESS_TYPE_ICONS[item.type] as keyof typeof Feather.glyphMap;
+    
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.businessCard,
+          {
+            backgroundColor: theme.backgroundDefault,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          },
+        ]}
+      >
+        <Image
+          source={{ uri: item.avatar }}
+          style={styles.businessImage}
+          contentFit="cover"
+          transition={200}
+        />
+        <View style={styles.businessInfo}>
+          <View style={styles.businessHeader}>
+            <ThemedText type="h4" numberOfLines={1} style={styles.businessName}>
+              {item.name}
+            </ThemedText>
+            {tierConfig ? (
+              <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
+                <Feather name="award" size={10} color="#000000" />
+              </View>
+            ) : null}
+          </View>
+          
+          <View style={styles.typeRow}>
+            <Feather name={typeIcon} size={12} color={theme.primary} />
+            <ThemedText type="small" style={{ color: theme.primary, marginLeft: 4 }}>
+              {BUSINESS_TYPE_LABELS[item.type]}
+            </ThemedText>
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
+              - {item.category}
+            </ThemedText>
+          </View>
+          
+          <View style={styles.businessMeta}>
+            <View style={styles.ratingContainer}>
+              <Feather name="star" size={14} color="#FFD700" />
+              <ThemedText type="small">
+                {" "}{item.rating}
+              </ThemedText>
+            </View>
+            <View style={styles.locationContainer}>
+              <Feather name="map-pin" size={14} color={theme.textSecondary} />
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {" "}{item.city}, {item.state}
+              </ThemedText>
+            </View>
+          </View>
+          
+          <ThemedText type="caption" style={{ color: theme.secondary }}>
             {item.priceRange}
           </ThemedText>
         </View>
-        <ThemedText type="small" style={{ color: theme.textSecondary }}>
-          {CATEGORY_LABELS[item.specialty]}
-        </ThemedText>
-        <View style={styles.photographerMeta}>
-          <View style={styles.ratingContainer}>
-            <Feather name="star" size={14} color="#FFD700" />
-            <ThemedText type="small">
-              {" "}{item.rating}
-            </ThemedText>
-          </View>
-          <View style={styles.locationContainer}>
-            <Feather name="map-pin" size={14} color={theme.textSecondary} />
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {" "}{item.location}
-            </ThemedText>
-          </View>
-        </View>
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
 
   const ListHeader = () => (
     <View>
       <View style={styles.filterSection}>
         <ThemedText type="small" style={styles.filterLabel}>
-          Price Range
-        </ThemedText>
-        <View style={styles.filterRow}>
-          {PRICE_FILTERS.map(price =>
-            renderFilterChip(
-              price,
-              selectedPrice === price,
-              () => setSelectedPrice(selectedPrice === price ? null : price)
-            )
-          )}
-        </View>
-      </View>
-
-      <View style={styles.filterSection}>
-        <ThemedText type="small" style={styles.filterLabel}>
           Category
         </ThemedText>
-        <View style={styles.filterRow}>
-          {CATEGORY_FILTERS.map(category =>
-            renderFilterChip(
-              CATEGORY_LABELS[category],
-              selectedCategory === category,
-              () => setSelectedCategory(selectedCategory === category ? null : category)
-            )
-          )}
-        </View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.typeRow}
+        >
+          {BUSINESS_TYPES.map(renderTypeChip)}
+        </ScrollView>
       </View>
 
       {hasActiveFilters ? (
@@ -185,19 +183,19 @@ export default function SearchScreen() {
       ) : null}
 
       <ThemedText type="h4" style={styles.resultsTitle}>
-        {filteredPhotographers.length} {filteredPhotographers.length === 1 ? "Result" : "Results"}
+        {filteredBusinesses.length} {filteredBusinesses.length === 1 ? "Result" : "Results"}
       </ThemedText>
     </View>
   );
 
   const ListEmpty = () => (
     <View style={styles.emptyState}>
-      <Feather name="camera-off" size={48} color={theme.textSecondary} />
+      <Feather name="search" size={48} color={theme.textSecondary} />
       <ThemedText type="h4" style={styles.emptyTitle}>
-        No photographers found
+        No businesses found
       </ThemedText>
       <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-        Try adjusting your search or filters
+        Try searching by city, name, or category
       </ThemedText>
     </View>
   );
@@ -209,7 +207,7 @@ export default function SearchScreen() {
           <Feather name="search" size={20} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Search photographers..."
+            placeholder="Search by city, name, or category..."
             placeholderTextColor={theme.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -224,8 +222,8 @@ export default function SearchScreen() {
       </View>
 
       <ScreenFlatList
-        data={filteredPhotographers}
-        renderItem={renderPhotographerItem}
+        data={filteredBusinesses}
+        renderItem={renderBusinessItem}
         keyExtractor={item => item.id}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
@@ -263,14 +261,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     fontWeight: "600",
   },
-  filterRow: {
+  typeRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: Spacing.sm,
   },
-  filterChip: {
+  typeChip: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
   },
   clearButton: {
@@ -284,31 +283,38 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: Spacing.lg,
   },
-  photographerCard: {
+  businessCard: {
     flexDirection: "row",
     borderRadius: BorderRadius.md,
     overflow: "hidden",
     marginBottom: Spacing.lg,
   },
-  photographerImage: {
+  businessImage: {
     width: 100,
-    height: 100,
+    height: 120,
   },
-  photographerInfo: {
+  businessInfo: {
     flex: 1,
     padding: Spacing.md,
     justifyContent: "center",
   },
-  photographerHeader: {
+  businessHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  photographerName: {
+  businessName: {
     flex: 1,
     marginRight: Spacing.sm,
   },
-  photographerMeta: {
+  tierBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  businessMeta: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
