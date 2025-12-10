@@ -164,9 +164,6 @@ export default function DiscoverScreen() {
                 <ThemedText type="caption" style={{ color: theme.primary, marginLeft: 2 }}>
                   {post.rating.toFixed(1)}
                 </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  {" "}({post.reviewCount})
-                </ThemedText>
               </View>
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
                 {formatTimeAgo(post.createdAt)}

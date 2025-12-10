@@ -137,13 +137,6 @@ export default function PhotographerDetailScreen() {
           </View>
           <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
           <View style={styles.stat}>
-            <ThemedText type="h4">{photographer.reviewCount}</ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Reviews
-            </ThemedText>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.stat}>
             <ThemedText type="h4" style={{ color: theme.secondary }}>
               {photographer.priceRange}
             </ThemedText>

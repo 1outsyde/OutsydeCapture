@@ -65,7 +65,7 @@ export default function SelectPhotographerScreen() {
           <View style={styles.ratingContainer}>
             <Feather name="star" size={14} color="#FFD700" />
             <ThemedText type="small">
-              {" "}{item.rating} ({item.reviewCount})
+              {" "}{item.rating}
             </ThemedText>
           </View>
           <View style={styles.locationContainer}>
