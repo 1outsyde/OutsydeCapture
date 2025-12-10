@@ -13,6 +13,23 @@ import { Spacing } from "@/constants/theme";
 
 const Stack = createNativeStackNavigator<DiscoverStackParamList>();
 
+function BookSessionButton() {
+  const { theme } = useTheme();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+
+  return (
+    <Pressable
+      onPress={() => navigation.navigate("SelectPhotographer")}
+      style={({ pressed }) => ({
+        opacity: pressed ? 0.7 : 1,
+        padding: Spacing.sm,
+      })}
+    >
+      <Feather name="camera" size={22} color={theme.text} />
+    </Pressable>
+  );
+}
+
 function CartButton() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -44,6 +61,7 @@ export default function DiscoverStackNavigator() {
         component={DiscoverScreen}
         options={{
           headerTitle: () => <HeaderTitle />,
+          headerLeft: () => <BookSessionButton />,
           headerRight: () => <CartButton />,
         }}
       />
