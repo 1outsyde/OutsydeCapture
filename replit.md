@@ -136,3 +136,10 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Only users with delivered orders can rate vendors
   - Uses useRatingEligibility hook combining DataContext and OrdersContext
   - Shows friendly message when user is not eligible to rate
+- Expanded Search screen to support multiple business types:
+  - Photography, Cinematography, Food & Dining, Fashion & Clothes, Local Services
+  - City-based search (type any city name to filter)
+  - Category filter chips for each business type
+  - Type-aware result cards showing business type icon and category
+  - Business data model with city/state, rating, priceRange, and subscription tier
+- Hidden review count from all rating displays (only shows star rating now)
