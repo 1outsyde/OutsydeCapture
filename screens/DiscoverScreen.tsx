@@ -8,6 +8,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -72,6 +73,22 @@ export default function DiscoverScreen() {
 
   const toggleComments = (postId: string) => {
     setExpandedComments((prev) => (prev === postId ? null : postId));
+  };
+
+  const handleRatePress = (post: Post) => {
+    const authorType = post.type === "vendor" ? "vendor" : "photographer";
+    Alert.alert(
+      `Rate ${post.authorName}`,
+      `How would you rate this ${authorType}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "1", onPress: () => console.log("Rated 1 star") },
+        { text: "2", onPress: () => console.log("Rated 2 stars") },
+        { text: "3", onPress: () => console.log("Rated 3 stars") },
+        { text: "4", onPress: () => console.log("Rated 4 stars") },
+        { text: "5", onPress: () => console.log("Rated 5 stars") },
+      ]
+    );
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -183,6 +200,16 @@ export default function DiscoverScreen() {
             <Feather name="message-circle" size={24} color={theme.text} />
             <ThemedText type="body" style={styles.actionText}>
               {post.comments.length}
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => handleRatePress(post)}
+            style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Feather name="star" size={24} color={theme.text} />
+            <ThemedText type="body" style={styles.actionText}>
+              {post.rating.toFixed(1)}
             </ThemedText>
           </Pressable>
 
