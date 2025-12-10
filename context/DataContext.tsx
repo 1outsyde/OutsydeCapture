@@ -56,6 +56,8 @@ export interface Post {
   authorName: string;
   authorAvatar: string;
   subscriptionTier?: "basic" | "pro" | "premium";
+  rating: number;
+  reviewCount: number;
   image: string;
   caption: string;
   likes: number;
@@ -203,6 +205,8 @@ const MOCK_POSTS: Post[] = [
     photographerName: "Sarah Mitchell",
     photographerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
     subscriptionTier: "premium",
+    rating: 4.9,
+    reviewCount: 127,
     image: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=800",
     caption: "Just wrapped up an amazing portrait session in Central Park! The golden hour light was absolutely perfect today.",
     likes: 47,
@@ -220,6 +224,8 @@ const MOCK_POSTS: Post[] = [
     authorName: "PrintMaster Studio",
     authorAvatar: "https://images.unsplash.com/photo-1560264280-88b68371db39?w=200",
     subscriptionTier: "premium",
+    rating: 4.8,
+    reviewCount: 342,
     image: "https://images.unsplash.com/photo-1513519245088-0e12902e35a6?w=800",
     caption: "New arrival! Premium gallery-quality canvas prints now available. Perfect for showcasing your favorite photos.",
     productName: "Gallery Canvas Print 24x36",
@@ -241,6 +247,8 @@ const MOCK_POSTS: Post[] = [
     photographerName: "James Chen",
     photographerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
     subscriptionTier: "pro",
+    rating: 4.8,
+    reviewCount: 89,
     image: "https://images.unsplash.com/photo-1519741497674-611481863552?w=800",
     caption: "Behind the scenes from Saturday's wedding. Such an emotional and beautiful ceremony!",
     likes: 89,
@@ -257,6 +265,8 @@ const MOCK_POSTS: Post[] = [
     authorName: "MemoryBook Co",
     authorAvatar: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=200",
     subscriptionTier: "pro",
+    rating: 4.7,
+    reviewCount: 218,
     image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800",
     caption: "Create lasting memories with our handcrafted leather photo albums. Each page tells a story.",
     productName: "Leather Photo Album - 50 Pages",
@@ -276,6 +286,8 @@ const MOCK_POSTS: Post[] = [
     photographerName: "Marcus Johnson",
     photographerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
     subscriptionTier: "premium",
+    rating: 4.9,
+    reviewCount: 156,
     image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800",
     caption: "New product shoot for a luxury watch brand. Clean, minimal, timeless.",
     likes: 156,
@@ -290,6 +302,8 @@ const MOCK_POSTS: Post[] = [
     authorName: "LensCraft Gear",
     authorAvatar: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200",
     subscriptionTier: "basic",
+    rating: 4.5,
+    reviewCount: 87,
     image: "https://images.unsplash.com/photo-1606986628253-e0f5f7e6c1fa?w=800",
     caption: "Professional camera straps designed for comfort during long shoots. Free shipping this week!",
     productName: "Pro Camera Strap - Leather",
@@ -311,6 +325,8 @@ const MOCK_POSTS: Post[] = [
     photographerName: "Olivia Park",
     photographerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
     subscriptionTier: "pro",
+    rating: 4.8,
+    reviewCount: 98,
     image: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800",
     caption: "Editorial shoot for Vogue Italia. Dreams do come true!",
     likes: 234,
@@ -328,6 +344,8 @@ const MOCK_POSTS: Post[] = [
     authorName: "FrameArt Gallery",
     authorAvatar: "https://images.unsplash.com/photo-1513519245088-0e12902e35a6?w=200",
     subscriptionTier: "premium",
+    rating: 4.9,
+    reviewCount: 176,
     image: "https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?w=800",
     caption: "Handmade wooden frames crafted from sustainable oak. Display your art with elegance.",
     productName: "Oak Wood Frame Set (3 pieces)",
@@ -347,6 +365,8 @@ const MOCK_POSTS: Post[] = [
     photographerName: "Emma Rodriguez",
     photographerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
     subscriptionTier: "basic",
+    rating: 4.7,
+    reviewCount: 64,
     image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800",
     caption: "Corporate event photography at its finest. Over 500 guests and every moment captured!",
     likes: 42,
@@ -361,6 +381,8 @@ const MOCK_POSTS: Post[] = [
     authorName: "PhotoGear Pro",
     authorAvatar: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=200",
     subscriptionTier: "pro",
+    rating: 4.6,
+    reviewCount: 203,
     image: "https://images.unsplash.com/photo-1617005082133-548c4dd27f35?w=800",
     caption: "Portable LED ring light - perfect for portraits and video calls. Battery powered for on-the-go!",
     productName: "Portable LED Ring Light 18\"",

@@ -125,9 +125,23 @@ export default function DiscoverScreen() {
                 </View>
               ) : null}
             </View>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {isVendor ? "Vendor" : "Photographer"} - {formatTimeAgo(post.createdAt)}
-            </ThemedText>
+            <View style={styles.subtitleRow}>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {isVendor ? "Vendor" : "Photographer"}
+              </ThemedText>
+              <View style={styles.ratingBadge}>
+                <Feather name="star" size={12} color={theme.primary} />
+                <ThemedText type="caption" style={{ color: theme.primary, marginLeft: 2 }}>
+                  {post.rating.toFixed(1)}
+                </ThemedText>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  {" "}({post.reviewCount})
+                </ThemedText>
+              </View>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {formatTimeAgo(post.createdAt)}
+              </ThemedText>
+            </View>
           </View>
         </Pressable>
 
@@ -307,6 +321,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
+  },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: 2,
+  },
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   tierBadge: {
     flexDirection: "row",
