@@ -47,11 +47,14 @@ export interface Comment {
   createdAt: string;
 }
 
+export type PostType = "photographer" | "vendor";
+
 export interface Post {
   id: string;
-  photographerId: string;
-  photographerName: string;
-  photographerAvatar: string;
+  type: PostType;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
   subscriptionTier?: "basic" | "pro" | "premium";
   image: string;
   caption: string;
@@ -59,6 +62,13 @@ export interface Post {
   isLiked: boolean;
   comments: Comment[];
   createdAt: string;
+  // Vendor-specific fields
+  productName?: string;
+  productPrice?: number;
+  // For backwards compatibility
+  photographerId?: string;
+  photographerName?: string;
+  photographerAvatar?: string;
 }
 
 interface DataContextType {
@@ -185,6 +195,10 @@ const getSessionsKey = (userId: string) => `@outsyde_sessions_${userId}`;
 const MOCK_POSTS: Post[] = [
   {
     id: "post1",
+    type: "photographer",
+    authorId: "p1",
+    authorName: "Sarah Mitchell",
+    authorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
     photographerId: "p1",
     photographerName: "Sarah Mitchell",
     photographerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
@@ -200,7 +214,29 @@ const MOCK_POSTS: Post[] = [
     createdAt: "2025-01-10T12:00:00Z",
   },
   {
+    id: "post6",
+    type: "vendor",
+    authorId: "v1",
+    authorName: "PrintMaster Studio",
+    authorAvatar: "https://images.unsplash.com/photo-1560264280-88b68371db39?w=200",
+    subscriptionTier: "premium",
+    image: "https://images.unsplash.com/photo-1513519245088-0e12902e35a6?w=800",
+    caption: "New arrival! Premium gallery-quality canvas prints now available. Perfect for showcasing your favorite photos.",
+    productName: "Gallery Canvas Print 24x36",
+    productPrice: 149.99,
+    likes: 78,
+    isLiked: false,
+    comments: [
+      { id: "c6", userId: "u6", userName: "Photo Lover", userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100", text: "Just ordered one, can't wait!", createdAt: "2025-01-10T11:00:00Z" },
+    ],
+    createdAt: "2025-01-10T10:00:00Z",
+  },
+  {
     id: "post2",
+    type: "photographer",
+    authorId: "p2",
+    authorName: "James Chen",
+    authorAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
     photographerId: "p2",
     photographerName: "James Chen",
     photographerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
@@ -215,7 +251,27 @@ const MOCK_POSTS: Post[] = [
     createdAt: "2025-01-09T16:00:00Z",
   },
   {
+    id: "post7",
+    type: "vendor",
+    authorId: "v2",
+    authorName: "MemoryBook Co",
+    authorAvatar: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=200",
+    subscriptionTier: "pro",
+    image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800",
+    caption: "Create lasting memories with our handcrafted leather photo albums. Each page tells a story.",
+    productName: "Leather Photo Album - 50 Pages",
+    productPrice: 89.99,
+    likes: 112,
+    isLiked: false,
+    comments: [],
+    createdAt: "2025-01-09T14:00:00Z",
+  },
+  {
     id: "post3",
+    type: "photographer",
+    authorId: "p4",
+    authorName: "Marcus Johnson",
+    authorAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
     photographerId: "p4",
     photographerName: "Marcus Johnson",
     photographerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
@@ -228,7 +284,29 @@ const MOCK_POSTS: Post[] = [
     createdAt: "2025-01-08T10:00:00Z",
   },
   {
+    id: "post8",
+    type: "vendor",
+    authorId: "v3",
+    authorName: "LensCraft Gear",
+    authorAvatar: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200",
+    subscriptionTier: "basic",
+    image: "https://images.unsplash.com/photo-1606986628253-e0f5f7e6c1fa?w=800",
+    caption: "Professional camera straps designed for comfort during long shoots. Free shipping this week!",
+    productName: "Pro Camera Strap - Leather",
+    productPrice: 45.00,
+    likes: 34,
+    isLiked: false,
+    comments: [
+      { id: "c7", userId: "u7", userName: "Photographer Mike", userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100", text: "Best strap I've ever used!", createdAt: "2025-01-08T08:00:00Z" },
+    ],
+    createdAt: "2025-01-08T06:00:00Z",
+  },
+  {
     id: "post4",
+    type: "photographer",
+    authorId: "p5",
+    authorName: "Olivia Park",
+    authorAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
     photographerId: "p5",
     photographerName: "Olivia Park",
     photographerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
@@ -244,7 +322,27 @@ const MOCK_POSTS: Post[] = [
     createdAt: "2025-01-07T14:00:00Z",
   },
   {
+    id: "post9",
+    type: "vendor",
+    authorId: "v4",
+    authorName: "FrameArt Gallery",
+    authorAvatar: "https://images.unsplash.com/photo-1513519245088-0e12902e35a6?w=200",
+    subscriptionTier: "premium",
+    image: "https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?w=800",
+    caption: "Handmade wooden frames crafted from sustainable oak. Display your art with elegance.",
+    productName: "Oak Wood Frame Set (3 pieces)",
+    productPrice: 129.00,
+    likes: 67,
+    isLiked: false,
+    comments: [],
+    createdAt: "2025-01-07T10:00:00Z",
+  },
+  {
     id: "post5",
+    type: "photographer",
+    authorId: "p3",
+    authorName: "Emma Rodriguez",
+    authorAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
     photographerId: "p3",
     photographerName: "Emma Rodriguez",
     photographerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
@@ -255,6 +353,24 @@ const MOCK_POSTS: Post[] = [
     isLiked: false,
     comments: [],
     createdAt: "2025-01-06T09:00:00Z",
+  },
+  {
+    id: "post10",
+    type: "vendor",
+    authorId: "v5",
+    authorName: "PhotoGear Pro",
+    authorAvatar: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=200",
+    subscriptionTier: "pro",
+    image: "https://images.unsplash.com/photo-1617005082133-548c4dd27f35?w=800",
+    caption: "Portable LED ring light - perfect for portraits and video calls. Battery powered for on-the-go!",
+    productName: "Portable LED Ring Light 18\"",
+    productPrice: 79.99,
+    likes: 91,
+    isLiked: false,
+    comments: [
+      { id: "c8", userId: "u8", userName: "Content Creator", userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100", text: "This changed my content game!", createdAt: "2025-01-06T07:00:00Z" },
+    ],
+    createdAt: "2025-01-06T05:00:00Z",
   },
 ];
 

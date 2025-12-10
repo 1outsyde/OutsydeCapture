@@ -28,8 +28,9 @@ interface Order {
 }
 
 const MOCK_ACTIVE_ORDERS: Order[] = [
-  { id: "o1", vendorName: "PrintMaster Studio", status: "shipped", itemCount: 2, expectedDate: "Jan 15" },
-  { id: "o2", vendorName: "MemoryBook Co", status: "processing", itemCount: 1 },
+  { id: "o1", vendorName: "FrameArt Gallery", status: "shipped", itemCount: 3, expectedDate: "Jan 15" },
+  { id: "o2", vendorName: "PhotoGear Pro", status: "processing", itemCount: 1 },
+  { id: "o3", vendorName: "PrintMaster Studio", status: "shipped", itemCount: 1, expectedDate: "Jan 18" },
 ];
 
 export default function SessionsScreen() {

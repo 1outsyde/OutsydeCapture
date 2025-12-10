@@ -38,10 +38,23 @@ export default function DiscoverScreen() {
     setRefreshing(false);
   }, []);
 
-  const handlePhotographerPress = (photographerId: string) => {
-    const photographer = getPhotographer(photographerId);
-    if (photographer) {
-      navigation.navigate("PhotographerDetail", { photographer });
+  const handleAuthorPress = (post: Post) => {
+    if (post.type === "photographer" && post.photographerId) {
+      const photographer = getPhotographer(post.photographerId);
+      if (photographer) {
+        navigation.navigate("PhotographerDetail", { photographer });
+      }
+    }
+  };
+
+  const handleActionPress = (post: Post) => {
+    if (post.type === "photographer" && post.photographerId) {
+      const photographer = getPhotographer(post.photographerId);
+      if (photographer) {
+        navigation.navigate("PhotographerDetail", { photographer });
+      }
+    } else if (post.type === "vendor") {
+      navigation.navigate("CartOrders");
     }
   };
 
@@ -90,21 +103,22 @@ export default function DiscoverScreen() {
     const tierConfig = post.subscriptionTier
       ? SubscriptionTiers[post.subscriptionTier as keyof typeof SubscriptionTiers]
       : null;
+    const isVendor = post.type === "vendor";
 
     return (
       <View key={post.id} style={[styles.postCard, { backgroundColor: theme.card }]}>
         {/* Post Header */}
         <Pressable
-          onPress={() => handlePhotographerPress(post.photographerId)}
+          onPress={() => handleAuthorPress(post)}
           style={styles.postHeader}
         >
-          <Image source={{ uri: post.photographerAvatar }} style={styles.avatar} contentFit="cover" />
+          <Image source={{ uri: post.authorAvatar }} style={styles.avatar} contentFit="cover" />
           <View style={styles.headerInfo}>
             <View style={styles.nameRow}>
-              <ThemedText type="h4">{post.photographerName}</ThemedText>
+              <ThemedText type="h4">{post.authorName}</ThemedText>
               {tierConfig ? (
                 <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
-                  <Feather name="award" size={10} color="#000000" />
+                  <Feather name={isVendor ? "shopping-bag" : "award"} size={10} color="#000000" />
                   <ThemedText type="small" style={styles.tierBadgeText}>
                     {tierConfig.label}
                   </ThemedText>
@@ -112,13 +126,25 @@ export default function DiscoverScreen() {
               ) : null}
             </View>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {formatTimeAgo(post.createdAt)}
+              {isVendor ? "Vendor" : "Photographer"} - {formatTimeAgo(post.createdAt)}
             </ThemedText>
           </View>
         </Pressable>
 
         {/* Post Image */}
         <Image source={{ uri: post.image }} style={styles.postImage} contentFit="cover" />
+
+        {/* Product Info (for vendors) */}
+        {isVendor && post.productName ? (
+          <View style={[styles.productInfo, { backgroundColor: theme.backgroundSecondary }]}>
+            <View style={styles.productDetails}>
+              <ThemedText type="h4">{post.productName}</ThemedText>
+              <ThemedText type="h3" style={{ color: theme.primary }}>
+                ${post.productPrice?.toFixed(2)}
+              </ThemedText>
+            </View>
+          </View>
+        ) : null}
 
         {/* Post Actions */}
         <View style={styles.postActions}>
@@ -147,12 +173,12 @@ export default function DiscoverScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => handlePhotographerPress(post.photographerId)}
+            onPress={() => handleActionPress(post)}
             style={({ pressed }) => [styles.actionButton, styles.bookButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
           >
-            <Feather name="calendar" size={16} color="#FFFFFF" />
+            <Feather name={isVendor ? "shopping-cart" : "calendar"} size={16} color="#FFFFFF" />
             <ThemedText type="small" style={{ color: "#FFFFFF", marginLeft: Spacing.xs }}>
-              Book
+              {isVendor ? "Add to Cart" : "Book"}
             </ThemedText>
           </Pressable>
         </View>
@@ -160,7 +186,7 @@ export default function DiscoverScreen() {
         {/* Caption */}
         <View style={styles.captionContainer}>
           <ThemedText type="body">
-            <ThemedText type="h4">{post.photographerName} </ThemedText>
+            <ThemedText type="h4">{post.authorName} </ThemedText>
             {post.caption}
           </ThemedText>
         </View>
@@ -298,6 +324,15 @@ const styles = StyleSheet.create({
   postImage: {
     width: "100%",
     aspectRatio: 1,
+  },
+  productInfo: {
+    padding: Spacing.md,
+    marginHorizontal: 0,
+  },
+  productDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   postActions: {
     flexDirection: "row",
