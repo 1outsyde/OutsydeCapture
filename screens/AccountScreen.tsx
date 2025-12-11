@@ -11,6 +11,7 @@ import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useLoyalty } from "@/context/LoyaltyContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
 import { useNotifications } from "@/context/NotificationContext";
@@ -27,6 +28,7 @@ export default function AccountScreen() {
   const { user, isAuthenticated, logout, updateProfile } = useAuth();
   const { points } = useLoyalty();
   const { unreadCount } = useNotifications();
+  const { favorites } = useFavorites();
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || "");
@@ -279,6 +281,29 @@ export default function AccountScreen() {
                 <ThemedText type="body" style={styles.menuItemText}>
                   Location Preferences
                 </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => (navigation as any).navigate("Favorites")}
+              style={({ pressed }) => [
+                styles.menuItem,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <View style={styles.menuItemLeft}>
+                <Feather name="bookmark" size={20} color={theme.text} />
+                <ThemedText type="body" style={styles.menuItemText}>
+                  Saved Items
+                </ThemedText>
+                {favorites.length > 0 ? (
+                  <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                    <ThemedText type="small" style={{ color: "#FFFFFF" }}>
+                      {favorites.length > 9 ? "9+" : favorites.length}
+                    </ThemedText>
+                  </View>
+                ) : null}
               </View>
               <Feather name="chevron-right" size={20} color={theme.textSecondary} />
             </Pressable>

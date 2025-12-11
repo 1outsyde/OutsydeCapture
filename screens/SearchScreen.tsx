@@ -9,6 +9,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useData, Business, BusinessType, BUSINESS_TYPE_LABELS, BUSINESS_TYPE_ICONS } from "@/context/DataContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 
 const BUSINESS_TYPES: BusinessType[] = ["photography", "cinematography", "food", "fashion", "services"];
@@ -26,6 +27,17 @@ export default function SearchScreen() {
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<BusinessType | null>(null);
+  const { isFavorite, toggleFavorite } = useFavorites();
+
+  const handleSaveBusiness = (item: Business) => {
+    toggleFavorite({
+      id: item.id,
+      type: "business",
+      name: item.name,
+      image: item.avatar,
+      subtitle: `${item.city}, ${item.state}`,
+    });
+  };
 
   const filteredBusinesses = useMemo(() => {
     let result = businesses;
@@ -112,11 +124,23 @@ export default function SearchScreen() {
             <ThemedText type="h4" numberOfLines={1} style={styles.businessName}>
               {item.name}
             </ThemedText>
-            {tierConfig ? (
-              <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
-                <Feather name="award" size={10} color="#000000" />
-              </View>
-            ) : null}
+            <View style={styles.headerRight}>
+              {tierConfig ? (
+                <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
+                  <Feather name="award" size={10} color="#000000" />
+                </View>
+              ) : null}
+              <Pressable
+                onPress={() => handleSaveBusiness(item)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}
+              >
+                <Feather
+                  name="bookmark"
+                  size={18}
+                  color={isFavorite(item.id, "business") ? theme.primary : theme.textSecondary}
+                />
+              </Pressable>
+            </View>
           </View>
           
           <View style={styles.typeRow}>
@@ -306,6 +330,10 @@ const styles = StyleSheet.create({
   businessName: {
     flex: 1,
     marginRight: Spacing.sm,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   tierBadge: {
     width: 20,

@@ -2,6 +2,7 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
 
 export type RootStackParamList = {
+  Onboarding: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
   Auth: { returnTo?: string };
   SelectPhotographer: undefined;
@@ -12,6 +13,7 @@ export type RootStackParamList = {
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };
   CartOrders: undefined;
+  Favorites: undefined;
   Payment: {
     sessionId: string;
     amount: number;

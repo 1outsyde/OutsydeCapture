@@ -22,6 +22,7 @@ import { Spacing, BorderRadius, SubscriptionTiers } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useData, Post } from "@/context/DataContext";
 import { useRatingEligibility } from "@/hooks/useRatingEligibility";
+import { useFavorites } from "@/context/FavoritesContext";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -30,6 +31,7 @@ export default function DiscoverScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { posts, photographers, isLoading, likePost, addComment, getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const [refreshing, setRefreshing] = useState(false);
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
@@ -63,6 +65,17 @@ export default function DiscoverScreen() {
 
   const handleLike = (postId: string) => {
     likePost(postId);
+  };
+
+  const handleSavePost = (post: Post) => {
+    const favoriteType = post.type === "vendor" ? "product" : "photographer";
+    toggleFavorite({
+      id: post.id,
+      type: favoriteType,
+      name: post.type === "vendor" && post.productName ? post.productName : post.authorName,
+      image: post.image,
+      subtitle: post.type === "vendor" ? `$${post.productPrice?.toFixed(2)}` : post.caption?.substring(0, 50),
+    });
   };
 
   const handleComment = (postId: string) => {
@@ -221,6 +234,17 @@ export default function DiscoverScreen() {
             <ThemedText type="body" style={styles.actionText}>
               {post.rating.toFixed(1)}
             </ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => handleSavePost(post)}
+            style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Feather
+              name="bookmark"
+              size={24}
+              color={isFavorite(post.id, post.type === "vendor" ? "product" : "photographer") ? theme.primary : theme.text}
+            />
           </Pressable>
 
           <Pressable

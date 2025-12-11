@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import MainTabNavigator from "@/navigation/MainTabNavigator";
@@ -12,6 +12,8 @@ import ConversationScreen from "@/screens/ConversationScreen";
 import PaymentScreen from "@/screens/PaymentScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
+import FavoritesScreen from "@/screens/FavoritesScreen";
+import OnboardingScreen, { checkOnboardingComplete } from "@/screens/OnboardingScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -20,6 +22,23 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   const { theme } = useTheme();
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    checkOnboardingComplete().then((complete) => {
+      setShowOnboarding(!complete);
+    });
+  }, []);
+
+  if (showOnboarding === null) {
+    return null;
+  }
+
+  if (showOnboarding) {
+    return (
+      <OnboardingScreen onComplete={() => setShowOnboarding(false)} />
+    );
+  }
 
   return (
     <Stack.Navigator
@@ -121,6 +140,15 @@ export default function RootNavigator() {
           headerTitle: "Cart & Orders",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
+        }}
+      />
+
+      <Stack.Screen
+        name="Favorites"
+        component={FavoritesScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
         }}
       />
     </Stack.Navigator>
