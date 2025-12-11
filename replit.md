@@ -14,7 +14,8 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 │   ├── LoyaltyContext.tsx     # Outsyde Points loyalty system
 │   ├── NotificationContext.tsx # Push notifications system
 │   ├── PaymentContext.tsx     # Payment processing (per-user scoped)
-│   └── MessagesContext.tsx    # In-app messaging
+│   ├── MessagesContext.tsx    # In-app messaging
+│   └── FavoritesContext.tsx   # Saved items (photographers, businesses, products)
 ├── navigation/
 │   ├── types.ts              # Navigation type definitions
 │   ├── RootNavigator.tsx     # Root stack (Main + modals)
@@ -33,7 +34,9 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 │   ├── NotificationsScreen.tsx # Notification settings & history
 │   ├── PaymentScreen.tsx     # Payment methods & processing
 │   ├── MessagesScreen.tsx    # Conversation list
-│   └── ConversationScreen.tsx # Individual chat
+│   ├── ConversationScreen.tsx # Individual chat
+│   ├── FavoritesScreen.tsx   # View saved items
+│   └── OnboardingScreen.tsx  # First-time user welcome flow
 ├── components/
 │   ├── Button.tsx            # Primary button component
 │   ├── ThemedText.tsx        # Themed text with typography
@@ -57,14 +60,17 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 ```
 
 ## Key Features
-- **Discover**: Browse featured photographers with horizontal carousel
-- **Search**: Filter by category, price range, location
+- **Discover**: Browse featured photographers with horizontal carousel, bookmark posts to save
+- **Search**: Filter by category, price range, location, bookmark businesses to save
 - **Booking**: 4-step flow (date → time → details → review) with confirmation modal
 - **Sessions**: View upcoming/past sessions with countdown and photo galleries
 - **Messaging**: In-app chat with photographers
 - **Notifications**: Push notification settings and history
 - **Payments**: Add cards, process payments (mock Stripe-like flow)
 - **Account**: Profile editing, settings, guest login, logout
+- **Favorites**: View all saved photographers, businesses, and products
+- **Onboarding**: 4-screen welcome flow shown once for first-time users
+- **Portfolio Upload**: Photographers can add photos from camera/gallery using expo-image-picker
 
 ## Design System
 - **Primary**: Gold/Yellow (#D4A84B light, #E5C77A dark)
@@ -78,6 +84,7 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 - React Navigation 7
 - AsyncStorage for persistence (user-scoped keys for security)
 - expo-image for optimized images
+- expo-image-picker for photo uploads from camera/gallery
 - expo-notifications for push notifications
 - react-native-reanimated for animations
 
@@ -143,3 +150,20 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Type-aware result cards showing business type icon and category
   - Business data model with city/state, rating, priceRange, and subscription tier
 - Hidden review count from all rating displays (only shows star rating now)
+- Added Favorites/Saved Items system:
+  - FavoritesContext with AsyncStorage persistence (user-scoped)
+  - Bookmark icons on feed posts (DiscoverScreen) and business cards (SearchScreen)
+  - Bookmark icon on PhotographerDetailScreen header
+  - FavoritesScreen accessible from Account menu with count badge
+  - Three types: photographers, businesses, products
+- Added Onboarding flow:
+  - OnboardingScreen with 4 swipeable welcome screens
+  - Skip button and pagination dots
+  - AsyncStorage flag to show only on first launch
+  - RootNavigator checks onboarding status before showing main app
+- Enhanced PhotographerDetailScreen:
+  - Portfolio gallery grid with all photos
+  - Image upload buttons (camera + gallery) using expo-image-picker
+  - Message button in footer to start conversation
+  - Bookmark button to save photographer
+  - Web platform shows "Run in Expo Go" message for native features

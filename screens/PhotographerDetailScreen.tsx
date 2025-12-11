@@ -1,16 +1,18 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Pressable, ScrollView, Dimensions } from "react-native";
+import { StyleSheet, View, Pressable, ScrollView, Dimensions, Alert, Platform } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { CATEGORY_LABELS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
@@ -26,9 +28,81 @@ export default function PhotographerDetailScreen() {
   const route = useRoute<RouteType>();
   const { photographer } = route.params;
   const { isAuthenticated } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const insets = useSafeAreaInsets();
   
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [additionalPhotos, setAdditionalPhotos] = useState<string[]>([]);
+
+  const allPortfolioPhotos = [...photographer.portfolio, ...additionalPhotos];
+  const isPhotographerSaved = isFavorite(photographer.id, "photographer");
+
+  const handleSavePhotographer = () => {
+    toggleFavorite({
+      id: photographer.id,
+      type: "photographer",
+      name: photographer.name,
+      image: photographer.avatar,
+      subtitle: `${CATEGORY_LABELS[photographer.specialty]} Photographer`,
+    });
+  };
+
+  const handleMessage = () => {
+    if (!isAuthenticated) {
+      navigation.navigate("Auth");
+      return;
+    }
+    const conversationId = `conv_${photographer.id}`;
+    navigation.navigate("Conversation", { conversationId });
+  };
+
+  const handleAddPhoto = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Run in Expo Go", "Use Expo Go on your mobile device to access the camera and photo library.");
+      return;
+    }
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please enable photo library access in settings.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+      aspect: [4, 3],
+    });
+
+    if (!result.canceled && result.assets) {
+      const newPhotos = result.assets.map((asset) => asset.uri);
+      setAdditionalPhotos((prev) => [...prev, ...newPhotos]);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Run in Expo Go", "Use Expo Go on your mobile device to access the camera.");
+      return;
+    }
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please enable camera access in settings.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.8,
+      aspect: [4, 3],
+    });
+
+    if (!result.canceled && result.assets) {
+      const newPhoto = result.assets[0].uri;
+      setAdditionalPhotos((prev) => [...prev, newPhoto]);
+    }
+  };
 
   const handleBookNow = () => {
     if (!isAuthenticated) {
@@ -75,15 +149,30 @@ export default function PhotographerDetailScreen() {
         </ScrollView>
 
         <View style={[styles.imageOverlay, { paddingTop: insets.top }]}>
-          <Pressable
-            onPress={() => navigation.goBack()}
-            style={({ pressed }) => [
-              styles.backButton,
-              { backgroundColor: "rgba(0,0,0,0.3)", opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <Feather name="arrow-left" size={24} color="#FFFFFF" />
-          </Pressable>
+          <View style={styles.overlayRow}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={({ pressed }) => [
+                styles.backButton,
+                { backgroundColor: "rgba(0,0,0,0.3)", opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="arrow-left" size={24} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              onPress={handleSavePhotographer}
+              style={({ pressed }) => [
+                styles.backButton,
+                { backgroundColor: "rgba(0,0,0,0.3)", opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather
+                name="bookmark"
+                size={24}
+                color={isPhotographerSaved ? theme.primary : "#FFFFFF"}
+              />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.pagination}>
@@ -193,6 +282,46 @@ export default function PhotographerDetailScreen() {
           </View>
         </View>
 
+        <View style={styles.section}>
+          <View style={styles.portfolioHeader}>
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Portfolio Gallery
+            </ThemedText>
+            <View style={styles.uploadButtons}>
+              <Pressable
+                onPress={handleAddPhoto}
+                style={({ pressed }) => [
+                  styles.uploadButton,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <Feather name="image" size={16} color={theme.primary} />
+              </Pressable>
+              <Pressable
+                onPress={handleTakePhoto}
+                style={({ pressed }) => [
+                  styles.uploadButton,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1, marginLeft: Spacing.sm },
+                ]}
+              >
+                <Feather name="camera" size={16} color={theme.primary} />
+              </Pressable>
+            </View>
+          </View>
+          <View style={styles.portfolioGrid}>
+            {allPortfolioPhotos.map((photo, index) => (
+              <Pressable key={index} style={styles.portfolioGridItem}>
+                <Image
+                  source={{ uri: photo }}
+                  style={styles.portfolioGridImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         <View style={styles.bottomPadding} />
       </ScrollView>
 
@@ -206,6 +335,15 @@ export default function PhotographerDetailScreen() {
           },
         ]}
       >
+        <Pressable
+          onPress={handleMessage}
+          style={({ pressed }) => [
+            styles.messageButton,
+            { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <Feather name="message-circle" size={24} color={theme.primary} />
+        </Pressable>
         <View style={styles.footerPrice}>
           <ThemedText type="caption" style={{ color: theme.textSecondary }}>
             Starting at
@@ -238,6 +376,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
+  },
+  overlayRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   backButton: {
     width: 44,
@@ -339,9 +482,49 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
   },
-  footerPrice: {},
+  messageButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerPrice: {
+    marginLeft: Spacing.md,
+  },
   bookButton: {
     flex: 1,
-    marginLeft: Spacing.xl,
+    marginLeft: Spacing.md,
+  },
+  portfolioHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  uploadButtons: {
+    flexDirection: "row",
+  },
+  uploadButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  portfolioGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -Spacing.xs,
+  },
+  portfolioGridItem: {
+    width: (SCREEN_WIDTH - Spacing.xl * 2 - Spacing.xs * 4) / 3,
+    aspectRatio: 1,
+    margin: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    overflow: "hidden",
+  },
+  portfolioGridImage: {
+    width: "100%",
+    height: "100%",
   },
 });
