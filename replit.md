@@ -1,7 +1,7 @@
-# Outsyde - Photography & Vendor Marketplace App
+# Outsyde - Social Marketplace App
 
 ## Overview
-Outsyde is a social photography and vendor marketplace app where clients browse a mixed feed of photographer and vendor/store posts, interact via likes/comments, book photography sessions, purchase products from vendors, and communicate through in-app messaging. Built with Expo/React Native for iOS, Android, and web platforms.
+Outsyde is a social marketplace app where clients browse a mixed feed of posts from various businesses - photographers, vendors, hair stylists, artists, restaurants, and more. Users can book services, purchase products, interact via likes/comments, and communicate through in-app messaging. Built with Expo/React Native for iOS, Android, and web platforms.
 
 ## Project Structure
 ```
@@ -143,12 +143,26 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Only users with delivered orders can rate vendors
   - Uses useRatingEligibility hook combining DataContext and OrdersContext
   - Shows friendly message when user is not eligible to rate
-- Expanded Search screen to support multiple business types:
-  - Photography, Cinematography, Food & Dining, Fashion & Clothes, Local Services
+- Expanded Search screen to support 7 diverse business types:
+  - Photography, Cinematography, Food & Dining, Fashion & Clothes, Local Services, Beauty & Hair, Art & Design
   - City-based search (type any city name to filter)
   - Category filter chips for each business type
   - Type-aware result cards showing business type icon and category
   - Business data model with city/state, rating, priceRange, and subscription tier
+- Added Beauty & Hair businesses:
+  - Hair salons (Glamour Hair Studio)
+  - Barber shops (The Barber Shop)
+  - Nail salons (Nails by Nina)
+  - Makeup artists (Glow Makeup Artistry)
+  - Braiding specialists (Braids & Beyond)
+  - Spas (Serenity Spa & Wellness)
+- Added Art & Design businesses:
+  - Painters (Canvas & Color Studio)
+  - Muralists (Urban Murals Co)
+  - Graphic designers (Digital Dreams Design)
+  - Tattoo artists (Ink Masters Tattoo)
+  - Ceramics/Pottery (Pottery Lane)
+  - Sculptors (Sculpture Works)
 - Added "Explore by City" location tabs to Search screen:
   - Preset cities: New York, Miami, Atlanta, Richmond VA, Los Angeles, Chicago, Houston, California
   - One-tap filtering to discover what each city has to offer for travelers

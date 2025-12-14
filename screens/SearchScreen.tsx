@@ -12,7 +12,7 @@ import { useData, Business, BusinessType, BUSINESS_TYPE_LABELS, BUSINESS_TYPE_IC
 import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 
-const BUSINESS_TYPES: BusinessType[] = ["photography", "cinematography", "food", "fashion", "services"];
+const BUSINESS_TYPES: BusinessType[] = ["photography", "cinematography", "food", "fashion", "services", "beauty", "art"];
 
 const FEATURED_LOCATIONS = [
   { id: "all", label: "All Cities", city: null, state: null },
