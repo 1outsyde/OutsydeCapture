@@ -1113,7 +1113,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const newComment: Comment = {
       id: `comment_${Date.now()}`,
       userId: user?.id || "guest",
-      userName: user?.name || "Guest User",
+      userName: user ? `${user.firstName} ${user.lastName}`.trim() : "Guest User",
       userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100",
       text: text.trim(),
       createdAt: new Date().toISOString(),

@@ -114,6 +114,16 @@ Tier badges are displayed on photographer cards in the Discover screen.
 - DataContext Session uses `time` field (not startTime/endTime), status: "upcoming" | "completed" | "cancelled"
 
 ## Recent Changes
+- Enhanced sign-up and login process with extended user profile:
+  - Account type selection: Consumer (auto-approved) vs Business (requires manual approval)
+  - Required fields: First Name, Last Name, Phone Number, Email, Date of Birth, Password
+  - Business accounts also require: Business Name, Business Category
+  - Phone number auto-formats to (555) 123-4567
+  - Date of birth auto-formats to MM/DD/YYYY
+  - Business accounts see "Pending Approval" screen after signup with 24-48 hour review notice
+  - Login flow checks approval status: pending businesses shown approval screen, rejected accounts get error message
+  - User model updated: firstName, lastName, phone, dateOfBirth, accountType, approvalStatus
+  - Login returns structured result (success, isPending, isRejected) for proper flow control
 - Mixed feed now supports both photographer AND vendor/store posts:
   - Photographer posts: show "Photographer" label, "Book" button for booking sessions
   - Vendor posts: show "Vendor" label, product info (name + price), "Add to Cart" button
