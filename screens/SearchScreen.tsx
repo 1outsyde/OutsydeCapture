@@ -14,6 +14,18 @@ import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 
 const BUSINESS_TYPES: BusinessType[] = ["photography", "cinematography", "food", "fashion", "services"];
 
+const FEATURED_LOCATIONS = [
+  { id: "all", label: "All Cities", city: null, state: null },
+  { id: "nyc", label: "New York", city: "New York", state: "NY" },
+  { id: "miami", label: "Miami", city: "Miami", state: "FL" },
+  { id: "atlanta", label: "Atlanta", city: "Atlanta", state: "GA" },
+  { id: "richmond", label: "Richmond", city: "Richmond", state: "VA" },
+  { id: "la", label: "Los Angeles", city: "Los Angeles", state: "CA" },
+  { id: "chicago", label: "Chicago", city: "Chicago", state: "IL" },
+  { id: "houston", label: "Houston", city: "Houston", state: "TX" },
+  { id: "california", label: "California", city: null, state: "CA" },
+];
+
 const TIER_CONFIG: Record<string, { label: string; color: string }> = {
   premium: { label: "Premium", color: "#FFD700" },
   pro: { label: "Pro", color: "#C0C0C0" },
@@ -27,6 +39,7 @@ export default function SearchScreen() {
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<BusinessType | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState("all");
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const handleSaveBusiness = (item: Business) => {
@@ -39,8 +52,28 @@ export default function SearchScreen() {
     });
   };
 
+  const selectedLocationData = FEATURED_LOCATIONS.find(loc => loc.id === selectedLocation);
+
   const filteredBusinesses = useMemo(() => {
     let result = businesses;
+
+    // Filter by location first
+    if (selectedLocation !== "all" && selectedLocationData) {
+      result = result.filter(b => {
+        // If filtering by state only (like "California")
+        if (selectedLocationData.state && !selectedLocationData.city) {
+          return b.state.toUpperCase() === selectedLocationData.state.toUpperCase();
+        }
+        // If filtering by specific city
+        if (selectedLocationData.city) {
+          return (
+            b.city.toLowerCase() === selectedLocationData.city.toLowerCase() &&
+            b.state.toUpperCase() === selectedLocationData.state?.toUpperCase()
+          );
+        }
+        return true;
+      });
+    }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -59,14 +92,15 @@ export default function SearchScreen() {
     }
 
     return result;
-  }, [businesses, searchQuery, selectedType]);
+  }, [businesses, searchQuery, selectedType, selectedLocation, selectedLocationData]);
 
   const clearFilters = () => {
     setSelectedType(null);
     setSearchQuery("");
+    setSelectedLocation("all");
   };
 
-  const hasActiveFilters = selectedType || searchQuery;
+  const hasActiveFilters = selectedType || searchQuery || selectedLocation !== "all";
 
   const renderTypeChip = (type: BusinessType) => {
     const isSelected = selectedType === type;
@@ -94,6 +128,41 @@ export default function SearchScreen() {
           style={{ color: isSelected ? "#FFFFFF" : theme.text, marginLeft: Spacing.xs }}
         >
           {BUSINESS_TYPE_LABELS[type]}
+        </ThemedText>
+      </Pressable>
+    );
+  };
+
+  const renderLocationChip = (location: typeof FEATURED_LOCATIONS[0]) => {
+    const isSelected = selectedLocation === location.id;
+    
+    return (
+      <Pressable
+        key={location.id}
+        onPress={() => setSelectedLocation(location.id)}
+        style={({ pressed }) => [
+          styles.locationChip,
+          {
+            backgroundColor: isSelected ? theme.primary : theme.backgroundDefault,
+            borderColor: isSelected ? theme.primary : theme.border,
+            opacity: pressed ? 0.8 : 1,
+          },
+        ]}
+      >
+        <Feather 
+          name="map-pin" 
+          size={12} 
+          color={isSelected ? "#FFFFFF" : theme.textSecondary} 
+        />
+        <ThemedText
+          type="caption"
+          style={{ 
+            color: isSelected ? "#FFFFFF" : theme.text, 
+            marginLeft: Spacing.xs,
+            fontWeight: isSelected ? "600" : "400",
+          }}
+        >
+          {location.label}
         </ThemedText>
       </Pressable>
     );
@@ -176,6 +245,15 @@ export default function SearchScreen() {
     );
   };
 
+  const getResultsLabel = () => {
+    const count = filteredBusinesses.length;
+    const countText = `${count} ${count === 1 ? "Result" : "Results"}`;
+    if (selectedLocation !== "all" && selectedLocationData) {
+      return `${countText} in ${selectedLocationData.label}`;
+    }
+    return countText;
+  };
+
   const ListHeader = () => (
     <View>
       <View style={styles.filterSection}>
@@ -188,6 +266,19 @@ export default function SearchScreen() {
           contentContainerStyle={styles.typeRow}
         >
           {BUSINESS_TYPES.map(renderTypeChip)}
+        </ScrollView>
+      </View>
+
+      <View style={styles.filterSection}>
+        <ThemedText type="small" style={styles.filterLabel}>
+          Explore by City
+        </ThemedText>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.locationRow}
+        >
+          {FEATURED_LOCATIONS.map(renderLocationChip)}
         </ScrollView>
       </View>
 
@@ -207,19 +298,23 @@ export default function SearchScreen() {
       ) : null}
 
       <ThemedText type="h4" style={styles.resultsTitle}>
-        {filteredBusinesses.length} {filteredBusinesses.length === 1 ? "Result" : "Results"}
+        {getResultsLabel()}
       </ThemedText>
     </View>
   );
 
   const ListEmpty = () => (
     <View style={styles.emptyState}>
-      <Feather name="search" size={48} color={theme.textSecondary} />
+      <Feather name="map-pin" size={48} color={theme.textSecondary} />
       <ThemedText type="h4" style={styles.emptyTitle}>
-        No businesses found
+        {selectedLocation !== "all" && selectedLocationData
+          ? `No businesses in ${selectedLocationData.label}`
+          : "No businesses found"}
       </ThemedText>
       <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-        Try searching by city, name, or category
+        {selectedLocation !== "all"
+          ? "Try selecting a different city or clearing your filters"
+          : "Try searching by city, name, or category"}
       </ThemedText>
     </View>
   );
@@ -295,6 +390,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
+  },
+  locationRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  locationChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
   },
   clearButton: {
     flexDirection: "row",
