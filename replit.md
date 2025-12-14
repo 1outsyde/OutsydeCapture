@@ -61,7 +61,7 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 
 ## Key Features
 - **Discover**: Browse featured photographers with horizontal carousel, bookmark posts to save
-- **Search**: Filter by category, price range, location, bookmark businesses to save
+- **Search**: Filter by category, explore by city (preset location tabs), bookmark businesses to save
 - **Booking**: 4-step flow (date → time → details → review) with confirmation modal
 - **Sessions**: View upcoming/past sessions with countdown and photo galleries
 - **Messaging**: In-app chat with photographers
@@ -149,6 +149,13 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Category filter chips for each business type
   - Type-aware result cards showing business type icon and category
   - Business data model with city/state, rating, priceRange, and subscription tier
+- Added "Explore by City" location tabs to Search screen:
+  - Preset cities: New York, Miami, Atlanta, Richmond VA, Los Angeles, Chicago, Houston, California
+  - One-tap filtering to discover what each city has to offer for travelers
+  - Location-aware empty states and results header (e.g., "3 Results in Atlanta")
+  - Added businesses for Atlanta (Peachtree Photography, Southern Soul Kitchen, Atlanta Film Works)
+  - Added businesses for Richmond VA (Richmond Portrait Studio, Virginia Belle Boutique, Capital City Catering)
+  - Added businesses for Houston (Houston Lens Masters, Space City Eats, Houston Style Co)
 - Hidden review count from all rating displays (only shows star rating now)
 - Added Favorites/Saved Items system:
   - FavoritesContext with AsyncStorage persistence (user-scoped)
