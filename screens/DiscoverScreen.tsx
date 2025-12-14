@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -29,9 +29,76 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { posts, photographers, isLoading, likePost, addComment, getPhotographer } = useData();
+  const { posts, photographers, businesses, isLoading, likePost, addComment, getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isFavorite, toggleFavorite, favorites } = useFavorites();
+
+  // Personalized feed: favorites first, then nearby cities based on user's saved preferences
+  const personalizedPosts = useMemo(() => {
+    // Get favorite photographer and vendor IDs
+    const favoritePhotographerIds = favorites
+      .filter(f => f.type === "photographer")
+      .map(f => f.id);
+    const favoriteVendorIds = favorites
+      .filter(f => f.type === "product" || f.type === "business")
+      .map(f => f.id);
+    
+    // Get cities from user's favorite businesses for "nearby" prioritization
+    const favoriteCities = new Set<string>();
+    favorites.forEach(fav => {
+      // Try to find matching business to get city
+      const business = businesses.find(b => b.id === fav.id || b.name === fav.name);
+      if (business) {
+        favoriteCities.add(business.city.toLowerCase());
+      }
+    });
+
+    // Sort posts with priority scoring
+    return [...posts].sort((a, b) => {
+      let scoreA = 0;
+      let scoreB = 0;
+
+      // Priority 1: Posts from favorite photographers/vendors (highest priority)
+      if (a.type === "photographer" && a.photographerId && favoritePhotographerIds.includes(a.photographerId)) {
+        scoreA += 100;
+      }
+      if (a.type === "vendor" && favoriteVendorIds.includes(a.authorId)) {
+        scoreA += 100;
+      }
+      if (b.type === "photographer" && b.photographerId && favoritePhotographerIds.includes(b.photographerId)) {
+        scoreB += 100;
+      }
+      if (b.type === "vendor" && favoriteVendorIds.includes(b.authorId)) {
+        scoreB += 100;
+      }
+
+      // Priority 2: Posts from cities the user has shown interest in
+      if (a.type === "photographer" && a.photographerId) {
+        const photographer = photographers.find(p => p.id === a.photographerId);
+        if (photographer && favoriteCities.has(photographer.location.split(",")[0].toLowerCase().trim())) {
+          scoreA += 50;
+        }
+      }
+      if (b.type === "photographer" && b.photographerId) {
+        const photographer = photographers.find(p => p.id === b.photographerId);
+        if (photographer && favoriteCities.has(photographer.location.split(",")[0].toLowerCase().trim())) {
+          scoreB += 50;
+        }
+      }
+
+      // Priority 3: Featured/premium content
+      if (a.subscriptionTier === "premium") scoreA += 10;
+      if (a.subscriptionTier === "pro") scoreA += 5;
+      if (b.subscriptionTier === "premium") scoreB += 10;
+      if (b.subscriptionTier === "pro") scoreB += 5;
+
+      // Sort by score descending, then by date
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [posts, favorites, photographers, businesses]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
@@ -324,7 +391,7 @@ export default function DiscoverScreen() {
       <ScreenScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {posts.map(renderPost)}
+        {personalizedPosts.map(renderPost)}
 
         {/* Browse Photographers CTA */}
         <View style={[styles.browseCTA, { backgroundColor: theme.backgroundSecondary }]}>

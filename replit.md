@@ -60,7 +60,7 @@ Outsyde is a social photography and vendor marketplace app where clients browse 
 ```
 
 ## Key Features
-- **Discover**: Browse featured photographers with horizontal carousel, bookmark posts to save
+- **Discover**: Personalized feed showing favorites first, then nearby cities, bookmark posts to save
 - **Search**: Filter by category, explore by city (preset location tabs), bookmark businesses to save
 - **Booking**: 4-step flow (date → time → details → review) with confirmation modal
 - **Sessions**: View upcoming/past sessions with countdown and photo galleries
@@ -174,3 +174,9 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Message button in footer to start conversation
   - Bookmark button to save photographer
   - Web platform shows "Run in Expo Go" message for native features
+- Personalized homepage feed (DiscoverScreen):
+  - Posts from favorite photographers/vendors appear first
+  - Then posts from cities matching user's saved favorites
+  - Premium/Pro tier content prioritized next
+  - Recent posts shown last
+  - Integrates with FavoritesContext for dynamic personalization
