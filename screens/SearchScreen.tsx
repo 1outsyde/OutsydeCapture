@@ -120,12 +120,12 @@ export default function SearchScreen() {
       >
         <Feather 
           name={iconName} 
-          size={14} 
+          size={20} 
           color={isSelected ? "#FFFFFF" : theme.text} 
         />
         <ThemedText
-          type="caption"
-          style={{ color: isSelected ? "#FFFFFF" : theme.text, marginLeft: Spacing.xs }}
+          type="body"
+          style={{ color: isSelected ? "#FFFFFF" : theme.text, marginLeft: Spacing.sm, fontSize: 16 }}
         >
           {BUSINESS_TYPE_LABELS[type]}
         </ThemedText>
@@ -151,15 +151,16 @@ export default function SearchScreen() {
       >
         <Feather 
           name="map-pin" 
-          size={12} 
+          size={18} 
           color={isSelected ? "#FFFFFF" : theme.textSecondary} 
         />
         <ThemedText
-          type="caption"
+          type="body"
           style={{ 
             color: isSelected ? "#FFFFFF" : theme.text, 
-            marginLeft: Spacing.xs,
+            marginLeft: Spacing.sm,
             fontWeight: isSelected ? "600" : "400",
+            fontSize: 16,
           }}
         >
           {location.label}
@@ -374,34 +375,37 @@ const styles = StyleSheet.create({
     fontSize: Typography.body.fontSize,
   },
   filterSection: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   filterLabel: {
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
     fontWeight: "600",
+    fontSize: 16,
   },
   typeRow: {
     flexDirection: "row",
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   typeChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
+    minHeight: 48,
   },
   locationRow: {
     flexDirection: "row",
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   locationChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
+    minHeight: 48,
   },
   clearButton: {
     flexDirection: "row",
