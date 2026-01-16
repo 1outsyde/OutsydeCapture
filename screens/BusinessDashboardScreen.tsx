@@ -95,19 +95,44 @@ export default function BusinessDashboardScreen() {
 
     try {
       setLoading(true);
-      const data = await api.getBusinessDashboard(token);
-      setStats(data.stats);
-      setProfile(data.profile);
-      if (data.billingAddress) {
-        setBillingAddress(data.billingAddress);
-      }
+      const { business } = await api.getVendorMyBusiness(token);
+      
+      setStats({
+        earnings: business.totalEarnings || 0,
+        upcomingOrders: 0,
+        upcomingBookings: 0,
+        unreadMessages: 0,
+        rating: business.rating || 0,
+        reviewCount: business.reviewCount || 0,
+        profileViews: 0,
+      });
+      
+      const businessTypeValue = business.hasProducts && business.hasServices 
+        ? "both" 
+        : business.hasProducts 
+          ? "product" 
+          : "service";
+      
+      setProfile({
+        id: business.id,
+        name: business.name || "",
+        avatar: business.logoImage,
+        category: business.category || "",
+        bio: business.description,
+        city: business.city,
+        state: business.state,
+        website: business.websiteUrl,
+        stripeConnected: business.stripeOnboardingComplete || false,
+        businessType: businessTypeValue,
+      });
+      
       setEditProfile({
-        name: data.profile.name || "",
-        category: data.profile.category || "",
-        bio: data.profile.bio || "",
-        city: data.profile.city || "",
-        state: data.profile.state || "",
-        website: data.profile.website || "",
+        name: business.name || "",
+        category: business.category || "",
+        bio: business.description || "",
+        city: business.city || "",
+        state: business.state || "",
+        website: business.websiteUrl || "",
       });
       
       const tabs = getAvailableTabs();
@@ -184,7 +209,7 @@ export default function BusinessDashboardScreen() {
     if (!token) return;
 
     try {
-      const { url } = await api.connectStripe(token, "business");
+      const { url } = await api.startVendorStripeOnboarding(token);
       if (url) {
         Linking.openURL(url);
       }
@@ -199,13 +224,13 @@ export default function BusinessDashboardScreen() {
 
     try {
       setSaving(true);
-      await api.updateBusinessProfile(token, {
+      await api.updateVendorMyBusiness(token, {
         name: editProfile.name,
         category: editProfile.category,
-        bio: editProfile.bio,
-        city: editProfile.city,
-        state: editProfile.state,
-        website: editProfile.website,
+        description: editProfile.bio || undefined,
+        city: editProfile.city || undefined,
+        state: editProfile.state || undefined,
+        websiteUrl: editProfile.website || undefined,
       });
       Alert.alert("Success", "Profile updated successfully");
       fetchDashboard();

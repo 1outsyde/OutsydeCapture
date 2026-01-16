@@ -92,20 +92,39 @@ export default function PhotographerDashboardScreen() {
 
     try {
       setLoading(true);
-      const data = await api.getPhotographerDashboard(token);
-      setStats(data.stats);
-      setProfile(data.profile);
-      if (data.billingAddress) {
-        setBillingAddress(data.billingAddress);
-      }
+      const { photographer } = await api.getPhotographerMe(token);
+      
+      setStats({
+        earnings: photographer.totalEarnings || 0,
+        upcomingBookings: 0,
+        unreadMessages: 0,
+        rating: photographer.rating || 0,
+        reviewCount: photographer.reviewCount || 0,
+        profileViews: 0,
+        completedShoots: photographer.completedShoots || 0,
+      });
+      
+      setProfile({
+        id: photographer.id,
+        name: photographer.displayName || "",
+        avatar: photographer.logoImage,
+        hourlyRate: photographer.hourlyRate ? photographer.hourlyRate / 100 : 0,
+        bio: photographer.bio,
+        city: photographer.city,
+        state: photographer.state,
+        portfolioUrl: photographer.portfolioUrl,
+        specialties: photographer.specialties || [],
+        stripeConnected: photographer.stripeOnboardingComplete || false,
+      });
+      
       setEditProfile({
-        name: data.profile.name || "",
-        hourlyRate: data.profile.hourlyRate?.toString() || "",
-        bio: data.profile.bio || "",
-        city: data.profile.city || "",
-        state: data.profile.state || "",
-        portfolioUrl: data.profile.portfolioUrl || "",
-        specialties: data.profile.specialties || [],
+        name: photographer.displayName || "",
+        hourlyRate: photographer.hourlyRate ? (photographer.hourlyRate / 100).toString() : "",
+        bio: photographer.bio || "",
+        city: photographer.city || "",
+        state: photographer.state || "",
+        portfolioUrl: photographer.portfolioUrl || "",
+        specialties: photographer.specialties || [],
       });
     } catch (error) {
       console.error("Failed to fetch photographer dashboard:", error);
@@ -137,21 +156,43 @@ export default function PhotographerDashboardScreen() {
     try {
       switch (activeTab) {
         case "bookings":
-          const bookingsData = await api.getPhotographerBookings(token);
-          setBookings(bookingsData || []);
+          const { bookings: bookingsData } = await api.getPhotographerMeBookings(token);
+          setBookings(bookingsData.map((b: any) => ({
+            id: b.id,
+            clientName: b.customerName || "Client",
+            clientAvatar: b.customerAvatar,
+            date: b.date,
+            time: b.startTime,
+            service: b.serviceName,
+            status: b.status,
+            amount: b.totalAmount ? b.totalAmount / 100 : 0,
+          })) || []);
           break;
         case "services":
-          const servicesData = await api.getPhotographerServices(token);
-          setServices(servicesData || []);
+          const { services: servicesData } = await api.getPhotographerMeServices(token);
+          setServices(servicesData.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            duration: s.durationMinutes,
+            price: s.priceInCents ? s.priceInCents / 100 : 0,
+          })) || []);
           break;
         case "hours":
-          const hoursData = await api.getPhotographerHours(token);
-          setHours(hoursData.length > 0 ? hoursData : DAYS_OF_WEEK.map((_, i) => ({
-            dayOfWeek: i,
-            isAvailable: i !== 0 && i !== 6,
-            startTime: "09:00",
-            endTime: "17:00",
-          })));
+          const { availability } = await api.getPhotographerMeAvailability(token);
+          setHours(availability.length > 0 
+            ? availability.map((a: any) => ({
+                dayOfWeek: a.dayOfWeek,
+                isAvailable: a.isAvailable,
+                startTime: a.startTime,
+                endTime: a.endTime,
+              }))
+            : DAYS_OF_WEEK.map((_, i) => ({
+                dayOfWeek: i,
+                isAvailable: i !== 0 && i !== 6,
+                startTime: "09:00",
+                endTime: "17:00",
+              })));
           break;
       }
     } catch (error) {
@@ -186,7 +227,7 @@ export default function PhotographerDashboardScreen() {
     if (!token) return;
 
     try {
-      const { url } = await api.connectStripe(token, "photographer");
+      const { url } = await api.startPhotographerStripeOnboarding(token);
       if (url) {
         Linking.openURL(url);
       }
@@ -201,13 +242,13 @@ export default function PhotographerDashboardScreen() {
 
     try {
       setSaving(true);
-      await api.updatePhotographerProfile(token, {
-        name: editProfile.name,
-        hourlyRate: parseFloat(editProfile.hourlyRate) || 0,
-        bio: editProfile.bio,
-        city: editProfile.city,
-        state: editProfile.state,
-        portfolioUrl: editProfile.portfolioUrl,
+      await api.updatePhotographerMe(token, {
+        displayName: editProfile.name,
+        hourlyRate: Math.round((parseFloat(editProfile.hourlyRate) || 0) * 100),
+        bio: editProfile.bio || undefined,
+        city: editProfile.city || undefined,
+        state: editProfile.state || undefined,
+        portfolioUrl: editProfile.portfolioUrl || undefined,
         specialties: editProfile.specialties,
       });
       Alert.alert("Success", "Profile updated successfully");
