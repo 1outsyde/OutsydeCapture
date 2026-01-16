@@ -204,3 +204,11 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Premium/Pro tier content prioritized next
   - Recent posts shown last
   - Integrates with FavoritesContext for dynamic personalization
+- Backend Integration Setup:
+  - API service layer in /services/api.ts with base URL https://outsyde-backend.onrender.com
+  - HealthCheckContext for monitoring backend connection status
+  - Health check banner on DiscoverScreen showing:
+    - Loading state while connecting
+    - Success state with status, service, and environment from backend /health endpoint
+    - Error state with retry button if connection fails
+  - Prepared for future integration: authentication, data fetching, real-time sync
