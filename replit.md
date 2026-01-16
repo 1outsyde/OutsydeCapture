@@ -39,6 +39,24 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Messages**: All platform conversations with preview and participant info
   - **Influencers**: Status filters and approve/reject workflow for influencer applications
 - **Admin Access**: Users with "admin" in their email or email "admin@outsyde.com" can access the dashboard via Account > Admin Dashboard
+- **Photographer Dashboard**: Provider dashboard for photographers accessible from Account screen. Features:
+  - Stats row: Earnings, Upcoming Bookings, Unread Messages, Rating
+  - Profile overview with avatar, name, hourly rate, portfolio link
+  - Profile views and completed shoots stats
+  - Billing address management
+  - Tabs: Bookings (accept/decline), Services, Hours (availability), Storefront (coming soon), Profile (edit name, rate, bio, location, portfolio, specialties)
+  - Stripe Connect integration banner for payment setup
+- **Business Dashboard**: Provider dashboard for businesses accessible from Account screen. Features:
+  - Stats row: Earnings, Orders/Bookings (adaptive based on business type), Unread Messages, Rating
+  - Profile overview with avatar, business name, category, website link
+  - Profile views stats
+  - Billing address management
+  - Tabs adapt based on businessType (product/service/both):
+    - Product-based: Orders, Products, Storefront, Profile
+    - Service-based: Bookings, Services, Hours, Storefront, Profile
+    - Both: Orders, Bookings, Products, Services, Hours, Storefront, Profile
+  - Order management (process, ship) and booking management (accept/decline)
+  - Stripe Connect integration banner for payment setup
 
 ### System Design Choices
 - **Cross-Platform**: Built with Expo/React Native for iOS, Android, and web.
