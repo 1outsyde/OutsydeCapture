@@ -18,13 +18,15 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type AuthMode = "login" | "signup";
 
 const BUSINESS_CATEGORIES = [
-  "Photography",
-  "Cinematography",
   "Food & Dining",
-  "Fashion & Clothes",
-  "Local Services",
   "Beauty & Hair",
   "Art & Design",
+  "Health & Wellness",
+  "Fashion & Apparel",
+  "Home Services",
+  "Events & Entertainment",
+  "Retail & Shopping",
+  "Professional Services",
 ];
 
 export default function AuthScreen() {
