@@ -39,7 +39,7 @@ export default function BusinessProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<BusinessProfileRouteProp>();
-  const { getToken } = useAuth();
+  const { getToken, isAuthenticated } = useAuth();
   const initialData = route.params.business;
 
   const [business, setBusiness] = useState<BusinessProfileData>(initialData);
@@ -133,6 +133,11 @@ export default function BusinessProfileScreen() {
   const handleMessage = async () => {
     if (isStartingChat) return;
     
+    if (!isAuthenticated) {
+      navigation.navigate("Auth", { returnTo: "BusinessProfile" });
+      return;
+    }
+    
     try {
       setIsStartingChat(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -153,14 +158,7 @@ export default function BusinessProfileScreen() {
         participantType: business.resultType === "photographer" ? "photographer" : "business",
       });
     } catch (error) {
-      const tempId = `temp-${business.id}-${Date.now()}`;
-      navigation.navigate("Chat", {
-        conversationId: tempId,
-        participantId: business.id,
-        participantName: business.name,
-        participantAvatar: business.avatar,
-        participantType: business.resultType === "photographer" ? "photographer" : "business",
-      });
+      console.error("Failed to create conversation:", error);
     } finally {
       setIsStartingChat(false);
     }

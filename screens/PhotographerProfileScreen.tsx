@@ -42,7 +42,7 @@ export default function PhotographerProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<PhotographerProfileRouteProp>();
-  const { getToken } = useAuth();
+  const { getToken, isAuthenticated } = useAuth();
   const initialData = route.params.photographer;
 
   const [photographer, setPhotographer] = useState<PhotographerProfileData>(initialData);
@@ -143,6 +143,11 @@ export default function PhotographerProfileScreen() {
   const handleMessage = async () => {
     if (isStartingChat) return;
     
+    if (!isAuthenticated) {
+      navigation.navigate("Auth", { returnTo: "PhotographerProfile" });
+      return;
+    }
+    
     try {
       setIsStartingChat(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -163,14 +168,7 @@ export default function PhotographerProfileScreen() {
         participantType: "photographer",
       });
     } catch (error) {
-      const tempId = `temp-${photographer.id}-${Date.now()}`;
-      navigation.navigate("Chat", {
-        conversationId: tempId,
-        participantId: photographer.id,
-        participantName: photographer.name,
-        participantAvatar: photographer.avatar,
-        participantType: "photographer",
-      });
+      console.error("Failed to create conversation:", error);
     } finally {
       setIsStartingChat(false);
     }
