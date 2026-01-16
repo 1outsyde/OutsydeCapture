@@ -345,6 +345,24 @@ export default function AccountScreen() {
               </Pressable>
             ) : null}
 
+            {user?.role === "photographer" && !user?.isProfileComplete ? (
+              <Pressable
+                onPress={() => (navigation as any).navigate("PhotographerOnboarding")}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  { backgroundColor: "#FF950010", opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="edit-3" size={20} color="#FF9500" />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FF9500" }]}>
+                    Complete Photographer Setup
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color="#FF9500" />
+              </Pressable>
+            ) : null}
+
             {user?.role === "business" && user?.approvalStatus === "approved" && user?.isProfileComplete ? (
               <Pressable
                 onPress={() => (navigation as any).navigate("BusinessDashboard")}
@@ -361,6 +379,35 @@ export default function AccountScreen() {
                 </View>
                 <Feather name="chevron-right" size={20} color="#34C759" />
               </Pressable>
+            ) : null}
+
+            {user?.role === "business" && !user?.isProfileComplete ? (
+              <Pressable
+                onPress={() => (navigation as any).navigate("BusinessOnboarding")}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  { backgroundColor: "#FF950010", opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="edit-3" size={20} color="#FF9500" />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FF9500" }]}>
+                    Complete Business Setup
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color="#FF9500" />
+              </Pressable>
+            ) : null}
+
+            {user?.role === "business" && user?.approvalStatus === "pending" ? (
+              <View style={[styles.menuItem, { backgroundColor: "#FFD60A10" }]}>
+                <View style={styles.menuItemLeft}>
+                  <Feather name="clock" size={20} color="#FFD60A" />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FFD60A" }]}>
+                    Business Approval Pending
+                  </ThemedText>
+                </View>
+              </View>
             ) : null}
 
             {(user?.role === "consumer" || user?.isGuest) ? (
