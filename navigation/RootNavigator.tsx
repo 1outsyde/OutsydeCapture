@@ -18,6 +18,8 @@ import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
 import OnboardingScreen, { checkOnboardingComplete } from "@/screens/OnboardingScreen";
+import AdminDashboardScreen from "@/screens/AdminDashboardScreen";
+import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -194,6 +196,24 @@ export default function RootNavigator() {
         options={{
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="AdminDashboard"
+        component={AdminDashboardScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="AdminUserDetail"
+        component={AdminUserDetailScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
         }}
       />
     </Stack.Navigator>

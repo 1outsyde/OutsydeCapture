@@ -77,6 +77,8 @@ export type RootStackParamList = {
     photographerName: string;
     sessionDate: string;
   };
+  AdminDashboard: undefined;
+  AdminUserDetail: { userId: string };
 };
 
 export type MainTabParamList = {
