@@ -11,6 +11,7 @@ import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
 import PaymentScreen from "@/screens/PaymentScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
+import BusinessProfileScreen from "@/screens/BusinessProfileScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import OnboardingScreen, { checkOnboardingComplete } from "@/screens/OnboardingScreen";
@@ -88,6 +89,15 @@ export default function RootNavigator() {
       <Stack.Screen
         name="VendorDetail"
         component={VendorDetailScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="BusinessProfile"
+        component={BusinessProfileScreen}
         options={{
           presentation: "modal",
           animation: "slide_from_bottom",

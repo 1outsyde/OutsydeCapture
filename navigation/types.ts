@@ -1,6 +1,29 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
 
+export interface BusinessProfileData {
+  id: string;
+  name: string;
+  avatar: string;
+  city: string;
+  state: string;
+  rating: number;
+  priceRange: string;
+  category: string;
+  description: string;
+  subscriptionTier?: "basic" | "pro" | "premium";
+  resultType: "business" | "photographer" | "product" | "service";
+  address?: string;
+  website?: string;
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+  reviewCount?: number;
+  coverImage?: string;
+}
+
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
@@ -9,6 +32,7 @@ export type RootStackParamList = {
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer: Photographer };
   VendorDetail: { vendorId: string };
+  BusinessProfile: { business: BusinessProfileData };
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };

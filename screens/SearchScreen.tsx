@@ -3,6 +3,8 @@ import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator }
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
@@ -11,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
+import { RootStackParamList, BusinessProfileData } from "@/navigation/types";
 
 type TabType = "all" | "business" | "photographer" | "product" | "service";
 
@@ -42,9 +45,12 @@ const RESULT_TYPE_LABELS: Record<SearchResultType, string> = {
   service: "Service",
 };
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 export default function SearchScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NavigationProp>();
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -94,6 +100,23 @@ export default function SearchScreen() {
       image: item.avatar,
       subtitle: `${item.city}, ${item.state}`,
     });
+  };
+
+  const handleCardPress = (item: UnifiedSearchResult) => {
+    const businessData: BusinessProfileData = {
+      id: item.id,
+      name: item.name,
+      avatar: item.avatar,
+      city: item.city,
+      state: item.state,
+      rating: item.rating,
+      priceRange: item.priceRange,
+      category: item.category,
+      description: item.description,
+      subscriptionTier: item.subscriptionTier,
+      resultType: item.resultType,
+    };
+    navigation.navigate("BusinessProfile", { business: businessData });
   };
 
   const filteredResults = useMemo(() => {
@@ -175,6 +198,7 @@ export default function SearchScreen() {
 
     return (
       <Pressable
+        onPress={() => handleCardPress(item)}
         style={({ pressed }) => [
           styles.resultCard,
           {
