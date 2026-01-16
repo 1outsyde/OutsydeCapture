@@ -252,7 +252,7 @@ export default function BusinessOnboardingScreen() {
           color={role === "business" ? theme.primary : theme.textSecondary}
         />
         <View style={styles.roleTextContainer}>
-          <ThemedText type="subtitle" style={role === "business" ? { color: theme.primary } : undefined}>
+          <ThemedText type="h4" style={role === "business" ? { color: theme.primary } : undefined}>
             Business Owner
           </ThemedText>
           <ThemedText type="caption" style={{ color: theme.textSecondary }}>
@@ -281,7 +281,7 @@ export default function BusinessOnboardingScreen() {
           color={role === "photographer" ? theme.primary : theme.textSecondary}
         />
         <View style={styles.roleTextContainer}>
-          <ThemedText type="subtitle" style={role === "photographer" ? { color: theme.primary } : undefined}>
+          <ThemedText type="h4" style={role === "photographer" ? { color: theme.primary } : undefined}>
             Photographer
           </ThemedText>
           <ThemedText type="caption" style={{ color: theme.textSecondary }}>
@@ -577,7 +577,7 @@ export default function BusinessOnboardingScreen() {
         <View style={[styles.reviewCard, { backgroundColor: theme.backgroundSecondary }]}>
           <View style={styles.reviewRow}>
             <Feather name={role === "business" ? "briefcase" : "camera"} size={20} color={theme.primary} />
-            <ThemedText type="subtitle" style={{ marginLeft: Spacing.sm }}>
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
               {role === "business" ? "Business" : "Photographer"}
             </ThemedText>
           </View>
