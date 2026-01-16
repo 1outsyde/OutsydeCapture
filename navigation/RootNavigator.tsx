@@ -9,6 +9,7 @@ import BookingScreen from "@/screens/BookingScreen";
 import SessionDetailScreen from "@/screens/SessionDetailScreen";
 import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
+import ChatScreen from "@/screens/ChatScreen";
 import PaymentScreen from "@/screens/PaymentScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
 import BusinessProfileScreen from "@/screens/BusinessProfileScreen";
@@ -138,6 +139,20 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
 

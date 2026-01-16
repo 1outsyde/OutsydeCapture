@@ -61,6 +61,13 @@ export type RootStackParamList = {
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };
+  Chat: {
+    conversationId: string;
+    participantId: string;
+    participantName: string;
+    participantAvatar?: string;
+    participantType: "business" | "photographer";
+  };
   CartOrders: undefined;
   Favorites: undefined;
   Payment: {
