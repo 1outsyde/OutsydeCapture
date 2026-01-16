@@ -109,6 +109,125 @@ export interface CreatePhotographerRequest {
   portfolio?: string[];
 }
 
+// VendorBooker Photographer Profile (matches /api/photographers/me)
+export interface VendorBookerPhotographer {
+  id: string;
+  userId: string;
+  displayName: string;
+  bio?: string | null;
+  city?: string | null;
+  state?: string | null;
+  portfolioUrl?: string | null;
+  hourlyRate: number; // stored in cents
+  specialties?: string[] | null;
+  coverImage?: string | null;
+  logoImage?: string | null;
+  brandColors?: string | null;
+  hoursOfOperation?: string | null;
+  stripeAccountId?: string | null;
+  stripeOnboardingComplete?: boolean | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// VendorBooker Business Profile (matches /api/vendor/my-business)
+export interface VendorBookerBusiness {
+  id: string;
+  ownerId: string;
+  name: string;
+  category: string;
+  description?: string | null;
+  tagline?: string | null;
+  city?: string | null;
+  state?: string | null;
+  hasProducts: boolean;
+  hasServices: boolean;
+  coverImage?: string | null;
+  logoImage?: string | null;
+  brandColors?: string | null;
+  hoursOfOperation?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  websiteUrl?: string | null;
+  stripeAccountId?: string | null;
+  stripeOnboardingComplete?: boolean | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Photographer onboarding data (for creating/updating profile)
+export interface PhotographerOnboardingData {
+  displayName: string;
+  bio?: string;
+  city?: string;
+  state?: string;
+  portfolioUrl?: string;
+  hourlyRate: number; // in dollars, will convert to cents
+  specialties?: string[];
+  willTravel?: boolean;
+  additionalServices?: string[];
+}
+
+// Business onboarding data (for creating/updating profile)
+export interface BusinessOnboardingData {
+  name: string;
+  category: string;
+  description?: string;
+  tagline?: string;
+  city?: string;
+  state?: string;
+  hasProducts: boolean;
+  hasServices: boolean;
+  yearsInBusiness?: number;
+  numberOfEmployees?: number;
+  businessStructure?: string; // LLC, Sole Proprietor, Corporation, etc.
+  hasPhysicalLocation: boolean;
+  isOnlineOnly?: boolean;
+  address?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  websiteUrl?: string;
+}
+
+// Stripe onboarding status
+export interface StripeOnboardingStatus {
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+}
+
+// Photographer service from VendorBooker
+export interface VendorBookerPhotographerService {
+  id: string;
+  photographerId: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  priceCents?: number | null;
+  isContactForPricing: boolean;
+  estimatedDurationMinutes?: number | null;
+  pricingModel?: string | null;
+  hourlyRateCents?: number | null;
+  packageHours?: number | null;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Photographer availability slot
+export interface VendorBookerAvailabilitySlot {
+  id: string;
+  photographerId: string;
+  dayOfWeek?: number | null;
+  date?: string | null;
+  startTime: string;
+  endTime: string;
+  isRecurring: boolean;
+  createdAt?: string;
+}
+
 export interface AdminStats {
   users: number;
   businesses: number;
@@ -679,6 +798,120 @@ class ApiService {
   async connectStripe(authToken: string, type: "photographer" | "business"): Promise<{ url: string }> {
     return this.request<{ url: string }>(`/api/${type}/connect-stripe`, {
       method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // ==========================================
+  // VendorBooker Photographer Endpoints
+  // ==========================================
+
+  // GET /api/photographers/me - Get current photographer profile
+  async getPhotographerMe(authToken: string): Promise<VendorBookerPhotographer> {
+    return this.request<VendorBookerPhotographer>("/api/photographers/me", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // PATCH /api/photographers/me - Update photographer profile
+  async updatePhotographerMe(authToken: string, data: Partial<PhotographerOnboardingData>): Promise<{ photographer: VendorBookerPhotographer }> {
+    return this.request<{ photographer: VendorBookerPhotographer }>("/api/photographers/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/photographers/me/stripe-status - Get Stripe onboarding status
+  async getPhotographerStripeStatus(authToken: string): Promise<StripeOnboardingStatus> {
+    return this.request<StripeOnboardingStatus>("/api/photographers/me/stripe-status", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/photographers/me/stripe-onboarding - Start Stripe onboarding
+  async startPhotographerStripeOnboarding(authToken: string): Promise<{ url: string }> {
+    return this.request<{ url: string }>("/api/photographers/me/stripe-onboarding", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/photographers/me/services - Get photographer's services
+  async getPhotographerMeServices(authToken: string): Promise<{ services: VendorBookerPhotographerService[] }> {
+    return this.request<{ services: VendorBookerPhotographerService[] }>("/api/photographers/me/services", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/photographers/me/services - Create a new service
+  async createPhotographerMeService(authToken: string, data: Partial<VendorBookerPhotographerService>): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>("/api/photographers/me/services", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/photographers/me/availability - Get availability slots
+  async getPhotographerMeAvailability(authToken: string): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
+    return this.request<{ availability: VendorBookerAvailabilitySlot[] }>("/api/photographers/me/availability", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/photographers/me/bookings - Get booking records
+  async getPhotographerMeBookings(authToken: string): Promise<{ bookings: PhotographerBooking[] }> {
+    return this.request<{ bookings: PhotographerBooking[] }>("/api/photographers/me/bookings", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // ==========================================
+  // VendorBooker Business/Vendor Endpoints
+  // ==========================================
+
+  // GET /api/vendor/my-business - Get current business profile
+  async getVendorMyBusiness(authToken: string): Promise<{ business: VendorBookerBusiness }> {
+    return this.request<{ business: VendorBookerBusiness }>("/api/vendor/my-business", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // PATCH /api/vendor/my-business - Update business profile
+  async updateVendorMyBusiness(authToken: string, data: Partial<BusinessOnboardingData>): Promise<{ business: VendorBookerBusiness }> {
+    return this.request<{ business: VendorBookerBusiness }>("/api/vendor/my-business", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/vendor/stripe-onboarding/create-link - Start Stripe onboarding for vendor
+  async startVendorStripeOnboarding(authToken: string): Promise<{ url: string }> {
+    return this.request<{ url: string }>("/api/vendor/stripe-onboarding/create-link", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/vendor/stripe-onboarding/status - Get vendor Stripe status
+  async getVendorStripeStatus(authToken: string): Promise<StripeOnboardingStatus & { hasStripeAccount: boolean; onboardingComplete: boolean }> {
+    return this.request<StripeOnboardingStatus & { hasStripeAccount: boolean; onboardingComplete: boolean }>("/api/vendor/stripe-onboarding/status", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/vendor/customers - Get orders and booking records
+  async getVendorCustomers(authToken: string): Promise<{ records: BusinessOrder[] }> {
+    return this.request<{ records: BusinessOrder[] }>("/api/vendor/customers", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/vendor/staff - Get staff members
+  async getVendorStaff(authToken: string): Promise<{ staff: any[] }> {
+    return this.request<{ staff: any[] }>("/api/vendor/staff", {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
