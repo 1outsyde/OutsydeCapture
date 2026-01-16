@@ -59,10 +59,28 @@ I prefer clear, concise communication. When making changes, please explain the r
   - Order management (process, ship) and booking management (accept/decline)
   - Stripe Connect integration banner for payment setup
 
+### VendorBooker Backend Integration
+- **Backend URL**: `https://outsyde-backend.onrender.com` (VendorBooker)
+- **Photographer Endpoints**: 
+  - `GET /api/photographers/me` - Fetch photographer profile
+  - `PATCH /api/photographers/me` - Update photographer profile
+  - `POST /api/photographers/me/stripe-onboarding` - Start Stripe Connect onboarding
+  - `GET /api/photographers/me/services` - Fetch photographer services
+  - `GET /api/photographers/me/availability` - Fetch availability schedule
+  - `GET /api/photographers/me/bookings` - Fetch photographer bookings
+- **Business Endpoints**:
+  - `GET /api/vendor/my-business` - Fetch business profile
+  - `PATCH /api/vendor/my-business` - Update business profile
+  - `POST /api/vendor/my-business/stripe-onboarding` - Start Stripe Connect onboarding
+- **Photographer Onboarding Fields**: displayName, bio, city, state, hourlyRate (in cents), specialties array, portfolioUrl, coverImage, logoImage, brandColors
+- **Business Onboarding Fields**: name, category, description, tagline, city, state, hasProducts, hasServices, yearsInBusiness, numberOfEmployees, businessStructure, hasPhysicalLocation, address, contactEmail, contactPhone, websiteUrl
+- **Stripe Integration**: Both roles require Stripe Connect onboarding for payment processing via stripe-onboarding endpoints
+- **Profile Completion**: Backend confirms `stripeOnboardingComplete` to indicate full profile completion
+
 ### System Design Choices
 - **Cross-Platform**: Built with Expo/React Native for iOS, Android, and web.
 - **Security**: User-scoped keys for AsyncStorage persistence; payment methods and transactions scoped per user ID.
-- **Backend Integration**: API service layer (`/services/api.ts`) with `https://outsyde-backend.onrender.com`. Includes `HealthCheckContext` for monitoring backend status.
+- **Backend Integration**: API service layer (`/services/api.ts`) with VendorBooker backend. Includes `HealthCheckContext` for monitoring backend status.
 - **Image Handling**: `expo-image` for optimized images, `expo-image-picker` for uploads.
 - **Notifications**: `expo-notifications` for push notifications.
 - **Animations**: `react-native-reanimated`.
