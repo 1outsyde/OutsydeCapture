@@ -220,3 +220,11 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Debounced search (300ms) for better performance
   - Loading states and error handling with retry button
   - Preserved card design: image, name, city/state, rating, price range, category
+- BusinessProfileScreen:
+  - Premium modal screen with hero section (cover image, avatar, name, category, location, rating)
+  - Action buttons: Message, Book/View Services, Visit Website (hides if missing)
+  - About section with business description
+  - Info section with address, phone, email, website, social media links
+  - Graceful handling of missing fields (sections hidden when data is null)
+  - Navigation from SearchScreen on card tap with full business data passed
+  - Dark-mode-first design consistent with app styling
