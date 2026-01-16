@@ -47,6 +47,7 @@ interface AuthContextType {
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
+  getToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -221,6 +222,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updatedUser);
   };
 
+  const getToken = async (): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+    } catch (error) {
+      console.error("Failed to get token:", error);
+      return null;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -232,6 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginAsGuest,
         logout,
         updateProfile,
+        getToken,
       }}
     >
       {children}
