@@ -109,6 +109,110 @@ export interface CreatePhotographerRequest {
   portfolio?: string[];
 }
 
+export interface AdminStats {
+  users: number;
+  businesses: number;
+  photographers: number;
+  orders: number;
+  bookings: number;
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  username?: string;
+  avatar?: string;
+  accountType: "consumer" | "business";
+  createdAt: string;
+  status: "active" | "suspended";
+}
+
+export interface AdminBusiness {
+  id: string;
+  name: string;
+  category: string;
+  city: string;
+  state: string;
+  email?: string;
+  phone?: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  earnings?: number;
+}
+
+export interface AdminPhotographer {
+  id: string;
+  name: string;
+  specialty: string;
+  city: string;
+  state: string;
+  email?: string;
+  phone?: string;
+  createdAt: string;
+  earnings?: number;
+}
+
+export interface AdminInfluencer {
+  id: string;
+  name: string;
+  email?: string;
+  instagram?: string;
+  followers?: number;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+export interface AdminOrder {
+  id: string;
+  userId: string;
+  userName: string;
+  businessId: string;
+  businessName: string;
+  amount: number;
+  status: "pending" | "completed" | "cancelled" | "refunded";
+  createdAt: string;
+}
+
+export interface AdminBooking {
+  id: string;
+  userId: string;
+  userName: string;
+  photographerId: string;
+  photographerName: string;
+  date: string;
+  amount: number;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  createdAt: string;
+}
+
+export interface AdminRefund {
+  id: string;
+  orderId?: string;
+  bookingId?: string;
+  userId: string;
+  userName: string;
+  amount: number;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+export interface AdminConversation {
+  id: string;
+  participants: { id: string; name: string; avatar?: string }[];
+  lastMessage?: string;
+  lastMessageAt?: string;
+  messageCount: number;
+}
+
+export interface PaymentStats {
+  totalOrders: number;
+  orderRevenue: number;
+  totalBookings: number;
+  pendingRefunds: number;
+}
+
 export interface ApiPhotographer {
   id: string;
   name: string;
@@ -285,6 +389,99 @@ class ApiService {
       headers: {
         "Authorization": `Bearer ${authToken}`,
       },
+    });
+  }
+
+  async getAdminStats(authToken: string): Promise<AdminStats> {
+    return this.request<AdminStats>("/api/admin/stats", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminUsers(authToken: string, search?: string): Promise<AdminUser[]> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return this.request<AdminUser[]>(`/api/admin/users${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminBusinesses(authToken: string, status?: string, search?: string): Promise<AdminBusiness[]> {
+    const params = new URLSearchParams();
+    if (status) params.append("status", status);
+    if (search) params.append("search", search);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request<AdminBusiness[]>(`/api/admin/businesses${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminPhotographers(authToken: string, search?: string): Promise<AdminPhotographer[]> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return this.request<AdminPhotographer[]>(`/api/admin/photographers${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminInfluencers(authToken: string, status?: string): Promise<AdminInfluencer[]> {
+    const query = status ? `?status=${status}` : "";
+    return this.request<AdminInfluencer[]>(`/api/admin/influencers${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getPaymentStats(authToken: string): Promise<PaymentStats> {
+    return this.request<PaymentStats>("/api/admin/payments/stats", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminOrders(authToken: string): Promise<AdminOrder[]> {
+    return this.request<AdminOrder[]>("/api/admin/orders", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminBookings(authToken: string): Promise<AdminBooking[]> {
+    return this.request<AdminBooking[]>("/api/admin/bookings", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminRefunds(authToken: string): Promise<AdminRefund[]> {
+    return this.request<AdminRefund[]>("/api/admin/refunds", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminConversations(authToken: string): Promise<AdminConversation[]> {
+    return this.request<AdminConversation[]>("/api/admin/conversations", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async approveApplication(authToken: string, type: "business" | "influencer", id: string): Promise<void> {
+    await this.request<void>(`/api/admin/${type}s/${id}/approve`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async rejectApplication(authToken: string, type: "business" | "influencer", id: string): Promise<void> {
+    await this.request<void>(`/api/admin/${type}s/${id}/reject`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminUserDetail(authToken: string, userId: string): Promise<{
+    user: AdminUser;
+    orders: AdminOrder[];
+    bookings: AdminBooking[];
+    conversations: AdminConversation[];
+    earnings: number;
+  }> {
+    return this.request(`/api/admin/users/${userId}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
