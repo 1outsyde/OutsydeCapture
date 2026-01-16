@@ -31,6 +31,14 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Favorites**: User-specific saved items (photographers, businesses, products) with persistence.
 - **Onboarding**: 4-screen welcome flow for first-time users.
 - **Profile Screens**: Dedicated premium modal screens for Business and Photographer profiles, displaying hero sections, actions, about info, portfolios, and contact details. Hybrid data fetching for optimal UX.
+- **Admin Dashboard**: Comprehensive admin interface accessible from Account screen (for admin users). Features 6 tabs:
+  - **Users**: Search by username/name/email, view user details with orders/bookings/conversations/earnings
+  - **Businesses**: Status filters (Pending/Approved/Rejected/All), approve/reject applications, search, earnings tracking
+  - **Photographers**: Search and list view with earnings tracking (auto-approved accounts)
+  - **Payments**: Sub-tabs for Orders, Bookings, Refunds with revenue stats overview
+  - **Messages**: All platform conversations with preview and participant info
+  - **Influencers**: Status filters and approve/reject workflow for influencer applications
+- **Admin Access**: Users with "admin" in their email or email "admin@outsyde.com" can access the dashboard via Account > Admin Dashboard
 
 ### System Design Choices
 - **Cross-Platform**: Built with Expo/React Native for iOS, Android, and web.
