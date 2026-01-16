@@ -1,718 +1,716 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
   Pressable,
   TextInput,
-  Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+  Alert,
   ScrollView,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
 
+import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api from "@/services/api";
+import api, { VendorBookerBusiness, BusinessOnboardingData } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-type Role = "business" | "photographer";
+const SUCCESS_COLOR = "#34C759";
 
-interface BusinessFormData {
-  name: string;
-  category: string;
-  city: string;
-  state: string;
-  description: string;
-  website: string;
-  instagram: string;
-  phone: string;
-  email: string;
-}
-
-interface PhotographerFormData {
-  name: string;
-  specialty: string;
-  city: string;
-  state: string;
-  priceRange: string;
-  description: string;
-  website: string;
-  instagram: string;
-  phone: string;
-  email: string;
-}
-
-const BUSINESS_CATEGORIES = [
-  "Food & Dining",
-  "Beauty & Hair",
-  "Art & Design",
-  "Fashion & Apparel",
-  "Health & Wellness",
-  "Home Services",
-  "Events & Entertainment",
-  "Other",
+const CATEGORIES = [
+  { value: "food_dining", label: "Food & Dining" },
+  { value: "beauty_hair", label: "Beauty & Hair" },
+  { value: "art_design", label: "Art & Design" },
+  { value: "health_wellness", label: "Health & Wellness" },
+  { value: "fashion", label: "Fashion & Apparel" },
+  { value: "home_services", label: "Home Services" },
+  { value: "events", label: "Events & Entertainment" },
+  { value: "retail", label: "Retail & Shopping" },
+  { value: "professional", label: "Professional Services" },
+  { value: "other", label: "Other" },
 ];
 
-const PHOTOGRAPHER_SPECIALTIES = [
-  "Portrait",
-  "Wedding",
-  "Event",
-  "Fashion",
-  "Product",
-  "Landscape",
-  "Street",
-  "Other",
+const BUSINESS_STRUCTURES = [
+  { value: "sole_proprietor", label: "Sole Proprietor" },
+  { value: "llc", label: "LLC" },
+  { value: "corporation", label: "Corporation" },
+  { value: "partnership", label: "Partnership" },
+  { value: "nonprofit", label: "Non-Profit" },
 ];
 
-const PRICE_RANGES = ["$", "$$", "$$$", "$$$$"];
+const US_STATES = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+];
 
 export default function BusinessOnboardingScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const { user, getToken, isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, getToken } = useAuth();
 
   const [step, setStep] = useState(1);
-  const [role, setRole] = useState<Role | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [existingBusiness, setExistingBusiness] = useState<VendorBookerBusiness | null>(null);
 
-  const [businessData, setBusinessData] = useState<BusinessFormData>({
-    name: "",
-    category: "",
-    city: "",
-    state: "",
-    description: "",
-    website: "",
-    instagram: "",
-    phone: "",
-    email: "",
-  });
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [hasProducts, setHasProducts] = useState(false);
+  const [hasServices, setHasServices] = useState(false);
+  const [yearsInBusiness, setYearsInBusiness] = useState("");
+  const [numberOfEmployees, setNumberOfEmployees] = useState("");
+  const [businessStructure, setBusinessStructure] = useState("");
+  const [hasPhysicalLocation, setHasPhysicalLocation] = useState(true);
+  const [address, setAddress] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
 
-  const [photographerData, setPhotographerData] = useState<PhotographerFormData>({
-    name: "",
-    specialty: "",
-    city: "",
-    state: "",
-    priceRange: "",
-    description: "",
-    website: "",
-    instagram: "",
-    phone: "",
-    email: "",
-  });
-
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isAuthenticated) {
       navigation.navigate("Auth", { returnTo: "BusinessOnboarding" });
+      return;
     }
+    loadExistingBusiness();
   }, [isAuthenticated]);
 
-  const handleClose = () => {
-    navigation.goBack();
+  const loadExistingBusiness = async () => {
+    const authToken = await getToken();
+    if (!authToken) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { business } = await api.getVendorMyBusiness(authToken);
+      setExistingBusiness(business);
+      
+      if (business.name) setName(business.name);
+      if (business.category) setCategory(business.category);
+      if (business.description) setDescription(business.description);
+      if (business.tagline) setTagline(business.tagline);
+      if (business.city) setCity(business.city);
+      if (business.state) setState(business.state);
+      setHasProducts(business.hasProducts);
+      setHasServices(business.hasServices);
+      if (business.contactEmail) setContactEmail(business.contactEmail);
+      if (business.contactPhone) setContactPhone(business.contactPhone);
+      if (business.websiteUrl) setWebsiteUrl(business.websiteUrl);
+    } catch (error) {
+      console.log("No existing business found, starting fresh");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    } else {
-      handleClose();
+  const validateStep = () => {
+    switch (step) {
+      case 1:
+        if (!name.trim()) {
+          Alert.alert("Required", "Please enter your business name");
+          return false;
+        }
+        if (!category) {
+          Alert.alert("Required", "Please select a category");
+          return false;
+        }
+        return true;
+      case 2:
+        if (!hasProducts && !hasServices) {
+          Alert.alert("Required", "Please select at least one: products or services");
+          return false;
+        }
+        return true;
+      case 3:
+        if (!city.trim() || !state.trim()) {
+          Alert.alert("Required", "Please enter your city and state");
+          return false;
+        }
+        return true;
+      case 4:
+        if (!contactEmail.trim()) {
+          Alert.alert("Required", "Please enter a contact email");
+          return false;
+        }
+        return true;
+      default:
+        return true;
     }
   };
 
   const handleNext = () => {
-    if (step === 1 && !role) {
-      Alert.alert("Select Role", "Please select whether you are a Business Owner or Photographer.");
+    if (validateStep()) {
+      setStep((prev) => prev + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep((prev) => prev - 1);
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const handleSaveBusiness = async () => {
+    const authToken = await getToken();
+    if (!authToken) {
+      Alert.alert("Error", "Please log in to continue");
       return;
     }
 
-    if (step === 2) {
-      if (role === "business") {
-        if (!businessData.name || !businessData.category || !businessData.city || !businessData.state || !businessData.description) {
-          Alert.alert("Required Fields", "Please fill in all required fields.");
-          return;
-        }
-      } else {
-        if (!photographerData.name || !photographerData.specialty || !photographerData.city || !photographerData.state || !photographerData.priceRange || !photographerData.description) {
-          Alert.alert("Required Fields", "Please fill in all required fields.");
-          return;
-        }
-      }
-    }
-
-    if (step < 4) {
-      setStep(step + 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (isSubmitting) return;
+    setSaving(true);
 
     try {
-      setIsSubmitting(true);
-      const token = await getToken();
-      
-      if (!token) {
-        Alert.alert("Authentication Required", "Please sign in to continue.");
-        navigation.navigate("Auth", { returnTo: "BusinessOnboarding" });
-        return;
-      }
+      const data: BusinessOnboardingData = {
+        name: name.trim(),
+        category,
+        description: description.trim() || undefined,
+        tagline: tagline.trim() || undefined,
+        city: city.trim(),
+        state: state.trim(),
+        hasProducts,
+        hasServices,
+        yearsInBusiness: yearsInBusiness ? parseInt(yearsInBusiness) : undefined,
+        numberOfEmployees: numberOfEmployees ? parseInt(numberOfEmployees) : undefined,
+        businessStructure: businessStructure || undefined,
+        hasPhysicalLocation,
+        address: address.trim() || undefined,
+        contactEmail: contactEmail.trim(),
+        contactPhone: contactPhone.trim() || undefined,
+        websiteUrl: websiteUrl.trim() || undefined,
+      };
 
-      if (role === "business") {
-        await api.createBusiness({
-          name: businessData.name,
-          category: businessData.category,
-          city: businessData.city,
-          state: businessData.state,
-          description: businessData.description,
-          website: businessData.website || undefined,
-          instagram: businessData.instagram || undefined,
-          phone: businessData.phone || undefined,
-          email: businessData.email || undefined,
-        }, token);
-      } else {
-        await api.createPhotographer({
-          name: photographerData.name,
-          specialty: photographerData.specialty,
-          city: photographerData.city,
-          state: photographerData.state,
-          priceRange: photographerData.priceRange,
-          description: photographerData.description,
-          website: photographerData.website || undefined,
-          instagram: photographerData.instagram || undefined,
-          phone: photographerData.phone || undefined,
-          email: photographerData.email || undefined,
-        }, token);
-      }
-
-      Alert.alert(
-        "Success!",
-        `Your ${role === "business" ? "business" : "photographer"} profile has been created. It will appear in search results shortly.`,
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Main", params: { screen: "SearchTab" } }],
-              });
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error("Failed to create profile:", error);
-      Alert.alert("Error", "Failed to create your profile. Please try again.");
+      await api.updateVendorMyBusiness(authToken, data);
+      setStep(6);
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to save business profile");
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
-  const inputStyle = [
-    styles.input,
-    {
-      backgroundColor: theme.backgroundSecondary,
-      color: theme.text,
-      borderColor: theme.border,
-    },
-  ];
+  const handleConnectStripe = async () => {
+    const authToken = await getToken();
+    if (!authToken) return;
 
-  const renderStep1 = () => (
-    <View style={styles.stepContent}>
-      <ThemedText type="h2" style={styles.stepTitle}>
-        Choose Your Role
-      </ThemedText>
-      <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-        Are you a business owner or a photographer?
-      </ThemedText>
-
-      <Pressable
-        onPress={() => setRole("business")}
-        style={({ pressed }) => [
-          styles.roleCard,
-          {
-            backgroundColor: role === "business" ? theme.primaryTransparent : theme.backgroundSecondary,
-            borderColor: role === "business" ? theme.primary : theme.border,
-            opacity: pressed ? 0.9 : 1,
-          },
-        ]}
-      >
-        <Feather
-          name="briefcase"
-          size={32}
-          color={role === "business" ? theme.primary : theme.textSecondary}
-        />
-        <View style={styles.roleTextContainer}>
-          <ThemedText type="h4" style={role === "business" ? { color: theme.primary } : undefined}>
-            Business Owner
-          </ThemedText>
-          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-            Restaurants, salons, shops, and more
-          </ThemedText>
-        </View>
-        {role === "business" && (
-          <Feather name="check-circle" size={24} color={theme.primary} />
-        )}
-      </Pressable>
-
-      <Pressable
-        onPress={() => setRole("photographer")}
-        style={({ pressed }) => [
-          styles.roleCard,
-          {
-            backgroundColor: role === "photographer" ? theme.primaryTransparent : theme.backgroundSecondary,
-            borderColor: role === "photographer" ? theme.primary : theme.border,
-            opacity: pressed ? 0.9 : 1,
-          },
-        ]}
-      >
-        <Feather
-          name="camera"
-          size={32}
-          color={role === "photographer" ? theme.primary : theme.textSecondary}
-        />
-        <View style={styles.roleTextContainer}>
-          <ThemedText type="h4" style={role === "photographer" ? { color: theme.primary } : undefined}>
-            Photographer
-          </ThemedText>
-          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-            Portrait, events, weddings, and more
-          </ThemedText>
-        </View>
-        {role === "photographer" && (
-          <Feather name="check-circle" size={24} color={theme.primary} />
-        )}
-      </Pressable>
-    </View>
-  );
-
-  const renderStep2Business = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <ThemedText type="h2" style={styles.stepTitle}>
-        Business Details
-      </ThemedText>
-      <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-        Tell us about your business
-      </ThemedText>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="caption" style={styles.label}>Business Name *</ThemedText>
-        <TextInput
-          style={inputStyle}
-          value={businessData.name}
-          onChangeText={(text) => setBusinessData({ ...businessData, name: text })}
-          placeholder="Enter your business name"
-          placeholderTextColor={theme.textMuted}
-        />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="caption" style={styles.label}>Category *</ThemedText>
-        <View style={styles.optionsRow}>
-          {BUSINESS_CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat}
-              onPress={() => setBusinessData({ ...businessData, category: cat })}
-              style={[
-                styles.optionChip,
-                {
-                  backgroundColor: businessData.category === cat ? theme.primaryTransparent : theme.backgroundSecondary,
-                  borderColor: businessData.category === cat ? theme.primary : theme.border,
-                },
-              ]}
-            >
-              <ThemedText
-                type="caption"
-                style={{ color: businessData.category === cat ? theme.primary : theme.text }}
-              >
-                {cat}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.row}>
-        <View style={[styles.fieldContainer, { flex: 1, marginRight: Spacing.sm }]}>
-          <ThemedText type="caption" style={styles.label}>City *</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={businessData.city}
-            onChangeText={(text) => setBusinessData({ ...businessData, city: text })}
-            placeholder="City"
-            placeholderTextColor={theme.textMuted}
-          />
-        </View>
-        <View style={[styles.fieldContainer, { flex: 1 }]}>
-          <ThemedText type="caption" style={styles.label}>State *</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={businessData.state}
-            onChangeText={(text) => setBusinessData({ ...businessData, state: text })}
-            placeholder="State"
-            placeholderTextColor={theme.textMuted}
-          />
-        </View>
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="caption" style={styles.label}>Short Description *</ThemedText>
-        <TextInput
-          style={[inputStyle, styles.textArea]}
-          value={businessData.description}
-          onChangeText={(text) => setBusinessData({ ...businessData, description: text })}
-          placeholder="Tell customers what you offer..."
-          placeholderTextColor={theme.textMuted}
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-        />
-      </View>
-      <View style={{ height: 100 }} />
-    </ScrollView>
-  );
-
-  const renderStep2Photographer = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <ThemedText type="h2" style={styles.stepTitle}>
-        Photographer Details
-      </ThemedText>
-      <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-        Tell us about your photography
-      </ThemedText>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="caption" style={styles.label}>Your Name *</ThemedText>
-        <TextInput
-          style={inputStyle}
-          value={photographerData.name}
-          onChangeText={(text) => setPhotographerData({ ...photographerData, name: text })}
-          placeholder="Enter your name"
-          placeholderTextColor={theme.textMuted}
-        />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="caption" style={styles.label}>Specialty *</ThemedText>
-        <View style={styles.optionsRow}>
-          {PHOTOGRAPHER_SPECIALTIES.map((spec) => (
-            <Pressable
-              key={spec}
-              onPress={() => setPhotographerData({ ...photographerData, specialty: spec })}
-              style={[
-                styles.optionChip,
-                {
-                  backgroundColor: photographerData.specialty === spec ? theme.primaryTransparent : theme.backgroundSecondary,
-                  borderColor: photographerData.specialty === spec ? theme.primary : theme.border,
-                },
-              ]}
-            >
-              <ThemedText
-                type="caption"
-                style={{ color: photographerData.specialty === spec ? theme.primary : theme.text }}
-              >
-                {spec}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.row}>
-        <View style={[styles.fieldContainer, { flex: 1, marginRight: Spacing.sm }]}>
-          <ThemedText type="caption" style={styles.label}>City *</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={photographerData.city}
-            onChangeText={(text) => setPhotographerData({ ...photographerData, city: text })}
-            placeholder="City"
-            placeholderTextColor={theme.textMuted}
-          />
-        </View>
-        <View style={[styles.fieldContainer, { flex: 1 }]}>
-          <ThemedText type="caption" style={styles.label}>State *</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={photographerData.state}
-            onChangeText={(text) => setPhotographerData({ ...photographerData, state: text })}
-            placeholder="State"
-            placeholderTextColor={theme.textMuted}
-          />
-        </View>
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="caption" style={styles.label}>Starting Price Range *</ThemedText>
-        <View style={styles.optionsRow}>
-          {PRICE_RANGES.map((range) => (
-            <Pressable
-              key={range}
-              onPress={() => setPhotographerData({ ...photographerData, priceRange: range })}
-              style={[
-                styles.priceChip,
-                {
-                  backgroundColor: photographerData.priceRange === range ? theme.primaryTransparent : theme.backgroundSecondary,
-                  borderColor: photographerData.priceRange === range ? theme.primary : theme.border,
-                },
-              ]}
-            >
-              <ThemedText
-                type="body"
-                style={{ color: photographerData.priceRange === range ? theme.primary : theme.text }}
-              >
-                {range}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="caption" style={styles.label}>Short Bio *</ThemedText>
-        <TextInput
-          style={[inputStyle, styles.textArea]}
-          value={photographerData.description}
-          onChangeText={(text) => setPhotographerData({ ...photographerData, description: text })}
-          placeholder="Tell clients about your style and experience..."
-          placeholderTextColor={theme.textMuted}
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-        />
-      </View>
-      <View style={{ height: 100 }} />
-    </ScrollView>
-  );
-
-  const renderStep3 = () => {
-    const data = role === "business" ? businessData : photographerData;
-    const setData = role === "business" 
-      ? (updates: Partial<BusinessFormData>) => setBusinessData({ ...businessData, ...updates })
-      : (updates: Partial<PhotographerFormData>) => setPhotographerData({ ...photographerData, ...updates });
-
-    return (
-      <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-        <ThemedText type="h2" style={styles.stepTitle}>
-          Optional Details
-        </ThemedText>
-        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          Add contact info and social links (optional)
-        </ThemedText>
-
-        <View style={styles.fieldContainer}>
-          <ThemedText type="caption" style={styles.label}>Website</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={data.website}
-            onChangeText={(text) => setData({ website: text })}
-            placeholder="https://yourwebsite.com"
-            placeholderTextColor={theme.textMuted}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-        </View>
-
-        <View style={styles.fieldContainer}>
-          <ThemedText type="caption" style={styles.label}>Instagram Handle</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={data.instagram}
-            onChangeText={(text) => setData({ instagram: text })}
-            placeholder="@yourhandle"
-            placeholderTextColor={theme.textMuted}
-            autoCapitalize="none"
-          />
-        </View>
-
-        <View style={styles.fieldContainer}>
-          <ThemedText type="caption" style={styles.label}>Phone Number</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={data.phone}
-            onChangeText={(text) => setData({ phone: text })}
-            placeholder="(555) 123-4567"
-            placeholderTextColor={theme.textMuted}
-            keyboardType="phone-pad"
-          />
-        </View>
-
-        <View style={styles.fieldContainer}>
-          <ThemedText type="caption" style={styles.label}>Email Address</ThemedText>
-          <TextInput
-            style={inputStyle}
-            value={data.email}
-            onChangeText={(text) => setData({ email: text })}
-            placeholder="contact@yourbusiness.com"
-            placeholderTextColor={theme.textMuted}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-        </View>
-        <View style={{ height: 100 }} />
-      </ScrollView>
-    );
+    try {
+      setSaving(true);
+      const { url } = await api.startVendorStripeOnboarding(authToken);
+      
+      if (Platform.OS === "web") {
+        window.open(url, "_blank");
+      } else {
+        await WebBrowser.openBrowserAsync(url);
+      }
+      
+      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to start Stripe onboarding");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const renderStep4 = () => {
-    const data = role === "business" ? businessData : photographerData;
-    
-    return (
-      <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-        <ThemedText type="h2" style={styles.stepTitle}>
-          Review Your Profile
-        </ThemedText>
-        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          Make sure everything looks good before submitting
-        </ThemedText>
-
-        <View style={[styles.reviewCard, { backgroundColor: theme.backgroundSecondary }]}>
-          <View style={styles.reviewRow}>
-            <Feather name={role === "business" ? "briefcase" : "camera"} size={20} color={theme.primary} />
-            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
-              {role === "business" ? "Business" : "Photographer"}
-            </ThemedText>
-          </View>
-
-          <View style={styles.reviewDivider} />
-
-          <View style={styles.reviewItem}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Name</ThemedText>
-            <ThemedText type="body">{data.name}</ThemedText>
-          </View>
-
-          <View style={styles.reviewItem}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {role === "business" ? "Category" : "Specialty"}
-            </ThemedText>
-            <ThemedText type="body">
-              {role === "business" ? (data as BusinessFormData).category : (data as PhotographerFormData).specialty}
-            </ThemedText>
-          </View>
-
-          <View style={styles.reviewItem}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Location</ThemedText>
-            <ThemedText type="body">{data.city}, {data.state}</ThemedText>
-          </View>
-
-          {role === "photographer" && (
-            <View style={styles.reviewItem}>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>Price Range</ThemedText>
-              <ThemedText type="body">{(data as PhotographerFormData).priceRange}</ThemedText>
-            </View>
-          )}
-
-          <View style={styles.reviewItem}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              {role === "business" ? "Description" : "Bio"}
-            </ThemedText>
-            <ThemedText type="body">{data.description}</ThemedText>
-          </View>
-
-          {(data.website || data.instagram || data.phone || data.email) && (
-            <>
-              <View style={styles.reviewDivider} />
-              <ThemedText type="caption" style={[styles.reviewSectionTitle, { color: theme.textSecondary }]}>
-                Contact Info
-              </ThemedText>
-              {data.website ? (
-                <View style={styles.reviewItem}>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>Website</ThemedText>
-                  <ThemedText type="body">{data.website}</ThemedText>
-                </View>
-              ) : null}
-              {data.instagram ? (
-                <View style={styles.reviewItem}>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>Instagram</ThemedText>
-                  <ThemedText type="body">{data.instagram}</ThemedText>
-                </View>
-              ) : null}
-              {data.phone ? (
-                <View style={styles.reviewItem}>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>Phone</ThemedText>
-                  <ThemedText type="body">{data.phone}</ThemedText>
-                </View>
-              ) : null}
-              {data.email ? (
-                <View style={styles.reviewItem}>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>Email</ThemedText>
-                  <ThemedText type="body">{data.email}</ThemedText>
-                </View>
-              ) : null}
-            </>
-          )}
-        </View>
-        <View style={{ height: 100 }} />
-      </ScrollView>
-    );
+  const handleSkipStripe = () => {
+    navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
   };
 
-  const renderStepContent = () => {
+  if (loading) {
+    return (
+      <ThemedView style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+          Loading business profile...
+        </ThemedText>
+      </ThemedView>
+    );
+  }
+
+  const renderStep = () => {
     switch (step) {
       case 1:
-        return renderStep1();
+        return (
+          <View style={styles.stepContent}>
+            <ThemedText type="h3" style={styles.stepTitle}>
+              Tell us about your business
+            </ThemedText>
+            <ThemedText type="body" style={[styles.stepDescription, { color: theme.textSecondary }]}>
+              This information helps customers find you
+            </ThemedText>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Business Name *
+              </ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g., Urban Cuts Barbershop"
+                placeholderTextColor={theme.textSecondary}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Category *
+              </ThemedText>
+              <View style={styles.categoriesGrid}>
+                {CATEGORIES.map((cat) => (
+                  <Pressable
+                    key={cat.value}
+                    onPress={() => setCategory(cat.value)}
+                    style={[
+                      styles.categoryChip,
+                      {
+                        backgroundColor: category === cat.value ? theme.primary : theme.backgroundDefault,
+                        borderColor: category === cat.value ? theme.primary : theme.border,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      type="caption"
+                      style={{ color: category === cat.value ? "#fff" : theme.text }}
+                    >
+                      {cat.label}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Tagline (optional)
+              </ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                value={tagline}
+                onChangeText={setTagline}
+                placeholder="A short catchy phrase for your business"
+                placeholderTextColor={theme.textSecondary}
+              />
+            </View>
+          </View>
+        );
+
       case 2:
-        return role === "business" ? renderStep2Business() : renderStep2Photographer();
+        return (
+          <View style={styles.stepContent}>
+            <ThemedText type="h3" style={styles.stepTitle}>
+              What do you offer?
+            </ThemedText>
+            <ThemedText type="body" style={[styles.stepDescription, { color: theme.textSecondary }]}>
+              Select all that apply to your business
+            </ThemedText>
+
+            <View style={styles.offeringsContainer}>
+              <Pressable
+                onPress={() => setHasProducts(!hasProducts)}
+                style={[
+                  styles.offeringCard,
+                  {
+                    backgroundColor: hasProducts ? theme.primary + "15" : theme.backgroundDefault,
+                    borderColor: hasProducts ? theme.primary : theme.border,
+                  },
+                ]}
+              >
+                <View style={[styles.offeringIcon, { backgroundColor: hasProducts ? theme.primary : theme.border }]}>
+                  <Feather name="shopping-bag" size={24} color={hasProducts ? "#fff" : theme.textSecondary} />
+                </View>
+                <ThemedText type="h4">Products</ThemedText>
+                <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
+                  Physical or digital items for sale
+                </ThemedText>
+                <View style={[styles.checkCircle, { borderColor: hasProducts ? theme.primary : theme.border }]}>
+                  {hasProducts && <Feather name="check" size={16} color={theme.primary} />}
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setHasServices(!hasServices)}
+                style={[
+                  styles.offeringCard,
+                  {
+                    backgroundColor: hasServices ? theme.primary + "15" : theme.backgroundDefault,
+                    borderColor: hasServices ? theme.primary : theme.border,
+                  },
+                ]}
+              >
+                <View style={[styles.offeringIcon, { backgroundColor: hasServices ? theme.primary : theme.border }]}>
+                  <Feather name="calendar" size={24} color={hasServices ? "#fff" : theme.textSecondary} />
+                </View>
+                <ThemedText type="h4">Services</ThemedText>
+                <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
+                  Appointments or bookable services
+                </ThemedText>
+                <View style={[styles.checkCircle, { borderColor: hasServices ? theme.primary : theme.border }]}>
+                  {hasServices && <Feather name="check" size={16} color={theme.primary} />}
+                </View>
+              </Pressable>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Business Structure (optional)
+              </ThemedText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.structureRow}>
+                  {BUSINESS_STRUCTURES.map((struct) => (
+                    <Pressable
+                      key={struct.value}
+                      onPress={() => setBusinessStructure(struct.value)}
+                      style={[
+                        styles.structureChip,
+                        {
+                          backgroundColor: businessStructure === struct.value ? theme.primary : theme.backgroundDefault,
+                          borderColor: businessStructure === struct.value ? theme.primary : theme.border,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        type="caption"
+                        style={{ color: businessStructure === struct.value ? "#fff" : theme.text }}
+                      >
+                        {struct.label}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        );
+
       case 3:
-        return renderStep3();
+        return (
+          <View style={styles.stepContent}>
+            <ThemedText type="h3" style={styles.stepTitle}>
+              Where is your business located?
+            </ThemedText>
+            <ThemedText type="body" style={[styles.stepDescription, { color: theme.textSecondary }]}>
+              Help local customers find you
+            </ThemedText>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                City *
+              </ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                value={city}
+                onChangeText={setCity}
+                placeholder="e.g., Los Angeles"
+                placeholderTextColor={theme.textSecondary}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                State *
+              </ThemedText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.stateScroll}>
+                <View style={styles.stateRow}>
+                  {US_STATES.map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => setState(s)}
+                      style={[
+                        styles.stateChip,
+                        {
+                          backgroundColor: state === s ? theme.primary : theme.backgroundDefault,
+                          borderColor: state === s ? theme.primary : theme.border,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        type="caption"
+                        style={{ color: state === s ? "#fff" : theme.text }}
+                      >
+                        {s}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            <Pressable
+              onPress={() => setHasPhysicalLocation(!hasPhysicalLocation)}
+              style={[styles.checkbox, { borderColor: theme.border }]}
+            >
+              <View
+                style={[
+                  styles.checkboxInner,
+                  { backgroundColor: hasPhysicalLocation ? theme.primary : "transparent", borderColor: theme.border },
+                ]}
+              >
+                {hasPhysicalLocation && <Feather name="check" size={14} color="#fff" />}
+              </View>
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
+                I have a physical location customers can visit
+              </ThemedText>
+            </Pressable>
+
+            {hasPhysicalLocation && (
+              <View style={[styles.inputGroup, { marginTop: Spacing.lg }]}>
+                <ThemedText type="caption" style={styles.inputLabel}>
+                  Street Address (optional)
+                </ThemedText>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                  value={address}
+                  onChangeText={setAddress}
+                  placeholder="123 Main Street"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+            )}
+          </View>
+        );
+
       case 4:
-        return renderStep4();
-      default:
-        return null;
+        return (
+          <View style={styles.stepContent}>
+            <ThemedText type="h3" style={styles.stepTitle}>
+              Contact Information
+            </ThemedText>
+            <ThemedText type="body" style={[styles.stepDescription, { color: theme.textSecondary }]}>
+              How can customers reach you?
+            </ThemedText>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Contact Email *
+              </ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                value={contactEmail}
+                onChangeText={setContactEmail}
+                placeholder="hello@yourbusiness.com"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Phone Number (optional)
+              </ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                value={contactPhone}
+                onChangeText={setContactPhone}
+                placeholder="(555) 123-4567"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Website (optional)
+              </ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                value={websiteUrl}
+                onChangeText={setWebsiteUrl}
+                placeholder="https://yourbusiness.com"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="url"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <ThemedText type="caption" style={styles.inputLabel}>
+                Description (optional)
+              </ThemedText>
+              <TextInput
+                style={[styles.textArea, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Tell customers what makes your business special..."
+                placeholderTextColor={theme.textSecondary}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+        );
+
+      case 5:
+        return (
+          <View style={styles.stepContent}>
+            <ThemedText type="h3" style={styles.stepTitle}>
+              Review your business
+            </ThemedText>
+
+            <View style={[styles.reviewCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.reviewRow}>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Business Name</ThemedText>
+                <ThemedText type="body">{name}</ThemedText>
+              </View>
+              <View style={styles.reviewRow}>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Category</ThemedText>
+                <ThemedText type="body">
+                  {CATEGORIES.find((c) => c.value === category)?.label || category}
+                </ThemedText>
+              </View>
+              {tagline ? (
+                <View style={styles.reviewRow}>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>Tagline</ThemedText>
+                  <ThemedText type="body">{tagline}</ThemedText>
+                </View>
+              ) : null}
+              <View style={styles.reviewRow}>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Offerings</ThemedText>
+                <ThemedText type="body">
+                  {[hasProducts && "Products", hasServices && "Services"].filter(Boolean).join(" & ")}
+                </ThemedText>
+              </View>
+              <View style={styles.reviewRow}>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Location</ThemedText>
+                <ThemedText type="body">{city}, {state}</ThemedText>
+              </View>
+              <View style={styles.reviewRow}>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>Email</ThemedText>
+                <ThemedText type="body">{contactEmail}</ThemedText>
+              </View>
+              {contactPhone ? (
+                <View style={styles.reviewRow}>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>Phone</ThemedText>
+                  <ThemedText type="body">{contactPhone}</ThemedText>
+                </View>
+              ) : null}
+              {websiteUrl ? (
+                <View style={styles.reviewRow}>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>Website</ThemedText>
+                  <ThemedText type="body" numberOfLines={1}>{websiteUrl}</ThemedText>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={[styles.noteCard, { backgroundColor: theme.primary + "10", borderColor: theme.primary + "30" }]}>
+              <Feather name="info" size={18} color={theme.primary} />
+              <ThemedText type="caption" style={{ flex: 1, marginLeft: Spacing.sm, color: theme.textSecondary }}>
+                Business accounts require manual approval (24-48 hours). We'll notify you once approved.
+              </ThemedText>
+            </View>
+          </View>
+        );
+
+      case 6:
+        return (
+          <View style={styles.stepContent}>
+            <View style={[styles.successIcon, { backgroundColor: SUCCESS_COLOR + "20" }]}>
+              <Feather name="check-circle" size={48} color={SUCCESS_COLOR} />
+            </View>
+
+            <ThemedText type="h3" style={[styles.stepTitle, { textAlign: "center" }]}>
+              Business profile submitted!
+            </ThemedText>
+
+            <ThemedText type="body" style={[styles.stepDescription, { color: theme.textSecondary, textAlign: "center" }]}>
+              Your application is pending approval. While you wait, you can connect Stripe to prepare for receiving payments.
+            </ThemedText>
+
+            <View style={[styles.stripeCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <Feather name="credit-card" size={24} color={theme.primary} />
+              <ThemedText type="body" style={[styles.stripeText, { color: theme.text }]}>
+                Connect Stripe to receive payments directly to your bank account
+              </ThemedText>
+            </View>
+          </View>
+        );
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <Pressable onPress={handleBack} style={styles.headerButton}>
-          <Feather name={step === 1 ? "x" : "arrow-left"} size={24} color={theme.text} />
+    <ThemedView style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
-        <View style={styles.progressContainer}>
-          {[1, 2, 3, 4].map((s) => (
-            <View
-              key={s}
-              style={[
-                styles.progressDot,
-                {
-                  backgroundColor: s <= step ? theme.primary : theme.backgroundSecondary,
-                },
-              ]}
-            />
-          ))}
-        </View>
-        <View style={styles.headerButton} />
-      </View>
-
-      {renderStepContent()}
-
-      <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
-        {step < 4 ? (
-          <Button onPress={handleNext} disabled={step === 1 && !role}>
-            Continue
-          </Button>
-        ) : (
-          <Button onPress={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              "Submit Profile"
-            )}
-          </Button>
+        
+        {step < 6 && (
+          <View style={styles.progressContainer}>
+            {[1, 2, 3, 4, 5].map((s) => (
+              <View
+                key={s}
+                style={[
+                  styles.progressDot,
+                  {
+                    backgroundColor: s <= step ? theme.primary : theme.border,
+                  },
+                ]}
+              />
+            ))}
+          </View>
         )}
       </View>
-    </KeyboardAvoidingView>
+
+      <ScrollView
+        style={styles.scrollContent}
+        contentContainerStyle={styles.scrollContentContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderStep()}
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
+        {step < 5 && (
+          <Button onPress={handleNext} disabled={saving}>
+            Continue
+          </Button>
+        )}
+        {step === 5 && (
+          <Button onPress={handleSaveBusiness} disabled={saving}>
+            {saving ? "Submitting..." : "Submit Application"}
+          </Button>
+        )}
+        {step === 6 && (
+          <>
+            <Button onPress={handleConnectStripe} disabled={saving}>
+              {saving ? "Loading..." : "Connect Stripe"}
+            </Button>
+            <Pressable
+              onPress={handleSkipStripe}
+              style={({ pressed }) => [styles.skipButton, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                I'll do this later
+              </ThemedText>
+            </Pressable>
+          </>
+        )}
+      </View>
+    </ThemedView>
   );
 }
 
@@ -720,112 +718,193 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
   },
-  headerButton: {
-    width: 44,
-    height: 44,
+  backButton: {
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
   progressContainer: {
+    flex: 1,
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
+    justifyContent: "center",
+    gap: Spacing.xs,
   },
   progressDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
+  },
   stepContent: {
     flex: 1,
-    paddingHorizontal: Spacing.xl,
   },
   stepTitle: {
     marginBottom: Spacing.sm,
   },
-  stepSubtitle: {
+  stepDescription: {
     marginBottom: Spacing.xl,
   },
-  roleCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
-    marginBottom: Spacing.md,
-  },
-  roleTextContainer: {
-    flex: 1,
-    marginLeft: Spacing.lg,
-  },
-  fieldContainer: {
+  inputGroup: {
     marginBottom: Spacing.lg,
   },
-  label: {
-    marginBottom: Spacing.sm,
-    fontWeight: "600",
+  inputLabel: {
+    marginBottom: Spacing.xs,
   },
   input: {
-    height: Spacing.inputHeight,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    fontSize: Typography.body.fontSize,
+    height: 48,
     borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: 16,
   },
   textArea: {
-    height: 100,
+    minHeight: 100,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
+    fontSize: 16,
   },
-  row: {
-    flexDirection: "row",
-  },
-  optionsRow: {
+  categoriesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
-  optionChip: {
+  categoryChip: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-  },
-  priceChip: {
-    paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
   },
-  reviewCard: {
-    padding: Spacing.xl,
+  offeringsContainer: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
+  },
+  offeringCard: {
+    flex: 1,
+    padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  offeringIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.sm,
+  },
+  structureRow: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  structureChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  stateScroll: {
+    maxHeight: 44,
+  },
+  stateRow: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  stateChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  checkbox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.md,
+  },
+  checkboxInner: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   reviewRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  noteCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  successIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: Spacing.xl,
   },
-  reviewDivider: {
-    height: 1,
-    backgroundColor: "rgba(128, 128, 128, 0.2)",
-    marginVertical: Spacing.lg,
+  stripeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginTop: Spacing.xl,
+    gap: Spacing.md,
   },
-  reviewItem: {
-    marginBottom: Spacing.md,
-  },
-  reviewSectionTitle: {
-    marginBottom: Spacing.md,
-    fontWeight: "600",
+  stripeText: {
+    flex: 1,
   },
   footer: {
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  skipButton: {
+    alignItems: "center",
+    padding: Spacing.md,
   },
 });
