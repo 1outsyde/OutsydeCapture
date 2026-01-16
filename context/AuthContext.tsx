@@ -18,6 +18,18 @@ export interface User {
   businessName?: string;
   businessCategory?: string;
   isProfileComplete?: boolean;
+  city?: string;
+  state?: string;
+  username?: string;
+  gender?: string;
+  selectedIndustries?: string[];
+  industryNiches?: Record<string, string[]>;
+  industryValues?: Record<string, string[]>;
+  displayName?: string;
+  bio?: string;
+  hourlyRate?: number;
+  portfolioUrl?: string;
+  specialties?: string[];
 }
 
 export interface SignupData {
@@ -30,6 +42,31 @@ export interface SignupData {
   role: UserRole;
   businessName?: string;
   businessCategory?: string;
+  businessDescription?: string;
+  offerType?: "products" | "services" | "both";
+  isStartup?: boolean;
+  yearsInBusiness?: string;
+  employeeCount?: string;
+  businessType?: string;
+  hasPhysicalLocation?: boolean;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  websiteUrl?: string;
+  socialMedia?: string;
+  username?: string;
+  gender?: string;
+  ethnicity?: string;
+  shoppingFrequency?: string;
+  selectedIndustries?: string[];
+  industryNiches?: Record<string, string[]>;
+  industryValues?: Record<string, string[]>;
+  displayName?: string;
+  bio?: string;
+  hourlyRate?: number;
+  portfolioUrl?: string;
+  specialties?: string[];
 }
 
 export interface LoginResult {
@@ -163,6 +200,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isProfileComplete: data.role === "consumer",
         businessName: data.businessName,
         businessCategory: data.businessCategory,
+        city: data.city,
+        state: data.state,
+        username: data.username,
+        gender: data.gender,
+        selectedIndustries: data.selectedIndustries,
+        industryNiches: data.industryNiches,
+        industryValues: data.industryValues,
+        displayName: data.displayName,
+        bio: data.bio,
+        hourlyRate: data.hourlyRate,
+        portfolioUrl: data.portfolioUrl,
+        specialties: data.specialties,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
       };
       

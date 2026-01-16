@@ -18,6 +18,9 @@ import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
 import PhotographerOnboardingScreen from "@/screens/PhotographerOnboardingScreen";
+import ConsumerSignupScreen from "@/screens/ConsumerSignupScreen";
+import BusinessSignupScreen from "@/screens/BusinessSignupScreen";
+import PhotographerSignupScreen from "@/screens/PhotographerSignupScreen";
 import OnboardingScreen, { checkOnboardingComplete } from "@/screens/OnboardingScreen";
 import AdminDashboardScreen from "@/screens/AdminDashboardScreen";
 import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
@@ -65,6 +68,33 @@ export default function RootNavigator() {
         component={AuthScreen}
         options={{
           presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="ConsumerSignup"
+        component={ConsumerSignupScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="BusinessSignup"
+        component={BusinessSignupScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="PhotographerSignup"
+        component={PhotographerSignupScreen}
+        options={{
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
         }}
       />

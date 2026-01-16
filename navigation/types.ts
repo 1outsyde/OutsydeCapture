@@ -52,6 +52,9 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
   Auth: { returnTo?: string };
+  ConsumerSignup: undefined;
+  BusinessSignup: undefined;
+  PhotographerSignup: undefined;
   BusinessOnboarding: undefined;
   PhotographerOnboarding: undefined;
   SelectPhotographer: undefined;

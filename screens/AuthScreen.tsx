@@ -9,187 +9,77 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
-import { useAuth, UserRole, SignupData } from "@/context/AuthContext";
-import { Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { useAuth, UserRole } from "@/context/AuthContext";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type AuthMode = "login" | "signup";
 
-const BUSINESS_CATEGORIES = [
-  "Food & Dining",
-  "Beauty & Hair",
-  "Art & Design",
-  "Health & Wellness",
-  "Fashion & Apparel",
-  "Home Services",
-  "Events & Entertainment",
-  "Retail & Shopping",
-  "Professional Services",
-];
-
 export default function AuthScreen() {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { login, signup, loginAsGuest, isLoading } = useAuth();
+  const { login, loginAsGuest, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [mode, setMode] = useState<AuthMode>("login");
   const [role, setRole] = useState<UserRole>("consumer");
   
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  
-  const [businessName, setBusinessName] = useState("");
-  const [businessCategory, setBusinessCategory] = useState("");
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   
   const [showPendingMessage, setShowPendingMessage] = useState(false);
   const [pendingUserInfo, setPendingUserInfo] = useState<{ businessName: string; businessCategory: string; email: string } | null>(null);
 
-  const formatPhoneNumber = (text: string) => {
-    const cleaned = text.replace(/\D/g, "");
-    const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
-    if (match) {
-      const parts = [match[1], match[2], match[3]].filter(Boolean);
-      if (parts.length === 0) return "";
-      if (parts.length === 1) return parts[0];
-      if (parts.length === 2) return `(${parts[0]}) ${parts[1]}`;
-      return `(${parts[0]}) ${parts[1]}-${parts[2]}`;
-    }
-    return text;
-  };
-
-  const formatDateOfBirth = (text: string) => {
-    const cleaned = text.replace(/\D/g, "");
-    const match = cleaned.match(/^(\d{0,2})(\d{0,2})(\d{0,4})$/);
-    if (match) {
-      const parts = [match[1], match[2], match[3]].filter(Boolean);
-      if (parts.length === 0) return "";
-      if (parts.length === 1) return parts[0];
-      if (parts.length === 2) return `${parts[0]}/${parts[1]}`;
-      return `${parts[0]}/${parts[1]}/${parts[2]}`;
-    }
-    return text;
-  };
-
   const validateForm = () => {
-    if (mode === "login") {
-      if (!email.trim() || !password.trim()) {
-        Alert.alert("Error", "Please fill in all required fields");
-        return false;
-      }
-      return true;
-    }
-    
-    if (!firstName.trim()) {
-      Alert.alert("Error", "Please enter your first name");
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Please fill in all required fields");
       return false;
-    }
-    if (!lastName.trim()) {
-      Alert.alert("Error", "Please enter your last name");
-      return false;
-    }
-    if (!email.trim()) {
-      Alert.alert("Error", "Please enter your email");
-      return false;
-    }
-    if (!phone.trim() || phone.replace(/\D/g, "").length < 10) {
-      Alert.alert("Error", "Please enter a valid phone number");
-      return false;
-    }
-    if (!dateOfBirth.trim() || dateOfBirth.length < 10) {
-      Alert.alert("Error", "Please enter your date of birth (MM/DD/YYYY)");
-      return false;
-    }
-    if (!password.trim() || password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
-      return false;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return false;
-    }
-    if (role === "business") {
-      if (!businessName.trim()) {
-        Alert.alert("Error", "Please enter your business name");
-        return false;
-      }
-      if (!businessCategory) {
-        Alert.alert("Error", "Please select a business category");
-        return false;
-      }
     }
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleLogin = async () => {
     if (!validateForm()) return;
 
-    if (mode === "login") {
-      const result = await login(email, password);
-      if (result.success) {
-        if (result.isPending && result.user) {
-          setPendingUserInfo({
-            businessName: result.user.businessName || "",
-            businessCategory: result.user.businessCategory || "",
-            email: result.user.email,
-          });
-          setShowPendingMessage(true);
-        } else {
-          navigation.goBack();
-        }
-      } else if (result.isRejected) {
-        Alert.alert("Account Rejected", "Your business application was not approved. Please contact support for more information.");
+    const result = await login(email, password);
+    if (result.success) {
+      if (result.isPending && result.user) {
+        setPendingUserInfo({
+          businessName: result.user.businessName || "",
+          businessCategory: result.user.businessCategory || "",
+          email: result.user.email,
+        });
+        setShowPendingMessage(true);
       } else {
-        Alert.alert("Error", "Login failed. Please check your credentials.");
+        navigation.goBack();
       }
+    } else if (result.isRejected) {
+      Alert.alert("Account Rejected", "Your business application was not approved. Please contact support for more information.");
     } else {
-      const signupData: SignupData = {
-        firstName,
-        lastName,
-        email,
-        phone: phone.replace(/\D/g, ""),
-        dateOfBirth,
-        password,
-        role,
-        businessName: role === "business" ? businessName : undefined,
-        businessCategory: role === "business" ? businessCategory : undefined,
-      };
-      
-      const result = await signup(signupData);
-      
-      if (result.success) {
-        if (result.isPending) {
-          setShowPendingMessage(true);
-        } else {
-          navigation.goBack();
-        }
-      } else {
-        Alert.alert("Error", "Registration failed. Please try again.");
-      }
+      Alert.alert("Error", "Login failed. Please check your credentials.");
     }
   };
 
-  const resetForm = () => {
-    setFirstName("");
-    setLastName("");
-    setEmail("");
-    setPhone("");
-    setDateOfBirth("");
-    setPassword("");
-    setConfirmPassword("");
-    setBusinessName("");
-    setBusinessCategory("");
-    setRole("consumer");
-    setShowPendingMessage(false);
+  const handleSignupNavigation = () => {
+    switch (role) {
+      case "consumer":
+        navigation.navigate("ConsumerSignup");
+        break;
+      case "business":
+        navigation.navigate("BusinessSignup");
+        break;
+      case "photographer":
+        navigation.navigate("PhotographerSignup");
+        break;
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    await loginAsGuest();
+    navigation.goBack();
   };
 
   const inputStyle = [
@@ -202,11 +92,6 @@ export default function AuthScreen() {
   ];
 
   if (showPendingMessage) {
-    const displayBusinessName = pendingUserInfo?.businessName || businessName;
-    const displayBusinessCategory = pendingUserInfo?.businessCategory || businessCategory;
-    const displayEmail = pendingUserInfo?.email || email;
-    const isLoginPending = !!pendingUserInfo;
-    
     return (
       <ThemedView style={styles.container}>
         <View style={[styles.pendingContainer, { paddingTop: insets.top + 60 }]}>
@@ -214,12 +99,10 @@ export default function AuthScreen() {
             <Feather name="clock" size={64} color={theme.primary} />
           </View>
           <ThemedText type="h2" style={styles.pendingTitle}>
-            {isLoginPending ? "Account Pending Approval" : "Application Submitted"}
+            Account Pending Approval
           </ThemedText>
           <ThemedText type="body" style={[styles.pendingText, { color: theme.textSecondary }]}>
-            {isLoginPending
-              ? "Your business account is still under review."
-              : "Thank you for registering your business with Outsyde! Your application is now under review."}
+            Your business account is still under review.
           </ThemedText>
           <ThemedText type="body" style={[styles.pendingText, { color: theme.textSecondary }]}>
             Our team will review your application and get back to you within 24-48 hours. You will receive an email notification once your account is approved.
@@ -228,26 +111,26 @@ export default function AuthScreen() {
             <View style={styles.pendingDetailRow}>
               <Feather name="briefcase" size={20} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                {displayBusinessName}
+                {pendingUserInfo?.businessName}
               </ThemedText>
             </View>
             <View style={styles.pendingDetailRow}>
               <Feather name="tag" size={20} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                {displayBusinessCategory}
+                {pendingUserInfo?.businessCategory}
               </ThemedText>
             </View>
             <View style={styles.pendingDetailRow}>
               <Feather name="mail" size={20} color={theme.primary} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                {displayEmail}
+                {pendingUserInfo?.email}
               </ThemedText>
             </View>
           </View>
           <Button
             onPress={() => {
               setPendingUserInfo(null);
-              resetForm();
+              setShowPendingMessage(false);
               navigation.goBack();
             }}
             style={styles.pendingButton}
@@ -294,12 +177,12 @@ export default function AuthScreen() {
           </View>
 
           <ThemedText type="h2" style={styles.title}>
-            {mode === "login" ? "Welcome back" : "Create account"}
+            {mode === "login" ? "Welcome back" : "Join Outsyde"}
           </ThemedText>
           <ThemedText type="body" style={[styles.subtitle, { color: theme.textSecondary }]}>
             {mode === "login"
               ? "Sign in to continue"
-              : "Join Outsyde to discover amazing services"}
+              : "Select your account type to get started"}
           </ThemedText>
 
           {mode === "signup" ? (
@@ -439,229 +322,80 @@ export default function AuthScreen() {
                 ) : null}
               </View>
 
-              <View style={styles.nameRow}>
-                <View style={[styles.fieldContainer, { flex: 1, marginRight: Spacing.sm }]}>
-                  <ThemedText type="small" style={styles.label}>
-                    First Name *
-                  </ThemedText>
-                  <TextInput
-                    style={inputStyle}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                    placeholder="First"
-                    placeholderTextColor={theme.textSecondary}
-                    autoCapitalize="words"
-                    returnKeyType="next"
-                  />
-                </View>
-                <View style={[styles.fieldContainer, { flex: 1 }]}>
-                  <ThemedText type="small" style={styles.label}>
-                    Last Name *
-                  </ThemedText>
-                  <TextInput
-                    style={inputStyle}
-                    value={lastName}
-                    onChangeText={setLastName}
-                    placeholder="Last"
-                    placeholderTextColor={theme.textSecondary}
-                    autoCapitalize="words"
-                    returnKeyType="next"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.fieldContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  Phone Number *
-                </ThemedText>
-                <TextInput
-                  style={inputStyle}
-                  value={phone}
-                  onChangeText={(text) => setPhone(formatPhoneNumber(text))}
-                  placeholder="(555) 123-4567"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="phone-pad"
-                  returnKeyType="next"
-                  maxLength={14}
-                />
-              </View>
-
-              <View style={styles.fieldContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  Date of Birth *
-                </ThemedText>
-                <TextInput
-                  style={inputStyle}
-                  value={dateOfBirth}
-                  onChangeText={(text) => setDateOfBirth(formatDateOfBirth(text))}
-                  placeholder="MM/DD/YYYY"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="number-pad"
-                  returnKeyType="next"
-                  maxLength={10}
-                />
-              </View>
-
-              {role === "business" ? (
-                <>
-                  <View style={styles.fieldContainer}>
-                    <ThemedText type="small" style={styles.label}>
-                      Business Name *
-                    </ThemedText>
-                    <TextInput
-                      style={inputStyle}
-                      value={businessName}
-                      onChangeText={setBusinessName}
-                      placeholder="Your Business Name"
-                      placeholderTextColor={theme.textSecondary}
-                      autoCapitalize="words"
-                      returnKeyType="next"
-                    />
-                  </View>
-
-                  <View style={styles.fieldContainer}>
-                    <ThemedText type="small" style={styles.label}>
-                      Business Category *
-                    </ThemedText>
-                    <Pressable
-                      onPress={() => setShowCategoryPicker(!showCategoryPicker)}
-                      style={[
-                        inputStyle,
-                        styles.pickerButton,
-                      ]}
-                    >
-                      <ThemedText
-                        type="body"
-                        style={{ color: businessCategory ? theme.text : theme.textSecondary }}
-                      >
-                        {businessCategory || "Select a category"}
-                      </ThemedText>
-                      <Feather
-                        name={showCategoryPicker ? "chevron-up" : "chevron-down"}
-                        size={20}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
-                    {showCategoryPicker ? (
-                      <View style={[styles.categoryList, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                        {BUSINESS_CATEGORIES.map((category) => (
-                          <Pressable
-                            key={category}
-                            onPress={() => {
-                              setBusinessCategory(category);
-                              setShowCategoryPicker(false);
-                            }}
-                            style={[
-                              styles.categoryItem,
-                              businessCategory === category && { backgroundColor: theme.primary + "20" },
-                            ]}
-                          >
-                            <ThemedText
-                              type="body"
-                              style={{ color: businessCategory === category ? theme.primary : theme.text }}
-                            >
-                              {category}
-                            </ThemedText>
-                            {businessCategory === category ? (
-                              <Feather name="check" size={18} color={theme.primary} />
-                            ) : null}
-                          </Pressable>
-                        ))}
-                      </View>
-                    ) : null}
-                  </View>
-                </>
-              ) : null}
-            </>
-          ) : null}
-
-          <View style={styles.fieldContainer}>
-            <ThemedText type="small" style={styles.label}>
-              Email *
-            </ThemedText>
-            <TextInput
-              style={inputStyle}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="your@email.com"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="next"
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <ThemedText type="small" style={styles.label}>
-              Password *
-            </ThemedText>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[inputStyle, styles.passwordInput]}
-                value={password}
-                onChangeText={setPassword}
-                placeholder={mode === "signup" ? "Min. 6 characters" : "Enter password"}
-                placeholderTextColor={theme.textSecondary}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                returnKeyType={mode === "signup" ? "next" : "done"}
-                onSubmitEditing={mode === "login" ? handleSubmit : undefined}
-              />
-              <Pressable
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.passwordToggle}
+              <Button
+                onPress={handleSignupNavigation}
+                style={styles.submitButton}
               >
-                <Feather
-                  name={showPassword ? "eye-off" : "eye"}
-                  size={20}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-            </View>
-          </View>
-
-          {mode === "signup" ? (
-            <View style={styles.fieldContainer}>
-              <ThemedText type="small" style={styles.label}>
-                Confirm Password *
-              </ThemedText>
-              <View style={styles.passwordContainer}>
+                Continue
+              </Button>
+            </>
+          ) : (
+            <>
+              <View style={styles.fieldContainer}>
+                <ThemedText type="small" style={styles.label}>
+                  Email *
+                </ThemedText>
                 <TextInput
-                  style={[inputStyle, styles.passwordInput]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm your password"
+                  style={inputStyle}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="your@email.com"
                   placeholderTextColor={theme.textSecondary}
-                  secureTextEntry={!showPassword}
+                  keyboardType="email-address"
                   autoCapitalize="none"
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
+                  autoCorrect={false}
+                  returnKeyType="next"
                 />
               </View>
-            </View>
-          ) : null}
 
-          <Button
-            onPress={handleSubmit}
-            disabled={isLoading}
-            style={styles.submitButton}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : mode === "login" ? (
-              "Sign In"
-            ) : role === "business" ? (
-              "Submit Application"
-            ) : (
-              "Create Account"
-            )}
-          </Button>
+              <View style={styles.fieldContainer}>
+                <ThemedText type="small" style={styles.label}>
+                  Password *
+                </ThemedText>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[inputStyle, styles.passwordInput]}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter password"
+                    placeholderTextColor={theme.textSecondary}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    returnKeyType="done"
+                    onSubmitEditing={handleLogin}
+                  />
+                  <Pressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.passwordToggle}
+                  >
+                    <Feather
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              <Button
+                onPress={handleLogin}
+                disabled={isLoading}
+                style={styles.submitButton}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  "Sign In"
+                )}
+              </Button>
+            </>
+          )}
 
           <Pressable
             onPress={() => {
               setMode(mode === "login" ? "signup" : "login");
-              resetForm();
+              setEmail("");
+              setPassword("");
             }}
             style={styles.switchMode}
           >
@@ -682,8 +416,7 @@ export default function AuthScreen() {
           </View>
 
           <Pressable
-            onPress={loginAsGuest}
-            disabled={isLoading}
+            onPress={handleGuestLogin}
             style={[styles.guestButton, { borderColor: theme.border }]}
           >
             <Feather name="user" size={20} color={theme.text} />
@@ -692,28 +425,24 @@ export default function AuthScreen() {
             </ThemedText>
           </Pressable>
 
-          <Pressable
-            onPress={() => Alert.alert("Coming Soon", "Apple Sign-In will be available soon!")}
-            style={[styles.socialButton, { backgroundColor: isDark ? "#FFFFFF" : "#000000" }]}
-          >
-            <Feather name="smartphone" size={20} color={isDark ? "#000000" : "#FFFFFF"} />
-            <ThemedText
-              type="body"
-              style={{ marginLeft: Spacing.sm, color: isDark ? "#000000" : "#FFFFFF" }}
+          <View style={styles.socialButtons}>
+            <Pressable
+              style={[styles.socialButton, { backgroundColor: "#000000" }]}
             >
-              Continue with Apple
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => Alert.alert("Coming Soon", "Google Sign-In will be available soon!")}
-            style={[styles.socialButton, { backgroundColor: theme.backgroundDefault, borderColor: theme.border, borderWidth: 1 }]}
-          >
-            <ThemedText type="body" style={{ color: "#4285F4", fontWeight: "bold", fontSize: 18 }}>G</ThemedText>
-            <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-              Continue with Google
-            </ThemedText>
-          </Pressable>
+              <Feather name="smartphone" size={20} color="#FFFFFF" />
+              <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
+                Continue with Apple
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              style={[styles.socialButton, { backgroundColor: theme.backgroundDefault, borderColor: theme.border, borderWidth: 1 }]}
+            >
+              <Feather name="mail" size={20} color={theme.text} />
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
+                Continue with Google
+              </ThemedText>
+            </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>
@@ -728,22 +457,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   closeButton: {
-    padding: Spacing.sm,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   keyboardAvoid: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
   },
   logoContainer: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.xl,
   },
   logoText: {
-    marginTop: Spacing.sm,
+    marginLeft: Spacing.md,
+    fontSize: 32,
+    fontWeight: "800",
   },
   title: {
     textAlign: "center",
@@ -756,17 +493,22 @@ const styles = StyleSheet.create({
   accountTypeContainer: {
     marginBottom: Spacing.lg,
   },
+  label: {
+    marginBottom: Spacing.sm,
+    fontWeight: "600",
+  },
   roleButtons: {
     flexDirection: "row",
     gap: Spacing.sm,
   },
   roleButton: {
     flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
     alignItems: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xs,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
+    justifyContent: "center",
+    minHeight: 90,
   },
   approvalNotice: {
     flexDirection: "row",
@@ -775,68 +517,41 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginTop: Spacing.md,
   },
-  nameRow: {
-    flexDirection: "row",
-  },
   fieldContainer: {
-    marginBottom: Spacing.md,
-  },
-  label: {
-    marginBottom: Spacing.xs,
-    fontWeight: "500",
+    marginBottom: Spacing.lg,
   },
   input: {
     height: 50,
+    borderWidth: 1,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    fontSize: Typography.body.fontSize,
-    borderWidth: 1,
+    fontSize: 16,
   },
   passwordContainer: {
-    position: "relative",
+    flexDirection: "row",
+    alignItems: "center",
   },
   passwordInput: {
-    paddingRight: 50,
+    flex: 1,
   },
   passwordToggle: {
     position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 50,
+    right: Spacing.md,
+    height: 50,
     justifyContent: "center",
-    alignItems: "center",
-  },
-  pickerButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  categoryList: {
-    marginTop: Spacing.xs,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  categoryItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
   },
   submitButton: {
-    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   switchMode: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: Spacing.xl,
+    marginBottom: Spacing.xl,
   },
   dividerLine: {
     flex: 1,
@@ -854,25 +569,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: Spacing.md,
   },
+  socialButtons: {
+    gap: Spacing.sm,
+  },
   socialButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     height: 50,
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
   },
   pendingContainer: {
     flex: 1,
-    paddingHorizontal: Spacing.xl,
     alignItems: "center",
+    padding: Spacing.xl,
   },
   pendingIcon: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.xl,
   },
   pendingTitle: {
@@ -882,17 +599,15 @@ const styles = StyleSheet.create({
   pendingText: {
     textAlign: "center",
     marginBottom: Spacing.md,
-    lineHeight: 24,
   },
   pendingDetails: {
-    width: "100%",
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,
   },
   pendingDetailRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   pendingButton: {
     width: "100%",
