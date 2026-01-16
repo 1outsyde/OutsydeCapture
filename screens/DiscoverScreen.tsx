@@ -23,6 +23,7 @@ import { RootStackParamList } from "@/navigation/types";
 import { useData, Post } from "@/context/DataContext";
 import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useHealthCheck } from "@/context/HealthCheckContext";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -32,6 +33,7 @@ export default function DiscoverScreen() {
   const { posts, photographers, businesses, isLoading, likePost, addComment, getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
   const { isFavorite, toggleFavorite, favorites } = useFavorites();
+  const { isLoading: healthLoading, data: healthData, error: healthError, refetch: refetchHealth } = useHealthCheck();
 
   // Personalized feed: favorites first, then nearby cities based on user's saved preferences
   const personalizedPosts = useMemo(() => {
@@ -391,6 +393,70 @@ export default function DiscoverScreen() {
       <ScreenScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* Backend Health Check Banner */}
+        <View style={[styles.healthBanner, { 
+          backgroundColor: healthLoading 
+            ? theme.backgroundSecondary 
+            : healthError 
+              ? "#FFE5E5" 
+              : "#E8F5E9" 
+        }]}>
+          {healthLoading ? (
+            <View style={styles.healthRow}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <ThemedText type="caption" style={{ marginLeft: Spacing.sm, color: theme.textSecondary }}>
+                Connecting to backend...
+              </ThemedText>
+            </View>
+          ) : healthError ? (
+            <View style={styles.healthContent}>
+              <View style={styles.healthRow}>
+                <Feather name="alert-circle" size={16} color="#D32F2F" />
+                <ThemedText type="caption" style={{ marginLeft: Spacing.sm, color: "#D32F2F", fontWeight: "600" }}>
+                  Backend Connection Failed
+                </ThemedText>
+              </View>
+              <ThemedText type="small" style={{ color: "#D32F2F", marginTop: 4 }}>
+                {healthError}
+              </ThemedText>
+              <Pressable onPress={refetchHealth} style={styles.retryButton}>
+                <ThemedText type="small" style={{ color: "#D32F2F", fontWeight: "600" }}>
+                  Tap to retry
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : healthData ? (
+            <View style={styles.healthContent}>
+              <View style={styles.healthRow}>
+                <Feather name="check-circle" size={16} color="#2E7D32" />
+                <ThemedText type="caption" style={{ marginLeft: Spacing.sm, color: "#2E7D32", fontWeight: "600" }}>
+                  Backend Connected
+                </ThemedText>
+              </View>
+              <View style={styles.healthDetails}>
+                <View style={styles.healthItem}>
+                  <ThemedText type="small" style={{ color: "#666" }}>Status:</ThemedText>
+                  <ThemedText type="small" style={{ color: "#2E7D32", fontWeight: "500", marginLeft: 4 }}>
+                    {healthData.status}
+                  </ThemedText>
+                </View>
+                <View style={styles.healthItem}>
+                  <ThemedText type="small" style={{ color: "#666" }}>Service:</ThemedText>
+                  <ThemedText type="small" style={{ color: "#2E7D32", fontWeight: "500", marginLeft: 4 }}>
+                    {healthData.service}
+                  </ThemedText>
+                </View>
+                <View style={styles.healthItem}>
+                  <ThemedText type="small" style={{ color: "#666" }}>Environment:</ThemedText>
+                  <ThemedText type="small" style={{ color: "#2E7D32", fontWeight: "500", marginLeft: 4 }}>
+                    {healthData.environment}
+                  </ThemedText>
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
         {personalizedPosts.map(renderPost)}
 
         {/* Browse Photographers CTA */}
@@ -420,6 +486,31 @@ export default function DiscoverScreen() {
 }
 
 const styles = StyleSheet.create({
+  healthBanner: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  healthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  healthContent: {
+    flex: 1,
+  },
+  healthDetails: {
+    marginTop: Spacing.sm,
+    gap: 4,
+  },
+  healthItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  retryButton: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
