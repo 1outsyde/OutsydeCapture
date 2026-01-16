@@ -1,0 +1,594 @@
+import React from "react";
+import {
+  StyleSheet,
+  View,
+  ScrollView,
+  Pressable,
+  Linking,
+  Dimensions,
+} from "react-native";
+import { Image } from "expo-image";
+import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
+import { useTheme } from "@/hooks/useTheme";
+import { Spacing, BorderRadius } from "@/constants/theme";
+import { RootStackParamList, PhotographerProfileData } from "@/navigation/types";
+
+type PhotographerProfileRouteProp = RouteProp<RootStackParamList, "PhotographerProfile">;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const PORTFOLIO_IMAGE_SIZE = SCREEN_WIDTH * 0.6;
+
+const TIER_CONFIG: Record<string, { label: string; color: string }> = {
+  premium: { label: "Premium", color: "#FFD700" },
+  pro: { label: "Pro", color: "#C0C0C0" },
+  basic: { label: "Basic", color: "#CD7F32" },
+};
+
+const FALLBACK_COVER = "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=800";
+
+export default function PhotographerProfileScreen() {
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<PhotographerProfileRouteProp>();
+  const { photographer } = route.params;
+
+  const tierConfig = photographer.subscriptionTier
+    ? TIER_CONFIG[photographer.subscriptionTier]
+    : null;
+
+  const hasWebsite = Boolean(photographer.website);
+  const hasPhone = Boolean(photographer.phone);
+  const hasEmail = Boolean(photographer.email);
+  const hasSocials =
+    Boolean(photographer.instagram) ||
+    Boolean(photographer.facebook) ||
+    Boolean(photographer.twitter);
+  const hasInfo = hasWebsite || hasPhone || hasEmail || hasSocials;
+  const hasDescription = Boolean(photographer.description);
+  const hasPortfolio = photographer.portfolio && photographer.portfolio.length > 0;
+  const hasSpecialties = photographer.specialties && photographer.specialties.length > 0;
+  const hasYearsOfExperience = photographer.yearsOfExperience && photographer.yearsOfExperience > 0;
+
+  const handleClose = () => {
+    navigation.goBack();
+  };
+
+  const handleMessage = () => {
+    navigation.navigate("Conversation", { conversationId: photographer.id });
+  };
+
+  const handleBook = () => {
+    const photographerData = {
+      id: photographer.id,
+      name: photographer.name,
+      avatar: photographer.avatar,
+      location: `${photographer.city}, ${photographer.state}`,
+      rating: photographer.rating,
+      specialty: photographer.specialty,
+      priceRange: photographer.priceRange,
+    };
+    navigation.navigate("Booking", { photographer: photographerData as any });
+  };
+
+  const handleVisitWebsite = async () => {
+    if (photographer.website) {
+      const url = photographer.website.startsWith("http")
+        ? photographer.website
+        : `https://${photographer.website}`;
+      try {
+        await Linking.openURL(url);
+      } catch {
+        // Handle error silently
+      }
+    }
+  };
+
+  const handleCall = async () => {
+    if (photographer.phone) {
+      try {
+        await Linking.openURL(`tel:${photographer.phone}`);
+      } catch {
+        // Handle error silently
+      }
+    }
+  };
+
+  const handleEmail = async () => {
+    if (photographer.email) {
+      try {
+        await Linking.openURL(`mailto:${photographer.email}`);
+      } catch {
+        // Handle error silently
+      }
+    }
+  };
+
+  const handleSocial = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // Handle error silently
+    }
+  };
+
+  return (
+    <ThemedView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + Spacing.xl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroSection}>
+          <Image
+            source={{ uri: photographer.coverImage || photographer.avatar || FALLBACK_COVER }}
+            style={styles.coverImage}
+            contentFit="cover"
+            transition={300}
+          />
+          <View style={styles.heroOverlay} />
+
+          <Pressable
+            onPress={handleClose}
+            style={({ pressed }) => [
+              styles.closeButton,
+              { top: insets.top + Spacing.md, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Feather name="x" size={24} color="#FFFFFF" />
+          </Pressable>
+
+          <View style={styles.heroContent}>
+            <View style={styles.avatarContainer}>
+              <Image
+                source={{ uri: photographer.avatar }}
+                style={styles.avatar}
+                contentFit="cover"
+                transition={200}
+              />
+              {tierConfig ? (
+                <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
+                  <Feather name="award" size={12} color="#000000" />
+                </View>
+              ) : null}
+            </View>
+
+            <ThemedText type="h2" style={styles.photographerName}>
+              {photographer.name}
+            </ThemedText>
+
+            <View style={styles.badgesRow}>
+              <View style={[styles.specialtyBadge, { backgroundColor: theme.primary }]}>
+                <Feather name="camera" size={12} color="#FFFFFF" />
+                <ThemedText type="small" style={styles.specialtyText}>
+                  {photographer.specialty}
+                </ThemedText>
+              </View>
+              {hasSpecialties ? (
+                photographer.specialties!.slice(0, 2).map((spec, index) => (
+                  <View
+                    key={index}
+                    style={[styles.specialtyBadge, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+                  >
+                    <ThemedText type="small" style={styles.specialtyText}>
+                      {spec}
+                    </ThemedText>
+                  </View>
+                ))
+              ) : null}
+            </View>
+
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <Feather name="map-pin" size={14} color="rgba(255,255,255,0.8)" />
+                <ThemedText type="body" style={styles.metaText}>
+                  {photographer.city}
+                  {photographer.state ? `, ${photographer.state}` : ""}
+                </ThemedText>
+              </View>
+              <View style={styles.metaDivider} />
+              <View style={styles.metaItem}>
+                <Feather name="star" size={14} color="#FFD700" />
+                <ThemedText type="body" style={styles.metaText}>
+                  {photographer.rating.toFixed(1)}
+                  {photographer.reviewCount ? ` (${photographer.reviewCount})` : ""}
+                </ThemedText>
+              </View>
+              <View style={styles.metaDivider} />
+              <View style={styles.metaItem}>
+                <ThemedText type="body" style={styles.metaText}>
+                  {photographer.priceRange}
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.contentSection}>
+          <View style={styles.actionButtons}>
+            <Pressable
+              onPress={handleMessage}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.actionButtonSecondary,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="message-circle" size={20} color={theme.text} />
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
+                Message
+              </ThemedText>
+            </Pressable>
+
+            <Pressable
+              onPress={handleBook}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.actionButtonPrimary,
+                { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="calendar" size={20} color="#FFFFFF" />
+              <ThemedText
+                type="body"
+                style={{ marginLeft: Spacing.sm, color: "#FFFFFF", fontWeight: "600" }}
+              >
+                Book Session
+              </ThemedText>
+            </Pressable>
+
+            {hasWebsite ? (
+              <Pressable
+                onPress={handleVisitWebsite}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  styles.actionButtonSecondary,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <Feather name="globe" size={20} color={theme.text} />
+                <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
+                  Website
+                </ThemedText>
+              </Pressable>
+            ) : null}
+          </View>
+
+          {hasDescription || hasYearsOfExperience ? (
+            <View style={[styles.section, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.sectionHeader}>
+                <Feather name="user" size={18} color={theme.primary} />
+                <ThemedText type="h4" style={styles.sectionTitle}>
+                  About
+                </ThemedText>
+              </View>
+              {hasYearsOfExperience ? (
+                <View style={styles.experienceRow}>
+                  <Feather name="clock" size={14} color={theme.textSecondary} />
+                  <ThemedText type="body" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
+                    {photographer.yearsOfExperience} years of experience
+                  </ThemedText>
+                </View>
+              ) : null}
+              {hasDescription ? (
+                <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 22, marginTop: hasYearsOfExperience ? Spacing.md : 0 }}>
+                  {photographer.description}
+                </ThemedText>
+              ) : null}
+            </View>
+          ) : null}
+
+          {hasPortfolio ? (
+            <View style={styles.portfolioSection}>
+              <View style={styles.sectionHeader}>
+                <Feather name="image" size={18} color={theme.primary} />
+                <ThemedText type="h4" style={styles.sectionTitle}>
+                  Portfolio
+                </ThemedText>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.portfolioScroll}
+              >
+                {photographer.portfolio!.map((imageUrl, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: imageUrl }}
+                    style={[
+                      styles.portfolioImage,
+                      { width: PORTFOLIO_IMAGE_SIZE, height: PORTFOLIO_IMAGE_SIZE * 0.75 },
+                    ]}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {hasInfo ? (
+            <View style={[styles.section, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.sectionHeader}>
+                <Feather name="file-text" size={18} color={theme.primary} />
+                <ThemedText type="h4" style={styles.sectionTitle}>
+                  Info
+                </ThemedText>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Feather name="map-pin" size={16} color={theme.textSecondary} />
+                <ThemedText type="body" style={styles.infoText}>
+                  {photographer.city}
+                  {photographer.state ? `, ${photographer.state}` : ""}
+                </ThemedText>
+              </View>
+
+              {hasPhone ? (
+                <Pressable
+                  onPress={handleCall}
+                  style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Feather name="phone" size={16} color={theme.primary} />
+                  <ThemedText type="body" style={[styles.infoText, { color: theme.primary }]}>
+                    {photographer.phone}
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+
+              {hasEmail ? (
+                <Pressable
+                  onPress={handleEmail}
+                  style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Feather name="mail" size={16} color={theme.primary} />
+                  <ThemedText type="body" style={[styles.infoText, { color: theme.primary }]}>
+                    {photographer.email}
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+
+              {hasWebsite ? (
+                <Pressable
+                  onPress={handleVisitWebsite}
+                  style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Feather name="globe" size={16} color={theme.primary} />
+                  <ThemedText
+                    type="body"
+                    style={[styles.infoText, { color: theme.primary }]}
+                    numberOfLines={1}
+                  >
+                    {photographer.website}
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+
+              {hasSocials ? (
+                <View style={styles.socialsRow}>
+                  {photographer.instagram ? (
+                    <Pressable
+                      onPress={() => handleSocial(`https://instagram.com/${photographer.instagram}`)}
+                      style={({ pressed }) => [
+                        styles.socialButton,
+                        { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Feather name="instagram" size={20} color={theme.text} />
+                    </Pressable>
+                  ) : null}
+                  {photographer.facebook ? (
+                    <Pressable
+                      onPress={() => handleSocial(`https://facebook.com/${photographer.facebook}`)}
+                      style={({ pressed }) => [
+                        styles.socialButton,
+                        { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Feather name="facebook" size={20} color={theme.text} />
+                    </Pressable>
+                  ) : null}
+                  {photographer.twitter ? (
+                    <Pressable
+                      onPress={() => handleSocial(`https://twitter.com/${photographer.twitter}`)}
+                      style={({ pressed }) => [
+                        styles.socialButton,
+                        { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Feather name="twitter" size={20} color={theme.text} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  heroSection: {
+    height: 340,
+    position: "relative",
+  },
+  coverImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  closeButton: {
+    position: "absolute",
+    right: Spacing.lg,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  heroContent: {
+    position: "absolute",
+    bottom: Spacing.xl,
+    left: Spacing.xl,
+    right: Spacing.xl,
+  },
+  avatarContainer: {
+    position: "relative",
+    marginBottom: Spacing.md,
+  },
+  avatar: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+  },
+  tierBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  photographerName: {
+    color: "#FFFFFF",
+    marginBottom: Spacing.sm,
+  },
+  badgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  specialtyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  specialtyText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  metaText: {
+    color: "rgba(255,255,255,0.9)",
+    marginLeft: 4,
+  },
+  metaDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    marginHorizontal: Spacing.md,
+  },
+  contentSection: {
+    padding: Spacing.xl,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    minWidth: 100,
+  },
+  actionButtonPrimary: {
+    flex: 1,
+  },
+  actionButtonSecondary: {
+    flex: 0,
+  },
+  section: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    marginLeft: Spacing.sm,
+  },
+  experienceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  portfolioSection: {
+    marginBottom: Spacing.lg,
+  },
+  portfolioScroll: {
+    gap: Spacing.md,
+  },
+  portfolioImage: {
+    borderRadius: BorderRadius.lg,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  infoText: {
+    marginLeft: Spacing.md,
+    flex: 1,
+  },
+  socialsRow: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  socialButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

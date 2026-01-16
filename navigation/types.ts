@@ -24,6 +24,30 @@ export interface BusinessProfileData {
   coverImage?: string;
 }
 
+export interface PhotographerProfileData {
+  id: string;
+  name: string;
+  avatar: string;
+  city: string;
+  state: string;
+  rating: number;
+  priceRange: string;
+  specialty: string;
+  description: string;
+  subscriptionTier?: "basic" | "pro" | "premium";
+  website?: string;
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+  reviewCount?: number;
+  coverImage?: string;
+  yearsOfExperience?: number;
+  portfolio?: string[];
+  specialties?: string[];
+}
+
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
@@ -33,6 +57,7 @@ export type RootStackParamList = {
   Booking: { photographer: Photographer };
   VendorDetail: { vendorId: string };
   BusinessProfile: { business: BusinessProfileData };
+  PhotographerProfile: { photographer: PhotographerProfileData };
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };

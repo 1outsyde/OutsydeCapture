@@ -13,7 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
-import { RootStackParamList, BusinessProfileData } from "@/navigation/types";
+import { RootStackParamList, BusinessProfileData, PhotographerProfileData } from "@/navigation/types";
 
 type TabType = "all" | "business" | "photographer" | "product" | "service";
 
@@ -103,20 +103,36 @@ export default function SearchScreen() {
   };
 
   const handleCardPress = (item: UnifiedSearchResult) => {
-    const businessData: BusinessProfileData = {
-      id: item.id,
-      name: item.name,
-      avatar: item.avatar,
-      city: item.city,
-      state: item.state,
-      rating: item.rating,
-      priceRange: item.priceRange,
-      category: item.category,
-      description: item.description,
-      subscriptionTier: item.subscriptionTier,
-      resultType: item.resultType,
-    };
-    navigation.navigate("BusinessProfile", { business: businessData });
+    if (item.resultType === "photographer") {
+      const photographerData: PhotographerProfileData = {
+        id: item.id,
+        name: item.name,
+        avatar: item.avatar,
+        city: item.city,
+        state: item.state,
+        rating: item.rating,
+        priceRange: item.priceRange,
+        specialty: item.category,
+        description: item.description,
+        subscriptionTier: item.subscriptionTier,
+      };
+      navigation.navigate("PhotographerProfile", { photographer: photographerData });
+    } else {
+      const businessData: BusinessProfileData = {
+        id: item.id,
+        name: item.name,
+        avatar: item.avatar,
+        city: item.city,
+        state: item.state,
+        rating: item.rating,
+        priceRange: item.priceRange,
+        category: item.category,
+        description: item.description,
+        subscriptionTier: item.subscriptionTier,
+        resultType: item.resultType,
+      };
+      navigation.navigate("BusinessProfile", { business: businessData });
+    }
   };
 
   const filteredResults = useMemo(() => {
