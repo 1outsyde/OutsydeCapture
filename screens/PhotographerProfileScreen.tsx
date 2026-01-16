@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList, PhotographerProfileData } from "@/navigation/types";
 import api, { ApiPhotographerDetail, ApiError } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import * as Haptics from "expo-haptics";
 
 type PhotographerProfileRouteProp = RouteProp<RootStackParamList, "PhotographerProfile">;
@@ -41,6 +42,7 @@ export default function PhotographerProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<PhotographerProfileRouteProp>();
+  const { getToken } = useAuth();
   const initialData = route.params.photographer;
 
   const [photographer, setPhotographer] = useState<PhotographerProfileData>(initialData);
@@ -145,12 +147,13 @@ export default function PhotographerProfileScreen() {
       setIsStartingChat(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
+      const authToken = await getToken();
       const conversation = await api.createOrGetConversation({
         participantId: photographer.id,
         participantType: "photographer",
         participantName: photographer.name,
         participantAvatar: photographer.avatar,
-      });
+      }, authToken);
       
       navigation.navigate("Chat", {
         conversationId: conversation.id,

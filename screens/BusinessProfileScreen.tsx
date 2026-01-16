@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList, BusinessProfileData } from "@/navigation/types";
 import api, { ApiBusinessDetail, ApiError } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import * as Haptics from "expo-haptics";
 
 type BusinessProfileRouteProp = RouteProp<RootStackParamList, "BusinessProfile">;
@@ -38,6 +39,7 @@ export default function BusinessProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<BusinessProfileRouteProp>();
+  const { getToken } = useAuth();
   const initialData = route.params.business;
 
   const [business, setBusiness] = useState<BusinessProfileData>(initialData);
@@ -135,12 +137,13 @@ export default function BusinessProfileScreen() {
       setIsStartingChat(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
+      const authToken = await getToken();
       const conversation = await api.createOrGetConversation({
         participantId: business.id,
         participantType: business.resultType === "photographer" ? "photographer" : "business",
         participantName: business.name,
         participantAvatar: business.avatar,
-      });
+      }, authToken);
       
       navigation.navigate("Chat", {
         conversationId: conversation.id,
