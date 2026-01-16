@@ -31,8 +31,12 @@ export default function AccountScreen() {
   const { favorites } = useFavorites();
   
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(user?.name || "");
+  const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
+  const [editFirstName, setEditFirstName] = useState(user?.firstName || "");
+  const [editLastName, setEditLastName] = useState(user?.lastName || "");
   const [editPhone, setEditPhone] = useState(user?.phone || "");
+  
+  const isAdmin = user?.email?.includes("admin") || user?.email === "admin@outsyde.com";
 
   const handleLogout = () => {
     Alert.alert(
@@ -53,7 +57,8 @@ export default function AccountScreen() {
 
   const handleSaveProfile = async () => {
     await updateProfile({
-      name: editName,
+      firstName: editFirstName,
+      lastName: editLastName,
       phone: editPhone,
     });
     setIsEditing(false);
@@ -136,7 +141,7 @@ export default function AccountScreen() {
         {!isEditing ? (
           <>
             <ThemedText type="h2" style={styles.userName}>
-              {user?.name}
+              {displayName}
             </ThemedText>
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
               {user?.email}
@@ -149,13 +154,26 @@ export default function AccountScreen() {
         <View style={styles.editSection}>
           <View style={styles.fieldContainer}>
             <ThemedText type="small" style={styles.label}>
-              Name
+              First Name
             </ThemedText>
             <TextInput
               style={inputStyle}
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Your name"
+              value={editFirstName}
+              onChangeText={setEditFirstName}
+              placeholder="First name"
+              placeholderTextColor={theme.textSecondary}
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <ThemedText type="small" style={styles.label}>
+              Last Name
+            </ThemedText>
+            <TextInput
+              style={inputStyle}
+              value={editLastName}
+              onChangeText={setEditLastName}
+              placeholder="Last name"
               placeholderTextColor={theme.textSecondary}
             />
           </View>
@@ -177,7 +195,8 @@ export default function AccountScreen() {
           <View style={styles.editButtons}>
             <Pressable
               onPress={() => {
-                setEditName(user?.name || "");
+                setEditFirstName(user?.firstName || "");
+                setEditLastName(user?.lastName || "");
                 setEditPhone(user?.phone || "");
                 setIsEditing(false);
               }}
@@ -323,6 +342,24 @@ export default function AccountScreen() {
               </View>
               <Feather name="chevron-right" size={20} color={theme.primary} />
             </Pressable>
+
+            {isAdmin ? (
+              <Pressable
+                onPress={() => (navigation as any).navigate("AdminDashboard")}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  { backgroundColor: "#FFD60A20", opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="shield" size={20} color="#FFD60A" />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FFD60A" }]}>
+                    Admin Dashboard
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color="#FFD60A" />
+              </Pressable>
+            ) : null}
           </View>
 
           <View style={styles.section}>
