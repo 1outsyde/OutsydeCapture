@@ -5,7 +5,7 @@ import { fetchPhotographers } from "@/api/photographers";
 
 export type PhotographyCategory = "portrait" | "wedding" | "events" | "product" | "nature" | "fashion";
 
-export type BusinessType = "photography" | "cinematography" | "food" | "fashion" | "services" | "beauty" | "art";
+export type BusinessType = "food" | "fashion" | "services" | "beauty" | "art" | "health" | "events" | "retail" | "professional";
 
 export interface Business {
   id: string;
@@ -23,23 +23,27 @@ export interface Business {
 }
 
 export const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = {
-  photography: "Photography",
-  cinematography: "Cinematography",
   food: "Food & Dining",
-  fashion: "Fashion & Clothes",
-  services: "Local Services",
+  fashion: "Fashion & Apparel",
+  services: "Home Services",
   beauty: "Beauty & Hair",
   art: "Art & Design",
+  health: "Health & Wellness",
+  events: "Events & Entertainment",
+  retail: "Retail & Shopping",
+  professional: "Professional Services",
 };
 
 export const BUSINESS_TYPE_ICONS: Record<BusinessType, string> = {
-  photography: "camera",
-  cinematography: "video",
   food: "coffee",
   fashion: "shopping-bag",
   services: "briefcase",
   beauty: "scissors",
   art: "edit-3",
+  health: "heart",
+  events: "calendar",
+  retail: "shopping-cart",
+  professional: "user",
 };
 
 export interface Photographer {
@@ -436,88 +440,6 @@ const MOCK_POSTS: Post[] = [
 ];
 
 const MOCK_BUSINESSES: Business[] = [
-  // Photography
-  {
-    id: "b1",
-    name: "Sarah Mitchell Photography",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
-    type: "photography",
-    category: "Portrait",
-    city: "New York",
-    state: "NY",
-    rating: 4.9,
-    priceRange: "$150-300/hr",
-    description: "Award-winning portrait photographer with 10+ years of experience.",
-    featured: true,
-    subscriptionTier: "premium",
-  },
-  {
-    id: "b2",
-    name: "James Chen Wedding Photos",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
-    type: "photography",
-    category: "Wedding",
-    city: "Los Angeles",
-    state: "CA",
-    rating: 4.8,
-    priceRange: "$200-500/hr",
-    description: "Capturing the magic of your special day with candid and artistic styles.",
-    subscriptionTier: "pro",
-  },
-  {
-    id: "b3",
-    name: "Miami Product Studios",
-    avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200",
-    type: "photography",
-    category: "Product",
-    city: "Miami",
-    state: "FL",
-    rating: 4.9,
-    priceRange: "$175-400/hr",
-    description: "E-commerce and product photography specialist helping brands shine.",
-    subscriptionTier: "premium",
-  },
-  // Cinematography
-  {
-    id: "b4",
-    name: "Skyline Films",
-    avatar: "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=200",
-    type: "cinematography",
-    category: "Wedding Films",
-    city: "Los Angeles",
-    state: "CA",
-    rating: 4.9,
-    priceRange: "$2000-5000",
-    description: "Cinematic wedding films that tell your love story beautifully.",
-    featured: true,
-    subscriptionTier: "premium",
-  },
-  {
-    id: "b5",
-    name: "Urban Motion Pictures",
-    avatar: "https://images.unsplash.com/photo-1492724441997-5dc865305da7?w=200",
-    type: "cinematography",
-    category: "Commercial",
-    city: "Chicago",
-    state: "IL",
-    rating: 4.7,
-    priceRange: "$3000-10000",
-    description: "Commercial video production for brands and businesses.",
-    subscriptionTier: "pro",
-  },
-  {
-    id: "b6",
-    name: "Documentary Dreams",
-    avatar: "https://images.unsplash.com/photo-1579965342575-16428a7c8881?w=200",
-    type: "cinematography",
-    category: "Documentary",
-    city: "Austin",
-    state: "TX",
-    rating: 4.8,
-    priceRange: "$1500-4000",
-    description: "Authentic documentary-style storytelling for events and projects.",
-    subscriptionTier: "basic",
-  },
   // Food & Dining
   {
     id: "b7",
@@ -682,15 +604,15 @@ const MOCK_BUSINESSES: Business[] = [
   },
   {
     id: "b19",
-    name: "Peachtree Photography",
+    name: "Atlanta Event Planners",
     avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200",
-    type: "photography",
-    category: "Events",
+    type: "events",
+    category: "Event Planning",
     city: "Atlanta",
     state: "GA",
     rating: 4.8,
-    priceRange: "$175-350/hr",
-    description: "Premier event photography in Atlanta covering weddings, corporate, and social events.",
+    priceRange: "$500-2000",
+    description: "Premier event planning in Atlanta covering weddings, corporate, and social events.",
     featured: true,
     subscriptionTier: "premium",
   },
@@ -709,10 +631,10 @@ const MOCK_BUSINESSES: Business[] = [
   },
   {
     id: "b21",
-    name: "Atlanta Film Works",
+    name: "Atlanta Video Productions",
     avatar: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=200",
-    type: "cinematography",
-    category: "Music Videos",
+    type: "professional",
+    category: "Video Production",
     city: "Atlanta",
     state: "GA",
     rating: 4.9,
@@ -722,15 +644,15 @@ const MOCK_BUSINESSES: Business[] = [
   },
   {
     id: "b22",
-    name: "Richmond Portrait Studio",
+    name: "Richmond Art Gallery",
     avatar: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200",
-    type: "photography",
-    category: "Portrait",
+    type: "art",
+    category: "Art Gallery",
     city: "Richmond",
     state: "VA",
     rating: 4.7,
-    priceRange: "$125-275/hr",
-    description: "Family and professional portraits in the heart of Virginia.",
+    priceRange: "$$",
+    description: "Contemporary art gallery featuring local Virginia artists.",
     subscriptionTier: "pro",
   },
   {
@@ -761,15 +683,15 @@ const MOCK_BUSINESSES: Business[] = [
   },
   {
     id: "b25",
-    name: "Houston Lens Masters",
+    name: "Houston Design Studio",
     avatar: "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=200",
-    type: "photography",
-    category: "Commercial",
+    type: "professional",
+    category: "Design Studio",
     city: "Houston",
     state: "TX",
     rating: 4.8,
     priceRange: "$200-450/hr",
-    description: "Commercial and architectural photography serving Houston businesses.",
+    description: "Full-service design studio serving Houston businesses.",
     featured: true,
     subscriptionTier: "premium",
   },
