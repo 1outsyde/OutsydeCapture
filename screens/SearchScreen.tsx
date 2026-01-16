@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { StyleSheet, View, TextInput, Pressable, ScrollView } from "react-native";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,22 +8,18 @@ import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { useData, Business, BusinessType, BUSINESS_TYPE_LABELS, BUSINESS_TYPE_ICONS } from "@/context/DataContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
+import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
 
-const BUSINESS_TYPES: BusinessType[] = ["photography", "cinematography", "food", "fashion", "services", "beauty", "art"];
+type TabType = "all" | "business" | "photographer" | "product" | "service";
 
-const FEATURED_LOCATIONS = [
-  { id: "all", label: "All Cities", city: null, state: null },
-  { id: "nyc", label: "New York", city: "New York", state: "NY" },
-  { id: "miami", label: "Miami", city: "Miami", state: "FL" },
-  { id: "atlanta", label: "Atlanta", city: "Atlanta", state: "GA" },
-  { id: "richmond", label: "Richmond", city: "Richmond", state: "VA" },
-  { id: "la", label: "Los Angeles", city: "Los Angeles", state: "CA" },
-  { id: "chicago", label: "Chicago", city: "Chicago", state: "IL" },
-  { id: "houston", label: "Houston", city: "Houston", state: "TX" },
-  { id: "california", label: "California", city: null, state: "CA" },
+const TABS: { id: TabType; label: string; icon: string }[] = [
+  { id: "all", label: "All", icon: "grid" },
+  { id: "business", label: "Businesses", icon: "briefcase" },
+  { id: "photographer", label: "Photographers", icon: "camera" },
+  { id: "product", label: "Products", icon: "shopping-bag" },
+  { id: "service", label: "Services", icon: "scissors" },
 ];
 
 const TIER_CONFIG: Record<string, { label: string; color: string }> = {
@@ -32,151 +28,155 @@ const TIER_CONFIG: Record<string, { label: string; color: string }> = {
   basic: { label: "Basic", color: "#CD7F32" },
 };
 
+const RESULT_TYPE_ICONS: Record<SearchResultType, string> = {
+  business: "briefcase",
+  photographer: "camera",
+  product: "shopping-bag",
+  service: "scissors",
+};
+
+const RESULT_TYPE_LABELS: Record<SearchResultType, string> = {
+  business: "Business",
+  photographer: "Photographer",
+  product: "Product",
+  service: "Service",
+};
+
 export default function SearchScreen() {
   const { theme } = useTheme();
-  const { businesses } = useData();
   const insets = useSafeAreaInsets();
-  
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedType, setSelectedType] = useState<BusinessType | null>(null);
-  const [selectedLocation, setSelectedLocation] = useState("all");
   const { isFavorite, toggleFavorite } = useFavorites();
 
-  const handleSaveBusiness = (item: Business) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<TabType>("all");
+  const [results, setResults] = useState<UnifiedSearchResult[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSearchResults = useCallback(async (query?: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.search({ query: query || undefined });
+      const normalized = api.normalizeSearchResults(response);
+      setResults(normalized);
+    } catch (err) {
+      const apiError = err as ApiError;
+      setError(apiError.message || "Failed to fetch search results");
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSearchResults();
+  }, [fetchSearchResults]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim()) {
+        fetchSearchResults(searchQuery);
+      } else {
+        fetchSearchResults();
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, fetchSearchResults]);
+
+  const handleSaveResult = (item: UnifiedSearchResult) => {
     toggleFavorite({
       id: item.id,
-      type: "business",
+      type: item.resultType === "photographer" ? "photographer" : "business",
       name: item.name,
       image: item.avatar,
       subtitle: `${item.city}, ${item.state}`,
     });
   };
 
-  const selectedLocationData = FEATURED_LOCATIONS.find(loc => loc.id === selectedLocation);
-
-  const filteredBusinesses = useMemo(() => {
-    let result = businesses;
-
-    // Filter by location first
-    if (selectedLocation !== "all" && selectedLocationData) {
-      result = result.filter(b => {
-        // If filtering by state only (like "California")
-        if (selectedLocationData.state && !selectedLocationData.city) {
-          return b.state.toUpperCase() === selectedLocationData.state.toUpperCase();
-        }
-        // If filtering by specific city
-        if (selectedLocationData.city) {
-          return (
-            b.city.toLowerCase() === selectedLocationData.city.toLowerCase() &&
-            b.state.toUpperCase() === selectedLocationData.state?.toUpperCase()
-          );
-        }
-        return true;
-      });
+  const filteredResults = useMemo(() => {
+    if (activeTab === "all") {
+      return results;
     }
+    return results.filter(r => r.resultType === activeTab);
+  }, [results, activeTab]);
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        b =>
-          b.name.toLowerCase().includes(query) ||
-          b.city.toLowerCase().includes(query) ||
-          b.state.toLowerCase().includes(query) ||
-          b.category.toLowerCase().includes(query) ||
-          BUSINESS_TYPE_LABELS[b.type].toLowerCase().includes(query)
-      );
-    }
+  const tabCounts = useMemo(() => {
+    const counts: Record<TabType, number> = {
+      all: results.length,
+      business: 0,
+      photographer: 0,
+      product: 0,
+      service: 0,
+    };
 
-    if (selectedType) {
-      result = result.filter(b => b.type === selectedType);
-    }
+    results.forEach(r => {
+      counts[r.resultType]++;
+    });
 
-    return result;
-  }, [businesses, searchQuery, selectedType, selectedLocation, selectedLocationData]);
+    return counts;
+  }, [results]);
 
-  const clearFilters = () => {
-    setSelectedType(null);
-    setSearchQuery("");
-    setSelectedLocation("all");
-  };
+  const renderTab = (tab: typeof TABS[0]) => {
+    const isActive = activeTab === tab.id;
+    const count = tabCounts[tab.id];
 
-  const hasActiveFilters = selectedType || searchQuery || selectedLocation !== "all";
-
-  const renderTypeChip = (type: BusinessType) => {
-    const isSelected = selectedType === type;
-    const iconName = BUSINESS_TYPE_ICONS[type] as keyof typeof Feather.glyphMap;
-    
     return (
       <Pressable
-        key={type}
-        onPress={() => setSelectedType(isSelected ? null : type)}
+        key={tab.id}
+        onPress={() => setActiveTab(tab.id)}
         style={({ pressed }) => [
-          styles.typeChip,
+          styles.tab,
           {
-            backgroundColor: isSelected ? theme.primary : theme.backgroundDefault,
+            backgroundColor: isActive ? theme.primary : theme.backgroundDefault,
+            borderColor: isActive ? theme.primary : theme.border,
             opacity: pressed ? 0.8 : 1,
           },
         ]}
       >
-        <Feather 
-          name={iconName} 
-          size={20} 
-          color={isSelected ? "#FFFFFF" : theme.text} 
+        <Feather
+          name={tab.icon as keyof typeof Feather.glyphMap}
+          size={16}
+          color={isActive ? "#FFFFFF" : theme.text}
         />
         <ThemedText
           type="body"
-          style={{ color: isSelected ? "#FFFFFF" : theme.text, marginLeft: Spacing.sm, fontSize: 16 }}
-        >
-          {BUSINESS_TYPE_LABELS[type]}
-        </ThemedText>
-      </Pressable>
-    );
-  };
-
-  const renderLocationChip = (location: typeof FEATURED_LOCATIONS[0]) => {
-    const isSelected = selectedLocation === location.id;
-    
-    return (
-      <Pressable
-        key={location.id}
-        onPress={() => setSelectedLocation(location.id)}
-        style={({ pressed }) => [
-          styles.locationChip,
-          {
-            backgroundColor: isSelected ? theme.primary : theme.backgroundDefault,
-            borderColor: isSelected ? theme.primary : theme.border,
-            opacity: pressed ? 0.8 : 1,
-          },
-        ]}
-      >
-        <Feather 
-          name="map-pin" 
-          size={18} 
-          color={isSelected ? "#FFFFFF" : theme.textSecondary} 
-        />
-        <ThemedText
-          type="body"
-          style={{ 
-            color: isSelected ? "#FFFFFF" : theme.text, 
-            marginLeft: Spacing.sm,
-            fontWeight: isSelected ? "600" : "400",
-            fontSize: 16,
+          style={{
+            color: isActive ? "#FFFFFF" : theme.text,
+            marginLeft: Spacing.xs,
+            fontWeight: isActive ? "600" : "400",
           }}
         >
-          {location.label}
+          {tab.label}
         </ThemedText>
+        <View
+          style={[
+            styles.countBadge,
+            { backgroundColor: isActive ? "rgba(255,255,255,0.3)" : theme.backgroundSecondary },
+          ]}
+        >
+          <ThemedText
+            type="small"
+            style={{ color: isActive ? "#FFFFFF" : theme.textSecondary, fontWeight: "600" }}
+          >
+            {count}
+          </ThemedText>
+        </View>
       </Pressable>
     );
   };
 
-  const renderBusinessItem = ({ item }: { item: Business }) => {
+  const renderResultItem = ({ item }: { item: UnifiedSearchResult }) => {
     const tierConfig = item.subscriptionTier ? TIER_CONFIG[item.subscriptionTier] : null;
-    const typeIcon = BUSINESS_TYPE_ICONS[item.type] as keyof typeof Feather.glyphMap;
-    
+    const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
+    const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
+
     return (
       <Pressable
         style={({ pressed }) => [
-          styles.businessCard,
+          styles.resultCard,
           {
             backgroundColor: theme.backgroundDefault,
             transform: [{ scale: pressed ? 0.98 : 1 }],
@@ -185,13 +185,13 @@ export default function SearchScreen() {
       >
         <Image
           source={{ uri: item.avatar }}
-          style={styles.businessImage}
+          style={styles.resultImage}
           contentFit="cover"
           transition={200}
         />
-        <View style={styles.businessInfo}>
-          <View style={styles.businessHeader}>
-            <ThemedText type="h4" numberOfLines={1} style={styles.businessName}>
+        <View style={styles.resultInfo}>
+          <View style={styles.resultHeader}>
+            <ThemedText type="h4" numberOfLines={1} style={styles.resultName}>
               {item.name}
             </ThemedText>
             <View style={styles.headerRight}>
@@ -201,43 +201,43 @@ export default function SearchScreen() {
                 </View>
               ) : null}
               <Pressable
-                onPress={() => handleSaveBusiness(item)}
+                onPress={() => handleSaveResult(item)}
                 style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}
               >
                 <Feather
                   name="bookmark"
                   size={18}
-                  color={isFavorite(item.id, "business") ? theme.primary : theme.textSecondary}
+                  color={isSaved ? theme.primary : theme.textSecondary}
                 />
               </Pressable>
             </View>
           </View>
-          
+
           <View style={styles.typeRow}>
             <Feather name={typeIcon} size={12} color={theme.primary} />
             <ThemedText type="small" style={{ color: theme.primary, marginLeft: 4 }}>
-              {BUSINESS_TYPE_LABELS[item.type]}
+              {RESULT_TYPE_LABELS[item.resultType]}
             </ThemedText>
             <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
               - {item.category}
             </ThemedText>
           </View>
-          
-          <View style={styles.businessMeta}>
+
+          <View style={styles.resultMeta}>
             <View style={styles.ratingContainer}>
               <Feather name="star" size={14} color="#FFD700" />
-              <ThemedText type="small">
-                {" "}{item.rating}
-              </ThemedText>
+              <ThemedText type="small"> {item.rating.toFixed(1)}</ThemedText>
             </View>
             <View style={styles.locationContainer}>
               <Feather name="map-pin" size={14} color={theme.textSecondary} />
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {" "}{item.city}, {item.state}
+                {" "}
+                {item.city}
+                {item.state ? `, ${item.state}` : ""}
               </ThemedText>
             </View>
           </View>
-          
+
           <ThemedText type="caption" style={{ color: theme.secondary }}>
             {item.priceRange}
           </ThemedText>
@@ -246,79 +246,77 @@ export default function SearchScreen() {
     );
   };
 
-  const getResultsLabel = () => {
-    const count = filteredBusinesses.length;
-    const countText = `${count} ${count === 1 ? "Result" : "Results"}`;
-    if (selectedLocation !== "all" && selectedLocationData) {
-      return `${countText} in ${selectedLocationData.label}`;
-    }
-    return countText;
-  };
-
   const ListHeader = () => (
     <View>
-      <View style={styles.filterSection}>
-        <ThemedText type="small" style={styles.filterLabel}>
-          Category
-        </ThemedText>
-        <ScrollView 
-          horizontal 
+      <View style={styles.tabsContainer}>
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.typeRow}
+          contentContainerStyle={styles.tabsRow}
         >
-          {BUSINESS_TYPES.map(renderTypeChip)}
+          {TABS.map(renderTab)}
         </ScrollView>
       </View>
-
-      <View style={styles.filterSection}>
-        <ThemedText type="small" style={styles.filterLabel}>
-          Explore by City
-        </ThemedText>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.locationRow}
-        >
-          {FEATURED_LOCATIONS.map(renderLocationChip)}
-        </ScrollView>
-      </View>
-
-      {hasActiveFilters ? (
-        <Pressable
-          onPress={clearFilters}
-          style={({ pressed }) => [
-            styles.clearButton,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Feather name="x" size={16} color={theme.error} />
-          <ThemedText type="small" style={{ color: theme.error, marginLeft: Spacing.xs }}>
-            Clear all filters
-          </ThemedText>
-        </Pressable>
-      ) : null}
 
       <ThemedText type="h4" style={styles.resultsTitle}>
-        {getResultsLabel()}
+        {filteredResults.length} {filteredResults.length === 1 ? "Result" : "Results"}
+        {activeTab !== "all" ? ` in ${TABS.find(t => t.id === activeTab)?.label}` : ""}
       </ThemedText>
     </View>
   );
 
-  const ListEmpty = () => (
-    <View style={styles.emptyState}>
-      <Feather name="map-pin" size={48} color={theme.textSecondary} />
-      <ThemedText type="h4" style={styles.emptyTitle}>
-        {selectedLocation !== "all" && selectedLocationData
-          ? `No businesses in ${selectedLocationData.label}`
-          : "No businesses found"}
-      </ThemedText>
-      <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-        {selectedLocation !== "all"
-          ? "Try selecting a different city or clearing your filters"
-          : "Try searching by city, name, or category"}
-      </ThemedText>
-    </View>
-  );
+  const ListEmpty = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+            Searching...
+          </ThemedText>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.emptyState}>
+          <Feather name="alert-circle" size={48} color={theme.error} />
+          <ThemedText type="h4" style={styles.emptyTitle}>
+            Connection Error
+          </ThemedText>
+          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+            {error}
+          </ThemedText>
+          <Pressable
+            onPress={() => fetchSearchResults(searchQuery || undefined)}
+            style={({ pressed }) => [
+              styles.retryButton,
+              { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+            <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
+              Try Again
+            </ThemedText>
+          </Pressable>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        <Feather name="search" size={48} color={theme.textSecondary} />
+        <ThemedText type="h4" style={styles.emptyTitle}>
+          No results found
+        </ThemedText>
+        <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+          {searchQuery
+            ? `No ${activeTab === "all" ? "results" : activeTab + "s"} match "${searchQuery}"`
+            : `No ${activeTab === "all" ? "results" : activeTab + "s"} available`}
+        </ThemedText>
+      </View>
+    );
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -327,7 +325,7 @@ export default function SearchScreen() {
           <Feather name="search" size={20} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Search by city, name, or category..."
+            placeholder="Search businesses, photographers..."
             placeholderTextColor={theme.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -338,13 +336,16 @@ export default function SearchScreen() {
               <Feather name="x-circle" size={20} color={theme.textSecondary} />
             </Pressable>
           ) : null}
+          {isLoading && searchQuery ? (
+            <ActivityIndicator size="small" color={theme.primary} style={{ marginLeft: Spacing.sm }} />
+          ) : null}
         </View>
       </View>
 
       <ScreenFlatList
-        data={filteredBusinesses}
-        renderItem={renderBusinessItem}
-        keyExtractor={item => item.id}
+        data={filteredResults}
+        renderItem={renderResultItem}
+        keyExtractor={(item) => item.id}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
         contentContainerStyle={styles.listContent}
@@ -374,43 +375,26 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
     fontSize: Typography.body.fontSize,
   },
-  filterSection: {
-    marginBottom: Spacing.xl,
+  tabsContainer: {
+    marginBottom: Spacing.lg,
   },
-  filterLabel: {
-    marginBottom: Spacing.md,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  typeRow: {
+  tabsRow: {
     flexDirection: "row",
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
-  typeChip: {
+  tab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-    minHeight: 48,
-  },
-  locationRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  locationChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    minHeight: 48,
   },
-  clearButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
+  countBadge: {
+    marginLeft: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
   },
   resultsTitle: {
     marginBottom: Spacing.lg,
@@ -418,27 +402,32 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: Spacing.lg,
   },
-  businessCard: {
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["3xl"],
+  },
+  resultCard: {
     flexDirection: "row",
     borderRadius: BorderRadius.md,
     overflow: "hidden",
     marginBottom: Spacing.lg,
   },
-  businessImage: {
+  resultImage: {
     width: 100,
     height: 120,
   },
-  businessInfo: {
+  resultInfo: {
     flex: 1,
     padding: Spacing.md,
     justifyContent: "center",
   },
-  businessHeader: {
+  resultHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  businessName: {
+  resultName: {
     flex: 1,
     marginRight: Spacing.sm,
   },
@@ -453,7 +442,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  businessMeta: {
+  typeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  resultMeta: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -475,5 +469,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.lg,
   },
 });
