@@ -39,7 +39,7 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Payments**: Sub-tabs for Orders, Bookings, Refunds with revenue stats overview
   - **Messages**: All platform conversations with preview and participant info
   - **Influencers**: Status filters and approve/reject workflow for influencer applications
-- **Admin Access**: Admin dashboard is accessible via Account screen for users with emails: info@outsyde.com or Jamesmeyers2304@gmail.com
+- **Admin Access**: Admin dashboard is accessible via Account screen for users with emails: info@goutsyde.com or Jamesmeyers2304@gmail.com
 - **Photographer Dashboard**: Provider dashboard for photographers accessible from Account screen. Features:
   - Stats row: Earnings, Upcoming Bookings, Unread Messages, Rating
   - Profile overview with avatar, name, hourly rate, portfolio link
