@@ -17,7 +17,8 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Safe Area Handling**: Custom `ScreenScrollView`, `ScreenFlatList`, `ScreenKeyboardAwareScrollView` for tab screens; manual `useSafeAreaInsets()` for modal screens.
 
 ### Technical Implementations
-- **Authentication**: SSO (Apple/Google) and guest login. Account types (Consumer/Business) with business approval workflow.
+- **Authentication**: SSO (Apple/Google) and guest login. Three signup roles: Consumer (auto-approved), Business (manual approval 24-48h), Photographer (auto-approved). Role is set exclusively at signup - no post-signup role changes. Influencer is an additive status for consumers, not a separate role.
+- **Role-Based Dashboard Access**: Dashboards are post-onboarding tools only accessible when profile is complete. Photographer Dashboard visible only to photographers with complete profiles. Business Dashboard visible only to approved businesses with complete profiles. Consumers see "Apply as Influencer" option. ProfileCompletionGateScreen shows required setup steps for incomplete profiles.
 - **Navigation**: Expo SDK 54, React Navigation 7 with Root, MainTab, and Stack Navigators.
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
 - **Content Feed**: Personalized mixed feed (photographer/vendor posts) prioritizing favorites, local content, and premium tiers. Instagram-style posts with likes and comments.
