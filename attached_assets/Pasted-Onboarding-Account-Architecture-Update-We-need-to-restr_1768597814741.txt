@@ -1,0 +1,155 @@
+Onboarding + Account Architecture Update
+
+We need to restructure onboarding and account access rules to support three distinct signup paths, not two.
+
+1️⃣ Onboarding must have THREE signup types (non-negotiable)
+
+The Create Account / Onboarding screen must allow users to explicitly choose ONE of the following:
+
+A) Consumer (Regular User)
+
+Purpose: Browse, book, message, save, review
+
+No dashboards
+
+No business or photographer controls
+
+Can apply as Influencer later
+
+B) Business
+
+Purpose: Sell products and/or services
+
+Triggers Business Onboarding Flow
+
+After onboarding:
+
+Must select a subscription plan
+
+Must complete Stripe subscription checkout
+
+Must later complete Stripe Connect to receive payments
+
+Gets Business Dashboard
+
+C) Photographer
+
+Purpose: Offer bookable photography services
+
+Triggers Photographer Onboarding Flow
+
+No subscription plan
+
+Must complete Stripe Connect before receiving bookings
+
+Gets Photographer Dashboard
+
+⚠️ Do not merge Business + Photographer into one path.
+They are separate signup choices from the very first screen.
+
+2️⃣ Update the Create Account screen UI
+
+Replace the current two-option layout with three selectable cards/buttons:
+
+Consumer
+
+Business
+
+Photographer
+
+The selected role must be:
+
+Stored at signup
+
+Sent to backend
+
+Used for role-based access throughout the app
+
+3️⃣ Account Screen — strict role-based visibility
+Consumer / Guest
+
+Account tab must show:
+
+Edit Profile
+
+Notifications
+
+Saved Items
+
+Apply as Influencer ✅
+
+Must NOT show:
+
+Become a Business or Photographer
+
+Business Dashboard
+
+Photographer Dashboard
+
+Photographer
+
+Account tab shows:
+
+Photographer Dashboard
+
+Edit Profile
+
+Notifications
+
+Earnings / Bookings (via dashboard)
+
+Must NOT show:
+
+Business Dashboard
+
+Business onboarding options
+
+Business
+
+Account tab shows:
+
+Business Dashboard
+
+Edit Profile
+
+Notifications
+
+Earnings / Orders / Bookings (via dashboard)
+
+Must NOT show:
+
+Photographer Dashboard
+
+Photographer onboarding options
+
+4️⃣ Influencer is NOT a signup role
+
+“Apply as Influencer” is available to Consumers & Guests
+
+Influencer application:
+
+Uses an open backend endpoint
+
+Does NOT convert account role
+
+Does NOT grant dashboard access
+
+Influencer status is additive, not a primary role
+
+5️⃣ Technical enforcement (important)
+
+Role must come from backend (e.g. /api/me)
+
+No UI-based assumptions
+
+If role is missing or consumer → treat as consumer
+
+Dashboards unlock only if role matches
+
+6️⃣ Explicit exclusions
+
+Dashboards are post-onboarding tools, not signup destinations
+
+Users must land on Home/Search after signup, not dashboards
+
+No “upgrade to business/photographer” shortcuts in Account

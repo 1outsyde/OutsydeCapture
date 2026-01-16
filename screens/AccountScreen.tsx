@@ -327,53 +327,59 @@ export default function AccountScreen() {
               <Feather name="chevron-right" size={20} color={theme.textSecondary} />
             </Pressable>
 
-            <Pressable
-              onPress={() => (navigation as any).navigate("BusinessOnboarding")}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.primaryTransparent, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="plus-circle" size={20} color={theme.primary} />
-                <ThemedText type="body" style={[styles.menuItemText, { color: theme.primary }]}>
-                  Become a Business or Photographer
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.primary} />
-            </Pressable>
+            {user?.role === "photographer" && user?.isProfileComplete ? (
+              <Pressable
+                onPress={() => (navigation as any).navigate("PhotographerDashboard")}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  { backgroundColor: "#007AFF10", opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="camera" size={20} color="#007AFF" />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: "#007AFF" }]}>
+                    Photographer Dashboard
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color="#007AFF" />
+              </Pressable>
+            ) : null}
 
-            <Pressable
-              onPress={() => (navigation as any).navigate("PhotographerDashboard")}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: "#007AFF10", opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="camera" size={20} color="#007AFF" />
-                <ThemedText type="body" style={[styles.menuItemText, { color: "#007AFF" }]}>
-                  Photographer Dashboard
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color="#007AFF" />
-            </Pressable>
+            {user?.role === "business" && user?.approvalStatus === "approved" && user?.isProfileComplete ? (
+              <Pressable
+                onPress={() => (navigation as any).navigate("BusinessDashboard")}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  { backgroundColor: "#34C75910", opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="briefcase" size={20} color="#34C759" />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: "#34C759" }]}>
+                    Business Dashboard
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color="#34C759" />
+              </Pressable>
+            ) : null}
 
-            <Pressable
-              onPress={() => (navigation as any).navigate("BusinessDashboard")}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: "#34C75910", opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="briefcase" size={20} color="#34C759" />
-                <ThemedText type="body" style={[styles.menuItemText, { color: "#34C759" }]}>
-                  Business Dashboard
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color="#34C759" />
-            </Pressable>
+            {(user?.role === "consumer" || user?.isGuest) ? (
+              <Pressable
+                onPress={() => (navigation as any).navigate("InfluencerApplication")}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  { backgroundColor: theme.primaryTransparent, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="star" size={20} color={theme.primary} />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: theme.primary }]}>
+                    Apply as Influencer
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color={theme.primary} />
+              </Pressable>
+            ) : null}
 
             {isAdmin ? (
               <Pressable

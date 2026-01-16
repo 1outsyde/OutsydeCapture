@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export type AccountType = "consumer" | "business";
+export type UserRole = "consumer" | "business" | "photographer";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
 
 export interface User {
@@ -11,12 +11,13 @@ export interface User {
   email: string;
   phone: string;
   dateOfBirth: string;
-  accountType: AccountType;
+  role: UserRole;
   approvalStatus: ApprovalStatus;
   avatar?: string;
   isGuest?: boolean;
   businessName?: string;
   businessCategory?: string;
+  isProfileComplete?: boolean;
 }
 
 export interface SignupData {
@@ -26,7 +27,7 @@ export interface SignupData {
   phone: string;
   dateOfBirth: string;
   password: string;
-  accountType: AccountType;
+  role: UserRole;
   businessName?: string;
   businessCategory?: string;
 }
@@ -71,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
-        if (parsed.accountType === "business" && parsed.approvalStatus === "pending") {
+        if (parsed.role === "business" && parsed.approvalStatus === "pending") {
           return;
         }
         if (parsed.approvalStatus === "rejected") {
@@ -98,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (existingUser.approvalStatus === "rejected") {
             return { success: false, isPending: false, isRejected: true };
           }
-          if (existingUser.accountType === "business" && existingUser.approvalStatus === "pending") {
+          if (existingUser.role === "business" && existingUser.approvalStatus === "pending") {
             return { success: true, isPending: true, isRejected: false, user: existingUser };
           }
           setUser(existingUser);
@@ -125,8 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         phone: "",
         dateOfBirth: "",
-        accountType: "consumer",
+        role: "consumer",
         approvalStatus: "approved",
+        isProfileComplete: true,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split("@")[0])}&background=D4A84B&color=fff`,
       };
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
@@ -146,23 +148,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       
-      const approvalStatus: ApprovalStatus = data.accountType === "business" ? "pending" : "approved";
+      const approvalStatus: ApprovalStatus = data.role === "business" ? "pending" : "approved";
+      const idPrefix = data.role === "business" ? "biz_" : data.role === "photographer" ? "photo_" : "user_";
       
       const newUser: User = {
-        id: (data.accountType === "business" ? "biz_" : "user_") + Date.now(),
+        id: idPrefix + Date.now(),
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
         phone: data.phone,
         dateOfBirth: data.dateOfBirth,
-        accountType: data.accountType,
+        role: data.role,
         approvalStatus,
+        isProfileComplete: data.role === "consumer",
         businessName: data.businessName,
         businessCategory: data.businessCategory,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
       };
       
-      if (data.accountType === "business") {
+      if (data.role === "business") {
         const pendingList = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_BUSINESSES);
         const pending = pendingList ? JSON.parse(pendingList) : [];
         pending.push({ ...newUser, createdAt: new Date().toISOString() });
@@ -194,9 +198,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: "guest@outsyde.app",
         phone: "",
         dateOfBirth: "",
-        accountType: "consumer",
+        role: "consumer",
         approvalStatus: "approved",
         isGuest: true,
+        isProfileComplete: true,
         avatar: `https://ui-avatars.com/api/?name=Guest&background=D4A84B&color=fff`,
       };
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(guestUser));

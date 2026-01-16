@@ -9,7 +9,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
-import { useAuth, AccountType, SignupData } from "@/context/AuthContext";
+import { useAuth, UserRole, SignupData } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 
@@ -34,7 +34,7 @@ export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   
   const [mode, setMode] = useState<AuthMode>("login");
-  const [accountType, setAccountType] = useState<AccountType>("consumer");
+  const [role, setRole] = useState<UserRole>("consumer");
   
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -115,7 +115,7 @@ export default function AuthScreen() {
       Alert.alert("Error", "Passwords do not match");
       return false;
     }
-    if (accountType === "business") {
+    if (role === "business") {
       if (!businessName.trim()) {
         Alert.alert("Error", "Please enter your business name");
         return false;
@@ -157,9 +157,9 @@ export default function AuthScreen() {
         phone: phone.replace(/\D/g, ""),
         dateOfBirth,
         password,
-        accountType,
-        businessName: accountType === "business" ? businessName : undefined,
-        businessCategory: accountType === "business" ? businessCategory : undefined,
+        role,
+        businessName: role === "business" ? businessName : undefined,
+        businessCategory: role === "business" ? businessCategory : undefined,
       };
       
       const result = await signup(signupData);
@@ -186,7 +186,7 @@ export default function AuthScreen() {
     setConfirmPassword("");
     setBusinessName("");
     setBusinessCategory("");
-    setAccountType("consumer");
+    setRole("consumer");
     setShowPendingMessage(false);
   };
 
@@ -306,28 +306,29 @@ export default function AuthScreen() {
                 <ThemedText type="small" style={styles.label}>
                   I am a...
                 </ThemedText>
-                <View style={styles.accountTypeButtons}>
+                <View style={styles.roleButtons}>
                   <Pressable
-                    onPress={() => setAccountType("consumer")}
+                    onPress={() => setRole("consumer")}
                     style={[
-                      styles.accountTypeButton,
+                      styles.roleButton,
                       {
-                        backgroundColor: accountType === "consumer" ? theme.primary : theme.backgroundDefault,
-                        borderColor: accountType === "consumer" ? theme.primary : theme.border,
+                        backgroundColor: role === "consumer" ? theme.primary : theme.backgroundDefault,
+                        borderColor: role === "consumer" ? theme.primary : theme.border,
                       },
                     ]}
                   >
                     <Feather
                       name="user"
-                      size={24}
-                      color={accountType === "consumer" ? "#FFFFFF" : theme.text}
+                      size={20}
+                      color={role === "consumer" ? "#FFFFFF" : theme.text}
                     />
                     <ThemedText
                       type="body"
                       style={{
-                        color: accountType === "consumer" ? "#FFFFFF" : theme.text,
+                        color: role === "consumer" ? "#FFFFFF" : theme.text,
                         marginTop: Spacing.xs,
                         fontWeight: "600",
+                        fontSize: 13,
                       }}
                     >
                       Consumer
@@ -335,34 +336,36 @@ export default function AuthScreen() {
                     <ThemedText
                       type="small"
                       style={{
-                        color: accountType === "consumer" ? "#FFFFFF" : theme.textSecondary,
+                        color: role === "consumer" ? "#FFFFFF" : theme.textSecondary,
                         textAlign: "center",
+                        fontSize: 10,
                       }}
                     >
                       Browse & book
                     </ThemedText>
                   </Pressable>
                   <Pressable
-                    onPress={() => setAccountType("business")}
+                    onPress={() => setRole("business")}
                     style={[
-                      styles.accountTypeButton,
+                      styles.roleButton,
                       {
-                        backgroundColor: accountType === "business" ? theme.primary : theme.backgroundDefault,
-                        borderColor: accountType === "business" ? theme.primary : theme.border,
+                        backgroundColor: role === "business" ? theme.primary : theme.backgroundDefault,
+                        borderColor: role === "business" ? theme.primary : theme.border,
                       },
                     ]}
                   >
                     <Feather
                       name="briefcase"
-                      size={24}
-                      color={accountType === "business" ? "#FFFFFF" : theme.text}
+                      size={20}
+                      color={role === "business" ? "#FFFFFF" : theme.text}
                     />
                     <ThemedText
                       type="body"
                       style={{
-                        color: accountType === "business" ? "#FFFFFF" : theme.text,
+                        color: role === "business" ? "#FFFFFF" : theme.text,
                         marginTop: Spacing.xs,
                         fontWeight: "600",
+                        fontSize: 13,
                       }}
                     >
                       Business
@@ -370,19 +373,65 @@ export default function AuthScreen() {
                     <ThemedText
                       type="small"
                       style={{
-                        color: accountType === "business" ? "#FFFFFF" : theme.textSecondary,
+                        color: role === "business" ? "#FFFFFF" : theme.textSecondary,
                         textAlign: "center",
+                        fontSize: 10,
                       }}
                     >
-                      Offer services
+                      Sell products
+                    </ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setRole("photographer")}
+                    style={[
+                      styles.roleButton,
+                      {
+                        backgroundColor: role === "photographer" ? theme.primary : theme.backgroundDefault,
+                        borderColor: role === "photographer" ? theme.primary : theme.border,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="camera"
+                      size={20}
+                      color={role === "photographer" ? "#FFFFFF" : theme.text}
+                    />
+                    <ThemedText
+                      type="body"
+                      style={{
+                        color: role === "photographer" ? "#FFFFFF" : theme.text,
+                        marginTop: Spacing.xs,
+                        fontWeight: "600",
+                        fontSize: 13,
+                      }}
+                    >
+                      Photographer
+                    </ThemedText>
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: role === "photographer" ? "#FFFFFF" : theme.textSecondary,
+                        textAlign: "center",
+                        fontSize: 10,
+                      }}
+                    >
+                      Offer shoots
                     </ThemedText>
                   </Pressable>
                 </View>
-                {accountType === "business" ? (
+                {role === "business" ? (
                   <View style={[styles.approvalNotice, { backgroundColor: theme.primary + "15" }]}>
                     <Feather name="info" size={16} color={theme.primary} />
                     <ThemedText type="small" style={{ color: theme.primary, marginLeft: Spacing.sm, flex: 1 }}>
                       Business accounts require manual approval (24-48 hours)
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {role === "photographer" ? (
+                  <View style={[styles.approvalNotice, { backgroundColor: "#007AFF15" }]}>
+                    <Feather name="check-circle" size={16} color="#007AFF" />
+                    <ThemedText type="small" style={{ color: "#007AFF", marginLeft: Spacing.sm, flex: 1 }}>
+                      Photographer accounts are auto-approved
                     </ThemedText>
                   </View>
                 ) : null}
@@ -451,7 +500,7 @@ export default function AuthScreen() {
                 />
               </View>
 
-              {accountType === "business" ? (
+              {role === "business" ? (
                 <>
                   <View style={styles.fieldContainer}>
                     <ThemedText type="small" style={styles.label}>
@@ -600,7 +649,7 @@ export default function AuthScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : mode === "login" ? (
               "Sign In"
-            ) : accountType === "business" ? (
+            ) : role === "business" ? (
               "Submit Application"
             ) : (
               "Create Account"
@@ -705,15 +754,15 @@ const styles = StyleSheet.create({
   accountTypeContainer: {
     marginBottom: Spacing.lg,
   },
-  accountTypeButtons: {
+  roleButtons: {
     flexDirection: "row",
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
-  accountTypeButton: {
+  roleButton: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xs,
     borderRadius: BorderRadius.lg,
     borderWidth: 2,
   },
