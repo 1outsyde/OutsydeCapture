@@ -228,3 +228,13 @@ Tier badges are displayed on photographer cards in the Discover screen.
   - Graceful handling of missing fields (sections hidden when data is null)
   - Navigation from SearchScreen on card tap with full business data passed
   - Dark-mode-first design consistent with app styling
+- PhotographerProfileScreen:
+  - Premium modal screen modeled after BusinessProfileScreen
+  - Hero section with cover/portfolio image, larger avatar, name, specialty badges, location, rating, price range
+  - Action buttons: Message, Book Session, Visit Website (hides if missing)
+  - About section with bio/description and years of experience
+  - Portfolio section with horizontal image carousel (hides if no images)
+  - Info section with location, phone, email, website, social media links
+  - Graceful handling of missing fields (sections hidden when data is null)
+  - Navigation from SearchScreen for photographer-type cards
+  - Dark-mode-first premium styling consistent with app design
