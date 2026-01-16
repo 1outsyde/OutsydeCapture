@@ -307,6 +307,22 @@ export default function AccountScreen() {
               </View>
               <Feather name="chevron-right" size={20} color={theme.textSecondary} />
             </Pressable>
+
+            <Pressable
+              onPress={() => (navigation as any).navigate("BusinessOnboarding")}
+              style={({ pressed }) => [
+                styles.menuItem,
+                { backgroundColor: theme.primaryTransparent, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <View style={styles.menuItemLeft}>
+                <Feather name="plus-circle" size={20} color={theme.primary} />
+                <ThemedText type="body" style={[styles.menuItemText, { color: theme.primary }]}>
+                  Become a Business or Photographer
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.primary} />
+            </Pressable>
           </View>
 
           <View style={styles.section}>
