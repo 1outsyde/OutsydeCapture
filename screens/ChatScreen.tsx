@@ -106,7 +106,7 @@ export default function ChatScreen() {
   const route = useRoute<RouteType>();
   const { conversationId, participantName, participantAvatar } = route.params;
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, getToken } = useAuth();
 
   const [messages, setMessages] = useState<ApiMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -142,7 +142,8 @@ export default function ChatScreen() {
     try {
       setIsLoading(true);
       setError(null);
-      const fetchedMessages = await api.getMessages(conversationId);
+      const authToken = await getToken();
+      const fetchedMessages = await api.getMessages(conversationId, authToken);
       setMessages(fetchedMessages);
     } catch (err) {
       const apiError = err as ApiError;
@@ -154,7 +155,7 @@ export default function ChatScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, getToken]);
 
   useEffect(() => {
     fetchMessages();
@@ -187,7 +188,8 @@ export default function ChatScreen() {
     try {
       setIsSending(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const sentMessage = await api.sendMessage(conversationId, messageContent);
+      const authToken = await getToken();
+      const sentMessage = await api.sendMessage(conversationId, messageContent, authToken);
       setMessages((prev) =>
         prev.map((msg) => (msg.id === optimisticMessage.id ? sentMessage : msg))
       );
