@@ -39,6 +39,31 @@ export interface ApiPhotographer {
   subscriptionTier?: "basic" | "pro" | "premium";
 }
 
+export interface ApiPhotographerDetail {
+  id: string;
+  name: string;
+  avatar?: string;
+  coverImage?: string;
+  city?: string;
+  state?: string;
+  location?: string;
+  rating?: number;
+  reviewCount?: number;
+  specialty?: string;
+  specialties?: string[];
+  priceRange?: string;
+  description?: string;
+  subscriptionTier?: "basic" | "pro" | "premium";
+  yearsOfExperience?: number;
+  portfolio?: string[];
+  website?: string;
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+}
+
 export interface SearchResponse {
   businesses: ApiBusiness[];
   photographers: ApiPhotographer[];
@@ -116,6 +141,10 @@ class ApiService {
     
     const endpoint = `/api/search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
     return this.request<SearchResponse>(endpoint);
+  }
+
+  async getPhotographer(id: string): Promise<ApiPhotographerDetail> {
+    return this.request<ApiPhotographerDetail>(`/api/photographers/${id}`);
   }
 
   normalizeSearchResults(response: SearchResponse): UnifiedSearchResult[] {

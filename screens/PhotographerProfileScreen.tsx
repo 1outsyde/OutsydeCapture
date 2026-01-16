@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   Pressable,
   Linking,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -18,6 +19,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList, PhotographerProfileData } from "@/navigation/types";
+import api, { ApiPhotographerDetail, ApiError } from "@/services/api";
 
 type PhotographerProfileRouteProp = RouteProp<RootStackParamList, "PhotographerProfile">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -38,7 +40,80 @@ export default function PhotographerProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<PhotographerProfileRouteProp>();
-  const { photographer } = route.params;
+  const initialData = route.params.photographer;
+
+  const [photographer, setPhotographer] = useState<PhotographerProfileData>(initialData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const mergePhotographerData = useCallback(
+    (apiData: ApiPhotographerDetail): PhotographerProfileData => {
+      const locationParts = apiData.location
+        ? apiData.location.split(",").map((s) => s.trim())
+        : [];
+
+      return {
+        ...photographer,
+        id: apiData.id || photographer.id,
+        name: apiData.name || photographer.name,
+        avatar: apiData.avatar || photographer.avatar,
+        city: apiData.city || locationParts[0] || photographer.city,
+        state: apiData.state || locationParts[1] || photographer.state,
+        rating: apiData.rating ?? photographer.rating,
+        priceRange: apiData.priceRange || photographer.priceRange,
+        specialty: apiData.specialty || photographer.specialty,
+        description: apiData.description || photographer.description,
+        subscriptionTier: apiData.subscriptionTier || photographer.subscriptionTier,
+        website: apiData.website || photographer.website,
+        phone: apiData.phone || photographer.phone,
+        email: apiData.email || photographer.email,
+        instagram: apiData.instagram || photographer.instagram,
+        facebook: apiData.facebook || photographer.facebook,
+        twitter: apiData.twitter || photographer.twitter,
+        reviewCount: apiData.reviewCount ?? photographer.reviewCount,
+        coverImage: apiData.coverImage || photographer.coverImage,
+        yearsOfExperience: apiData.yearsOfExperience ?? photographer.yearsOfExperience,
+        portfolio: apiData.portfolio?.length ? apiData.portfolio : photographer.portfolio,
+        specialties: apiData.specialties?.length ? apiData.specialties : photographer.specialties,
+      };
+    },
+    [photographer]
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchPhotographerDetails = async () => {
+      setIsRefreshing(true);
+      setFetchError(null);
+
+      try {
+        const apiData = await api.getPhotographer(initialData.id);
+        if (isMounted) {
+          setPhotographer((prev) => mergePhotographerData(apiData));
+        }
+      } catch (error) {
+        if (isMounted) {
+          const apiError = error as ApiError;
+          if (apiError.status === 404) {
+            setFetchError("Photographer not found");
+          } else {
+            setFetchError(apiError.message || "Failed to load details");
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchPhotographerDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialData.id]);
 
   const tierConfig = photographer.subscriptionTier
     ? TIER_CONFIG[photographer.subscriptionTier]
@@ -138,15 +213,22 @@ export default function PhotographerProfileScreen() {
           />
           <View style={styles.heroOverlay} />
 
-          <Pressable
-            onPress={handleClose}
-            style={({ pressed }) => [
-              styles.closeButton,
-              { top: insets.top + Spacing.md, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Feather name="x" size={24} color="#FFFFFF" />
-          </Pressable>
+          <View style={[styles.headerButtons, { top: insets.top + Spacing.md }]}>
+            {isRefreshing ? (
+              <View style={styles.refreshIndicator}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            ) : null}
+            <Pressable
+              onPress={handleClose}
+              style={({ pressed }) => [
+                styles.closeButton,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Feather name="x" size={24} color="#FFFFFF" />
+            </Pressable>
+          </View>
 
           <View style={styles.heroContent}>
             <View style={styles.avatarContainer}>
@@ -440,16 +522,29 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
-  closeButton: {
+  headerButtons: {
     position: "absolute",
     right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    zIndex: 10,
+  },
+  refreshIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 10,
   },
   heroContent: {
     position: "absolute",
