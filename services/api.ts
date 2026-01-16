@@ -226,6 +226,128 @@ export interface ApiPhotographer {
   subscriptionTier?: "basic" | "pro" | "premium";
 }
 
+export interface PhotographerDashboardStats {
+  earnings: number;
+  upcomingBookings: number;
+  unreadMessages: number;
+  rating: number;
+  reviewCount: number;
+  profileViews: number;
+  completedShoots: number;
+}
+
+export interface PhotographerDashboardProfile {
+  id: string;
+  name: string;
+  avatar?: string;
+  hourlyRate: number;
+  bio?: string;
+  city?: string;
+  state?: string;
+  portfolioUrl?: string;
+  specialties: string[];
+  stripeConnected: boolean;
+}
+
+export interface PhotographerBooking {
+  id: string;
+  clientName: string;
+  clientAvatar?: string;
+  date: string;
+  time: string;
+  sessionType: string;
+  location?: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  amount: number;
+}
+
+export interface PhotographerService {
+  id: string;
+  name: string;
+  description: string;
+  duration: number;
+  price: number;
+  isActive: boolean;
+}
+
+export interface PhotographerHours {
+  dayOfWeek: number;
+  isAvailable: boolean;
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface BillingAddress {
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
+export interface BusinessDashboardStats {
+  earnings: number;
+  upcomingOrders: number;
+  upcomingBookings: number;
+  unreadMessages: number;
+  rating: number;
+  reviewCount: number;
+  profileViews: number;
+}
+
+export interface BusinessDashboardProfile {
+  id: string;
+  name: string;
+  avatar?: string;
+  category: string;
+  bio?: string;
+  city?: string;
+  state?: string;
+  website?: string;
+  stripeConnected: boolean;
+  businessType: "service" | "product" | "both";
+}
+
+export interface BusinessOrder {
+  id: string;
+  customerName: string;
+  customerAvatar?: string;
+  orderDate: string;
+  items: { name: string; quantity: number; price: number }[];
+  totalAmount: number;
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+}
+
+export interface BusinessBooking {
+  id: string;
+  customerName: string;
+  customerAvatar?: string;
+  date: string;
+  time: string;
+  serviceName: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  amount: number;
+}
+
+export interface BusinessProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  inventory: number;
+  imageUrl?: string;
+  isActive: boolean;
+}
+
+export interface BusinessService {
+  id: string;
+  name: string;
+  description: string;
+  duration: number;
+  price: number;
+  isActive: boolean;
+}
+
 export interface ApiPhotographerDetail {
   id: string;
   name: string;
@@ -481,6 +603,182 @@ class ApiService {
     earnings: number;
   }> {
     return this.request(`/api/admin/users/${userId}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getPhotographerDashboard(authToken: string): Promise<{
+    stats: PhotographerDashboardStats;
+    profile: PhotographerDashboardProfile;
+    billingAddress?: BillingAddress;
+  }> {
+    return this.request("/api/photographer/dashboard", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getPhotographerBookings(authToken: string, status?: string): Promise<PhotographerBooking[]> {
+    const query = status ? `?status=${status}` : "";
+    return this.request<PhotographerBooking[]>(`/api/photographer/bookings${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getPhotographerServices(authToken: string): Promise<PhotographerService[]> {
+    return this.request<PhotographerService[]>("/api/photographer/services", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updatePhotographerService(authToken: string, serviceId: string, data: Partial<PhotographerService>): Promise<PhotographerService> {
+    return this.request<PhotographerService>(`/api/photographer/services/${serviceId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async createPhotographerService(authToken: string, data: Omit<PhotographerService, "id">): Promise<PhotographerService> {
+    return this.request<PhotographerService>("/api/photographer/services", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getPhotographerHours(authToken: string): Promise<PhotographerHours[]> {
+    return this.request<PhotographerHours[]>("/api/photographer/hours", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updatePhotographerHours(authToken: string, hours: PhotographerHours[]): Promise<void> {
+    await this.request<void>("/api/photographer/hours", {
+      method: "PUT",
+      body: JSON.stringify({ hours }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updatePhotographerProfile(authToken: string, data: Partial<PhotographerDashboardProfile>): Promise<PhotographerDashboardProfile> {
+    return this.request<PhotographerDashboardProfile>("/api/photographer/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updatePhotographerBillingAddress(authToken: string, address: BillingAddress): Promise<void> {
+    await this.request<void>("/api/photographer/billing-address", {
+      method: "PUT",
+      body: JSON.stringify(address),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async connectStripe(authToken: string, type: "photographer" | "business"): Promise<{ url: string }> {
+    return this.request<{ url: string }>(`/api/${type}/connect-stripe`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getBusinessDashboard(authToken: string): Promise<{
+    stats: BusinessDashboardStats;
+    profile: BusinessDashboardProfile;
+    billingAddress?: BillingAddress;
+  }> {
+    return this.request("/api/business/dashboard", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getBusinessOrders(authToken: string, status?: string): Promise<BusinessOrder[]> {
+    const query = status ? `?status=${status}` : "";
+    return this.request<BusinessOrder[]>(`/api/business/orders${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getBusinessBookings(authToken: string, status?: string): Promise<BusinessBooking[]> {
+    const query = status ? `?status=${status}` : "";
+    return this.request<BusinessBooking[]>(`/api/business/bookings${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getBusinessProducts(authToken: string): Promise<BusinessProduct[]> {
+    return this.request<BusinessProduct[]>("/api/business/products", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateBusinessProduct(authToken: string, productId: string, data: Partial<BusinessProduct>): Promise<BusinessProduct> {
+    return this.request<BusinessProduct>(`/api/business/products/${productId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async createBusinessProduct(authToken: string, data: Omit<BusinessProduct, "id">): Promise<BusinessProduct> {
+    return this.request<BusinessProduct>("/api/business/products", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getBusinessServices(authToken: string): Promise<BusinessService[]> {
+    return this.request<BusinessService[]>("/api/business/services", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateBusinessService(authToken: string, serviceId: string, data: Partial<BusinessService>): Promise<BusinessService> {
+    return this.request<BusinessService>(`/api/business/services/${serviceId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async createBusinessService(authToken: string, data: Omit<BusinessService, "id">): Promise<BusinessService> {
+    return this.request<BusinessService>("/api/business/services", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateBusinessProfile(authToken: string, data: Partial<BusinessDashboardProfile>): Promise<BusinessDashboardProfile> {
+    return this.request<BusinessDashboardProfile>("/api/business/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateBusinessBillingAddress(authToken: string, address: BillingAddress): Promise<void> {
+    await this.request<void>("/api/business/billing-address", {
+      method: "PUT",
+      body: JSON.stringify(address),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateBookingStatus(authToken: string, type: "photographer" | "business", bookingId: string, status: string): Promise<void> {
+    await this.request<void>(`/api/${type}/bookings/${bookingId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateOrderStatus(authToken: string, orderId: string, status: string): Promise<void> {
+    await this.request<void>(`/api/business/orders/${orderId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
