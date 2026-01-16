@@ -79,6 +79,36 @@ export interface SendMessageRequest {
   content: string;
 }
 
+export interface CreateBusinessRequest {
+  name: string;
+  category: string;
+  city: string;
+  state: string;
+  description: string;
+  website?: string;
+  instagram?: string;
+  phone?: string;
+  email?: string;
+  avatar?: string;
+  coverImage?: string;
+}
+
+export interface CreatePhotographerRequest {
+  name: string;
+  specialty: string;
+  city: string;
+  state: string;
+  priceRange: string;
+  description: string;
+  website?: string;
+  instagram?: string;
+  phone?: string;
+  email?: string;
+  avatar?: string;
+  coverImage?: string;
+  portfolio?: string[];
+}
+
 export interface ApiPhotographer {
   id: string;
   name: string;
@@ -235,6 +265,26 @@ class ApiService {
       method: "POST",
       body: JSON.stringify({ content }),
       headers,
+    });
+  }
+
+  async createBusiness(data: CreateBusinessRequest, authToken: string): Promise<ApiBusinessDetail> {
+    return this.request<ApiBusinessDetail>("/api/businesses", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: {
+        "Authorization": `Bearer ${authToken}`,
+      },
+    });
+  }
+
+  async createPhotographer(data: CreatePhotographerRequest, authToken: string): Promise<ApiPhotographerDetail> {
+    return this.request<ApiPhotographerDetail>("/api/photographers", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: {
+        "Authorization": `Bearer ${authToken}`,
+      },
     });
   }
 
