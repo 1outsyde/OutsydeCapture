@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   Pressable,
   Linking,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -18,6 +19,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList, BusinessProfileData } from "@/navigation/types";
+import api, { ApiBusinessDetail, ApiError } from "@/services/api";
 
 type BusinessProfileRouteProp = RouteProp<RootStackParamList, "BusinessProfile">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -35,7 +37,75 @@ export default function BusinessProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<BusinessProfileRouteProp>();
-  const { business } = route.params;
+  const initialData = route.params.business;
+
+  const [business, setBusiness] = useState<BusinessProfileData>(initialData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const mergeBusinessData = useCallback(
+    (apiData: ApiBusinessDetail): BusinessProfileData => {
+      return {
+        ...business,
+        id: apiData.id || business.id,
+        name: apiData.name || business.name,
+        avatar: apiData.avatar || business.avatar,
+        city: apiData.city || business.city,
+        state: apiData.state || business.state,
+        rating: apiData.rating ?? business.rating,
+        priceRange: apiData.priceRange || business.priceRange,
+        category: apiData.category || apiData.type || business.category,
+        description: apiData.description || business.description,
+        subscriptionTier: apiData.subscriptionTier || business.subscriptionTier,
+        resultType: business.resultType,
+        address: apiData.address || business.address,
+        website: apiData.website || business.website,
+        phone: apiData.phone || business.phone,
+        email: apiData.email || business.email,
+        instagram: apiData.instagram || business.instagram,
+        facebook: apiData.facebook || business.facebook,
+        twitter: apiData.twitter || business.twitter,
+        reviewCount: apiData.reviewCount ?? business.reviewCount,
+        coverImage: apiData.coverImage || business.coverImage,
+      };
+    },
+    [business]
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchBusinessDetails = async () => {
+      setIsRefreshing(true);
+      setFetchError(null);
+
+      try {
+        const apiData = await api.getBusiness(initialData.id);
+        if (isMounted) {
+          setBusiness((prev) => mergeBusinessData(apiData));
+        }
+      } catch (error) {
+        if (isMounted) {
+          const apiError = error as ApiError;
+          if (apiError.status === 404) {
+            setFetchError("Business not found");
+          } else {
+            setFetchError(apiError.message || "Failed to load details");
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchBusinessDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialData.id]);
 
   const tierConfig = business.subscriptionTier
     ? TIER_CONFIG[business.subscriptionTier]
@@ -137,15 +207,22 @@ export default function BusinessProfileScreen() {
           />
           <View style={styles.heroOverlay} />
 
-          <Pressable
-            onPress={handleClose}
-            style={({ pressed }) => [
-              styles.closeButton,
-              { top: insets.top + Spacing.md, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Feather name="x" size={24} color="#FFFFFF" />
-          </Pressable>
+          <View style={[styles.headerButtons, { top: insets.top + Spacing.md }]}>
+            {isRefreshing ? (
+              <View style={styles.refreshIndicator}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            ) : null}
+            <Pressable
+              onPress={handleClose}
+              style={({ pressed }) => [
+                styles.closeButton,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Feather name="x" size={24} color="#FFFFFF" />
+            </Pressable>
+          </View>
 
           <View style={styles.heroContent}>
             <View style={styles.avatarContainer}>
@@ -392,16 +469,29 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
-  closeButton: {
+  headerButtons: {
     position: "absolute",
     right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    zIndex: 10,
+  },
+  refreshIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 10,
   },
   heroContent: {
     position: "absolute",

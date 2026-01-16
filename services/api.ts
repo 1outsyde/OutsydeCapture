@@ -26,6 +26,29 @@ export interface ApiBusiness {
   subscriptionTier?: "basic" | "pro" | "premium";
 }
 
+export interface ApiBusinessDetail {
+  id: string;
+  name: string;
+  avatar?: string;
+  coverImage?: string;
+  type?: string;
+  category?: string;
+  city?: string;
+  state?: string;
+  rating?: number;
+  reviewCount?: number;
+  priceRange?: string;
+  description?: string;
+  subscriptionTier?: "basic" | "pro" | "premium";
+  address?: string;
+  website?: string;
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+}
+
 export interface ApiPhotographer {
   id: string;
   name: string;
@@ -145,6 +168,10 @@ class ApiService {
 
   async getPhotographer(id: string): Promise<ApiPhotographerDetail> {
     return this.request<ApiPhotographerDetail>(`/api/photographers/${id}`);
+  }
+
+  async getBusiness(id: string): Promise<ApiBusinessDetail> {
+    return this.request<ApiBusinessDetail>(`/api/businesses/${id}`);
   }
 
   normalizeSearchResults(response: SearchResponse): UnifiedSearchResult[] {
