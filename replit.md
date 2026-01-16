@@ -211,4 +211,12 @@ Tier badges are displayed on photographer cards in the Discover screen.
     - Loading state while connecting
     - Success state with status, service, and environment from backend /health endpoint
     - Error state with retry button if connection fails
-  - Prepared for future integration: authentication, data fetching, real-time sync
+- Real Search API Integration:
+  - SearchScreen now fetches from /api/search endpoint with optional query params
+  - API returns { businesses: [], photographers: [] }
+  - Results normalized into unified array with resultType field (business, photographer, product, service)
+  - Filter tabs: All, Businesses, Photographers, Products, Services with live counts
+  - Client-side tab filtering without refetching
+  - Debounced search (300ms) for better performance
+  - Loading states and error handling with retry button
+  - Preserved card design: image, name, city/state, rating, price range, category
