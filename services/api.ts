@@ -204,21 +204,37 @@ class ApiService {
     return this.request<ApiBusinessDetail>(`/api/businesses/${id}`);
   }
 
-  async createOrGetConversation(data: CreateConversationRequest): Promise<ApiConversation> {
+  async createOrGetConversation(data: CreateConversationRequest, authToken?: string | null): Promise<ApiConversation> {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
     return this.request<ApiConversation>("/api/conversations", {
       method: "POST",
       body: JSON.stringify(data),
+      headers,
     });
   }
 
-  async getMessages(conversationId: string): Promise<ApiMessage[]> {
-    return this.request<ApiMessage[]>(`/api/conversations/${conversationId}/messages`);
+  async getMessages(conversationId: string, authToken?: string | null): Promise<ApiMessage[]> {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    return this.request<ApiMessage[]>(`/api/conversations/${conversationId}/messages`, {
+      headers,
+    });
   }
 
-  async sendMessage(conversationId: string, content: string): Promise<ApiMessage> {
+  async sendMessage(conversationId: string, content: string, authToken?: string | null): Promise<ApiMessage> {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
     return this.request<ApiMessage>(`/api/conversations/${conversationId}/messages`, {
       method: "POST",
       body: JSON.stringify({ content }),
+      headers,
     });
   }
 
