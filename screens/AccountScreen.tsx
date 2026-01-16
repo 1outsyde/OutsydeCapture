@@ -36,7 +36,7 @@ export default function AccountScreen() {
   const [editLastName, setEditLastName] = useState(user?.lastName || "");
   const [editPhone, setEditPhone] = useState(user?.phone || "");
   
-  const isAdmin = user?.email?.includes("admin") || user?.email === "admin@outsyde.com";
+  const isAdmin = user?.email?.toLowerCase() === "info@outsyde.com" || user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
 
   const handleLogout = () => {
     Alert.alert(
