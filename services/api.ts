@@ -49,6 +49,36 @@ export interface ApiBusinessDetail {
   twitter?: string;
 }
 
+export interface ApiConversation {
+  id: string;
+  participantId: string;
+  participantName: string;
+  participantAvatar?: string;
+  participantType: "business" | "photographer";
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount?: number;
+}
+
+export interface ApiMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CreateConversationRequest {
+  participantId: string;
+  participantType: "business" | "photographer";
+  participantName: string;
+  participantAvatar?: string;
+}
+
+export interface SendMessageRequest {
+  content: string;
+}
+
 export interface ApiPhotographer {
   id: string;
   name: string;
@@ -172,6 +202,24 @@ class ApiService {
 
   async getBusiness(id: string): Promise<ApiBusinessDetail> {
     return this.request<ApiBusinessDetail>(`/api/businesses/${id}`);
+  }
+
+  async createOrGetConversation(data: CreateConversationRequest): Promise<ApiConversation> {
+    return this.request<ApiConversation>("/api/conversations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMessages(conversationId: string): Promise<ApiMessage[]> {
+    return this.request<ApiMessage[]>(`/api/conversations/${conversationId}/messages`);
+  }
+
+  async sendMessage(conversationId: string, content: string): Promise<ApiMessage> {
+    return this.request<ApiMessage>(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
   }
 
   normalizeSearchResults(response: SearchResponse): UnifiedSearchResult[] {
