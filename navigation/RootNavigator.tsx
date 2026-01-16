@@ -17,6 +17,7 @@ import PhotographerProfileScreen from "@/screens/PhotographerProfileScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
+import PhotographerOnboardingScreen from "@/screens/PhotographerOnboardingScreen";
 import OnboardingScreen, { checkOnboardingComplete } from "@/screens/OnboardingScreen";
 import AdminDashboardScreen from "@/screens/AdminDashboardScreen";
 import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
@@ -197,6 +198,15 @@ export default function RootNavigator() {
       <Stack.Screen
         name="BusinessOnboarding"
         component={BusinessOnboardingScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="PhotographerOnboarding"
+        component={PhotographerOnboardingScreen}
         options={{
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",

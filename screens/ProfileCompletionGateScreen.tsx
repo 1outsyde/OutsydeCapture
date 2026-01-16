@@ -46,9 +46,9 @@ export default function ProfileCompletionGateScreen() {
 
   const handleSetupProfile = () => {
     if (isPhotographer) {
-      navigation.navigate("PhotographerDashboard");
+      navigation.navigate("PhotographerOnboarding");
     } else {
-      navigation.navigate("BusinessDashboard");
+      navigation.navigate("BusinessOnboarding");
     }
   };
 
