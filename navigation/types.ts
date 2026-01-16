@@ -79,6 +79,8 @@ export type RootStackParamList = {
   };
   AdminDashboard: undefined;
   AdminUserDetail: { userId: string };
+  PhotographerDashboard: undefined;
+  BusinessDashboard: undefined;
 };
 
 export type MainTabParamList = {

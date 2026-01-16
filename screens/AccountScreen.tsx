@@ -343,6 +343,38 @@ export default function AccountScreen() {
               <Feather name="chevron-right" size={20} color={theme.primary} />
             </Pressable>
 
+            <Pressable
+              onPress={() => (navigation as any).navigate("PhotographerDashboard")}
+              style={({ pressed }) => [
+                styles.menuItem,
+                { backgroundColor: "#007AFF10", opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <View style={styles.menuItemLeft}>
+                <Feather name="camera" size={20} color="#007AFF" />
+                <ThemedText type="body" style={[styles.menuItemText, { color: "#007AFF" }]}>
+                  Photographer Dashboard
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color="#007AFF" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => (navigation as any).navigate("BusinessDashboard")}
+              style={({ pressed }) => [
+                styles.menuItem,
+                { backgroundColor: "#34C75910", opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <View style={styles.menuItemLeft}>
+                <Feather name="briefcase" size={20} color="#34C759" />
+                <ThemedText type="body" style={[styles.menuItemText, { color: "#34C759" }]}>
+                  Business Dashboard
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color="#34C759" />
+            </Pressable>
+
             {isAdmin ? (
               <Pressable
                 onPress={() => (navigation as any).navigate("AdminDashboard")}

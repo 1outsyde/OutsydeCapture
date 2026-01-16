@@ -20,6 +20,8 @@ import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
 import OnboardingScreen, { checkOnboardingComplete } from "@/screens/OnboardingScreen";
 import AdminDashboardScreen from "@/screens/AdminDashboardScreen";
 import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
+import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
+import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -214,6 +216,24 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="PhotographerDashboard"
+        component={PhotographerDashboardScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="BusinessDashboard"
+        component={BusinessDashboardScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
         }}
       />
     </Stack.Navigator>
