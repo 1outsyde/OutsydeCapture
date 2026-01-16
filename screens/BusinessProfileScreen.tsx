@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList, BusinessProfileData } from "@/navigation/types";
 import api, { ApiBusinessDetail, ApiError } from "@/services/api";
+import * as Haptics from "expo-haptics";
 
 type BusinessProfileRouteProp = RouteProp<RootStackParamList, "BusinessProfile">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -42,6 +43,7 @@ export default function BusinessProfileScreen() {
   const [business, setBusiness] = useState<BusinessProfileData>(initialData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isStartingChat, setIsStartingChat] = useState(false);
 
   const mergeBusinessData = useCallback(
     (apiData: ApiBusinessDetail): BusinessProfileData => {
@@ -126,8 +128,39 @@ export default function BusinessProfileScreen() {
     navigation.goBack();
   };
 
-  const handleMessage = () => {
-    navigation.navigate("Conversation", { conversationId: business.id });
+  const handleMessage = async () => {
+    if (isStartingChat) return;
+    
+    try {
+      setIsStartingChat(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const conversation = await api.createOrGetConversation({
+        participantId: business.id,
+        participantType: business.resultType === "photographer" ? "photographer" : "business",
+        participantName: business.name,
+        participantAvatar: business.avatar,
+      });
+      
+      navigation.navigate("Chat", {
+        conversationId: conversation.id,
+        participantId: business.id,
+        participantName: business.name,
+        participantAvatar: business.avatar,
+        participantType: business.resultType === "photographer" ? "photographer" : "business",
+      });
+    } catch (error) {
+      const tempId = `temp-${business.id}-${Date.now()}`;
+      navigation.navigate("Chat", {
+        conversationId: tempId,
+        participantId: business.id,
+        participantName: business.name,
+        participantAvatar: business.avatar,
+        participantType: business.resultType === "photographer" ? "photographer" : "business",
+      });
+    } finally {
+      setIsStartingChat(false);
+    }
   };
 
   const handleBook = () => {
@@ -281,13 +314,18 @@ export default function BusinessProfileScreen() {
           <View style={styles.actionButtons}>
             <Pressable
               onPress={handleMessage}
+              disabled={isStartingChat}
               style={({ pressed }) => [
                 styles.actionButton,
                 styles.actionButtonSecondary,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: theme.backgroundDefault, opacity: pressed || isStartingChat ? 0.6 : 1 },
               ]}
             >
-              <Feather name="message-circle" size={20} color={theme.text} />
+              {isStartingChat ? (
+                <ActivityIndicator size="small" color={theme.text} />
+              ) : (
+                <Feather name="message-circle" size={20} color={theme.text} />
+              )}
               <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
                 Message
               </ThemedText>

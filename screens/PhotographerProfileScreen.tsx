@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList, PhotographerProfileData } from "@/navigation/types";
 import api, { ApiPhotographerDetail, ApiError } from "@/services/api";
+import * as Haptics from "expo-haptics";
 
 type PhotographerProfileRouteProp = RouteProp<RootStackParamList, "PhotographerProfile">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -45,6 +46,7 @@ export default function PhotographerProfileScreen() {
   const [photographer, setPhotographer] = useState<PhotographerProfileData>(initialData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isStartingChat, setIsStartingChat] = useState(false);
 
   const mergePhotographerData = useCallback(
     (apiData: ApiPhotographerDetail): PhotographerProfileData => {
@@ -136,8 +138,39 @@ export default function PhotographerProfileScreen() {
     navigation.goBack();
   };
 
-  const handleMessage = () => {
-    navigation.navigate("Conversation", { conversationId: photographer.id });
+  const handleMessage = async () => {
+    if (isStartingChat) return;
+    
+    try {
+      setIsStartingChat(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const conversation = await api.createOrGetConversation({
+        participantId: photographer.id,
+        participantType: "photographer",
+        participantName: photographer.name,
+        participantAvatar: photographer.avatar,
+      });
+      
+      navigation.navigate("Chat", {
+        conversationId: conversation.id,
+        participantId: photographer.id,
+        participantName: photographer.name,
+        participantAvatar: photographer.avatar,
+        participantType: "photographer",
+      });
+    } catch (error) {
+      const tempId = `temp-${photographer.id}-${Date.now()}`;
+      navigation.navigate("Chat", {
+        conversationId: tempId,
+        participantId: photographer.id,
+        participantName: photographer.name,
+        participantAvatar: photographer.avatar,
+        participantType: "photographer",
+      });
+    } finally {
+      setIsStartingChat(false);
+    }
   };
 
   const handleBook = () => {
@@ -300,13 +333,18 @@ export default function PhotographerProfileScreen() {
           <View style={styles.actionButtons}>
             <Pressable
               onPress={handleMessage}
+              disabled={isStartingChat}
               style={({ pressed }) => [
                 styles.actionButton,
                 styles.actionButtonSecondary,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: theme.backgroundDefault, opacity: pressed || isStartingChat ? 0.6 : 1 },
               ]}
             >
-              <Feather name="message-circle" size={20} color={theme.text} />
+              {isStartingChat ? (
+                <ActivityIndicator size="small" color={theme.text} />
+              ) : (
+                <Feather name="message-circle" size={20} color={theme.text} />
+              )}
               <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
                 Message
               </ThemedText>
