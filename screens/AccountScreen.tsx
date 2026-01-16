@@ -245,6 +245,29 @@ export default function AccountScreen() {
             </View>
           </Pressable>
 
+          {isAdmin ? (
+            <View style={styles.section}>
+              <ThemedText type="h4" style={styles.sectionTitle}>
+                Admin
+              </ThemedText>
+              <Pressable
+                onPress={() => (navigation as any).navigate("AdminDashboard")}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  { backgroundColor: "#FFD60A20", opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="shield" size={20} color="#FFD60A" />
+                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FFD60A" }]}>
+                    Admin Dashboard
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color="#FFD60A" />
+              </Pressable>
+            </View>
+          ) : null}
+
           <View style={styles.section}>
             <ThemedText type="h4" style={styles.sectionTitle}>
               Account
@@ -425,24 +448,6 @@ export default function AccountScreen() {
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={20} color={theme.primary} />
-              </Pressable>
-            ) : null}
-
-            {isAdmin ? (
-              <Pressable
-                onPress={() => (navigation as any).navigate("AdminDashboard")}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  { backgroundColor: "#FFD60A20", opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <View style={styles.menuItemLeft}>
-                  <Feather name="shield" size={20} color="#FFD60A" />
-                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FFD60A" }]}>
-                    Admin Dashboard
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={20} color="#FFD60A" />
               </Pressable>
             ) : null}
           </View>
