@@ -34,6 +34,17 @@ const SPECIALTIES = [
   "Fashion", "Real Estate", "Concerts", "Sports",
 ];
 
+const PROFILE_THEME_COLORS = [
+  { name: "Default Gold", color: "#D4A84B" },
+  { name: "Rose Pink", color: "#ec4899" },
+  { name: "Ocean Blue", color: "#3b82f6" },
+  { name: "Forest Green", color: "#22c55e" },
+  { name: "Royal Purple", color: "#8b5cf6" },
+  { name: "Sunset Orange", color: "#f97316" },
+  { name: "Teal", color: "#14b8a6" },
+  { name: "Slate Gray", color: "#64748b" },
+];
+
 type ModalType = "profile" | "hours" | "services" | "bookings" | null;
 
 export default function PhotographerDashboardScreen() {
@@ -70,6 +81,7 @@ export default function PhotographerDashboardScreen() {
     state: "",
     portfolioUrl: "",
     specialties: [] as string[],
+    profileTheme: "#D4A84B",
   });
 
   const fetchDashboard = useCallback(async () => {
@@ -108,6 +120,7 @@ export default function PhotographerDashboardScreen() {
         stripeConnected: photographer.stripeOnboardingComplete || false,
       });
       
+      const brandColors = photographer.brandColors ? JSON.parse(photographer.brandColors) : {};
       setEditProfile({
         name: photographer.displayName || "",
         hourlyRate: photographer.hourlyRate ? (photographer.hourlyRate / 100).toString() : "",
@@ -116,6 +129,7 @@ export default function PhotographerDashboardScreen() {
         state: photographer.state || "",
         portfolioUrl: photographer.portfolioUrl || "",
         specialties: photographer.specialties || [],
+        profileTheme: brandColors.primary || "#D4A84B",
       });
 
       try {
@@ -235,6 +249,7 @@ export default function PhotographerDashboardScreen() {
         state: editProfile.state || undefined,
         portfolioUrl: editProfile.portfolioUrl || undefined,
         specialties: editProfile.specialties,
+        brandColors: JSON.stringify({ primary: editProfile.profileTheme }),
       });
       Alert.alert("Success", "Profile updated successfully");
       setActiveModal(null);
@@ -848,6 +863,38 @@ export default function PhotographerDashboardScreen() {
       fontSize: 15,
       fontWeight: "600",
     },
+    formHint: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      marginTop: 2,
+      marginBottom: 12,
+    },
+    themeColorGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+      marginBottom: 16,
+    },
+    themeColorPreset: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    themeColorPresetSelected: {
+      borderWidth: 3,
+      borderColor: "#fff",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    themePreviewBar: {
+      height: 8,
+      borderRadius: 4,
+    },
   });
 
   const renderProfileModal = () => (
@@ -954,6 +1001,29 @@ export default function PhotographerDashboardScreen() {
                   </Pressable>
                 ))}
               </View>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Profile Theme</Text>
+              <Text style={styles.formHint}>Choose a color for your public profile</Text>
+              <View style={styles.themeColorGrid}>
+                {PROFILE_THEME_COLORS.map((preset) => (
+                  <Pressable
+                    key={preset.color}
+                    style={[
+                      styles.themeColorPreset,
+                      { backgroundColor: preset.color },
+                      editProfile.profileTheme === preset.color && styles.themeColorPresetSelected,
+                    ]}
+                    onPress={() => setEditProfile({ ...editProfile, profileTheme: preset.color })}
+                  >
+                    {editProfile.profileTheme === preset.color && (
+                      <Feather name="check" size={16} color="#fff" />
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+              <View style={[styles.themePreviewBar, { backgroundColor: editProfile.profileTheme }]} />
             </View>
 
             <Pressable onPress={handleSaveProfile} style={styles.saveButton} disabled={saving}>

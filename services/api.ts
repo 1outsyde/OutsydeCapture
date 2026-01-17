@@ -172,6 +172,7 @@ export interface PhotographerOnboardingData {
   specialties?: string[];
   willTravel?: boolean;
   additionalServices?: string[];
+  brandColors?: string; // JSON string with { primary: "#hex" }
 }
 
 // Hours of operation for a single day
