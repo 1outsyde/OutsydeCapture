@@ -17,7 +17,15 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Safe Area Handling**: Custom `ScreenScrollView`, `ScreenFlatList`, `ScreenKeyboardAwareScrollView` for tab screens; manual `useSafeAreaInsets()` for modal screens.
 
 ### Technical Implementations
-- **Authentication**: SSO (Apple/Google) and guest login. Three signup roles: Consumer (auto-approved), Business (manual approval 24-48h), Photographer (auto-approved). Role is set exclusively at signup - no post-signup role changes. Influencer is an additive status for consumers, not a separate role.
+- **Authentication**: JWT Bearer token auth with VendorBooker backend. Three signup roles: Consumer (auto-approved), Business (manual approval 24-48h), Photographer (auto-approved). Role is set exclusively at signup - no post-signup role changes. Influencer is an additive status for consumers, not a separate role.
+  - **Auth Endpoints**: 
+    - `POST /api/auth/mobile/login` - Returns `{ accessToken, user }` on success
+    - `POST /api/auth/mobile/signup` - Returns `{ accessToken, user }` on success
+  - **Token Storage**: `accessToken` stored in AsyncStorage (`@outsyde_token`)
+  - **Protected Requests**: ALL protected endpoints must include `Authorization: Bearer <accessToken>` header
+  - **Auth Timing**: Protected routes (e.g., `/api/photographers/me`) only called after auth state is hydrated and token exists
+  - **401 Handling**: On 401 response, logout is triggered immediately (no retries) to clear stale tokens
+  - **No Cookies**: Frontend uses JWT only, not cookies/sessions. Do NOT use `credentials: 'include'`.
 - **Role-Based Dashboard Access**: Dashboards are post-onboarding tools accessible when profile is complete (approval NOT required for access). Photographer Dashboard visible to photographers with complete profiles. Business Dashboard visible to ALL business users with complete profiles (including pending approval). Consumers see "Apply as Influencer" option. ProfileCompletionGateScreen shows required setup steps for incomplete profiles.
 - **Access vs Visibility Separation**: Business users can access dashboard and storefront editor immediately after completing onboarding, even while pending approval. Approval only gates: public storefront visibility, search/discovery inclusion, and ability to publish products/services. Pending businesses can still create/edit draft items.
 - **Navigation**: Expo SDK 54, React Navigation 7 with Root, MainTab, and Stack Navigators.
