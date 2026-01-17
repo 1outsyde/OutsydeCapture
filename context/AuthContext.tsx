@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api } from "../services/api";
 
 export type UserRole = "consumer" | "business" | "photographer";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
@@ -129,53 +130,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<LoginResult> => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await api.mobileLogin({ email, password });
       
-      const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      if (storedUser) {
-        const existingUser = JSON.parse(storedUser);
-        if (existingUser.email === email) {
-          if (existingUser.approvalStatus === "rejected") {
-            return { success: false, isPending: false, isRejected: true };
-          }
-          if (existingUser.role === "business" && existingUser.approvalStatus === "pending") {
-            return { success: true, isPending: true, isRejected: false, user: existingUser };
-          }
-          setUser(existingUser);
-          return { success: true, isPending: false, isRejected: false, user: existingUser };
-        }
-      }
-      
-      const pendingList = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_BUSINESSES);
-      if (pendingList) {
-        const pending = JSON.parse(pendingList);
-        const pendingBusiness = pending.find((p: User) => p.email === email);
-        if (pendingBusiness) {
-          if (pendingBusiness.approvalStatus === "rejected") {
-            return { success: false, isPending: false, isRejected: true };
-          }
-          return { success: true, isPending: true, isRejected: false, user: pendingBusiness };
-        }
-      }
-      
-      const mockUser: User = {
-        id: "user_" + Date.now(),
-        firstName: email.split("@")[0],
-        lastName: "",
-        email,
-        phone: "",
-        dateOfBirth: "",
-        role: "consumer",
-        approvalStatus: "approved",
-        isProfileComplete: true,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split("@")[0])}&background=D4A84B&color=fff`,
+      const backendUser = response.user;
+      const newUser: User = {
+        id: backendUser.id,
+        firstName: backendUser.firstName || email.split("@")[0],
+        lastName: backendUser.lastName || "",
+        email: backendUser.email,
+        phone: backendUser.phone || "",
+        dateOfBirth: backendUser.dateOfBirth || "",
+        role: backendUser.role,
+        approvalStatus: backendUser.approvalStatus || "approved",
+        isProfileComplete: backendUser.isProfileComplete,
+        avatar: backendUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || email.split("@")[0])}&background=D4A84B&color=fff`,
+        city: backendUser.city,
+        state: backendUser.state,
+        businessName: backendUser.businessName,
+        businessCategory: backendUser.businessCategory,
+        businessDescription: backendUser.businessDescription,
+        displayName: backendUser.displayName,
+        bio: backendUser.bio,
+        hourlyRate: backendUser.hourlyRate,
+        portfolioUrl: backendUser.portfolioUrl,
+        specialties: backendUser.specialties,
       };
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, "mock_token_" + Date.now());
-      setUser(mockUser);
-      return { success: true, isPending: false, isRejected: false, user: mockUser };
-    } catch (error) {
+
+      if (newUser.approvalStatus === "rejected") {
+        return { success: false, isPending: false, isRejected: true };
+      }
+      
+      if (newUser.role === "business" && newUser.approvalStatus === "pending") {
+        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+        await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.accessToken);
+        return { success: true, isPending: true, isRejected: false, user: newUser };
+      }
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.accessToken);
+      setUser(newUser);
+      return { success: true, isPending: false, isRejected: false, user: newUser };
+    } catch (error: any) {
       console.error("Login failed:", error);
+      const status = error?.status;
+      if (status === 401 || status === 403) {
+        return { success: false, isPending: false, isRejected: false };
+      }
       return { success: false, isPending: false, isRejected: false };
     } finally {
       setIsLoading(false);
@@ -185,53 +185,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (data: SignupData): Promise<{ success: boolean; isPending: boolean }> => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      const approvalStatus: ApprovalStatus = data.role === "business" ? "pending" : "approved";
-      const idPrefix = data.role === "business" ? "biz_" : data.role === "photographer" ? "photo_" : "user_";
-      
-      const newUser: User = {
-        id: idPrefix + Date.now(),
+      const response = await api.mobileSignup({
+        email: data.email,
+        password: data.password,
         firstName: data.firstName,
         lastName: data.lastName,
-        email: data.email,
+        role: data.role,
         phone: data.phone,
         dateOfBirth: data.dateOfBirth,
-        role: data.role,
-        approvalStatus,
-        isProfileComplete: data.role === "consumer",
         businessName: data.businessName,
         businessCategory: data.businessCategory,
+        businessDescription: data.businessDescription,
         city: data.city,
         state: data.state,
+      });
+      
+      const backendUser = response.user;
+      const newUser: User = {
+        id: backendUser.id,
+        firstName: backendUser.firstName || data.firstName,
+        lastName: backendUser.lastName || data.lastName,
+        email: backendUser.email,
+        phone: backendUser.phone || data.phone,
+        dateOfBirth: backendUser.dateOfBirth || data.dateOfBirth,
+        role: backendUser.role,
+        approvalStatus: backendUser.approvalStatus || (data.role === "business" ? "pending" : "approved"),
+        isProfileComplete: backendUser.isProfileComplete ?? (data.role === "consumer"),
+        avatar: backendUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
+        city: backendUser.city || data.city,
+        state: backendUser.state || data.state,
+        businessName: backendUser.businessName || data.businessName,
+        businessCategory: backendUser.businessCategory || data.businessCategory,
+        businessDescription: backendUser.businessDescription,
+        displayName: backendUser.displayName || data.displayName,
+        bio: backendUser.bio || data.bio,
+        hourlyRate: backendUser.hourlyRate || data.hourlyRate,
+        portfolioUrl: backendUser.portfolioUrl || data.portfolioUrl,
+        specialties: backendUser.specialties || data.specialties,
         username: data.username,
         gender: data.gender,
         selectedIndustries: data.selectedIndustries,
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
-        displayName: data.displayName,
-        bio: data.bio,
-        hourlyRate: data.hourlyRate,
-        portfolioUrl: data.portfolioUrl,
-        specialties: data.specialties,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
       };
       
-      if (data.role === "business") {
-        const pendingList = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_BUSINESSES);
-        const pending = pendingList ? JSON.parse(pendingList) : [];
-        pending.push({ ...newUser, createdAt: new Date().toISOString() });
-        await AsyncStorage.setItem(STORAGE_KEYS.PENDING_BUSINESSES, JSON.stringify(pending));
-        await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.accessToken);
+      
+      if (data.role === "business" && newUser.approvalStatus === "pending") {
         setUser(null);
         return { success: true, isPending: true };
       }
       
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, "mock_token_" + Date.now());
       setUser(newUser);
       return { success: true, isPending: false };
-    } catch (error) {
+    } catch (error: any) {
       console.error("Signup failed:", error);
       return { success: false, isPending: false };
     } finally {
