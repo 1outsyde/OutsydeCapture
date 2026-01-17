@@ -137,44 +137,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const response = await api.mobileLogin({ email, password });
+      console.log("[Auth] Login response received, user:", response.user?.id);
       
       const backendUser = response.user;
+      
+      // Determine role from backend flags
+      let role: UserRole = "consumer";
+      if (backendUser.isPhotographer) {
+        role = "photographer";
+      } else if (backendUser.isVendor) {
+        role = "business";
+      }
+      
+      // Extract photographer data if present
+      const photographerData = (response as any).photographer;
+      
       const newUser: User = {
         id: backendUser.id,
-        firstName: backendUser.firstName || email.split("@")[0],
-        lastName: backendUser.lastName || "",
+        firstName: backendUser.firstName || backendUser.name?.split(" ")[0] || email.split("@")[0],
+        lastName: backendUser.lastName || backendUser.name?.split(" ").slice(1).join(" ") || "",
         email: backendUser.email,
         phone: backendUser.phone || "",
         dateOfBirth: backendUser.dateOfBirth || "",
-        role: backendUser.role,
+        role,
         approvalStatus: backendUser.approvalStatus || "approved",
         isProfileComplete: backendUser.isProfileComplete,
-        avatar: backendUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || email.split("@")[0])}&background=D4A84B&color=fff`,
-        city: backendUser.city,
-        state: backendUser.state,
+        avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || email.split("@")[0])}&background=D4A84B&color=fff`,
+        city: backendUser.city || photographerData?.city,
+        state: backendUser.state || photographerData?.state,
         businessName: backendUser.businessName,
         businessCategory: backendUser.businessCategory,
         businessDescription: backendUser.businessDescription,
-        displayName: backendUser.displayName,
-        bio: backendUser.bio,
-        hourlyRate: backendUser.hourlyRate,
-        portfolioUrl: backendUser.portfolioUrl,
-        specialties: backendUser.specialties,
+        displayName: photographerData?.displayName || backendUser.displayName,
+        bio: photographerData?.bio || backendUser.bio,
+        hourlyRate: photographerData?.hourlyRate || backendUser.hourlyRate,
+        portfolioUrl: photographerData?.portfolioUrl || backendUser.portfolioUrl,
+        specialties: photographerData?.specialties || backendUser.specialties,
       };
 
       if (newUser.approvalStatus === "rejected") {
         return { success: false, isPending: false, isRejected: true };
       }
       
+      // Session-based auth: backend uses cookies, store a session indicator
+      // For web, cookies handle auth automatically. For mobile, we rely on cookie persistence.
+      const sessionToken = response.accessToken || `session_${backendUser.id}`;
+      
       if (newUser.role === "business" && newUser.approvalStatus === "pending") {
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-        await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.accessToken);
+        await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
         return { success: true, isPending: true, isRejected: false, user: newUser };
       }
       
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.accessToken);
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
       setUser(newUser);
+      console.log("[Auth] User logged in successfully:", newUser.email, "role:", newUser.role);
       return { success: true, isPending: false, isRejected: false, user: newUser };
     } catch (error: any) {
       console.error("Login failed:", error);
@@ -243,7 +261,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.accessToken);
+      // Session-based auth: backend uses cookies, store session indicator
+      const sessionToken = response.accessToken || `session_${backendUser.id}`;
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
       
       if (data.role === "business" && newUser.approvalStatus === "pending") {
         setUser(null);

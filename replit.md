@@ -21,8 +21,8 @@ I prefer clear, concise communication. When making changes, please explain the r
     - `POST /api/auth/customer/signup` - Required: `{ email, password, name }`
     - `POST /api/auth/vendor/signup` - Required: `{ email, password, name, businessName, businessCategory, offerType, acceptedSubscription }`
     - `POST /api/auth/photographer/signup` - Required: `{ email, password, name, displayName, city, state, hourlyRate, portfolioUrl }`
-  - **Login Endpoint**: `POST /api/auth/mobile/login` - Returns `{ accessToken, user }`
-  - **Mobile Signup Flow**: Call role-specific signup → immediately call mobile/login → store JWT
+  - **Login Endpoint**: `POST /api/auth/login` - Returns `{ accessToken, user }`
+  - **Mobile Signup Flow**: Call role-specific signup → immediately call /api/auth/login → store JWT
   - **Token Storage**: AsyncStorage key `@outsyde_token`
   - **Protected Requests**: `Authorization: Bearer <token>` header required
   - **401 Handling**: Logout immediately (no retries)

@@ -594,17 +594,24 @@ export interface MobileLoginRequest {
 }
 
 export interface MobileLoginResponse {
-  accessToken: string;
+  accessToken?: string; // Optional - backend uses session cookies, not JWT
   user: {
     id: string;
     email: string;
+    name?: string;
     firstName?: string;
     lastName?: string;
-    role: "consumer" | "business" | "photographer";
+    phone?: string;
+    profileImageUrl?: string;
+    isVendor?: boolean;
+    isPhotographer?: boolean;
+    isInfluencer?: boolean;
+    isAdmin?: boolean;
+    isOAuthUser?: boolean;
+    role?: "consumer" | "business" | "photographer";
     approvalStatus?: "pending" | "approved" | "rejected";
     isProfileComplete?: boolean;
     avatar?: string;
-    phone?: string;
     dateOfBirth?: string;
     city?: string;
     state?: string;
@@ -616,6 +623,30 @@ export interface MobileLoginResponse {
     hourlyRate?: number;
     portfolioUrl?: string;
     specialties?: string[];
+  };
+  photographer?: {
+    id: string;
+    userId: string;
+    displayName?: string;
+    bio?: string;
+    city?: string;
+    state?: string;
+    portfolioUrl?: string;
+    hourlyRate?: number;
+    rating?: number;
+    reviewCount?: number;
+    stripeAccountId?: string;
+    stripeOnboardingComplete?: boolean;
+    specialties?: string[];
+    coverImage?: string;
+    logoImage?: string;
+  };
+  vendor?: {
+    id: string;
+    userId: string;
+    businessName?: string;
+    businessCategory?: string;
+    description?: string;
   };
 }
 
@@ -751,7 +782,7 @@ class ApiService {
   }
 
   async mobileLogin(data: MobileLoginRequest): Promise<MobileLoginResponse> {
-    return this.request<MobileLoginResponse>("/api/auth/mobile/login", {
+    return this.request<MobileLoginResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify(data),
     });
