@@ -234,17 +234,25 @@ export default function PhotographerDashboardScreen() {
     setRefreshing(false);
   };
 
+  const [stripeError, setStripeError] = useState<string | null>(null);
+  const [connectingStripe, setConnectingStripe] = useState(false);
+  
   const handleConnectStripe = async () => {
     const token = await getToken();
     if (!token) return;
 
     try {
+      setConnectingStripe(true);
+      setStripeError(null);
       const { url } = await api.startPhotographerStripeOnboarding(token);
       if (url) {
         Linking.openURL(url);
       }
-    } catch {
-      Alert.alert("Error", "Failed to connect Stripe. Please try again.");
+    } catch (error: any) {
+      const errorMsg = error?.message || "Failed to connect Stripe. Please try again.";
+      setStripeError(errorMsg);
+    } finally {
+      setConnectingStripe(false);
     }
   };
 
@@ -329,7 +337,7 @@ export default function PhotographerDashboardScreen() {
   const hasProfileDetails = Boolean(profile?.name && profile?.hourlyRate);
   const hasStripeConnected = profile?.stripeConnected;
 
-  const setupItems = [
+  const profileSetupItems = [
     { 
       key: "profile", 
       label: "Profile details", 
@@ -342,16 +350,22 @@ export default function PhotographerDashboardScreen() {
       complete: hasAvailabilitySet,
       action: () => setActiveModal("hours"),
     },
-    { 
-      key: "stripe", 
-      label: "Stripe payments", 
-      complete: hasStripeConnected,
-      action: handleConnectStripe,
-    },
   ];
 
-  const allSetupComplete = setupItems.every(item => item.complete);
-  const statusText = allSetupComplete ? "Active" : "Pending Setup";
+  const stripeSetupItem = { 
+    key: "stripe", 
+    label: "Connect Stripe", 
+    complete: hasStripeConnected,
+    action: handleConnectStripe,
+    isOptional: true,
+    description: hasStripeConnected ? "Connected" : "Required to accept bookings & receive payments",
+  };
+
+  const setupItems = [...profileSetupItems, stripeSetupItem];
+
+  const profileComplete = profileSetupItems.every(item => item.complete);
+  const allSetupComplete = profileComplete;
+  const statusText = hasStripeConnected ? "Active" : (profileComplete ? "Ready (Stripe pending)" : "Pending Setup");
   const statusColor = allSetupComplete ? "#34C759" : "#FF9500";
 
   const styles = StyleSheet.create({
@@ -1321,23 +1335,23 @@ export default function PhotographerDashboardScreen() {
           </Pressable>
         </View>
 
-        {/* Setup Progress */}
-        {!allSetupComplete && (
+        {/* Setup Progress - show if profile setup incomplete */}
+        {!profileComplete && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={styles.sectionTitle}>Setup Progress</Text>
-                <Text style={styles.sectionSubtitle}>Complete these to start receiving bookings</Text>
+                <Text style={styles.sectionSubtitle}>Complete your profile to start receiving bookings</Text>
               </View>
             </View>
             <View style={styles.setupCard}>
-              {setupItems.map((item, index) => (
+              {profileSetupItems.map((item, index) => (
                 <Pressable
                   key={item.key}
                   onPress={item.action}
                   style={[
                     styles.setupItem,
-                    index === setupItems.length - 1 && styles.setupItemLast,
+                    index === profileSetupItems.length - 1 && styles.setupItemLast,
                   ]}
                 >
                   <View style={[
@@ -1357,6 +1371,51 @@ export default function PhotographerDashboardScreen() {
                   <Feather name="chevron-right" size={18} color={theme.textSecondary} />
                 </Pressable>
               ))}
+            </View>
+          </View>
+        )}
+
+        {/* Stripe Connect Banner - always show if not connected */}
+        {!hasStripeConnected && (
+          <View style={styles.section}>
+            <View style={[styles.setupCard, { backgroundColor: theme.primary + "10", borderWidth: 1, borderColor: theme.primary + "30" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                <Feather name="credit-card" size={24} color={theme.primary} />
+                <Text style={[styles.sectionTitle, { marginLeft: 12, flex: 1 }]}>Connect Stripe</Text>
+              </View>
+              <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 16 }}>
+                Connect your Stripe account to accept bookings and receive payments. Until connected, your profile won't be visible to clients.
+              </Text>
+              {stripeError && (
+                <View style={{ backgroundColor: "#fee2e2", padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                  <Text style={{ color: "#b91c1c", fontSize: 14 }}>{stripeError}</Text>
+                </View>
+              )}
+              <Pressable
+                onPress={handleConnectStripe}
+                disabled={connectingStripe}
+                style={({ pressed }) => [{
+                  backgroundColor: theme.primary,
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  borderRadius: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: pressed || connectingStripe ? 0.7 : 1,
+                }]}
+              >
+                {connectingStripe ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <>
+                    <Feather name="link" size={18} color="#000" />
+                    <Text style={{ color: "#000", fontWeight: "600", fontSize: 16, marginLeft: 8 }}>
+                      Connect Stripe
+                    </Text>
+                  </>
+                )}
+              </Pressable>
             </View>
           </View>
         )}
