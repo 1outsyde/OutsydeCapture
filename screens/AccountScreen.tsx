@@ -386,7 +386,7 @@ export default function AccountScreen() {
               </Pressable>
             ) : null}
 
-            {user?.role === "business" && user?.approvalStatus === "approved" && user?.isProfileComplete ? (
+            {user?.role === "business" && user?.isProfileComplete ? (
               <Pressable
                 onPress={() => (navigation as any).navigate("BusinessDashboard")}
                 style={({ pressed }) => [
@@ -396,9 +396,16 @@ export default function AccountScreen() {
               >
                 <View style={styles.menuItemLeft}>
                   <Feather name="briefcase" size={20} color="#34C759" />
-                  <ThemedText type="body" style={[styles.menuItemText, { color: "#34C759" }]}>
-                    Business Dashboard
-                  </ThemedText>
+                  <View>
+                    <ThemedText type="body" style={[styles.menuItemText, { color: "#34C759" }]}>
+                      Business Dashboard
+                    </ThemedText>
+                    {user?.approvalStatus === "pending" && (
+                      <ThemedText type="small" style={{ color: "#FFD60A", marginLeft: Spacing.sm }}>
+                        Approval pending - you can still customize your storefront
+                      </ThemedText>
+                    )}
+                  </View>
                 </View>
                 <Feather name="chevron-right" size={20} color="#34C759" />
               </Pressable>
@@ -420,17 +427,6 @@ export default function AccountScreen() {
                 </View>
                 <Feather name="chevron-right" size={20} color="#FF9500" />
               </Pressable>
-            ) : null}
-
-            {user?.role === "business" && user?.approvalStatus === "pending" ? (
-              <View style={[styles.menuItem, { backgroundColor: "#FFD60A10" }]}>
-                <View style={styles.menuItemLeft}>
-                  <Feather name="clock" size={20} color="#FFD60A" />
-                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FFD60A" }]}>
-                    Business Approval Pending
-                  </ThemedText>
-                </View>
-              </View>
             ) : null}
 
             {(user?.role === "consumer" || user?.isGuest) ? (
