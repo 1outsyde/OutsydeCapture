@@ -1153,56 +1153,22 @@ class ApiService {
   }
 
   // PATCH /api/photographers/me - Update photographer profile
-  async updatePhotographerMe(authToken: string, data: Partial<PhotographerOnboardingData>): Promise<{ photographer: VendorBookerPhotographer }> {
-    console.log("[API] updatePhotographerMe RAW input:", JSON.stringify(data, null, 2));
+  // Backend accepts: displayName, bio, city, state, portfolioUrl, hourlyRate (in dollars), 
+  // specialties (array), coverImage, logoImage, brandColors
+  // Backend uses !== undefined checks, so we pass through values as-is
+  async updatePhotographerMe(authToken: string, data: Record<string, any>): Promise<{ photographer: VendorBookerPhotographer }> {
+    console.log("[API] updatePhotographerMe payload:", JSON.stringify(data, null, 2));
     
-    // Build defensive payload - only include non-empty, valid values
-    // Use field names the backend expects (based on VendorBooker API)
-    const cleanPayload: Record<string, any> = {};
-    
-    // Backend expects displayName (not name) for photographer profiles
-    if (data.displayName && data.displayName.trim()) {
-      cleanPayload.displayName = data.displayName.trim();
-    }
-    if (data.bio && data.bio.trim()) {
-      cleanPayload.bio = data.bio.trim();
-    }
-    if (data.city && data.city.trim()) {
-      cleanPayload.city = data.city.trim();
-    }
-    if (data.state && data.state.trim()) {
-      cleanPayload.state = data.state.trim();
-    }
-    if (data.hourlyRate && data.hourlyRate > 0) {
-      cleanPayload.hourlyRate = data.hourlyRate;
-    }
-    if (data.portfolioUrl && data.portfolioUrl.trim()) {
-      cleanPayload.portfolioUrl = data.portfolioUrl.trim();
-    }
-    if (data.specialties && data.specialties.length > 0) {
-      cleanPayload.specialties = data.specialties;
-    }
-    if (data.brandColors) {
-      cleanPayload.brandColors = data.brandColors;
-    }
-    if (typeof data.willTravel === 'boolean') {
-      cleanPayload.willTravel = data.willTravel;
-    }
-    if (typeof data.isProfileComplete === 'boolean') {
-      cleanPayload.isProfileComplete = data.isProfileComplete;
-    }
-    
-    console.log("[API] updatePhotographerMe CLEAN payload:", JSON.stringify(cleanPayload, null, 2));
-    
-    // Don't send empty payloads
-    if (Object.keys(cleanPayload).length === 0) {
-      console.warn("[API] updatePhotographerMe: No valid fields to update after filtering");
-      throw { message: "No changes to save. Please modify at least one field.", status: 400 };
+    // Pass through the data directly - caller is responsible for only sending changed fields
+    // Backend will reject if no valid fields are provided
+    if (!data || Object.keys(data).length === 0) {
+      console.warn("[API] updatePhotographerMe: Empty payload");
+      throw { message: "No changes to save.", status: 400 };
     }
     
     return this.request<{ photographer: VendorBookerPhotographer }>("/api/photographers/me", {
       method: "PATCH",
-      body: JSON.stringify(cleanPayload),
+      body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

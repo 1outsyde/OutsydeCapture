@@ -355,19 +355,72 @@ export default function PhotographerDashboardScreen() {
     try {
       setSaving(true);
       
-      // Build the update data - api.updatePhotographerMe will filter out empty values
-      const updateData = {
-        displayName: editProfile.name,
-        hourlyRate: Math.round((parseFloat(editProfile.hourlyRate) || 0) * 100),
-        bio: editProfile.bio || undefined,
-        city: editProfile.city || undefined,
-        state: editProfile.state || undefined,
-        portfolioUrl: editProfile.portfolioUrl || undefined,
-        specialties: editProfile.specialties,
-        brandColors: JSON.stringify({ primary: editProfile.profileTheme }),
-      };
+      // Only send fields that have actually changed from the original profile
+      // Backend expects hourlyRate in DOLLARS (it converts to cents internally)
+      const updateData: Record<string, any> = {};
       
-      console.log("[Dashboard] Saving profile:", JSON.stringify(updateData, null, 2));
+      // Compare each field to original profile and only include if changed
+      const currentName = editProfile.name?.trim() || "";
+      const originalName = profile?.name?.trim() || "";
+      if (currentName !== originalName) {
+        updateData.displayName = currentName;
+      }
+      
+      const currentRate = parseFloat(editProfile.hourlyRate) || 0;
+      const originalRate = profile?.hourlyRate || 0;
+      if (currentRate !== originalRate) {
+        updateData.hourlyRate = currentRate; // Send in dollars, backend converts to cents
+      }
+      
+      const currentBio = editProfile.bio?.trim() || "";
+      const originalBio = profile?.bio?.trim() || "";
+      if (currentBio !== originalBio) {
+        updateData.bio = currentBio;
+      }
+      
+      const currentCity = editProfile.city?.trim() || "";
+      const originalCity = profile?.city?.trim() || "";
+      if (currentCity !== originalCity) {
+        updateData.city = currentCity;
+      }
+      
+      const currentState = editProfile.state?.trim() || "";
+      const originalState = profile?.state?.trim() || "";
+      if (currentState !== originalState) {
+        updateData.state = currentState;
+      }
+      
+      const currentPortfolioUrl = editProfile.portfolioUrl?.trim() || "";
+      const originalPortfolioUrl = profile?.portfolioUrl?.trim() || "";
+      if (currentPortfolioUrl !== originalPortfolioUrl) {
+        updateData.portfolioUrl = currentPortfolioUrl;
+      }
+      
+      // Compare specialties arrays
+      const currentSpecialties = editProfile.specialties || [];
+      const originalSpecialties = profile?.specialties || [];
+      if (JSON.stringify(currentSpecialties.sort()) !== JSON.stringify(originalSpecialties.sort())) {
+        updateData.specialties = currentSpecialties;
+      }
+      
+      // Compare brand colors
+      const currentTheme = editProfile.profileTheme || "#D4A84B";
+      // Note: We don't have original theme in profile, so always send if different from default
+      // This could be improved by storing original brandColors
+      const brandColorsJson = JSON.stringify({ primary: currentTheme });
+      updateData.brandColors = brandColorsJson;
+      
+      // Check if any fields changed (excluding brandColors which we always send for now)
+      const changedFields = Object.keys(updateData).filter(k => k !== 'brandColors');
+      if (changedFields.length === 0) {
+        // Only brandColors or nothing - check if we should send at all
+        delete updateData.brandColors; // Don't send just brandColors
+        Alert.alert("No Changes", "No profile changes detected to save.");
+        setSaving(false);
+        return;
+      }
+      
+      console.log("[Dashboard] Saving profile (changed fields only):", JSON.stringify(updateData, null, 2));
       
       await api.updatePhotographerMe(token, updateData);
       Alert.alert("Success", "Profile updated successfully");
