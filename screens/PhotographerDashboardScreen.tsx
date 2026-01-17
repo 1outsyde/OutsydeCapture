@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -59,6 +59,7 @@ export default function PhotographerDashboardScreen() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+  const hasFetchedRef = useRef(false);
 
   const [stats, setStats] = useState<PhotographerDashboardStats>({
     earnings: 0,
@@ -186,10 +187,13 @@ export default function PhotographerDashboardScreen() {
       const is401 = status === 401 || message.includes("401") || message.toLowerCase().includes("unauthorized");
       const is404 = status === 404 || message.includes("404") || message.toLowerCase().includes("not found");
       
-      if (is401 || is404) {
-        // 401 with valid token + photographer role = profile doesn't exist yet (NOT auth failure)
-        // 404 = profile not found (same situation)
-        // Both cases should trigger profile setup, not "session expired"
+      if (is401) {
+        setAuthError("Your session has expired. Please sign in again.");
+        await logout();
+        return;
+      }
+      
+      if (is404) {
         setNeedsProfileSetup(true);
         setProfile({
           id: "",
@@ -201,7 +205,6 @@ export default function PhotographerDashboardScreen() {
       } else if (status === 403 || message.includes("403") || message.toLowerCase().includes("forbidden")) {
         setAuthError("You don't have permission to access this dashboard.");
       } else {
-        // Non-auth error - show fallback profile but allow retry
         setProfile({
           id: "",
           name: user?.firstName || "Photographer",
@@ -213,20 +216,28 @@ export default function PhotographerDashboardScreen() {
     } finally {
       setLoading(false);
     }
-  }, [getToken, user?.firstName]);
+  }, [getToken, logout, user?.firstName]);
 
-  // Wait for auth to be ready before fetching
   useEffect(() => {
-    if (!authLoading && user?.role === "photographer") {
-      fetchDashboard();
-    } else if (!authLoading && !user) {
+    if (authLoading) return;
+    
+    if (!user) {
       setAuthError("Please sign in to access your dashboard");
       setLoading(false);
-    } else if (!authLoading && user?.role !== "photographer") {
+      return;
+    }
+    
+    if (user.role !== "photographer") {
       setAuthError("This dashboard is only available for photographers");
       setLoading(false);
+      return;
     }
-  }, [authLoading, user, fetchDashboard]);
+    
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchDashboard();
+    }
+  }, [authLoading, user?.id, user?.role]);
 
   const onRefresh = async () => {
     setRefreshing(true);
