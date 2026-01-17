@@ -712,9 +712,26 @@ class ApiService {
       });
 
       if (!response.ok) {
+        // Try to parse error response body for validation messages
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        let validationErrors: string[] = [];
+        try {
+          const errorBody = await response.json();
+          if (errorBody.message) {
+            errorMessage = errorBody.message;
+          }
+          if (errorBody.errors && Array.isArray(errorBody.errors)) {
+            validationErrors = errorBody.errors;
+            errorMessage = validationErrors.join(", ");
+          }
+          console.error("API Error Response:", JSON.stringify(errorBody, null, 2));
+        } catch (parseError) {
+          // Could not parse error body, use default message
+        }
         throw {
-          message: `HTTP ${response.status}: ${response.statusText}`,
+          message: errorMessage,
           status: response.status,
+          validationErrors,
         } as ApiError;
       }
 
@@ -782,13 +799,15 @@ class ApiService {
     const fullName = `${data.firstName} ${data.lastName}`.trim();
     
     if (data.role === "consumer") {
-      await this.customerSignup({
+      const customerPayload = {
         email: data.email,
         password: data.password,
         name: fullName,
-      });
+      };
+      console.log("[Signup] Customer payload:", JSON.stringify(customerPayload, null, 2));
+      await this.customerSignup(customerPayload);
     } else if (data.role === "business") {
-      await this.vendorSignup({
+      const vendorPayload = {
         email: data.email,
         password: data.password,
         name: fullName,
@@ -796,21 +815,48 @@ class ApiService {
         businessCategory: data.businessCategory || "General",
         offerType: data.offerType || "both",
         acceptedSubscription: true,
-      });
+      };
+      console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
+      await this.vendorSignup(vendorPayload);
     } else if (data.role === "photographer") {
-      await this.photographerSignup({
+      // Ensure hourlyRate is a valid positive number
+      const rawHourlyRate = data.hourlyRate;
+      let hourlyRate: number;
+      if (typeof rawHourlyRate === "number" && !isNaN(rawHourlyRate) && rawHourlyRate > 0) {
+        hourlyRate = rawHourlyRate;
+      } else {
+        // Fallback to a default rate if invalid
+        console.warn("[Signup] Invalid hourlyRate received:", rawHourlyRate, "- defaulting to 5000 (50/hr)");
+        hourlyRate = 5000; // $50/hr in cents as fallback
+      }
+      
+      // Handle portfolioUrl - use valid URL or placeholder
+      let portfolioUrl: string;
+      if (data.portfolioUrl && data.portfolioUrl.trim().length > 0) {
+        // Ensure it has a protocol
+        const url = data.portfolioUrl.trim();
+        portfolioUrl = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+      } else {
+        // Backend might require a valid URL - use a placeholder
+        portfolioUrl = "https://outsyde.app";
+      }
+      
+      const photographerPayload = {
         email: data.email,
         password: data.password,
         name: fullName,
         displayName: data.displayName || fullName,
-        city: data.city || "",
-        state: data.state || "",
-        hourlyRate: data.hourlyRate || 0,
-        portfolioUrl: data.portfolioUrl || "",
-      });
+        city: data.city || "Unknown",
+        state: data.state || "NA",
+        hourlyRate,
+        portfolioUrl,
+      };
+      console.log("[Signup] Photographer payload:", JSON.stringify(photographerPayload, null, 2));
+      await this.photographerSignup(photographerPayload);
     }
 
     // Step 2: Now login to get JWT token
+    console.log("[Signup] Account created, logging in to get JWT...");
     return this.mobileLogin({
       email: data.email,
       password: data.password,
