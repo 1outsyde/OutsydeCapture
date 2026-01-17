@@ -28,7 +28,8 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Token Storage**: AsyncStorage key `@outsyde_token` stores session indicator (`session_${userId}`)
   - **Protected Requests**: Cookies handle auth for web; credentials: 'include' on fetch requests
   - **401 Handling**: Logout immediately (no retries)
-- **Role-Based Access**: Dashboards (Photographer, Business) are accessible upon profile completion, even if business approval is pending. Admin dashboard is accessible to specific admin emails with comprehensive user, business, payment, message, and influencer management.
+- **Role-Based Access**: Dashboards (Photographer, Business) are accessible immediately upon signup without requiring profile completion. Admin dashboard is accessible to specific admin emails with comprehensive user, business, payment, message, and influencer management.
+- **Stripe Booking Restriction**: Users cannot book photographers who haven't completed Stripe onboarding (`stripeOnboardingComplete: false`). The dashboard remains accessible, but the booking flow is blocked with a user-friendly alert.
 - **Navigation**: Expo SDK 54, React Navigation 7 (Root, MainTab, Stack Navigators).
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
 - **Core Features**: Personalized content feed, category/location-based search, 4-step booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
