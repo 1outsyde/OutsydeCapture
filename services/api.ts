@@ -151,6 +151,10 @@ export interface VendorBookerBusiness {
   websiteUrl?: string | null;
   stripeAccountId?: string | null;
   stripeOnboardingComplete?: boolean | null;
+  approvalStatus?: "pending" | "approved" | "rejected" | null;
+  approvalNotes?: string | null;
+  subscriptionActive?: boolean | null;
+  subscriptionStatus?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
   createdAt?: string;

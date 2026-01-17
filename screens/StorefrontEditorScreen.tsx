@@ -82,6 +82,9 @@ export default function StorefrontEditorScreen() {
   const [profileState, setProfileState] = useState("");
   const [profileZip, setProfileZip] = useState("");
 
+  const canPublish = Boolean(business?.stripeOnboardingComplete && business?.subscriptionActive);
+  const approvalStatus = business?.approvalStatus || "pending";
+
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
   const [productForm, setProductForm] = useState<VendorProductInput>({
@@ -699,6 +702,74 @@ export default function StorefrontEditorScreen() {
     flex1: {
       flex: 1,
     },
+    approvalBanner: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    approvalBannerIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    approvalBannerContent: {
+      flex: 1,
+    },
+    approvalBannerTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.text,
+      marginBottom: 2,
+    },
+    approvalBannerDesc: {
+      fontSize: 13,
+      color: theme.textSecondary,
+    },
+    publishGateCard: {
+      backgroundColor: "#FEF3C7",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+    },
+    publishGateCardDark: {
+      backgroundColor: "#78350F",
+    },
+    publishGateTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: "#92400E",
+      marginBottom: 4,
+    },
+    publishGateTitleDark: {
+      color: "#FDE68A",
+    },
+    publishGateDesc: {
+      fontSize: 13,
+      color: "#A16207",
+    },
+    publishGateDescDark: {
+      color: "#FCD34D",
+    },
+    publishGateItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 8,
+    },
+    publishGateItemText: {
+      fontSize: 13,
+      color: "#92400E",
+    },
+    publishGateItemTextDark: {
+      color: "#FDE68A",
+    },
+    disabledSwitch: {
+      opacity: 0.5,
+    },
   });
 
   if (loading) {
@@ -1120,13 +1191,34 @@ export default function StorefrontEditorScreen() {
             placeholder="Upload Product Image"
           />
 
+          {renderPublishGateWarning()}
+
           <View style={[styles.switchRow, { marginTop: 16 }]}>
-            <Text style={styles.inputLabel}>Active (Live)</Text>
-            <Switch
-              value={productForm.status === "live"}
-              onValueChange={(v) => setProductForm({ ...productForm, status: v ? "live" : "draft" })}
-              trackColor={{ true: theme.primary }}
-            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.inputLabel}>Publish (Go Live)</Text>
+              {!canPublish && (
+                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                  Complete Stripe and subscription setup to publish
+                </Text>
+              )}
+            </View>
+            <View style={!canPublish ? styles.disabledSwitch : undefined}>
+              <Switch
+                value={productForm.status === "live"}
+                onValueChange={(v) => {
+                  if (v && !canPublish) {
+                    Alert.alert(
+                      "Cannot Publish",
+                      "You need to complete Stripe payment setup and have an active subscription to publish products."
+                    );
+                    return;
+                  }
+                  setProductForm({ ...productForm, status: v ? "live" : "draft" });
+                }}
+                trackColor={{ true: theme.primary }}
+                disabled={!canPublish && productForm.status !== "live"}
+              />
+            </View>
           </View>
         </ScrollView>
       </View>
@@ -1191,13 +1283,34 @@ export default function StorefrontEditorScreen() {
             keyboardType="number-pad"
           />
 
+          {renderPublishGateWarning()}
+
           <View style={styles.switchRow}>
-            <Text style={styles.inputLabel}>Active (Live)</Text>
-            <Switch
-              value={serviceForm.status === "live"}
-              onValueChange={(v) => setServiceForm({ ...serviceForm, status: v ? "live" : "draft" })}
-              trackColor={{ true: theme.primary }}
-            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.inputLabel}>Publish (Go Live)</Text>
+              {!canPublish && (
+                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                  Complete Stripe and subscription setup to publish
+                </Text>
+              )}
+            </View>
+            <View style={!canPublish ? styles.disabledSwitch : undefined}>
+              <Switch
+                value={serviceForm.status === "live"}
+                onValueChange={(v) => {
+                  if (v && !canPublish) {
+                    Alert.alert(
+                      "Cannot Publish",
+                      "You need to complete Stripe payment setup and have an active subscription to publish services."
+                    );
+                    return;
+                  }
+                  setServiceForm({ ...serviceForm, status: v ? "live" : "draft" });
+                }}
+                trackColor={{ true: theme.primary }}
+                disabled={!canPublish && serviceForm.status !== "live"}
+              />
+            </View>
           </View>
         </ScrollView>
       </View>
@@ -1212,6 +1325,89 @@ export default function StorefrontEditorScreen() {
     { key: "services", icon: "briefcase", label: "Services" },
   ];
 
+  const getApprovalBannerConfig = () => {
+    switch (approvalStatus) {
+      case "approved":
+        return {
+          icon: "check-circle" as const,
+          iconBg: "#22c55e20",
+          iconColor: "#22c55e",
+          title: "Storefront Approved",
+          desc: "Your storefront is visible to customers",
+        };
+      case "rejected":
+        return {
+          icon: "x-circle" as const,
+          iconBg: "#ef444420",
+          iconColor: "#ef4444",
+          title: "Application Rejected",
+          desc: business?.approvalNotes || "Your application was not approved. Please contact support.",
+        };
+      default:
+        return {
+          icon: "clock" as const,
+          iconBg: "#f9731620",
+          iconColor: "#f97316",
+          title: "Pending Review",
+          desc: "Your storefront is under review (24-48 hours). You can still edit your profile.",
+        };
+    }
+  };
+
+  const renderApprovalBanner = () => {
+    const config = getApprovalBannerConfig();
+    return (
+      <View style={styles.approvalBanner}>
+        <View style={[styles.approvalBannerIcon, { backgroundColor: config.iconBg }]}>
+          <Feather name={config.icon} size={20} color={config.iconColor} />
+        </View>
+        <View style={styles.approvalBannerContent}>
+          <Text style={styles.approvalBannerTitle}>{config.title}</Text>
+          <Text style={styles.approvalBannerDesc}>{config.desc}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderPublishGateWarning = () => {
+    if (canPublish) return null;
+    
+    const isDark = theme.backgroundRoot === "#000000" || theme.backgroundRoot === "#000";
+    const missingStripe = !business?.stripeOnboardingComplete;
+    const missingSub = !business?.subscriptionActive;
+    
+    return (
+      <View style={[styles.publishGateCard, isDark && styles.publishGateCardDark]}>
+        <Text style={[styles.publishGateTitle, isDark && styles.publishGateTitleDark]}>
+          Publishing Requirements
+        </Text>
+        <Text style={[styles.publishGateDesc, isDark && styles.publishGateDescDark]}>
+          You can create and edit drafts, but to publish items you need:
+        </Text>
+        <View style={styles.publishGateItem}>
+          <Feather 
+            name={missingStripe ? "x-circle" : "check-circle"} 
+            size={16} 
+            color={missingStripe ? "#ef4444" : "#22c55e"} 
+          />
+          <Text style={[styles.publishGateItemText, isDark && styles.publishGateItemTextDark]}>
+            Stripe payment setup {missingStripe ? "(not complete)" : "(complete)"}
+          </Text>
+        </View>
+        <View style={styles.publishGateItem}>
+          <Feather 
+            name={missingSub ? "x-circle" : "check-circle"} 
+            size={16} 
+            color={missingSub ? "#ef4444" : "#22c55e"} 
+          />
+          <Text style={[styles.publishGateItemText, isDark && styles.publishGateItemTextDark]}>
+            Active subscription {missingSub ? "(not active)" : "(active)"}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -1223,6 +1419,8 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.categoryText}>{business.category || "Business"}</Text>
         </View>
       </View>
+
+      {renderApprovalBanner()}
 
       <View style={styles.tabContainer}>
         {tabs.map((tab) => (
