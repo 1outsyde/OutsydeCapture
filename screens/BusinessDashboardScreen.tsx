@@ -100,7 +100,7 @@ export default function BusinessDashboardScreen() {
       const { business } = await api.getVendorMyBusiness(token);
       
       setStats({
-        earnings: business.totalEarnings || 0,
+        earnings: (business as any).totalEarnings || 0,
         upcomingOrders: 0,
         upcomingBookings: 0,
         unreadMessages: 0,
@@ -118,12 +118,12 @@ export default function BusinessDashboardScreen() {
       setProfile({
         id: business.id,
         name: business.name || "",
-        avatar: business.logoImage,
+        avatar: business.logoImage || undefined,
         category: business.category || "",
-        bio: business.description,
-        city: business.city,
-        state: business.state,
-        website: business.websiteUrl,
+        bio: business.description || undefined,
+        city: business.city || undefined,
+        state: business.state || undefined,
+        website: business.websiteUrl || undefined,
         stripeConnected: business.stripeOnboardingComplete || false,
         businessType: businessTypeValue,
       });
