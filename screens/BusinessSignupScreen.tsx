@@ -218,7 +218,7 @@ export default function BusinessSignupScreen() {
         navigation.goBack();
       }
     } else {
-      Alert.alert("Error", "Registration failed. Please try again.");
+      Alert.alert("Error", result.errorMessage || "Registration failed. Please try again.");
     }
   };
 

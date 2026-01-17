@@ -79,12 +79,18 @@ export interface LoginResult {
   user?: User;
 }
 
+interface SignupResult {
+  success: boolean;
+  isPending: boolean;
+  errorMessage?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
-  signup: (data: SignupData) => Promise<{ success: boolean; isPending: boolean }>;
+  signup: (data: SignupData) => Promise<SignupResult>;
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
@@ -182,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signup = async (data: SignupData): Promise<{ success: boolean; isPending: boolean }> => {
+  const signup = async (data: SignupData): Promise<SignupResult> => {
     setIsLoading(true);
     try {
       // Use role-based signup flow: calls role-specific endpoint then mobileLogin
@@ -248,7 +254,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true, isPending: false };
     } catch (error: any) {
       console.error("Signup failed:", error);
-      return { success: false, isPending: false };
+      // Extract error message for display
+      const errorMessage = error?.message || "Registration failed. Please try again.";
+      return { success: false, isPending: false, errorMessage };
     } finally {
       setIsLoading(false);
     }

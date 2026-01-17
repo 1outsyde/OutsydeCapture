@@ -144,9 +144,23 @@ export default function PhotographerSignupScreen() {
   };
 
   const handleSubmit = async () => {
+    // Validate hourlyRate is a valid number
+    const parsedRate = Number(hourlyRate);
+    if (isNaN(parsedRate) || parsedRate <= 0) {
+      Alert.alert("Error", "Please enter a valid hourly rate");
+      return;
+    }
+    
     const nameParts = name.trim().split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
+
+    // Convert hourlyRate to cents (multiply by 100)
+    const hourlyRateInCents = Math.round(parsedRate * 100);
+    
+    // Log for debugging
+    console.log("[PhotographerSignup] Submitting with hourlyRate:", parsedRate, "-> cents:", hourlyRateInCents);
+    console.log("[PhotographerSignup] portfolioUrl:", portfolioUrl || "(empty)");
 
     const result = await signup({
       firstName,
@@ -160,15 +174,15 @@ export default function PhotographerSignupScreen() {
       bio,
       city,
       state,
-      hourlyRate: parseInt(hourlyRate) * 100,
-      portfolioUrl,
+      hourlyRate: hourlyRateInCents,
+      portfolioUrl: portfolioUrl.trim() || undefined,
       specialties,
     });
 
     if (result.success) {
       navigation.goBack();
     } else {
-      Alert.alert("Error", "Registration failed. Please try again.");
+      Alert.alert("Error", result.errorMessage || "Registration failed. Please try again.");
     }
   };
 
