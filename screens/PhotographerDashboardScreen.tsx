@@ -112,6 +112,21 @@ export default function PhotographerDashboardScreen() {
         completedShoots: photographer.completedShoots || 0,
       });
       
+      // Parse brandColors - handle both object and JSON string formats
+      let brandColors: { primary?: string } = {};
+      if (photographer.brandColors) {
+        if (typeof photographer.brandColors === 'string') {
+          try {
+            brandColors = JSON.parse(photographer.brandColors);
+          } catch {
+            brandColors = {};
+          }
+        } else {
+          brandColors = photographer.brandColors as { primary?: string };
+        }
+      }
+      const originalTheme = brandColors.primary || "#D4A84B";
+      
       setProfile({
         id: photographer.id,
         name: photographer.displayName || "",
@@ -123,9 +138,9 @@ export default function PhotographerDashboardScreen() {
         portfolioUrl: photographer.portfolioUrl,
         specialties: photographer.specialties || [],
         stripeConnected: photographer.stripeOnboardingComplete || false,
+        profileTheme: originalTheme,
       });
       
-      const brandColors = photographer.brandColors ? JSON.parse(photographer.brandColors) : {};
       setEditProfile({
         name: photographer.displayName || "",
         hourlyRate: photographer.hourlyRate ? (photographer.hourlyRate / 100).toString() : "",
@@ -134,7 +149,7 @@ export default function PhotographerDashboardScreen() {
         state: photographer.state || "",
         portfolioUrl: photographer.portfolioUrl || "",
         specialties: photographer.specialties || [],
-        profileTheme: brandColors.primary || "#D4A84B",
+        profileTheme: originalTheme,
       });
 
       try {
@@ -403,18 +418,15 @@ export default function PhotographerDashboardScreen() {
         updateData.specialties = currentSpecialties;
       }
       
-      // Compare brand colors
+      // Compare brand colors - send as object, not JSON string
       const currentTheme = editProfile.profileTheme || "#D4A84B";
-      // Note: We don't have original theme in profile, so always send if different from default
-      // This could be improved by storing original brandColors
-      const brandColorsJson = JSON.stringify({ primary: currentTheme });
-      updateData.brandColors = brandColorsJson;
+      const originalTheme = profile?.profileTheme || "#D4A84B";
+      if (currentTheme !== originalTheme) {
+        updateData.brandColors = { primary: currentTheme }; // Send as object, not JSON string
+      }
       
-      // Check if any fields changed (excluding brandColors which we always send for now)
-      const changedFields = Object.keys(updateData).filter(k => k !== 'brandColors');
-      if (changedFields.length === 0) {
-        // Only brandColors or nothing - check if we should send at all
-        delete updateData.brandColors; // Don't send just brandColors
+      // Check if any fields changed
+      if (Object.keys(updateData).length === 0) {
         Alert.alert("No Changes", "No profile changes detected to save.");
         setSaving(false);
         return;

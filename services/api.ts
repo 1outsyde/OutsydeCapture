@@ -452,6 +452,7 @@ export interface PhotographerDashboardProfile {
   portfolioUrl?: string;
   specialties: string[];
   stripeConnected: boolean;
+  profileTheme?: string; // Brand color primary
 }
 
 export interface PhotographerBooking {
