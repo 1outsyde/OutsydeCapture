@@ -574,6 +574,7 @@ export interface ApiPhotographerDetail {
   facebook?: string;
   twitter?: string;
   brandColors?: string;
+  stripeOnboardingComplete?: boolean; // Whether photographer can accept bookings
 }
 
 export interface SearchResponse {

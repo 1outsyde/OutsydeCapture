@@ -7,6 +7,7 @@ import {
   Linking,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -80,6 +81,7 @@ export default function PhotographerProfileScreen() {
         portfolio: apiData.portfolio?.length ? apiData.portfolio : photographer.portfolio,
         specialties: apiData.specialties?.length ? apiData.specialties : photographer.specialties,
         brandColors: apiData.brandColors || photographer.brandColors,
+        stripeOnboardingComplete: apiData.stripeOnboardingComplete ?? photographer.stripeOnboardingComplete,
       };
     },
     [photographer]
@@ -190,6 +192,16 @@ export default function PhotographerProfileScreen() {
   };
 
   const handleBook = () => {
+    // Check if photographer has completed Stripe onboarding
+    if (!photographer.stripeOnboardingComplete) {
+      Alert.alert(
+        "Booking Unavailable",
+        "This photographer is not yet set up to accept bookings. Please check back later or contact them directly.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    
     const photographerData = {
       id: photographer.id,
       name: photographer.name,

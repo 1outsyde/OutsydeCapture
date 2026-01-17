@@ -48,6 +48,7 @@ export interface PhotographerProfileData {
   portfolio?: string[];
   specialties?: string[];
   brandColors?: string;
+  stripeOnboardingComplete?: boolean; // Whether photographer can accept bookings
 }
 
 export type RootStackParamList = {
