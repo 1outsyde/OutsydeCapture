@@ -32,7 +32,8 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Rating System**: Eligibility check for reviews based on completed sessions/delivered orders.
 - **Favorites**: User-specific saved items (photographers, businesses, products) with persistence.
 - **Onboarding**: 4-screen welcome flow for first-time users.
-- **Profile Screens**: Dedicated premium modal screens for Business and Photographer profiles, displaying hero sections, actions, about info, portfolios, and contact details. Hybrid data fetching for optimal UX.
+- **Profile Screens**: Dedicated premium modal screens for Business and Photographer profiles, displaying hero sections, actions, about info, portfolios, and contact details. Hybrid data fetching for optimal UX. Supports custom brand color theming.
+- **Profile Theming**: Photographers and businesses can customize their public profile appearance using 8 preset theme colors. Theme colors apply ONLY to their public profile/storefront screens (specialty badges, action buttons, section icons, contact links), NOT global app UI. Theme stored as JSON in `brandColors` field: `{"primary":"#hex"}`. Default color: Golden Yellow (#eab308).
 - **Admin Dashboard**: Comprehensive admin interface accessible from Account screen (for admin users). Features 6 tabs:
   - **Users**: Search by username/name/email, view user details with orders/bookings/conversations/earnings
   - **Businesses**: Status filters (Pending/Approved/Rejected/All), approve/reject applications, search, earnings tracking
