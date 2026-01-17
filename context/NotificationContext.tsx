@@ -6,9 +6,10 @@ export interface Notification {
   id: string;
   title: string;
   body: string;
-  type: "booking" | "reminder" | "promotion" | "system";
+  type: "booking" | "reminder" | "promotion" | "system" | "admin";
   date: string;
   read: boolean;
+  metadata?: Record<string, string>;
 }
 
 interface NotificationSettings {

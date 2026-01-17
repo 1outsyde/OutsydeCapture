@@ -12,6 +12,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import api from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -204,6 +205,14 @@ export default function BusinessSignupScreen() {
 
     if (result.success) {
       if (result.isPending) {
+        api.notifyAdminBusinessApplication({
+          businessName,
+          businessCategory,
+          ownerName: name,
+          ownerEmail: email,
+          city,
+          state,
+        });
         setShowPending(true);
       } else {
         navigation.goBack();

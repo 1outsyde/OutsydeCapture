@@ -1170,6 +1170,24 @@ class ApiService {
     });
   }
 
+  async notifyAdminBusinessApplication(data: {
+    businessName: string;
+    businessCategory: string;
+    ownerName: string;
+    ownerEmail: string;
+    city: string;
+    state: string;
+  }): Promise<{ success: boolean }> {
+    try {
+      return await this.request<{ success: boolean }>("/api/admin/notifications/business-application", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch {
+      return { success: false };
+    }
+  }
+
   normalizeSearchResults(response: SearchResponse): UnifiedSearchResult[] {
     const results: UnifiedSearchResult[] = [];
 
