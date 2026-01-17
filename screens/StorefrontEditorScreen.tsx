@@ -82,8 +82,12 @@ export default function StorefrontEditorScreen() {
   const [profileState, setProfileState] = useState("");
   const [profileZip, setProfileZip] = useState("");
 
-  const canPublish = Boolean(business?.stripeOnboardingComplete && business?.subscriptionActive);
   const approvalStatus = business?.approvalStatus || "pending";
+  const canPublish = Boolean(
+    business?.stripeOnboardingComplete && 
+    business?.subscriptionActive && 
+    approvalStatus === "approved"
+  );
 
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
@@ -1066,13 +1070,18 @@ export default function StorefrontEditorScreen() {
                 <View style={styles.productMeta}>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(product.status) + "20" }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(product.status) }]}>
-                      {product.status}
+                      {getStatusLabel(product.status)}
                     </Text>
                   </View>
                   {product.inventory !== null && (
                     <Text style={styles.serviceDetailText}>Stock: {product.inventory}</Text>
                   )}
                 </View>
+                {getStatusExplanation(product.status) && (
+                  <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                    {getStatusExplanation(product.status)}
+                  </Text>
+                )}
                 <View style={styles.productActions}>
                   <Pressable style={styles.actionButton} onPress={() => openProductForm(product)}>
                     <Feather name="edit-2" size={16} color={theme.text} />
@@ -1109,10 +1118,15 @@ export default function StorefrontEditorScreen() {
                 <Text style={styles.serviceName}>{service.name}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(service.status) + "20" }]}>
                   <Text style={[styles.statusText, { color: getStatusColor(service.status) }]}>
-                    {service.status}
+                    {getStatusLabel(service.status)}
                   </Text>
                 </View>
               </View>
+              {getStatusExplanation(service.status) && (
+                <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4, marginBottom: 4 }}>
+                  {getStatusExplanation(service.status)}
+                </Text>
+              )}
               <View style={styles.serviceDetails}>
                 <View style={styles.serviceDetail}>
                   <Feather name="dollar-sign" size={14} color={theme.primary} />
@@ -1211,30 +1225,53 @@ export default function StorefrontEditorScreen() {
 
           {renderPublishGateWarning()}
 
+          {productForm.status === "paused" && (
+            <View style={{ backgroundColor: "#fef2f2", borderRadius: 8, padding: 12, marginTop: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="pause-circle" size={18} color="#ef4444" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}>Product Paused</Text>
+              </View>
+              <Text style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
+                This product was paused due to subscription lapse. Reactivate your subscription to publish it again.
+              </Text>
+            </View>
+          )}
+
           <View style={[styles.switchRow, { marginTop: 16 }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.inputLabel}>Publish (Go Live)</Text>
-              {!canPublish && (
-                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
-                  Complete Stripe and subscription setup to publish
+              {productForm.status === "paused" ? (
+                <Text style={{ fontSize: 12, color: "#ef4444", marginTop: 2 }}>
+                  Reactivate subscription to unpause
                 </Text>
-              )}
+              ) : !canPublish ? (
+                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                  Requires approval, Stripe setup, and active subscription
+                </Text>
+              ) : null}
             </View>
-            <View style={!canPublish ? styles.disabledSwitch : undefined}>
+            <View style={(!canPublish || productForm.status === "paused") ? styles.disabledSwitch : undefined}>
               <Switch
                 value={productForm.status === "live"}
                 onValueChange={(v) => {
+                  if (productForm.status === "paused") {
+                    Alert.alert(
+                      "Product Paused",
+                      "This product was paused due to subscription lapse. Reactivate your subscription to publish it again."
+                    );
+                    return;
+                  }
                   if (v && !canPublish) {
                     Alert.alert(
                       "Cannot Publish",
-                      "You need to complete Stripe payment setup and have an active subscription to publish products."
+                      "To publish products, you need storefront approval, Stripe payment setup, and an active subscription."
                     );
                     return;
                   }
                   setProductForm({ ...productForm, status: v ? "live" : "draft" });
                 }}
                 trackColor={{ true: theme.primary }}
-                disabled={!canPublish && productForm.status !== "live"}
+                disabled={productForm.status === "paused" || (!canPublish && productForm.status !== "live")}
               />
             </View>
           </View>
@@ -1303,30 +1340,53 @@ export default function StorefrontEditorScreen() {
 
           {renderPublishGateWarning()}
 
+          {serviceForm.status === "paused" && (
+            <View style={{ backgroundColor: "#fef2f2", borderRadius: 8, padding: 12, marginTop: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="pause-circle" size={18} color="#ef4444" />
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}>Service Paused</Text>
+              </View>
+              <Text style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
+                This service was paused due to subscription lapse. Reactivate your subscription to publish it again.
+              </Text>
+            </View>
+          )}
+
           <View style={styles.switchRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.inputLabel}>Publish (Go Live)</Text>
-              {!canPublish && (
-                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
-                  Complete Stripe and subscription setup to publish
+              {serviceForm.status === "paused" ? (
+                <Text style={{ fontSize: 12, color: "#ef4444", marginTop: 2 }}>
+                  Reactivate subscription to unpause
                 </Text>
-              )}
+              ) : !canPublish ? (
+                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                  Requires approval, Stripe setup, and active subscription
+                </Text>
+              ) : null}
             </View>
-            <View style={!canPublish ? styles.disabledSwitch : undefined}>
+            <View style={(!canPublish || serviceForm.status === "paused") ? styles.disabledSwitch : undefined}>
               <Switch
                 value={serviceForm.status === "live"}
                 onValueChange={(v) => {
+                  if (serviceForm.status === "paused") {
+                    Alert.alert(
+                      "Service Paused",
+                      "This service was paused due to subscription lapse. Reactivate your subscription to publish it again."
+                    );
+                    return;
+                  }
                   if (v && !canPublish) {
                     Alert.alert(
                       "Cannot Publish",
-                      "You need to complete Stripe payment setup and have an active subscription to publish services."
+                      "To publish services, you need storefront approval, Stripe payment setup, and an active subscription."
                     );
                     return;
                   }
                   setServiceForm({ ...serviceForm, status: v ? "live" : "draft" });
                 }}
                 trackColor={{ true: theme.primary }}
-                disabled={!canPublish && serviceForm.status !== "live"}
+                disabled={serviceForm.status === "paused" || (!canPublish && serviceForm.status !== "live")}
               />
             </View>
           </View>
@@ -1393,6 +1453,7 @@ export default function StorefrontEditorScreen() {
     const isDark = theme.backgroundRoot === "#000000" || theme.backgroundRoot === "#000";
     const missingStripe = !business?.stripeOnboardingComplete;
     const missingSub = !business?.subscriptionActive;
+    const missingApproval = approvalStatus !== "approved";
     
     return (
       <View style={[styles.publishGateCard, isDark && styles.publishGateCardDark]}>
@@ -1402,6 +1463,16 @@ export default function StorefrontEditorScreen() {
         <Text style={[styles.publishGateDesc, isDark && styles.publishGateDescDark]}>
           You can create and edit drafts, but to publish items you need:
         </Text>
+        <View style={styles.publishGateItem}>
+          <Feather 
+            name={missingApproval ? "x-circle" : "check-circle"} 
+            size={16} 
+            color={missingApproval ? "#ef4444" : "#22c55e"} 
+          />
+          <Text style={[styles.publishGateItemText, isDark && styles.publishGateItemTextDark]}>
+            Storefront approval {missingApproval ? `(${approvalStatus})` : "(approved)"}
+          </Text>
+        </View>
         <View style={styles.publishGateItem}>
           <Feather 
             name={missingStripe ? "x-circle" : "check-circle"} 

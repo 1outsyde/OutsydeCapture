@@ -86,10 +86,53 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Stripe Integration**: Both roles require Stripe Connect onboarding for payment processing via stripe-onboarding endpoints
 - **Profile Completion**: Backend confirms `stripeOnboardingComplete` to indicate full profile completion
 - **Approval Status**: Backend field `approvalStatus` (pending/approved/rejected) controls storefront visibility. Banner displays current status in StorefrontEditor.
-- **Publishing Gates**: Products/services can only be set to "live" status when:
-  1. `stripeOnboardingComplete === true` (Stripe Connect setup complete)
-  2. `subscriptionActive === true` (active subscription)
+- **Item Status Values**: Products and services support 4 status values:
+  - `draft` - Not visible to customers, editable by owner
+  - `live` - Visible and purchasable/bookable (requires all publishing gates)
+  - `paused` - Auto-set when subscription lapses; not visible, still editable
+  - `archived` - Hidden, read-only
+- **Publishing Gates (Frontend)**: Products/services can only be set to "live" when:
+  1. `approvalStatus === 'approved'` (storefront approved by admin)
+  2. `stripeOnboardingComplete === true` (Stripe Connect setup complete)
+  3. `subscriptionActive === true` (active subscription)
   Draft creation/editing is always allowed without restrictions.
+
+### Backend Enforcement Requirements (For API Team)
+The following logic MUST be enforced server-side (UI checks are advisory only):
+
+**1. Publishing Validation (on product/service create/update)**
+```javascript
+// Reject status='live' unless all conditions met
+if (requestBody.status === 'live') {
+  const business = await getBusiness(userId);
+  if (!business.stripeOnboardingComplete || 
+      !business.subscriptionActive || 
+      business.approvalStatus !== 'approved') {
+    return res.status(403).json({ 
+      error: 'Publishing requires approval, Stripe setup, and active subscription' 
+    });
+  }
+}
+```
+
+**2. Subscription Lapse Auto-Pause (when subscription becomes inactive)**
+```javascript
+// When subscription.status changes to inactive/canceled:
+await Product.updateMany(
+  { businessId, status: 'live' },
+  { status: 'paused' }
+);
+await Service.updateMany(
+  { businessId, status: 'live' },
+  { status: 'paused' }
+);
+```
+
+**3. Paused Item Behavior**
+- Paused items are NOT visible to customers in search/browse
+- Paused items are NOT purchasable/bookable
+- Paused items remain editable by the business owner
+- When subscription is reactivated, paused items do NOT auto-republish (owner must manually set to live)
 
 ### System Design Choices
 - **Cross-Platform**: Built with Expo/React Native for iOS, Android, and web.
