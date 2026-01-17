@@ -13,7 +13,7 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Branding**: Y logo in app header.
 - **Design Inspiration**: iOS 26 Liquid Glass with transparent headers and blur effects.
 - **Tier Colors**: Premium (gold), Pro (silver), Basic (bronze) badges for businesses.
-- **Components**: Reusable `ThemedText`, `ThemedView`, `Button`, `Card`, `HeaderTitle`.
+- **Components**: Reusable `ThemedText`, `ThemedView`, `Button`, `Card`, `HeaderTitle`, `HoursEditor` (day-by-day availability editor).
 - **Safe Area Handling**: Custom `ScreenScrollView`, `ScreenFlatList`, `ScreenKeyboardAwareScrollView` for tab screens; manual `useSafeAreaInsets()` for modal screens.
 
 ### Technical Implementations
@@ -70,8 +70,10 @@ I prefer clear, concise communication. When making changes, please explain the r
   - `GET /api/photographers/me/bookings` - Fetch photographer bookings
 - **Business Endpoints**:
   - `GET /api/vendor/my-business` - Fetch business profile
-  - `PATCH /api/vendor/my-business` - Update business profile
+  - `PATCH /api/vendor/my-business` - Update business profile (includes hoursOfOperation)
   - `POST /api/vendor/my-business/stripe-onboarding` - Start Stripe Connect onboarding
+  - `GET/POST/PATCH/DELETE /api/vendor/products` - Product CRUD
+  - `GET/POST/PATCH/DELETE /api/vendor/services` - Service CRUD
 - **Photographer Onboarding Fields**: displayName, bio, city, state, hourlyRate (in cents), specialties array, portfolioUrl, coverImage, logoImage, brandColors
 - **Business Onboarding Fields**: name, category, description, tagline, city, state, hasProducts, hasServices, yearsInBusiness, numberOfEmployees, businessStructure, hasPhysicalLocation, address, contactEmail, contactPhone, websiteUrl
 - **Stripe Integration**: Both roles require Stripe Connect onboarding for payment processing via stripe-onboarding endpoints

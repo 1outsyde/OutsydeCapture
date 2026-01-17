@@ -170,25 +170,44 @@ export interface PhotographerOnboardingData {
   additionalServices?: string[];
 }
 
+// Hours of operation for a single day
+export interface DayHoursData {
+  open: string;
+  close: string;
+  closed: boolean;
+}
+
+// Hours of operation for the week
+export interface HoursOfOperationData {
+  monday?: DayHoursData;
+  tuesday?: DayHoursData;
+  wednesday?: DayHoursData;
+  thursday?: DayHoursData;
+  friday?: DayHoursData;
+  saturday?: DayHoursData;
+  sunday?: DayHoursData;
+}
+
 // Business onboarding data (for creating/updating profile)
 export interface BusinessOnboardingData {
-  name: string;
-  category: string;
+  name?: string;
+  category?: string;
   description?: string;
   tagline?: string;
   city?: string;
   state?: string;
-  hasProducts: boolean;
-  hasServices: boolean;
+  hasProducts?: boolean;
+  hasServices?: boolean;
   yearsInBusiness?: number;
   numberOfEmployees?: number;
   businessStructure?: string; // LLC, Sole Proprietor, Corporation, etc.
-  hasPhysicalLocation: boolean;
+  hasPhysicalLocation?: boolean;
   isOnlineOnly?: boolean;
   address?: string;
   contactEmail?: string;
   contactPhone?: string;
   websiteUrl?: string;
+  hoursOfOperation?: HoursOfOperationData;
 }
 
 // Stripe onboarding status

@@ -28,6 +28,7 @@ import api, {
   BillingAddress,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
 
 type TabType = "bookings" | "services" | "hours" | "storefront" | "profile";
 
@@ -74,7 +75,7 @@ export default function PhotographerDashboardScreen() {
   });
   const [bookings, setBookings] = useState<PhotographerBooking[]>([]);
   const [services, setServices] = useState<PhotographerService[]>([]);
-  const [hours, setHours] = useState<PhotographerHours[]>([]);
+  const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
 
   const [editProfile, setEditProfile] = useState({
     name: "",
@@ -901,55 +902,36 @@ export default function PhotographerDashboardScreen() {
     ));
   };
 
+  const handleSaveHours = async () => {
+    const token = await getToken();
+    if (!token) return;
+
+    try {
+      setSaving(true);
+      const photographerHours: PhotographerHours[] = hours.map(h => ({
+        dayOfWeek: h.dayOfWeek,
+        isAvailable: h.isAvailable,
+        startTime: h.startTime,
+        endTime: h.endTime,
+      }));
+      await api.updatePhotographerHours(token, photographerHours);
+      Alert.alert("Success", "Your availability has been updated");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to save hours");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const renderHoursTab = () => (
-    <View>
-      {hours.map((hour, index) => (
-        <View key={hour.dayOfWeek} style={styles.hoursRow}>
-          <Text style={styles.hoursDay}>{DAYS_OF_WEEK[hour.dayOfWeek]}</Text>
-          <Pressable
-            onPress={() => {
-              const newHours = [...hours];
-              newHours[index] = { ...newHours[index], isAvailable: !newHours[index].isAvailable };
-              setHours(newHours);
-            }}
-            style={[styles.hoursToggle, hour.isAvailable && styles.hoursToggleActive]}
-          >
-            <Feather
-              name={hour.isAvailable ? "check" : "x"}
-              size={14}
-              color={hour.isAvailable ? "#FFFFFF" : theme.textSecondary}
-            />
-          </Pressable>
-          {hour.isAvailable && (
-            <View style={styles.hoursTimes}>
-              <TextInput
-                style={styles.hoursTimeInput}
-                value={hour.startTime}
-                onChangeText={(text) => {
-                  const newHours = [...hours];
-                  newHours[index] = { ...newHours[index], startTime: text };
-                  setHours(newHours);
-                }}
-                placeholder="09:00"
-                placeholderTextColor={theme.textSecondary}
-              />
-              <Text style={styles.hoursTimeSeparator}>to</Text>
-              <TextInput
-                style={styles.hoursTimeInput}
-                value={hour.endTime}
-                onChangeText={(text) => {
-                  const newHours = [...hours];
-                  newHours[index] = { ...newHours[index], endTime: text };
-                  setHours(newHours);
-                }}
-                placeholder="17:00"
-                placeholderTextColor={theme.textSecondary}
-              />
-            </View>
-          )}
-        </View>
-      ))}
-    </View>
+    <HoursEditor
+      hours={hours}
+      onChange={setHours}
+      onSave={handleSaveHours}
+      isSaving={saving}
+      title="Availability"
+      description="Set your available hours for bookings"
+    />
   );
 
   const renderProfileTab = () => (

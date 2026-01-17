@@ -27,6 +27,7 @@ import api, {
   BillingAddress,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject } from "@/components/HoursEditor";
 
 type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile";
@@ -65,6 +66,7 @@ export default function BusinessDashboardScreen() {
   const [bookings, setBookings] = useState<BusinessBooking[]>([]);
   const [products, setProducts] = useState<BusinessProduct[]>([]);
   const [services, setServices] = useState<BusinessService[]>([]);
+  const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
 
   const [editProfile, setEditProfile] = useState({
     name: "",
@@ -236,6 +238,22 @@ export default function BusinessDashboardScreen() {
       fetchDashboard();
     } catch (error) {
       Alert.alert("Error", "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveHours = async () => {
+    const token = await getToken();
+    if (!token) return;
+
+    try {
+      setSaving(true);
+      const hoursOfOperation = hoursArrayToObject(hours);
+      await api.updateVendorMyBusiness(token, { hoursOfOperation });
+      Alert.alert("Success", "Business hours updated successfully");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to save business hours");
     } finally {
       setSaving(false);
     }
@@ -1094,13 +1112,14 @@ export default function BusinessDashboardScreen() {
         return renderServicesTab();
       case "hours":
         return (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Feather name="clock" size={24} color={theme.textSecondary} />
-            </View>
-            <Text style={styles.emptyTitle}>Hours coming soon</Text>
-            <Text style={styles.emptySubtitle}>Set your business operating hours</Text>
-          </View>
+          <HoursEditor
+            hours={hours}
+            onChange={setHours}
+            onSave={handleSaveHours}
+            isSaving={saving}
+            title="Business Hours"
+            description="Set your operating hours for each day of the week"
+          />
         );
       case "storefront":
         return (
