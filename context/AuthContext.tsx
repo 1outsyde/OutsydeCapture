@@ -199,6 +199,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         businessDescription: data.businessDescription,
         city: data.city,
         state: data.state,
+        // Photographer-specific fields
+        displayName: data.displayName,
+        hourlyRate: data.hourlyRate,
+        portfolioUrl: data.portfolioUrl,
+        // Business-specific fields
+        offerType: data.offerType,
       });
       
       const backendUser = response.user;

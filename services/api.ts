@@ -771,34 +771,42 @@ class ApiService {
 
   // Combined signup + login for mobile (role-specific signup then JWT login)
   async roleBasedSignupAndLogin(
-    data: MobileSignupRequest
+    data: MobileSignupRequest & {
+      displayName?: string;
+      hourlyRate?: number;
+      portfolioUrl?: string;
+      offerType?: "products" | "services" | "both";
+    }
   ): Promise<MobileLoginResponse> {
     // Step 1: Call role-specific signup endpoint to create account
+    const fullName = `${data.firstName} ${data.lastName}`.trim();
+    
     if (data.role === "consumer") {
       await this.customerSignup({
         email: data.email,
         password: data.password,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        phone: data.phone,
+        name: fullName,
       });
     } else if (data.role === "business") {
       await this.vendorSignup({
         email: data.email,
         password: data.password,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        businessName: data.businessName,
-        businessCategory: data.businessCategory,
-        phone: data.phone,
+        name: fullName,
+        businessName: data.businessName || fullName,
+        businessCategory: data.businessCategory || "General",
+        offerType: data.offerType || "both",
+        acceptedSubscription: true,
       });
     } else if (data.role === "photographer") {
       await this.photographerSignup({
         email: data.email,
         password: data.password,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        phone: data.phone,
+        name: fullName,
+        displayName: data.displayName || fullName,
+        city: data.city || "",
+        state: data.state || "",
+        hourlyRate: data.hourlyRate || 0,
+        portfolioUrl: data.portfolioUrl || "",
       });
     }
 

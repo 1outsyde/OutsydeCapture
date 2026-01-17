@@ -16,7 +16,16 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Safe Area Handling**: Custom wrappers for tab screens, manual insets for modals.
 
 ### Technical Implementations
-- **Authentication**: JWT Bearer token authentication with a VendorBooker backend. Supports Consumer, Business, and Photographer roles at signup (no role changes post-signup). Mobile signup involves creating an account and immediately logging in to retrieve a JWT. Tokens are stored in AsyncStorage. All protected requests require an `Authorization` header. 401 responses trigger immediate logout.
+- **Authentication**: JWT Bearer token auth with VendorBooker backend. Three signup roles: Consumer (auto-approved), Business (manual approval), Photographer (auto-approved). Role is set at signup only.
+  - **Signup Endpoints (Role-Specific)**: 
+    - `POST /api/auth/customer/signup` - Required: `{ email, password, name }`
+    - `POST /api/auth/vendor/signup` - Required: `{ email, password, name, businessName, businessCategory, offerType, acceptedSubscription }`
+    - `POST /api/auth/photographer/signup` - Required: `{ email, password, name, displayName, city, state, hourlyRate, portfolioUrl }`
+  - **Login Endpoint**: `POST /api/auth/mobile/login` - Returns `{ accessToken, user }`
+  - **Mobile Signup Flow**: Call role-specific signup → immediately call mobile/login → store JWT
+  - **Token Storage**: AsyncStorage key `@outsyde_token`
+  - **Protected Requests**: `Authorization: Bearer <token>` header required
+  - **401 Handling**: Logout immediately (no retries)
 - **Role-Based Access**: Dashboards (Photographer, Business) are accessible upon profile completion, even if business approval is pending. Admin dashboard is accessible to specific admin emails with comprehensive user, business, payment, message, and influencer management.
 - **Navigation**: Expo SDK 54, React Navigation 7 (Root, MainTab, Stack Navigators).
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
