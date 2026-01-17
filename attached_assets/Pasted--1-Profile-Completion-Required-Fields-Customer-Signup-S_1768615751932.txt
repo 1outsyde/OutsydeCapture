@@ -1,0 +1,113 @@
+
+1. Profile Completion - Required Fields
+Customer Signup Schema (shared/schema.ts lines 1298-1320)
+export const customerSignupSchema = z.object({
+  // REQUIRED
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().min(1),
+  
+  // OPTIONAL
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/).optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  ethnicity: z.string().optional(),
+  shoppingFrequency: z.string().optional(),
+  selectedIndustries: z.array(z.string()).default([]),
+  industryNiches: z.record(z.string(), z.array(z.string())).default({}),
+  industryValues: z.record(z.string(), z.array(z.string())).default({}),
+});
+Vendor Signup Schema (shared/schema.ts lines 1322-1345)
+export const vendorSignupSchema = z.object({
+  // REQUIRED
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().min(1),
+  businessName: z.string().min(1),
+  businessCategory: z.string().min(1),
+  offerType: z.enum(["products", "services", "both"]),
+  acceptedSubscription: z.boolean().refine((val) => val === true),
+  
+  // OPTIONAL
+  phone: z.string().optional(),
+  businessDescription: z.string().optional(),
+  isStartup: z.boolean().optional(),
+  yearsInBusiness: z.string().optional(),
+  employeeCount: z.string().optional(),
+  businessType: z.string().optional(),
+  hasPhysicalLocation: z.boolean().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  websiteUrl: z.string().optional(),
+  socialMedia: z.string().optional(),
+});
+2. Storefront Visibility Rules
+Business approvalStatus Field (shared/schema.ts line 196)
+// businesses table
+approvalStatus: text("approval_status").default("pending").notNull(),
+approvalNotes: text("approval_notes"),
+approvedAt: timestamp("approved_at"),
+approvedBy: varchar("approved_by", { length: 36 }),
+Approval Status Values:
+Status	Meaning
+pending	New vendor application, awaiting admin review
+approved	Admin approved, storefront visible to customers
+rejected	Admin rejected, storefront hidden
+Admin Endpoints:
+GET  /api/admin/applications?status=pending   - List pending applications
+POST /api/admin/applications/:id/approve      - Approve (notes optional)
+POST /api/admin/applications/:id/reject       - Reject (notes required)
+Note: There is no separate storefrontStatus field. Visibility is controlled by approvalStatus on the businesses table.
+
+3. Subscription Tier Publishing Gates
+Publishing Requirements (Products & Services)
+To publish (Go Live) a product or service, vendors must have:
+
+Stripe Connect Onboarding Complete
+
+business.stripeAccountId must exist
+business.stripeOnboardingComplete must be true
+Active Subscription
+
+Checked via storage.isBusinessSubscriptionActive(businessId)
+Returns { active: boolean, status?: string, reason?: string }
+Subscription Status Logic (server/storage.ts lines 3017-3027)
+// Active statuses
+'active' → active: true
+'trialing' → active: true
+'past_due' → active: true (within 3-day grace period)
+// Inactive statuses  
+'canceled', 'unpaid', 'incomplete', 'incomplete_expired' → active: false
+No subscription → active: false
+API Response Errors:
+Missing Stripe Onboarding:
+
+{
+  "error": "Payments not enabled",
+  "message": "You must complete Stripe payment setup before publishing products/services.",
+  "requiresOnboarding": true
+}
+Missing Subscription:
+
+{
+  "error": "Subscription required", 
+  "message": "You must have an active subscription to publish products/services.",
+  "requiresSubscription": true
+}
+Editing vs Publishing:
+Action	Requires Subscription?	Requires Stripe Onboarding?
+Create draft product/service	No	No
+Edit draft product/service	No	No
+Publish (Go Live)	Yes	Yes
+Summary Table
+Rule	Backend Field/Check
+Profile required fields	customerSignupSchema / vendorSignupSchema (Zod)
+Storefront visibility	businesses.approvalStatus (pending/approved/rejected)
+Publishing gate	stripeOnboardingComplete + isBusinessSubscriptionActive()
