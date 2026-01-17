@@ -588,6 +588,57 @@ export interface SearchParams {
 
 export type SearchResultType = "business" | "photographer" | "product" | "service";
 
+export interface MobileLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface MobileLoginResponse {
+  accessToken: string;
+  user: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    role: "consumer" | "business" | "photographer";
+    approvalStatus?: "pending" | "approved" | "rejected";
+    isProfileComplete?: boolean;
+    avatar?: string;
+    phone?: string;
+    dateOfBirth?: string;
+    city?: string;
+    state?: string;
+    businessName?: string;
+    businessCategory?: string;
+    businessDescription?: string;
+    displayName?: string;
+    bio?: string;
+    hourlyRate?: number;
+    portfolioUrl?: string;
+    specialties?: string[];
+  };
+}
+
+export interface MobileSignupRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: "consumer" | "business" | "photographer";
+  phone?: string;
+  dateOfBirth?: string;
+  businessName?: string;
+  businessCategory?: string;
+  businessDescription?: string;
+  city?: string;
+  state?: string;
+}
+
+export interface MobileSignupResponse {
+  accessToken: string;
+  user: MobileLoginResponse["user"];
+}
+
 export interface UnifiedSearchResult {
   id: string;
   name: string;
@@ -642,6 +693,20 @@ class ApiService {
 
   async healthCheck(): Promise<HealthCheckResponse> {
     return this.request<HealthCheckResponse>("/health");
+  }
+
+  async mobileLogin(data: MobileLoginRequest): Promise<MobileLoginResponse> {
+    return this.request<MobileLoginResponse>("/api/auth/mobile/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async mobileSignup(data: MobileSignupRequest): Promise<MobileSignupResponse> {
+    return this.request<MobileSignupResponse>("/api/auth/mobile/signup", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   async search(params?: SearchParams): Promise<SearchResponse> {
