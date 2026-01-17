@@ -215,6 +215,9 @@ export interface BusinessOnboardingData {
   contactPhone?: string;
   websiteUrl?: string;
   hoursOfOperation?: HoursOfOperationData;
+  brandColors?: string; // JSON string with { primary: "#hex" }
+  coverImage?: string;
+  logoImage?: string;
 }
 
 // Stripe onboarding status
@@ -1151,11 +1154,15 @@ class ApiService {
 
   // PATCH /api/photographers/me - Update photographer profile
   async updatePhotographerMe(authToken: string, data: Partial<PhotographerOnboardingData>): Promise<{ photographer: VendorBookerPhotographer }> {
+    console.log("[API] updatePhotographerMe RAW input:", JSON.stringify(data, null, 2));
+    
     // Build defensive payload - only include non-empty, valid values
+    // Use field names the backend expects (based on VendorBooker API)
     const cleanPayload: Record<string, any> = {};
     
+    // displayName -> name (backend field name)
     if (data.displayName && data.displayName.trim()) {
-      cleanPayload.displayName = data.displayName.trim();
+      cleanPayload.name = data.displayName.trim();
     }
     if (data.bio && data.bio.trim()) {
       cleanPayload.bio = data.bio.trim();
@@ -1185,12 +1192,12 @@ class ApiService {
       cleanPayload.isProfileComplete = data.isProfileComplete;
     }
     
-    console.log("[API] updatePhotographerMe payload:", JSON.stringify(cleanPayload, null, 2));
+    console.log("[API] updatePhotographerMe CLEAN payload:", JSON.stringify(cleanPayload, null, 2));
     
     // Don't send empty payloads
     if (Object.keys(cleanPayload).length === 0) {
-      console.warn("[API] updatePhotographerMe: No valid fields to update, skipping request");
-      throw { message: "No valid fields to update", status: 400 };
+      console.warn("[API] updatePhotographerMe: No valid fields to update after filtering");
+      throw { message: "No changes to save. Please modify at least one field.", status: 400 };
     }
     
     return this.request<{ photographer: VendorBookerPhotographer }>("/api/photographers/me", {
@@ -1264,9 +1271,87 @@ class ApiService {
 
   // PATCH /api/vendor/my-business - Update business profile
   async updateVendorMyBusiness(authToken: string, data: Partial<BusinessOnboardingData>): Promise<{ business: VendorBookerBusiness }> {
+    console.log("[API] updateVendorMyBusiness RAW input:", JSON.stringify(data, null, 2));
+    
+    // Build defensive payload - filter out empty/null/undefined values
+    const cleanPayload: Record<string, any> = {};
+    
+    // Only include fields with valid non-empty values
+    if (data.name && data.name.trim()) {
+      cleanPayload.name = data.name.trim();
+    }
+    if (data.category && data.category.trim()) {
+      cleanPayload.category = data.category.trim();
+    }
+    if (data.description && data.description.trim()) {
+      cleanPayload.description = data.description.trim();
+    }
+    if (data.tagline && data.tagline.trim()) {
+      cleanPayload.tagline = data.tagline.trim();
+    }
+    if (data.city && data.city.trim()) {
+      cleanPayload.city = data.city.trim();
+    }
+    if (data.state && data.state.trim()) {
+      cleanPayload.state = data.state.trim();
+    }
+    if (data.address && data.address.trim()) {
+      cleanPayload.address = data.address.trim();
+    }
+    if (data.contactEmail && data.contactEmail.trim()) {
+      cleanPayload.contactEmail = data.contactEmail.trim();
+    }
+    if (data.contactPhone && data.contactPhone.trim()) {
+      cleanPayload.contactPhone = data.contactPhone.trim();
+    }
+    if (data.websiteUrl && data.websiteUrl.trim()) {
+      cleanPayload.websiteUrl = data.websiteUrl.trim();
+    }
+    if (typeof data.hasProducts === 'boolean') {
+      cleanPayload.hasProducts = data.hasProducts;
+    }
+    if (typeof data.hasServices === 'boolean') {
+      cleanPayload.hasServices = data.hasServices;
+    }
+    if (typeof data.hasPhysicalLocation === 'boolean') {
+      cleanPayload.hasPhysicalLocation = data.hasPhysicalLocation;
+    }
+    if (typeof data.isOnlineOnly === 'boolean') {
+      cleanPayload.isOnlineOnly = data.isOnlineOnly;
+    }
+    if (data.yearsInBusiness && data.yearsInBusiness > 0) {
+      cleanPayload.yearsInBusiness = data.yearsInBusiness;
+    }
+    if (data.numberOfEmployees && data.numberOfEmployees > 0) {
+      cleanPayload.numberOfEmployees = data.numberOfEmployees;
+    }
+    if (data.businessStructure && data.businessStructure.trim()) {
+      cleanPayload.businessStructure = data.businessStructure.trim();
+    }
+    if (data.hoursOfOperation && Object.keys(data.hoursOfOperation).length > 0) {
+      cleanPayload.hoursOfOperation = data.hoursOfOperation;
+    }
+    if (data.brandColors && data.brandColors.trim()) {
+      cleanPayload.brandColors = data.brandColors.trim();
+    }
+    if (data.coverImage && data.coverImage.trim()) {
+      cleanPayload.coverImage = data.coverImage.trim();
+    }
+    if (data.logoImage && data.logoImage.trim()) {
+      cleanPayload.logoImage = data.logoImage.trim();
+    }
+    
+    console.log("[API] updateVendorMyBusiness CLEAN payload:", JSON.stringify(cleanPayload, null, 2));
+    
+    // Don't send empty payloads
+    if (Object.keys(cleanPayload).length === 0) {
+      console.warn("[API] updateVendorMyBusiness: No valid fields to update after filtering");
+      throw { message: "No changes to save. Please modify at least one field.", status: 400 };
+    }
+    
     return this.request<{ business: VendorBookerBusiness }>("/api/vendor/my-business", {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(cleanPayload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

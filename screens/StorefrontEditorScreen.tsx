@@ -175,13 +175,15 @@ export default function StorefrontEditorScreen() {
     try {
       setSaving(true);
       const brandColorsJson = JSON.stringify({ primary: primaryColor });
+      console.log("[Storefront] Saving branding:", { brandColors: brandColorsJson, coverImage, logoImage });
       await api.updateVendorMyBusiness(token, {
         brandColors: brandColorsJson,
-        coverImage,
-        logoImage,
-      } as any);
+        coverImage: coverImage || undefined,
+        logoImage: logoImage || undefined,
+      });
       Alert.alert("Success", "Branding updated successfully");
     } catch (error: any) {
+      console.error("[Storefront] Failed to save branding:", error);
       Alert.alert("Error", error.message || "Failed to save branding");
     } finally {
       setSaving(false);
@@ -194,20 +196,23 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      await api.updateVendorMyBusiness(token, {
-        name: profileName,
-        tagline: profileTagline,
-        description: profileDescription,
-        contactEmail: profileEmail,
-        contactPhone: profilePhone,
-        websiteUrl: profileWebsite,
-        address: profileAddress,
-        city: profileCity,
-        state: profileState,
-      });
+      const profileData = {
+        name: profileName || undefined,
+        tagline: profileTagline || undefined,
+        description: profileDescription || undefined,
+        contactEmail: profileEmail || undefined,
+        contactPhone: profilePhone || undefined,
+        websiteUrl: profileWebsite || undefined,
+        address: profileAddress || undefined,
+        city: profileCity || undefined,
+        state: profileState || undefined,
+      };
+      console.log("[Storefront] Saving profile:", profileData);
+      await api.updateVendorMyBusiness(token, profileData);
       Alert.alert("Success", "Profile updated successfully");
       fetchData();
     } catch (error: any) {
+      console.error("[Storefront] Failed to save profile:", error);
       Alert.alert("Error", error.message || "Failed to save profile");
     } finally {
       setSaving(false);
@@ -221,9 +226,11 @@ export default function StorefrontEditorScreen() {
     try {
       setSaving(true);
       const hoursOfOperation = hoursArrayToObject(hours);
+      console.log("[Storefront] Saving hours:", hoursOfOperation);
       await api.updateVendorMyBusiness(token, { hoursOfOperation });
       Alert.alert("Success", "Business hours updated successfully");
     } catch (error: any) {
+      console.error("[Storefront] Failed to save hours:", error);
       Alert.alert("Error", error.message || "Failed to save hours");
     } finally {
       setSaving(false);
