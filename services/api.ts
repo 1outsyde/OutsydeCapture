@@ -169,11 +169,12 @@ export interface PhotographerOnboardingData {
   city?: string;
   state?: string;
   portfolioUrl?: string;
-  hourlyRate: number; // in dollars, will convert to cents
+  hourlyRate: number; // in cents
   specialties?: string[];
   willTravel?: boolean;
   additionalServices?: string[];
   brandColors?: string; // JSON string with { primary: "#hex" }
+  isProfileComplete?: boolean;
 }
 
 // Hours of operation for a single day
@@ -735,6 +736,7 @@ class ApiService {
     
     try {
       const response = await fetch(url, {
+        credentials: 'include', // Required for session-based auth with cookies
         headers: {
           "Content-Type": "application/json",
           ...options?.headers,
@@ -1148,9 +1150,51 @@ class ApiService {
 
   // PATCH /api/photographers/me - Update photographer profile
   async updatePhotographerMe(authToken: string, data: Partial<PhotographerOnboardingData>): Promise<{ photographer: VendorBookerPhotographer }> {
+    // Build defensive payload - only include non-empty, valid values
+    const cleanPayload: Record<string, any> = {};
+    
+    if (data.displayName && data.displayName.trim()) {
+      cleanPayload.displayName = data.displayName.trim();
+    }
+    if (data.bio && data.bio.trim()) {
+      cleanPayload.bio = data.bio.trim();
+    }
+    if (data.city && data.city.trim()) {
+      cleanPayload.city = data.city.trim();
+    }
+    if (data.state && data.state.trim()) {
+      cleanPayload.state = data.state.trim();
+    }
+    if (data.hourlyRate && data.hourlyRate > 0) {
+      cleanPayload.hourlyRate = data.hourlyRate;
+    }
+    if (data.portfolioUrl && data.portfolioUrl.trim()) {
+      cleanPayload.portfolioUrl = data.portfolioUrl.trim();
+    }
+    if (data.specialties && data.specialties.length > 0) {
+      cleanPayload.specialties = data.specialties;
+    }
+    if (data.brandColors) {
+      cleanPayload.brandColors = data.brandColors;
+    }
+    if (typeof data.willTravel === 'boolean') {
+      cleanPayload.willTravel = data.willTravel;
+    }
+    if (typeof data.isProfileComplete === 'boolean') {
+      cleanPayload.isProfileComplete = data.isProfileComplete;
+    }
+    
+    console.log("[API] updatePhotographerMe payload:", JSON.stringify(cleanPayload, null, 2));
+    
+    // Don't send empty payloads
+    if (Object.keys(cleanPayload).length === 0) {
+      console.warn("[API] updatePhotographerMe: No valid fields to update, skipping request");
+      throw { message: "No valid fields to update", status: 400 };
+    }
+    
     return this.request<{ photographer: VendorBookerPhotographer }>("/api/photographers/me", {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(cleanPayload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
