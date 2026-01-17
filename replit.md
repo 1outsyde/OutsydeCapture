@@ -16,15 +16,17 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Safe Area Handling**: Custom wrappers for tab screens, manual insets for modals.
 
 ### Technical Implementations
-- **Authentication**: JWT Bearer token auth with VendorBooker backend. Three signup roles: Consumer (auto-approved), Business (manual approval), Photographer (auto-approved). Role is set at signup only.
+- **Authentication**: Session-based auth with VendorBooker backend via cookies (`connect.sid`). Three signup roles: Consumer (auto-approved), Business (manual approval), Photographer (auto-approved). Role is set at signup only.
   - **Signup Endpoints (Role-Specific)**: 
     - `POST /api/auth/customer/signup` - Required: `{ email, password, name }`
     - `POST /api/auth/vendor/signup` - Required: `{ email, password, name, businessName, businessCategory, offerType, acceptedSubscription }`
     - `POST /api/auth/photographer/signup` - Required: `{ email, password, name, displayName, city, state, hourlyRate, portfolioUrl }`
-  - **Login Endpoint**: `POST /api/auth/login` - Returns `{ accessToken, user }`
-  - **Mobile Signup Flow**: Call role-specific signup → immediately call /api/auth/login → store JWT
-  - **Token Storage**: AsyncStorage key `@outsyde_token`
-  - **Protected Requests**: `Authorization: Bearer <token>` header required
+  - **Login Endpoint**: `POST /api/auth/login` - Returns `{ user, photographer?, vendor? }` with session cookie
+  - **User Role Extraction**: Determined from backend flags (`isPhotographer`, `isVendor`), not a `role` field
+  - **Photographer Data**: Returned in separate `photographer` object in login response
+  - **Mobile Signup Flow**: Call role-specific signup → immediately call /api/auth/login → for web cookies handle auth automatically
+  - **Token Storage**: AsyncStorage key `@outsyde_token` stores session indicator (`session_${userId}`)
+  - **Protected Requests**: Cookies handle auth for web; credentials: 'include' on fetch requests
   - **401 Handling**: Logout immediately (no retries)
 - **Role-Based Access**: Dashboards (Photographer, Business) are accessible upon profile completion, even if business approval is pending. Admin dashboard is accessible to specific admin emails with comprehensive user, business, payment, message, and influencer management.
 - **Navigation**: Expo SDK 54, React Navigation 7 (Root, MainTab, Stack Navigators).
