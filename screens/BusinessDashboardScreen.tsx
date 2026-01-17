@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -38,12 +38,14 @@ export default function BusinessDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { getToken, logout } = useAuth();
+  const { getToken, logout, user, isLoading: authLoading } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>("orders");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const hasFetchedRef = useRef(false);
 
   const [stats, setStats] = useState<BusinessDashboardStats>({
     earnings: 0,
@@ -93,10 +95,15 @@ export default function BusinessDashboardScreen() {
 
   const fetchDashboard = useCallback(async () => {
     const token = await getToken();
-    if (!token) return;
+    if (!token) {
+      setAuthError("Please sign in to access your dashboard");
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
+      setAuthError(null);
       const { business } = await api.getVendorMyBusiness(token);
       
       setStats({
@@ -141,8 +148,19 @@ export default function BusinessDashboardScreen() {
       if (!tabs.includes(activeTab)) {
         setActiveTab(tabs[0]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch business dashboard:", error);
+      
+      const status = error?.status || error?.response?.status;
+      const message = error?.message || "";
+      const is401 = status === 401 || message.includes("401") || message.toLowerCase().includes("unauthorized");
+      
+      if (is401) {
+        setAuthError("Your session has expired. Please sign in again.");
+        await logout();
+        return;
+      }
+      
       setStats({
         earnings: 0,
         upcomingOrders: 0,
@@ -162,7 +180,7 @@ export default function BusinessDashboardScreen() {
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, logout]);
 
   const fetchTabData = useCallback(async () => {
     const token = await getToken();
@@ -193,12 +211,31 @@ export default function BusinessDashboardScreen() {
   }, [getToken, activeTab]);
 
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    if (authLoading) return;
+    
+    if (!user) {
+      setAuthError("Please sign in to access your dashboard");
+      setLoading(false);
+      return;
+    }
+    
+    if (user.role !== "business") {
+      setAuthError("This dashboard is only available for businesses");
+      setLoading(false);
+      return;
+    }
+    
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchDashboard();
+    }
+  }, [authLoading, user?.id, user?.role]);
 
   useEffect(() => {
-    fetchTabData();
-  }, [fetchTabData]);
+    if (hasFetchedRef.current && profile?.id) {
+      fetchTabData();
+    }
+  }, [activeTab, profile?.id]);
 
   const onRefresh = async () => {
     setRefreshing(true);
