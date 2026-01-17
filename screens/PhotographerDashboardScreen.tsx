@@ -194,29 +194,49 @@ export default function PhotographerDashboardScreen() {
       }
       
       if (is404) {
-        setNeedsProfileSetup(true);
-        setProfile({
+        // Profile doesn't exist yet in backend - use data from auth context
+        // Don't block dashboard access, just show setup prompts
+        console.log("[Dashboard] No photographer profile found (404), using user data from context");
+        const defaultProfile = {
           id: "",
-          name: user?.firstName || "Photographer",
-          hourlyRate: 0,
-          specialties: [],
+          name: user?.displayName || user?.firstName || "Photographer",
+          hourlyRate: user?.hourlyRate ? user.hourlyRate / 100 : 0,
+          bio: user?.bio,
+          city: user?.city,
+          state: user?.state,
+          portfolioUrl: user?.portfolioUrl,
+          specialties: user?.specialties || [],
           stripeConnected: false,
+        };
+        setProfile(defaultProfile);
+        setEditProfile({
+          name: defaultProfile.name,
+          hourlyRate: defaultProfile.hourlyRate > 0 ? defaultProfile.hourlyRate.toString() : "",
+          bio: defaultProfile.bio || "",
+          city: defaultProfile.city || "",
+          state: defaultProfile.state || "",
+          portfolioUrl: defaultProfile.portfolioUrl || "",
+          specialties: defaultProfile.specialties,
+          profileTheme: "#D4A84B",
         });
+        // Don't set needsProfileSetup - allow dashboard access
       } else if (status === 403 || message.includes("403") || message.toLowerCase().includes("forbidden")) {
         setAuthError("You don't have permission to access this dashboard.");
       } else {
+        // Other errors - still allow dashboard access with default data
+        console.log("[Dashboard] Error fetching profile, using default data");
         setProfile({
           id: "",
-          name: user?.firstName || "Photographer",
-          hourlyRate: 0,
-          specialties: [],
+          name: user?.displayName || user?.firstName || "Photographer",
+          hourlyRate: user?.hourlyRate ? user.hourlyRate / 100 : 0,
+          specialties: user?.specialties || [],
           stripeConnected: false,
         });
       }
     } finally {
       setLoading(false);
     }
-  }, [getToken, logout, user?.firstName]);
+  }, [getToken, logout, user]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -273,7 +293,9 @@ export default function PhotographerDashboardScreen() {
 
     try {
       setSaving(true);
-      await api.updatePhotographerMe(token, {
+      
+      // Build the update data - api.updatePhotographerMe will filter out empty values
+      const updateData = {
         displayName: editProfile.name,
         hourlyRate: Math.round((parseFloat(editProfile.hourlyRate) || 0) * 100),
         bio: editProfile.bio || undefined,
@@ -282,12 +304,18 @@ export default function PhotographerDashboardScreen() {
         portfolioUrl: editProfile.portfolioUrl || undefined,
         specialties: editProfile.specialties,
         brandColors: JSON.stringify({ primary: editProfile.profileTheme }),
-      });
+      };
+      
+      console.log("[Dashboard] Saving profile:", JSON.stringify(updateData, null, 2));
+      
+      await api.updatePhotographerMe(token, updateData);
       Alert.alert("Success", "Profile updated successfully");
       setActiveModal(null);
       fetchDashboard();
-    } catch {
-      Alert.alert("Error", "Failed to save profile");
+    } catch (error: any) {
+      console.error("[Dashboard] Failed to save profile:", error);
+      const errorMessage = error?.message || "Failed to save profile";
+      Alert.alert("Error", errorMessage);
     } finally {
       setSaving(false);
     }
@@ -1281,38 +1309,8 @@ export default function PhotographerDashboardScreen() {
     );
   }
 
-  // Profile setup screen - shown when photographer profile doesn't exist yet
-  if (needsProfileSetup && !profile?.id) {
-    return (
-      <View style={[styles.container, styles.errorContainer, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.errorContent}>
-          <View style={[styles.errorIconContainer, { backgroundColor: theme.primary + "20" }]}>
-            <Feather name="camera" size={48} color={theme.primary} />
-          </View>
-          <Text style={[styles.errorTitle, { color: theme.text }]}>Complete Your Profile</Text>
-          <Text style={[styles.errorMessage, { color: theme.textSecondary, textAlign: "center" }]}>
-            Welcome! To start receiving bookings, you need to complete your photographer profile setup.
-          </Text>
-          <View style={styles.errorActions}>
-            <Pressable
-              style={[styles.errorButton, { backgroundColor: theme.primary }]}
-              onPress={() => navigation.navigate("PhotographerOnboarding")}
-            >
-              <Feather name="edit-3" size={18} color="#000" />
-              <Text style={styles.errorButtonText}>Complete Setup</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.errorButtonOutline, { borderColor: theme.border }]}
-              onPress={handleGoBack}
-            >
-              <Feather name="arrow-left" size={18} color={theme.text} />
-              <Text style={[styles.errorButtonOutlineText, { color: theme.text }]}>Go Back</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  // Note: Removed the blocking needsProfileSetup screen
+  // Dashboard now shows with whatever data is available, with setup prompts instead of blocking access
 
   if (loading || authLoading) {
     return (
