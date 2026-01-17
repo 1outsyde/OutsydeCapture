@@ -268,6 +268,30 @@ export default function PhotographerDashboardScreen() {
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
   
+  const STRIPE_RETURN_URL = "outsyde://stripe-return";
+  
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      if (event.url.includes("stripe-return")) {
+        console.log("[Dashboard] Stripe return deep link received, refreshing status...");
+        await fetchDashboard();
+        Alert.alert("Stripe Setup", "Checking your Stripe connection status...");
+      }
+    };
+
+    const subscription = Linking.addEventListener("url", handleDeepLink);
+    
+    Linking.getInitialURL().then((url) => {
+      if (url && url.includes("stripe-return")) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [fetchDashboard]);
+  
   const handleConnectStripe = async () => {
     const token = await getToken();
     if (!token) return;
@@ -275,7 +299,7 @@ export default function PhotographerDashboardScreen() {
     try {
       setConnectingStripe(true);
       setStripeError(null);
-      const { url } = await api.startPhotographerStripeOnboarding(token);
+      const { url } = await api.startPhotographerStripeOnboarding(token, STRIPE_RETURN_URL);
       if (url) {
         Linking.openURL(url);
       }

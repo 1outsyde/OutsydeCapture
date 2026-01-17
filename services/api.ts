@@ -1208,9 +1208,15 @@ class ApiService {
   }
 
   // POST /api/photographers/me/stripe-onboarding - Start Stripe onboarding
-  async startPhotographerStripeOnboarding(authToken: string): Promise<{ url: string }> {
+  async startPhotographerStripeOnboarding(authToken: string, returnUrl?: string): Promise<{ url: string }> {
+    const body: Record<string, string> = {};
+    if (returnUrl) {
+      body.returnUrl = returnUrl;
+      body.refreshUrl = returnUrl;
+    }
     return this.request<{ url: string }>("/api/photographers/me/stripe-onboarding", {
       method: "POST",
+      body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -1266,9 +1272,15 @@ class ApiService {
   }
 
   // POST /api/vendor/stripe-onboarding/create-link - Start Stripe onboarding for vendor
-  async startVendorStripeOnboarding(authToken: string): Promise<{ url: string }> {
+  async startVendorStripeOnboarding(authToken: string, returnUrl?: string): Promise<{ url: string }> {
+    const body: Record<string, string> = {};
+    if (returnUrl) {
+      body.returnUrl = returnUrl;
+      body.refreshUrl = returnUrl;
+    }
     return this.request<{ url: string }>("/api/vendor/stripe-onboarding/create-link", {
       method: "POST",
+      body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

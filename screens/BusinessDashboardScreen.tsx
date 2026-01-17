@@ -243,12 +243,36 @@ export default function BusinessDashboardScreen() {
     setRefreshing(false);
   };
 
+  const STRIPE_RETURN_URL = "outsyde://stripe-return";
+  
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      if (event.url.includes("stripe-return")) {
+        console.log("[Dashboard] Stripe return deep link received, refreshing status...");
+        await fetchDashboard();
+        Alert.alert("Stripe Setup", "Checking your Stripe connection status...");
+      }
+    };
+
+    const subscription = Linking.addEventListener("url", handleDeepLink);
+    
+    Linking.getInitialURL().then((url) => {
+      if (url && url.includes("stripe-return")) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [fetchDashboard]);
+  
   const handleConnectStripe = async () => {
     const token = await getToken();
     if (!token) return;
 
     try {
-      const { url } = await api.startVendorStripeOnboarding(token);
+      const { url } = await api.startVendorStripeOnboarding(token, STRIPE_RETURN_URL);
       if (url) {
         Linking.openURL(url);
       }
