@@ -1160,9 +1160,9 @@ class ApiService {
     // Use field names the backend expects (based on VendorBooker API)
     const cleanPayload: Record<string, any> = {};
     
-    // displayName -> name (backend field name)
+    // Backend expects displayName (not name) for photographer profiles
     if (data.displayName && data.displayName.trim()) {
-      cleanPayload.name = data.displayName.trim();
+      cleanPayload.displayName = data.displayName.trim();
     }
     if (data.bio && data.bio.trim()) {
       cleanPayload.bio = data.bio.trim();
