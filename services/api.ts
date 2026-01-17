@@ -47,6 +47,7 @@ export interface ApiBusinessDetail {
   instagram?: string;
   facebook?: string;
   twitter?: string;
+  brandColors?: string;
 }
 
 export interface ApiConversation {

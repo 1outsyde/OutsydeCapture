@@ -174,9 +174,11 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
+      const brandColorsJson = JSON.stringify({ primary: primaryColor });
       await api.updateVendorMyBusiness(token, {
-        // Note: coverImage, logoImage, and brandColors would need to be added to BusinessOnboardingData
-        // For now, we'll store brandColors as a JSON string
+        brandColors: brandColorsJson,
+        coverImage,
+        logoImage,
       } as any);
       Alert.alert("Success", "Branding updated successfully");
     } catch (error: any) {

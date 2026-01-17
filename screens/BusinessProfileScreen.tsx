@@ -71,10 +71,25 @@ export default function BusinessProfileScreen() {
         twitter: apiData.twitter || business.twitter,
         reviewCount: apiData.reviewCount ?? business.reviewCount,
         coverImage: apiData.coverImage || business.coverImage,
+        brandColors: apiData.brandColors || business.brandColors,
       };
     },
     [business]
   );
+
+  const getProfileTheme = (): string => {
+    if (business.brandColors) {
+      try {
+        const colors = JSON.parse(business.brandColors);
+        return colors.primary || theme.primary;
+      } catch {
+        return theme.primary;
+      }
+    }
+    return theme.primary;
+  };
+
+  const profileTheme = getProfileTheme();
 
   useEffect(() => {
     let isMounted = true;
@@ -278,7 +293,7 @@ export default function BusinessProfileScreen() {
             </ThemedText>
 
             <View style={styles.categoryRow}>
-              <View style={[styles.categoryBadge, { backgroundColor: theme.primary }]}>
+              <View style={[styles.categoryBadge, { backgroundColor: profileTheme }]}>
                 <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "600" }}>
                   {business.category}
                 </ThemedText>
@@ -337,7 +352,7 @@ export default function BusinessProfileScreen() {
               style={({ pressed }) => [
                 styles.actionButton,
                 styles.actionButtonPrimary,
-                { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: profileTheme, opacity: pressed ? 0.8 : 1 },
               ]}
             >
               <Feather
@@ -373,7 +388,7 @@ export default function BusinessProfileScreen() {
           {hasDescription ? (
             <View style={[styles.section, { backgroundColor: theme.backgroundDefault }]}>
               <View style={styles.sectionHeader}>
-                <Feather name="info" size={18} color={theme.primary} />
+                <Feather name="info" size={18} color={profileTheme} />
                 <ThemedText type="h4" style={styles.sectionTitle}>
                   About
                 </ThemedText>
@@ -387,7 +402,7 @@ export default function BusinessProfileScreen() {
           {hasInfo ? (
             <View style={[styles.section, { backgroundColor: theme.backgroundDefault }]}>
               <View style={styles.sectionHeader}>
-                <Feather name="file-text" size={18} color={theme.primary} />
+                <Feather name="file-text" size={18} color={profileTheme} />
                 <ThemedText type="h4" style={styles.sectionTitle}>
                   Info
                 </ThemedText>
@@ -407,8 +422,8 @@ export default function BusinessProfileScreen() {
                   onPress={handleCall}
                   style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Feather name="phone" size={16} color={theme.primary} />
-                  <ThemedText type="body" style={[styles.infoText, { color: theme.primary }]}>
+                  <Feather name="phone" size={16} color={profileTheme} />
+                  <ThemedText type="body" style={[styles.infoText, { color: profileTheme }]}>
                     {business.phone}
                   </ThemedText>
                 </Pressable>
@@ -419,8 +434,8 @@ export default function BusinessProfileScreen() {
                   onPress={handleEmail}
                   style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Feather name="mail" size={16} color={theme.primary} />
-                  <ThemedText type="body" style={[styles.infoText, { color: theme.primary }]}>
+                  <Feather name="mail" size={16} color={profileTheme} />
+                  <ThemedText type="body" style={[styles.infoText, { color: profileTheme }]}>
                     {business.email}
                   </ThemedText>
                 </Pressable>
@@ -431,10 +446,10 @@ export default function BusinessProfileScreen() {
                   onPress={handleVisitWebsite}
                   style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Feather name="globe" size={16} color={theme.primary} />
+                  <Feather name="globe" size={16} color={profileTheme} />
                   <ThemedText
                     type="body"
-                    style={[styles.infoText, { color: theme.primary }]}
+                    style={[styles.infoText, { color: profileTheme }]}
                     numberOfLines={1}
                   >
                     {business.website}
