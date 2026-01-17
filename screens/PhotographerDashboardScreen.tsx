@@ -481,6 +481,10 @@ export default function PhotographerDashboardScreen() {
       fontWeight: "600",
       color: statusColor,
     },
+    backButton: {
+      padding: 8,
+      marginRight: 8,
+    },
     logoutButton: {
       padding: 8,
     },
@@ -1354,6 +1358,9 @@ export default function PhotographerDashboardScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
+          <Pressable onPress={handleGoBack} style={styles.backButton}>
+            <Feather name="arrow-left" size={24} color={theme.text} />
+          </Pressable>
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>{profile?.name || "Photographer"}</Text>
             <View style={styles.headerRow}>

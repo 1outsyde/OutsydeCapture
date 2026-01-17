@@ -379,6 +379,10 @@ export default function BusinessDashboardScreen() {
       color: theme.textSecondary,
       marginTop: 2,
     },
+    backButton: {
+      padding: 8,
+      marginRight: 8,
+    },
     logoutButton: {
       paddingVertical: 8,
       paddingHorizontal: 16,
@@ -1216,12 +1220,23 @@ export default function BusinessDashboardScreen() {
 
   const availableTabs = getAvailableTabs();
 
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+    }
+  };
+
   return (
     <ScrollView
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
     >
       <View style={styles.header}>
+        <Pressable onPress={handleGoBack} style={styles.backButton}>
+          <Feather name="arrow-left" size={24} color={theme.text} />
+        </Pressable>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>{profile?.name || "Business"}</Text>
           <Text style={styles.headerSubtitle}>{profile?.city}, {profile?.state}</Text>
