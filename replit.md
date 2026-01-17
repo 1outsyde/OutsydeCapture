@@ -58,6 +58,13 @@ I prefer clear, concise communication. When making changes, please explain the r
     - Both: Orders, Bookings, Products, Services, Hours, Storefront, Profile
   - Order management (process, ship) and booking management (accept/decline)
   - Stripe Connect integration banner for payment setup
+- **Storefront Editor**: Full-featured storefront customization accessible from Business Dashboard. Features 5 tabs:
+  - **Branding**: Cover image upload, logo upload, brand color picker (8 presets: Golden Yellow, Rose Pink, Ocean Blue, Forest Green, Royal Purple, Sunset Orange, Teal, Slate Gray)
+  - **Profile**: Business name, tagline, description, category, specialty badges (8 options: Fast Service, Premium Quality, Eco-Friendly, Local Favorite, Award Winning, Family Owned, Best Price, Custom Orders), contact info (email, phone, website), location (address, city, state)
+  - **Hours**: Day-by-day business hours editor using HoursEditor component
+  - **Products**: Product cards with status badges (draft/live/archived), add/edit/delete modal forms with image upload, name, description, price, and status
+  - **Services**: Service cards with duration and price, add/edit/delete modal forms with name, description, duration (30-180 mins), and price
+- **ImageUploader Component**: Reusable image picker with camera/library options, aspect ratio support (cover 16:9, square 1:1), placeholder states, and delete functionality
 
 ### VendorBooker Backend Integration
 - **Backend URL**: `https://outsyde-backend.onrender.com` (VendorBooker)
