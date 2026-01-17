@@ -28,6 +28,7 @@ import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
+import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -293,6 +294,15 @@ export default function RootNavigator() {
         component={ProfileCompletionGateScreen}
         options={{
           presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+
+      <Stack.Screen
+        name="StorefrontEditor"
+        component={StorefrontEditorScreen}
+        options={{
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
         }}
       />

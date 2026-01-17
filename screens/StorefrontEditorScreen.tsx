@@ -401,7 +401,7 @@ export default function StorefrontEditorScreen() {
       color: theme.text,
     },
     categoryBadge: {
-      backgroundColor: theme.cardSecondary,
+      backgroundColor: theme.surfaceSecondary,
       paddingHorizontal: 12,
       paddingVertical: 4,
       borderRadius: 12,
@@ -477,7 +477,7 @@ export default function StorefrontEditorScreen() {
       marginBottom: 6,
     },
     input: {
-      backgroundColor: theme.cardSecondary,
+      backgroundColor: theme.surfaceSecondary,
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 10,
@@ -520,7 +520,7 @@ export default function StorefrontEditorScreen() {
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 16,
-      backgroundColor: theme.cardSecondary,
+      backgroundColor: theme.surfaceSecondary,
       borderWidth: 1,
       borderColor: theme.border,
     },
@@ -574,7 +574,7 @@ export default function StorefrontEditorScreen() {
       width: 80,
       height: 80,
       borderRadius: 8,
-      backgroundColor: theme.cardSecondary,
+      backgroundColor: theme.surfaceSecondary,
     },
     productInfo: {
       flex: 1,
@@ -615,7 +615,7 @@ export default function StorefrontEditorScreen() {
     actionButton: {
       padding: 8,
       borderRadius: 6,
-      backgroundColor: theme.cardSecondary,
+      backgroundColor: theme.surfaceSecondary,
     },
     serviceCard: {
       backgroundColor: theme.card,
@@ -712,7 +712,7 @@ export default function StorefrontEditorScreen() {
   if (!business) {
     return (
       <View style={styles.loading}>
-        <Feather name="store" size={48} color={theme.textSecondary} />
+        <Feather name="shopping-bag" size={48} color={theme.textSecondary} />
         <Text style={[styles.emptyText, { marginTop: 16 }]}>No business found</Text>
         <Pressable style={styles.saveButton} onPress={() => navigation.goBack()}>
           <Text style={styles.saveButtonText}>Go Back</Text>
@@ -942,7 +942,7 @@ export default function StorefrontEditorScreen() {
           hours={hours}
           onChange={setHours}
           onSave={handleSaveHours}
-          saving={saving}
+          isSaving={saving}
         />
       </View>
     </ScrollView>

@@ -87,6 +87,7 @@ export type RootStackParamList = {
   BusinessDashboard: undefined;
   InfluencerApplication: undefined;
   ProfileCompletionGate: { dashboardType: "photographer" | "business" };
+  StorefrontEditor: undefined;
 };
 
 export type MainTabParamList = {

@@ -1125,10 +1125,17 @@ export default function BusinessDashboardScreen() {
         return (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Feather name="shopping-bag" size={24} color={theme.textSecondary} />
+              <Feather name="shopping-bag" size={24} color={theme.primary} />
             </View>
-            <Text style={styles.emptyTitle}>Storefront coming soon</Text>
-            <Text style={styles.emptySubtitle}>Customize how customers see your business</Text>
+            <Text style={styles.emptyTitle}>Customize Your Storefront</Text>
+            <Text style={styles.emptySubtitle}>Edit branding, hours, products, and services</Text>
+            <Pressable
+              style={[styles.saveButton, { marginTop: 16 }]}
+              onPress={() => navigation.navigate("StorefrontEditor")}
+            >
+              <Feather name="edit-3" size={16} color="#FFFFFF" />
+              <Text style={styles.saveButtonText}>Open Storefront Editor</Text>
+            </Pressable>
           </View>
         );
       case "profile":

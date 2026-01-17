@@ -112,7 +112,7 @@ export default function ImageUploader({
   const styles = StyleSheet.create({
     container: {
       ...getAspectRatioStyle(),
-      backgroundColor: theme.cardSecondary,
+      backgroundColor: theme.surfaceSecondary,
       overflow: "hidden",
       justifyContent: "center",
       alignItems: "center",
