@@ -79,10 +79,25 @@ export default function PhotographerProfileScreen() {
         yearsOfExperience: apiData.yearsOfExperience ?? photographer.yearsOfExperience,
         portfolio: apiData.portfolio?.length ? apiData.portfolio : photographer.portfolio,
         specialties: apiData.specialties?.length ? apiData.specialties : photographer.specialties,
+        brandColors: apiData.brandColors || photographer.brandColors,
       };
     },
     [photographer]
   );
+
+  const getProfileTheme = (): string => {
+    if (photographer.brandColors) {
+      try {
+        const colors = JSON.parse(photographer.brandColors);
+        return colors.primary || theme.primary;
+      } catch {
+        return theme.primary;
+      }
+    }
+    return theme.primary;
+  };
+
+  const profileTheme = getProfileTheme();
 
   useEffect(() => {
     let isMounted = true;
@@ -284,7 +299,7 @@ export default function PhotographerProfileScreen() {
             </ThemedText>
 
             <View style={styles.badgesRow}>
-              <View style={[styles.specialtyBadge, { backgroundColor: theme.primary }]}>
+              <View style={[styles.specialtyBadge, { backgroundColor: profileTheme }]}>
                 <Feather name="camera" size={12} color="#FFFFFF" />
                 <ThemedText type="small" style={styles.specialtyText}>
                   {photographer.specialty}
@@ -356,7 +371,7 @@ export default function PhotographerProfileScreen() {
               style={({ pressed }) => [
                 styles.actionButton,
                 styles.actionButtonPrimary,
-                { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: profileTheme, opacity: pressed ? 0.8 : 1 },
               ]}
             >
               <Feather name="calendar" size={20} color="#FFFFFF" />
@@ -388,7 +403,7 @@ export default function PhotographerProfileScreen() {
           {hasDescription || hasYearsOfExperience ? (
             <View style={[styles.section, { backgroundColor: theme.backgroundDefault }]}>
               <View style={styles.sectionHeader}>
-                <Feather name="user" size={18} color={theme.primary} />
+                <Feather name="user" size={18} color={profileTheme} />
                 <ThemedText type="h4" style={styles.sectionTitle}>
                   About
                 </ThemedText>
@@ -412,7 +427,7 @@ export default function PhotographerProfileScreen() {
           {hasPortfolio ? (
             <View style={styles.portfolioSection}>
               <View style={styles.sectionHeader}>
-                <Feather name="image" size={18} color={theme.primary} />
+                <Feather name="image" size={18} color={profileTheme} />
                 <ThemedText type="h4" style={styles.sectionTitle}>
                   Portfolio
                 </ThemedText>
@@ -441,7 +456,7 @@ export default function PhotographerProfileScreen() {
           {hasInfo ? (
             <View style={[styles.section, { backgroundColor: theme.backgroundDefault }]}>
               <View style={styles.sectionHeader}>
-                <Feather name="file-text" size={18} color={theme.primary} />
+                <Feather name="file-text" size={18} color={profileTheme} />
                 <ThemedText type="h4" style={styles.sectionTitle}>
                   Info
                 </ThemedText>
@@ -460,8 +475,8 @@ export default function PhotographerProfileScreen() {
                   onPress={handleCall}
                   style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Feather name="phone" size={16} color={theme.primary} />
-                  <ThemedText type="body" style={[styles.infoText, { color: theme.primary }]}>
+                  <Feather name="phone" size={16} color={profileTheme} />
+                  <ThemedText type="body" style={[styles.infoText, { color: profileTheme }]}>
                     {photographer.phone}
                   </ThemedText>
                 </Pressable>
@@ -472,8 +487,8 @@ export default function PhotographerProfileScreen() {
                   onPress={handleEmail}
                   style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Feather name="mail" size={16} color={theme.primary} />
-                  <ThemedText type="body" style={[styles.infoText, { color: theme.primary }]}>
+                  <Feather name="mail" size={16} color={profileTheme} />
+                  <ThemedText type="body" style={[styles.infoText, { color: profileTheme }]}>
                     {photographer.email}
                   </ThemedText>
                 </Pressable>
@@ -484,10 +499,10 @@ export default function PhotographerProfileScreen() {
                   onPress={handleVisitWebsite}
                   style={({ pressed }) => [styles.infoRow, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Feather name="globe" size={16} color={theme.primary} />
+                  <Feather name="globe" size={16} color={profileTheme} />
                   <ThemedText
                     type="body"
-                    style={[styles.infoText, { color: theme.primary }]}
+                    style={[styles.infoText, { color: profileTheme }]}
                     numberOfLines={1}
                   >
                     {photographer.website}

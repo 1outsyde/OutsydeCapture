@@ -22,6 +22,7 @@ export interface BusinessProfileData {
   twitter?: string;
   reviewCount?: number;
   coverImage?: string;
+  brandColors?: string;
 }
 
 export interface PhotographerProfileData {
@@ -46,6 +47,7 @@ export interface PhotographerProfileData {
   yearsOfExperience?: number;
   portfolio?: string[];
   specialties?: string[];
+  brandColors?: string;
 }
 
 export type RootStackParamList = {

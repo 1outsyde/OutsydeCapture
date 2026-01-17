@@ -571,6 +571,7 @@ export interface ApiPhotographerDetail {
   instagram?: string;
   facebook?: string;
   twitter?: string;
+  brandColors?: string;
 }
 
 export interface SearchResponse {
