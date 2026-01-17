@@ -58,6 +58,7 @@ export default function PhotographerDashboardScreen() {
   const [saving, setSaving] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
 
   const [stats, setStats] = useState<PhotographerDashboardStats>({
     earnings: 0,
@@ -95,6 +96,7 @@ export default function PhotographerDashboardScreen() {
     try {
       setLoading(true);
       setAuthError(null);
+      setNeedsProfileSetup(false);
       const photographer = await api.getPhotographerMe(token) as any;
       
       setStats({
@@ -179,12 +181,23 @@ export default function PhotographerDashboardScreen() {
     } catch (error: any) {
       console.error("Failed to fetch photographer dashboard:", error);
       
-      // Check for auth errors (401/403)
       const status = error?.status || error?.response?.status;
       const message = error?.message || "";
+      const is401 = status === 401 || message.includes("401") || message.toLowerCase().includes("unauthorized");
+      const is404 = status === 404 || message.includes("404") || message.toLowerCase().includes("not found");
       
-      if (status === 401 || message.includes("401") || message.toLowerCase().includes("unauthorized")) {
-        setAuthError("Your session has expired. Please sign in again.");
+      if (is401 || is404) {
+        // 401 with valid token + photographer role = profile doesn't exist yet (NOT auth failure)
+        // 404 = profile not found (same situation)
+        // Both cases should trigger profile setup, not "session expired"
+        setNeedsProfileSetup(true);
+        setProfile({
+          id: "",
+          name: user?.firstName || "Photographer",
+          hourlyRate: 0,
+          specialties: [],
+          stripeConnected: false,
+        });
       } else if (status === 403 || message.includes("403") || message.toLowerCase().includes("forbidden")) {
         setAuthError("You don't have permission to access this dashboard.");
       } else {
@@ -1236,6 +1249,39 @@ export default function PhotographerDashboardScreen() {
             >
               <Feather name="refresh-cw" size={18} color={theme.text} />
               <Text style={[styles.errorButtonOutlineText, { color: theme.text }]}>Try Again</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Profile setup screen - shown when photographer profile doesn't exist yet
+  if (needsProfileSetup && !profile?.id) {
+    return (
+      <View style={[styles.container, styles.errorContainer, { paddingTop: insets.top + 20 }]}>
+        <View style={styles.errorContent}>
+          <View style={[styles.errorIconContainer, { backgroundColor: theme.primary + "20" }]}>
+            <Feather name="camera" size={48} color={theme.primary} />
+          </View>
+          <Text style={[styles.errorTitle, { color: theme.text }]}>Complete Your Profile</Text>
+          <Text style={[styles.errorMessage, { color: theme.textSecondary, textAlign: "center" }]}>
+            Welcome! To start receiving bookings, you need to complete your photographer profile setup.
+          </Text>
+          <View style={styles.errorActions}>
+            <Pressable
+              style={[styles.errorButton, { backgroundColor: theme.primary }]}
+              onPress={() => navigation.navigate("PhotographerOnboarding")}
+            >
+              <Feather name="edit-3" size={18} color="#000" />
+              <Text style={styles.errorButtonText}>Complete Setup</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.errorButtonOutline, { borderColor: theme.border }]}
+              onPress={handleGoBack}
+            >
+              <Feather name="arrow-left" size={18} color={theme.text} />
+              <Text style={[styles.errorButtonOutlineText, { color: theme.text }]}>Go Back</Text>
             </Pressable>
           </View>
         </View>
