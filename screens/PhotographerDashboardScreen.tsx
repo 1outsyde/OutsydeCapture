@@ -40,12 +40,13 @@ export default function PhotographerDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { getToken, logout, user } = useAuth();
+  const { getToken, logout, user, isLoading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [stats, setStats] = useState<PhotographerDashboardStats>({
     earnings: 0,
@@ -73,10 +74,15 @@ export default function PhotographerDashboardScreen() {
 
   const fetchDashboard = useCallback(async () => {
     const token = await getToken();
-    if (!token) return;
+    if (!token) {
+      setAuthError("Please sign in to access your dashboard");
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
+      setAuthError(null);
       const photographer = await api.getPhotographerMe(token) as any;
       
       setStats({
@@ -156,23 +162,44 @@ export default function PhotographerDashboardScreen() {
         // Keep default hours
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch photographer dashboard:", error);
-      setProfile({
-        id: "",
-        name: user?.firstName || "Photographer",
-        hourlyRate: 0,
-        specialties: [],
-        stripeConnected: false,
-      });
+      
+      // Check for auth errors (401/403)
+      const status = error?.status || error?.response?.status;
+      const message = error?.message || "";
+      
+      if (status === 401 || message.includes("401") || message.toLowerCase().includes("unauthorized")) {
+        setAuthError("Your session has expired. Please sign in again.");
+      } else if (status === 403 || message.includes("403") || message.toLowerCase().includes("forbidden")) {
+        setAuthError("You don't have permission to access this dashboard.");
+      } else {
+        // Non-auth error - show fallback profile but allow retry
+        setProfile({
+          id: "",
+          name: user?.firstName || "Photographer",
+          hourlyRate: 0,
+          specialties: [],
+          stripeConnected: false,
+        });
+      }
     } finally {
       setLoading(false);
     }
   }, [getToken, user?.firstName]);
 
+  // Wait for auth to be ready before fetching
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    if (!authLoading && user?.role === "photographer") {
+      fetchDashboard();
+    } else if (!authLoading && !user) {
+      setAuthError("Please sign in to access your dashboard");
+      setLoading(false);
+    } else if (!authLoading && user?.role !== "photographer") {
+      setAuthError("This dashboard is only available for photographers");
+      setLoading(false);
+    }
+  }, [authLoading, user, fetchDashboard]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -761,6 +788,66 @@ export default function PhotographerDashboardScreen() {
       fontWeight: "600",
       textTransform: "capitalize",
     },
+    // Error screen styles
+    errorContainer: {
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    errorContent: {
+      alignItems: "center",
+      paddingHorizontal: 32,
+      maxWidth: 320,
+    },
+    errorIconContainer: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 24,
+    },
+    errorTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      textAlign: "center",
+      marginBottom: 8,
+    },
+    errorMessage: {
+      fontSize: 15,
+      textAlign: "center",
+      lineHeight: 22,
+      marginBottom: 32,
+    },
+    errorActions: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    errorButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    errorButtonText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: "#000",
+    },
+    errorButtonOutline: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    errorButtonOutlineText: {
+      fontSize: 15,
+      fontWeight: "600",
+    },
   });
 
   const renderProfileModal = () => (
@@ -1043,7 +1130,50 @@ export default function PhotographerDashboardScreen() {
     </Modal>
   );
 
-  if (loading) {
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+    }
+  };
+
+  // Auth error screen with back navigation
+  if (authError) {
+    return (
+      <View style={[styles.container, styles.errorContainer, { paddingTop: insets.top + 20 }]}>
+        <View style={styles.errorContent}>
+          <View style={[styles.errorIconContainer, { backgroundColor: theme.backgroundSecondary }]}>
+            <Feather name="alert-circle" size={48} color={theme.textSecondary} />
+          </View>
+          <Text style={[styles.errorTitle, { color: theme.text }]}>Unable to Load Dashboard</Text>
+          <Text style={[styles.errorMessage, { color: theme.textSecondary }]}>{authError}</Text>
+          <View style={styles.errorActions}>
+            <Pressable
+              style={[styles.errorButton, { backgroundColor: theme.primary }]}
+              onPress={handleGoBack}
+            >
+              <Feather name="arrow-left" size={18} color="#000" />
+              <Text style={styles.errorButtonText}>Go Back</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.errorButtonOutline, { borderColor: theme.border }]}
+              onPress={() => {
+                setAuthError(null);
+                setLoading(true);
+                fetchDashboard();
+              }}
+            >
+              <Feather name="refresh-cw" size={18} color={theme.text} />
+              <Text style={[styles.errorButtonOutlineText, { color: theme.text }]}>Try Again</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (loading || authLoading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" color={theme.primary} />
