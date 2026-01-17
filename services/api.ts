@@ -639,6 +639,43 @@ export interface MobileSignupResponse {
   user: MobileLoginResponse["user"];
 }
 
+// Role-specific signup request types
+export interface CustomerSignupRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+}
+
+export interface VendorSignupRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  businessName?: string;
+  businessCategory?: string;
+  phone?: string;
+}
+
+export interface PhotographerSignupRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+}
+
+// Session signup response (just confirms account created, no JWT yet)
+export interface SessionSignupResponse {
+  success?: boolean;
+  message?: string;
+  user?: {
+    id: string;
+    email: string;
+  };
+}
+
 export interface UnifiedSearchResult {
   id: string;
   name: string;
@@ -706,6 +743,68 @@ class ApiService {
     return this.request<MobileSignupResponse>("/api/auth/mobile/signup", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  // Role-specific signup endpoints (creates account with session auth)
+  async customerSignup(data: CustomerSignupRequest): Promise<SessionSignupResponse> {
+    return this.request<SessionSignupResponse>("/api/auth/customer/signup", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async vendorSignup(data: VendorSignupRequest): Promise<SessionSignupResponse> {
+    return this.request<SessionSignupResponse>("/api/auth/vendor/signup", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async photographerSignup(data: PhotographerSignupRequest): Promise<SessionSignupResponse> {
+    return this.request<SessionSignupResponse>("/api/auth/photographer/signup", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Combined signup + login for mobile (role-specific signup then JWT login)
+  async roleBasedSignupAndLogin(
+    data: MobileSignupRequest
+  ): Promise<MobileLoginResponse> {
+    // Step 1: Call role-specific signup endpoint to create account
+    if (data.role === "consumer") {
+      await this.customerSignup({
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+      });
+    } else if (data.role === "business") {
+      await this.vendorSignup({
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        businessName: data.businessName,
+        businessCategory: data.businessCategory,
+        phone: data.phone,
+      });
+    } else if (data.role === "photographer") {
+      await this.photographerSignup({
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+      });
+    }
+
+    // Step 2: Now login to get JWT token
+    return this.mobileLogin({
+      email: data.email,
+      password: data.password,
     });
   }
 
