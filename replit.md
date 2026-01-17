@@ -85,6 +85,11 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Business Onboarding Fields**: name, category, description, tagline, city, state, hasProducts, hasServices, yearsInBusiness, numberOfEmployees, businessStructure, hasPhysicalLocation, address, contactEmail, contactPhone, websiteUrl
 - **Stripe Integration**: Both roles require Stripe Connect onboarding for payment processing via stripe-onboarding endpoints
 - **Profile Completion**: Backend confirms `stripeOnboardingComplete` to indicate full profile completion
+- **Approval Status**: Backend field `approvalStatus` (pending/approved/rejected) controls storefront visibility. Banner displays current status in StorefrontEditor.
+- **Publishing Gates**: Products/services can only be set to "live" status when:
+  1. `stripeOnboardingComplete === true` (Stripe Connect setup complete)
+  2. `subscriptionActive === true` (active subscription)
+  Draft creation/editing is always allowed without restrictions.
 
 ### System Design Choices
 - **Cross-Platform**: Built with Expo/React Native for iOS, Android, and web.
