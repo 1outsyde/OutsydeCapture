@@ -185,7 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (data: SignupData): Promise<{ success: boolean; isPending: boolean }> => {
     setIsLoading(true);
     try {
-      const response = await api.mobileSignup({
+      // Use role-based signup flow: calls role-specific endpoint then mobileLogin
+      const response = await api.roleBasedSignupAndLogin({
         email: data.email,
         password: data.password,
         firstName: data.firstName,
@@ -208,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: backendUser.email,
         phone: backendUser.phone || data.phone,
         dateOfBirth: backendUser.dateOfBirth || data.dateOfBirth,
-        role: backendUser.role,
+        role: backendUser.role || data.role,
         approvalStatus: backendUser.approvalStatus || (data.role === "business" ? "pending" : "approved"),
         isProfileComplete: backendUser.isProfileComplete ?? (data.role === "consumer"),
         avatar: backendUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
