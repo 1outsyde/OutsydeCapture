@@ -639,31 +639,32 @@ export interface MobileSignupResponse {
   user: MobileLoginResponse["user"];
 }
 
-// Role-specific signup request types
+// Role-specific signup request types (matches backend validation)
 export interface CustomerSignupRequest {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
+  name: string; // Backend requires 'name', not firstName/lastName
 }
 
 export interface VendorSignupRequest {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
-  businessName?: string;
-  businessCategory?: string;
-  phone?: string;
+  name: string;
+  businessName: string;
+  businessCategory: string;
+  offerType: "products" | "services" | "both";
+  acceptedSubscription: boolean;
 }
 
 export interface PhotographerSignupRequest {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
+  name: string;
+  displayName: string;
+  city: string;
+  state: string;
+  hourlyRate: number;
+  portfolioUrl: string;
 }
 
 // Session signup response (just confirms account created, no JWT yet)
