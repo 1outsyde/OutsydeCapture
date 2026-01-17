@@ -247,6 +247,56 @@ export interface VendorBookerAvailabilitySlot {
   createdAt?: string;
 }
 
+// VendorBooker Product (from /api/vendor/products)
+export interface VendorProduct {
+  id: string;
+  businessId: string;
+  name: string;
+  description?: string | null;
+  priceCents: number;
+  imageUrl?: string | null;
+  inventory?: number | null;
+  status: "draft" | "live" | "archived";
+  stripeProductId?: string | null;
+  stripePriceId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// VendorBooker Service (from /api/vendor/services)
+export interface VendorService {
+  id: string;
+  businessId: string;
+  name: string;
+  description?: string | null;
+  priceCents: number;
+  durationMinutes?: number | null;
+  status: "draft" | "live" | "archived";
+  stripeProductId?: string | null;
+  stripePriceId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Create/Update Product Request
+export interface VendorProductInput {
+  name: string;
+  description?: string;
+  priceCents: number;
+  imageUrl?: string;
+  inventory?: number;
+  status?: "draft" | "live" | "archived";
+}
+
+// Create/Update Service Request
+export interface VendorServiceInput {
+  name: string;
+  description?: string;
+  priceCents: number;
+  durationMinutes?: number;
+  status?: "draft" | "live" | "archived";
+}
+
 export interface AdminStats {
   users: number;
   businesses: number;
@@ -931,6 +981,80 @@ class ApiService {
   // GET /api/vendor/staff - Get staff members
   async getVendorStaff(authToken: string): Promise<{ staff: any[] }> {
     return this.request<{ staff: any[] }>("/api/vendor/staff", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // ==========================================
+  // VendorBooker Products CRUD
+  // ==========================================
+
+  // GET /api/vendor/products - Get all products
+  async getVendorProducts(authToken: string): Promise<{ products: VendorProduct[] }> {
+    return this.request<{ products: VendorProduct[] }>("/api/vendor/products", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/vendor/products - Create a new product
+  async createVendorProduct(authToken: string, data: VendorProductInput): Promise<{ product: VendorProduct }> {
+    return this.request<{ product: VendorProduct }>("/api/vendor/products", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // PATCH /api/vendor/products/:id - Update a product
+  async updateVendorProduct(authToken: string, productId: string, data: Partial<VendorProductInput>): Promise<{ product: VendorProduct }> {
+    return this.request<{ product: VendorProduct }>(`/api/vendor/products/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/vendor/products/:id - Delete a product
+  async deleteVendorProduct(authToken: string, productId: string): Promise<void> {
+    await this.request<void>(`/api/vendor/products/${productId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // ==========================================
+  // VendorBooker Services CRUD
+  // ==========================================
+
+  // GET /api/vendor/services - Get all services
+  async getVendorServices(authToken: string): Promise<{ services: VendorService[] }> {
+    return this.request<{ services: VendorService[] }>("/api/vendor/services", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/vendor/services - Create a new service
+  async createVendorService(authToken: string, data: VendorServiceInput): Promise<{ service: VendorService }> {
+    return this.request<{ service: VendorService }>("/api/vendor/services", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // PATCH /api/vendor/services/:id - Update a service
+  async updateVendorService(authToken: string, serviceId: string, data: Partial<VendorServiceInput>): Promise<{ service: VendorService }> {
+    return this.request<{ service: VendorService }>(`/api/vendor/services/${serviceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/vendor/services/:id - Delete a service
+  async deleteVendorService(authToken: string, serviceId: string): Promise<void> {
+    await this.request<void>(`/api/vendor/services/${serviceId}`, {
+      method: "DELETE",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
