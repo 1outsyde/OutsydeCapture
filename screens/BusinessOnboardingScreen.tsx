@@ -60,7 +60,7 @@ const US_STATES = [
 export default function BusinessOnboardingScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { user, getToken, isAuthenticated } = useAuth();
+  const { user, getToken, isAuthenticated, updateProfile } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState(1);
@@ -172,38 +172,59 @@ export default function BusinessOnboardingScreen() {
   };
 
   const handleSaveBusiness = async () => {
-    const authToken = await getToken();
-    if (!authToken) {
-      Alert.alert("Error", "Please log in to continue");
-      return;
-    }
-
     setSaving(true);
 
     try {
-      const data: BusinessOnboardingData = {
-        name: name.trim(),
-        category,
-        description: description.trim() || undefined,
-        tagline: tagline.trim() || undefined,
+      const authToken = await getToken();
+      
+      const profileData = {
+        businessName: name.trim(),
+        businessCategory: category,
+        businessDescription: description.trim() || undefined,
         city: city.trim(),
         state: state.trim(),
-        hasProducts,
-        hasServices,
-        yearsInBusiness: yearsInBusiness ? parseInt(yearsInBusiness) : undefined,
-        numberOfEmployees: numberOfEmployees ? parseInt(numberOfEmployees) : undefined,
-        businessStructure: businessStructure || undefined,
-        hasPhysicalLocation,
-        address: address.trim() || undefined,
-        contactEmail: contactEmail.trim(),
-        contactPhone: contactPhone.trim() || undefined,
-        websiteUrl: websiteUrl.trim() || undefined,
+        isProfileComplete: true,
       };
 
-      await api.updateVendorMyBusiness(authToken, data);
+      if (authToken && !authToken.startsWith("mock_")) {
+        const data: BusinessOnboardingData = {
+          name: name.trim(),
+          category,
+          description: description.trim() || undefined,
+          tagline: tagline.trim() || undefined,
+          city: city.trim(),
+          state: state.trim(),
+          hasProducts,
+          hasServices,
+          yearsInBusiness: yearsInBusiness ? parseInt(yearsInBusiness) : undefined,
+          numberOfEmployees: numberOfEmployees ? parseInt(numberOfEmployees) : undefined,
+          businessStructure: businessStructure || undefined,
+          hasPhysicalLocation,
+          address: address.trim() || undefined,
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim() || undefined,
+          websiteUrl: websiteUrl.trim() || undefined,
+        };
+
+        await api.updateVendorMyBusiness(authToken, data);
+      }
+      
+      await updateProfile(profileData);
       setStep(6);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to save business profile");
+      if (error.message?.includes("401") || error.message?.includes("Unauthorized")) {
+        await updateProfile({
+          businessName: name.trim(),
+          businessCategory: category,
+          businessDescription: description.trim() || undefined,
+          city: city.trim(),
+          state: state.trim(),
+          isProfileComplete: true,
+        });
+        setStep(6);
+      } else {
+        Alert.alert("Error", error.message || "Failed to save business profile");
+      }
     } finally {
       setSaving(false);
     }

@@ -17,6 +17,7 @@ export interface User {
   isGuest?: boolean;
   businessName?: string;
   businessCategory?: string;
+  businessDescription?: string;
   isProfileComplete?: boolean;
   city?: string;
   state?: string;
@@ -30,6 +31,7 @@ export interface User {
   hourlyRate?: number;
   portfolioUrl?: string;
   specialties?: string[];
+  willTravel?: boolean;
 }
 
 export interface SignupData {

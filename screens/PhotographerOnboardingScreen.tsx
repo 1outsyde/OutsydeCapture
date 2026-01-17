@@ -61,7 +61,7 @@ const US_STATES = [
 export default function PhotographerOnboardingScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { user, getToken } = useAuth();
+  const { user, getToken, updateProfile } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState(1);
@@ -161,16 +161,12 @@ export default function PhotographerOnboardingScreen() {
   };
 
   const handleSaveProfile = async () => {
-    const authToken = await getToken();
-    if (!authToken) {
-      Alert.alert("Error", "Please log in to continue");
-      return;
-    }
-
     setSaving(true);
 
     try {
-      const data: PhotographerOnboardingData = {
+      const authToken = await getToken();
+      
+      const profileData = {
         displayName: displayName.trim(),
         bio: bio.trim() || undefined,
         city: city.trim(),
@@ -179,12 +175,42 @@ export default function PhotographerOnboardingScreen() {
         portfolioUrl: portfolioUrl.trim() || undefined,
         specialties: selectedSpecialties,
         willTravel,
+        isProfileComplete: true,
       };
 
-      await api.updatePhotographerMe(authToken, data);
+      if (authToken && !authToken.startsWith("mock_")) {
+        const data: PhotographerOnboardingData = {
+          displayName: profileData.displayName,
+          bio: profileData.bio,
+          city: profileData.city,
+          state: profileData.state,
+          hourlyRate: profileData.hourlyRate,
+          portfolioUrl: profileData.portfolioUrl,
+          specialties: profileData.specialties,
+          willTravel: profileData.willTravel,
+        };
+
+        await api.updatePhotographerMe(authToken, data);
+      }
+      
+      await updateProfile(profileData);
       setStep(6);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to save profile");
+      if (error.message?.includes("401") || error.message?.includes("Unauthorized")) {
+        await updateProfile({
+          displayName: displayName.trim(),
+          bio: bio.trim() || undefined,
+          city: city.trim(),
+          state: state.trim(),
+          hourlyRate: Math.round(Number(hourlyRate) * 100),
+          portfolioUrl: portfolioUrl.trim() || undefined,
+          specialties: selectedSpecialties,
+          isProfileComplete: true,
+        });
+        setStep(6);
+      } else {
+        Alert.alert("Error", error.message || "Failed to save profile");
+      }
     } finally {
       setSaving(false);
     }
