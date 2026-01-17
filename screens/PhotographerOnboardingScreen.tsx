@@ -216,12 +216,15 @@ export default function PhotographerOnboardingScreen() {
     }
   };
 
+  const [stripeError, setStripeError] = useState<string | null>(null);
+  
   const handleConnectStripe = async () => {
     const authToken = await getToken();
     if (!authToken) return;
 
     try {
       setSaving(true);
+      setStripeError(null);
       const { url } = await api.startPhotographerStripeOnboarding(authToken);
       
       if (Platform.OS === "web") {
@@ -230,16 +233,17 @@ export default function PhotographerOnboardingScreen() {
         await WebBrowser.openBrowserAsync(url);
       }
       
-      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+      navigation.navigate("PhotographerDashboard");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to start Stripe onboarding");
+      const errorMessage = error.message || "Failed to connect Stripe. Please try again from your dashboard.";
+      setStripeError(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
   const handleSkipStripe = () => {
-    navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+    navigation.navigate("PhotographerDashboard");
   };
 
   if (loading) {
@@ -523,7 +527,7 @@ export default function PhotographerOnboardingScreen() {
             </ThemedText>
 
             <ThemedText type="body" style={[styles.stepDescription, { color: theme.textSecondary, textAlign: "center" }]}>
-              To receive payments for bookings, connect your Stripe account. You can do this later from your dashboard.
+              To receive payments for bookings, connect your Stripe account. You can skip this and do it later from your dashboard.
             </ThemedText>
 
             <View style={[styles.stripeCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
@@ -532,6 +536,17 @@ export default function PhotographerOnboardingScreen() {
                 Connect Stripe to receive payments directly to your bank account
               </ThemedText>
             </View>
+
+            {stripeError && (
+              <View style={{ marginTop: Spacing.md, padding: Spacing.md, backgroundColor: "#fee2e2", borderRadius: 8 }}>
+                <ThemedText type="body" style={{ color: "#b91c1c", textAlign: "center" }}>
+                  {stripeError}
+                </ThemedText>
+                <ThemedText type="caption" style={{ color: "#dc2626", textAlign: "center", marginTop: Spacing.xs }}>
+                  You can try again from your dashboard.
+                </ThemedText>
+              </View>
+            )}
           </View>
         );
     }
@@ -586,14 +601,14 @@ export default function PhotographerOnboardingScreen() {
         {step === 6 && (
           <>
             <Button onPress={handleConnectStripe} disabled={saving}>
-              {saving ? "Loading..." : "Connect Stripe"}
+              {saving ? "Connecting..." : "Connect Stripe"}
             </Button>
             <Pressable
               onPress={handleSkipStripe}
               style={({ pressed }) => [styles.skipButton, { opacity: pressed ? 0.7 : 1 }]}
             >
               <ThemedText type="body" style={{ color: theme.textSecondary }}>
-                I'll do this later
+                Continue to Dashboard
               </ThemedText>
             </Pressable>
           </>
