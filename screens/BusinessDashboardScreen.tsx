@@ -10,6 +10,8 @@ import {
   Alert,
   RefreshControl,
   Linking,
+  AppState,
+  AppStateStatus,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -244,13 +246,34 @@ export default function BusinessDashboardScreen() {
   };
 
   const STRIPE_RETURN_URL = "outsyde://stripe-return";
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  
+  const refreshStripeStatus = useCallback(async () => {
+    const token = await getToken();
+    if (!token) return;
+    
+    try {
+      console.log("[Dashboard] Fetching fresh Stripe status...");
+      const stripeStatus = await api.getVendorStripeStatus(token);
+      console.log("[Dashboard] Stripe status response:", stripeStatus);
+      
+      const isConnected = stripeStatus.onboardingComplete || (stripeStatus.chargesEnabled && stripeStatus.payoutsEnabled);
+      
+      setProfile(prev => prev ? { ...prev, stripeConnected: isConnected } : prev);
+      
+      if (isConnected) {
+        Alert.alert("Success", "Your Stripe account is now connected! You can start accepting payments.");
+      }
+    } catch (error) {
+      console.error("[Dashboard] Failed to fetch Stripe status:", error);
+    }
+  }, [getToken]);
   
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       if (event.url.includes("stripe-return")) {
         console.log("[Dashboard] Stripe return deep link received, refreshing status...");
-        await fetchDashboard();
-        Alert.alert("Stripe Setup", "Checking your Stripe connection status...");
+        await refreshStripeStatus();
       }
     };
 
@@ -265,7 +288,21 @@ export default function BusinessDashboardScreen() {
     return () => {
       subscription.remove();
     };
-  }, [fetchDashboard]);
+  }, [refreshStripeStatus]);
+  
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (nextAppState: AppStateStatus) => {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === "active") {
+        console.log("[Dashboard] App came to foreground, checking Stripe status...");
+        await refreshStripeStatus();
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [refreshStripeStatus]);
   
   const handleConnectStripe = async () => {
     const token = await getToken();
