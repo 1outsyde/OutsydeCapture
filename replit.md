@@ -18,7 +18,8 @@ I prefer clear, concise communication. When making changes, please explain the r
 
 ### Technical Implementations
 - **Authentication**: SSO (Apple/Google) and guest login. Three signup roles: Consumer (auto-approved), Business (manual approval 24-48h), Photographer (auto-approved). Role is set exclusively at signup - no post-signup role changes. Influencer is an additive status for consumers, not a separate role.
-- **Role-Based Dashboard Access**: Dashboards are post-onboarding tools only accessible when profile is complete. Photographer Dashboard visible only to photographers with complete profiles. Business Dashboard visible only to approved businesses with complete profiles. Consumers see "Apply as Influencer" option. ProfileCompletionGateScreen shows required setup steps for incomplete profiles.
+- **Role-Based Dashboard Access**: Dashboards are post-onboarding tools accessible when profile is complete (approval NOT required for access). Photographer Dashboard visible to photographers with complete profiles. Business Dashboard visible to ALL business users with complete profiles (including pending approval). Consumers see "Apply as Influencer" option. ProfileCompletionGateScreen shows required setup steps for incomplete profiles.
+- **Access vs Visibility Separation**: Business users can access dashboard and storefront editor immediately after completing onboarding, even while pending approval. Approval only gates: public storefront visibility, search/discovery inclusion, and ability to publish products/services. Pending businesses can still create/edit draft items.
 - **Navigation**: Expo SDK 54, React Navigation 7 with Root, MainTab, and Stack Navigators.
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
 - **Content Feed**: Personalized mixed feed (photographer/vendor posts) prioritizing favorites, local content, and premium tiers. Instagram-style posts with likes and comments.
@@ -40,6 +41,7 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Messages**: All platform conversations with preview and participant info
   - **Influencers**: Status filters and approve/reject workflow for influencer applications
 - **Admin Access**: Admin dashboard is accessible via Account screen for users with emails: info@goutsyde.com or Jamesmeyers2304@gmail.com
+- **Admin Notifications**: Real-time notifications sent to admins when new business applications are submitted. Backend endpoint `/api/admin/notifications/business-application` triggers email to admin emails.
 - **Backend Health Check**: Only visible to admin users on the home/discover screen
 - **Photographer Dashboard**: Provider dashboard for photographers accessible from Account screen. Features:
   - Stats row: Earnings, Upcoming Bookings, Unread Messages, Rating
