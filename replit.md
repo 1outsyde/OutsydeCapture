@@ -32,6 +32,8 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Canonical Flow**: Signup saves all profile data → Dashboard reads existing data (never auto-updates) → Optional Edit Profile for explicit changes
   - **Dashboard Behavior**: Read-only on mount, no auto-PATCH calls, handles 404 gracefully using AuthContext user data
 - **Stripe Booking Restriction**: Users cannot book photographers who haven't completed Stripe onboarding (`stripeOnboardingComplete: false`). The dashboard remains accessible, but the booking flow is blocked with a user-friendly alert. Stripe only gates bookings/payouts, never dashboard access.
+  - **Stripe Deep Link Return**: Uses `outsyde://stripe-return` as the return URL for Stripe onboarding. Dashboard screens listen for this deep link and auto-refresh Stripe status when user returns from onboarding flow.
+- **Deep Linking**: App scheme is `outsyde://`. Configured in `app.json` with `scheme: "outsyde"`. Currently handles `stripe-return` path for Stripe onboarding callbacks.
 - **Navigation**: Expo SDK 54, React Navigation 7 (Root, MainTab, Stack Navigators).
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
 - **Core Features**: Personalized content feed, category/location-based search, 4-step booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
