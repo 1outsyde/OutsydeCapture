@@ -251,6 +251,13 @@ export interface VendorBookerAvailabilitySlot {
   createdAt?: string;
 }
 
+// Product/Service status type
+// - draft: Not visible to customers, editable
+// - live: Visible and purchasable/bookable (requires Stripe + subscription + approval)
+// - paused: Auto-set when subscription lapses, not visible, editable
+// - archived: Hidden, read-only
+export type ItemStatus = "draft" | "live" | "paused" | "archived";
+
 // VendorBooker Product (from /api/vendor/products)
 export interface VendorProduct {
   id: string;
@@ -260,7 +267,7 @@ export interface VendorProduct {
   priceCents: number;
   imageUrl?: string | null;
   inventory?: number | null;
-  status: "draft" | "live" | "archived";
+  status: ItemStatus;
   stripeProductId?: string | null;
   stripePriceId?: string | null;
   createdAt?: string;
@@ -275,7 +282,7 @@ export interface VendorService {
   description?: string | null;
   priceCents: number;
   durationMinutes?: number | null;
-  status: "draft" | "live" | "archived";
+  status: ItemStatus;
   stripeProductId?: string | null;
   stripePriceId?: string | null;
   createdAt?: string;
@@ -289,7 +296,7 @@ export interface VendorProductInput {
   priceCents: number;
   imageUrl?: string;
   inventory?: number;
-  status?: "draft" | "live" | "archived";
+  status?: ItemStatus;
 }
 
 // Create/Update Service Request
@@ -298,7 +305,7 @@ export interface VendorServiceInput {
   description?: string;
   priceCents: number;
   durationMinutes?: number;
-  status?: "draft" | "live" | "archived";
+  status?: ItemStatus;
 }
 
 export interface AdminStats {

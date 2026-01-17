@@ -374,9 +374,27 @@ export default function StorefrontEditorScreen() {
     switch (status) {
       case "live": return "#22c55e";
       case "draft": return "#f59e0b";
+      case "paused": return "#ef4444";
       case "archived": return "#6b7280";
       default: return theme.textSecondary;
     }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "live": return "Live";
+      case "draft": return "Draft";
+      case "paused": return "Paused";
+      case "archived": return "Archived";
+      default: return status;
+    }
+  };
+
+  const getStatusExplanation = (status: string) => {
+    if (status === "paused") {
+      return "Subscription inactive - reactivate to publish";
+    }
+    return null;
   };
 
   const styles = StyleSheet.create({
