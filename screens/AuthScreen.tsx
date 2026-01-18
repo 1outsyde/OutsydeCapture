@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -13,14 +15,18 @@ import { useAuth, UserRole } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 
+WebBrowser.maybeCompleteAuthSession();
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type AuthMode = "login" | "signup";
 
+const GOOGLE_WEB_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
+
 export default function AuthScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { login, loginAsGuest, isLoading } = useAuth();
+  const { login, loginWithGoogle, loginAsGuest, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [mode, setMode] = useState<AuthMode>("login");
@@ -32,6 +38,56 @@ export default function AuthScreen() {
   
   const [showPendingMessage, setShowPendingMessage] = useState(false);
   const [pendingUserInfo, setPendingUserInfo] = useState<{ businessName: string; businessCategory: string; email: string } | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    const handleGoogleResponse = async () => {
+      if (response?.type === "success" && response.params?.id_token) {
+        setIsGoogleLoading(true);
+        try {
+          const result = await loginWithGoogle(response.params.id_token);
+          if (result.success) {
+            if (result.isPending && result.user) {
+              setPendingUserInfo({
+                businessName: result.user.businessName || "",
+                businessCategory: result.user.businessCategory || "",
+                email: result.user.email,
+              });
+              setShowPendingMessage(true);
+            } else {
+              navigation.goBack();
+            }
+          } else if (result.isRejected) {
+            Alert.alert("Account Rejected", "Your business application was not approved. Please contact support for more information.");
+          } else {
+            Alert.alert("Error", "Google sign-in failed. Please try again.");
+          }
+        } catch (error) {
+          console.error("Google login error:", error);
+          Alert.alert("Error", "Google sign-in failed. Please try again.");
+        } finally {
+          setIsGoogleLoading(false);
+        }
+      } else if (response?.type === "error") {
+        console.error("Google auth error:", response.error);
+        Alert.alert("Error", "Google sign-in was cancelled or failed.");
+      }
+    };
+    
+    handleGoogleResponse();
+  }, [response]);
+
+  const handleGoogleSignIn = () => {
+    if (!request) {
+      Alert.alert("Error", "Google Sign-In is not available. Please try again.");
+      return;
+    }
+    promptAsync();
+  };
 
   const validateForm = () => {
     if (!email.trim() || !password.trim()) {
@@ -435,12 +491,28 @@ export default function AuthScreen() {
               </ThemedText>
             </Pressable>
             <Pressable
-              style={[styles.socialButton, { backgroundColor: theme.backgroundDefault, borderColor: theme.border, borderWidth: 1 }]}
+              onPress={handleGoogleSignIn}
+              disabled={!request || isGoogleLoading}
+              style={[
+                styles.socialButton, 
+                { 
+                  backgroundColor: theme.backgroundDefault, 
+                  borderColor: theme.border, 
+                  borderWidth: 1,
+                  opacity: !request || isGoogleLoading ? 0.6 : 1,
+                }
+              ]}
             >
-              <Feather name="mail" size={20} color={theme.text} />
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                Continue with Google
-              </ThemedText>
+              {isGoogleLoading ? (
+                <ActivityIndicator size="small" color={theme.text} />
+              ) : (
+                <>
+                  <Feather name="mail" size={20} color={theme.text} />
+                  <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
+                    Continue with Google
+                  </ThemedText>
+                </>
+              )}
             </Pressable>
           </View>
         </ScrollView>

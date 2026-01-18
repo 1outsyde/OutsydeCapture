@@ -826,6 +826,13 @@ class ApiService {
     });
   }
 
+  async mobileGoogleLogin(idToken: string): Promise<MobileLoginResponse> {
+    return this.request<MobileLoginResponse>("/api/auth/mobile/google", {
+      method: "POST",
+      body: JSON.stringify({ idToken }),
+    });
+  }
+
   async mobileSignup(data: MobileSignupRequest): Promise<MobileSignupResponse> {
     return this.request<MobileSignupResponse>("/api/auth/mobile/signup", {
       method: "POST",

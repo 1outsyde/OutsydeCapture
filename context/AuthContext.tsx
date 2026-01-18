@@ -90,6 +90,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
+  loginWithGoogle: (idToken: string) => Promise<LoginResult>;
   signup: (data: SignupData) => Promise<SignupResult>;
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
@@ -200,6 +201,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (status === 401 || status === 403) {
         return { success: false, isPending: false, isRejected: false };
       }
+      return { success: false, isPending: false, isRejected: false };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async (idToken: string): Promise<LoginResult> => {
+    setIsLoading(true);
+    try {
+      const response = await api.mobileGoogleLogin(idToken);
+      console.log("[Auth] Google login response received, user:", response.user?.id);
+      
+      const backendUser = response.user;
+      
+      // Determine role from backend flags
+      let role: UserRole = "consumer";
+      if (backendUser.isPhotographer) {
+        role = "photographer";
+      } else if (backendUser.isVendor) {
+        role = "business";
+      }
+      
+      // Extract photographer data if present
+      const photographerData = (response as any).photographer;
+      
+      const newUser: User = {
+        id: backendUser.id,
+        firstName: backendUser.firstName || backendUser.name?.split(" ")[0] || "",
+        lastName: backendUser.lastName || backendUser.name?.split(" ").slice(1).join(" ") || "",
+        email: backendUser.email,
+        phone: backendUser.phone || "",
+        dateOfBirth: backendUser.dateOfBirth || "",
+        role,
+        approvalStatus: backendUser.approvalStatus || "approved",
+        isProfileComplete: backendUser.isProfileComplete,
+        avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || "User")}&background=D4A84B&color=fff`,
+        city: backendUser.city || photographerData?.city,
+        state: backendUser.state || photographerData?.state,
+        businessName: backendUser.businessName,
+        businessCategory: backendUser.businessCategory,
+        businessDescription: backendUser.businessDescription,
+        displayName: photographerData?.displayName || backendUser.displayName,
+        bio: photographerData?.bio || backendUser.bio,
+        hourlyRate: photographerData?.hourlyRate || backendUser.hourlyRate,
+        portfolioUrl: photographerData?.portfolioUrl || backendUser.portfolioUrl,
+        specialties: photographerData?.specialties || backendUser.specialties,
+      };
+
+      if (newUser.approvalStatus === "rejected") {
+        return { success: false, isPending: false, isRejected: true };
+      }
+      
+      // Session-based auth: backend uses cookies, store a session indicator
+      const sessionToken = response.accessToken || `session_${backendUser.id}`;
+      
+      if (newUser.role === "business" && newUser.approvalStatus === "pending") {
+        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+        await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
+        return { success: true, isPending: true, isRejected: false, user: newUser };
+      }
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
+      setUser(newUser);
+      console.log("[Auth] User logged in via Google:", newUser.email, "role:", newUser.role);
+      return { success: true, isPending: false, isRejected: false, user: newUser };
+    } catch (error: any) {
+      console.error("Google login failed:", error);
       return { success: false, isPending: false, isRejected: false };
     } finally {
       setIsLoading(false);
@@ -337,6 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        loginWithGoogle,
         signup,
         loginAsGuest,
         logout,
