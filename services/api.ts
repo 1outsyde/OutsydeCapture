@@ -608,6 +608,42 @@ export interface SearchParams {
   category?: string;
 }
 
+export interface UnifiedSearchParams {
+  q?: string;
+  city?: string;
+  category?: string;
+  lat?: number;
+  lng?: number;
+  personalized?: boolean;
+  type?: "business" | "photographer" | "product" | "service";
+}
+
+export interface UnifiedSearchItem {
+  id: string;
+  type: "business" | "photographer" | "product" | "service";
+  name: string;
+  description?: string;
+  category?: string;
+  city?: string;
+  state?: string;
+  rating?: number;
+  reviewCount?: number;
+  priceRange?: string;
+  avatar?: string;
+  coverImage?: string;
+  subscriptionTier?: "basic" | "pro" | "premium";
+  hourlyRate?: number;
+  specialties?: string[];
+  preferenceScore?: number;
+  distance?: number;
+}
+
+export interface UnifiedSearchResponse {
+  results: UnifiedSearchItem[];
+  total: number;
+  personalized: boolean;
+}
+
 export type SearchResultType = "business" | "photographer" | "product" | "service";
 
 export interface MobileLoginRequest {
@@ -947,6 +983,69 @@ class ApiService {
     
     const endpoint = `/api/search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
     return this.request<SearchResponse>(endpoint);
+  }
+
+  async unifiedSearch(params?: UnifiedSearchParams, authToken?: string | null): Promise<UnifiedSearchResponse> {
+    const queryString = new URLSearchParams();
+    if (params?.q) queryString.append("q", params.q);
+    if (params?.city) queryString.append("city", params.city);
+    if (params?.category) queryString.append("category", params.category);
+    if (params?.lat !== undefined) queryString.append("lat", params.lat.toString());
+    if (params?.lng !== undefined) queryString.append("lng", params.lng.toString());
+    if (params?.personalized !== undefined) queryString.append("personalized", params.personalized.toString());
+    if (params?.type) queryString.append("type", params.type);
+    
+    const endpoint = `/api/unified-search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    
+    try {
+      return await this.request<UnifiedSearchResponse>(endpoint, { headers });
+    } catch (error) {
+      console.log("[API] Unified search failed, falling back to basic search");
+      const fallbackResponse = await this.search({
+        query: params?.q,
+        city: params?.city,
+        category: params?.category,
+      });
+      const normalizedResults = this.normalizeSearchResults(fallbackResponse);
+      return {
+        results: normalizedResults.map(r => ({
+          id: r.id,
+          type: r.resultType,
+          name: r.name,
+          description: r.description,
+          category: r.category,
+          city: r.city,
+          state: r.state,
+          rating: r.rating,
+          priceRange: r.priceRange,
+          avatar: r.avatar,
+          subscriptionTier: r.subscriptionTier,
+        })),
+        total: normalizedResults.length,
+        personalized: false,
+      };
+    }
+  }
+
+  normalizeUnifiedResults(response: UnifiedSearchResponse): UnifiedSearchResult[] {
+    return response.results.map(item => ({
+      id: item.id,
+      name: item.name,
+      avatar: item.avatar || "https://via.placeholder.com/100",
+      city: item.city || "Unknown",
+      state: item.state || "",
+      rating: item.rating || 0,
+      priceRange: item.priceRange || (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : ""),
+      category: item.category || item.type,
+      description: item.description || "",
+      subscriptionTier: item.subscriptionTier,
+      resultType: item.type,
+      originalType: item.type,
+    }));
   }
 
   async getPhotographer(id: string): Promise<ApiPhotographerDetail> {
