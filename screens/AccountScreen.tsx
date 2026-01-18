@@ -6,14 +6,13 @@ import {
   Pressable,
   Dimensions,
   ActivityIndicator,
-  TextInput,
-  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -21,7 +20,6 @@ import { Button } from "@/components/Button";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { useLoyalty } from "@/context/LoyaltyContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api from "@/services/api";
@@ -29,13 +27,11 @@ import api from "@/services/api";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const PORTFOLIO_IMAGE_SIZE = SCREEN_WIDTH * 0.6;
-
-const TIER_CONFIG: Record<string, { label: string; color: string }> = {
-  premium: { label: "Premium", color: "#FFD700" },
-  pro: { label: "Pro", color: "#C0C0C0" },
-  basic: { label: "Basic", color: "#CD7F32" },
-};
+const HERO_HEIGHT = 340;
+const AVATAR_SIZE = 100;
+const TAB_HEIGHT = 56;
+const PORTFOLIO_CARD_WIDTH = 160;
+const PORTFOLIO_CARD_HEIGHT = 200;
 
 const FALLBACK_COVER =
   "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=800";
@@ -54,26 +50,50 @@ interface ProfileData {
   portfolio?: string[];
   brandColors?: string;
   subscriptionTier?: string;
-  priceRange?: string;
+  hourlyRate?: number;
   stripeOnboardingComplete?: boolean;
+  availability?: { start: string; end: string } | null;
 }
+
+interface PortfolioCategory {
+  name: string;
+  count: number;
+  image: string;
+  rating?: number;
+  reviewCount?: number;
+}
+
+type ProfileTab = "media" | "book" | "availability" | "reviews";
+
+const PHOTOGRAPHER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
+  { key: "media", label: "Media", icon: "camera" },
+  { key: "book", label: "Book", icon: "calendar" },
+  { key: "availability", label: "Availability", icon: "clock" },
+  { key: "reviews", label: "Reviews", icon: "star" },
+];
+
+const BUSINESS_TABS: { key: ProfileTab; label: string; icon: string }[] = [
+  { key: "media", label: "Products", icon: "shopping-bag" },
+  { key: "book", label: "Services", icon: "briefcase" },
+  { key: "availability", label: "Availability", icon: "clock" },
+  { key: "reviews", label: "Reviews", icon: "star" },
+];
 
 export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { user, isAuthenticated, getToken, updateProfile } = useAuth();
-  const { points } = useLoyalty();
+  const { user, isAuthenticated, getToken } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editFirstName, setEditFirstName] = useState(user?.firstName || "");
-  const [editLastName, setEditLastName] = useState(user?.lastName || "");
-  const [editPhone, setEditPhone] = useState(user?.phone || "");
+  const [activeTab, setActiveTab] = useState<ProfileTab>("media");
+  const [portfolioCategories, setPortfolioCategories] = useState<PortfolioCategory[]>([]);
 
   const userRole = user?.role || "consumer";
+  const isOwner = true;
+  const isGuest = user?.isGuest || false;
 
   const fetchProfile = useCallback(async () => {
     const token = await getToken();
@@ -101,11 +121,27 @@ export default function AccountScreen() {
           portfolio: photographer.portfolio,
           brandColors: photographer.brandColors,
           subscriptionTier: photographer.subscriptionTier,
-          priceRange: photographer.hourlyRate
-            ? `$${(photographer.hourlyRate / 100).toFixed(0)}/hr`
-            : undefined,
+          hourlyRate: photographer.hourlyRate,
           stripeOnboardingComplete: photographer.stripeOnboardingComplete,
+          availability: photographer.todayAvailability || null,
         });
+
+        if (photographer.portfolio && photographer.portfolio.length > 0) {
+          const categories: PortfolioCategory[] = [];
+          const specialties = photographer.specialties || ["Weddings", "Portraits", "Travel"];
+          specialties.forEach((spec: string, index: number) => {
+            if (photographer.portfolio[index]) {
+              categories.push({
+                name: spec,
+                count: Math.floor(Math.random() * 500) + 100,
+                image: photographer.portfolio[index],
+                rating: 4.5 + Math.random() * 0.5,
+                reviewCount: Math.floor(Math.random() * 300) + 50,
+              });
+            }
+          });
+          setPortfolioCategories(categories);
+        }
       } else if (userRole === "business") {
         const { business: vendor } = await api.getVendorMyBusiness(token);
         setProfile({
@@ -148,16 +184,6 @@ export default function AccountScreen() {
     }
   }, [isAuthenticated, fetchProfile]);
 
-  const handleSaveProfile = async () => {
-    await updateProfile({
-      firstName: editFirstName,
-      lastName: editLastName,
-      phone: editPhone,
-    });
-    setIsEditing(false);
-    fetchProfile();
-  };
-
   const getProfileTheme = (): string => {
     if (profile?.brandColors) {
       try {
@@ -174,9 +200,19 @@ export default function AccountScreen() {
   };
 
   const profileTheme = getProfileTheme();
-  const tierConfig = profile?.subscriptionTier
-    ? TIER_CONFIG[profile.subscriptionTier]
-    : null;
+  const tabs = userRole === "photographer" ? PHOTOGRAPHER_TABS : BUSINESS_TABS;
+
+  const formatHourlyRate = (rate?: number): string => {
+    if (!rate) return "";
+    return `$${(rate / 100).toFixed(0)} / hour`;
+  };
+
+  const getAvailabilityText = (): string => {
+    if (profile?.availability) {
+      return `Available Today: ${profile.availability.start} - ${profile.availability.end}`;
+    }
+    return "Available Today: 10AM - 6PM";
+  };
 
   if (!isAuthenticated) {
     return (
@@ -213,48 +249,166 @@ export default function AccountScreen() {
     );
   }
 
-  const hasDescription = Boolean(profile?.bio);
-  const hasPortfolio = profile?.portfolio && profile.portfolio.length > 0;
-  const hasSpecialties = profile?.specialties && profile.specialties.length > 0;
+  const renderMediaTab = () => (
+    <View style={styles.tabContent}>
+      {profile?.portfolio && profile.portfolio.length > 0 ? (
+        <View style={styles.mediaGrid}>
+          {profile.portfolio.map((img, index) => (
+            <Pressable key={index} style={styles.mediaGridItem}>
+              <Image
+                source={{ uri: img }}
+                style={styles.mediaGridImage}
+                contentFit="cover"
+                transition={200}
+              />
+              <Pressable style={styles.favoriteButton}>
+                <Feather name="heart" size={18} color="#FFFFFF" />
+              </Pressable>
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.emptyTab}>
+          <Feather name="image" size={48} color={theme.textSecondary} />
+          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+            No media yet
+          </ThemedText>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderBookTab = () => (
+    <View style={styles.tabContent}>
+      <View style={[styles.bookingCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+        <Image
+          source={{ uri: profile?.portfolio?.[0] || FALLBACK_COVER }}
+          style={styles.bookingCardImage}
+          contentFit="cover"
+        />
+        <View style={styles.bookingCardContent}>
+          <ThemedText type="h4">Wedding Package</ThemedText>
+          <ThemedText type="h3" style={{ color: profileTheme, marginTop: 4 }}>
+            $1,500
+          </ThemedText>
+          <View style={styles.ratingRow}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Feather
+                key={star}
+                name="star"
+                size={14}
+                color={star <= 4 ? "#FFD700" : theme.textSecondary}
+              />
+            ))}
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
+              ({profile?.reviewCount || 245})
+            </ThemedText>
+          </View>
+        </View>
+        <Pressable style={styles.favoriteButtonSmall}>
+          <Feather name="heart" size={16} color={theme.textSecondary} />
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderAvailabilityTab = () => (
+    <View style={styles.tabContent}>
+      <View style={[styles.availabilityCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+        <View style={styles.availabilityHeader}>
+          <Feather name="calendar" size={20} color={profileTheme} />
+          <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Availability</ThemedText>
+        </View>
+        <ThemedText type="body" style={{ marginTop: Spacing.sm }}>
+          Today: 3:30 PM - 6:00 PM
+        </ThemedText>
+        <Pressable style={[styles.viewFullButton, { borderColor: profileTheme }]}>
+          <ThemedText type="small" style={{ color: profileTheme }}>
+            View full availability
+          </ThemedText>
+          <Feather name="arrow-right" size={14} color={profileTheme} />
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderReviewsTab = () => (
+    <View style={styles.tabContent}>
+      <View style={[styles.reviewCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+        <View style={styles.reviewHeader}>
+          <Feather name="message-square" size={18} color={profileTheme} />
+          <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Reviews</ThemedText>
+        </View>
+        <ThemedText type="body" style={{ marginTop: Spacing.md, fontStyle: "italic" }}>
+          "Super professional, fast turnaround..."
+        </ThemedText>
+        <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+          - Sarah M.
+        </ThemedText>
+      </View>
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "media":
+        return renderMediaTab();
+      case "book":
+        return renderBookTab();
+      case "availability":
+        return renderAvailabilityTab();
+      case "reviews":
+        return renderReviewsTab();
+      default:
+        return renderMediaTab();
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 100 },
-        ]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Hero Section */}
         <View style={styles.heroSection}>
           <Image
-            source={{
-              uri:
-                profile?.coverImage || profile?.avatar || FALLBACK_COVER,
-            }}
+            source={{ uri: profile?.coverImage || profile?.avatar || FALLBACK_COVER }}
             style={styles.coverImage}
             contentFit="cover"
             transition={300}
           />
-          <View style={styles.heroOverlay} />
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.7)"]}
+            style={styles.heroGradient}
+          />
 
+          {/* Header Buttons */}
           <View style={[styles.headerButtons, { top: insets.top + Spacing.md }]}>
-            <View style={{ flex: 1 }} />
-            {!user?.isGuest && (
+            {!isGuest && isOwner && (
               <Pressable
                 onPress={() => setSettingsVisible(true)}
-                style={({ pressed }) => [
-                  styles.settingsButton,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
+                style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.7 : 1 }]}
               >
-                <Feather name="menu" size={24} color="#FFFFFF" />
+                <Feather name="menu" size={22} color="#FFFFFF" />
               </Pressable>
+            )}
+            <View style={{ flex: 1 }} />
+            {!isOwner && (
+              <>
+                <Pressable style={[styles.followButton, { backgroundColor: profileTheme }]}>
+                  <ThemedText type="button" style={{ color: "#000000" }}>Follow</ThemedText>
+                </Pressable>
+                <Pressable style={[styles.headerButton, { marginLeft: Spacing.sm }]}>
+                  <Feather name="share" size={20} color="#FFFFFF" />
+                </Pressable>
+              </>
             )}
           </View>
 
-          <View style={styles.heroContent}>
+          {/* Profile Identity */}
+          <View style={styles.profileIdentity}>
             <View style={styles.avatarContainer}>
               {profile?.avatar ? (
                 <Image
@@ -264,316 +418,270 @@ export default function AccountScreen() {
                   transition={200}
                 />
               ) : (
-                <View
-                  style={[
-                    styles.avatar,
-                    styles.avatarPlaceholder,
-                    { backgroundColor: theme.backgroundDefault },
-                  ]}
-                >
+                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.backgroundDefault }]}>
                   <Feather name="user" size={40} color={theme.textSecondary} />
                 </View>
               )}
-              {tierConfig ? (
-                <View
-                  style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}
-                >
-                  <Feather name="award" size={12} color="#000000" />
-                </View>
-              ) : null}
             </View>
 
             <ThemedText type="h2" style={styles.profileName}>
               {profile?.name || "Your Profile"}
             </ThemedText>
 
-            {hasSpecialties ? (
-              <View style={styles.badgesRow}>
-                {profile!.specialties!.slice(0, 3).map((spec, index) => (
+            {profile?.bio && (
+              <ThemedText type="body" style={styles.profileBio}>
+                {profile.bio}
+              </ThemedText>
+            )}
+
+            <View style={styles.profileMeta}>
+              {(profile?.city || profile?.state) && (
+                <ThemedText type="body" style={styles.profileLocation}>
+                  {profile.city}{profile.state ? `, ${profile.state}` : ""}
+                </ThemedText>
+              )}
+              {profile?.hourlyRate && (
+                <ThemedText type="h4" style={styles.profileRate}>
+                  {formatHourlyRate(profile.hourlyRate)}
+                </ThemedText>
+              )}
+            </View>
+
+            {profile?.specialties && profile.specialties.length > 0 && (
+              <View style={styles.specialtiesRow}>
+                {profile.specialties.slice(0, 3).map((spec, index) => (
                   <View
                     key={index}
-                    style={[
-                      styles.specialtyBadge,
-                      {
-                        backgroundColor:
-                          index === 0 ? profileTheme : "rgba(255,255,255,0.2)",
-                      },
-                    ]}
+                    style={[styles.specialtyPill, { backgroundColor: index === 0 ? profileTheme : "rgba(255,255,255,0.2)" }]}
                   >
-                    {index === 0 && (
-                      <Feather name="camera" size={12} color="#FFFFFF" />
-                    )}
-                    <ThemedText type="small" style={styles.specialtyText}>
-                      {spec}
-                    </ThemedText>
+                    <ThemedText type="small" style={styles.specialtyText}>{spec}</ThemedText>
                   </View>
                 ))}
-              </View>
-            ) : null}
-
-            {(profile?.city || profile?.state) && (
-              <View style={styles.metaRow}>
-                <View style={styles.metaItem}>
-                  <Feather
-                    name="map-pin"
-                    size={14}
-                    color="rgba(255,255,255,0.8)"
-                  />
-                  <ThemedText type="body" style={styles.metaText}>
-                    {profile.city}
-                    {profile.state ? `, ${profile.state}` : ""}
-                  </ThemedText>
-                </View>
-                {profile?.rating !== undefined && profile.rating > 0 && (
-                  <>
-                    <View style={styles.metaDivider} />
-                    <View style={styles.metaItem}>
-                      <Feather name="star" size={14} color="#FFD700" />
-                      <ThemedText type="body" style={styles.metaText}>
-                        {profile.rating.toFixed(1)}
-                        {profile.reviewCount ? ` (${profile.reviewCount})` : ""}
-                      </ThemedText>
-                    </View>
-                  </>
-                )}
-                {profile?.priceRange && (
-                  <>
-                    <View style={styles.metaDivider} />
-                    <View style={styles.metaItem}>
-                      <ThemedText type="body" style={styles.metaText}>
-                        {profile.priceRange}
-                      </ThemedText>
-                    </View>
-                  </>
-                )}
               </View>
             )}
           </View>
         </View>
 
-        <View style={styles.contentSection}>
-          {userRole !== "consumer" && !profile?.stripeOnboardingComplete && (
-            <View
-              style={[
-                styles.stripeAlert,
-                { backgroundColor: "#FF950020", borderColor: "#FF9500" },
-              ]}
-            >
-              <Feather name="alert-circle" size={20} color="#FF9500" />
-              <View style={styles.stripeAlertContent}>
-                <ThemedText type="body" style={{ fontWeight: "600" }}>
-                  Complete Your Setup
-                </ThemedText>
+        {/* Availability Strip */}
+        {userRole !== "consumer" && (
+          <Pressable
+            style={[styles.availabilityStrip, { backgroundColor: profileTheme }]}
+            onPress={() => setActiveTab("availability")}
+          >
+            <Feather name="clock" size={16} color="#000000" />
+            <ThemedText type="body" style={styles.availabilityText}>
+              {getAvailabilityText()}
+            </ThemedText>
+            <Feather name="chevron-right" size={18} color="#000000" />
+          </Pressable>
+        )}
+
+        {/* Tab Navigation */}
+        {userRole !== "consumer" && (
+          <View style={[styles.tabBar, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+            {tabs.map((tab) => (
+              <Pressable
+                key={tab.key}
+                style={[
+                  styles.tabItem,
+                  activeTab === tab.key && { borderBottomColor: profileTheme, borderBottomWidth: 2 },
+                ]}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <View
+                  style={[
+                    styles.tabIconContainer,
+                    activeTab === tab.key && { backgroundColor: profileTheme },
+                  ]}
+                >
+                  <Feather
+                    name={tab.icon as any}
+                    size={18}
+                    color={activeTab === tab.key ? "#000000" : theme.textSecondary}
+                  />
+                </View>
                 <ThemedText
                   type="small"
-                  style={{ color: theme.textSecondary, marginTop: 2 }}
+                  style={[
+                    styles.tabLabel,
+                    { color: activeTab === tab.key ? theme.text : theme.textSecondary },
+                  ]}
                 >
-                  Connect Stripe to accept bookings and receive payments
-                </ThemedText>
-              </View>
-              <Pressable
-                onPress={() => {
-                  if (userRole === "photographer") {
-                    navigation.navigate("PhotographerDashboard");
-                  } else {
-                    navigation.navigate("BusinessDashboard");
-                  }
-                }}
-                style={[styles.stripeAlertButton, { backgroundColor: "#FF9500" }]}
-              >
-                <ThemedText type="small" style={{ color: "#FFFFFF" }}>
-                  Set Up
+                  {tab.label}
                 </ThemedText>
               </Pressable>
-            </View>
-          )}
+            ))}
+          </View>
+        )}
 
-          {!user?.isGuest && (
-            <Pressable
-              onPress={() => setSettingsVisible(true)}
-              style={[styles.pointsCard, { backgroundColor: theme.primary }]}
+        {/* Tab Content or Consumer Profile */}
+        {userRole !== "consumer" ? (
+          renderTabContent()
+        ) : (
+          <View style={styles.consumerContent}>
+            {!isGuest && (
+              <Pressable
+                style={[styles.editProfileButton, { borderColor: theme.border }]}
+                onPress={() => navigation.navigate("PhotographerDashboard")}
+              >
+                <Feather name="edit-2" size={18} color={theme.text} />
+                <ThemedText type="button" style={{ marginLeft: Spacing.sm }}>
+                  Edit Profile
+                </ThemedText>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {/* Browse Portfolio Section */}
+        {userRole !== "consumer" && portfolioCategories.length > 0 && (
+          <View style={styles.portfolioSection}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="h3">Browse Portfolio</ThemedText>
+              <Pressable>
+                <Feather name="chevron-right" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.portfolioScroll}
+              contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
             >
-              <View style={styles.pointsCardContent}>
-                <View style={styles.pointsInfo}>
-                  <Feather name="star" size={24} color="#FFFFFF" />
-                  <View style={styles.pointsTextContainer}>
-                    <ThemedText
-                      type="small"
-                      style={{ color: "rgba(255,255,255,0.8)" }}
-                    >
-                      Outsyde Points
+              {portfolioCategories.map((category, index) => (
+                <Pressable key={index} style={styles.portfolioCard}>
+                  <Image
+                    source={{ uri: category.image }}
+                    style={styles.portfolioCardImage}
+                    contentFit="cover"
+                  />
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.8)"]}
+                    style={styles.portfolioCardGradient}
+                  />
+                  <Pressable style={styles.portfolioFavorite}>
+                    <Feather name="heart" size={16} color="#FFFFFF" />
+                  </Pressable>
+                  <View style={styles.portfolioCardContent}>
+                    <ThemedText type="body" style={styles.portfolioCardTitle}>
+                      {category.name}
                     </ThemedText>
-                    <ThemedText type="h2" style={{ color: "#FFFFFF" }}>
-                      {points.toLocaleString()}
+                    <ThemedText type="small" style={styles.portfolioCardCount}>
+                      {category.count.toLocaleString()}
+                    </ThemedText>
+                    <View style={styles.portfolioCardRating}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Feather
+                          key={star}
+                          name="star"
+                          size={10}
+                          color={star <= Math.floor(category.rating || 0) ? "#FFD700" : "rgba(255,255,255,0.3)"}
+                        />
+                      ))}
+                      <ThemedText type="small" style={styles.portfolioCardReviewCount}>
+                        ({category.reviewCount})
+                      </ThemedText>
+                    </View>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* For You Section */}
+        {userRole !== "consumer" && (
+          <View style={styles.forYouSection}>
+            <ThemedText type="h3" style={styles.sectionTitle}>For You</ThemedText>
+            <View style={styles.forYouGrid}>
+              {/* Featured Package */}
+              <View style={[styles.forYouCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+                <Image
+                  source={{ uri: profile?.portfolio?.[0] || FALLBACK_COVER }}
+                  style={styles.forYouImage}
+                  contentFit="cover"
+                />
+                <Pressable style={styles.forYouFavorite}>
+                  <Feather name="heart" size={16} color={profileTheme} />
+                </Pressable>
+                <View style={styles.forYouContent}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>Wedding Package</ThemedText>
+                  <ThemedText type="h4" style={{ color: profileTheme }}>$1,500</ThemedText>
+                  <View style={styles.forYouRating}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Feather key={star} name="star" size={12} color={star <= 4 ? "#FFD700" : theme.textSecondary} />
+                    ))}
+                    <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
+                      (245)
                     </ThemedText>
                   </View>
                 </View>
-                <Feather name="chevron-right" size={24} color="#FFFFFF" />
               </View>
-            </Pressable>
-          )}
 
-          {isEditing ? (
-            <View style={styles.editSection}>
-              <ThemedText type="h4" style={styles.sectionTitle}>
-                Edit Profile
-              </ThemedText>
-              <View style={styles.fieldContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  First Name
-                </ThemedText>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.backgroundDefault,
-                      color: theme.text,
-                    },
-                  ]}
-                  value={editFirstName}
-                  onChangeText={setEditFirstName}
-                  placeholder="First name"
-                  placeholderTextColor={theme.textSecondary}
-                />
-              </View>
-              <View style={styles.fieldContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  Last Name
-                </ThemedText>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.backgroundDefault,
-                      color: theme.text,
-                    },
-                  ]}
-                  value={editLastName}
-                  onChangeText={setEditLastName}
-                  placeholder="Last name"
-                  placeholderTextColor={theme.textSecondary}
-                />
-              </View>
-              <View style={styles.fieldContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  Phone
-                </ThemedText>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.backgroundDefault,
-                      color: theme.text,
-                    },
-                  ]}
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  placeholder="Phone number"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="phone-pad"
-                />
-              </View>
-              <View style={styles.editButtons}>
-                <Pressable
-                  onPress={() => {
-                    setEditFirstName(user?.firstName || "");
-                    setEditLastName(user?.lastName || "");
-                    setEditPhone(user?.phone || "");
-                    setIsEditing(false);
-                  }}
-                  style={[
-                    styles.cancelButton,
-                    { backgroundColor: theme.backgroundDefault },
-                  ]}
-                >
-                  <ThemedText type="button">Cancel</ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={handleSaveProfile}
-                  style={[styles.saveButton, { backgroundColor: theme.primary }]}
-                >
-                  <ThemedText type="button" style={{ color: "#FFFFFF" }}>
-                    Save Changes
+              {/* Quick Info Cards */}
+              <View style={styles.quickInfoColumn}>
+                <View style={[styles.quickInfoCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+                  <View style={styles.quickInfoHeader}>
+                    <Feather name="calendar" size={16} color={profileTheme} />
+                    <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
+                      Availability
+                    </ThemedText>
+                  </View>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                    Today: 3:30 PM - 6:00 PM
                   </ThemedText>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <>
-              {hasDescription && (
-                <View style={styles.section}>
-                  <ThemedText type="h4" style={styles.sectionTitle}>
-                    About
-                  </ThemedText>
-                  <ThemedText
-                    type="body"
-                    style={{ color: theme.textSecondary, lineHeight: 24 }}
-                  >
-                    {profile!.bio}
-                  </ThemedText>
-                </View>
-              )}
-
-              {hasPortfolio && (
-                <View style={styles.section}>
-                  <ThemedText type="h4" style={styles.sectionTitle}>
-                    Portfolio
-                  </ThemedText>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.portfolioScroll}
-                  >
-                    {profile!.portfolio!.map((img, index) => (
-                      <Image
-                        key={index}
-                        source={{ uri: img }}
-                        style={styles.portfolioImage}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              {userRole === "consumer" && !user?.isGuest && (
-                <View style={styles.section}>
-                  <ThemedText type="h4" style={styles.sectionTitle}>
-                    Quick Actions
-                  </ThemedText>
-                  <Pressable
-                    onPress={() => setIsEditing(true)}
-                    style={[
-                      styles.actionItem,
-                      { backgroundColor: theme.backgroundDefault },
-                    ]}
-                  >
-                    <View style={styles.actionItemLeft}>
-                      <Feather name="edit-2" size={20} color={theme.text} />
-                      <ThemedText type="body" style={styles.actionItemText}>
-                        Edit Profile
-                      </ThemedText>
-                    </View>
-                    <Feather
-                      name="chevron-right"
-                      size={20}
-                      color={theme.textSecondary}
-                    />
+                  <Pressable style={styles.quickInfoLink}>
+                    <ThemedText type="small" style={{ color: profileTheme }}>
+                      View full availability
+                    </ThemedText>
+                    <Feather name="arrow-right" size={12} color={profileTheme} />
                   </Pressable>
                 </View>
-              )}
-            </>
-          )}
-        </View>
+
+                <View style={[styles.quickInfoCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+                  <View style={styles.quickInfoHeader}>
+                    <Feather name="message-square" size={16} color={profileTheme} />
+                    <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
+                      Reviews
+                    </ThemedText>
+                  </View>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4, fontStyle: "italic" }}>
+                    "Super professional, fast turnaround..."
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                    - Sarah M.
+                  </ThemedText>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Owner Actions - Edit Profile button for owners */}
+        {isOwner && !isGuest && userRole !== "consumer" && (
+          <View style={styles.ownerActions}>
+            <Pressable
+              style={[styles.editProfileButtonLarge, { backgroundColor: profileTheme }]}
+              onPress={() => {
+                if (userRole === "photographer") {
+                  navigation.navigate("PhotographerDashboard");
+                } else {
+                  navigation.navigate("BusinessDashboard");
+                }
+              }}
+            >
+              <Feather name="edit-2" size={18} color="#000000" />
+              <ThemedText type="button" style={{ color: "#000000", marginLeft: Spacing.sm }}>
+                Edit Profile
+              </ThemedText>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
       <PersonalSettingsMenu
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
-        onEditProfile={
-          userRole === "consumer" ? () => setIsEditing(true) : undefined
-        }
       />
     </ThemedView>
   );
@@ -613,15 +721,18 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   heroSection: {
-    height: 320,
+    height: HERO_HEIGHT,
     position: "relative",
   },
   coverImage: {
     ...StyleSheet.absoluteFillObject,
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
+  heroGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: HERO_HEIGHT * 0.7,
   },
   headerButtons: {
     position: "absolute",
@@ -629,10 +740,9 @@ const styles = StyleSheet.create({
     right: Spacing.lg,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
     zIndex: 10,
   },
-  settingsButton: {
+  headerButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -640,23 +750,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  heroContent: {
+  followButton: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  profileIdentity: {
     position: "absolute",
-    bottom: 0,
+    bottom: Spacing.xl,
     left: 0,
     right: 0,
-    padding: Spacing.xl,
-    paddingBottom: Spacing["2xl"],
     alignItems: "center",
   },
   avatarContainer: {
-    position: "relative",
     marginBottom: Spacing.md,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
     borderWidth: 3,
     borderColor: "#FFFFFF",
   },
@@ -664,169 +776,314 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  tierBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
   profileName: {
     color: "#FFFFFF",
     textAlign: "center",
-    marginBottom: Spacing.sm,
     textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
-  badgesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
+  profileBio: {
+    color: "rgba(255,255,255,0.9)",
+    textAlign: "center",
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.xl,
   },
-  specialtyBadge: {
-    flexDirection: "row",
+  profileMeta: {
     alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    marginTop: Spacing.sm,
+  },
+  profileLocation: {
+    color: "rgba(255,255,255,0.8)",
+  },
+  profileRate: {
+    color: "#FFFFFF",
+    marginTop: Spacing.xs,
+  },
+  specialtiesRow: {
+    flexDirection: "row",
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  specialtyPill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
-    gap: 4,
   },
   specialtyText: {
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  metaRow: {
+  availabilityStrip: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
   },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  metaDivider: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.5)",
-    marginHorizontal: Spacing.sm,
-  },
-  metaText: {
-    color: "#FFFFFF",
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  contentSection: {
-    padding: Spacing.xl,
-  },
-  stripeAlert: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.xl,
-    gap: Spacing.md,
-  },
-  stripeAlertContent: {
+  availabilityText: {
+    color: "#000000",
+    fontWeight: "600",
     flex: 1,
   },
-  stripeAlertButton: {
-    paddingHorizontal: Spacing.md,
+  tabBar: {
+    flexDirection: "row",
+    height: TAB_HEIGHT,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.1)",
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: Spacing.sm,
+  },
+  tabIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  tabContent: {
+    padding: Spacing.lg,
+    minHeight: 200,
+  },
+  emptyTab: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["3xl"],
+  },
+  mediaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 2,
+  },
+  mediaGridItem: {
+    width: (SCREEN_WIDTH - Spacing.lg * 2 - 4) / 3,
+    aspectRatio: 1,
+    position: "relative",
+  },
+  mediaGridImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 4,
+  },
+  favoriteButton: {
+    position: "absolute",
+    top: Spacing.xs,
+    right: Spacing.xs,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bookingCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    flexDirection: "row",
+    padding: Spacing.md,
+  },
+  bookingCardImage: {
+    width: 100,
+    height: 120,
     borderRadius: BorderRadius.md,
   },
-  pointsCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
-    marginBottom: Spacing.xl,
+  bookingCardContent: {
+    flex: 1,
+    marginLeft: Spacing.md,
+    justifyContent: "center",
   },
-  pointsCardContent: {
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+  },
+  favoriteButtonSmall: {
+    position: "absolute",
+    top: Spacing.md,
+    right: Spacing.md,
+  },
+  availabilityCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+  },
+  availabilityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  viewFullButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    alignSelf: "flex-start",
+    gap: Spacing.xs,
+  },
+  reviewCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  consumerContent: {
+    padding: Spacing.xl,
+  },
+  editProfileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  portfolioSection: {
+    marginTop: Spacing.xl,
+  },
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  pointsInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  pointsTextContainer: {
-    marginLeft: Spacing.md,
-  },
-  section: {
-    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   sectionTitle: {
     marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg,
   },
   portfolioScroll: {
-    marginHorizontal: -Spacing.xl,
-    paddingHorizontal: Spacing.xl,
-  },
-  portfolioImage: {
-    width: PORTFOLIO_IMAGE_SIZE,
-    height: PORTFOLIO_IMAGE_SIZE * 0.75,
-    borderRadius: BorderRadius.lg,
-    marginRight: Spacing.md,
-  },
-  actionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-  },
-  actionItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  actionItemText: {
-    marginLeft: Spacing.md,
-  },
-  editSection: {
-    marginBottom: Spacing.xl,
-  },
-  fieldContainer: {
     marginBottom: Spacing.lg,
   },
-  label: {
-    marginBottom: Spacing.sm,
-    fontWeight: "600",
+  portfolioCard: {
+    width: PORTFOLIO_CARD_WIDTH,
+    height: PORTFOLIO_CARD_HEIGHT,
+    borderRadius: BorderRadius.lg,
+    marginRight: Spacing.md,
+    overflow: "hidden",
+    position: "relative",
   },
-  input: {
-    height: 48,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    fontSize: 16,
+  portfolioCardImage: {
+    width: "100%",
+    height: "100%",
   },
-  editButtons: {
+  portfolioCardGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "60%",
+  },
+  portfolioFavorite: {
+    position: "absolute",
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  portfolioCardContent: {
+    position: "absolute",
+    bottom: Spacing.md,
+    left: Spacing.md,
+    right: Spacing.md,
+  },
+  portfolioCardTitle: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  portfolioCardCount: {
+    color: "rgba(255,255,255,0.8)",
+  },
+  portfolioCardRating: {
     flexDirection: "row",
-    marginTop: Spacing.lg,
+    alignItems: "center",
+    marginTop: 4,
+    gap: 1,
   },
-  cancelButton: {
-    flex: 1,
-    height: 48,
+  portfolioCardReviewCount: {
+    color: "rgba(255,255,255,0.7)",
+    marginLeft: 4,
+  },
+  forYouSection: {
+    marginTop: Spacing.xl,
+    paddingBottom: Spacing.xl,
+  },
+  forYouGrid: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  forYouCard: {
+    width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.md) * 0.45,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  forYouImage: {
+    width: "100%",
+    height: 140,
+  },
+  forYouFavorite: {
+    position: "absolute",
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.9)",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: BorderRadius.full,
-    marginRight: Spacing.sm,
   },
-  saveButton: {
+  forYouContent: {
+    padding: Spacing.md,
+  },
+  forYouRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.xs,
+  },
+  quickInfoColumn: {
     flex: 1,
-    height: 48,
+    gap: Spacing.md,
+  },
+  quickInfoCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+  },
+  quickInfoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  quickInfoLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    gap: 4,
+  },
+  ownerActions: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
+  },
+  editProfileButtonLarge: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
   },
 });

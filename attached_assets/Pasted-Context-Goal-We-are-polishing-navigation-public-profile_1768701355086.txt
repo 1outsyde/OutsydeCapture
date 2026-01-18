@@ -1,0 +1,166 @@
+Context / Goal
+
+We are polishing navigation + public profile UX, not changing backend logic.
+Backend is stable. Stripe is working. Editing bugs are resolved.
+
+1️⃣ Account Tab Behavior (Critical)
+
+Clicking the Account tab should route to the user’s PUBLIC PROFILE (storefront)
+
+Same screen that other users see
+
+This applies to photographers AND businesses
+
+The Account tab is NOT settings anymore
+
+2️⃣ Personal Settings Navigation
+
+Personal Settings should be accessed via a hamburger menu (top-right) on the profile screen
+
+Inside Personal Settings:
+
+Profile Settings
+
+Dashboard
+
+Logout
+
+Everything currently in “Account” becomes Personal Settings
+
+⚠️ No blocking access. No profile-complete gating.
+
+3️⃣ Public Profile / Storefront Screen (Reference Image)
+
+Use the provided iOS mockup as visual reference, but remain fully compatible with existing Outsyde backend.
+
+Header Section
+
+Full-width banner
+
+Supports image OR video OR solid color
+
+Gradient overlay for text legibility
+
+Circular profile photo overlapping banner
+
+Display:
+
+Name
+
+Bio
+
+Location (city, state)
+
+Hourly rate (if photographer)
+
+Specialties as pill tags
+
+Brand color used as accent (from backend)
+
+4️⃣ Availability Highlight (Important UX)
+
+Small but visible availability strip below profile identity
+
+Example:
+
+“Available Today: 10AM – 6PM”
+
+Clickable → jumps to Availability tab
+
+5️⃣ Tabs (Must Be Bigger Than Before)
+
+These are PRIMARY NAVIGATION, not secondary.
+
+Photographer Tabs
+
+Media
+
+Bookings
+
+Availability
+
+Reviews
+
+Business Tabs
+
+Products
+
+Services
+
+Availability
+
+Reviews
+
+Tab requirements:
+
+Large tap targets
+
+Icons + labels
+
+Active tab clearly highlighted using brand color
+
+6️⃣ Tab Content Rules
+
+Media → gallery grid (images / videos)
+
+Bookings / Services → pricing cards + CTA
+
+Products → product cards
+
+Availability → read-only calendar view
+
+Reviews → read-only list
+
+⚠️ No editing on this screen.
+
+7️⃣ Editing Profile & Banner (Important)
+
+Editing profile photo, banner, brand color happens ONLY in Edit Profile
+
+Profile screen is read-only
+
+Do NOT auto-update or PATCH on mount
+
+Only send updates when user explicitly taps “Save”
+
+8️⃣ Owner vs Public View
+
+Owners see:
+
+“Edit Profile” button
+
+Everyone else sees:
+
+Follow
+
+Share
+
+Book / Buy
+
+Same screen, role-aware controls.
+
+9️⃣ What NOT To Change
+
+❌ No backend changes
+
+❌ No new required fields
+
+❌ No auto-saving
+
+❌ No re-asking signup questions
+
+❌ No blocking dashboard or profile access
+
+10️⃣ Success Criteria
+
+User can:
+
+Tap Account → see their own storefront
+
+Navigate tabs smoothly
+
+Open dashboard from Personal Settings
+
+Edit profile without 400 errors
+
+App navigation feels similar to Instagram / Shopify profiles
