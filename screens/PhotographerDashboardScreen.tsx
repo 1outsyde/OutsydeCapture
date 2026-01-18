@@ -578,12 +578,14 @@ export default function PhotographerDashboardScreen() {
   };
 
   const handleAddService = () => {
+    setActiveModal(null); // Close services modal first to prevent freeze
     setEditingService(null);
-    setShowServiceEditor(true);
+    setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
   };
 
   const handleEditService = (service: PhotographerService) => {
     const rawService = rawServices.find(s => s.id === service.id);
+    setActiveModal(null); // Close services modal first to prevent freeze
     setEditingService({
       id: service.id,
       name: service.name,
@@ -595,7 +597,7 @@ export default function PhotographerDashboardScreen() {
       packageHours: rawService?.packageHours?.toString() || "",
       status: rawService?.status || "draft",
     });
-    setShowServiceEditor(true);
+    setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
   };
 
   const handleSaveService = async (data: ServiceFormData) => {
