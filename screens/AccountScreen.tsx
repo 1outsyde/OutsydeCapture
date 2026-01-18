@@ -122,6 +122,8 @@ export default function AccountScreen() {
   const [showStateVisibility, setShowStateVisibility] = useState(true);
   const [showEditPhotoModal, setShowEditPhotoModal] = useState(false);
   const [consumerReviews, setConsumerReviews] = useState<{ id: string; businessName: string; rating: number; comment: string; date: string }[]>([]);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -247,6 +249,39 @@ export default function AccountScreen() {
       setLoading(false);
     }
   }, [isAuthenticated, fetchProfile]);
+
+  // Handle follow/unfollow toggle
+  const handleFollowToggle = async () => {
+    if (!profile?.id || followLoading) return;
+    
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await api.unfollowUser(profile.id);
+        setIsFollowing(false);
+      } else {
+        const targetType = userRole === "photographer" ? "photographer" : 
+                          userRole === "business" ? "business" : "user";
+        await api.followUser(profile.id, targetType);
+        setIsFollowing(true);
+      }
+    } catch (error) {
+      console.error("Follow toggle failed:", error);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  // Check follow status when viewing another user's profile
+  const checkFollowStatus = useCallback(async (targetUserId: string) => {
+    if (isOwner || !targetUserId) return;
+    try {
+      const result = await api.checkFollowStatus(targetUserId);
+      setIsFollowing(result.isFollowing);
+    } catch (error) {
+      console.error("Failed to check follow status:", error);
+    }
+  }, [isOwner]);
 
   const getProfileTheme = (): string => {
     if (profile?.brandColors) {
@@ -880,8 +915,21 @@ export default function AccountScreen() {
             <View style={{ flex: 1 }} />
             {!isOwner && (
               <>
-                <Pressable style={[styles.followButton, { backgroundColor: profileTheme }]}>
-                  <ThemedText type="button" style={{ color: "#000000" }}>Follow</ThemedText>
+                <Pressable 
+                  style={[
+                    styles.followButton, 
+                    { 
+                      backgroundColor: isFollowing ? "transparent" : profileTheme,
+                      borderWidth: isFollowing ? 2 : 0,
+                      borderColor: profileTheme,
+                    }
+                  ]}
+                  onPress={handleFollowToggle}
+                  disabled={followLoading}
+                >
+                  <ThemedText type="button" style={{ color: isFollowing ? "#FFFFFF" : "#000000" }}>
+                    {followLoading ? "..." : isFollowing ? "Following" : "Follow"}
+                  </ThemedText>
                 </Pressable>
                 <Pressable style={[styles.headerButton, { marginLeft: Spacing.sm }]}>
                   <Feather name="share" size={20} color="#FFFFFF" />
