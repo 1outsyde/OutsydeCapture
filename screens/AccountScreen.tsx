@@ -241,15 +241,17 @@ export default function AccountScreen() {
 
           <View style={[styles.headerButtons, { top: insets.top + Spacing.md }]}>
             <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={() => setSettingsVisible(true)}
-              style={({ pressed }) => [
-                styles.settingsButton,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <Feather name="menu" size={24} color="#FFFFFF" />
-            </Pressable>
+            {!user?.isGuest && (
+              <Pressable
+                onPress={() => setSettingsVisible(true)}
+                style={({ pressed }) => [
+                  styles.settingsButton,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Feather name="menu" size={24} color="#FFFFFF" />
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.heroContent}>
@@ -386,28 +388,30 @@ export default function AccountScreen() {
             </View>
           )}
 
-          <Pressable
-            onPress={() => setSettingsVisible(true)}
-            style={[styles.pointsCard, { backgroundColor: theme.primary }]}
-          >
-            <View style={styles.pointsCardContent}>
-              <View style={styles.pointsInfo}>
-                <Feather name="star" size={24} color="#FFFFFF" />
-                <View style={styles.pointsTextContainer}>
-                  <ThemedText
-                    type="small"
-                    style={{ color: "rgba(255,255,255,0.8)" }}
-                  >
-                    Outsyde Points
-                  </ThemedText>
-                  <ThemedText type="h2" style={{ color: "#FFFFFF" }}>
-                    {points.toLocaleString()}
-                  </ThemedText>
+          {!user?.isGuest && (
+            <Pressable
+              onPress={() => setSettingsVisible(true)}
+              style={[styles.pointsCard, { backgroundColor: theme.primary }]}
+            >
+              <View style={styles.pointsCardContent}>
+                <View style={styles.pointsInfo}>
+                  <Feather name="star" size={24} color="#FFFFFF" />
+                  <View style={styles.pointsTextContainer}>
+                    <ThemedText
+                      type="small"
+                      style={{ color: "rgba(255,255,255,0.8)" }}
+                    >
+                      Outsyde Points
+                    </ThemedText>
+                    <ThemedText type="h2" style={{ color: "#FFFFFF" }}>
+                      {points.toLocaleString()}
+                    </ThemedText>
+                  </View>
                 </View>
+                <Feather name="chevron-right" size={24} color="#FFFFFF" />
               </View>
-              <Feather name="chevron-right" size={24} color="#FFFFFF" />
-            </View>
-          </Pressable>
+            </Pressable>
+          )}
 
           {isEditing ? (
             <View style={styles.editSection}>
@@ -533,7 +537,7 @@ export default function AccountScreen() {
                 </View>
               )}
 
-              {userRole === "consumer" && (
+              {userRole === "consumer" && !user?.isGuest && (
                 <View style={styles.section}>
                   <ThemedText type="h4" style={styles.sectionTitle}>
                     Quick Actions

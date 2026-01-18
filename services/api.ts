@@ -791,7 +791,16 @@ class ApiService {
   }
 
   async healthCheck(): Promise<HealthCheckResponse> {
-    return this.request<HealthCheckResponse>("/health");
+    // Health check doesn't need credentials - avoid CORS issues with wildcard origin
+    const url = `${this.baseUrl}/health`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error(`Health check failed: ${response.status}`);
+    }
+    return response.json();
   }
 
   async mobileLogin(data: MobileLoginRequest): Promise<MobileLoginResponse> {
