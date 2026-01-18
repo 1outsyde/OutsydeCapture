@@ -122,6 +122,8 @@ export default function DiscoverScreen() {
       if (photographer) {
         navigation.navigate("PhotographerDetail", { photographer });
       }
+    } else if (post.type === "vendor") {
+      navigation.navigate("VendorDetail", { vendorId: post.authorId });
     }
   };
 
@@ -132,7 +134,7 @@ export default function DiscoverScreen() {
         navigation.navigate("PhotographerDetail", { photographer });
       }
     } else if (post.type === "vendor") {
-      navigation.navigate("CartOrders");
+      navigation.navigate("VendorDetail", { vendorId: post.authorId });
     }
   };
 
@@ -324,9 +326,9 @@ export default function DiscoverScreen() {
             onPress={() => handleActionPress(post)}
             style={({ pressed }) => [styles.actionButton, styles.bookButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
           >
-            <Feather name={isVendor ? "shopping-cart" : "calendar"} size={16} color="#FFFFFF" />
+            <Feather name={isVendor ? "shopping-bag" : "calendar"} size={16} color="#FFFFFF" />
             <ThemedText type="small" style={{ color: "#FFFFFF", marginLeft: Spacing.xs }}>
-              {isVendor ? "Add to Cart" : "Book"}
+              {isVendor ? "Buy Now" : "Book"}
             </ThemedText>
           </Pressable>
         </View>
