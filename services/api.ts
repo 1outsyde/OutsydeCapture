@@ -1084,6 +1084,14 @@ class ApiService {
     return this.request<ApiBusinessDetail>(`/api/businesses/${id}`);
   }
 
+  async getBusinessPublicProducts(businessId: string): Promise<{ products: VendorProduct[] }> {
+    return this.request<{ products: VendorProduct[] }>(`/api/businesses/${businessId}/products`);
+  }
+
+  async getBusinessPublicServices(businessId: string): Promise<{ services: VendorService[] }> {
+    return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
+  }
+
   async createOrGetConversation(data: CreateConversationRequest, authToken?: string | null): Promise<ApiConversation> {
     const headers: Record<string, string> = {};
     if (authToken) {
