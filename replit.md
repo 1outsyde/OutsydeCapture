@@ -12,7 +12,7 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Color Scheme**: Gold/yellow variations, white/black backgrounds, success green.
 - **Branding**: Y logo, iOS 26 Liquid Glass inspiration with transparent headers and blur effects.
 - **Tier Colors**: Gold (Premium), Silver (Pro), Bronze (Basic) badges for businesses.
-- **Reusable Components**: `ThemedText`, `ThemedView`, `Button`, `Card`, `HeaderTitle`, `HoursEditor`.
+- **Reusable Components**: `ThemedText`, `ThemedView`, `Button`, `Card`, `HeaderTitle`, `HoursEditor`, `DateBlocker`.
 - **Safe Area Handling**: Custom wrappers for tab screens, manual insets for modals.
 
 ### Technical Implementations
@@ -53,6 +53,11 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Guest Restrictions**: Limited view without hamburger menu or edit actions
 - **Admin Dashboard**: Comprehensive interface for user, business, photographer, payment, message, and influencer management. Includes real-time notifications for new business applications.
 - **Provider Dashboards (Photographer & Business)**: Dedicated dashboards for managing earnings, bookings/orders, services/products, availability, and profile information. Both integrate with Stripe Connect.
+- **Photographer Availability System**: 3-tier Calendly/HoneyBook-style availability management:
+  - **Base Availability (HoursEditor)**: Weekly recurring working hours that act as constraints. Stored as `VendorBookerAvailabilitySlot` with `dayOfWeek`, `startTime`, `endTime`, `isRecurring`.
+  - **Blocked Dates (DateBlocker)**: Calendar-based UI for one-off overrides (vacations, external shoots, personal time). Uses `BlockedDate` with `date`, `isFullDay`, `startTime`, `endTime`, `reason`. Quick block options for Today/Tomorrow/Weekend/Week.
+  - **Computed Slots**: Public profile Availability tab shows 7-day calendar view with real-time computation: base hours minus blocked dates = available slots. Green checkmarks for available, red X for blocked, gray for unavailable.
+  - **API Endpoints**: `GET/PUT /api/photographers/me/availability`, `GET/PUT /api/photographers/me/blocked-dates`.
 - **Storefront Editor**: Full-featured customization for businesses, including branding (cover, logo, colors), profile details, business hours, and product/service management. Products/services have statuses (draft, live, paused, archived) with specific publishing gates (admin approval, Stripe setup, active subscription).
 - **Image Handling**: Reusable `ImageUploader` component with camera/library options and aspect ratio support.
 - **Backend Enforcement**: Critical logic (publishing validation, subscription lapse auto-pause) is enforced server-side.
