@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -46,6 +47,7 @@ interface ProfileData {
   name: string;
   avatar?: string;
   coverImage?: string;
+  coverVideo?: string;
   city?: string;
   state?: string;
   bio?: string;
@@ -125,6 +127,7 @@ export default function AccountScreen() {
   const [consumerReviews, setConsumerReviews] = useState<{ id: string; businessName: string; rating: number; comment: string; date: string }[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [showVideoFullscreen, setShowVideoFullscreen] = useState(false);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -142,11 +145,14 @@ export default function AccountScreen() {
 
       if (userRole === "photographer") {
         const photographer = (await api.getPhotographerMe(token)) as any;
+        const coverUrl = photographer.coverImage || "";
+        const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
         setProfile({
           id: photographer.id,
           name: photographer.displayName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
           avatar: photographer.logoImage,
-          coverImage: photographer.coverImage,
+          coverImage: isVideo ? undefined : photographer.coverImage,
+          coverVideo: isVideo ? photographer.coverImage : undefined,
           city: photographer.city,
           state: photographer.state,
           bio: photographer.bio,
@@ -306,6 +312,26 @@ export default function AccountScreen() {
   };
 
   const profileTheme = getProfileTheme();
+  
+  const bannerVideoPlayer = useVideoPlayer(profile?.coverVideo || null, player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  const fullscreenVideoPlayer = useVideoPlayer(profile?.coverVideo || null, player => {
+    player.loop = false;
+    player.muted = false;
+  });
+
+  useEffect(() => {
+    if (showVideoFullscreen && fullscreenVideoPlayer) {
+      fullscreenVideoPlayer.play();
+    } else if (fullscreenVideoPlayer) {
+      fullscreenVideoPlayer.pause();
+      fullscreenVideoPlayer.currentTime = 0;
+    }
+  }, [showVideoFullscreen, fullscreenVideoPlayer]);
   
   // Compute business tabs dynamically based on products/services
   const getBusinessTabs = (): { key: ProfileTab; label: string; icon: string }[] => {
@@ -1089,15 +1115,33 @@ export default function AccountScreen() {
       >
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          <Image
-            source={{ uri: profile?.coverImage || profile?.avatar || FALLBACK_COVER }}
-            style={styles.coverImage}
-            contentFit="cover"
-            transition={300}
-          />
+          {profile?.coverVideo ? (
+            <Pressable 
+              style={StyleSheet.absoluteFill}
+              onPress={() => setShowVideoFullscreen(true)}
+            >
+              <VideoView
+                player={bannerVideoPlayer}
+                style={styles.coverImage}
+                contentFit="cover"
+                nativeControls={false}
+              />
+              <View style={styles.videoPlayIndicator}>
+                <Feather name="play-circle" size={40} color="rgba(255,255,255,0.8)" />
+              </View>
+            </Pressable>
+          ) : (
+            <Image
+              source={{ uri: profile?.coverImage || profile?.avatar || FALLBACK_COVER }}
+              style={styles.coverImage}
+              contentFit="cover"
+              transition={300}
+            />
+          )}
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.7)"]}
             style={styles.heroGradient}
+            pointerEvents="none"
           />
 
           {/* Header Buttons */}
@@ -1402,10 +1446,30 @@ export default function AccountScreen() {
       <PersonalSettingsMenu
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
-        onEditPhotos={() => setShowEditPhotoModal(true)}
+        onEditPhotos={userRole === "consumer" ? () => setShowEditPhotoModal(true) : undefined}
         showLocationVisible={showStateVisibility}
         onToggleLocationVisibility={() => setShowStateVisibility(!showStateVisibility)}
       />
+
+      {/* Fullscreen Video Modal */}
+      <Modal visible={showVideoFullscreen} animationType="fade" transparent>
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          <Pressable
+            onPress={() => setShowVideoFullscreen(false)}
+            style={{ position: "absolute", top: insets.top + 16, right: 16, zIndex: 10, padding: 8 }}
+          >
+            <Feather name="x" size={28} color="#FFFFFF" />
+          </Pressable>
+          {profile?.coverVideo && (
+            <VideoView
+              player={fullscreenVideoPlayer}
+              style={{ flex: 1 }}
+              contentFit="contain"
+              nativeControls={true}
+            />
+          )}
+        </View>
+      </Modal>
 
       {/* Photo Edit Modal for Consumers */}
       <Modal visible={showEditPhotoModal} animationType="slide" transparent>
@@ -1536,6 +1600,13 @@ const styles = StyleSheet.create({
   },
   coverImage: {
     ...StyleSheet.absoluteFillObject,
+  },
+  videoPlayIndicator: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    marginTop: -20,
+    marginLeft: -20,
   },
   heroGradient: {
     position: "absolute",
