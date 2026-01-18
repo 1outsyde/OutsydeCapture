@@ -1185,6 +1185,15 @@ export default function AccountScreen() {
                 Edit Profile
               </ThemedText>
             </Pressable>
+            <Pressable
+              style={[styles.editProfileButtonLarge, { backgroundColor: isDark ? "#2C2C2E" : "#F5F5F5", marginTop: Spacing.sm }]}
+              onPress={() => setShowEditPhotoModal(true)}
+            >
+              <Feather name="camera" size={18} color={theme.text} />
+              <ThemedText type="button" style={{ marginLeft: Spacing.sm }}>
+                Edit Photos
+              </ThemedText>
+            </Pressable>
           </View>
         )}
       </ScrollView>
