@@ -1243,6 +1243,39 @@ class ApiService {
     });
   }
 
+  // PATCH /api/photographers/me/services/:id - Update a service
+  async updatePhotographerMeService(authToken: string, serviceId: string, data: Partial<VendorBookerPhotographerService>): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>(`/api/photographers/me/services/${serviceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/photographers/me/services/:id - Delete a service
+  async deletePhotographerMeService(authToken: string, serviceId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/photographers/me/services/${serviceId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/photographers/me/services/:id/go-live - Publish a service (creates Stripe product)
+  async goLivePhotographerService(authToken: string, serviceId: string): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>(`/api/photographers/me/services/${serviceId}/go-live`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/photographers/me/services/:id/archive - Archive a service
+  async archivePhotographerService(authToken: string, serviceId: string): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>(`/api/photographers/me/services/${serviceId}/archive`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // GET /api/photographers/me/availability - Get availability slots
   async getPhotographerMeAvailability(authToken: string): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
     return this.request<{ availability: VendorBookerAvailabilitySlot[] }>("/api/photographers/me/availability", {
