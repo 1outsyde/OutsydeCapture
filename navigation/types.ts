@@ -91,6 +91,8 @@ export type RootStackParamList = {
   InfluencerApplication: undefined;
   ProfileCompletionGate: { dashboardType: "photographer" | "business" };
   StorefrontEditor: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
 };
 
 export type MainTabParamList = {

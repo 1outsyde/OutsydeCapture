@@ -1,0 +1,285 @@
+Perfect — this is where Outsyde actually gets defensible. I’ll add role-specific clauses and clear Stripe / payouts language, lock in your contact info, and keep everything consistent with how you operate today (marketplace + bookings + Stripe Connect).
+
+Below is the UPDATED & EXPANDED TERMS OF SERVICE. This version is launch-ready and App Store–safe. ⚖️🚀
+
+⸻
+
+OUTSYDE TERMS OF SERVICE
+
+Last Updated: [Insert Date]
+
+Welcome to Outsyde (“Outsyde,” “we,” “our,” or “us”). These Terms of Service (“Terms”) govern your access to and use of the Outsyde mobile application, website, and related services (collectively, the “Platform”).
+
+By accessing or using Outsyde, you agree to be bound by these Terms. If you do not agree, do not use the Platform.
+
+⸻
+
+1. ABOUT OUTSYDE
+
+Outsyde is a technology-based marketplace, booking, and discovery platform that connects users with independent businesses, vendors, photographers, influencers, creatives, and service providers.
+
+Outsyde does not provide services or sell products directly unless explicitly stated. All services and products are offered by independent third parties using the Platform.
+
+Outsyde acts solely as a facilitator and intermediary, not as a service provider, employer, agent, or partner.
+
+⸻
+
+2. ELIGIBILITY
+
+You must be at least 18 years old to use Outsyde.
+
+By using the Platform, you represent that:
+	•	You are legally capable of entering a binding agreement
+	•	All information you provide is accurate, current, and complete
+
+⸻
+
+3. USER ACCOUNTS
+
+You are responsible for:
+	•	Safeguarding your login credentials
+	•	All activity under your account
+
+Outsyde may suspend, restrict, or terminate accounts for:
+	•	Fraud or misrepresentation
+	•	Policy or Terms violations
+	•	Abuse, harassment, or platform manipulation
+	•	Circumvention of fees or payments
+
+⸻
+
+4. USER ROLES & ROLE-SPECIFIC TERMS
+
+Outsyde supports multiple user roles. By using the Platform in a given role, you agree to the applicable terms below.
+
+⸻
+
+A. CONSUMERS (CLIENTS / CUSTOMERS)
+
+Consumers may browse, book services, purchase products, and interact with providers.
+
+Consumers acknowledge that:
+	•	All services/products are provided by third parties
+	•	Outsyde is not responsible for fulfillment, quality, or outcomes
+	•	Refunds and cancellations are governed by provider policies
+
+⸻
+
+B. BUSINESSES & VENDORS
+
+Businesses and vendors may list products and/or services.
+
+By using Outsyde, businesses agree:
+	•	They are legally registered or operating businesses
+	•	They are solely responsible for product quality, fulfillment, shipping, taxes, and compliance
+	•	Outsyde does not store or handle inventory
+	•	Outsyde is not liable for customer disputes, chargebacks, or losses
+
+Outsyde may require verification and may approve, deny, or revoke vendor access at its discretion.
+
+⸻
+
+C. PHOTOGRAPHERS & SERVICE PROVIDERS
+
+Photographers and service providers operate as independent contractors.
+
+They acknowledge that:
+	•	They are responsible for their own equipment, conduct, and deliverables
+	•	Outsyde does not guarantee bookings or income
+	•	Pricing, availability, and performance are their responsibility
+	•	Failure to fulfill bookings may result in account penalties or removal
+
+⸻
+
+D. INFLUENCERS & PROMOTERS
+
+Influencers may promote businesses or services through Outsyde.
+
+Influencers acknowledge:
+	•	Earnings are not guaranteed
+	•	Compensation may be commission-based, fixed, or promotional
+	•	Any off-platform agreements are outside Outsyde’s liability
+	•	Misrepresentation or fraudulent promotion may result in removal
+
+⸻
+
+E. STAFF / CONTRACTORS
+
+Staff or contractor accounts are granted limited access and permissions.
+
+They:
+	•	Are not employees of Outsyde unless explicitly stated in writing
+	•	May have access revoked at any time
+	•	Are bound by confidentiality and professional conduct expectations
+
+⸻
+
+5. PAYMENTS, STRIPE & PLATFORM FEES
+
+Payment Processing
+
+All payments on Outsyde are processed through Stripe or other third-party payment processors.
+
+By using Outsyde, you agree to:
+	•	Stripe’s Terms of Service
+	•	Stripe Connect (where applicable)
+
+Outsyde does not store payment information.
+
+⸻
+
+Payouts & Holds
+	•	Payouts to providers are subject to Stripe processing times, verification, and approval
+	•	Funds may be temporarily held due to:
+	•	Account verification
+	•	Risk reviews
+	•	Disputes or chargebacks
+	•	Stripe compliance requirements
+
+Outsyde is not responsible for Stripe delays, holds, reversals, or account limitations.
+
+⸻
+
+Platform Fees
+
+Outsyde may charge:
+	•	Platform fees
+	•	Service fees
+	•	Commissions
+
+Fees are non-refundable, except where required by law.
+
+Circumventing Outsyde payments or fees is strictly prohibited.
+
+⸻
+
+6. BOOKINGS, CANCELLATIONS & DISPUTES
+	•	Booking terms are defined by the service provider
+	•	Outsyde does not guarantee availability or completion
+	•	Cancellations and refunds are governed by provider policies and platform rules
+
+Outsyde is not liable for missed appointments, dissatisfaction, or non-delivery.
+
+⸻
+
+7. INDEPENDENT CONTRACTOR STATUS
+
+All providers on Outsyde operate as independent contractors.
+
+Nothing in these Terms creates:
+	•	An employer-employee relationship
+	•	A partnership or joint venture
+	•	An agency relationship
+
+Providers are responsible for:
+	•	Taxes
+	•	Insurance
+	•	Licenses
+	•	Legal compliance
+
+⸻
+
+8. CONTENT & MEDIA RIGHTS
+
+You retain ownership of content you upload.
+
+By uploading content, you grant Outsyde a non-exclusive, royalty-free, worldwide license to:
+	•	Host and display content
+	•	Promote Outsyde and its users
+	•	Use content for marketing and discovery
+
+Outsyde may remove content that violates these Terms or applicable law.
+
+⸻
+
+9. PROHIBITED CONDUCT
+
+You may not:
+	•	Commit fraud or impersonation
+	•	Harass or threaten others
+	•	Upload illegal or infringing content
+	•	Manipulate reviews or ratings
+	•	Bypass payments or platform systems
+
+Violations may result in immediate termination.
+
+⸻
+
+10. DISCLAIMERS
+
+THE PLATFORM IS PROVIDED “AS IS” AND “AS AVAILABLE.”
+
+OUTSYDE DISCLAIMS ALL WARRANTIES, INCLUDING:
+	•	MERCHANTABILITY
+	•	FITNESS FOR A PARTICULAR PURPOSE
+	•	NON-INFRINGEMENT
+
+OUTSYDE DOES NOT GUARANTEE RESULTS, EARNINGS, BOOKINGS, OR SALES.
+
+⸻
+
+11. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW:
+
+OUTSYDE SHALL NOT BE LIABLE FOR:
+	•	INDIRECT OR CONSEQUENTIAL DAMAGES
+	•	LOST PROFITS OR DATA
+	•	PERSONAL INJURY OR PROPERTY DAMAGE
+
+TOTAL LIABILITY SHALL NOT EXCEED AMOUNTS PAID TO OUTSYDE IN THE PAST 12 MONTHS.
+
+⸻
+
+12. INDEMNIFICATION
+
+You agree to indemnify and hold harmless Outsyde from claims arising from:
+	•	Your use of the Platform
+	•	Your services, products, or content
+	•	Your violation of these Terms or applicable laws
+
+⸻
+
+13. TERMINATION
+
+Outsyde may suspend or terminate access at any time, with or without notice, for violations or risk to the Platform.
+
+⸻
+
+14. GOVERNING LAW & ARBITRATION
+
+These Terms are governed by the laws of the State of New York.
+
+Any disputes shall be resolved through binding arbitration, except where prohibited by law.
+
+⸻
+
+15. CHANGES TO TERMS
+
+Outsyde may update these Terms at any time. Continued use constitutes acceptance of updated Terms.
+
+⸻
+
+16. CONTACT INFORMATION
+
+Outsyde LLC
+📧 info@goutsyde.com
+🌐 https://goutsyde.com
+
+⸻
+
+🔍 Coach’s checkpoint (don’t skip this)
+
+This version:
+	•	Protects Outsyde from Stripe issues
+	•	Separates each role cleanly
+	•	Blocks off-platform payment leakage
+	•	Aligns with App Store + Stripe Connect expectations
+
+If you want next:
+	•	Privacy Policy (SHIELD Act compliant)
+	•	Role-specific addendums (photographer agreement baked in)
+	•	Refund & Cancellation Policy
+	•	App Store / Google Play legal bundle
+
+Say which one — we keep building forward.

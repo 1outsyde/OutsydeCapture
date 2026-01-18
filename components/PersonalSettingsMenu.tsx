@@ -277,7 +277,7 @@ export function PersonalSettingsMenu({
                 Support
               </ThemedText>
               <MenuItem icon="help-circle" label="Help Center" onPress={() => {}} />
-              <MenuItem icon="file-text" label="Terms of Service" onPress={() => {}} />
+              <MenuItem icon="file-text" label="Terms of Service" onPress={() => handleNavigate("TermsOfService")} />
               <MenuItem icon="shield" label="Privacy Policy" onPress={() => {}} />
             </View>
 

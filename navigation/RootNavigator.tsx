@@ -29,6 +29,7 @@ import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
+import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -301,6 +302,15 @@ export default function RootNavigator() {
       <Stack.Screen
         name="StorefrontEditor"
         component={StorefrontEditorScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="TermsOfService"
+        component={TermsOfServiceScreen}
         options={{
           presentation: "card",
           animation: "slide_from_right",
