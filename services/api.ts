@@ -1233,6 +1233,15 @@ class ApiService {
     });
   }
 
+  // PUT /api/photographers/me/availability - Update availability slots
+  async updatePhotographerMeAvailability(authToken: string, availability: VendorBookerAvailabilitySlot[]): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
+    return this.request<{ availability: VendorBookerAvailabilitySlot[] }>("/api/photographers/me/availability", {
+      method: "PUT",
+      body: JSON.stringify({ availability }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // GET /api/photographers/me/bookings - Get booking records
   async getPhotographerMeBookings(authToken: string): Promise<{ bookings: PhotographerBooking[] }> {
     return this.request<{ bookings: PhotographerBooking[] }>("/api/photographers/me/bookings", {

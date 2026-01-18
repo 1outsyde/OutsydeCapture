@@ -499,17 +499,25 @@ export default function PhotographerDashboardScreen() {
 
     try {
       setSaving(true);
-      const photographerHours: PhotographerHours[] = hours.map(h => ({
-        dayOfWeek: h.dayOfWeek,
-        isAvailable: h.isAvailable,
-        startTime: h.startTime,
-        endTime: h.endTime,
-      }));
-      await api.updatePhotographerHours(token, photographerHours);
+      // Map DayHours to VendorBookerAvailabilitySlot format
+      // Only include days where isAvailable is true
+      const availabilitySlots = hours
+        .filter(h => h.isAvailable)
+        .map(h => ({
+          dayOfWeek: h.dayOfWeek,
+          startTime: h.startTime,
+          endTime: h.endTime,
+          isRecurring: true,
+        }));
+      
+      await api.updatePhotographerMeAvailability(token, availabilitySlots as any);
       Alert.alert("Success", "Your availability has been updated");
       setActiveModal(null);
+      // Refresh to get updated availability
+      fetchDashboard();
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to save hours");
+      console.error("[Dashboard] Failed to save availability:", error);
+      Alert.alert("Error", error.message || "Failed to save availability");
     } finally {
       setSaving(false);
     }
