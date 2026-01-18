@@ -15,7 +15,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import Card from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { useNotifications, AppNotification } from "@/context/NotificationContext";
+import { useNotifications, Notification } from "@/context/NotificationContext";
 import { Spacing, FontSizes, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 
@@ -46,11 +46,11 @@ export default function NotificationsScreen() {
     }
   };
 
-  const handleNotificationPress = (notification: AppNotification) => {
+  const handleNotificationPress = (notification: Notification) => {
     markAsRead(notification.id);
-    if (notification.data?.sessionId) {
+    if (notification.metadata?.sessionId) {
       navigation.navigate("SessionDetail", {
-        sessionId: notification.data.sessionId as string,
+        sessionId: notification.metadata.sessionId as string,
       });
     }
   };
@@ -70,17 +70,20 @@ export default function NotificationsScreen() {
   };
 
   const getNotificationIcon = (
-    type: AppNotification["type"]
+    type: Notification["type"]
   ): keyof typeof Feather.glyphMap => {
     switch (type) {
-      case "booking_confirmation":
+      case "booking":
         return "check-circle";
-      case "booking_reminder":
+      case "reminder":
         return "clock";
-      case "session_update":
-        return "camera";
-      case "message":
-        return "message-circle";
+      case "promotion":
+        return "tag";
+      case "admin":
+        return "shield";
+      case "follow":
+        return "user-plus";
+      case "system":
       default:
         return "bell";
     }
@@ -343,7 +346,7 @@ export default function NotificationsScreen() {
                           color="secondary"
                           style={styles.notificationTime}
                         >
-                          {formatTimestamp(notification.timestamp)}
+                          {formatTimestamp(new Date(notification.date))}
                         </ThemedText>
                         {!notification.read ? (
                           <View style={styles.unreadDot} />
