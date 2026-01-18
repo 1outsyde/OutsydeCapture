@@ -998,51 +998,7 @@ export default function AccountScreen() {
         {/* Tab Content - Now for all users */}
         {renderTabContent()}
 
-        {/* Consumer Settings Section */}
-        {userRole === "consumer" && !isGuest && (
-          <View style={styles.consumerSettings}>
-            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>Profile Settings</ThemedText>
-            
-            <Pressable
-              onPress={() => setShowEditPhotoModal(true)}
-              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Feather name="image" size={20} color={theme.text} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Edit Photos</ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-
-            <View style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Feather name="map-pin" size={20} color={theme.text} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Show Location</ThemedText>
-              </View>
-              <Pressable
-                onPress={() => setShowStateVisibility(!showStateVisibility)}
-                style={[
-                  styles.toggleSwitch,
-                  { backgroundColor: showStateVisibility ? profileTheme : theme.textSecondary },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.toggleKnob,
-                    { transform: [{ translateX: showStateVisibility ? 20 : 2 }] },
-                  ]}
-                />
-              </Pressable>
-            </View>
-
-            {profile?.state && showStateVisibility && (
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs, marginLeft: Spacing.sm }}>
-                Your location ({profile.city ? `${profile.city}, ` : ""}{profile.state}) is visible to others
-              </ThemedText>
-            )}
-          </View>
-        )}
-
+        
         {/* Browse Portfolio Section */}
         {userRole !== "consumer" && portfolioCategories.length > 0 && (
           <View style={styles.portfolioSection}>
@@ -1185,15 +1141,6 @@ export default function AccountScreen() {
                 Edit Profile
               </ThemedText>
             </Pressable>
-            <Pressable
-              style={[styles.editProfileButtonLarge, { backgroundColor: isDark ? "#2C2C2E" : "#F5F5F5", marginTop: Spacing.sm }]}
-              onPress={() => setShowEditPhotoModal(true)}
-            >
-              <Feather name="camera" size={18} color={theme.text} />
-              <ThemedText type="button" style={{ marginLeft: Spacing.sm }}>
-                Edit Photos
-              </ThemedText>
-            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -1201,6 +1148,9 @@ export default function AccountScreen() {
       <PersonalSettingsMenu
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
+        onEditPhotos={() => setShowEditPhotoModal(true)}
+        showLocationVisible={showStateVisibility}
+        onToggleLocationVisibility={() => setShowStateVisibility(!showStateVisibility)}
       />
 
       {/* Photo Edit Modal for Consumers */}

@@ -22,6 +22,9 @@ interface PersonalSettingsMenuProps {
   visible: boolean;
   onClose: () => void;
   onEditProfile?: () => void;
+  onEditPhotos?: () => void;
+  showLocationVisible?: boolean;
+  onToggleLocationVisibility?: () => void;
 }
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -30,6 +33,9 @@ export function PersonalSettingsMenu({
   visible,
   onClose,
   onEditProfile,
+  onEditPhotos,
+  showLocationVisible,
+  onToggleLocationVisibility,
 }: PersonalSettingsMenuProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -228,6 +234,61 @@ export function PersonalSettingsMenu({
                 />
               ) : null}
 
+              {onEditPhotos ? (
+                <MenuItem
+                  icon="camera"
+                  label="Edit Photos"
+                  onPress={() => {
+                    onClose();
+                    onEditPhotos();
+                  }}
+                  subtitle="Profile photo and banner"
+                />
+              ) : null}
+
+              {onToggleLocationVisibility ? (
+                <Pressable
+                  onPress={() => {
+                    onToggleLocationVisibility();
+                  }}
+                  style={({ pressed }) => [
+                    styles.menuItem,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      opacity: pressed ? 0.8 : 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.menuItemLeft}>
+                    <Feather name="map-pin" size={20} color={theme.text} />
+                    <View>
+                      <ThemedText type="body" style={styles.menuItemText}>
+                        Show Location
+                      </ThemedText>
+                      <ThemedText
+                        type="small"
+                        style={[styles.menuItemSubtitle, { color: theme.textSecondary }]}
+                      >
+                        {showLocationVisible ? "Visible to others" : "Hidden from profile"}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.toggleSwitch,
+                      { backgroundColor: showLocationVisible ? "#FFD60A" : "#767577" },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.toggleKnob,
+                        { marginLeft: showLocationVisible ? 22 : 2 },
+                      ]}
+                    />
+                  </View>
+                </Pressable>
+              ) : null}
+
               <MenuItem
                 icon="bell"
                 label="Notifications"
@@ -362,5 +423,17 @@ const styles = StyleSheet.create({
   menuItemSubtitle: {
     marginLeft: Spacing.md,
     marginTop: 2,
+  },
+  toggleSwitch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+  },
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
   },
 });
