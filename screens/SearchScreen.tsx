@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator, Switch } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
 import { RootStackParamList, BusinessProfileData, PhotographerProfileData } from "@/navigation/types";
@@ -52,29 +53,43 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { user, getToken } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [personalized, setPersonalized] = useState(true);
+  const [isPersonalizedResults, setIsPersonalizedResults] = useState(false);
+
+  const isAuthenticated = !!user && !user.isGuest;
 
   const fetchSearchResults = useCallback(async (query?: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await api.search({ query: query || undefined });
-      const normalized = api.normalizeSearchResults(response);
+      const authToken = isAuthenticated ? await getToken() : null;
+      const response = await api.unifiedSearch(
+        { 
+          q: query || undefined,
+          personalized: isAuthenticated && personalized,
+        },
+        authToken
+      );
+      const normalized = api.normalizeUnifiedResults(response);
       setResults(normalized);
+      setIsPersonalizedResults(response.personalized);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || "Failed to fetch search results");
       setResults([]);
+      setIsPersonalizedResults(false);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, personalized, getToken]);
 
   useEffect(() => {
     fetchSearchResults();
@@ -298,10 +313,39 @@ export default function SearchScreen() {
         </ScrollView>
       </View>
 
-      <ThemedText type="h4" style={styles.resultsTitle}>
-        {filteredResults.length} {filteredResults.length === 1 ? "Result" : "Results"}
-        {activeTab !== "all" ? ` in ${TABS.find(t => t.id === activeTab)?.label}` : ""}
-      </ThemedText>
+      <View style={styles.resultsHeaderRow}>
+        <ThemedText type="h4" style={styles.resultsTitle}>
+          {filteredResults.length} {filteredResults.length === 1 ? "Result" : "Results"}
+          {activeTab !== "all" ? ` in ${TABS.find(t => t.id === activeTab)?.label}` : ""}
+        </ThemedText>
+        {isAuthenticated ? (
+          <View style={styles.personalizedToggle}>
+            <Feather 
+              name="sliders" 
+              size={14} 
+              color={isPersonalizedResults ? theme.primary : theme.textSecondary} 
+            />
+            <ThemedText 
+              type="caption" 
+              style={{ 
+                color: isPersonalizedResults ? theme.primary : theme.textSecondary,
+                marginLeft: 4,
+                marginRight: 8,
+              }}
+            >
+              For You
+            </ThemedText>
+            <Switch
+              value={personalized}
+              onValueChange={setPersonalized}
+              trackColor={{ false: theme.border, true: theme.primary }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={theme.border}
+              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+            />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 
@@ -436,8 +480,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
-  resultsTitle: {
+  resultsHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.lg,
+  },
+  resultsTitle: {
+    flex: 1,
+  },
+  personalizedToggle: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   listContent: {
     paddingTop: Spacing.lg,
