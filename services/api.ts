@@ -486,6 +486,9 @@ export interface PhotographerService {
   duration: number;
   price: number;
   isActive: boolean;
+  status?: string;
+  pricingModel?: string;
+  category?: string;
 }
 
 export interface PhotographerHours {
@@ -1283,11 +1286,28 @@ class ApiService {
     });
   }
 
-  // PUT /api/photographers/me/availability - Update availability slots
+  // PUT /api/photographers/me/availability - Update availability slots (bulk)
   async updatePhotographerMeAvailability(authToken: string, availability: VendorBookerAvailabilitySlot[]): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
     return this.request<{ availability: VendorBookerAvailabilitySlot[] }>("/api/photographers/me/availability", {
       method: "PUT",
       body: JSON.stringify({ availability }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/photographers/me/availability - Create a single availability slot
+  async createPhotographerAvailabilitySlot(
+    authToken: string,
+    data: { date: string; startTime: string; endTime: string; slotType?: string }
+  ): Promise<{ slot: VendorBookerAvailabilitySlot }> {
+    return this.request<{ slot: VendorBookerAvailabilitySlot }>("/api/photographers/me/availability", {
+      method: "POST",
+      body: JSON.stringify({
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        slotType: data.slotType || "available",
+      }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
