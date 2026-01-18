@@ -188,29 +188,37 @@ export default function AccountScreen() {
 
         // Fetch availability, blocked dates, and services
         try {
-          const [availRes, blockedRes, servicesRes] = await Promise.all([
+          const [availRes, blockedRes] = await Promise.all([
             api.getPhotographerMeAvailability(token),
             api.getPhotographerBlockedDates(token),
-            api.getPhotographerMeServices(token),
           ]);
           setAvailabilitySlots(availRes.availability || []);
           setBlockedDates(blockedRes.blockedDates || []);
-          
-          const servicesList = servicesRes.services || [];
-          const mappedServices: PhotographerService[] = servicesList.map((svc: any) => ({
+        } catch (availError) {
+          console.warn("[AccountScreen] Could not fetch availability:", availError);
+        }
+
+        // Fetch PUBLIC services using photographer ID (only returns active/live services)
+        try {
+          const publicServices = await api.getPhotographerPublicServices(photographer.id);
+          const servicesList = Array.isArray(publicServices) ? publicServices : [];
+          // Filter for only active (live) services
+          const activeServices = servicesList.filter((svc: any) => svc.status === "active");
+          console.log("[AccountScreen] Public services fetched:", servicesList.length, "Active:", activeServices.length);
+          const mappedServices: PhotographerService[] = activeServices.map((svc: any) => ({
             id: svc.id,
             name: svc.name,
             description: svc.description,
-            price: svc.price,
-            durationMinutes: svc.durationMinutes,
+            price: svc.priceCents ? svc.priceCents / 100 : svc.price,
+            durationMinutes: svc.estimatedDurationMinutes || svc.durationMinutes,
             category: svc.category,
             isPromo: svc.isPromo,
             promoPrice: svc.promoPrice,
             promoEndDate: svc.promoEndDate,
           }));
           setPhotographerServices(mappedServices);
-        } catch (availError) {
-          console.warn("[AccountScreen] Could not fetch availability/services:", availError);
+        } catch (servicesError) {
+          console.warn("[AccountScreen] Could not fetch public services:", servicesError);
         }
       } else if (userRole === "business") {
         const [businessRes, productsRes, servicesRes] = await Promise.all([
