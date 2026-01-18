@@ -78,6 +78,8 @@ export default function SearchScreen() {
         },
         authToken
       );
+      console.log("[SearchScreen] Search query:", query, "Total results:", response.total);
+      console.log("[SearchScreen] Result types:", response.results.map(r => `${r.type}: ${r.name}`));
       const normalized = api.normalizeUnifiedResults(response);
       setResults(normalized);
       setIsPersonalizedResults(response.personalized);
