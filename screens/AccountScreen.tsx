@@ -112,6 +112,8 @@ export default function AccountScreen() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostImage, setNewPostImage] = useState<string>("");
   const [newPostCaption, setNewPostCaption] = useState("");
+  const [businessHasProducts, setBusinessHasProducts] = useState(false);
+  const [businessHasServices, setBusinessHasServices] = useState(false);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -205,7 +207,10 @@ export default function AccountScreen() {
           reviewCount: vendor.reviewCount || undefined,
           specialties: vendor.category ? [vendor.category] : [],
           brandColors: vendor.brandColors || undefined,
+          stripeOnboardingComplete: vendor.stripeOnboardingComplete ?? false,
         });
+        setBusinessHasProducts(vendor.hasProducts);
+        setBusinessHasServices(vendor.hasServices);
       } else {
         setProfile({
           id: user?.id || "",
@@ -504,19 +509,117 @@ export default function AccountScreen() {
     brandColors: profile?.brandColors,
   };
 
-  const renderBookTab = () => (
-    <View style={styles.bookTabContainer}>
-      <BookingFlow
-        photographer={photographerProfile}
-        services={photographerServices}
-        availabilitySlots={availabilitySlots}
-        blockedDates={blockedDates}
-        bookedSlots={bookedSlots}
-        onBookingComplete={handleBookingComplete}
-        accentColor={profileTheme}
-      />
-    </View>
-  );
+  const renderBookTab = () => {
+    if (userRole === "photographer") {
+      return (
+        <View style={styles.bookTabContainer}>
+          <BookingFlow
+            photographer={photographerProfile}
+            services={photographerServices}
+            availabilitySlots={availabilitySlots}
+            blockedDates={blockedDates}
+            bookedSlots={bookedSlots}
+            onBookingComplete={handleBookingComplete}
+            accentColor={profileTheme}
+          />
+        </View>
+      );
+    }
+
+    // Business Services Tab
+    const stripeComplete = profile?.stripeOnboardingComplete ?? false;
+
+    return (
+      <View style={styles.tabContent}>
+        {/* Stripe Status Banner for Business */}
+        {isOwner && !isGuest && !stripeComplete && (
+          <View style={{
+            backgroundColor: "#7C3AED20",
+            padding: Spacing.md,
+            borderRadius: 12,
+            marginBottom: Spacing.md,
+            flexDirection: "row",
+            alignItems: "center",
+          }}>
+            <Feather name="credit-card" size={20} color="#7C3AED" />
+            <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+              <ThemedText type="body" style={{ color: "#7C3AED", fontWeight: "600" }}>
+                Complete Stripe Setup
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                Connect Stripe to accept payments and publish your offerings
+              </ThemedText>
+            </View>
+          </View>
+        )}
+
+        {stripeComplete && isOwner && (
+          <View style={{
+            backgroundColor: "#34C75920",
+            padding: Spacing.md,
+            borderRadius: 12,
+            marginBottom: Spacing.md,
+            flexDirection: "row",
+            alignItems: "center",
+          }}>
+            <Feather name="check-circle" size={20} color="#34C759" />
+            <ThemedText type="body" style={{ color: "#34C759", marginLeft: Spacing.sm }}>
+              Stripe connected - ready to accept payments
+            </ThemedText>
+          </View>
+        )}
+
+        {/* Services/Products content */}
+        {businessHasServices && (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Services</ThemedText>
+            <View style={styles.emptyTab}>
+              <Feather name="briefcase" size={40} color={theme.textSecondary} />
+              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                No services listed yet
+              </ThemedText>
+              {isOwner && !isGuest && (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                  Add services from your dashboard
+                </ThemedText>
+              )}
+            </View>
+          </View>
+        )}
+
+        {businessHasProducts && (
+          <View>
+            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Products</ThemedText>
+            <View style={styles.emptyTab}>
+              <Feather name="shopping-bag" size={40} color={theme.textSecondary} />
+              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                No products listed yet
+              </ThemedText>
+              {isOwner && !isGuest && (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                  Add products from your dashboard
+                </ThemedText>
+              )}
+            </View>
+          </View>
+        )}
+
+        {!businessHasServices && !businessHasProducts && (
+          <View style={styles.emptyTab}>
+            <Feather name="package" size={48} color={theme.textSecondary} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+              No offerings set up yet
+            </ThemedText>
+            {isOwner && !isGuest && (
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                Configure your products or services in your dashboard
+              </ThemedText>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const getNext7Days = () => {
     const days = [];
