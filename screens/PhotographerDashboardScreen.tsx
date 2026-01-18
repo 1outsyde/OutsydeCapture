@@ -73,6 +73,7 @@ export default function PhotographerDashboardScreen() {
     completedShoots: 0,
   });
   const [profile, setProfile] = useState<PhotographerDashboardProfile | null>(null);
+  const [rawPhotographer, setRawPhotographer] = useState<any>(null); // Store raw API response for accurate comparison
   const [bookings, setBookings] = useState<PhotographerBooking[]>([]);
   const [services, setServices] = useState<PhotographerService[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
@@ -101,6 +102,10 @@ export default function PhotographerDashboardScreen() {
       setAuthError(null);
       setNeedsProfileSetup(false);
       const photographer = await api.getPhotographerMe(token) as any;
+      console.log("[Dashboard] Raw photographer from API:", JSON.stringify(photographer, null, 2));
+      
+      // Store raw response for accurate comparison in handleSaveProfile
+      setRawPhotographer(photographer);
       
       setStats({
         earnings: photographer.totalEarnings || 0,
@@ -370,60 +375,101 @@ export default function PhotographerDashboardScreen() {
     try {
       setSaving(true);
       
-      // Only send fields that have actually changed from the original profile
+      // Compare against RAW API response, not reconstructed profile state
       // Backend expects hourlyRate in DOLLARS (it converts to cents internally)
       const updateData: Record<string, any> = {};
       
-      // Compare each field to original profile and only include if changed
-      const currentName = editProfile.name?.trim() || "";
-      const originalName = profile?.name?.trim() || "";
+      // Debug: Log what we're comparing
+      console.log("[Dashboard] === SAVE PROFILE DEBUG ===");
+      console.log("[Dashboard] editProfile:", JSON.stringify(editProfile, null, 2));
+      console.log("[Dashboard] rawPhotographer:", JSON.stringify(rawPhotographer, null, 2));
+      
+      // Compare against raw API response values
+      // Only filter out undefined and null - empty strings and 0 are valid values
+      
+      // displayName
+      const currentName = editProfile.name ?? "";
+      const originalName = rawPhotographer?.displayName ?? "";
+      console.log(`[Dashboard] displayName: current="${currentName}" vs original="${originalName}"`);
       if (currentName !== originalName) {
         updateData.displayName = currentName;
       }
       
+      // hourlyRate - raw API stores in cents, we display/edit in dollars
       const currentRate = parseFloat(editProfile.hourlyRate) || 0;
-      const originalRate = profile?.hourlyRate || 0;
+      const originalRateCents = rawPhotographer?.hourlyRate ?? 0;
+      const originalRate = originalRateCents / 100;
+      console.log(`[Dashboard] hourlyRate: current=${currentRate} vs original=${originalRate} (raw cents: ${originalRateCents})`);
       if (currentRate !== originalRate) {
-        updateData.hourlyRate = currentRate; // Send in dollars, backend converts to cents
+        updateData.hourlyRate = currentRate; // Send in dollars
       }
       
-      const currentBio = editProfile.bio?.trim() || "";
-      const originalBio = profile?.bio?.trim() || "";
+      // bio
+      const currentBio = editProfile.bio ?? "";
+      const originalBio = rawPhotographer?.bio ?? "";
+      console.log(`[Dashboard] bio: current="${currentBio}" vs original="${originalBio}"`);
       if (currentBio !== originalBio) {
         updateData.bio = currentBio;
       }
       
-      const currentCity = editProfile.city?.trim() || "";
-      const originalCity = profile?.city?.trim() || "";
+      // city
+      const currentCity = editProfile.city ?? "";
+      const originalCity = rawPhotographer?.city ?? "";
+      console.log(`[Dashboard] city: current="${currentCity}" vs original="${originalCity}"`);
       if (currentCity !== originalCity) {
         updateData.city = currentCity;
       }
       
-      const currentState = editProfile.state?.trim() || "";
-      const originalState = profile?.state?.trim() || "";
+      // state
+      const currentState = editProfile.state ?? "";
+      const originalState = rawPhotographer?.state ?? "";
+      console.log(`[Dashboard] state: current="${currentState}" vs original="${originalState}"`);
       if (currentState !== originalState) {
         updateData.state = currentState;
       }
       
-      const currentPortfolioUrl = editProfile.portfolioUrl?.trim() || "";
-      const originalPortfolioUrl = profile?.portfolioUrl?.trim() || "";
+      // portfolioUrl
+      const currentPortfolioUrl = editProfile.portfolioUrl ?? "";
+      const originalPortfolioUrl = rawPhotographer?.portfolioUrl ?? "";
+      console.log(`[Dashboard] portfolioUrl: current="${currentPortfolioUrl}" vs original="${originalPortfolioUrl}"`);
       if (currentPortfolioUrl !== originalPortfolioUrl) {
         updateData.portfolioUrl = currentPortfolioUrl;
       }
       
-      // Compare specialties arrays
+      // specialties
       const currentSpecialties = editProfile.specialties || [];
-      const originalSpecialties = profile?.specialties || [];
-      if (JSON.stringify(currentSpecialties.sort()) !== JSON.stringify(originalSpecialties.sort())) {
+      const originalSpecialties = rawPhotographer?.specialties || [];
+      const currentSorted = [...currentSpecialties].sort();
+      const originalSorted = [...originalSpecialties].sort();
+      console.log(`[Dashboard] specialties: current=${JSON.stringify(currentSorted)} vs original=${JSON.stringify(originalSorted)}`);
+      if (JSON.stringify(currentSorted) !== JSON.stringify(originalSorted)) {
         updateData.specialties = currentSpecialties;
       }
       
-      // Compare brand colors - send as object, not JSON string
+      // brandColors - parse raw value (could be object or string)
       const currentTheme = editProfile.profileTheme || "#D4A84B";
-      const originalTheme = profile?.profileTheme || "#D4A84B";
-      if (currentTheme !== originalTheme) {
-        updateData.brandColors = { primary: currentTheme }; // Send as object, not JSON string
+      let originalTheme = "#D4A84B";
+      if (rawPhotographer?.brandColors) {
+        if (typeof rawPhotographer.brandColors === 'string') {
+          try {
+            const parsed = JSON.parse(rawPhotographer.brandColors);
+            originalTheme = parsed.primary || "#D4A84B";
+          } catch {
+            originalTheme = "#D4A84B";
+          }
+        } else if (rawPhotographer.brandColors.primary) {
+          originalTheme = rawPhotographer.brandColors.primary;
+        }
       }
+      console.log(`[Dashboard] profileTheme: current="${currentTheme}" vs original="${originalTheme}"`);
+      if (currentTheme !== originalTheme) {
+        updateData.brandColors = { primary: currentTheme };
+      }
+      
+      console.log("[Dashboard] === FINAL UPDATE DATA ===");
+      console.log("[Dashboard] updateData:", JSON.stringify(updateData, null, 2));
+      console.log("[Dashboard] updateData keys:", Object.keys(updateData));
+      console.log("[Dashboard] updateData length:", Object.keys(updateData).length);
       
       // Check if any fields changed
       if (Object.keys(updateData).length === 0) {
@@ -432,7 +478,7 @@ export default function PhotographerDashboardScreen() {
         return;
       }
       
-      console.log("[Dashboard] Saving profile (changed fields only):", JSON.stringify(updateData, null, 2));
+      console.log("[Dashboard] Calling api.updatePhotographerMe with:", JSON.stringify(updateData, null, 2));
       
       await api.updatePhotographerMe(token, updateData);
       Alert.alert("Success", "Profile updated successfully");

@@ -739,14 +739,20 @@ class ApiService {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
+    // Merge headers properly - ensure Content-Type is always set
+    const mergedHeaders: HeadersInit = {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    };
+    
+    // Log the final request for debugging
+    console.log(`[API] ${options?.method || 'GET'} ${endpoint}`, options?.body ? `Body: ${options.body}` : '');
+    
     try {
       const response = await fetch(url, {
+        ...options, // Spread options first
         credentials: 'include', // Required for session-based auth with cookies
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-        },
-        ...options,
+        headers: mergedHeaders, // Then override with merged headers
       });
 
       if (!response.ok) {
