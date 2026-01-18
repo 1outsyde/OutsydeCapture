@@ -109,59 +109,70 @@ export const FontSizes = {
 
 export const Typography = {
   h1: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: "700" as const,
-    lineHeight: 41,
+    lineHeight: 40,
+    letterSpacing: -0.5,
   },
   h2: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "700" as const,
-    lineHeight: 34,
+    lineHeight: 32,
+    letterSpacing: -0.3,
   },
   h3: {
-    fontSize: 22,
-    fontWeight: "600" as const,
-    lineHeight: 28,
-  },
-  h4: {
     fontSize: 20,
     fontWeight: "600" as const,
-    lineHeight: 25,
+    lineHeight: 26,
+    letterSpacing: 0,
   },
-  subtitle: {
+  h4: {
     fontSize: 18,
     fontWeight: "600" as const,
-    lineHeight: 23,
+    lineHeight: 24,
+    letterSpacing: 0,
+  },
+  subtitle: {
+    fontSize: 17,
+    fontWeight: "500" as const,
+    lineHeight: 22,
+    letterSpacing: 0,
   },
   body: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "400" as const,
     lineHeight: 22,
+    letterSpacing: 0,
   },
   bodyBold: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600" as const,
     lineHeight: 22,
+    letterSpacing: 0,
   },
   caption: {
+    fontSize: 14,
+    fontWeight: "400" as const,
+    lineHeight: 20,
+    letterSpacing: 0,
+  },
+  small: {
     fontSize: 13,
     fontWeight: "400" as const,
     lineHeight: 18,
-  },
-  small: {
-    fontSize: 11,
-    fontWeight: "400" as const,
-    lineHeight: 13,
+    letterSpacing: 0,
   },
   button: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600" as const,
     lineHeight: 22,
+    letterSpacing: 0.3,
   },
   link: {
-    fontSize: 17,
-    fontWeight: "400" as const,
+    fontSize: 16,
+    fontWeight: "500" as const,
     lineHeight: 22,
+    letterSpacing: 0,
   },
 };
 
