@@ -6,7 +6,11 @@ import {
   Pressable,
   Dimensions,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  Alert,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,20 +68,29 @@ interface PortfolioCategory {
   reviewCount?: number;
 }
 
-type ProfileTab = "media" | "book" | "availability" | "reviews";
+interface FeaturedPost {
+  id: string;
+  imageUri: string;
+  caption: string;
+  likes: number;
+  comments: number;
+  createdAt: Date;
+}
+
+type ProfileTab = "featured" | "book" | "availability" | "reviews";
 
 const PHOTOGRAPHER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
-  { key: "media", label: "Media", icon: "camera" },
+  { key: "featured", label: "Featured", icon: "star" },
   { key: "book", label: "Book", icon: "calendar" },
   { key: "availability", label: "Availability", icon: "clock" },
-  { key: "reviews", label: "Reviews", icon: "star" },
+  { key: "reviews", label: "Reviews", icon: "message-square" },
 ];
 
 const BUSINESS_TABS: { key: ProfileTab; label: string; icon: string }[] = [
-  { key: "media", label: "Products", icon: "shopping-bag" },
+  { key: "featured", label: "Products", icon: "shopping-bag" },
   { key: "book", label: "Services", icon: "briefcase" },
   { key: "availability", label: "Availability", icon: "clock" },
-  { key: "reviews", label: "Reviews", icon: "star" },
+  { key: "reviews", label: "Reviews", icon: "message-square" },
 ];
 
 export default function AccountScreen() {
@@ -89,12 +102,16 @@ export default function AccountScreen() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<ProfileTab>("media");
+  const [activeTab, setActiveTab] = useState<ProfileTab>("featured");
   const [portfolioCategories, setPortfolioCategories] = useState<PortfolioCategory[]>([]);
   const [availabilitySlots, setAvailabilitySlots] = useState<VendorBookerAvailabilitySlot[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [photographerServices, setPhotographerServices] = useState<PhotographerService[]>([]);
   const [bookedSlots, setBookedSlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
+  const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([]);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [newPostImage, setNewPostImage] = useState<string>("");
+  const [newPostCaption, setNewPostCaption] = useState("");
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -281,12 +298,88 @@ export default function AccountScreen() {
     );
   }
 
-  const renderMediaTab = () => (
+  const handlePickPostImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setNewPostImage(result.assets[0].uri);
+    }
+  };
+
+  const handleCreatePost = () => {
+    if (!newPostImage) {
+      Alert.alert("No Image", "Please select an image for your post.");
+      return;
+    }
+    const newPost: FeaturedPost = {
+      id: Date.now().toString(),
+      imageUri: newPostImage,
+      caption: newPostCaption,
+      likes: 0,
+      comments: 0,
+      createdAt: new Date(),
+    };
+    setFeaturedPosts([newPost, ...featuredPosts]);
+    setNewPostImage("");
+    setNewPostCaption("");
+    setShowCreatePost(false);
+  };
+
+  const renderFeaturedTab = () => (
     <View style={styles.tabContent}>
-      {profile?.portfolio && profile.portfolio.length > 0 ? (
+      {/* Create Post Button for Owners */}
+      {isOwner && !isGuest && (
+        <Pressable
+          onPress={() => setShowCreatePost(true)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: profileTheme,
+            paddingVertical: 14,
+            borderRadius: 12,
+            marginBottom: Spacing.md,
+          }}
+        >
+          <Feather name="plus" size={20} color="#000" />
+          <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
+            Create Post
+          </ThemedText>
+        </Pressable>
+      )}
+
+      {/* Posts Grid - Instagram Style */}
+      {featuredPosts.length > 0 || (profile?.portfolio && profile.portfolio.length > 0) ? (
         <View style={styles.mediaGrid}>
-          {profile.portfolio.map((img, index) => (
-            <Pressable key={index} style={styles.mediaGridItem}>
+          {/* Featured Posts first */}
+          {featuredPosts.map((post) => (
+            <Pressable key={post.id} style={styles.mediaGridItem}>
+              <Image
+                source={{ uri: post.imageUri }}
+                style={styles.mediaGridImage}
+                contentFit="cover"
+                transition={200}
+              />
+              <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                <Feather name="heart" size={14} color="#fff" />
+                <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+                  {post.likes}
+                </ThemedText>
+              </View>
+            </Pressable>
+          ))}
+          {/* Portfolio images */}
+          {profile?.portfolio?.map((img, index) => (
+            <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
               <Image
                 source={{ uri: img }}
                 style={styles.mediaGridImage}
@@ -301,12 +394,94 @@ export default function AccountScreen() {
         </View>
       ) : (
         <View style={styles.emptyTab}>
-          <Feather name="image" size={48} color={theme.textSecondary} />
+          <Feather name="camera" size={48} color={theme.textSecondary} />
           <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-            No media yet
+            No posts yet
           </ThemedText>
+          {isOwner && !isGuest && (
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+              Share your best work to attract clients
+            </ThemedText>
+          )}
         </View>
       )}
+
+      {/* Create Post Modal */}
+      <Modal visible={showCreatePost} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <View style={{
+            backgroundColor: theme.card,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: Spacing.lg,
+            maxHeight: "90%",
+          }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
+              <ThemedText type="h3">Create Post</ThemedText>
+              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); }}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+
+            {/* Image Picker */}
+            <Pressable
+              onPress={handlePickPostImage}
+              style={{
+                width: "100%",
+                aspectRatio: 1,
+                backgroundColor: theme.backgroundSecondary,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: Spacing.md,
+                overflow: "hidden",
+              }}
+            >
+              {newPostImage ? (
+                <Image source={{ uri: newPostImage }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              ) : (
+                <View style={{ alignItems: "center" }}>
+                  <Feather name="image" size={48} color={theme.textSecondary} />
+                  <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                    Tap to select photo
+                  </ThemedText>
+                </View>
+              )}
+            </Pressable>
+
+            {/* Caption Input */}
+            <TextInput
+              value={newPostCaption}
+              onChangeText={setNewPostCaption}
+              placeholder="Write a caption..."
+              placeholderTextColor={theme.textSecondary}
+              multiline
+              style={{
+                backgroundColor: theme.backgroundSecondary,
+                borderRadius: 12,
+                padding: Spacing.md,
+                color: theme.text,
+                minHeight: 80,
+                textAlignVertical: "top",
+                marginBottom: Spacing.md,
+              }}
+            />
+
+            {/* Post Button */}
+            <Pressable
+              onPress={handleCreatePost}
+              style={{
+                backgroundColor: profileTheme,
+                paddingVertical: 16,
+                borderRadius: 12,
+                alignItems: "center",
+              }}
+            >
+              <ThemedText type="button" style={{ color: "#000" }}>Share Post</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 
@@ -497,8 +672,8 @@ export default function AccountScreen() {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case "media":
-        return renderMediaTab();
+      case "featured":
+        return renderFeaturedTab();
       case "book":
         return renderBookTab();
       case "availability":
@@ -506,7 +681,7 @@ export default function AccountScreen() {
       case "reviews":
         return renderReviewsTab();
       default:
-        return renderMediaTab();
+        return renderFeaturedTab();
     }
   };
 
