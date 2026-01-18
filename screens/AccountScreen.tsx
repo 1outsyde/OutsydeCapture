@@ -28,7 +28,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api, { VendorBookerAvailabilitySlot, BlockedDate } from "@/services/api";
+import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -122,6 +122,8 @@ export default function AccountScreen() {
   const [newPostCaption, setNewPostCaption] = useState("");
   const [businessHasProducts, setBusinessHasProducts] = useState(false);
   const [businessHasServices, setBusinessHasServices] = useState(false);
+  const [businessProducts, setBusinessProducts] = useState<VendorProduct[]>([]);
+  const [businessServices, setBusinessServices] = useState<VendorService[]>([]);
   const [showStateVisibility, setShowStateVisibility] = useState(true);
   const [showEditPhotoModal, setShowEditPhotoModal] = useState(false);
   const [consumerReviews, setConsumerReviews] = useState<{ id: string; businessName: string; rating: number; comment: string; date: string }[]>([]);
@@ -211,12 +213,20 @@ export default function AccountScreen() {
           console.warn("[AccountScreen] Could not fetch availability/services:", availError);
         }
       } else if (userRole === "business") {
-        const { business: vendor } = await api.getVendorMyBusiness(token);
+        const [businessRes, productsRes, servicesRes] = await Promise.all([
+          api.getVendorMyBusiness(token),
+          api.getVendorProducts(token).catch(() => ({ products: [] })),
+          api.getVendorServices(token).catch(() => ({ services: [] })),
+        ]);
+        const vendor = businessRes.business;
+        const coverUrl = vendor.coverImage || "";
+        const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
         setProfile({
           id: vendor.id,
           name: vendor.name,
           avatar: vendor.logoImage || undefined,
-          coverImage: vendor.coverImage || undefined,
+          coverImage: isVideo ? undefined : vendor.coverImage,
+          coverVideo: isVideo ? vendor.coverImage : undefined,
           city: vendor.city || undefined,
           state: vendor.state || undefined,
           bio: vendor.description || undefined,
@@ -232,8 +242,16 @@ export default function AccountScreen() {
           contactEmail: vendor.contactEmail || undefined,
           websiteUrl: vendor.websiteUrl || undefined,
         });
-        setBusinessHasProducts(vendor.hasProducts ?? false);
-        setBusinessHasServices(vendor.hasServices ?? false);
+        
+        const allProducts = productsRes.products || [];
+        const allServices = servicesRes.services || [];
+        setBusinessProducts(allProducts);
+        setBusinessServices(allServices);
+        
+        const hasLiveProducts = allProducts.some(p => p.status === "live");
+        const hasLiveServices = allServices.some(s => s.status === "live");
+        setBusinessHasProducts(hasLiveProducts);
+        setBusinessHasServices(hasLiveServices);
       } else {
         setProfile({
           id: user?.id || "",
@@ -454,10 +472,137 @@ export default function AccountScreen() {
   };
 
   const renderFeaturedTab = () => {
-    // Business Featured Tab - Show store info
+    // Business Featured Tab - Show featured products/services and store info
     if (userRole === "business") {
+      const liveProducts = businessProducts.filter(p => p.status === "live");
+      const liveServices = businessServices.filter(s => s.status === "live");
+      const featuredProducts = liveProducts.slice(0, 4);
+      const featuredServices = liveServices.slice(0, 3);
+      const hasFeaturedItems = featuredProducts.length > 0 || featuredServices.length > 0;
+
       return (
         <View style={styles.tabContent}>
+          {/* Featured Products Section */}
+          {featuredProducts.length > 0 && (
+            <View style={{ marginBottom: Spacing.lg }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
+                <ThemedText type="h4">Featured Products</ThemedText>
+                {liveProducts.length > 4 && (
+                  <Pressable onPress={() => setActiveTab("book")}>
+                    <ThemedText type="small" style={{ color: profileTheme }}>See All</ThemedText>
+                  </Pressable>
+                )}
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.lg }}>
+                <View style={{ flexDirection: "row", paddingHorizontal: Spacing.lg }}>
+                  {featuredProducts.map((product) => (
+                    <View
+                      key={product.id}
+                      style={{
+                        width: 140,
+                        marginRight: Spacing.md,
+                        backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                        borderRadius: 12,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {product.imageUrl ? (
+                        <Image
+                          source={{ uri: product.imageUrl }}
+                          style={{ width: "100%", height: 100 }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={{
+                          width: "100%",
+                          height: 100,
+                          backgroundColor: profileTheme + "20",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}>
+                          <Feather name="shopping-bag" size={28} color={profileTheme} />
+                        </View>
+                      )}
+                      <View style={{ padding: Spacing.sm }}>
+                        <ThemedText type="small" style={{ fontWeight: "600" }} numberOfLines={1}>{product.name}</ThemedText>
+                        <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600", marginTop: 2 }}>
+                          {formatPrice(product.priceCents)}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Featured Services Section */}
+          {featuredServices.length > 0 && (
+            <View style={{ marginBottom: Spacing.lg }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
+                <ThemedText type="h4">Featured Services</ThemedText>
+                {liveServices.length > 3 && (
+                  <Pressable onPress={() => setActiveTab("availability")}>
+                    <ThemedText type="small" style={{ color: profileTheme }}>See All</ThemedText>
+                  </Pressable>
+                )}
+              </View>
+              {featuredServices.map((service) => (
+                <View
+                  key={service.id}
+                  style={{
+                    backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                    borderRadius: 12,
+                    padding: Spacing.md,
+                    marginBottom: Spacing.sm,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <View style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 10,
+                    backgroundColor: profileTheme + "20",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: Spacing.md,
+                  }}>
+                    <Feather name="briefcase" size={20} color={profileTheme} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="body" style={{ fontWeight: "600" }}>{service.name}</ThemedText>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
+                      <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
+                        {formatPrice(service.priceCents)}
+                      </ThemedText>
+                      {service.durationMinutes && (
+                        <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
+                          {service.durationMinutes} min
+                        </ThemedText>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Empty state if no featured items */}
+          {!hasFeaturedItems && (
+            <View style={{ marginBottom: Spacing.lg, alignItems: "center", paddingVertical: Spacing.xl }}>
+              <Feather name="star" size={40} color={theme.textSecondary} />
+              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
+                No featured items yet
+              </ThemedText>
+              {isOwner && !isGuest && (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs, textAlign: "center" }}>
+                  Publish products or services to feature them here
+                </ThemedText>
+              )}
+            </View>
+          )}
+
           {/* Business Description */}
           {profile?.bio && (
             <View style={{ marginBottom: Spacing.lg }}>
@@ -772,6 +917,156 @@ export default function AccountScreen() {
     console.log("[AccountScreen] Booking requested:", booking);
   };
 
+  const formatPrice = (cents: number): string => {
+    return `$${(cents / 100).toFixed(2)}`;
+  };
+
+  const renderBusinessServicesProducts = () => {
+    const liveServices = businessServices.filter(s => s.status === "live");
+    const liveProducts = businessProducts.filter(p => p.status === "live");
+    const hasLiveServices = liveServices.length > 0;
+    const hasLiveProducts = liveProducts.length > 0;
+
+    if (!hasLiveServices && !hasLiveProducts) {
+      return (
+        <View style={styles.emptyTab}>
+          <Feather name="package" size={48} color={theme.textSecondary} />
+          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+            No offerings available yet
+          </ThemedText>
+          {isOwner && !isGuest && (
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+              Configure your products or services in your dashboard
+            </ThemedText>
+          )}
+        </View>
+      );
+    }
+
+    return (
+      <>
+        {hasLiveServices && (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Services</ThemedText>
+            {liveServices.map((service) => (
+              <View
+                key={service.id}
+                style={{
+                  backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.sm,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <View style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 10,
+                  backgroundColor: profileTheme + "20",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: Spacing.md,
+                }}>
+                  <Feather name="briefcase" size={22} color={profileTheme} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>{service.name}</ThemedText>
+                  {service.description && (
+                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                      {service.description}
+                    </ThemedText>
+                  )}
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                    <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600" }}>
+                      {formatPrice(service.priceCents)}
+                    </ThemedText>
+                    {service.durationMinutes && (
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
+                        {service.durationMinutes} min
+                      </ThemedText>
+                    )}
+                  </View>
+                </View>
+                {!isOwner && (
+                  <Pressable
+                    style={{
+                      backgroundColor: profileTheme,
+                      paddingHorizontal: Spacing.md,
+                      paddingVertical: Spacing.sm,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Book</ThemedText>
+                  </Pressable>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {hasLiveProducts && (
+          <View>
+            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Products</ThemedText>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -Spacing.xs }}>
+              {liveProducts.map((product) => (
+                <View
+                  key={product.id}
+                  style={{
+                    width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
+                    marginHorizontal: Spacing.xs,
+                    marginBottom: Spacing.md,
+                    backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                    borderRadius: 12,
+                    overflow: "hidden",
+                  }}
+                >
+                  {product.imageUrl ? (
+                    <Image
+                      source={{ uri: product.imageUrl }}
+                      style={{ width: "100%", height: 120 }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={{
+                      width: "100%",
+                      height: 120,
+                      backgroundColor: profileTheme + "20",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}>
+                      <Feather name="shopping-bag" size={32} color={profileTheme} />
+                    </View>
+                  )}
+                  <View style={{ padding: Spacing.sm }}>
+                    <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>{product.name}</ThemedText>
+                    <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600", marginTop: 4 }}>
+                      {formatPrice(product.priceCents)}
+                    </ThemedText>
+                    {!isOwner && (
+                      <Pressable
+                        style={{
+                          backgroundColor: profileTheme,
+                          paddingVertical: Spacing.xs,
+                          borderRadius: 6,
+                          alignItems: "center",
+                          marginTop: Spacing.sm,
+                        }}
+                      >
+                        <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Add to Cart</ThemedText>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </>
+    );
+  };
+
   const photographerProfile: PhotographerProfile = {
     id: profile?.id || "",
     name: profile?.name || "Photographer",
@@ -843,53 +1138,7 @@ export default function AccountScreen() {
         )}
 
         {/* Services/Products content */}
-        {businessHasServices && (
-          <View style={{ marginBottom: Spacing.lg }}>
-            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Services</ThemedText>
-            <View style={styles.emptyTab}>
-              <Feather name="briefcase" size={40} color={theme.textSecondary} />
-              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                No services listed yet
-              </ThemedText>
-              {isOwner && !isGuest && (
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                  Add services from your dashboard
-                </ThemedText>
-              )}
-            </View>
-          </View>
-        )}
-
-        {businessHasProducts && (
-          <View>
-            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Products</ThemedText>
-            <View style={styles.emptyTab}>
-              <Feather name="shopping-bag" size={40} color={theme.textSecondary} />
-              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                No products listed yet
-              </ThemedText>
-              {isOwner && !isGuest && (
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                  Add products from your dashboard
-                </ThemedText>
-              )}
-            </View>
-          </View>
-        )}
-
-        {!businessHasServices && !businessHasProducts && (
-          <View style={styles.emptyTab}>
-            <Feather name="package" size={48} color={theme.textSecondary} />
-            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-              No offerings set up yet
-            </ThemedText>
-            {isOwner && !isGuest && (
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-                Configure your products or services in your dashboard
-              </ThemedText>
-            )}
-          </View>
-        )}
+        {renderBusinessServicesProducts()}
       </View>
     );
   };
@@ -1201,15 +1450,8 @@ export default function AccountScreen() {
               {profile?.name || "Your Profile"}
             </ThemedText>
 
-            {/* Tagline for businesses - displayed above banner under profile picture */}
-            {userRole === "business" && profile?.tagline && (
-              <ThemedText type="body" style={[styles.profileBio, { fontStyle: "italic", marginTop: Spacing.xs }]}>
-                {profile.tagline}
-              </ThemedText>
-            )}
-
-            {/* Bio for non-business profiles */}
-            {userRole !== "business" && profile?.bio && (
+            {/* Bio/description for all profile types - displayed under name */}
+            {profile?.bio && (
               <ThemedText type="body" style={styles.profileBio}>
                 {profile.bio}
               </ThemedText>
