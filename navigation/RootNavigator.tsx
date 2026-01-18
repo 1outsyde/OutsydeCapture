@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { Pressable, Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
 
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import AuthScreen from "@/screens/AuthScreen";
@@ -69,46 +71,101 @@ export default function RootNavigator() {
       <Stack.Screen
         name="Auth"
         component={AuthScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Sign In",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="ConsumerSignup"
         component={ConsumerSignupScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Create Account",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="BusinessSignup"
         component={BusinessSignupScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Business Signup",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="PhotographerSignup"
         component={PhotographerSignupScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Photographer Signup",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="SelectPhotographer"
         component={SelectPhotographerScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Select Photographer",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
@@ -117,16 +174,29 @@ export default function RootNavigator() {
         options={{
           presentation: "modal",
           animation: "slide_from_bottom",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
         }}
       />
 
       <Stack.Screen
         name="Booking"
         component={BookingScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Book Session",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
@@ -135,43 +205,88 @@ export default function RootNavigator() {
         options={{
           presentation: "modal",
           animation: "slide_from_bottom",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
         }}
       />
 
       <Stack.Screen
         name="BusinessProfile"
         component={BusinessProfileScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Business Profile",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="PhotographerProfile"
         component={PhotographerProfileScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Photographer Profile",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="SessionDetail"
         component={SessionDetailScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Session Details",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="PhotoGallery"
         component={PhotoGalleryScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "fade",
-        }}
+          headerShown: true,
+          headerTitle: "",
+          headerTransparent: true,
+          headerTintColor: "#FFFFFF",
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color="#FFFFFF" />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
@@ -180,6 +295,12 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Conversation",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
 
@@ -190,7 +311,8 @@ export default function RootNavigator() {
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
-          headerTitle: "",
+          headerTitle: "Chat",
+          headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
@@ -200,59 +322,121 @@ export default function RootNavigator() {
       <Stack.Screen
         name="Payment"
         component={PaymentScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Payment",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="CartOrders"
         component={CartOrdersScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Cart & Orders",
+          headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
-        }}
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="Favorites"
         component={FavoritesScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Favorites",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="BusinessOnboarding"
         component={BusinessOnboardingScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Complete Profile",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="PhotographerOnboarding"
         component={PhotographerOnboardingScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Complete Profile",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="AdminDashboard"
         component={AdminDashboardScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Admin Dashboard",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
@@ -261,6 +445,12 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "User Details",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
 
@@ -270,6 +460,12 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Dashboard",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
 
@@ -279,25 +475,53 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Dashboard",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
 
       <Stack.Screen
         name="InfluencerApplication"
         component={InfluencerApplicationScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Apply as Influencer",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
         name="ProfileCompletionGate"
         component={ProfileCompletionGateScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "modal",
           animation: "slide_from_bottom",
-        }}
+          headerShown: true,
+          headerTitle: "Complete Your Profile",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
@@ -306,6 +530,12 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Edit Storefront",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
 
@@ -315,6 +545,12 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Terms of Service",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
 
@@ -324,6 +560,12 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Privacy Policy",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
         }}
       />
     </Stack.Navigator>

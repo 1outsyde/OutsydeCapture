@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -21,6 +22,7 @@ export default function VendorDetailScreen({ route }: Props) {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const { vendorId } = route.params;
 
@@ -228,11 +230,25 @@ export default function VendorDetailScreen({ route }: Props) {
 
   return (
     <ScreenScrollView>
-      <Image
-        source={{ uri: vendor.coverImage || vendor.avatar }}
-        style={styles.coverImage}
-        contentFit="cover"
-      />
+      <View style={styles.coverContainer}>
+        <Image
+          source={{ uri: vendor.coverImage || vendor.avatar }}
+          style={styles.coverImage}
+          contentFit="cover"
+        />
+        
+        <View style={[styles.headerOverlay, { paddingTop: insets.top + Spacing.sm }]}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={({ pressed }) => [
+              styles.closeBtn,
+              { backgroundColor: "rgba(0,0,0,0.4)", opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Feather name="x" size={22} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </View>
 
       <View style={styles.content}>
         <ThemedText type="h2">{vendor.name}</ThemedText>
@@ -309,11 +325,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 100,
   },
+  coverContainer: {
+    position: "relative",
+  },
   coverImage: {
     width: "100%",
     height: 230,
     borderBottomLeftRadius: BorderRadius.lg,
     borderBottomRightRadius: BorderRadius.lg,
+  },
+  headerOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.md,
+    zIndex: 10,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
     padding: Spacing.lg,

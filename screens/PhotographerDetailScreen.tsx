@@ -49,7 +49,7 @@ export default function PhotographerDetailScreen() {
 
   const handleMessage = () => {
     if (!isAuthenticated) {
-      navigation.navigate("Auth");
+      navigation.navigate("Auth", {});
       return;
     }
     const conversationId = `conv_${photographer.id}`;
@@ -106,7 +106,7 @@ export default function PhotographerDetailScreen() {
 
   const handleBookNow = () => {
     if (!isAuthenticated) {
-      navigation.navigate("Auth");
+      navigation.navigate("Auth", {});
       return;
     }
     navigation.navigate("Booking", { photographer });
