@@ -32,6 +32,8 @@ import api, {
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import DateBlocker from "@/components/DateBlocker";
+import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
+import { VendorBookerPhotographerService } from "@/services/api";
 
 const SPECIALTIES = [
   "Portraits", "Weddings", "Events", "Products",
@@ -91,6 +93,10 @@ export default function PhotographerDashboardScreen() {
     specialties: [] as string[],
     profileTheme: "#D4A84B",
   });
+
+  const [showServiceEditor, setShowServiceEditor] = useState(false);
+  const [editingService, setEditingService] = useState<ServiceFormData | null>(null);
+  const [rawServices, setRawServices] = useState<VendorBookerPhotographerService[]>([]);
 
   const fetchDashboard = useCallback(async () => {
     const token = await getToken();
@@ -178,16 +184,21 @@ export default function PhotographerDashboardScreen() {
 
       try {
         const { services: servicesData } = await api.getPhotographerMeServices(token);
-        setServices(servicesData.map((s: any) => ({
+        setRawServices(servicesData || []);
+        setServices((servicesData || []).map((s: any) => ({
           id: s.id,
           name: s.name,
           description: s.description || "",
-          duration: s.durationMinutes || s.estimatedDurationMinutes || 60,
-          price: s.priceInCents ? s.priceInCents / 100 : (s.priceCents ? s.priceCents / 100 : 0),
-          isActive: s.status === "active" || s.isActive || true,
+          duration: s.estimatedDurationMinutes || s.durationMinutes || 60,
+          price: s.priceCents ? s.priceCents / 100 : 0,
+          isActive: s.status === "active",
+          status: s.status || "draft",
+          pricingModel: s.pricingModel || "package",
+          category: s.category || "Other",
         })));
       } catch {
         setServices([]);
+        setRawServices([]);
       }
 
       try {
@@ -564,6 +575,154 @@ export default function PhotographerDashboardScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddService = () => {
+    setEditingService(null);
+    setShowServiceEditor(true);
+  };
+
+  const handleEditService = (service: PhotographerService) => {
+    const rawService = rawServices.find(s => s.id === service.id);
+    setEditingService({
+      id: service.id,
+      name: service.name,
+      description: service.description || "",
+      category: rawService?.category || "Other",
+      pricingModel: (rawService?.pricingModel as "package" | "hourly") || "package",
+      price: service.price.toString(),
+      duration: service.duration.toString(),
+      packageHours: rawService?.packageHours?.toString() || "",
+      status: rawService?.status || "draft",
+    });
+    setShowServiceEditor(true);
+  };
+
+  const handleSaveService = async (data: ServiceFormData) => {
+    const token = await getToken();
+    if (!token) return;
+
+    try {
+      const payload: Partial<VendorBookerPhotographerService> = {
+        name: data.name,
+        description: data.description || null,
+        category: data.category || null,
+        pricingModel: data.pricingModel || "package",
+        priceCents: Math.round(parseFloat(data.price) * 100),
+        estimatedDurationMinutes: parseInt(data.duration) || 60,
+      };
+
+      if (data.pricingModel === "hourly" && data.packageHours) {
+        payload.packageHours = parseInt(data.packageHours);
+      }
+
+      if (data.id) {
+        await api.updatePhotographerMeService(token, data.id, payload);
+        Alert.alert("Success", "Service updated successfully");
+      } else {
+        await api.createPhotographerMeService(token, payload);
+        Alert.alert("Success", "Service created successfully");
+      }
+      
+      setShowServiceEditor(false);
+      setEditingService(null);
+      fetchDashboard();
+    } catch (error: any) {
+      console.error("[Dashboard] Failed to save service:", error);
+      Alert.alert("Error", error.message || "Failed to save service");
+      throw error;
+    }
+  };
+
+  const handleDeleteService = (serviceId: string, serviceName: string) => {
+    Alert.alert(
+      "Delete Service",
+      `Are you sure you want to delete "${serviceName}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
+            
+            try {
+              await api.deletePhotographerMeService(token, serviceId);
+              Alert.alert("Success", "Service deleted");
+              fetchDashboard();
+            } catch (error: any) {
+              console.error("[Dashboard] Failed to delete service:", error);
+              Alert.alert("Error", error.message || "Failed to delete service");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleGoLiveService = (serviceId: string, serviceName: string) => {
+    if (!profile?.stripeConnected) {
+      Alert.alert(
+        "Stripe Required",
+        "You need to connect Stripe before publishing services. Connect Stripe to accept payments.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Connect Stripe", onPress: handleConnectStripe },
+        ]
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Publish Service",
+      `Publish "${serviceName}"? This will make it visible to clients and create a Stripe product for payments.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Publish",
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
+            
+            try {
+              await api.goLivePhotographerService(token, serviceId);
+              Alert.alert("Success", "Service is now live!");
+              fetchDashboard();
+            } catch (error: any) {
+              console.error("[Dashboard] Failed to publish service:", error);
+              Alert.alert("Error", error.message || "Failed to publish service");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleArchiveService = (serviceId: string, serviceName: string) => {
+    Alert.alert(
+      "Archive Service",
+      `Archive "${serviceName}"? This will hide it from clients but keep the data.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Archive",
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
+            
+            try {
+              await api.archivePhotographerService(token, serviceId);
+              Alert.alert("Success", "Service archived");
+              fetchDashboard();
+            } catch (error: any) {
+              console.error("[Dashboard] Failed to archive service:", error);
+              Alert.alert("Error", error.message || "Failed to archive service");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const toggleSpecialty = (specialty: string) => {
@@ -1474,43 +1633,160 @@ export default function PhotographerDashboardScreen() {
     </Modal>
   );
 
+  const getServiceStatusColor = (status: string) => {
+    switch (status) {
+      case "active": return "#22c55e";
+      case "draft": return "#f97316";
+      case "archived": return "#64748b";
+      default: return theme.textSecondary;
+    }
+  };
+
   const renderServicesModal = () => (
     <Modal visible={activeModal === "services"} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Services</Text>
+            <Text style={styles.modalTitle}>My Services</Text>
             <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseButton}>
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
           </View>
           <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            <Pressable
+              onPress={handleAddService}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: theme.primary,
+                paddingVertical: 14,
+                borderRadius: 12,
+                marginBottom: 16,
+              }}
+            >
+              <Feather name="plus" size={20} color="#000" />
+              <Text style={{ color: "#000", fontWeight: "600", fontSize: 16, marginLeft: 8 }}>
+                Add Service
+              </Text>
+            </Pressable>
+
             {services.length === 0 ? (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIcon}>
                   <Feather name="camera" size={24} color={theme.textSecondary} />
                 </View>
                 <Text style={styles.emptyText}>No services added yet</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 14, marginTop: 8, textAlign: "center" }}>
+                  Create your first service to start accepting bookings
+                </Text>
               </View>
             ) : (
-              services.map(service => (
-                <View key={service.id} style={styles.bookingCard}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.bookingClient}>{service.name}</Text>
-                      <Text style={[styles.bookingService, { marginTop: 4 }]}>{service.description}</Text>
+              services.map(service => {
+                const status = (service as any).status || "draft";
+                const statusColor = getServiceStatusColor(status);
+                return (
+                  <View key={service.id} style={styles.bookingCard}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <Text style={styles.bookingClient}>{service.name}</Text>
+                          <View style={{
+                            backgroundColor: statusColor + "20",
+                            paddingHorizontal: 8,
+                            paddingVertical: 2,
+                            borderRadius: 6,
+                          }}>
+                            <Text style={{ color: statusColor, fontSize: 11, fontWeight: "600", textTransform: "capitalize" }}>
+                              {status}
+                            </Text>
+                          </View>
+                        </View>
+                        {service.description ? (
+                          <Text style={[styles.bookingService, { marginTop: 4 }]} numberOfLines={2}>
+                            {service.description}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.bookingAmount}>${service.price}</Text>
                     </View>
-                    <Text style={styles.bookingAmount}>${service.price}</Text>
-                  </View>
-                  <View style={[styles.bookingDetails, { marginTop: 12 }]}>
-                    <View style={styles.bookingDate}>
-                      <Feather name="clock" size={14} color={theme.textSecondary} />
-                      <Text style={styles.bookingDateText}>{service.duration} min</Text>
+                    <View style={[styles.bookingDetails, { marginTop: 12 }]}>
+                      <View style={styles.bookingDate}>
+                        <Feather name="clock" size={14} color={theme.textSecondary} />
+                        <Text style={styles.bookingDateText}>{service.duration} min</Text>
+                      </View>
+                      <View style={[styles.bookingDate, { marginLeft: 12 }]}>
+                        <Feather name="tag" size={14} color={theme.textSecondary} />
+                        <Text style={styles.bookingDateText}>{(service as any).category || "Other"}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                      <Pressable
+                        onPress={() => handleEditService(service)}
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: theme.backgroundSecondary,
+                          paddingVertical: 10,
+                          borderRadius: 8,
+                        }}
+                      >
+                        <Feather name="edit-2" size={16} color={theme.text} />
+                        <Text style={{ color: theme.text, fontWeight: "500", marginLeft: 6 }}>Edit</Text>
+                      </Pressable>
+                      {status === "draft" ? (
+                        <Pressable
+                          onPress={() => handleGoLiveService(service.id, service.name)}
+                          style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#22c55e",
+                            paddingVertical: 10,
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Feather name="zap" size={16} color="#fff" />
+                          <Text style={{ color: "#fff", fontWeight: "600", marginLeft: 6 }}>Go Live</Text>
+                        </Pressable>
+                      ) : status === "active" ? (
+                        <Pressable
+                          onPress={() => handleArchiveService(service.id, service.name)}
+                          style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: theme.backgroundSecondary,
+                            paddingVertical: 10,
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Feather name="archive" size={16} color={theme.textSecondary} />
+                          <Text style={{ color: theme.textSecondary, fontWeight: "500", marginLeft: 6 }}>Archive</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        onPress={() => handleDeleteService(service.id, service.name)}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#fee2e2",
+                          borderRadius: 8,
+                        }}
+                      >
+                        <Feather name="trash-2" size={18} color="#dc2626" />
+                      </Pressable>
                     </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
             <View style={{ height: insets.bottom + 20 }} />
           </ScrollView>
@@ -1807,6 +2083,17 @@ export default function PhotographerDashboardScreen() {
       {renderBlockedDatesModal()}
       {renderBookingsModal()}
       {renderServicesModal()}
+
+      <ServiceEditorModal
+        visible={showServiceEditor}
+        onClose={() => {
+          setShowServiceEditor(false);
+          setEditingService(null);
+        }}
+        onSave={handleSaveService}
+        initialData={editingService}
+        brandColor={profile?.profileTheme || theme.primary}
+      />
     </>
   );
 }
