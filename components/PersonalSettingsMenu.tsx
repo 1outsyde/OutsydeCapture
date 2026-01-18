@@ -339,7 +339,7 @@ export function PersonalSettingsMenu({
               </ThemedText>
               <MenuItem icon="help-circle" label="Help Center" onPress={() => {}} />
               <MenuItem icon="file-text" label="Terms of Service" onPress={() => handleNavigate("TermsOfService")} />
-              <MenuItem icon="shield" label="Privacy Policy" onPress={() => {}} />
+              <MenuItem icon="shield" label="Privacy Policy" onPress={() => handleNavigate("PrivacyPolicy")} />
             </View>
 
             <View style={styles.section}>
