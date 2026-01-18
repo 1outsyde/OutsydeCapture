@@ -42,6 +42,27 @@ const QUICK_BLOCK_OPTIONS = [
   { label: "Next Week", days: "week" },
 ];
 
+const TIME_OPTIONS = [
+  "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+  "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
+  "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM",
+];
+
+const convertTo24Hour = (time12: string): string => {
+  const [time, period] = time12.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+  if (period === "PM" && hours !== 12) hours += 12;
+  if (period === "AM" && hours === 12) hours = 0;
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+};
+
+const convertTo12Hour = (time24: string): string => {
+  const [hours, minutes] = time24.split(":").map(Number);
+  const period = hours >= 12 ? "PM" : "AM";
+  const hours12 = hours % 12 || 12;
+  return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
+};
+
 export default function DateBlocker({
   blockedDates,
   onAdd,
@@ -55,6 +76,10 @@ export default function DateBlocker({
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [blockReason, setBlockReason] = useState("");
+  const [isFullDay, setIsFullDay] = useState(true);
+  const [startTime, setStartTime] = useState("9:00 AM");
+  const [endTime, setEndTime] = useState("5:00 PM");
+  const [showTimePicker, setShowTimePicker] = useState<"start" | "end" | null>(null);
 
   const getDaysInMonth = (year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate();
@@ -133,17 +158,30 @@ export default function DateBlocker({
     selectedDays.forEach(day => {
       const date = new Date(selectedYear, selectedMonth, day);
       const dateStr = date.toISOString().split("T")[0];
-      const alreadyBlocked = blockedDates.some(b => b.date === dateStr);
+      const alreadyBlocked = blockedDates.some(b => b.date === dateStr && b.isFullDay);
       if (!alreadyBlocked) {
-        onAdd({
-          date: dateStr,
-          isFullDay: true,
-          reason: blockReason || "Blocked",
-        });
+        if (isFullDay) {
+          onAdd({
+            date: dateStr,
+            isFullDay: true,
+            reason: blockReason || "Blocked",
+          });
+        } else {
+          onAdd({
+            date: dateStr,
+            isFullDay: false,
+            startTime: convertTo24Hour(startTime),
+            endTime: convertTo24Hour(endTime),
+            reason: blockReason || `Blocked ${startTime} - ${endTime}`,
+          });
+        }
       }
     });
     setSelectedDays([]);
     setBlockReason("");
+    setIsFullDay(true);
+    setStartTime("9:00 AM");
+    setEndTime("5:00 PM");
     setShowDatePicker(false);
   };
 
@@ -480,15 +518,28 @@ export default function DateBlocker({
           </View>
         ) : (
           blockedDates.map((blocked, index) => (
-            <View key={blocked.id || blocked.date} style={styles.blockedItem}>
+            <View key={blocked.id || `${blocked.date}-${blocked.startTime || 'full'}`} style={styles.blockedItem}>
               <View style={styles.blockedItemLeft}>
-                <View style={styles.blockedIcon}>
-                  <Feather name="x-circle" size={16} color="#FF3B30" />
+                <View style={[styles.blockedIcon, !blocked.isFullDay && { backgroundColor: "#f9731620" }]}>
+                  <Feather 
+                    name={blocked.isFullDay ? "x-circle" : "clock"} 
+                    size={16} 
+                    color={blocked.isFullDay ? "#FF3B30" : "#f97316"} 
+                  />
                 </View>
-                <View>
-                  <Text style={styles.blockedItemText}>{formatDate(blocked.date)}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.blockedItemText}>
+                    {formatDate(blocked.date)}
+                    {!blocked.isFullDay && blocked.startTime && blocked.endTime && (
+                      <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
+                        {" "}({convertTo12Hour(blocked.startTime)} - {convertTo12Hour(blocked.endTime)})
+                      </Text>
+                    )}
+                  </Text>
                   {blocked.reason && (
-                    <Text style={styles.blockedItemReason}>{blocked.reason}</Text>
+                    <Text style={styles.blockedItemReason}>
+                      {blocked.isFullDay ? blocked.reason : `Hourly: ${blocked.reason}`}
+                    </Text>
                   )}
                 </View>
               </View>
@@ -575,14 +626,159 @@ export default function DateBlocker({
             </View>
 
             {selectedDays.length > 0 && (
-              <View style={styles.selectionInfo}>
-                <Text style={styles.selectionText}>
+              <View style={{ marginTop: Spacing.md, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: Spacing.md }}>
+                <Text style={{ ...Typography.caption, color: theme.textSecondary, marginBottom: Spacing.sm }}>
                   {selectedDays.length} date{selectedDays.length > 1 ? "s" : ""} selected
                 </Text>
+
+                <View style={{ flexDirection: "row", marginBottom: Spacing.md, gap: 8 }}>
+                  <Pressable
+                    onPress={() => setIsFullDay(true)}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: Spacing.sm,
+                      borderRadius: BorderRadius.md,
+                      backgroundColor: isFullDay ? theme.primary : theme.backgroundSecondary,
+                    }}
+                  >
+                    <Feather name="calendar" size={16} color={isFullDay ? "#fff" : theme.text} />
+                    <Text style={{ marginLeft: 6, fontWeight: "600", color: isFullDay ? "#fff" : theme.text }}>
+                      Full Day
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setIsFullDay(false)}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: Spacing.sm,
+                      borderRadius: BorderRadius.md,
+                      backgroundColor: !isFullDay ? theme.primary : theme.backgroundSecondary,
+                    }}
+                  >
+                    <Feather name="clock" size={16} color={!isFullDay ? "#fff" : theme.text} />
+                    <Text style={{ marginLeft: 6, fontWeight: "600", color: !isFullDay ? "#fff" : theme.text }}>
+                      Specific Hours
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {!isFullDay && (
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <Text style={{ ...Typography.caption, color: theme.textSecondary, marginBottom: Spacing.xs }}>
+                      Block from:
+                    </Text>
+                    <View style={{ flexDirection: "row", gap: 12 }}>
+                      <Pressable
+                        onPress={() => setShowTimePicker("start")}
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          backgroundColor: theme.backgroundSecondary,
+                          paddingHorizontal: Spacing.md,
+                          paddingVertical: Spacing.sm,
+                          borderRadius: BorderRadius.md,
+                          borderWidth: 1,
+                          borderColor: theme.border,
+                        }}
+                      >
+                        <Text style={{ color: theme.text, fontWeight: "500" }}>{startTime}</Text>
+                        <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+                      </Pressable>
+                      <Text style={{ alignSelf: "center", color: theme.textSecondary }}>to</Text>
+                      <Pressable
+                        onPress={() => setShowTimePicker("end")}
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          backgroundColor: theme.backgroundSecondary,
+                          paddingHorizontal: Spacing.md,
+                          paddingVertical: Spacing.sm,
+                          borderRadius: BorderRadius.md,
+                          borderWidth: 1,
+                          borderColor: theme.border,
+                        }}
+                      >
+                        <Text style={{ color: theme.text, fontWeight: "500" }}>{endTime}</Text>
+                        <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
                 <Pressable style={styles.confirmButton} onPress={handleAddSelectedDates}>
                   <Feather name="check" size={16} color="#FFFFFF" />
-                  <Text style={styles.confirmButtonText}>Block Selected</Text>
+                  <Text style={styles.confirmButtonText}>
+                    {isFullDay ? "Block Full Day" : `Block ${startTime} - ${endTime}`}
+                  </Text>
                 </Pressable>
+              </View>
+            )}
+
+            {showTimePicker && (
+              <View style={{ 
+                position: "absolute", 
+                bottom: 0, 
+                left: 0, 
+                right: 0, 
+                backgroundColor: theme.card, 
+                borderTopWidth: 1, 
+                borderTopColor: theme.border,
+                padding: Spacing.md,
+              }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.sm }}>
+                  <Text style={{ ...Typography.subtitle, color: theme.text }}>
+                    Select {showTimePicker === "start" ? "Start" : "End"} Time
+                  </Text>
+                  <Pressable onPress={() => setShowTimePicker(null)}>
+                    <Feather name="x" size={24} color={theme.text} />
+                  </Pressable>
+                </View>
+                <ScrollView style={{ maxHeight: 200 }}>
+                  {TIME_OPTIONS.map((time) => (
+                    <Pressable
+                      key={time}
+                      onPress={() => {
+                        if (showTimePicker === "start") {
+                          setStartTime(time);
+                        } else {
+                          setEndTime(time);
+                        }
+                        setShowTimePicker(null);
+                      }}
+                      style={{
+                        paddingVertical: Spacing.sm,
+                        paddingHorizontal: Spacing.md,
+                        backgroundColor: 
+                          (showTimePicker === "start" && startTime === time) || 
+                          (showTimePicker === "end" && endTime === time)
+                            ? theme.primary + "20"
+                            : "transparent",
+                        borderRadius: BorderRadius.sm,
+                      }}
+                    >
+                      <Text style={{ 
+                        color: 
+                          (showTimePicker === "start" && startTime === time) || 
+                          (showTimePicker === "end" && endTime === time)
+                            ? theme.primary
+                            : theme.text,
+                        fontWeight: "500",
+                      }}>
+                        {time}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
               </View>
             )}
           </Pressable>
