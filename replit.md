@@ -53,6 +53,11 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Guest Restrictions**: Limited view without hamburger menu or edit actions
 - **Admin Dashboard**: Comprehensive interface for user, business, photographer, payment, message, and influencer management. Includes real-time notifications for new business applications.
 - **Provider Dashboards (Photographer & Business)**: Dedicated dashboards for managing earnings, bookings/orders, services/products, availability, and profile information. Both integrate with Stripe Connect.
+- **Photographer Service Management**: Complete CRUD for photography services via dashboard:
+  - **ServiceEditorModal Component**: Form modal with name, description, category, pricing model (package/hourly), price, duration fields
+  - **Service Status Flow**: draft → active (via Go Live) → archived. Status badges: orange (draft), green (active), gray (archived)
+  - **Publishing Gates**: Go Live requires Stripe connected, creates Stripe product for payment processing
+  - **API Endpoints**: `GET/POST /api/photographers/me/services`, `PATCH/DELETE /api/photographers/me/services/:id`, `POST .../go-live`, `POST .../archive`
 - **Photographer Availability System**: 3-tier Calendly/HoneyBook-style availability management:
   - **Base Availability (HoursEditor)**: Weekly recurring working hours that act as constraints. Stored as `VendorBookerAvailabilitySlot` with `dayOfWeek`, `startTime`, `endTime`, `isRecurring`.
   - **Blocked Dates (DateBlocker)**: Calendar-based UI for one-off overrides (vacations, external shoots, personal time). Uses `BlockedDate` with `date`, `isFullDay`, `startTime`, `endTime`, `reason`. Quick block options for Today/Tomorrow/Weekend/Week.
