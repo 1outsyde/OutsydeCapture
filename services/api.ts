@@ -1713,6 +1713,50 @@ class ApiService {
 
     return results;
   }
+
+  // Follow/Unfollow API
+  async followUser(targetUserId: string, targetType: "user" | "photographer" | "business"): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>("/api/follows", {
+      method: "POST",
+      body: JSON.stringify({ targetUserId, targetType }),
+    });
+  }
+
+  async unfollowUser(targetUserId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/follows/${targetUserId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async checkFollowStatus(targetUserId: string): Promise<{ isFollowing: boolean }> {
+    try {
+      return await this.request<{ isFollowing: boolean }>(`/api/follows/status/${targetUserId}`);
+    } catch {
+      return { isFollowing: false };
+    }
+  }
+
+  async getFollowNotifications(): Promise<Array<{
+    id: string;
+    type: "follow";
+    followerId: string;
+    followerName: string;
+    followerAvatar?: string;
+    createdAt: string;
+  }>> {
+    try {
+      return await this.request<Array<{
+        id: string;
+        type: "follow";
+        followerId: string;
+        followerName: string;
+        followerAvatar?: string;
+        createdAt: string;
+      }>>("/api/notifications/follows");
+    } catch {
+      return [];
+    }
+  }
 }
 
 export const api = new ApiService();
