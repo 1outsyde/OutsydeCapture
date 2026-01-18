@@ -41,8 +41,13 @@ export default function AuthScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
+    clientId: GOOGLE_WEB_CLIENT_ID,
   });
+
+  useEffect(() => {
+    console.log("[GoogleAuth] Request state:", request ? "available" : "null");
+    console.log("[GoogleAuth] Response state:", response?.type || "none");
+  }, [request, response]);
 
   useEffect(() => {
     const handleGoogleResponse = async () => {
