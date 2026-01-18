@@ -200,11 +200,19 @@ export default function AccountScreen() {
 
         // Fetch PUBLIC services using photographer ID (only returns active/live services)
         try {
-          const publicServices = await api.getPhotographerPublicServices(photographer.id);
-          const servicesList = Array.isArray(publicServices) ? publicServices : [];
+          const publicServicesResponse = await api.getPhotographerPublicServices(photographer.id);
+          // Handle both array response and wrapped { services: [...] } response
+          let servicesList: any[] = [];
+          if (Array.isArray(publicServicesResponse)) {
+            servicesList = publicServicesResponse;
+          } else if (publicServicesResponse && typeof publicServicesResponse === "object") {
+            servicesList = (publicServicesResponse as any).services || [];
+          }
+          console.log("[AccountScreen] Raw public services response:", JSON.stringify(publicServicesResponse).slice(0, 200));
+          console.log("[AccountScreen] Services list length:", servicesList.length);
           // Filter for only active (live) services
           const activeServices = servicesList.filter((svc: any) => svc.status === "active");
-          console.log("[AccountScreen] Public services fetched:", servicesList.length, "Active:", activeServices.length);
+          console.log("[AccountScreen] Active services:", activeServices.length, "Statuses:", servicesList.map((s: any) => s.status));
           const mappedServices: PhotographerService[] = activeServices.map((svc: any) => ({
             id: svc.id,
             name: svc.name,
