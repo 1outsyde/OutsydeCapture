@@ -210,9 +210,11 @@ export default function AccountScreen() {
           }
           console.log("[AccountScreen] Raw public services response:", JSON.stringify(publicServicesResponse).slice(0, 200));
           console.log("[AccountScreen] Services list length:", servicesList.length);
-          // Filter for only active (live) services
-          const activeServices = servicesList.filter((svc: any) => svc.status === "active");
-          console.log("[AccountScreen] Active services:", activeServices.length, "Statuses:", servicesList.map((s: any) => s.status));
+          // Filter for live services (status can be "live" or "active")
+          const activeServices = servicesList.filter((svc: any) => 
+            svc.status === "live" || svc.status === "active"
+          );
+          console.log("[AccountScreen] Live services:", activeServices.length, "Statuses:", servicesList.map((s: any) => s.status));
           const mappedServices: PhotographerService[] = activeServices.map((svc: any) => ({
             id: svc.id,
             name: svc.name,
