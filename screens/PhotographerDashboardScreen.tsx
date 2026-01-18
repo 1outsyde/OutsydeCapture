@@ -1674,6 +1674,49 @@ export default function PhotographerDashboardScreen() {
               </Text>
             </Pressable>
 
+            {!profile?.stripeConnected && (
+              <Pressable
+                onPress={handleConnectStripe}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#6366f1" + "15",
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                  marginBottom: 16,
+                  borderWidth: 1,
+                  borderColor: "#6366f1" + "30",
+                }}
+              >
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#6366f1", alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="credit-card" size={18} color="#fff" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={{ color: theme.text, fontWeight: "600", fontSize: 14 }}>Stripe Setup Required</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}>Complete setup to publish services and accept payments</Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#6366f1" />
+              </Pressable>
+            )}
+
+            {profile?.stripeConnected && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#22c55e" + "15",
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 8,
+                  marginBottom: 16,
+                }}
+              >
+                <Feather name="check-circle" size={16} color="#22c55e" />
+                <Text style={{ color: "#22c55e", fontWeight: "500", fontSize: 13, marginLeft: 8 }}>Stripe connected - ready to publish services</Text>
+              </View>
+            )}
+
             {services.length === 0 ? (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIcon}>
@@ -1740,21 +1783,39 @@ export default function PhotographerDashboardScreen() {
                         <Text style={{ color: theme.text, fontWeight: "500", marginLeft: 6 }}>Edit</Text>
                       </Pressable>
                       {status === "draft" ? (
-                        <Pressable
-                          onPress={() => handleGoLiveService(service.id, service.name)}
-                          style={{
-                            flex: 1,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: "#22c55e",
-                            paddingVertical: 10,
-                            borderRadius: 8,
-                          }}
-                        >
-                          <Feather name="zap" size={16} color="#fff" />
-                          <Text style={{ color: "#fff", fontWeight: "600", marginLeft: 6 }}>Go Live</Text>
-                        </Pressable>
+                        profile?.stripeConnected ? (
+                          <Pressable
+                            onPress={() => handleGoLiveService(service.id, service.name)}
+                            style={{
+                              flex: 1,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "#22c55e",
+                              paddingVertical: 10,
+                              borderRadius: 8,
+                            }}
+                          >
+                            <Feather name="zap" size={16} color="#fff" />
+                            <Text style={{ color: "#fff", fontWeight: "600", marginLeft: 6 }}>Go Live</Text>
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            onPress={handleConnectStripe}
+                            style={{
+                              flex: 1,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "#6366f1",
+                              paddingVertical: 10,
+                              borderRadius: 8,
+                            }}
+                          >
+                            <Feather name="credit-card" size={16} color="#fff" />
+                            <Text style={{ color: "#fff", fontWeight: "600", marginLeft: 6 }}>Finish Stripe Setup</Text>
+                          </Pressable>
+                        )
                       ) : status === "active" ? (
                         <Pressable
                           onPress={() => handleArchiveService(service.id, service.name)}
