@@ -15,6 +15,7 @@ import {
   AppStateStatus,
 } from "react-native";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -92,7 +93,21 @@ export default function PhotographerDashboardScreen() {
     portfolioUrl: "",
     specialties: [] as string[],
     profileTheme: "#D4A84B",
+    avatar: "" as string,
+    bannerType: "color" as "color" | "image" | "video" | "mock",
+    bannerImage: "" as string,
+    bannerVideo: "" as string,
+    bannerMock: "" as string,
   });
+
+  const MOCK_BANNERS = [
+    { id: "studio", label: "Studio", url: "https://images.unsplash.com/photo-1598128558393-70ff21433be0?w=800&q=80" },
+    { id: "outdoor", label: "Outdoor", url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80" },
+    { id: "urban", label: "Urban", url: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&q=80" },
+    { id: "nature", label: "Nature", url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80" },
+    { id: "minimal", label: "Minimal", url: "https://images.unsplash.com/photo-1557683316-973673baf926?w=800&q=80" },
+    { id: "creative", label: "Creative", url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80" },
+  ];
 
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [editingService, setEditingService] = useState<ServiceFormData | null>(null);
@@ -164,6 +179,11 @@ export default function PhotographerDashboardScreen() {
         portfolioUrl: photographer.portfolioUrl || "",
         specialties: photographer.specialties || [],
         profileTheme: originalTheme,
+        avatar: photographer.logoImage || "",
+        bannerType: photographer.coverImage ? "image" : "color",
+        bannerImage: photographer.coverImage || "",
+        bannerVideo: "",
+        bannerMock: "",
       });
 
       try {
@@ -263,6 +283,11 @@ export default function PhotographerDashboardScreen() {
           portfolioUrl: defaultProfile.portfolioUrl || "",
           specialties: defaultProfile.specialties,
           profileTheme: "#D4A84B",
+          avatar: "",
+          bannerType: "color",
+          bannerImage: "",
+          bannerVideo: "",
+          bannerMock: "",
         });
         // Don't set needsProfileSetup - allow dashboard access
       } else if (status === 403 || message.includes("403") || message.toLowerCase().includes("forbidden")) {
@@ -487,6 +512,31 @@ export default function PhotographerDashboardScreen() {
       console.log(`[Dashboard] profileTheme: current="${currentTheme}" vs original="${originalTheme}"`);
       if (currentTheme !== originalTheme) {
         updateData.brandColors = { primary: currentTheme };
+      }
+      
+      // logoImage (avatar)
+      const currentAvatar = editProfile.avatar || "";
+      const originalAvatar = rawPhotographer?.logoImage || "";
+      console.log(`[Dashboard] avatar: current="${currentAvatar.slice(0, 50)}..." vs original="${originalAvatar.slice(0, 50)}..."`);
+      if (currentAvatar && currentAvatar !== originalAvatar) {
+        updateData.logoImage = currentAvatar;
+      }
+      
+      // coverImage (banner) - determine based on banner type
+      let finalBannerImage = "";
+      if (editProfile.bannerType === "image" && editProfile.bannerImage) {
+        finalBannerImage = editProfile.bannerImage;
+      } else if (editProfile.bannerType === "mock" && editProfile.bannerMock) {
+        finalBannerImage = editProfile.bannerMock;
+      } else if (editProfile.bannerType === "video" && editProfile.bannerVideo) {
+        finalBannerImage = editProfile.bannerVideo; // Store video URL in coverImage
+      }
+      // For "color" type, we leave coverImage empty and the profile theme is used
+      
+      const originalCover = rawPhotographer?.coverImage || "";
+      console.log(`[Dashboard] coverImage: current="${finalBannerImage.slice(0, 50)}..." vs original="${originalCover.slice(0, 50)}..."`);
+      if (finalBannerImage !== originalCover) {
+        updateData.coverImage = finalBannerImage;
       }
       
       console.log("[Dashboard] === FINAL UPDATE DATA ===");
@@ -1363,6 +1413,235 @@ export default function PhotographerDashboardScreen() {
             </Pressable>
           </View>
           <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            {/* Banner Editor */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Profile Banner</Text>
+              <Text style={styles.formHint}>Choose a banner style for your public profile</Text>
+              
+              {/* Banner Type Selector */}
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                {[
+                  { type: "color" as const, label: "Color", icon: "droplet" as const },
+                  { type: "image" as const, label: "Photo", icon: "image" as const },
+                  { type: "video" as const, label: "Video", icon: "video" as const },
+                  { type: "mock" as const, label: "Presets", icon: "grid" as const },
+                ].map(opt => (
+                  <Pressable
+                    key={opt.type}
+                    onPress={() => setEditProfile({ ...editProfile, bannerType: opt.type })}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      backgroundColor: editProfile.bannerType === opt.type ? theme.primary : theme.backgroundSecondary,
+                    }}
+                  >
+                    <Feather name={opt.icon} size={14} color={editProfile.bannerType === opt.type ? "#000" : theme.text} />
+                    <Text style={{ marginLeft: 4, fontSize: 12, fontWeight: "600", color: editProfile.bannerType === opt.type ? "#000" : theme.text }}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Banner Preview & Editor based on type */}
+              {editProfile.bannerType === "color" && (
+                <View style={{ 
+                  height: 120, 
+                  borderRadius: 12, 
+                  backgroundColor: editProfile.profileTheme,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <Text style={{ color: "#fff", fontSize: 13, opacity: 0.8 }}>Uses your profile theme color</Text>
+                </View>
+              )}
+
+              {editProfile.bannerType === "image" && (
+                <Pressable
+                  onPress={async () => {
+                    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    if (status !== "granted") {
+                      Alert.alert("Permission Required", "Please allow access to your photo library.");
+                      return;
+                    }
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                      allowsEditing: true,
+                      aspect: [16, 9],
+                      quality: 0.8,
+                    });
+                    if (!result.canceled && result.assets[0]) {
+                      setEditProfile({ ...editProfile, bannerImage: result.assets[0].uri });
+                    }
+                  }}
+                  style={{ 
+                    height: 120, 
+                    borderRadius: 12, 
+                    backgroundColor: theme.backgroundSecondary,
+                    overflow: "hidden",
+                  }}
+                >
+                  {editProfile.bannerImage ? (
+                    <Image source={{ uri: editProfile.bannerImage }} style={{ width: "100%", height: "100%" }} />
+                  ) : (
+                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="upload" size={24} color={theme.textSecondary} />
+                      <Text style={{ color: theme.textSecondary, marginTop: 8, fontSize: 13 }}>Tap to upload banner photo</Text>
+                    </View>
+                  )}
+                </Pressable>
+              )}
+
+              {editProfile.bannerType === "video" && (
+                <Pressable
+                  onPress={async () => {
+                    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    if (status !== "granted") {
+                      Alert.alert("Permission Required", "Please allow access to your photo library.");
+                      return;
+                    }
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                      allowsEditing: true,
+                      videoMaxDuration: 15,
+                      quality: 0.8,
+                    });
+                    if (!result.canceled && result.assets[0]) {
+                      setEditProfile({ ...editProfile, bannerVideo: result.assets[0].uri });
+                    }
+                  }}
+                  style={{ 
+                    height: 120, 
+                    borderRadius: 12, 
+                    backgroundColor: theme.backgroundSecondary,
+                    overflow: "hidden",
+                  }}
+                >
+                  {editProfile.bannerVideo ? (
+                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#1a1a2e" }}>
+                      <Feather name="play-circle" size={32} color={theme.primary} />
+                      <Text style={{ color: "#fff", marginTop: 8, fontSize: 12 }}>Video selected (max 15s)</Text>
+                    </View>
+                  ) : (
+                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="video" size={24} color={theme.textSecondary} />
+                      <Text style={{ color: theme.textSecondary, marginTop: 8, fontSize: 13 }}>Tap to upload video (max 15s)</Text>
+                    </View>
+                  )}
+                </Pressable>
+              )}
+
+              {editProfile.bannerType === "mock" && (
+                <View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+                    {MOCK_BANNERS.map(mock => (
+                      <Pressable
+                        key={mock.id}
+                        onPress={() => setEditProfile({ ...editProfile, bannerMock: mock.url, bannerImage: mock.url })}
+                        style={{
+                          width: 140,
+                          height: 80,
+                          borderRadius: 10,
+                          overflow: "hidden",
+                          borderWidth: editProfile.bannerMock === mock.url ? 3 : 0,
+                          borderColor: theme.primary,
+                        }}
+                      >
+                        <Image source={{ uri: mock.url }} style={{ width: "100%", height: "100%" }} />
+                        {editProfile.bannerMock === mock.url && (
+                          <View style={{ position: "absolute", top: 4, right: 4, backgroundColor: theme.primary, borderRadius: 10, padding: 2 }}>
+                            <Feather name="check" size={12} color="#000" />
+                          </View>
+                        )}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                  <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 8 }}>Swipe to see more preset banners</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Profile Picture Editor */}
+            <View style={[styles.formGroup, { alignItems: "center", marginBottom: 24 }]}>
+              <Text style={[styles.formLabel, { textAlign: "center", marginBottom: 8 }]}>Profile Photo</Text>
+              <Pressable
+                onPress={async () => {
+                  Alert.alert("Update Profile Photo", "Choose an option", [
+                    {
+                      text: "Take Photo",
+                      onPress: async () => {
+                        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                        if (status !== "granted") {
+                          Alert.alert("Permission Required", "Please allow camera access.");
+                          return;
+                        }
+                        const result = await ImagePicker.launchCameraAsync({
+                          allowsEditing: true,
+                          aspect: [1, 1],
+                          quality: 0.8,
+                        });
+                        if (!result.canceled && result.assets[0]) {
+                          setEditProfile({ ...editProfile, avatar: result.assets[0].uri });
+                        }
+                      },
+                    },
+                    {
+                      text: "Choose from Library",
+                      onPress: async () => {
+                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (status !== "granted") {
+                          Alert.alert("Permission Required", "Please allow photo library access.");
+                          return;
+                        }
+                        const result = await ImagePicker.launchImageLibraryAsync({
+                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                          allowsEditing: true,
+                          aspect: [1, 1],
+                          quality: 0.8,
+                        });
+                        if (!result.canceled && result.assets[0]) {
+                          setEditProfile({ ...editProfile, avatar: result.assets[0].uri });
+                        }
+                      },
+                    },
+                    { text: "Cancel", style: "cancel" },
+                  ]);
+                }}
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 50,
+                  backgroundColor: theme.backgroundSecondary,
+                  overflow: "hidden",
+                  borderWidth: 3,
+                  borderColor: theme.primary,
+                }}
+              >
+                {editProfile.avatar ? (
+                  <Image source={{ uri: editProfile.avatar }} style={{ width: "100%", height: "100%" }} />
+                ) : (
+                  <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="camera" size={28} color={theme.textSecondary} />
+                  </View>
+                )}
+                <View style={{ 
+                  position: "absolute", 
+                  bottom: 0, 
+                  right: 0, 
+                  backgroundColor: theme.primary, 
+                  borderRadius: 12, 
+                  padding: 6,
+                }}>
+                  <Feather name="edit-2" size={12} color="#000" />
+                </View>
+              </Pressable>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8 }}>Tap to change photo</Text>
+            </View>
+
             <View style={styles.formRow}>
               <View style={[styles.formGroup, styles.formHalf]}>
                 <Text style={styles.formLabel}>Display Name</Text>
