@@ -22,7 +22,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api from "@/services/api";
+import api, { VendorBookerAvailabilitySlot, BlockedDate } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -90,6 +90,8 @@ export default function AccountScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>("media");
   const [portfolioCategories, setPortfolioCategories] = useState<PortfolioCategory[]>([]);
+  const [availabilitySlots, setAvailabilitySlots] = useState<VendorBookerAvailabilitySlot[]>([]);
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -141,6 +143,18 @@ export default function AccountScreen() {
             }
           });
           setPortfolioCategories(categories);
+        }
+
+        // Fetch availability and blocked dates
+        try {
+          const [availRes, blockedRes] = await Promise.all([
+            api.getPhotographerMeAvailability(token),
+            api.getPhotographerBlockedDates(token),
+          ]);
+          setAvailabilitySlots(availRes.availability || []);
+          setBlockedDates(blockedRes.blockedDates || []);
+        } catch (availError) {
+          console.warn("[AccountScreen] Could not fetch availability:", availError);
         }
       } else if (userRole === "business") {
         const { business: vendor } = await api.getVendorMyBusiness(token);
@@ -312,25 +326,140 @@ export default function AccountScreen() {
     </View>
   );
 
-  const renderAvailabilityTab = () => (
-    <View style={styles.tabContent}>
-      <View style={[styles.availabilityCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-        <View style={styles.availabilityHeader}>
-          <Feather name="calendar" size={20} color={profileTheme} />
-          <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Availability</ThemedText>
+  const getNext7Days = () => {
+    const days = [];
+    const now = new Date();
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(now);
+      date.setDate(now.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  };
+
+  const isDateBlocked = (date: Date): boolean => {
+    const dateStr = date.toISOString().split("T")[0];
+    return blockedDates.some((blocked) => blocked.date === dateStr);
+  };
+
+  const getDayAvailability = (date: Date): string | null => {
+    const dayIndex = date.getDay();
+    const slot = availabilitySlots.find((s) => s.dayOfWeek === dayIndex && s.isRecurring);
+    if (!slot) return null;
+    return `${slot.startTime} - ${slot.endTime}`;
+  };
+
+  const formatDayLabel = (date: Date): string => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+    return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  };
+
+  const renderAvailabilityTab = () => {
+    const next7Days = getNext7Days();
+    const hasAnyAvailability = availabilitySlots.length > 0;
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={[styles.availabilityCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+          <View style={styles.availabilityHeader}>
+            <Feather name="calendar" size={20} color={profileTheme} />
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Weekly Availability</ThemedText>
+          </View>
+
+          {!hasAnyAvailability ? (
+            <View style={{ paddingVertical: Spacing.lg }}>
+              <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+                No availability set yet
+              </ThemedText>
+              {isOwner && (
+                <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.sm }}>
+                  Go to Dashboard to set your hours
+                </ThemedText>
+              )}
+            </View>
+          ) : (
+            <View style={{ marginTop: Spacing.md }}>
+              {next7Days.map((date, index) => {
+                const isBlocked = isDateBlocked(date);
+                const hours = getDayAvailability(date);
+                const dayLabel = formatDayLabel(date);
+
+                return (
+                  <View
+                    key={index}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: Spacing.sm,
+                      borderBottomWidth: index < 6 ? 1 : 0,
+                      borderBottomColor: isDark ? "#333" : "#E5E5E5",
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="body" style={{ fontWeight: "600" }}>
+                        {dayLabel}
+                      </ThemedText>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      {isBlocked ? (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <Feather name="x-circle" size={14} color="#FF3B30" />
+                          <ThemedText type="small" style={{ color: "#FF3B30", marginLeft: 4 }}>
+                            Blocked
+                          </ThemedText>
+                        </View>
+                      ) : hours ? (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <Feather name="check-circle" size={14} color="#34C759" />
+                          <ThemedText type="small" style={{ color: "#34C759", marginLeft: 4 }}>
+                            {hours}
+                          </ThemedText>
+                        </View>
+                      ) : (
+                        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                          Unavailable
+                        </ThemedText>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
-        <ThemedText type="body" style={{ marginTop: Spacing.sm }}>
-          Today: 3:30 PM - 6:00 PM
-        </ThemedText>
-        <Pressable style={[styles.viewFullButton, { borderColor: profileTheme }]}>
-          <ThemedText type="small" style={{ color: profileTheme }}>
-            View full availability
-          </ThemedText>
-          <Feather name="arrow-right" size={14} color={profileTheme} />
-        </Pressable>
+
+        {blockedDates.length > 0 && (
+          <View style={[styles.availabilityCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF", marginTop: Spacing.md }]}>
+            <View style={styles.availabilityHeader}>
+              <Feather name="x-circle" size={18} color="#FF3B30" />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Blocked Dates</ThemedText>
+            </View>
+            <View style={{ marginTop: Spacing.sm }}>
+              {blockedDates.slice(0, 3).map((blocked, index) => (
+                <View key={index} style={{ paddingVertical: 4 }}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                    {new Date(blocked.date).toLocaleDateString()}
+                    {blocked.isFullDay ? " (Full Day)" : ` (${blocked.startTime} - ${blocked.endTime})`}
+                    {blocked.reason ? ` - ${blocked.reason}` : ""}
+                  </ThemedText>
+                </View>
+              ))}
+              {blockedDates.length > 3 && (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                  +{blockedDates.length - 3} more
+                </ThemedText>
+              )}
+            </View>
+          </View>
+        )}
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderReviewsTab = () => (
     <View style={styles.tabContent}>
