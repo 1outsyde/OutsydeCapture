@@ -93,6 +93,11 @@ const BUSINESS_TABS: { key: ProfileTab; label: string; icon: string }[] = [
   { key: "reviews", label: "Reviews", icon: "message-square" },
 ];
 
+const CONSUMER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
+  { key: "featured", label: "Featured", icon: "star" },
+  { key: "reviews", label: "Reviews", icon: "message-square" },
+];
+
 export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -114,6 +119,9 @@ export default function AccountScreen() {
   const [newPostCaption, setNewPostCaption] = useState("");
   const [businessHasProducts, setBusinessHasProducts] = useState(false);
   const [businessHasServices, setBusinessHasServices] = useState(false);
+  const [showStateVisibility, setShowStateVisibility] = useState(true);
+  const [showEditPhotoModal, setShowEditPhotoModal] = useState(false);
+  const [consumerReviews, setConsumerReviews] = useState<{ id: string; businessName: string; rating: number; comment: string; date: string }[]>([]);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -216,6 +224,8 @@ export default function AccountScreen() {
           id: user?.id || "",
           name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
           avatar: user?.avatar,
+          city: user?.city,
+          state: user?.state,
         });
       }
     } catch (error) {
@@ -254,7 +264,11 @@ export default function AccountScreen() {
   };
 
   const profileTheme = getProfileTheme();
-  const tabs = userRole === "photographer" ? PHOTOGRAPHER_TABS : BUSINESS_TABS;
+  const tabs = userRole === "photographer" 
+    ? PHOTOGRAPHER_TABS 
+    : userRole === "business" 
+      ? BUSINESS_TABS 
+      : CONSUMER_TABS;
 
   const formatHourlyRate = (rate?: number): string => {
     if (!rate) return "";
@@ -756,22 +770,67 @@ export default function AccountScreen() {
     );
   };
 
-  const renderReviewsTab = () => (
-    <View style={styles.tabContent}>
-      <View style={[styles.reviewCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-        <View style={styles.reviewHeader}>
-          <Feather name="message-square" size={18} color={profileTheme} />
-          <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Reviews</ThemedText>
+  const renderReviewsTab = () => {
+    if (userRole === "consumer") {
+      return (
+        <View style={styles.tabContent}>
+          <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>Reviews You've Written</ThemedText>
+          {consumerReviews.length > 0 ? (
+            consumerReviews.map((review) => (
+              <View key={review.id} style={[styles.reviewCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF", marginBottom: Spacing.md }]}>
+                <View style={styles.reviewHeader}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>{review.businessName}</ThemedText>
+                  <View style={{ flexDirection: "row", marginLeft: "auto" }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Feather
+                        key={star}
+                        name="star"
+                        size={14}
+                        color={star <= review.rating ? "#FFD700" : theme.textSecondary}
+                      />
+                    ))}
+                  </View>
+                </View>
+                <ThemedText type="body" style={{ marginTop: Spacing.sm, fontStyle: "italic" }}>
+                  "{review.comment}"
+                </ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                  {review.date}
+                </ThemedText>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyTab}>
+              <Feather name="message-square" size={48} color={theme.textSecondary} />
+              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+                No reviews yet
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                After booking services, you can leave reviews for photographers and businesses
+              </ThemedText>
+            </View>
+          )}
         </View>
-        <ThemedText type="body" style={{ marginTop: Spacing.md, fontStyle: "italic" }}>
-          "Super professional, fast turnaround..."
-        </ThemedText>
-        <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-          - Sarah M.
-        </ThemedText>
+      );
+    }
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={[styles.reviewCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+          <View style={styles.reviewHeader}>
+            <Feather name="message-square" size={18} color={profileTheme} />
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Reviews</ThemedText>
+          </View>
+          <ThemedText type="body" style={{ marginTop: Spacing.md, fontStyle: "italic" }}>
+            "Super professional, fast turnaround..."
+          </ThemedText>
+          <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+            - Sarah M.
+          </ThemedText>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -900,59 +959,86 @@ export default function AccountScreen() {
           </Pressable>
         )}
 
-        {/* Tab Navigation */}
-        {userRole !== "consumer" && (
-          <View style={[styles.tabBar, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-            {tabs.map((tab) => (
-              <Pressable
-                key={tab.key}
+        {/* Tab Navigation - Now for all users including consumers */}
+        <View style={[styles.tabBar, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+          {tabs.map((tab) => (
+            <Pressable
+              key={tab.key}
+              style={[
+                styles.tabItem,
+                activeTab === tab.key && { borderBottomColor: profileTheme, borderBottomWidth: 2 },
+              ]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <View
                 style={[
-                  styles.tabItem,
-                  activeTab === tab.key && { borderBottomColor: profileTheme, borderBottomWidth: 2 },
+                  styles.tabIconContainer,
+                  activeTab === tab.key && { backgroundColor: profileTheme },
                 ]}
-                onPress={() => setActiveTab(tab.key)}
+              >
+                <Feather
+                  name={tab.icon as any}
+                  size={18}
+                  color={activeTab === tab.key ? "#000000" : theme.textSecondary}
+                />
+              </View>
+              <ThemedText
+                type="small"
+                style={[
+                  styles.tabLabel,
+                  { color: activeTab === tab.key ? theme.text : theme.textSecondary },
+                ]}
+              >
+                {tab.label}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Tab Content - Now for all users */}
+        {renderTabContent()}
+
+        {/* Consumer Settings Section */}
+        {userRole === "consumer" && !isGuest && (
+          <View style={styles.consumerSettings}>
+            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>Profile Settings</ThemedText>
+            
+            <Pressable
+              onPress={() => setShowEditPhotoModal(true)}
+              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather name="image" size={20} color={theme.text} />
+                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Edit Photos</ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+            </Pressable>
+
+            <View style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather name="map-pin" size={20} color={theme.text} />
+                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Show Location</ThemedText>
+              </View>
+              <Pressable
+                onPress={() => setShowStateVisibility(!showStateVisibility)}
+                style={[
+                  styles.toggleSwitch,
+                  { backgroundColor: showStateVisibility ? profileTheme : theme.textSecondary },
+                ]}
               >
                 <View
                   style={[
-                    styles.tabIconContainer,
-                    activeTab === tab.key && { backgroundColor: profileTheme },
+                    styles.toggleKnob,
+                    { transform: [{ translateX: showStateVisibility ? 20 : 2 }] },
                   ]}
-                >
-                  <Feather
-                    name={tab.icon as any}
-                    size={18}
-                    color={activeTab === tab.key ? "#000000" : theme.textSecondary}
-                  />
-                </View>
-                <ThemedText
-                  type="small"
-                  style={[
-                    styles.tabLabel,
-                    { color: activeTab === tab.key ? theme.text : theme.textSecondary },
-                  ]}
-                >
-                  {tab.label}
-                </ThemedText>
+                />
               </Pressable>
-            ))}
-          </View>
-        )}
+            </View>
 
-        {/* Tab Content or Consumer Profile */}
-        {userRole !== "consumer" ? (
-          renderTabContent()
-        ) : (
-          <View style={styles.consumerContent}>
-            {!isGuest && (
-              <Pressable
-                style={[styles.editProfileButton, { borderColor: theme.border }]}
-                onPress={() => navigation.navigate("PhotographerDashboard")}
-              >
-                <Feather name="edit-2" size={18} color={theme.text} />
-                <ThemedText type="button" style={{ marginLeft: Spacing.sm }}>
-                  Edit Profile
-                </ThemedText>
-              </Pressable>
+            {profile?.state && showStateVisibility && (
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs, marginLeft: Spacing.sm }}>
+                Your location ({profile.city ? `${profile.city}, ` : ""}{profile.state}) is visible to others
+              </ThemedText>
             )}
           </View>
         )}
@@ -1107,6 +1193,93 @@ export default function AccountScreen() {
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
       />
+
+      {/* Photo Edit Modal for Consumers */}
+      <Modal visible={showEditPhotoModal} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <View style={{
+            backgroundColor: theme.card,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: Spacing.lg,
+            paddingBottom: insets.bottom + Spacing.lg,
+          }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg }}>
+              <ThemedText type="h3">Edit Photos</ThemedText>
+              <Pressable onPress={() => setShowEditPhotoModal(false)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+
+            <Pressable
+              onPress={async () => {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== "granted") {
+                  Alert.alert("Permission Required", "Please allow access to your photo library.");
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets[0]) {
+                  setProfile(prev => prev ? { ...prev, avatar: result.assets[0].uri } : prev);
+                  Alert.alert("Success", "Profile photo updated!");
+                }
+              }}
+              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather name="user" size={20} color={theme.text} />
+                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Change Profile Photo</ThemedText>
+              </View>
+              <Feather name="camera" size={20} color={profileTheme} />
+            </Pressable>
+
+            <Pressable
+              onPress={async () => {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== "granted") {
+                  Alert.alert("Permission Required", "Please allow access to your photo library.");
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [16, 9],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets[0]) {
+                  setProfile(prev => prev ? { ...prev, coverImage: result.assets[0].uri } : prev);
+                  Alert.alert("Success", "Banner photo updated!");
+                }
+              }}
+              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather name="image" size={20} color={theme.text} />
+                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Change Banner Photo</ThemedText>
+              </View>
+              <Feather name="camera" size={20} color={profileTheme} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShowEditPhotoModal(false)}
+              style={{
+                backgroundColor: profileTheme,
+                paddingVertical: Spacing.md,
+                borderRadius: BorderRadius.lg,
+                alignItems: "center",
+                marginTop: Spacing.lg,
+              }}
+            >
+              <ThemedText type="button" style={{ color: "#000" }}>Done</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -1513,5 +1686,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
+  },
+  consumerSettings: {
+    padding: Spacing.lg,
+    marginTop: Spacing.md,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
+  },
+  toggleSwitch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+  },
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
   },
 });
