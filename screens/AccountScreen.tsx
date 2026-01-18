@@ -225,8 +225,8 @@ export default function AccountScreen() {
           id: vendor.id,
           name: vendor.name,
           avatar: vendor.logoImage || undefined,
-          coverImage: isVideo ? undefined : vendor.coverImage,
-          coverVideo: isVideo ? vendor.coverImage : undefined,
+          coverImage: isVideo ? undefined : (vendor.coverImage || undefined),
+          coverVideo: isVideo ? (vendor.coverImage || undefined) : undefined,
           city: vendor.city || undefined,
           state: vendor.state || undefined,
           bio: vendor.description || undefined,
@@ -709,23 +709,33 @@ export default function AccountScreen() {
             </View>
           )}
 
-          {/* Create Post Button */}
+          {/* Bio Section */}
+          {profile?.bio && (
+            <View style={{ marginBottom: Spacing.md }}>
+              <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 20 }}>
+                {profile.bio}
+              </ThemedText>
+            </View>
+          )}
+
+          {/* Create Post Button - Compact */}
           {isOwner && !isGuest && (
             <Pressable
               onPress={() => setShowCreatePost(true)}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
+                alignSelf: "flex-end",
                 backgroundColor: profileTheme,
-                paddingVertical: 14,
-                borderRadius: 12,
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: 20,
                 marginBottom: Spacing.md,
               }}
             >
-              <Feather name="plus" size={20} color="#000" />
-              <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
-                Create Post
+              <Feather name="plus" size={16} color="#000" />
+              <ThemedText type="small" style={{ color: "#000", marginLeft: 4, fontWeight: "600" }}>
+                Post
               </ThemedText>
             </Pressable>
           )}
@@ -758,23 +768,33 @@ export default function AccountScreen() {
     // Photographer/Consumer Featured Tab - Show posts
     return (
       <View style={styles.tabContent}>
-        {/* Create Post Button for Owners */}
+        {/* Bio Section */}
+        {profile?.bio && (
+          <View style={{ marginBottom: Spacing.md }}>
+            <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 20 }}>
+              {profile.bio}
+            </ThemedText>
+          </View>
+        )}
+
+        {/* Create Post Button - Compact */}
         {isOwner && !isGuest && (
           <Pressable
             onPress={() => setShowCreatePost(true)}
             style={{
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
+              alignSelf: "flex-end",
               backgroundColor: profileTheme,
-              paddingVertical: 14,
-              borderRadius: 12,
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 20,
               marginBottom: Spacing.md,
             }}
           >
-            <Feather name="plus" size={20} color="#000" />
-            <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
-              Create Post
+            <Feather name="plus" size={16} color="#000" />
+            <ThemedText type="small" style={{ color: "#000", marginLeft: 4, fontWeight: "600" }}>
+              Post
             </ThemedText>
           </Pressable>
         )}
@@ -1375,9 +1395,6 @@ export default function AccountScreen() {
                 contentFit="cover"
                 nativeControls={false}
               />
-              <View style={styles.videoPlayIndicator}>
-                <Feather name="play-circle" size={40} color="rgba(255,255,255,0.8)" />
-              </View>
             </Pressable>
           ) : (
             <Image
@@ -1449,13 +1466,6 @@ export default function AccountScreen() {
             <ThemedText type="h2" style={styles.profileName}>
               {profile?.name || "Your Profile"}
             </ThemedText>
-
-            {/* Bio/description for all profile types - displayed under name */}
-            {profile?.bio && (
-              <ThemedText type="body" style={styles.profileBio}>
-                {profile.bio}
-              </ThemedText>
-            )}
 
             <View style={styles.profileMeta}>
               {(profile?.city || profile?.state) && (
