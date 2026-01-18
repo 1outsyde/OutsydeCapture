@@ -1343,101 +1343,28 @@ export default function BusinessDashboardScreen() {
         </View>
       </View>
 
-      <View style={styles.contentRow}>
-        <View style={styles.leftColumn}>
-          <View style={styles.profileCard}>
-            <Text style={styles.sectionTitle}>Business Overview</Text>
-            <View style={styles.profileInfo}>
-              <View style={styles.profileAvatar}>
-                <Text style={styles.profileAvatarText}>
-                  {profile?.name?.charAt(0)?.toUpperCase() || "B"}
+      {/* Tab Navigation */}
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
+          <View style={styles.tabBar}>
+            {availableTabs.map(tab => (
+              <Pressable
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                style={[styles.tab, activeTab === tab && styles.activeTab]}
+              >
+                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </Text>
-              </View>
-              <View>
-                <Text style={styles.profileName}>{profile?.name}</Text>
-                <Text style={styles.profileCategory}>{profile?.category}</Text>
-              </View>
-            </View>
-            {profile?.website && (
-              <Pressable style={styles.websiteLink} onPress={() => profile.website && Linking.openURL(profile.website)}>
-                <Feather name="external-link" size={14} color={theme.primary} />
-                <Text style={styles.websiteLinkText}>View Website</Text>
               </Pressable>
-            )}
+            ))}
           </View>
+        </ScrollView>
+      </View>
 
-          <View style={styles.statsGrid}>
-            <View style={styles.miniStatCard}>
-              <View style={[styles.miniStatIcon, { backgroundColor: "#007AFF20" }]}>
-                <Feather name="eye" size={14} color="#007AFF" />
-              </View>
-              <View>
-                <Text style={styles.miniStatValue}>{stats.profileViews}</Text>
-                <Text style={styles.miniStatLabel}>Profile Views</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.billingCard}>
-            <View style={styles.billingHeader}>
-              <Feather name="credit-card" size={18} color={theme.text} />
-              <Text style={styles.billingTitle}>Billing Address</Text>
-            </View>
-            <TextInput
-              style={styles.input}
-              value={billingAddress.addressLine1}
-              onChangeText={(text) => setBillingAddress({ ...billingAddress, addressLine1: text })}
-              placeholder="Address Line 1"
-              placeholderTextColor={theme.textSecondary}
-            />
-            <TextInput
-              style={styles.input}
-              value={billingAddress.addressLine2}
-              onChangeText={(text) => setBillingAddress({ ...billingAddress, addressLine2: text })}
-              placeholder="Address Line 2 (Optional)"
-              placeholderTextColor={theme.textSecondary}
-            />
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, styles.inputHalf]}
-                value={billingAddress.city}
-                onChangeText={(text) => setBillingAddress({ ...billingAddress, city: text })}
-                placeholder="City"
-                placeholderTextColor={theme.textSecondary}
-              />
-              <TextInput
-                style={[styles.input, styles.inputHalf]}
-                value={billingAddress.state}
-                onChangeText={(text) => setBillingAddress({ ...billingAddress, state: text })}
-                placeholder="State"
-                placeholderTextColor={theme.textSecondary}
-              />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.rightColumn}>
-          <View style={styles.tabsContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.tabBar}>
-                {availableTabs.map(tab => (
-                  <Pressable
-                    key={tab}
-                    onPress={() => setActiveTab(tab)}
-                    style={[styles.tab, activeTab === tab && styles.activeTab]}
-                  >
-                    <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-            <View style={styles.tabContent}>
-              {renderTabContent()}
-            </View>
-          </View>
-        </View>
+      {/* Tab Content */}
+      <View style={styles.tabContent}>
+        {renderTabContent()}
       </View>
 
       <View style={{ height: insets.bottom + 20 }} />

@@ -141,6 +141,7 @@ export interface VendorBookerBusiness {
   tagline?: string | null;
   city?: string | null;
   state?: string | null;
+  address?: string | null;
   hasProducts: boolean;
   hasServices: boolean;
   coverImage?: string | null;

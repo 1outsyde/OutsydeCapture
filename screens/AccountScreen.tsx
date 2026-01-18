@@ -49,6 +49,7 @@ interface ProfileData {
   city?: string;
   state?: string;
   bio?: string;
+  tagline?: string;
   rating?: number;
   reviewCount?: number;
   specialties?: string[];
@@ -58,6 +59,11 @@ interface ProfileData {
   hourlyRate?: number;
   stripeOnboardingComplete?: boolean;
   availability?: { start: string; end: string } | null;
+  address?: string;
+  hoursOfOperation?: any;
+  contactPhone?: string;
+  contactEmail?: string;
+  websiteUrl?: string;
 }
 
 interface PortfolioCategory {
@@ -86,12 +92,7 @@ const PHOTOGRAPHER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
   { key: "reviews", label: "Reviews", icon: "message-square" },
 ];
 
-const BUSINESS_TABS: { key: ProfileTab; label: string; icon: string }[] = [
-  { key: "featured", label: "Products", icon: "shopping-bag" },
-  { key: "book", label: "Services", icon: "briefcase" },
-  { key: "availability", label: "Availability", icon: "clock" },
-  { key: "reviews", label: "Reviews", icon: "message-square" },
-];
+// Business tabs are now computed dynamically based on products/services
 
 const CONSUMER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
   { key: "featured", label: "Featured", icon: "star" },
@@ -213,14 +214,20 @@ export default function AccountScreen() {
           city: vendor.city || undefined,
           state: vendor.state || undefined,
           bio: vendor.description || undefined,
+          tagline: vendor.tagline || undefined,
           rating: vendor.rating || undefined,
           reviewCount: vendor.reviewCount || undefined,
           specialties: vendor.category ? [vendor.category] : [],
           brandColors: vendor.brandColors || undefined,
           stripeOnboardingComplete: vendor.stripeOnboardingComplete ?? false,
+          address: vendor.address || undefined,
+          hoursOfOperation: vendor.hoursOfOperation || undefined,
+          contactPhone: vendor.contactPhone || undefined,
+          contactEmail: vendor.contactEmail || undefined,
+          websiteUrl: vendor.websiteUrl || undefined,
         });
-        setBusinessHasProducts(vendor.hasProducts);
-        setBusinessHasServices(vendor.hasServices);
+        setBusinessHasProducts(vendor.hasProducts ?? false);
+        setBusinessHasServices(vendor.hasServices ?? false);
       } else {
         setProfile({
           id: user?.id || "",
@@ -299,10 +306,26 @@ export default function AccountScreen() {
   };
 
   const profileTheme = getProfileTheme();
+  
+  // Compute business tabs dynamically based on products/services
+  const getBusinessTabs = (): { key: ProfileTab; label: string; icon: string }[] => {
+    const businessTabs: { key: ProfileTab; label: string; icon: string }[] = [
+      { key: "featured", label: "Featured", icon: "star" },
+    ];
+    if (businessHasProducts) {
+      businessTabs.push({ key: "book", label: "Products", icon: "shopping-bag" });
+    }
+    if (businessHasServices) {
+      businessTabs.push({ key: "availability", label: "Services", icon: "briefcase" });
+    }
+    businessTabs.push({ key: "reviews", label: "Reviews", icon: "message-square" });
+    return businessTabs;
+  };
+
   const tabs = userRole === "photographer" 
     ? PHOTOGRAPHER_TABS 
     : userRole === "business" 
-      ? BUSINESS_TABS 
+      ? getBusinessTabs()
       : CONSUMER_TABS;
 
   const formatHourlyRate = (rate?: number): string => {
@@ -388,77 +411,251 @@ export default function AccountScreen() {
     setShowCreatePost(false);
   };
 
-  const renderFeaturedTab = () => (
-    <View style={styles.tabContent}>
-      {/* Create Post Button for Owners */}
-      {isOwner && !isGuest && (
-        <Pressable
-          onPress={() => setShowCreatePost(true)}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: profileTheme,
-            paddingVertical: 14,
-            borderRadius: 12,
-            marginBottom: Spacing.md,
-          }}
-        >
-          <Feather name="plus" size={20} color="#000" />
-          <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
-            Create Post
-          </ThemedText>
-        </Pressable>
-      )}
+  // Format business hours for display
+  const formatBusinessHours = (hours: any): string => {
+    if (!hours) return "";
+    try {
+      const hoursData = typeof hours === "string" ? JSON.parse(hours) : hours;
+      const today = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+      const todayHours = hoursData[today];
+      if (todayHours && todayHours.open && todayHours.close) {
+        return `Open Today: ${todayHours.open} - ${todayHours.close}`;
+      }
+      return "Hours vary";
+    } catch {
+      return "";
+    }
+  };
 
-      {/* Posts Grid - Instagram Style */}
-      {featuredPosts.length > 0 || (profile?.portfolio && profile.portfolio.length > 0) ? (
-        <View style={styles.mediaGrid}>
-          {/* Featured Posts first */}
-          {featuredPosts.map((post) => (
-            <Pressable key={post.id} style={styles.mediaGridItem}>
-              <Image
-                source={{ uri: post.imageUri }}
-                style={styles.mediaGridImage}
-                contentFit="cover"
-                transition={200}
-              />
-              <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-                <Feather name="heart" size={14} color="#fff" />
-                <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-                  {post.likes}
+  const renderFeaturedTab = () => {
+    // Business Featured Tab - Show store info
+    if (userRole === "business") {
+      return (
+        <View style={styles.tabContent}>
+          {/* Business Description */}
+          {profile?.bio && (
+            <View style={{ marginBottom: Spacing.lg }}>
+              <ThemedText type="h4" style={{ marginBottom: Spacing.sm }}>About</ThemedText>
+              <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 22 }}>
+                {profile.bio}
+              </ThemedText>
+            </View>
+          )}
+
+          {/* Store Hours */}
+          {profile?.hoursOfOperation && (
+            <View style={{ 
+              backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", 
+              borderRadius: 12, 
+              padding: Spacing.md, 
+              marginBottom: Spacing.md,
+              flexDirection: "row",
+              alignItems: "center",
+            }}>
+              <View style={{ 
+                width: 40, 
+                height: 40, 
+                borderRadius: 20, 
+                backgroundColor: profileTheme + "20", 
+                alignItems: "center", 
+                justifyContent: "center",
+                marginRight: Spacing.md,
+              }}>
+                <Feather name="clock" size={18} color={profileTheme} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="body" style={{ fontWeight: "600" }}>Store Hours</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                  {formatBusinessHours(profile.hoursOfOperation)}
                 </ThemedText>
               </View>
-            </Pressable>
-          ))}
-          {/* Portfolio images */}
-          {profile?.portfolio?.map((img, index) => (
-            <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
-              <Image
-                source={{ uri: img }}
-                style={styles.mediaGridImage}
-                contentFit="cover"
-                transition={200}
-              />
-              <Pressable style={styles.favoriteButton}>
-                <Feather name="heart" size={18} color="#FFFFFF" />
-              </Pressable>
-            </Pressable>
-          ))}
-        </View>
-      ) : (
-        <View style={styles.emptyTab}>
-          <Feather name="camera" size={48} color={theme.textSecondary} />
-          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-            No posts yet
-          </ThemedText>
-          {isOwner && !isGuest && (
-            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-              Share your best work to attract clients
-            </ThemedText>
+            </View>
           )}
+
+          {/* Address */}
+          {(profile?.address || (profile?.city && profile?.state)) && (
+            <View style={{ 
+              backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", 
+              borderRadius: 12, 
+              padding: Spacing.md, 
+              marginBottom: Spacing.md,
+              flexDirection: "row",
+              alignItems: "center",
+            }}>
+              <View style={{ 
+                width: 40, 
+                height: 40, 
+                borderRadius: 20, 
+                backgroundColor: profileTheme + "20", 
+                alignItems: "center", 
+                justifyContent: "center",
+                marginRight: Spacing.md,
+              }}>
+                <Feather name="map-pin" size={18} color={profileTheme} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="body" style={{ fontWeight: "600" }}>Location</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                  {profile?.address ? profile.address : `${profile?.city}, ${profile?.state}`}
+                </ThemedText>
+              </View>
+            </View>
+          )}
+
+          {/* Contact Info */}
+          {(profile?.contactPhone || profile?.contactEmail || profile?.websiteUrl) && (
+            <View style={{ 
+              backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", 
+              borderRadius: 12, 
+              padding: Spacing.md, 
+              marginBottom: Spacing.lg,
+            }}>
+              <ThemedText type="body" style={{ fontWeight: "600", marginBottom: Spacing.sm }}>Contact</ThemedText>
+              {profile?.contactPhone && (
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.xs }}>
+                  <Feather name="phone" size={14} color={theme.textSecondary} />
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
+                    {profile.contactPhone}
+                  </ThemedText>
+                </View>
+              )}
+              {profile?.contactEmail && (
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.xs }}>
+                  <Feather name="mail" size={14} color={theme.textSecondary} />
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
+                    {profile.contactEmail}
+                  </ThemedText>
+                </View>
+              )}
+              {profile?.websiteUrl && (
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Feather name="globe" size={14} color={theme.textSecondary} />
+                  <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.sm }}>
+                    {profile.websiteUrl}
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Create Post Button */}
+          {isOwner && !isGuest && (
+            <Pressable
+              onPress={() => setShowCreatePost(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: profileTheme,
+                paddingVertical: 14,
+                borderRadius: 12,
+                marginBottom: Spacing.md,
+              }}
+            >
+              <Feather name="plus" size={20} color="#000" />
+              <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
+                Create Post
+              </ThemedText>
+            </Pressable>
+          )}
+
+          {/* Posts Grid */}
+          {featuredPosts.length > 0 ? (
+            <View style={styles.mediaGrid}>
+              {featuredPosts.map((post) => (
+                <Pressable key={post.id} style={styles.mediaGridItem}>
+                  <Image
+                    source={{ uri: post.imageUri }}
+                    style={styles.mediaGridImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                  <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                    <Feather name="heart" size={14} color="#fff" />
+                    <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+                      {post.likes}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
-      )}
+      );
+    }
+
+    // Photographer/Consumer Featured Tab - Show posts
+    return (
+      <View style={styles.tabContent}>
+        {/* Create Post Button for Owners */}
+        {isOwner && !isGuest && (
+          <Pressable
+            onPress={() => setShowCreatePost(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: profileTheme,
+              paddingVertical: 14,
+              borderRadius: 12,
+              marginBottom: Spacing.md,
+            }}
+          >
+            <Feather name="plus" size={20} color="#000" />
+            <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
+              Create Post
+            </ThemedText>
+          </Pressable>
+        )}
+
+        {/* Posts Grid - Instagram Style */}
+        {featuredPosts.length > 0 || (profile?.portfolio && profile.portfolio.length > 0) ? (
+          <View style={styles.mediaGrid}>
+            {/* Featured Posts first */}
+            {featuredPosts.map((post) => (
+              <Pressable key={post.id} style={styles.mediaGridItem}>
+                <Image
+                  source={{ uri: post.imageUri }}
+                  style={styles.mediaGridImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+                <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                  <Feather name="heart" size={14} color="#fff" />
+                  <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+                    {post.likes}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            ))}
+            {/* Portfolio images */}
+            {profile?.portfolio?.map((img, index) => (
+              <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
+                <Image
+                  source={{ uri: img }}
+                  style={styles.mediaGridImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+                <Pressable style={styles.favoriteButton}>
+                  <Feather name="heart" size={18} color="#FFFFFF" />
+                </Pressable>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyTab}>
+            <Feather name="camera" size={48} color={theme.textSecondary} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+              No posts yet
+            </ThemedText>
+            {isOwner && !isGuest && (
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                Share your best work to attract clients
+              </ThemedText>
+            )}
+          </View>
+        )}
 
       {/* Create Post Modal */}
       <Modal visible={showCreatePost} animationType="slide" transparent>
@@ -538,6 +735,7 @@ export default function AccountScreen() {
       </Modal>
     </View>
   );
+  };
 
   const handleBookingComplete = async (booking: {
     serviceId: string;
@@ -959,7 +1157,15 @@ export default function AccountScreen() {
               {profile?.name || "Your Profile"}
             </ThemedText>
 
-            {profile?.bio && (
+            {/* Tagline for businesses - displayed above banner under profile picture */}
+            {userRole === "business" && profile?.tagline && (
+              <ThemedText type="body" style={[styles.profileBio, { fontStyle: "italic", marginTop: Spacing.xs }]}>
+                {profile.tagline}
+              </ThemedText>
+            )}
+
+            {/* Bio for non-business profiles */}
+            {userRole !== "business" && profile?.bio && (
               <ThemedText type="body" style={styles.profileBio}>
                 {profile.bio}
               </ThemedText>
