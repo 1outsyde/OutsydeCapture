@@ -1,59 +1,154 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Pressable, Alert, TextInput } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  StyleSheet,
+  View,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  ActivityIndicator,
+  TextInput,
+  Alert,
+} from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
+import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useLoyalty } from "@/context/LoyaltyContext";
-import { useFavorites } from "@/context/FavoritesContext";
-import { Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
-import { useNotifications } from "@/context/NotificationContext";
-import { CompositeNavigationProp } from "@react-navigation/native";
+import { Spacing, BorderRadius } from "@/constants/theme";
+import { RootStackParamList } from "@/navigation/types";
+import api from "@/services/api";
 
-type NavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<AccountStackParamList>,
-  NativeStackNavigationProp<RootStackParamList>
->;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const PORTFOLIO_IMAGE_SIZE = SCREEN_WIDTH * 0.6;
+
+const TIER_CONFIG: Record<string, { label: string; color: string }> = {
+  premium: { label: "Premium", color: "#FFD700" },
+  pro: { label: "Pro", color: "#C0C0C0" },
+  basic: { label: "Basic", color: "#CD7F32" },
+};
+
+const FALLBACK_COVER =
+  "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=800";
+
+interface ProfileData {
+  id: string;
+  name: string;
+  avatar?: string;
+  coverImage?: string;
+  city?: string;
+  state?: string;
+  bio?: string;
+  rating?: number;
+  reviewCount?: number;
+  specialties?: string[];
+  portfolio?: string[];
+  brandColors?: string;
+  subscriptionTier?: string;
+  priceRange?: string;
+  stripeOnboardingComplete?: boolean;
+}
 
 export default function AccountScreen() {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { user, isAuthenticated, logout, updateProfile } = useAuth();
+  const { user, isAuthenticated, getToken, updateProfile } = useAuth();
   const { points } = useLoyalty();
-  const { unreadCount } = useNotifications();
-  const { favorites } = useFavorites();
-  
+
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
   const [editFirstName, setEditFirstName] = useState(user?.firstName || "");
   const [editLastName, setEditLastName] = useState(user?.lastName || "");
   const [editPhone, setEditPhone] = useState(user?.phone || "");
-  
-  const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log Out",
-          style: "destructive",
-          onPress: async () => {
-            await logout();
-          },
-        },
-      ]
-    );
-  };
+  const userRole = user?.role || "consumer";
+
+  const fetchProfile = useCallback(async () => {
+    const token = await getToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      if (userRole === "photographer") {
+        const photographer = (await api.getPhotographerMe(token)) as any;
+        setProfile({
+          id: photographer.id,
+          name: photographer.displayName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
+          avatar: photographer.logoImage,
+          coverImage: photographer.coverImage,
+          city: photographer.city,
+          state: photographer.state,
+          bio: photographer.bio,
+          rating: photographer.rating,
+          reviewCount: photographer.reviewCount,
+          specialties: photographer.specialties,
+          portfolio: photographer.portfolio,
+          brandColors: photographer.brandColors,
+          subscriptionTier: photographer.subscriptionTier,
+          priceRange: photographer.hourlyRate
+            ? `$${(photographer.hourlyRate / 100).toFixed(0)}/hr`
+            : undefined,
+          stripeOnboardingComplete: photographer.stripeOnboardingComplete,
+        });
+      } else if (userRole === "business") {
+        const vendor = (await api.getVendorMe(token)) as any;
+        setProfile({
+          id: vendor.id,
+          name: vendor.businessName || vendor.name,
+          avatar: vendor.logo || vendor.logoImage,
+          coverImage: vendor.coverImage,
+          city: vendor.city,
+          state: vendor.state,
+          bio: vendor.description || vendor.bio,
+          rating: vendor.rating,
+          reviewCount: vendor.reviewCount,
+          specialties: vendor.categories ? [vendor.categories] : [],
+          brandColors: vendor.brandColors,
+          subscriptionTier: vendor.subscriptionTier,
+          priceRange: vendor.priceRange,
+        });
+      } else {
+        setProfile({
+          id: user?.id || "",
+          name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
+          avatar: user?.avatar,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+      setProfile({
+        id: user?.id || "",
+        name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
+        avatar: user?.avatar,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [userRole, getToken, user]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchProfile();
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated, fetchProfile]);
 
   const handleSaveProfile = async () => {
     await updateProfile({
@@ -62,178 +157,249 @@ export default function AccountScreen() {
       phone: editPhone,
     });
     setIsEditing(false);
+    fetchProfile();
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "Confirm Deletion",
-              "This will permanently delete all your data. Are you absolutely sure?",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete Forever",
-                  style: "destructive",
-                  onPress: async () => {
-                    await logout();
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
+  const getProfileTheme = (): string => {
+    if (profile?.brandColors) {
+      try {
+        const colors =
+          typeof profile.brandColors === "string"
+            ? JSON.parse(profile.brandColors)
+            : profile.brandColors;
+        return colors.primary || theme.primary;
+      } catch {
+        return theme.primary;
+      }
+    }
+    return theme.primary;
   };
+
+  const profileTheme = getProfileTheme();
+  const tierConfig = profile?.subscriptionTier
+    ? TIER_CONFIG[profile.subscriptionTier]
+    : null;
 
   if (!isAuthenticated) {
     return (
-      <ScreenKeyboardAwareScrollView contentContainerStyle={styles.authContainer}>
-        <View style={styles.authContent}>
+      <ThemedView style={styles.container}>
+        <View style={[styles.authContainer, { paddingTop: insets.top }]}>
           <Feather name="camera" size={64} color={theme.primary} />
           <ThemedText type="h2" style={styles.authTitle}>
             Welcome to Outsyde
           </ThemedText>
-          <ThemedText type="body" style={[styles.authSubtitle, { color: theme.textSecondary }]}>
+          <ThemedText
+            type="body"
+            style={[styles.authSubtitle, { color: theme.textSecondary }]}
+          >
             Sign in to book photographers, manage sessions, and more
           </ThemedText>
           <Button
-            onPress={() => (navigation as any).navigate("Auth")}
+            onPress={() => navigation.navigate("Auth", {})}
             style={styles.authButton}
           >
             Sign In or Sign Up
           </Button>
         </View>
-      </ScreenKeyboardAwareScrollView>
+      </ThemedView>
     );
   }
 
-  const inputStyle = [
-    styles.input,
-    {
-      backgroundColor: theme.backgroundDefault,
-      color: theme.text,
-    },
-  ];
+  if (loading) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      </ThemedView>
+    );
+  }
+
+  const hasDescription = Boolean(profile?.bio);
+  const hasPortfolio = profile?.portfolio && profile.portfolio.length > 0;
+  const hasSpecialties = profile?.specialties && profile.specialties.length > 0;
 
   return (
-    <ScreenKeyboardAwareScrollView>
-      <View style={styles.profileHeader}>
-        <View style={[styles.avatarContainer, { backgroundColor: theme.backgroundDefault }]}>
-          {user?.avatar ? (
-            <Image
-              source={{ uri: user.avatar }}
-              style={styles.avatar}
-              contentFit="cover"
-            />
-          ) : (
-            <Feather name="user" size={40} color={theme.textSecondary} />
+    <ThemedView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 100 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroSection}>
+          <Image
+            source={{
+              uri:
+                profile?.coverImage || profile?.avatar || FALLBACK_COVER,
+            }}
+            style={styles.coverImage}
+            contentFit="cover"
+            transition={300}
+          />
+          <View style={styles.heroOverlay} />
+
+          <View style={[styles.headerButtons, { top: insets.top + Spacing.md }]}>
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() => setSettingsVisible(true)}
+              style={({ pressed }) => [
+                styles.settingsButton,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Feather name="menu" size={24} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          <View style={styles.heroContent}>
+            <View style={styles.avatarContainer}>
+              {profile?.avatar ? (
+                <Image
+                  source={{ uri: profile.avatar }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.avatar,
+                    styles.avatarPlaceholder,
+                    { backgroundColor: theme.backgroundDefault },
+                  ]}
+                >
+                  <Feather name="user" size={40} color={theme.textSecondary} />
+                </View>
+              )}
+              {tierConfig ? (
+                <View
+                  style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}
+                >
+                  <Feather name="award" size={12} color="#000000" />
+                </View>
+              ) : null}
+            </View>
+
+            <ThemedText type="h2" style={styles.profileName}>
+              {profile?.name || "Your Profile"}
+            </ThemedText>
+
+            {hasSpecialties ? (
+              <View style={styles.badgesRow}>
+                {profile!.specialties!.slice(0, 3).map((spec, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.specialtyBadge,
+                      {
+                        backgroundColor:
+                          index === 0 ? profileTheme : "rgba(255,255,255,0.2)",
+                      },
+                    ]}
+                  >
+                    {index === 0 && (
+                      <Feather name="camera" size={12} color="#FFFFFF" />
+                    )}
+                    <ThemedText type="small" style={styles.specialtyText}>
+                      {spec}
+                    </ThemedText>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {(profile?.city || profile?.state) && (
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <Feather
+                    name="map-pin"
+                    size={14}
+                    color="rgba(255,255,255,0.8)"
+                  />
+                  <ThemedText type="body" style={styles.metaText}>
+                    {profile.city}
+                    {profile.state ? `, ${profile.state}` : ""}
+                  </ThemedText>
+                </View>
+                {profile?.rating !== undefined && profile.rating > 0 && (
+                  <>
+                    <View style={styles.metaDivider} />
+                    <View style={styles.metaItem}>
+                      <Feather name="star" size={14} color="#FFD700" />
+                      <ThemedText type="body" style={styles.metaText}>
+                        {profile.rating.toFixed(1)}
+                        {profile.reviewCount ? ` (${profile.reviewCount})` : ""}
+                      </ThemedText>
+                    </View>
+                  </>
+                )}
+                {profile?.priceRange && (
+                  <>
+                    <View style={styles.metaDivider} />
+                    <View style={styles.metaItem}>
+                      <ThemedText type="body" style={styles.metaText}>
+                        {profile.priceRange}
+                      </ThemedText>
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.contentSection}>
+          {userRole !== "consumer" && !profile?.stripeOnboardingComplete && (
+            <View
+              style={[
+                styles.stripeAlert,
+                { backgroundColor: "#FF950020", borderColor: "#FF9500" },
+              ]}
+            >
+              <Feather name="alert-circle" size={20} color="#FF9500" />
+              <View style={styles.stripeAlertContent}>
+                <ThemedText type="body" style={{ fontWeight: "600" }}>
+                  Complete Your Setup
+                </ThemedText>
+                <ThemedText
+                  type="small"
+                  style={{ color: theme.textSecondary, marginTop: 2 }}
+                >
+                  Connect Stripe to accept bookings and receive payments
+                </ThemedText>
+              </View>
+              <Pressable
+                onPress={() => {
+                  if (userRole === "photographer") {
+                    navigation.navigate("PhotographerDashboard");
+                  } else {
+                    navigation.navigate("BusinessDashboard");
+                  }
+                }}
+                style={[styles.stripeAlertButton, { backgroundColor: "#FF9500" }]}
+              >
+                <ThemedText type="small" style={{ color: "#FFFFFF" }}>
+                  Set Up
+                </ThemedText>
+              </Pressable>
+            </View>
           )}
-        </View>
-        {!isEditing ? (
-          <>
-            <ThemedText type="h2" style={styles.userName}>
-              {displayName}
-            </ThemedText>
-            <ThemedText type="body" style={{ color: theme.textSecondary }}>
-              {user?.email}
-            </ThemedText>
-          </>
-        ) : null}
-      </View>
 
-      {isEditing ? (
-        <View style={styles.editSection}>
-          <View style={styles.fieldContainer}>
-            <ThemedText type="small" style={styles.label}>
-              First Name
-            </ThemedText>
-            <TextInput
-              style={inputStyle}
-              value={editFirstName}
-              onChangeText={setEditFirstName}
-              placeholder="First name"
-              placeholderTextColor={theme.textSecondary}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <ThemedText type="small" style={styles.label}>
-              Last Name
-            </ThemedText>
-            <TextInput
-              style={inputStyle}
-              value={editLastName}
-              onChangeText={setEditLastName}
-              placeholder="Last name"
-              placeholderTextColor={theme.textSecondary}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <ThemedText type="small" style={styles.label}>
-              Phone
-            </ThemedText>
-            <TextInput
-              style={inputStyle}
-              value={editPhone}
-              onChangeText={setEditPhone}
-              placeholder="Phone number"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="phone-pad"
-            />
-          </View>
-
-          <View style={styles.editButtons}>
-            <Pressable
-              onPress={() => {
-                setEditFirstName(user?.firstName || "");
-                setEditLastName(user?.lastName || "");
-                setEditPhone(user?.phone || "");
-                setIsEditing(false);
-              }}
-              style={({ pressed }) => [
-                styles.cancelButton,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <ThemedText type="button">Cancel</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={handleSaveProfile}
-              style={({ pressed }) => [
-                styles.saveButton,
-                { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <ThemedText type="button" style={{ color: "#FFFFFF" }}>
-                Save Changes
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <>
           <Pressable
-            onPress={() => navigation.navigate("OutsydePoints")}
-            style={({ pressed }) => [
-              styles.pointsCard,
-              { backgroundColor: theme.primary, opacity: pressed ? 0.9 : 1 },
-            ]}
+            onPress={() => setSettingsVisible(true)}
+            style={[styles.pointsCard, { backgroundColor: theme.primary }]}
           >
             <View style={styles.pointsCardContent}>
               <View style={styles.pointsInfo}>
                 <Feather name="star" size={24} color="#FFFFFF" />
                 <View style={styles.pointsTextContainer}>
-                  <ThemedText type="small" style={{ color: "rgba(255,255,255,0.8)" }}>
+                  <ThemedText
+                    type="small"
+                    style={{ color: "rgba(255,255,255,0.8)" }}
+                  >
                     Outsyde Points
                   </ThemedText>
                   <ThemedText type="h2" style={{ color: "#FFFFFF" }}>
@@ -245,268 +411,185 @@ export default function AccountScreen() {
             </View>
           </Pressable>
 
-          {isAdmin ? (
-            <View style={styles.section}>
+          {isEditing ? (
+            <View style={styles.editSection}>
               <ThemedText type="h4" style={styles.sectionTitle}>
-                Admin
+                Edit Profile
               </ThemedText>
-              <Pressable
-                onPress={() => (navigation as any).navigate("AdminDashboard")}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  { backgroundColor: "#FFD60A20", opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <View style={styles.menuItemLeft}>
-                  <Feather name="shield" size={20} color="#FFD60A" />
-                  <ThemedText type="body" style={[styles.menuItemText, { color: "#FFD60A" }]}>
-                    Admin Dashboard
+              <View style={styles.fieldContainer}>
+                <ThemedText type="small" style={styles.label}>
+                  First Name
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      color: theme.text,
+                    },
+                  ]}
+                  value={editFirstName}
+                  onChangeText={setEditFirstName}
+                  placeholder="First name"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+              <View style={styles.fieldContainer}>
+                <ThemedText type="small" style={styles.label}>
+                  Last Name
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      color: theme.text,
+                    },
+                  ]}
+                  value={editLastName}
+                  onChangeText={setEditLastName}
+                  placeholder="Last name"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+              <View style={styles.fieldContainer}>
+                <ThemedText type="small" style={styles.label}>
+                  Phone
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      color: theme.text,
+                    },
+                  ]}
+                  value={editPhone}
+                  onChangeText={setEditPhone}
+                  placeholder="Phone number"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <View style={styles.editButtons}>
+                <Pressable
+                  onPress={() => {
+                    setEditFirstName(user?.firstName || "");
+                    setEditLastName(user?.lastName || "");
+                    setEditPhone(user?.phone || "");
+                    setIsEditing(false);
+                  }}
+                  style={[
+                    styles.cancelButton,
+                    { backgroundColor: theme.backgroundDefault },
+                  ]}
+                >
+                  <ThemedText type="button">Cancel</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={handleSaveProfile}
+                  style={[styles.saveButton, { backgroundColor: theme.primary }]}
+                >
+                  <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+                    Save Changes
                   </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={20} color="#FFD60A" />
-              </Pressable>
+                </Pressable>
+              </View>
             </View>
-          ) : null}
-
-          <View style={styles.section}>
-            <ThemedText type="h4" style={styles.sectionTitle}>
-              Account
-            </ThemedText>
-            
-            <Pressable
-              onPress={() => setIsEditing(true)}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="edit-2" size={20} color={theme.text} />
-                <ThemedText type="body" style={styles.menuItemText}>
-                  Edit Profile
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-
-            <Pressable
-              onPress={() => navigation.navigate("Notifications")}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="bell" size={20} color={theme.text} />
-                <ThemedText type="body" style={styles.menuItemText}>
-                  Notifications
-                </ThemedText>
-                {unreadCount > 0 ? (
-                  <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-                    <ThemedText type="small" style={{ color: "#FFFFFF" }}>
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="map-pin" size={20} color={theme.text} />
-                <ThemedText type="body" style={styles.menuItemText}>
-                  Location Preferences
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-
-            <Pressable
-              onPress={() => (navigation as any).navigate("Favorites")}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="bookmark" size={20} color={theme.text} />
-                <ThemedText type="body" style={styles.menuItemText}>
-                  Saved Items
-                </ThemedText>
-                {favorites.length > 0 ? (
-                  <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-                    <ThemedText type="small" style={{ color: "#FFFFFF" }}>
-                      {favorites.length > 9 ? "9+" : favorites.length}
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-
-            {user?.role === "photographer" ? (
-              <Pressable
-                onPress={() => (navigation as any).navigate("PhotographerDashboard")}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  { backgroundColor: "#007AFF10", opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <View style={styles.menuItemLeft}>
-                  <Feather name="camera" size={20} color="#007AFF" />
-                  <ThemedText type="body" style={[styles.menuItemText, { color: "#007AFF" }]}>
-                    Photographer Dashboard
+          ) : (
+            <>
+              {hasDescription && (
+                <View style={styles.section}>
+                  <ThemedText type="h4" style={styles.sectionTitle}>
+                    About
+                  </ThemedText>
+                  <ThemedText
+                    type="body"
+                    style={{ color: theme.textSecondary, lineHeight: 24 }}
+                  >
+                    {profile!.bio}
                   </ThemedText>
                 </View>
-                <Feather name="chevron-right" size={20} color="#007AFF" />
-              </Pressable>
-            ) : null}
+              )}
 
-            {user?.role === "business" ? (
-              <Pressable
-                onPress={() => (navigation as any).navigate("BusinessDashboard")}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  { backgroundColor: "#34C75910", opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <View style={styles.menuItemLeft}>
-                  <Feather name="briefcase" size={20} color="#34C759" />
-                  <View>
-                    <ThemedText type="body" style={[styles.menuItemText, { color: "#34C759" }]}>
-                      Business Dashboard
-                    </ThemedText>
-                    {user?.approvalStatus === "pending" && (
-                      <ThemedText type="small" style={{ color: "#FFD60A", marginLeft: Spacing.sm }}>
-                        Approval pending - you can still customize your storefront
+              {hasPortfolio && (
+                <View style={styles.section}>
+                  <ThemedText type="h4" style={styles.sectionTitle}>
+                    Portfolio
+                  </ThemedText>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.portfolioScroll}
+                  >
+                    {profile!.portfolio!.map((img, index) => (
+                      <Image
+                        key={index}
+                        source={{ uri: img }}
+                        style={styles.portfolioImage}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {userRole === "consumer" && (
+                <View style={styles.section}>
+                  <ThemedText type="h4" style={styles.sectionTitle}>
+                    Quick Actions
+                  </ThemedText>
+                  <Pressable
+                    onPress={() => setIsEditing(true)}
+                    style={[
+                      styles.actionItem,
+                      { backgroundColor: theme.backgroundDefault },
+                    ]}
+                  >
+                    <View style={styles.actionItemLeft}>
+                      <Feather name="edit-2" size={20} color={theme.text} />
+                      <ThemedText type="body" style={styles.actionItemText}>
+                        Edit Profile
                       </ThemedText>
-                    )}
-                  </View>
+                    </View>
+                    <Feather
+                      name="chevron-right"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
                 </View>
-                <Feather name="chevron-right" size={20} color="#34C759" />
-              </Pressable>
-            ) : null}
+              )}
+            </>
+          )}
+        </View>
+      </ScrollView>
 
-            {(user?.role === "consumer" || user?.isGuest) ? (
-              <Pressable
-                onPress={() => (navigation as any).navigate("InfluencerApplication")}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  { backgroundColor: theme.primaryTransparent, opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <View style={styles.menuItemLeft}>
-                  <Feather name="star" size={20} color={theme.primary} />
-                  <ThemedText type="body" style={[styles.menuItemText, { color: theme.primary }]}>
-                    Apply as Influencer
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={20} color={theme.primary} />
-              </Pressable>
-            ) : null}
-          </View>
-
-          <View style={styles.section}>
-            <ThemedText type="h4" style={styles.sectionTitle}>
-              Support
-            </ThemedText>
-            
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="help-circle" size={20} color={theme.text} />
-                <ThemedText type="body" style={styles.menuItemText}>
-                  Help Center
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="file-text" size={20} color={theme.text} />
-                <ThemedText type="body" style={styles.menuItemText}>
-                  Terms of Service
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="shield" size={20} color={theme.text} />
-                <ThemedText type="body" style={styles.menuItemText}>
-                  Privacy Policy
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.section}>
-            <Pressable
-              onPress={handleLogout}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="log-out" size={20} color={theme.error} />
-                <ThemedText type="body" style={[styles.menuItemText, { color: theme.error }]}>
-                  Log Out
-                </ThemedText>
-              </View>
-            </Pressable>
-
-            <Pressable
-              onPress={handleDeleteAccount}
-              style={({ pressed }) => [
-                styles.menuItem,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={styles.menuItemLeft}>
-                <Feather name="trash-2" size={20} color={theme.error} />
-                <ThemedText type="body" style={[styles.menuItemText, { color: theme.error }]}>
-                  Delete Account
-                </ThemedText>
-              </View>
-            </Pressable>
-          </View>
-        </>
-      )}
-    </ScreenKeyboardAwareScrollView>
+      <PersonalSettingsMenu
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        onEditProfile={
+          userRole === "consumer" ? () => setIsEditing(true) : undefined
+        }
+      />
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  authContainer: {
-    flexGrow: 1,
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
     justifyContent: "center",
   },
-  authContent: {
+  authContainer: {
+    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: Spacing.xl,
   },
   authTitle: {
@@ -521,25 +604,162 @@ const styles = StyleSheet.create({
   authButton: {
     width: "100%",
   },
-  profileHeader: {
-    alignItems: "center",
-    marginBottom: Spacing["2xl"],
+  scrollView: {
+    flex: 1,
   },
-  avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  scrollContent: {
+    flexGrow: 1,
+  },
+  heroSection: {
+    height: 320,
+    position: "relative",
+  },
+  coverImage: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  headerButtons: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    zIndex: 10,
+  },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.lg,
+  },
+  heroContent: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: Spacing.xl,
+    paddingBottom: Spacing["2xl"],
+    alignItems: "center",
+  },
+  avatarContainer: {
+    position: "relative",
+    marginBottom: Spacing.md,
   },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
   },
-  userName: {
-    marginBottom: Spacing.xs,
+  avatarPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tierBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  profileName: {
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: Spacing.sm,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  badgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  specialtyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  specialtyText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  metaDivider: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    marginHorizontal: Spacing.sm,
+  },
+  metaText: {
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  contentSection: {
+    padding: Spacing.xl,
+  },
+  stripeAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  stripeAlertContent: {
+    flex: 1,
+  },
+  stripeAlertButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  pointsCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    marginBottom: Spacing.xl,
+  },
+  pointsCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pointsInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pointsTextContainer: {
+    marginLeft: Spacing.md,
   },
   section: {
     marginBottom: Spacing.xl,
@@ -547,7 +767,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     marginBottom: Spacing.md,
   },
-  menuItem: {
+  portfolioScroll: {
+    marginHorizontal: -Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+  },
+  portfolioImage: {
+    width: PORTFOLIO_IMAGE_SIZE,
+    height: PORTFOLIO_IMAGE_SIZE * 0.75,
+    borderRadius: BorderRadius.lg,
+    marginRight: Spacing.md,
+  },
+  actionItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -555,11 +785,11 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
   },
-  menuItemLeft: {
+  actionItemLeft: {
     flexDirection: "row",
     alignItems: "center",
   },
-  menuItemText: {
+  actionItemText: {
     marginLeft: Spacing.md,
   },
   editSection: {
@@ -573,10 +803,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   input: {
-    height: Spacing.inputHeight,
+    height: 48,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
-    fontSize: Typography.body.fontSize,
+    fontSize: 16,
   },
   editButtons: {
     flexDirection: "row",
@@ -584,7 +814,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    height: Spacing.buttonHeight,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: BorderRadius.full,
@@ -592,35 +822,9 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    height: Spacing.buttonHeight,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: BorderRadius.full,
-  },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: Spacing.sm,
-    minWidth: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pointsCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
-    marginBottom: Spacing["2xl"],
-  },
-  pointsCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  pointsInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  pointsTextContainer: {
-    marginLeft: Spacing.md,
   },
 });
