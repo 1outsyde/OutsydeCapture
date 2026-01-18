@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, Linking } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Location from "expo-location";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -174,6 +175,7 @@ export default function ConsumerSignupScreen() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -183,6 +185,41 @@ export default function ConsumerSignupScreen() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
+
+  const handleUseMyLocation = async () => {
+    setDetectingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Permission",
+          "Please enable location access to auto-fill your city and state.",
+          [
+            { text: "Cancel", style: "cancel" },
+            ...(Platform.OS !== "web" ? [{ text: "Open Settings", onPress: async () => {
+              try { await Linking.openSettings(); } catch (e) {}
+            }}] : []),
+          ]
+        );
+        setDetectingLocation(false);
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [geocode] = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+      if (geocode) {
+        if (geocode.city) setCity(geocode.city);
+        if (geocode.region) setState(geocode.region.length === 2 ? geocode.region : geocode.region.substring(0, 2).toUpperCase());
+        if (geocode.postalCode) setZipCode(geocode.postalCode);
+      }
+    } catch (error) {
+      Alert.alert("Location Error", "Could not detect your location. Please enter manually.");
+    } finally {
+      setDetectingLocation(false);
+    }
+  };
 
   const [username, setUsername] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -431,6 +468,34 @@ export default function ConsumerSignupScreen() {
             <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
               Help us find local businesses for you
             </ThemedText>
+
+            <Pressable
+              onPress={handleUseMyLocation}
+              disabled={detectingLocation}
+              style={({ pressed }) => [
+                {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.primary,
+                  paddingVertical: 14,
+                  borderRadius: BorderRadius.md,
+                  marginBottom: Spacing.lg,
+                  opacity: pressed || detectingLocation ? 0.7 : 1,
+                },
+              ]}
+            >
+              {detectingLocation ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <>
+                  <Feather name="map-pin" size={18} color="#000" />
+                  <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
+                    Use My Location
+                  </ThemedText>
+                </>
+              )}
+            </Pressable>
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>City *</ThemedText>
