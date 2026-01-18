@@ -35,6 +35,9 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Stripe Deep Link Return**: Uses `outsyde://stripe-return` as the return URL for Stripe onboarding. Dashboard screens listen for this deep link and auto-refresh Stripe status when user returns from onboarding flow.
 - **Deep Linking**: App scheme is `outsyde://`. Configured in `app.json` with `scheme: "outsyde"`. Currently handles `stripe-return` path for Stripe onboarding callbacks.
 - **Navigation**: Expo SDK 54, React Navigation 7 (Root, MainTab, Stack Navigators).
+  - **Account Tab Pattern**: Follows Instagram/Twitter pattern - Account tab shows user's own public profile (self-view). Hamburger menu in header opens PersonalSettingsMenu action sheet with Dashboard, Edit Profile, Storefront Editor, Stripe settings, and Logout options.
+  - **Guest Mode Restrictions**: Guest users (`isGuest: true`) see a limited profile view without hamburger menu, points card, or Quick Actions.
+  - **Dashboard Presentation**: Dashboard and editor screens use card presentation with slide-from-right animation and proper back navigation to Account/Profile.
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
 - **Core Features**: Personalized content feed, category/location-based search, 4-step booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
 - **Onboarding**: 4-screen welcome flow.
