@@ -1,0 +1,274 @@
+OUTSYDE PRIVACY POLICY
+
+Last Updated: 01/23/2026
+
+Outsyde (“Outsyde,” “we,” “our,” or “us”) values your privacy. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use the Outsyde mobile application, website, and related services (collectively, the “Platform”).
+
+By using Outsyde, you consent to the practices described in this Privacy Policy.
+
+1. INFORMATION WE COLLECT
+A. Information You Provide
+
+We may collect personal information you provide, including:
+
+Name
+
+Email address
+
+Phone number
+
+Profile information (photos, bios, business details)
+
+Booking details and communications
+
+Content you upload (images, videos, text)
+
+B. Payment Information
+
+All payments are processed through third-party payment processors, such as Stripe.
+
+Outsyde does not store your full credit card or banking information. Payment processors collect and store this information in accordance with their own privacy policies.
+
+C. Automatically Collected Information
+
+When you use Outsyde, we may automatically collect:
+
+Device type and operating system
+
+IP address
+
+App usage data
+
+Log data and performance analytics
+
+Cookies or similar technologies (for web use)
+
+2. HOW WE USE INFORMATION
+
+We use your information to:
+
+Operate and improve the Platform
+
+Facilitate bookings, payments, and transactions
+
+Verify accounts and prevent fraud
+
+Communicate with users
+
+Provide customer support
+
+Enforce our Terms of Service
+
+Comply with legal obligations
+
+Outsyde does not sell your personal information.
+
+3. SHARING OF INFORMATION
+
+We may share information with:
+
+Service providers (e.g., payment processors, hosting providers)
+
+Other users, as necessary for bookings or transactions
+
+Legal authorities, if required by law
+
+Parties involved in business transfers (e.g., merger or acquisition)
+
+Only the minimum necessary information is shared.
+
+4. USER-TO-USER VISIBILITY
+
+Certain information may be visible to other users, including:
+
+Profile names, photos, and business details
+
+Public listings and uploaded content
+
+Reviews or ratings
+
+You control what information is publicly visible through your account settings.
+
+5. DATA SECURITY
+
+Outsyde implements reasonable administrative, technical, and physical safeguards to protect your information.
+
+However, no system is completely secure. You acknowledge that data transmission over the internet is not guaranteed to be 100% secure.
+
+6. DATA RETENTION
+
+We retain personal information only as long as necessary to:
+
+Provide services
+
+Comply with legal obligations
+
+Resolve disputes
+
+Enforce agreements
+
+You may request account deletion, subject to legal and contractual requirements.
+
+7. YOUR RIGHTS & CHOICES
+
+Depending on your location, you may have the right to:
+
+Access your personal information
+
+Correct inaccurate information
+
+Request deletion of your data
+
+Opt out of certain communications
+
+Requests may be submitted to info@goutsyde.com
+.
+
+8. CHILDREN’S PRIVACY
+
+Outsyde is not intended for individuals under the age of 18.
+
+We do not knowingly collect personal information from minors. If such data is identified, it will be deleted promptly.
+
+9. NEW YORK SHIELD ACT COMPLIANCE
+
+For users located in New York, Outsyde complies with the New York SHIELD Act and maintains reasonable safeguards to protect private information.
+
+10. THIRD-PARTY LINKS & SERVICES
+
+The Platform may contain links to third-party websites or services.
+
+Outsyde is not responsible for the privacy practices or content of third parties. Use them at your own discretion.
+
+11. CHANGES TO THIS POLICY
+
+Outsyde may update this Privacy Policy at any time. Continued use of the Platform constitutes acceptance of the revised policy.
+
+12. CONTACT INFORMATION
+
+Outsyde LLC
+📧 info@goutsyde.com
+
+🌐 https://goutsyde.com
+
+✅ Final check
+
+Date corrected ✔️
+
+Formatting app-store ready ✔️
+
+Matches your Terms of Service ✔️
+
+If you want, next we can:
+
+Lock this into a combined Legal page
+
+Add CCPA/California language
+
+Create a Cookies Notice
+
+Or convert this into Wix Studio / App Store upload format
+
+Just say the next move.
+
+creatre a cookies notice ?
+
+Absolutely. Here’s a clean, compliant Cookies Notice written specifically for Outsyde, aligned with your Privacy Policy and Terms. It’s Wix / app / App Store–safe, not overkill, and flexible for future tracking tools.
+
+OUTSYDE COOKIES NOTICE
+
+Last Updated: 01/23/2026
+
+This Cookies Notice explains how Outsyde (“Outsyde,” “we,” “our,” or “us”) uses cookies and similar technologies when you visit or interact with our website, mobile application, and related services (collectively, the “Platform”).
+
+By continuing to use Outsyde, you agree to our use of cookies as described in this notice.
+
+1. WHAT ARE COOKIES?
+
+Cookies are small text files stored on your device when you visit a website or use an application. They help platforms remember information about your visit and improve user experience.
+
+Cookies may be:
+
+Session cookies (deleted when you close your browser)
+
+Persistent cookies (remain until deleted or expired)
+
+2. TYPES OF COOKIES WE USE
+A. Essential Cookies
+
+These cookies are required for the Platform to function properly, including:
+
+Account authentication
+
+Security and fraud prevention
+
+Session management
+
+Without these cookies, core features may not work.
+
+B. Performance & Analytics Cookies
+
+These cookies help us understand how users interact with Outsyde by collecting information such as:
+
+Pages visited
+
+Feature usage
+
+Error reports
+
+Performance metrics
+
+This data is used to improve the Platform’s functionality and experience.
+
+C. Functionality Cookies
+
+These cookies allow Outsyde to:
+
+Remember user preferences
+
+Save login sessions
+
+Personalize content and settings
+
+D. Third-Party Cookies
+
+We may use third-party services (such as analytics or payment providers) that place cookies on your device.
+
+These third parties are governed by their own privacy and cookie policies. Outsyde does not control their use of cookies.
+
+3. COOKIES IN MOBILE APPLICATIONS
+
+While cookies are primarily associated with web browsers, mobile applications may use similar technologies (such as SDKs or device identifiers) to:
+
+Maintain sessions
+
+Track performance
+
+Improve stability and security
+
+4. HOW TO MANAGE COOKIES
+
+You may control or delete cookies through your browser or device settings.
+
+Please note:
+
+Disabling cookies may impact Platform functionality
+
+Certain features may not work properly without cookies
+
+5. DO NOT TRACK SIGNALS
+
+Outsyde does not currently respond to browser “Do Not Track” signals, as there is no consistent industry standard for compliance.
+
+6. CHANGES TO THIS COOKIES NOTICE
+
+Outsyde may update this Cookies Notice at any time. Changes become effective when posted. Continued use of the Platform constitutes acceptance of the updated notice.
+
+7. CONTACT INFORMATION
+
+If you have questions about this Cookies Notice, contact us at:
+
+Outsyde LLC
+📧 info@goutsyde.com
+
+🌐 https://goutsyde.com
