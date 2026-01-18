@@ -721,6 +721,13 @@ export interface MobileSignupRequest {
   businessDescription?: string;
   city?: string;
   state?: string;
+  username?: string;
+  gender?: string;
+  ethnicity?: string;
+  shoppingFrequency?: string;
+  selectedIndustries?: string[];
+  industryNiches?: Record<string, string[]>;
+  industryValues?: Record<string, string[]>;
 }
 
 export interface MobileSignupResponse {
@@ -733,6 +740,19 @@ export interface CustomerSignupRequest {
   email: string;
   password: string;
   name: string; // Backend requires 'name', not firstName/lastName
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  username?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  ethnicity?: string;
+  shoppingFrequency?: string;
+  selectedIndustries?: string[];
+  industryNiches?: Record<string, string[]>;
+  industryValues?: Record<string, string[]>;
 }
 
 export interface VendorSignupRequest {
@@ -911,10 +931,18 @@ class ApiService {
     const fullName = `${data.firstName} ${data.lastName}`.trim();
     
     if (data.role === "consumer") {
-      const customerPayload = {
+      const customerPayload: CustomerSignupRequest = {
         email: data.email,
         password: data.password,
         name: fullName,
+        phone: data.phone,
+        city: data.city,
+        state: data.state,
+        username: data.username,
+        gender: data.gender,
+        selectedIndustries: data.selectedIndustries,
+        industryNiches: data.industryNiches,
+        industryValues: data.industryValues,
       };
       console.log("[Signup] Customer payload:", JSON.stringify(customerPayload, null, 2));
       await this.customerSignup(customerPayload);
