@@ -266,8 +266,8 @@ export default function RootNavigator() {
         name="PhotographerDashboard"
         component={PhotographerDashboardScreen}
         options={{
-          presentation: "fullScreenModal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
         }}
       />
 
@@ -275,8 +275,8 @@ export default function RootNavigator() {
         name="BusinessDashboard"
         component={BusinessDashboardScreen}
         options={{
-          presentation: "fullScreenModal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
         }}
       />
 
@@ -302,8 +302,8 @@ export default function RootNavigator() {
         name="StorefrontEditor"
         component={StorefrontEditorScreen}
         options={{
-          presentation: "fullScreenModal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
         }}
       />
     </Stack.Navigator>

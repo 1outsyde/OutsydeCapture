@@ -107,21 +107,19 @@ export default function AccountScreen() {
           stripeOnboardingComplete: photographer.stripeOnboardingComplete,
         });
       } else if (userRole === "business") {
-        const vendor = (await api.getVendorMe(token)) as any;
+        const { business: vendor } = await api.getVendorMyBusiness(token);
         setProfile({
           id: vendor.id,
-          name: vendor.businessName || vendor.name,
-          avatar: vendor.logo || vendor.logoImage,
-          coverImage: vendor.coverImage,
-          city: vendor.city,
-          state: vendor.state,
-          bio: vendor.description || vendor.bio,
-          rating: vendor.rating,
-          reviewCount: vendor.reviewCount,
-          specialties: vendor.categories ? [vendor.categories] : [],
-          brandColors: vendor.brandColors,
-          subscriptionTier: vendor.subscriptionTier,
-          priceRange: vendor.priceRange,
+          name: vendor.name,
+          avatar: vendor.logoImage || undefined,
+          coverImage: vendor.coverImage || undefined,
+          city: vendor.city || undefined,
+          state: vendor.state || undefined,
+          bio: vendor.description || undefined,
+          rating: vendor.rating || undefined,
+          reviewCount: vendor.reviewCount || undefined,
+          specialties: vendor.category ? [vendor.category] : [],
+          brandColors: vendor.brandColors || undefined,
         });
       } else {
         setProfile({

@@ -19,7 +19,7 @@ export default function AccountStackNavigator() {
         name="Account"
         component={AccountScreen}
         options={{
-          title: "Account",
+          headerShown: false,
         }}
       />
       <Stack.Screen
