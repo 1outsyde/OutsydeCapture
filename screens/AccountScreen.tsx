@@ -18,6 +18,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
+import { BookingFlow, PhotographerService, PhotographerProfile } from "@/components/BookingFlow";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -92,6 +93,8 @@ export default function AccountScreen() {
   const [portfolioCategories, setPortfolioCategories] = useState<PortfolioCategory[]>([]);
   const [availabilitySlots, setAvailabilitySlots] = useState<VendorBookerAvailabilitySlot[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  const [photographerServices, setPhotographerServices] = useState<PhotographerService[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -145,16 +148,31 @@ export default function AccountScreen() {
           setPortfolioCategories(categories);
         }
 
-        // Fetch availability and blocked dates
+        // Fetch availability, blocked dates, and services
         try {
-          const [availRes, blockedRes] = await Promise.all([
+          const [availRes, blockedRes, servicesRes] = await Promise.all([
             api.getPhotographerMeAvailability(token),
             api.getPhotographerBlockedDates(token),
+            api.getPhotographerMeServices(token),
           ]);
           setAvailabilitySlots(availRes.availability || []);
           setBlockedDates(blockedRes.blockedDates || []);
+          
+          const servicesList = servicesRes.services || [];
+          const mappedServices: PhotographerService[] = servicesList.map((svc: any) => ({
+            id: svc.id,
+            name: svc.name,
+            description: svc.description,
+            price: svc.price,
+            durationMinutes: svc.durationMinutes,
+            category: svc.category,
+            isPromo: svc.isPromo,
+            promoPrice: svc.promoPrice,
+            promoEndDate: svc.promoEndDate,
+          }));
+          setPhotographerServices(mappedServices);
         } catch (availError) {
-          console.warn("[AccountScreen] Could not fetch availability:", availError);
+          console.warn("[AccountScreen] Could not fetch availability/services:", availError);
         }
       } else if (userRole === "business") {
         const { business: vendor } = await api.getVendorMyBusiness(token);
@@ -292,37 +310,36 @@ export default function AccountScreen() {
     </View>
   );
 
+  const handleBookingComplete = async (booking: {
+    serviceId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  }) => {
+    console.log("[AccountScreen] Booking requested:", booking);
+  };
+
+  const photographerProfile: PhotographerProfile = {
+    id: profile?.id || "",
+    name: profile?.name || "Photographer",
+    avatar: profile?.avatar,
+    rating: profile?.rating,
+    reviewCount: profile?.reviewCount,
+    hourlyRate: profile?.hourlyRate,
+    brandColors: profile?.brandColors,
+  };
+
   const renderBookTab = () => (
-    <View style={styles.tabContent}>
-      <View style={[styles.bookingCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-        <Image
-          source={{ uri: profile?.portfolio?.[0] || FALLBACK_COVER }}
-          style={styles.bookingCardImage}
-          contentFit="cover"
-        />
-        <View style={styles.bookingCardContent}>
-          <ThemedText type="h4">Wedding Package</ThemedText>
-          <ThemedText type="h3" style={{ color: profileTheme, marginTop: 4 }}>
-            $1,500
-          </ThemedText>
-          <View style={styles.ratingRow}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Feather
-                key={star}
-                name="star"
-                size={14}
-                color={star <= 4 ? "#FFD700" : theme.textSecondary}
-              />
-            ))}
-            <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
-              ({profile?.reviewCount || 245})
-            </ThemedText>
-          </View>
-        </View>
-        <Pressable style={styles.favoriteButtonSmall}>
-          <Feather name="heart" size={16} color={theme.textSecondary} />
-        </Pressable>
-      </View>
+    <View style={styles.bookTabContainer}>
+      <BookingFlow
+        photographer={photographerProfile}
+        services={photographerServices}
+        availabilitySlots={availabilitySlots}
+        blockedDates={blockedDates}
+        bookedSlots={bookedSlots}
+        onBookingComplete={handleBookingComplete}
+        accentColor={profileTheme}
+      />
     </View>
   );
 
@@ -983,6 +1000,10 @@ const styles = StyleSheet.create({
   tabContent: {
     padding: Spacing.lg,
     minHeight: 200,
+  },
+  bookTabContainer: {
+    flex: 1,
+    minHeight: 600,
   },
   emptyTab: {
     alignItems: "center",

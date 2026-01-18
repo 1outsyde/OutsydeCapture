@@ -1229,6 +1229,11 @@ class ApiService {
     });
   }
 
+  // GET /api/photographers/:id/services - Get public services for a photographer
+  async getPhotographerPublicServices(photographerId: string): Promise<VendorBookerPhotographerService[]> {
+    return this.request<VendorBookerPhotographerService[]>(`/api/photographers/${photographerId}/services`);
+  }
+
   // POST /api/photographers/me/services - Create a new service
   async createPhotographerMeService(authToken: string, data: Partial<VendorBookerPhotographerService>): Promise<{ service: VendorBookerPhotographerService }> {
     return this.request<{ service: VendorBookerPhotographerService }>("/api/photographers/me/services", {
