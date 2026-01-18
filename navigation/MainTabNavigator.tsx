@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 
 import DiscoverStackNavigator from "@/navigation/DiscoverStackNavigator";
 import SearchScreen from "@/screens/SearchScreen";
@@ -12,6 +13,7 @@ import MessagesScreen from "@/screens/MessagesScreen";
 import AccountStackNavigator from "@/navigation/AccountStackNavigator";
 
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/context/AuthContext";
 
 const useMessaging = () => ({
   getTotalUnreadCount: () => 0,
@@ -26,6 +28,9 @@ export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { getTotalUnreadCount } = useMessaging();
+  const { user } = useAuth();
+  const navigation = useNavigation();
+  const isGuest = user?.isGuest || !user;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -113,6 +118,16 @@ export default function MainTabNavigator() {
             tabBarIcon: ({ color, size }) => (
               <Feather name="user" size={size} color={color} />
             ),
+          }}
+          listeners={{
+            tabPress: (e) => {
+              if (isGuest) {
+                e.preventDefault();
+                navigation.dispatch(
+                  CommonActions.navigate({ name: "Auth" })
+                );
+              }
+            },
           }}
         />
       </Tab.Navigator>
