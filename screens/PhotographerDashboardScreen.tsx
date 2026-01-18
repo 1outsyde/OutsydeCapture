@@ -27,9 +27,11 @@ import api, {
   PhotographerBooking,
   PhotographerService,
   PhotographerHours,
+  BlockedDate,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
+import DateBlocker from "@/components/DateBlocker";
 
 const SPECIALTIES = [
   "Portraits", "Weddings", "Events", "Products",
@@ -47,7 +49,7 @@ const PROFILE_THEME_COLORS = [
   { name: "Slate Gray", color: "#64748b" },
 ];
 
-type ModalType = "profile" | "hours" | "services" | "bookings" | null;
+type ModalType = "profile" | "hours" | "services" | "bookings" | "blocked" | null;
 
 export default function PhotographerDashboardScreen() {
   const { theme } = useTheme();
@@ -77,6 +79,7 @@ export default function PhotographerDashboardScreen() {
   const [bookings, setBookings] = useState<PhotographerBooking[]>([]);
   const [services, setServices] = useState<PhotographerService[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
 
   const [editProfile, setEditProfile] = useState({
     name: "",
@@ -199,6 +202,15 @@ export default function PhotographerDashboardScreen() {
         }
       } catch {
         // Keep default hours
+      }
+
+      try {
+        const { blockedDates: dates } = await api.getPhotographerBlockedDates(token);
+        if (dates && dates.length > 0) {
+          setBlockedDates(dates);
+        }
+      } catch {
+        // No blocked dates yet
       }
 
     } catch (error: any) {
@@ -518,6 +530,37 @@ export default function PhotographerDashboardScreen() {
     } catch (error: any) {
       console.error("[Dashboard] Failed to save availability:", error);
       Alert.alert("Error", error.message || "Failed to save availability");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddBlockedDate = (blockedDate: BlockedDate) => {
+    // Check if date is already blocked
+    const exists = blockedDates.some(b => b.date === blockedDate.date);
+    if (exists) {
+      Alert.alert("Already Blocked", "This date is already blocked.");
+      return;
+    }
+    setBlockedDates(prev => [...prev, blockedDate]);
+  };
+
+  const handleRemoveBlockedDate = (index: number) => {
+    setBlockedDates(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveBlockedDates = async () => {
+    const token = await getToken();
+    if (!token) return;
+
+    try {
+      setSaving(true);
+      await api.updatePhotographerBlockedDates(token, blockedDates);
+      Alert.alert("Success", "Your blocked dates have been saved");
+      setActiveModal(null);
+    } catch (error: any) {
+      console.error("[Dashboard] Failed to save blocked dates:", error);
+      Alert.alert("Error", error.message || "Failed to save blocked dates");
     } finally {
       setSaving(false);
     }
@@ -1298,7 +1341,7 @@ export default function PhotographerDashboardScreen() {
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Set Availability</Text>
+            <Text style={styles.modalTitle}>Base Availability</Text>
             <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseButton}>
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
@@ -1309,8 +1352,34 @@ export default function PhotographerDashboardScreen() {
               onChange={setHours}
               onSave={handleSaveHours}
               isSaving={saving}
-              title=""
-              description="Set your available hours for client bookings"
+              title="Weekly Schedule"
+              description="Set your recurring working hours. These act as constraints for when clients can book you. You can block specific dates separately."
+            />
+            <View style={{ height: insets.bottom + 20 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderBlockedDatesModal = () => (
+    <Modal visible={activeModal === "blocked"} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Block Dates</Text>
+            <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseButton}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          </View>
+          <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            <DateBlocker
+              blockedDates={blockedDates}
+              onAdd={handleAddBlockedDate}
+              onRemove={handleRemoveBlockedDate}
+              onSave={handleSaveBlockedDates}
+              isSaving={saving}
             />
             <View style={{ height: insets.bottom + 20 }} />
           </ScrollView>
@@ -1715,9 +1784,18 @@ export default function PhotographerDashboardScreen() {
               <View style={[styles.quickActionIcon, { backgroundColor: "#007AFF20" }]}>
                 <Feather name="clock" size={22} color="#007AFF" />
               </View>
-              <Text style={styles.quickActionLabel}>Hours</Text>
+              <Text style={styles.quickActionLabel}>Base Hours</Text>
               <Text style={styles.quickActionCount}>
                 {hasAvailabilitySet ? "Set" : "Not set"}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => setActiveModal("blocked")} style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: "#FF3B3020" }]}>
+                <Feather name="x-circle" size={22} color="#FF3B30" />
+              </View>
+              <Text style={styles.quickActionLabel}>Block Dates</Text>
+              <Text style={styles.quickActionCount}>
+                {blockedDates.length} blocked
               </Text>
             </Pressable>
           </View>
@@ -1726,6 +1804,7 @@ export default function PhotographerDashboardScreen() {
 
       {renderProfileModal()}
       {renderHoursModal()}
+      {renderBlockedDatesModal()}
       {renderBookingsModal()}
       {renderServicesModal()}
     </>

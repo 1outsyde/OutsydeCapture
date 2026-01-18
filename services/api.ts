@@ -257,6 +257,18 @@ export interface VendorBookerAvailabilitySlot {
   createdAt?: string;
 }
 
+// Blocked date for photographers
+export interface BlockedDate {
+  id?: string;
+  photographerId?: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  isFullDay: boolean;
+  reason?: string;
+  createdAt?: string;
+}
+
 // Product/Service status type
 // - draft: Not visible to customers, editable
 // - live: Visible and purchasable/bookable (requires Stripe + subscription + approval)
@@ -1245,6 +1257,22 @@ class ApiService {
   // GET /api/photographers/me/bookings - Get booking records
   async getPhotographerMeBookings(authToken: string): Promise<{ bookings: PhotographerBooking[] }> {
     return this.request<{ bookings: PhotographerBooking[] }>("/api/photographers/me/bookings", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/photographers/me/blocked-dates - Get blocked dates
+  async getPhotographerBlockedDates(authToken: string): Promise<{ blockedDates: BlockedDate[] }> {
+    return this.request<{ blockedDates: BlockedDate[] }>("/api/photographers/me/blocked-dates", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // PUT /api/photographers/me/blocked-dates - Update blocked dates
+  async updatePhotographerBlockedDates(authToken: string, blockedDates: BlockedDate[]): Promise<{ blockedDates: BlockedDate[] }> {
+    return this.request<{ blockedDates: BlockedDate[] }>("/api/photographers/me/blocked-dates", {
+      method: "PUT",
+      body: JSON.stringify({ blockedDates }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
