@@ -41,7 +41,16 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
 - **Core Features**: Personalized content feed, category/location-based search, 4-step booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
 - **Onboarding**: 4-screen welcome flow.
-- **Profile Screens**: Dedicated premium modal screens for Business and Photographer profiles, featuring hero sections, portfolios, and contact details. Supports custom brand color theming for public profiles.
+- **Profile Screens**: Instagram/Shopify-style public profiles with:
+  - **Hero Section**: Full-width banner with LinearGradient overlay, overlapping circular avatar
+  - **Profile Identity**: Name, bio tagline, location, hourly rate, specialty pills with brand color accent
+  - **Availability Strip**: Tappable gold bar showing "Available Today: 10AM - 6PM" (photographers/businesses)
+  - **Tab Navigation**: Large tabs with icons - Media/Book/Availability/Reviews (photographers), Products/Services/Availability/Reviews (businesses)
+  - **Tab Content**: Media gallery grid, booking cards with pricing, availability calendar, reviews list
+  - **Browse Portfolio**: Horizontal scrolling category cards with ratings
+  - **For You Section**: Featured packages, quick availability widget, reviews snippet
+  - **Owner Controls**: Edit Profile button for owners; Follow/Share/Book buttons for visitors
+  - **Guest Restrictions**: Limited view without hamburger menu or edit actions
 - **Admin Dashboard**: Comprehensive interface for user, business, photographer, payment, message, and influencer management. Includes real-time notifications for new business applications.
 - **Provider Dashboards (Photographer & Business)**: Dedicated dashboards for managing earnings, bookings/orders, services/products, availability, and profile information. Both integrate with Stripe Connect.
 - **Storefront Editor**: Full-featured customization for businesses, including branding (cover, logo, colors), profile details, business hours, and product/service management. Products/services have statuses (draft, live, paused, archived) with specific publishing gates (admin approval, Stripe setup, active subscription).
