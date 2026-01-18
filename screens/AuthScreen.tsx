@@ -81,12 +81,23 @@ export default function AuthScreen() {
     handleGoogleResponse();
   }, [response]);
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
+    console.log("[GoogleSignIn] Button pressed, request available:", !!request);
+    
     if (!request) {
-      Alert.alert("Error", "Google Sign-In is not available. Please try again.");
+      console.log("[GoogleSignIn] Request not available");
+      Alert.alert("Error", "Google Sign-In is not available. Please try again later.");
       return;
     }
-    promptAsync();
+    
+    try {
+      console.log("[GoogleSignIn] Calling promptAsync...");
+      const result = await promptAsync();
+      console.log("[GoogleSignIn] promptAsync result:", JSON.stringify(result, null, 2));
+    } catch (error) {
+      console.error("[GoogleSignIn] promptAsync error:", error);
+      Alert.alert("Error", "Failed to open Google Sign-In. Please try again.");
+    }
   };
 
   const validateForm = () => {
