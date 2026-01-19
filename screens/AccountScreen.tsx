@@ -273,12 +273,14 @@ export default function AccountScreen() {
             id: svc.id,
             name: svc.name,
             description: svc.description,
-            price: svc.priceCents ? svc.priceCents / 100 : svc.price,
-            durationMinutes: svc.estimatedDurationMinutes || svc.durationMinutes,
+            price: svc.priceCents ? svc.priceCents / 100 : (svc.price || 0),
+            durationMinutes: svc.estimatedDurationMinutes || svc.durationMinutes || 60,
             category: svc.category,
             isPromo: svc.isPromo,
             promoPrice: svc.promoPrice,
             promoEndDate: svc.promoEndDate,
+            rating: svc.rating || null,
+            reviewCount: svc.reviewCount || null,
           }));
           setPhotographerServices(mappedServices);
         } catch (servicesError) {
