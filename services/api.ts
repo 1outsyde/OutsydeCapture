@@ -69,6 +69,22 @@ export interface ApiMessage {
   createdAt: string;
 }
 
+export interface ApiPost {
+  id: string;
+  userId: string;
+  imageUrl: string;
+  caption?: string;
+  mediaType?: "image" | "video";
+  likes: number;
+  comments: number;
+  createdAt: string;
+  user?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+}
+
 export interface CreateConversationRequest {
   participantId: string;
   participantType: "business" | "photographer";
@@ -1899,6 +1915,64 @@ class ApiService {
     } catch {
       return [];
     }
+  }
+
+  // ==========================================
+  // Posts/Feed API
+  // ==========================================
+
+  // POST /api/posts - Create a new post
+  async createPost(authToken: string, data: {
+    imageUrl: string;
+    caption?: string;
+    mediaType?: "image" | "video";
+  }): Promise<{ post: ApiPost }> {
+    return this.request<{ post: ApiPost }>("/api/posts", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/feed - Get feed posts (all users or filtered)
+  async getFeed(params?: {
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ posts: ApiPost[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.userId) queryParams.append("userId", params.userId);
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.offset) queryParams.append("offset", params.offset.toString());
+    const queryString = queryParams.toString();
+    const url = queryString ? `/api/feed?${queryString}` : "/api/feed";
+    return this.request<{ posts: ApiPost[] }>(url);
+  }
+
+  // GET /api/posts/:id - Get a single post
+  async getPost(postId: string): Promise<{ post: ApiPost }> {
+    return this.request<{ post: ApiPost }>(`/api/posts/${postId}`);
+  }
+
+  // DELETE /api/posts/:id - Delete a post
+  async deletePost(authToken: string, postId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/posts/${postId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/users/:userId/posts - Get posts by a specific user
+  async getUserPosts(userId: string, params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{ posts: ApiPost[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.offset) queryParams.append("offset", params.offset.toString());
+    const queryString = queryParams.toString();
+    const url = queryString ? `/api/users/${userId}/posts?${queryString}` : `/api/users/${userId}/posts`;
+    return this.request<{ posts: ApiPost[] }>(url);
   }
 }
 
