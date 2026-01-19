@@ -87,10 +87,10 @@ interface FeaturedPost {
 
 const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
   id: post.id,
-  imageUri: post.imageUrl,
-  caption: post.caption || "",
-  likes: post.likes || 0,
-  comments: post.comments || 0,
+  imageUri: post.imageUrl || (post.images && post.images[0]) || "",
+  caption: post.content || "",
+  likes: post.likesCount || 0,
+  comments: post.commentsCount || 0,
   createdAt: new Date(post.createdAt),
 });
 
@@ -289,16 +289,16 @@ export default function AccountScreen() {
           state: user?.state,
         });
       }
-      // Fetch user's posts from the backend
-      if (user?.id) {
-        try {
-          const postsResponse = await api.getUserPosts(user.id);
-          const posts = postsResponse.posts || [];
-          console.log("[AccountScreen] Loaded posts from backend:", posts.length);
-          setFeaturedPosts(posts.map(mapApiPostToFeaturedPost));
-        } catch (postsError) {
-          console.warn("[AccountScreen] Could not fetch posts:", postsError);
-        }
+      // Fetch user's posts from the backend feed
+      try {
+        const postsResponse = await api.getFeed({ limit: 50 });
+        const allPosts = postsResponse.posts || [];
+        // Filter to only show posts by the current user
+        const userPosts = allPosts.filter((p: ApiPost) => p.userId === user?.id);
+        console.log("[AccountScreen] Loaded posts from backend:", userPosts.length);
+        setFeaturedPosts(userPosts.map(mapApiPostToFeaturedPost));
+      } catch (postsError) {
+        console.warn("[AccountScreen] Could not fetch posts:", postsError);
       }
     } catch (error) {
       console.error("Failed to fetch profile:", error);
@@ -491,8 +491,7 @@ export default function AccountScreen() {
     try {
       const response = await api.createPost(authToken, {
         imageUrl: newPostImage,
-        caption: newPostCaption || undefined,
-        mediaType: "image",
+        content: newPostCaption || undefined,
       });
       
       if (response.post) {

@@ -72,16 +72,27 @@ export interface ApiMessage {
 export interface ApiPost {
   id: string;
   userId: string;
-  imageUrl: string;
-  caption?: string;
-  mediaType?: "image" | "video";
-  likes: number;
-  comments: number;
+  content?: string;
+  imageUrl?: string;
+  images?: string[];
+  videoUrl?: string;
+  taggedBusinessId?: string;
+  taggedPhotographerId?: string;
+  likesCount: number;
+  commentsCount: number;
   createdAt: string;
   user?: {
     id: string;
     name: string;
-    avatar?: string;
+    profileImageUrl?: string;
+  };
+  taggedBusiness?: {
+    id: string;
+    name: string;
+  };
+  taggedPhotographer?: {
+    id: string;
+    displayName: string;
   };
 }
 
@@ -1921,58 +1932,71 @@ class ApiService {
   // Posts/Feed API
   // ==========================================
 
-  // POST /api/posts - Create a new post
+  // POST /api/feed - Create a new post (auth required)
   async createPost(authToken: string, data: {
-    imageUrl: string;
-    caption?: string;
-    mediaType?: "image" | "video";
+    content?: string;
+    imageUrl?: string;
+    images?: string[];
+    videoUrl?: string;
+    taggedBusinessId?: string;
+    taggedPhotographerId?: string;
   }): Promise<{ post: ApiPost }> {
-    return this.request<{ post: ApiPost }>("/api/posts", {
+    return this.request<{ post: ApiPost }>("/api/feed", {
       method: "POST",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
-  // GET /api/feed - Get feed posts (all users or filtered)
+  // GET /api/feed - Get feed posts (paginated)
   async getFeed(params?: {
-    userId?: string;
+    page?: number;
     limit?: number;
-    offset?: number;
   }): Promise<{ posts: ApiPost[] }> {
     const queryParams = new URLSearchParams();
-    if (params?.userId) queryParams.append("userId", params.userId);
+    if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
-    if (params?.offset) queryParams.append("offset", params.offset.toString());
     const queryString = queryParams.toString();
     const url = queryString ? `/api/feed?${queryString}` : "/api/feed";
     return this.request<{ posts: ApiPost[] }>(url);
   }
 
-  // GET /api/posts/:id - Get a single post
-  async getPost(postId: string): Promise<{ post: ApiPost }> {
-    return this.request<{ post: ApiPost }>(`/api/posts/${postId}`);
-  }
-
-  // DELETE /api/posts/:id - Delete a post
+  // DELETE /api/feed/:postId - Delete own post
   async deletePost(authToken: string, postId: string): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>(`/api/posts/${postId}`, {
+    return this.request<{ success: boolean }>(`/api/feed/${postId}`, {
       method: "DELETE",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
-  // GET /api/users/:userId/posts - Get posts by a specific user
-  async getUserPosts(userId: string, params?: {
-    limit?: number;
-    offset?: number;
-  }): Promise<{ posts: ApiPost[] }> {
-    const queryParams = new URLSearchParams();
-    if (params?.limit) queryParams.append("limit", params.limit.toString());
-    if (params?.offset) queryParams.append("offset", params.offset.toString());
-    const queryString = queryParams.toString();
-    const url = queryString ? `/api/users/${userId}/posts?${queryString}` : `/api/users/${userId}/posts`;
-    return this.request<{ posts: ApiPost[] }>(url);
+  // POST /api/feed/:postId/like - Like a post
+  async likePost(authToken: string, postId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/feed/${postId}/like`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/feed/:postId/like - Unlike a post
+  async unlikePost(authToken: string, postId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/feed/${postId}/like`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/feed/:postId/comments - Get comments on a post
+  async getPostComments(postId: string): Promise<{ comments: any[] }> {
+    return this.request<{ comments: any[] }>(`/api/feed/${postId}/comments`);
+  }
+
+  // POST /api/feed/:postId/comments - Add comment to a post
+  async addPostComment(authToken: string, postId: string, content: string): Promise<{ comment: any }> {
+    return this.request<{ comment: any }>(`/api/feed/${postId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
   }
 }
 
