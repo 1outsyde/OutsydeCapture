@@ -28,7 +28,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService } from "@/services/api";
+import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -84,6 +84,15 @@ interface FeaturedPost {
   comments: number;
   createdAt: Date;
 }
+
+const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
+  id: post.id,
+  imageUri: post.imageUrl,
+  caption: post.caption || "",
+  likes: post.likes || 0,
+  comments: post.comments || 0,
+  createdAt: new Date(post.createdAt),
+});
 
 type ProfileTab = "featured" | "book" | "availability" | "reviews";
 
@@ -279,6 +288,17 @@ export default function AccountScreen() {
           state: user?.state,
         });
       }
+      // Fetch user's posts from the backend
+      if (user?.id) {
+        try {
+          const postsResponse = await api.getUserPosts(user.id);
+          const posts = postsResponse.posts || [];
+          console.log("[AccountScreen] Loaded posts from backend:", posts.length);
+          setFeaturedPosts(posts.map(mapApiPostToFeaturedPost));
+        } catch (postsError) {
+          console.warn("[AccountScreen] Could not fetch posts:", postsError);
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch profile:", error);
       setProfile({
@@ -454,23 +474,40 @@ export default function AccountScreen() {
     }
   };
 
-  const handleCreatePost = () => {
+  const [postSaving, setPostSaving] = useState(false);
+
+  const handleCreatePost = async () => {
     if (!newPostImage) {
       Alert.alert("No Image", "Please select an image for your post.");
       return;
     }
-    const newPost: FeaturedPost = {
-      id: Date.now().toString(),
-      imageUri: newPostImage,
-      caption: newPostCaption,
-      likes: 0,
-      comments: 0,
-      createdAt: new Date(),
-    };
-    setFeaturedPosts([newPost, ...featuredPosts]);
-    setNewPostImage("");
-    setNewPostCaption("");
-    setShowCreatePost(false);
+    if (!token) {
+      Alert.alert("Error", "You must be logged in to create a post.");
+      return;
+    }
+
+    setPostSaving(true);
+    try {
+      const response = await api.createPost(token, {
+        imageUrl: newPostImage,
+        caption: newPostCaption || undefined,
+        mediaType: "image",
+      });
+      
+      if (response.post) {
+        const newPost = mapApiPostToFeaturedPost(response.post);
+        setFeaturedPosts([newPost, ...featuredPosts]);
+        setNewPostImage("");
+        setNewPostCaption("");
+        setShowCreatePost(false);
+        console.log("[AccountScreen] Post created successfully:", response.post.id);
+      }
+    } catch (error: any) {
+      console.error("[AccountScreen] Failed to create post:", error);
+      Alert.alert("Error", error.message || "Failed to create post. Please try again.");
+    } finally {
+      setPostSaving(false);
+    }
   };
 
   // Format business hours for display
@@ -997,14 +1034,20 @@ export default function AccountScreen() {
             {/* Post Button */}
             <Pressable
               onPress={handleCreatePost}
+              disabled={postSaving}
               style={{
-                backgroundColor: profileTheme,
+                backgroundColor: postSaving ? theme.textSecondary : profileTheme,
                 paddingVertical: 16,
                 borderRadius: 12,
                 alignItems: "center",
+                opacity: postSaving ? 0.7 : 1,
               }}
             >
-              <ThemedText type="button" style={{ color: "#000" }}>Share Post</ThemedText>
+              {postSaving ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <ThemedText type="button" style={{ color: "#000" }}>Share Post</ThemedText>
+              )}
             </Pressable>
           </View>
         </View>
