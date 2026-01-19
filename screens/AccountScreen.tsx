@@ -293,9 +293,12 @@ export default function AccountScreen() {
       try {
         const postsResponse = await api.getFeed({ limit: 50 });
         const allPosts = postsResponse.posts || [];
-        // Filter to only show posts by the current user
-        const userPosts = allPosts.filter((p: ApiPost) => p.userId === user?.id);
-        console.log("[AccountScreen] Loaded posts from backend:", userPosts.length);
+        // Filter to only show posts by the current user (check both userId and authorId)
+        const userPosts = allPosts.filter((p: ApiPost) => 
+          p.userId === user?.id || p.authorId === user?.id
+        );
+        console.log("[AccountScreen] Loaded posts from backend:", userPosts.length, "User ID:", user?.id);
+        console.log("[AccountScreen] All posts authorIds:", allPosts.map((p: ApiPost) => p.authorId));
         setFeaturedPosts(userPosts.map(mapApiPostToFeaturedPost));
       } catch (postsError) {
         console.warn("[AccountScreen] Could not fetch posts:", postsError);
@@ -832,65 +835,72 @@ export default function AccountScreen() {
           </View>
         )}
 
-        {/* Create Post Button - Compact */}
-        {isOwner && !isGuest && (
-          <Pressable
-            onPress={() => setShowCreatePost(true)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              alignSelf: "flex-end",
-              backgroundColor: profileTheme,
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 20,
-              marginBottom: Spacing.md,
-            }}
-          >
-            <Feather name="plus" size={16} color="#000" />
-            <ThemedText type="small" style={{ color: "#000", marginLeft: 4, fontWeight: "600" }}>
-              Post
-            </ThemedText>
-          </Pressable>
-        )}
-
-        {/* Posts Grid - Instagram Style */}
-        {featuredPosts.length > 0 || (profile?.portfolio && profile.portfolio.length > 0) ? (
-          <View style={styles.mediaGrid}>
-            {/* Featured Posts first */}
-            {featuredPosts.map((post) => (
-              <Pressable key={post.id} style={styles.mediaGridItem}>
-                <Image
-                  source={{ uri: post.imageUri }}
-                  style={styles.mediaGridImage}
-                  contentFit="cover"
-                  transition={200}
-                />
-                <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-                  <Feather name="heart" size={14} color="#fff" />
-                  <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-                    {post.likes}
-                  </ThemedText>
-                </View>
+        {/* Posts Grid - Instagram Style with Add Button */}
+        <View style={styles.mediaGrid}>
+          {/* Add Post Button as first grid item for owners */}
+          {isOwner && !isGuest && (
+            <Pressable
+              onPress={() => setShowCreatePost(true)}
+              style={[styles.mediaGridItem, {
+                backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 2,
+                borderColor: profileTheme,
+                borderStyle: "dashed",
+              }]}
+            >
+              <View style={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+                backgroundColor: profileTheme,
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: Spacing.xs,
+              }}>
+                <Feather name="plus" size={24} color="#000" />
+              </View>
+              <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
+                Post
+              </ThemedText>
+            </Pressable>
+          )}
+          {/* Featured Posts */}
+          {featuredPosts.map((post) => (
+            <Pressable key={post.id} style={styles.mediaGridItem}>
+              <Image
+                source={{ uri: post.imageUri }}
+                style={styles.mediaGridImage}
+                contentFit="cover"
+                transition={200}
+              />
+              <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                <Feather name="heart" size={14} color="#fff" />
+                <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+                  {post.likes}
+                </ThemedText>
+              </View>
+            </Pressable>
+          ))}
+          {/* Portfolio images */}
+          {profile?.portfolio?.map((img, index) => (
+            <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
+              <Image
+                source={{ uri: img }}
+                style={styles.mediaGridImage}
+                contentFit="cover"
+                transition={200}
+              />
+              <Pressable style={styles.favoriteButton}>
+                <Feather name="heart" size={18} color="#FFFFFF" />
               </Pressable>
-            ))}
-            {/* Portfolio images */}
-            {profile?.portfolio?.map((img, index) => (
-              <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
-                <Image
-                  source={{ uri: img }}
-                  style={styles.mediaGridImage}
-                  contentFit="cover"
-                  transition={200}
-                />
-                <Pressable style={styles.favoriteButton}>
-                  <Feather name="heart" size={18} color="#FFFFFF" />
-                </Pressable>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyTab}>
+            </Pressable>
+          ))}
+        </View>
+        {/* Empty state message when no posts */}
+        {featuredPosts.length === 0 && (!profile?.portfolio || profile.portfolio.length === 0) && (
+          <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
             <Feather name="camera" size={48} color={theme.textSecondary} />
             <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
               No posts yet

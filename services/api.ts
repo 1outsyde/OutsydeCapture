@@ -71,7 +71,10 @@ export interface ApiMessage {
 
 export interface ApiPost {
   id: string;
-  userId: string;
+  userId?: string;
+  authorId?: string;
+  authorType?: string;
+  postType?: string;
   content?: string;
   imageUrl?: string;
   images?: string[];
@@ -80,11 +83,20 @@ export interface ApiPost {
   taggedPhotographerId?: string;
   likesCount: number;
   commentsCount: number;
+  isActive?: boolean;
   createdAt: string;
+  updatedAt?: string;
   user?: {
     id: string;
     name: string;
     profileImageUrl?: string;
+  };
+  author?: {
+    id: string;
+    name: string;
+    profileImageUrl?: string;
+    businessId?: string;
+    photographerId?: string;
   };
   taggedBusiness?: {
     id: string;
