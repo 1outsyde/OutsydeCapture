@@ -26,8 +26,6 @@ type AuthMode = "login" | "signup";
 const GOOGLE_WEB_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
 const GOOGLE_IOS_CLIENT_ID = "315196435620-qgn2bm1vlh6vp2tfclruuel2b77vv52m.apps.googleusercontent.com";
 
-const EXPO_GO_REDIRECT_URI = "https://auth.expo.io/@go.outsyde/outsyde";
-
 export default function AuthScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -45,20 +43,17 @@ export default function AuthScreen() {
   const [pendingUserInfo, setPendingUserInfo] = useState<{ businessName: string; businessCategory: string; email: string } | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const redirectUri = makeRedirectUri({
-    scheme: "outsyde",
-    path: "auth",
-    preferLocalhost: false,
-  });
+  const redirectUri = makeRedirectUri();
 
-  const isExpoGo = Constants.appOwnership === "expo";
+  console.log("[GoogleAuth] Generated redirectUri:", redirectUri);
+  console.log("[GoogleAuth] Constants.appOwnership:", Constants.appOwnership);
   
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
     scopes: ["openid", "profile", "email"],
-    redirectUri: isExpoGo ? EXPO_GO_REDIRECT_URI : (Platform.OS === "web" ? undefined : redirectUri),
+    redirectUri,
   });
 
   useEffect(() => {
