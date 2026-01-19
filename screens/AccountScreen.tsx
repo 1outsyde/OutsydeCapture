@@ -481,14 +481,16 @@ export default function AccountScreen() {
       Alert.alert("No Image", "Please select an image for your post.");
       return;
     }
-    if (!token) {
+    
+    const authToken = await getToken();
+    if (!authToken) {
       Alert.alert("Error", "You must be logged in to create a post.");
       return;
     }
 
     setPostSaving(true);
     try {
-      const response = await api.createPost(token, {
+      const response = await api.createPost(authToken, {
         imageUrl: newPostImage,
         caption: newPostCaption || undefined,
         mediaType: "image",
