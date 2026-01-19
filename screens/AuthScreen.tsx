@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
+import Constants from "expo-constants";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -24,6 +25,8 @@ type AuthMode = "login" | "signup";
 
 const GOOGLE_WEB_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
 const GOOGLE_IOS_CLIENT_ID = "315196435620-qgn2bm1vlh6vp2tfclruuel2b77vv52m.apps.googleusercontent.com";
+
+const EXPO_GO_REDIRECT_URI = "https://auth.expo.io/@jamesmeyers2304/outsyde";
 
 export default function AuthScreen() {
   const { theme } = useTheme();
@@ -45,14 +48,17 @@ export default function AuthScreen() {
   const redirectUri = makeRedirectUri({
     scheme: "outsyde",
     path: "auth",
+    preferLocalhost: false,
   });
 
+  const isExpoGo = Constants.appOwnership === "expo";
+  
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_IOS_CLIENT_ID,
+    clientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
     scopes: ["openid", "profile", "email"],
-    redirectUri: Platform.OS === "web" ? undefined : redirectUri,
+    redirectUri: isExpoGo ? EXPO_GO_REDIRECT_URI : (Platform.OS === "web" ? undefined : redirectUri),
   });
 
   useEffect(() => {
