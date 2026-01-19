@@ -64,6 +64,8 @@ export default function SearchScreen() {
   const [isPersonalizedResults, setIsPersonalizedResults] = useState(false);
 
   const isAuthenticated = !!user && !user.isGuest;
+  const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || 
+                  user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
 
   const fetchSearchResults = useCallback(async (query?: string) => {
     setIsLoading(true);
@@ -76,9 +78,10 @@ export default function SearchScreen() {
           q: query || undefined,
           personalized: isAuthenticated && personalized,
         },
-        authToken
+        authToken,
+        isAdmin
       );
-      console.log("[SearchScreen] Search query:", query, "Total results:", response.total);
+      console.log("[SearchScreen] Search query:", query, "Total results:", response.total, "isAdmin:", isAdmin);
       console.log("[SearchScreen] Result types:", response.results.map(r => `${r.type}: ${r.name}`));
       const normalized = api.normalizeUnifiedResults(response);
       setResults(normalized);
@@ -91,7 +94,7 @@ export default function SearchScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, personalized, getToken]);
+  }, [isAuthenticated, personalized, getToken, isAdmin]);
 
   useEffect(() => {
     fetchSearchResults();
