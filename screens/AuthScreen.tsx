@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
+import { makeRedirectUri } from "expo-auth-session";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -22,6 +23,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type AuthMode = "login" | "signup";
 
 const GOOGLE_WEB_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
+const GOOGLE_EXPO_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
 
 export default function AuthScreen() {
   const { theme } = useTheme();
@@ -40,8 +42,16 @@ export default function AuthScreen() {
   const [pendingUserInfo, setPendingUserInfo] = useState<{ businessName: string; businessCategory: string; email: string } | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+  const redirectUri = makeRedirectUri({
+    scheme: "outsyde",
+    path: "auth",
+  });
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: GOOGLE_WEB_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    scopes: ["openid", "profile", "email"],
+    redirectUri: Platform.OS === "web" ? undefined : redirectUri,
   });
 
   useEffect(() => {
@@ -51,10 +61,33 @@ export default function AuthScreen() {
 
   useEffect(() => {
     const handleGoogleResponse = async () => {
-      if (response?.type === "success" && response.params?.id_token) {
+      if (response?.type === "success") {
         setIsGoogleLoading(true);
         try {
-          const result = await loginWithGoogle(response.params.id_token);
+          const accessToken = response.authentication?.accessToken;
+          const idToken = response.params?.id_token || response.authentication?.idToken;
+          
+          console.log("[GoogleAuth] Success - accessToken:", !!accessToken, "idToken:", !!idToken);
+          
+          let tokenToUse = idToken;
+          
+          if (!tokenToUse && accessToken) {
+            console.log("[GoogleAuth] Using access token to fetch user info");
+            const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const userInfo = await userInfoRes.json();
+            console.log("[GoogleAuth] User info:", userInfo.email);
+            tokenToUse = accessToken;
+          }
+          
+          if (!tokenToUse) {
+            Alert.alert("Error", "Could not retrieve authentication token. Please try again.");
+            setIsGoogleLoading(false);
+            return;
+          }
+          
+          const result = await loginWithGoogle(tokenToUse);
           if (result.success) {
             if (result.isPending && result.user) {
               setPendingUserInfo({
