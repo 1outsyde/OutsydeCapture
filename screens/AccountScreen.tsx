@@ -94,7 +94,7 @@ const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
   createdAt: new Date(post.createdAt),
 });
 
-type ProfileTab = "featured" | "book" | "availability" | "reviews";
+type ProfileTab = "featured" | "book" | "availability" | "reviews" | "products" | "services";
 
 const PHOTOGRAPHER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
   { key: "featured", label: "Featured", icon: "star" },
@@ -367,6 +367,25 @@ export default function AccountScreen() {
     }
   }, [isAuthenticated, fetchProfile]);
 
+  // Set default active tab based on user role
+  useEffect(() => {
+    if (userRole === "business") {
+      // Business: default to first available tab (products or services)
+      if (businessHasProducts) {
+        setActiveTab("products");
+      } else if (businessHasServices) {
+        setActiveTab("services");
+      } else {
+        setActiveTab("availability");
+      }
+    } else if (userRole === "photographer") {
+      setActiveTab("featured");
+    } else {
+      // Consumer
+      setActiveTab("featured");
+    }
+  }, [userRole, businessHasProducts, businessHasServices]);
+
   // Handle follow/unfollow toggle
   const handleFollowToggle = async () => {
     if (!profile?.id || followLoading) return;
@@ -438,17 +457,21 @@ export default function AccountScreen() {
   }, [showVideoFullscreen, fullscreenVideoPlayer]);
   
   // Compute business tabs dynamically based on products/services
+  // Businesses show only Products/Services tabs based on what they offer
   const getBusinessTabs = (): { key: ProfileTab; label: string; icon: string }[] => {
-    const businessTabs: { key: ProfileTab; label: string; icon: string }[] = [
-      { key: "featured", label: "Featured", icon: "star" },
-    ];
+    const businessTabs: { key: ProfileTab; label: string; icon: string }[] = [];
+    
+    // Add Products tab if business has products
     if (businessHasProducts) {
-      businessTabs.push({ key: "book", label: "Products", icon: "shopping-bag" });
+      businessTabs.push({ key: "products", label: "Products", icon: "shopping-bag" });
     }
+    // Add Services tab if business has services
     if (businessHasServices) {
-      businessTabs.push({ key: "availability", label: "Services", icon: "briefcase" });
+      businessTabs.push({ key: "services", label: "Services", icon: "briefcase" });
     }
-    businessTabs.push({ key: "reviews", label: "Reviews", icon: "message-square" });
+    // Add Availability tab for booking
+    businessTabs.push({ key: "availability", label: "Availability", icon: "clock" });
+    
     return businessTabs;
   };
 
@@ -1477,6 +1500,171 @@ export default function AccountScreen() {
     );
   };
 
+  // Render Products Tab for businesses
+  const renderProductsTab = () => {
+    const liveProducts = businessProducts.filter(p => p.status === "live");
+    
+    if (liveProducts.length === 0) {
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.emptyTab}>
+            <Feather name="shopping-bag" size={48} color={theme.textSecondary} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+              No products available yet
+            </ThemedText>
+            {isOwner && !isGuest && (
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                Add products in your dashboard to display them here
+              </ThemedText>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -Spacing.xs }}>
+          {liveProducts.map((product) => (
+            <View
+              key={product.id}
+              style={{
+                width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
+                marginHorizontal: Spacing.xs,
+                marginBottom: Spacing.md,
+                backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                borderRadius: 12,
+                overflow: "hidden",
+              }}
+            >
+              {product.imageUrl ? (
+                <Image
+                  source={{ uri: product.imageUrl }}
+                  style={{ width: "100%", height: 120 }}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={{
+                  width: "100%",
+                  height: 120,
+                  backgroundColor: profileTheme + "20",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <Feather name="shopping-bag" size={32} color={profileTheme} />
+                </View>
+              )}
+              <View style={{ padding: Spacing.sm }}>
+                <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>{product.name}</ThemedText>
+                <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600", marginTop: 4 }}>
+                  {formatPrice(product.priceCents)}
+                </ThemedText>
+                <StarRating rating={product.rating} reviewCount={product.reviewCount} size={10} color={profileTheme} />
+                {!isOwner && (
+                  <Pressable
+                    style={{
+                      backgroundColor: profileTheme,
+                      paddingVertical: Spacing.xs,
+                      borderRadius: 6,
+                      alignItems: "center",
+                      marginTop: Spacing.sm,
+                    }}
+                  >
+                    <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Add to Cart</ThemedText>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  // Render Services Tab for businesses
+  const renderServicesTab = () => {
+    const liveServices = businessServices.filter(s => s.status === "live");
+    
+    if (liveServices.length === 0) {
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.emptyTab}>
+            <Feather name="briefcase" size={48} color={theme.textSecondary} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+              No services available yet
+            </ThemedText>
+            {isOwner && !isGuest && (
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+                Add services in your dashboard to display them here
+              </ThemedText>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.tabContent}>
+        {liveServices.map((service) => (
+          <View
+            key={service.id}
+            style={{
+              backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+              borderRadius: 12,
+              padding: Spacing.md,
+              marginBottom: Spacing.sm,
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
+            <View style={{
+              width: 50,
+              height: 50,
+              borderRadius: 10,
+              backgroundColor: profileTheme + "20",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: Spacing.md,
+            }}>
+              <Feather name="briefcase" size={22} color={profileTheme} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="body" style={{ fontWeight: "600" }}>{service.name}</ThemedText>
+              {service.description && (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                  {service.description}
+                </ThemedText>
+              )}
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600" }}>
+                  {formatPrice(service.priceCents)}
+                </ThemedText>
+                {service.durationMinutes && (
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
+                    {service.durationMinutes} min
+                  </ThemedText>
+                )}
+              </View>
+              <StarRating rating={service.rating} reviewCount={service.reviewCount} size={11} color={profileTheme} />
+            </View>
+            {!isOwner && (
+              <Pressable
+                style={{
+                  backgroundColor: profileTheme,
+                  paddingHorizontal: Spacing.md,
+                  paddingVertical: Spacing.sm,
+                  borderRadius: 8,
+                }}
+              >
+                <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Book</ThemedText>
+              </Pressable>
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case "featured":
@@ -1487,6 +1675,10 @@ export default function AccountScreen() {
         return renderAvailabilityTab();
       case "reviews":
         return renderReviewsTab();
+      case "products":
+        return renderProductsTab();
+      case "services":
+        return renderServicesTab();
       default:
         return renderFeaturedTab();
     }
@@ -1636,6 +1828,78 @@ export default function AccountScreen() {
             </ThemedText>
             <Feather name="chevron-right" size={18} color="#000000" />
           </Pressable>
+        )}
+
+        {/* Bio + Posts Section for Business (like photographer layout) */}
+        {userRole === "business" && (
+          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md }}>
+            {/* Bio Section */}
+            {profile?.bio && (
+              <View style={{ marginBottom: Spacing.md }}>
+                <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 20 }}>
+                  {profile.bio}
+                </ThemedText>
+              </View>
+            )}
+
+            {/* Posts Grid - Instagram Style with Add Button */}
+            <View style={styles.mediaGrid}>
+              {/* Add Post Button as first grid item for owners */}
+              {isOwner && !isGuest && (
+                <Pressable
+                  onPress={() => setShowCreatePost(true)}
+                  style={[styles.mediaGridItem, {
+                    backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 2,
+                    borderColor: profileTheme,
+                    borderStyle: "dashed",
+                  }]}
+                >
+                  <View style={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: 25,
+                    backgroundColor: profileTheme,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: Spacing.xs,
+                  }}>
+                    <Feather name="plus" size={24} color="#000" />
+                  </View>
+                  <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
+                    Post
+                  </ThemedText>
+                </Pressable>
+              )}
+              {/* Business Posts */}
+              {featuredPosts.map((post) => (
+                <Pressable key={post.id} style={styles.mediaGridItem}>
+                  <Image
+                    source={{ uri: post.imageUri }}
+                    style={styles.mediaGridImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                  <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                    <Feather name="heart" size={14} color="#fff" />
+                    <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+                      {post.likes}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+            {/* Empty state message when no posts */}
+            {featuredPosts.length === 0 && (
+              <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
+                <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center" }}>
+                  Share your best work to attract customers
+                </ThemedText>
+              </View>
+            )}
+          </View>
         )}
 
         {/* Tab Navigation - Now for all users including consumers */}
