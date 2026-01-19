@@ -820,9 +820,7 @@ export default function AccountScreen() {
       );
     }
 
-    // Photographer/Consumer Featured Tab - Show posts and featured services
-    const featuredServices = photographerServices.slice(0, 3);
-    
+    // Photographer/Consumer Featured Tab - Show posts
     return (
       <View style={styles.tabContent}>
         {/* Bio Section */}
@@ -831,71 +829,6 @@ export default function AccountScreen() {
             <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 20 }}>
               {profile.bio}
             </ThemedText>
-          </View>
-        )}
-
-        {/* Featured Services Section for Photographers */}
-        {userRole === "photographer" && featuredServices.length > 0 && (
-          <View style={{ marginBottom: Spacing.lg }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
-              <ThemedText type="h4">Featured Services</ThemedText>
-              {photographerServices.length > 3 && (
-                <Pressable onPress={() => setActiveTab("book")}>
-                  <ThemedText type="small" style={{ color: profileTheme }}>See All</ThemedText>
-                </Pressable>
-              )}
-            </View>
-            {featuredServices.map((service) => (
-              <View
-                key={service.id}
-                style={{
-                  backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                  borderRadius: 12,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.sm,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <View style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 10,
-                  backgroundColor: profileTheme + "20",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: Spacing.md,
-                }}>
-                  <Feather name="camera" size={20} color={profileTheme} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <ThemedText type="body" style={{ fontWeight: "600" }}>{service.name}</ThemedText>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
-                    <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
-                      ${service.price}
-                    </ThemedText>
-                    {service.durationMinutes && (
-                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
-                        {service.durationMinutes} min
-                      </ThemedText>
-                    )}
-                  </View>
-                </View>
-                {!isOwner && (
-                  <Pressable
-                    onPress={() => setActiveTab("book")}
-                    style={{
-                      backgroundColor: profileTheme,
-                      paddingHorizontal: Spacing.md,
-                      paddingVertical: Spacing.sm,
-                      borderRadius: 8,
-                    }}
-                  >
-                    <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Book</ThemedText>
-                  </Pressable>
-                )}
-              </View>
-            ))}
           </View>
         )}
 
