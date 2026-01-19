@@ -26,7 +26,7 @@ type AuthMode = "login" | "signup";
 const GOOGLE_WEB_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
 const GOOGLE_IOS_CLIENT_ID = "315196435620-qgn2bm1vlh6vp2tfclruuel2b77vv52m.apps.googleusercontent.com";
 
-const EXPO_GO_REDIRECT_URI = "https://auth.expo.io/@jamesmeyers2304/outsyde";
+const EXPO_GO_REDIRECT_URI = "https://auth.expo.io/@go.outsyde/outsyde";
 
 export default function AuthScreen() {
   const { theme } = useTheme();
