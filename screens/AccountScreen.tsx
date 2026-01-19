@@ -110,6 +110,50 @@ const CONSUMER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
   { key: "reviews", label: "Reviews", icon: "message-square" },
 ];
 
+// Star Rating Display Component
+const StarRating = ({ rating, reviewCount, size = 12, showCount = true, color = "#FFD700" }: {
+  rating?: number | null;
+  reviewCount?: number | null;
+  size?: number;
+  showCount?: boolean;
+  color?: string;
+}) => {
+  const { theme } = useTheme();
+  if (rating === undefined || rating === null || rating === 0) return null;
+  
+  const fullStars = Math.floor(rating / 10); // rating is 0-50, so divide by 10 for 0-5 stars
+  const hasHalfStar = (rating % 10) >= 5;
+  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+  const displayRating = (rating / 10).toFixed(1);
+  
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center" }}>
+      {[...Array(fullStars)].map((_, i) => (
+        <Feather key={`full-${i}`} name="star" size={size} color={color} style={{ marginRight: 1 }} />
+      ))}
+      {hasHalfStar && (
+        <View style={{ position: "relative", marginRight: 1 }}>
+          <Feather name="star" size={size} color={theme.textSecondary} />
+          <View style={{ position: "absolute", overflow: "hidden", width: size / 2 }}>
+            <Feather name="star" size={size} color={color} />
+          </View>
+        </View>
+      )}
+      {[...Array(emptyStars)].map((_, i) => (
+        <Feather key={`empty-${i}`} name="star" size={size} color={theme.textSecondary} style={{ marginRight: 1 }} />
+      ))}
+      <ThemedText type="small" style={{ marginLeft: 4, color: theme.textSecondary, fontSize: size }}>
+        {displayRating}
+      </ThemedText>
+      {showCount && reviewCount && reviewCount > 0 && (
+        <ThemedText type="small" style={{ marginLeft: 2, color: theme.textSecondary, fontSize: size }}>
+          ({reviewCount})
+        </ThemedText>
+      )}
+    </View>
+  );
+};
+
 export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -1079,6 +1123,7 @@ export default function AccountScreen() {
                       </ThemedText>
                     )}
                   </View>
+                  <StarRating rating={service.rating} reviewCount={service.reviewCount} size={11} color={profileTheme} />
                 </View>
                 {!isOwner && (
                   <Pressable
@@ -1135,6 +1180,7 @@ export default function AccountScreen() {
                     <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600", marginTop: 4 }}>
                       {formatPrice(product.priceCents)}
                     </ThemedText>
+                    <StarRating rating={product.rating} reviewCount={product.reviewCount} size={10} color={profileTheme} />
                     {!isOwner && (
                       <Pressable
                         style={{
@@ -1778,6 +1824,7 @@ export default function AccountScreen() {
                               {service.durationMinutes} min
                             </ThemedText>
                           )}
+                          <StarRating rating={service.rating} reviewCount={service.reviewCount} size={10} color={profileTheme} showCount={false} />
                         </View>
                       </View>
                     </View>
