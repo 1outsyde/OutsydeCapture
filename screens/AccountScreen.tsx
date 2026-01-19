@@ -139,6 +139,7 @@ export default function AccountScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [showVideoFullscreen, setShowVideoFullscreen] = useState(false);
+  const [postSaving, setPostSaving] = useState(false);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -473,8 +474,6 @@ export default function AccountScreen() {
       setNewPostImage(result.assets[0].uri);
     }
   };
-
-  const [postSaving, setPostSaving] = useState(false);
 
   const handleCreatePost = async () => {
     if (!newPostImage) {
