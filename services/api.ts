@@ -1065,15 +1065,15 @@ class ApiService {
     return this.request<SearchResponse>(endpoint);
   }
 
-  async unifiedSearch(params?: UnifiedSearchParams, authToken?: string | null): Promise<UnifiedSearchResponse> {
-    // Always use /api/search which has the actual data
-    console.log("[API] Using /api/search for unified search");
+  async unifiedSearch(params?: UnifiedSearchParams, authToken?: string | null, isAdmin: boolean = false): Promise<UnifiedSearchResponse> {
+    console.log("[API] Using /api/search for unified search, isAdmin:", isAdmin);
     const fallbackResponse = await this.search({
       query: params?.q,
       city: params?.city,
       category: params?.category,
     });
-    const normalizedResults = this.normalizeSearchResults(fallbackResponse);
+    const normalizedResults = this.normalizeSearchResults(fallbackResponse, isAdmin);
+    console.log("[API] Filtered results:", normalizedResults.length, "from total raw businesses/photographers");
     return {
       results: normalizedResults.map(r => ({
         id: r.id,
