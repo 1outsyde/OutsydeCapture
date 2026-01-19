@@ -1032,7 +1032,7 @@ class ApiService {
 
   async search(params?: SearchParams): Promise<SearchResponse> {
     const queryString = new URLSearchParams();
-    if (params?.query) queryString.append("query", params.query);
+    if (params?.query) queryString.append("q", params.query);
     if (params?.city) queryString.append("city", params.city);
     if (params?.category) queryString.append("category", params.category);
     
@@ -1041,49 +1041,31 @@ class ApiService {
   }
 
   async unifiedSearch(params?: UnifiedSearchParams, authToken?: string | null): Promise<UnifiedSearchResponse> {
-    const queryString = new URLSearchParams();
-    if (params?.q) queryString.append("q", params.q);
-    if (params?.city) queryString.append("city", params.city);
-    if (params?.category) queryString.append("category", params.category);
-    if (params?.lat !== undefined) queryString.append("lat", params.lat.toString());
-    if (params?.lng !== undefined) queryString.append("lng", params.lng.toString());
-    if (params?.personalized !== undefined) queryString.append("personalized", params.personalized.toString());
-    if (params?.type) queryString.append("type", params.type);
-    
-    const endpoint = `/api/unified-search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
-    const headers: Record<string, string> = {};
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-    
-    try {
-      return await this.request<UnifiedSearchResponse>(endpoint, { headers });
-    } catch (error) {
-      console.log("[API] Unified search failed, falling back to basic search");
-      const fallbackResponse = await this.search({
-        query: params?.q,
-        city: params?.city,
-        category: params?.category,
-      });
-      const normalizedResults = this.normalizeSearchResults(fallbackResponse);
-      return {
-        results: normalizedResults.map(r => ({
-          id: r.id,
-          type: r.resultType,
-          name: r.name,
-          description: r.description,
-          category: r.category,
-          city: r.city,
-          state: r.state,
-          rating: r.rating,
-          priceRange: r.priceRange,
-          avatar: r.avatar,
-          subscriptionTier: r.subscriptionTier,
-        })),
-        total: normalizedResults.length,
-        personalized: false,
-      };
-    }
+    // Always use /api/search which has the actual data
+    console.log("[API] Using /api/search for unified search");
+    const fallbackResponse = await this.search({
+      query: params?.q,
+      city: params?.city,
+      category: params?.category,
+    });
+    const normalizedResults = this.normalizeSearchResults(fallbackResponse);
+    return {
+      results: normalizedResults.map(r => ({
+        id: r.id,
+        type: r.resultType,
+        name: r.name,
+        description: r.description,
+        category: r.category,
+        city: r.city,
+        state: r.state,
+        rating: r.rating,
+        priceRange: r.priceRange,
+        avatar: r.avatar,
+        subscriptionTier: r.subscriptionTier,
+      })),
+      total: normalizedResults.length,
+      personalized: false,
+    };
   }
 
   normalizeUnifiedResults(response: UnifiedSearchResponse): UnifiedSearchResult[] {
