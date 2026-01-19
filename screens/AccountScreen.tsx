@@ -1671,7 +1671,7 @@ export default function AccountScreen() {
           <View style={styles.forYouSection}>
             <ThemedText type="h3" style={styles.sectionTitle}>For You</ThemedText>
             <View style={styles.forYouGrid}>
-              {/* Featured Package */}
+              {/* First Service or Placeholder */}
               <View style={[styles.forYouCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
                 <Image
                   source={{ uri: profile?.portfolio?.[0] || FALLBACK_COVER }}
@@ -1682,16 +1682,17 @@ export default function AccountScreen() {
                   <Feather name="heart" size={16} color={profileTheme} />
                 </Pressable>
                 <View style={styles.forYouContent}>
-                  <ThemedText type="body" style={{ fontWeight: "600" }}>Wedding Package</ThemedText>
-                  <ThemedText type="h4" style={{ color: profileTheme }}>$1,500</ThemedText>
-                  <View style={styles.forYouRating}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Feather key={star} name="star" size={12} color={star <= 4 ? "#FFD700" : theme.textSecondary} />
-                    ))}
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
-                      (245)
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>
+                    {photographerServices[0]?.name || "Wedding Package"}
+                  </ThemedText>
+                  <ThemedText type="h4" style={{ color: profileTheme }}>
+                    ${photographerServices[0]?.price || "1,500"}
+                  </ThemedText>
+                  {photographerServices[0]?.durationMinutes && (
+                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                      {photographerServices[0].durationMinutes} min
                     </ThemedText>
-                  </View>
+                  )}
                 </View>
               </View>
 
@@ -1707,7 +1708,7 @@ export default function AccountScreen() {
                   <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
                     Today: 3:30 PM - 6:00 PM
                   </ThemedText>
-                  <Pressable style={styles.quickInfoLink}>
+                  <Pressable onPress={() => setActiveTab("availability")} style={styles.quickInfoLink}>
                     <ThemedText type="small" style={{ color: profileTheme }}>
                       View full availability
                     </ThemedText>
@@ -1731,6 +1732,56 @@ export default function AccountScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Additional Services Grid */}
+            {photographerServices.length > 1 && (
+              <View style={{ marginTop: Spacing.md }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -Spacing.xs }}>
+                  {photographerServices.slice(1, 5).map((service, index) => (
+                    <View
+                      key={service.id}
+                      style={{
+                        width: "50%",
+                        paddingHorizontal: Spacing.xs,
+                        marginBottom: Spacing.sm,
+                      }}
+                    >
+                      <View style={{
+                        backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                        borderRadius: 12,
+                        overflow: "hidden",
+                      }}>
+                        <Image
+                          source={{ uri: profile?.portfolio?.[index + 1] || FALLBACK_COVER }}
+                          style={{ width: "100%", height: 100 }}
+                          contentFit="cover"
+                        />
+                        <View style={{ padding: Spacing.sm }}>
+                          <ThemedText type="small" style={{ fontWeight: "600" }} numberOfLines={1}>
+                            {service.name}
+                          </ThemedText>
+                          <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600", marginTop: 2 }}>
+                            ${service.price}
+                          </ThemedText>
+                          {service.durationMinutes && (
+                            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                              {service.durationMinutes} min
+                            </ThemedText>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+                {photographerServices.length > 5 && (
+                  <Pressable onPress={() => setActiveTab("book")} style={{ alignItems: "center", marginTop: Spacing.xs }}>
+                    <ThemedText type="small" style={{ color: profileTheme }}>
+                      View all {photographerServices.length} services
+                    </ThemedText>
+                  </Pressable>
+                )}
+              </View>
+            )}
           </View>
         )}
 
