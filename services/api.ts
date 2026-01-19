@@ -24,6 +24,9 @@ export interface ApiBusiness {
   priceRange?: string;
   description?: string;
   subscriptionTier?: "basic" | "pro" | "premium";
+  ownerId?: string;
+  approvalStatus?: "pending" | "approved" | "rejected";
+  stripeOnboardingComplete?: boolean;
 }
 
 export interface ApiBusinessDetail {
@@ -485,6 +488,9 @@ export interface ApiPhotographer {
   priceRange?: string;
   description?: string;
   subscriptionTier?: "basic" | "pro" | "premium";
+  userId?: string;
+  approvalStatus?: "pending" | "approved" | "rejected";
+  stripeOnboardingComplete?: boolean;
 }
 
 export interface PhotographerDashboardStats {
@@ -1831,11 +1837,27 @@ class ApiService {
     }
   }
 
-  normalizeSearchResults(response: SearchResponse): UnifiedSearchResult[] {
+  normalizeSearchResults(response: SearchResponse, isAdmin: boolean = false): UnifiedSearchResult[] {
     const results: UnifiedSearchResult[] = [];
+
+    const isDemoOwner = (ownerId?: string) => {
+      if (!ownerId) return false;
+      return ownerId.startsWith("demo-") || ownerId.includes("demo");
+    };
+
+    const isVisibleToUsers = (entity: { ownerId?: string; userId?: string; approvalStatus?: string; stripeOnboardingComplete?: boolean }) => {
+      if (isAdmin) return true;
+      const ownerField = entity.ownerId || entity.userId;
+      if (isDemoOwner(ownerField)) return false;
+      if (entity.approvalStatus && entity.approvalStatus !== "approved") return false;
+      if (entity.stripeOnboardingComplete === false) return false;
+      return true;
+    };
 
     if (response.businesses && Array.isArray(response.businesses)) {
       response.businesses.forEach(b => {
+        if (!isVisibleToUsers(b)) return;
+
         const category = (b.category || b.type || "business").toLowerCase();
         let resultType: SearchResultType = "business";
         
@@ -1864,6 +1886,8 @@ class ApiService {
 
     if (response.photographers && Array.isArray(response.photographers)) {
       response.photographers.forEach(p => {
+        if (!isVisibleToUsers(p)) return;
+
         const locationParts = (p.location || "Unknown, Unknown").split(",").map(s => s.trim());
         
         results.push({
