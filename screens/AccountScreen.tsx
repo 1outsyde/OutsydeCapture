@@ -1584,6 +1584,18 @@ export default function AccountScreen() {
               {profile?.name || "Your Profile"}
             </ThemedText>
 
+            {/* Profile Rating */}
+            {(profile?.rating && profile.rating > 0) && (
+              <View style={{ marginTop: Spacing.xs }}>
+                <StarRating 
+                  rating={profile.rating} 
+                  reviewCount={profile.reviewCount} 
+                  size={14} 
+                  color={profileTheme}
+                />
+              </View>
+            )}
+
             <View style={styles.profileMeta}>
               {(profile?.city || profile?.state) && (
                 <ThemedText type="body" style={styles.profileLocation}>

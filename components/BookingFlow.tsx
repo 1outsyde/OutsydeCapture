@@ -28,6 +28,8 @@ export interface PhotographerService {
   isPromo?: boolean;
   promoPrice?: number;
   promoEndDate?: string;
+  rating?: number | null;
+  reviewCount?: number | null;
 }
 
 export interface PhotographerProfile {
@@ -295,6 +297,21 @@ export function BookingFlow({
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>
                     {formatDuration(service.durationMinutes)}
                   </ThemedText>
+                  {/* Star Rating Display */}
+                  {service.rating && service.rating > 0 && (
+                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
+                      {[...Array(Math.floor(service.rating / 10))].map((_, i) => (
+                        <Feather key={i} name="star" size={10} color={brandColor} style={{ marginRight: 1 }} />
+                      ))}
+                      {[...Array(5 - Math.floor(service.rating / 10))].map((_, i) => (
+                        <Feather key={`e-${i}`} name="star" size={10} color={theme.textSecondary} style={{ marginRight: 1 }} />
+                      ))}
+                      <ThemedText type="small" style={{ marginLeft: 4, color: theme.textSecondary, fontSize: 10 }}>
+                        {(service.rating / 10).toFixed(1)}
+                        {service.reviewCount ? ` (${service.reviewCount})` : ""}
+                      </ThemedText>
+                    </View>
+                  )}
                   {service.description && (
                     <ThemedText
                       type="small"

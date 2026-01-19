@@ -328,6 +328,8 @@ export interface VendorProduct {
   status: ItemStatus;
   stripeProductId?: string | null;
   stripePriceId?: string | null;
+  rating?: number | null;
+  reviewCount?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -343,6 +345,8 @@ export interface VendorService {
   status: ItemStatus;
   stripeProductId?: string | null;
   stripePriceId?: string | null;
+  rating?: number | null;
+  reviewCount?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -529,6 +533,9 @@ export interface PhotographerService {
   status?: string;
   pricingModel?: string;
   category?: string;
+  rating?: number | null;
+  reviewCount?: number | null;
+  durationMinutes?: number | null;
 }
 
 export interface PhotographerHours {
