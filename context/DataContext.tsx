@@ -887,23 +887,34 @@ const MOCK_BUSINESSES: Business[] = [
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
-  const [photographers, setPhotographers] = useState<Photographer[]>(MOCK_PHOTOGRAPHERS);
+  const [photographers, setPhotographers] = useState<Photographer[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
-  const [businesses] = useState<Business[]>(MOCK_BUSINESSES);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || 
+                  user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
+
   const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
     if (!isAuthenticated || !user) {
-      setPhotographers(MOCK_PHOTOGRAPHERS);
+      if (isAdmin) {
+        setPhotographers(MOCK_PHOTOGRAPHERS);
+        setPosts(MOCK_POSTS);
+        setBusinesses(MOCK_BUSINESSES);
+      } else {
+        setPhotographers([]);
+        setPosts([]);
+        setBusinesses([]);
+      }
       setSessions([]);
       setIsLoading(false);
       return;
     }
-
-    setIsLoading(true);
-    setError(null);
 
     try {
       const [photographerRes, storedSessions] = await Promise.all([
@@ -914,8 +925,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const apiPhotographers = photographerRes?.photographers || photographerRes || [];
       if (Array.isArray(apiPhotographers) && apiPhotographers.length > 0) {
         setPhotographers(apiPhotographers);
-      } else {
+      } else if (isAdmin) {
         setPhotographers(MOCK_PHOTOGRAPHERS);
+      } else {
+        setPhotographers([]);
+      }
+
+      if (isAdmin) {
+        setPosts(MOCK_POSTS);
+        setBusinesses(MOCK_BUSINESSES);
+      } else {
+        setPosts([]);
+        setBusinesses([]);
       }
 
       if (storedSessions) {
@@ -955,11 +976,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Failed to load data:", err);
       setError("Failed to load data");
-      setPhotographers(MOCK_PHOTOGRAPHERS);
+      if (isAdmin) {
+        setPhotographers(MOCK_PHOTOGRAPHERS);
+        setPosts(MOCK_POSTS);
+        setBusinesses(MOCK_BUSINESSES);
+      } else {
+        setPhotographers([]);
+        setPosts([]);
+        setBusinesses([]);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, isAdmin]);
 
   useEffect(() => {
     loadData();
