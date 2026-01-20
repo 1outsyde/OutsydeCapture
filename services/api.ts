@@ -704,7 +704,8 @@ export interface MobileLoginRequest {
 }
 
 export interface MobileLoginResponse {
-  accessToken?: string; // Optional - backend uses session cookies, not JWT
+  accessToken?: string; // JWT access token (1 hour expiry)
+  refreshToken?: string; // JWT refresh token (7 day expiry)
   user: {
     id: string;
     email: string;

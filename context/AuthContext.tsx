@@ -193,15 +193,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hourlyRate: photographerData?.hourlyRate || backendUser.hourlyRate,
         portfolioUrl: photographerData?.portfolioUrl || backendUser.portfolioUrl,
         specialties: photographerData?.specialties || backendUser.specialties,
+        isAdmin: backendUser.isAdmin || false,
+        businessId: (response as any).vendor?.id,
+        photographerId: photographerData?.id,
       };
 
       if (newUser.approvalStatus === "rejected") {
         return { success: false, isPending: false, isRejected: true };
       }
       
-      // Session-based auth: backend uses cookies, store a session indicator
-      // For web, cookies handle auth automatically. For mobile, we rely on cookie persistence.
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
+      if (response.refreshToken) {
+        await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
+      }
       
       if (newUser.role === "business" && newUser.approvalStatus === "pending") {
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
@@ -266,14 +270,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hourlyRate: photographerData?.hourlyRate || backendUser.hourlyRate,
         portfolioUrl: photographerData?.portfolioUrl || backendUser.portfolioUrl,
         specialties: photographerData?.specialties || backendUser.specialties,
+        isAdmin: backendUser.isAdmin || false,
+        businessId: (response as any).vendor?.id,
+        photographerId: photographerData?.id,
       };
 
       if (newUser.approvalStatus === "rejected") {
         return { success: false, isPending: false, isRejected: true };
       }
       
-      // Session-based auth: backend uses cookies, store a session indicator
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
+      if (response.refreshToken) {
+        await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
+      }
       
       if (newUser.role === "business" && newUser.approvalStatus === "pending") {
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
@@ -395,7 +404,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
+      await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN, "@outsyde_refresh_token"]);
       setUser(null);
     } catch (error) {
       console.error("Failed to logout:", error);
