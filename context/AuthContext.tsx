@@ -16,6 +16,7 @@ export interface User {
   approvalStatus: ApprovalStatus;
   avatar?: string;
   isGuest?: boolean;
+  isAdmin?: boolean;
   businessName?: string;
   businessCategory?: string;
   businessDescription?: string;
@@ -33,6 +34,8 @@ export interface User {
   portfolioUrl?: string;
   specialties?: string[];
   willTravel?: boolean;
+  businessId?: string;
+  photographerId?: string;
 }
 
 export interface SignupData {
@@ -535,12 +538,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: derivedRole,
         approvalStatus: "approved",
         avatar: userData.profileImageUrl,
+        isAdmin: userData.isAdmin || false,
+        businessId: userData.businessId,
+        photographerId: userData.photographerId,
       };
       
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       setUser(newUser);
       
-      console.log("[AuthContext] User logged in successfully:", newUser.email, "role:", derivedRole);
+      console.log("[AuthContext] User logged in successfully:", newUser.email, "role:", derivedRole, "isAdmin:", newUser.isAdmin);
       
       return { success: true, isPending: false, isRejected: false, user: newUser };
     } catch (error) {
