@@ -91,6 +91,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   loginWithGoogle: (idToken: string) => Promise<LoginResult>;
+  loginWithTokens: (accessToken: string, refreshToken: string, userId: string) => Promise<LoginResult>;
   signup: (data: SignupData) => Promise<SignupResult>;
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
@@ -490,6 +491,101 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithTokens = async (accessToken: string, refreshToken: string, userId: string): Promise<LoginResult> => {
+    setIsLoading(true);
+    try {
+      console.log("[AuthContext] loginWithTokens called with userId:", userId);
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
+      await AsyncStorage.setItem("@outsyde_refresh_token", refreshToken);
+      
+      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error("[AuthContext] Failed to fetch user profile:", response.status);
+        return { success: false, isPending: false, isRejected: false };
+      }
+
+      const data = await response.json();
+      console.log("[AuthContext] loginWithTokens user data:", JSON.stringify(data, null, 2));
+      
+      const userData = data.user || data;
+      
+      const isPhotographer = userData.isPhotographer || !!data.photographer;
+      const isVendor = userData.isVendor || !!data.vendor;
+      
+      let derivedRole: UserRole = "consumer";
+      if (isPhotographer) {
+        derivedRole = "photographer";
+      } else if (isVendor) {
+        derivedRole = "business";
+      }
+      
+      const approvalStatus = userData.approvalStatus || data.vendor?.approvalStatus;
+      
+      if (derivedRole === "business" && approvalStatus === "pending") {
+        return {
+          success: true,
+          isPending: true,
+          isRejected: false,
+          user: {
+            id: userData.id,
+            email: userData.email || "",
+            firstName: userData.firstName || userData.name?.split(" ")[0] || "",
+            lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
+            phone: userData.phone || "",
+            dateOfBirth: userData.dateOfBirth || "",
+            role: derivedRole,
+            approvalStatus: approvalStatus || "pending",
+            businessName: data.vendor?.businessName,
+            businessCategory: data.vendor?.businessCategory,
+          },
+        };
+      }
+      
+      if (approvalStatus === "rejected") {
+        return { success: false, isPending: false, isRejected: true };
+      }
+      
+      const newUser: User = {
+        id: userData.id,
+        email: userData.email || "",
+        firstName: userData.firstName || userData.name?.split(" ")[0] || "",
+        lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
+        phone: userData.phone || "",
+        dateOfBirth: userData.dateOfBirth || "",
+        role: derivedRole,
+        approvalStatus: approvalStatus || "approved",
+        avatar: userData.avatar,
+        city: isPhotographer ? data.photographer?.city : data.vendor?.city,
+        state: isPhotographer ? data.photographer?.state : data.vendor?.state,
+        displayName: isPhotographer ? data.photographer?.displayName : undefined,
+        bio: isPhotographer ? data.photographer?.bio : undefined,
+        hourlyRate: isPhotographer ? data.photographer?.hourlyRate : undefined,
+        portfolioUrl: isPhotographer ? data.photographer?.portfolioUrl : undefined,
+        specialties: isPhotographer ? data.photographer?.specialties : undefined,
+        businessName: data.vendor?.businessName,
+        businessCategory: data.vendor?.businessCategory,
+      };
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+      setUser(newUser);
+      
+      return { success: true, isPending: false, isRejected: false, user: newUser };
+    } catch (error) {
+      console.error("Failed to login with tokens:", error);
+      return { success: false, isPending: false, isRejected: false };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -498,6 +594,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         loginWithGoogle,
+        loginWithTokens,
         signup,
         loginAsGuest,
         logout,

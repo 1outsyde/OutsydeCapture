@@ -26,7 +26,7 @@ const BACKEND_GOOGLE_PREFLIGHT = `${API_BASE_URL}/api/auth/mobile/google/preflig
 export default function AuthScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { login, loginWithGoogle, loginAsGuest, isLoading, refreshSession } = useAuth();
+  const { login, loginWithGoogle, loginWithTokens, loginAsGuest, isLoading, refreshSession } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [mode, setMode] = useState<AuthMode>("login");
@@ -128,9 +128,23 @@ export default function AuthScreen() {
         console.log("[GoogleSignIn] Redirect URL:", result.url);
         
         if (result.url.startsWith("outsyde://auth/success")) {
-          console.log("[GoogleSignIn] Auth success, refreshing session...");
+          console.log("[GoogleSignIn] Auth success, extracting tokens...");
           try {
-            const sessionResult = await refreshSession();
+            const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
+            const accessToken = urlParams.searchParams.get("accessToken");
+            const refreshToken = urlParams.searchParams.get("refreshToken");
+            const userId = urlParams.searchParams.get("userId");
+            
+            console.log("[GoogleSignIn] Tokens extracted - userId:", userId);
+            
+            if (!accessToken || !refreshToken || !userId) {
+              console.error("[GoogleSignIn] Missing tokens in URL");
+              Alert.alert("Error", "Authentication failed. Missing tokens.");
+              setIsGoogleLoading(false);
+              return;
+            }
+            
+            const sessionResult = await loginWithTokens(accessToken, refreshToken, userId);
             if (sessionResult.success) {
               if (sessionResult.isPending && sessionResult.user) {
                 setPendingUserInfo({
@@ -143,11 +157,13 @@ export default function AuthScreen() {
                 console.log("[GoogleSignIn] Login successful, navigating...");
                 navigation.goBack();
               }
+            } else if (sessionResult.isRejected) {
+              Alert.alert("Account Rejected", "Your business application was not approved.");
             } else {
               Alert.alert("Error", "Failed to complete sign-in. Please try again.");
             }
           } catch (error) {
-            console.error("[GoogleSignIn] Session refresh error:", error);
+            console.error("[GoogleSignIn] Token extraction error:", error);
             Alert.alert("Error", "Failed to complete sign-in. Please try again.");
           }
         } else if (result.url.startsWith("outsyde://auth/error")) {
