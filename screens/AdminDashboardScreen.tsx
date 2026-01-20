@@ -50,6 +50,7 @@ export default function AdminDashboardScreen() {
   const [influencerFilter, setInfluencerFilter] = useState<StatusFilter>("pending");
   const [paymentSubTab, setPaymentSubTab] = useState<PaymentSubTab>("orders");
   const [selectedConversation, setSelectedConversation] = useState<AdminConversation | null>(null);
+  const [pendingBusinessCount, setPendingBusinessCount] = useState(0);
 
   const fetchData = useCallback(async () => {
     const token = await getToken();
@@ -57,11 +58,16 @@ export default function AdminDashboardScreen() {
     
     try {
       setLoading(true);
-      const statsData = await api.getAdminStats(token);
+      const [statsData, pendingBusinesses] = await Promise.all([
+        api.getAdminStats(token),
+        api.getAdminBusinesses(token, "pending"),
+      ]);
       setStats(statsData);
+      setPendingBusinessCount(pendingBusinesses?.length || 0);
     } catch (error) {
       console.error("Failed to fetch admin stats:", error);
       setStats({ users: 0, businesses: 0, photographers: 0, orders: 0, bookings: 0 });
+      setPendingBusinessCount(0);
     } finally {
       setLoading(false);
     }
@@ -358,6 +364,20 @@ export default function AdminDashboardScreen() {
     rejectedText: {
       color: "#FF3B30",
     },
+    pendingCountBadge: {
+      backgroundColor: "#FF3B30",
+      borderRadius: 10,
+      minWidth: 18,
+      height: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: 6,
+    },
+    pendingCountText: {
+      color: "#FFFFFF",
+      fontSize: 11,
+      fontWeight: "700",
+    },
     listItemInfo: {
       fontSize: 13,
       color: theme.textSecondary,
@@ -595,6 +615,11 @@ export default function AdminDashboardScreen() {
               <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
                 {tab.label}
               </Text>
+              {tab.key === "businesses" && pendingBusinessCount > 0 && (
+                <View style={styles.pendingCountBadge}>
+                  <Text style={styles.pendingCountText}>{pendingBusinessCount}</Text>
+                </View>
+              )}
             </Pressable>
           ))}
         </View>

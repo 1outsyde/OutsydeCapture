@@ -205,14 +205,7 @@ export default function BusinessSignupScreen() {
 
     if (result.success) {
       if (result.isPending) {
-        api.notifyAdminBusinessApplication({
-          businessName,
-          businessCategory,
-          ownerName: name,
-          ownerEmail: email,
-          city,
-          state,
-        });
+        // Backend automatically notifies admins during signup
         setShowPending(true);
       } else {
         navigation.goBack();
