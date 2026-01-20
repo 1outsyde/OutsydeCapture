@@ -861,7 +861,7 @@ class ApiService {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  private async request<T>(endpoint: string, options?: RequestInit & { timeout?: number }): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
     // Merge headers properly - ensure Content-Type is always set
@@ -873,11 +873,17 @@ class ApiService {
     // Log the final request for debugging
     console.log(`[API] ${options?.method || 'GET'} ${endpoint}`, options?.body ? `Body: ${options.body}` : '');
     
+    // Set up timeout with AbortController (default 30s, longer for signup/auth)
+    const timeoutMs = options?.timeout || 30000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
     try {
       const response = await fetch(url, {
         ...options, // Spread options first
         credentials: 'include', // Required for session-based auth with cookies
         headers: mergedHeaders, // Then override with merged headers
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -909,9 +915,17 @@ class ApiService {
       if ((error as ApiError).status) {
         throw error;
       }
+      // Handle abort/timeout error
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw {
+          message: "Request timed out. Please try again.",
+        } as ApiError;
+      }
       throw {
         message: error instanceof Error ? error.message : "Network error",
       } as ApiError;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -961,7 +975,30 @@ class ApiService {
     return this.request<SessionSignupResponse>("/api/auth/vendor/signup", {
       method: "POST",
       body: JSON.stringify(data),
+      timeout: 60000, // 60 second timeout for signup (backend can be slow)
     });
+  }
+
+  async notifyAdminOfBusinessApplication(businessId: string, authToken?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`;
+      }
+      
+      console.log("[API] Notifying admin of new business application:", businessId);
+      return await this.request<{ success: boolean; message: string }>("/api/admin/notifications/business-application", {
+        method: "POST",
+        body: JSON.stringify({ businessId }),
+        headers,
+        timeout: 15000, // 15 second timeout for notification
+      });
+    } catch (error) {
+      console.warn("[API] Failed to notify admin of business application:", error);
+      return { success: false, message: "Notification failed but signup succeeded" };
+    }
   }
 
   async photographerSignup(data: PhotographerSignupRequest): Promise<SessionSignupResponse> {
@@ -1011,6 +1048,22 @@ class ApiService {
       };
       console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
       await this.vendorSignup(vendorPayload);
+      
+      // Login to get JWT, then notify admins of new business application
+      console.log("[Signup] Business created, logging in to get JWT and notify admins...");
+      const loginResponse = await this.mobileLogin({
+        email: data.email,
+        password: data.password,
+      });
+      
+      // Notify admins about new business application (fire-and-forget, don't block signup)
+      if (loginResponse.vendor?.id) {
+        this.notifyAdminOfBusinessApplication(loginResponse.vendor.id, loginResponse.accessToken)
+          .then(result => console.log("[Signup] Admin notification result:", result))
+          .catch(err => console.warn("[Signup] Admin notification failed:", err));
+      }
+      
+      return loginResponse;
     } else if (data.role === "photographer") {
       // Ensure hourlyRate is a valid positive number
       const rawHourlyRate = data.hourlyRate;
