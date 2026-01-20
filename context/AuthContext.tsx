@@ -363,7 +363,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
       
       if (data.role === "business" && newUser.approvalStatus === "pending") {
-        setUser(null);
+        // Keep the user logged in so they can see their profile while waiting for approval
+        setUser(newUser);
         return { success: true, isPending: true };
       }
       
