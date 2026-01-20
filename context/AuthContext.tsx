@@ -96,6 +96,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   getToken: () => Promise<string | null>;
+  refreshSession: () => Promise<LoginResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -399,6 +400,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshSession = async (): Promise<LoginResult> => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        return { success: false, isPending: false, isRejected: false };
+      }
+
+      const data = await response.json();
+      console.log("[AuthContext] refreshSession response:", JSON.stringify(data, null, 2));
+      
+      const userData = data.user || data;
+      
+      const isPhotographer = userData.isPhotographer || !!data.photographer;
+      const isVendor = userData.isVendor || !!data.vendor;
+      
+      let derivedRole: UserRole = "consumer";
+      if (isPhotographer) {
+        derivedRole = "photographer";
+      } else if (isVendor) {
+        derivedRole = "business";
+      }
+      
+      const approvalStatus = userData.approvalStatus || data.vendor?.approvalStatus;
+      
+      if (derivedRole === "business" && approvalStatus === "pending") {
+        return {
+          success: true,
+          isPending: true,
+          isRejected: false,
+          user: {
+            id: userData.id,
+            email: userData.email || "",
+            firstName: userData.firstName || userData.name?.split(" ")[0] || "",
+            lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
+            phone: userData.phone || "",
+            dateOfBirth: userData.dateOfBirth || "",
+            role: derivedRole,
+            approvalStatus: approvalStatus || "pending",
+            businessName: data.vendor?.businessName,
+            businessCategory: data.vendor?.businessCategory,
+          },
+        };
+      }
+      
+      if (approvalStatus === "rejected") {
+        return { success: false, isPending: false, isRejected: true };
+      }
+      
+      const newUser: User = {
+        id: userData.id,
+        email: userData.email || "",
+        firstName: userData.firstName || userData.name?.split(" ")[0] || "",
+        lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
+        phone: userData.phone || "",
+        dateOfBirth: userData.dateOfBirth || "",
+        role: derivedRole,
+        approvalStatus: approvalStatus || "approved",
+        avatar: userData.avatar,
+        city: isPhotographer ? data.photographer?.city : data.vendor?.city,
+        state: isPhotographer ? data.photographer?.state : data.vendor?.state,
+        displayName: isPhotographer ? data.photographer?.displayName : undefined,
+        bio: isPhotographer ? data.photographer?.bio : undefined,
+        hourlyRate: isPhotographer ? data.photographer?.hourlyRate : undefined,
+        portfolioUrl: isPhotographer ? data.photographer?.portfolioUrl : undefined,
+        specialties: isPhotographer ? data.photographer?.specialties : undefined,
+        businessName: data.vendor?.businessName,
+        businessCategory: data.vendor?.businessCategory,
+      };
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, `session_${newUser.id}`);
+      setUser(newUser);
+      
+      return { success: true, isPending: false, isRejected: false, user: newUser };
+    } catch (error) {
+      console.error("Failed to refresh session:", error);
+      return { success: false, isPending: false, isRejected: false };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -412,6 +503,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         updateProfile,
         getToken,
+        refreshSession,
       }}
     >
       {children}

@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView, Linking } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
-import Constants from "expo-constants";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -16,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth, UserRole } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { API_BASE_URL } from "@/services/api";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -24,12 +22,13 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type AuthMode = "login" | "signup";
 
 const GOOGLE_WEB_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
-const GOOGLE_IOS_CLIENT_ID = "315196435620-qgn2bm1vlh6vp2tfclruuel2b77vv52m.apps.googleusercontent.com";
+const BACKEND_GOOGLE_CALLBACK = `${API_BASE_URL}/api/auth/mobile/google/callback`;
+const BACKEND_GOOGLE_PREFLIGHT = `${API_BASE_URL}/api/auth/mobile/google/preflight`;
 
 export default function AuthScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { login, loginWithGoogle, loginAsGuest, isLoading } = useAuth();
+  const { login, loginWithGoogle, loginAsGuest, isLoading, refreshSession } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [mode, setMode] = useState<AuthMode>("login");
@@ -43,53 +42,14 @@ export default function AuthScreen() {
   const [pendingUserInfo, setPendingUserInfo] = useState<{ businessName: string; businessCategory: string; email: string } | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const redirectUri = makeRedirectUri();
-
-  console.log("[GoogleAuth] Generated redirectUri:", redirectUri);
-  console.log("[GoogleAuth] Constants.appOwnership:", Constants.appOwnership);
-  
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID,
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-    scopes: ["openid", "profile", "email"],
-    redirectUri,
-  });
-
   useEffect(() => {
-    console.log("[GoogleAuth] Request state:", request ? "available" : "null");
-    console.log("[GoogleAuth] Response state:", response?.type || "none");
-  }, [request, response]);
-
-  useEffect(() => {
-    const handleGoogleResponse = async () => {
-      if (response?.type === "success") {
+    const handleDeepLink = async (event: { url: string }) => {
+      console.log("[GoogleAuth] Deep link received:", event.url);
+      
+      if (event.url.startsWith("outsyde://auth/success")) {
         setIsGoogleLoading(true);
         try {
-          const accessToken = response.authentication?.accessToken;
-          const idToken = response.params?.id_token || response.authentication?.idToken;
-          
-          console.log("[GoogleAuth] Success - accessToken:", !!accessToken, "idToken:", !!idToken);
-          
-          let tokenToUse = idToken;
-          
-          if (!tokenToUse && accessToken) {
-            console.log("[GoogleAuth] Using access token to fetch user info");
-            const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            const userInfo = await userInfoRes.json();
-            console.log("[GoogleAuth] User info:", userInfo.email);
-            tokenToUse = accessToken;
-          }
-          
-          if (!tokenToUse) {
-            Alert.alert("Error", "Could not retrieve authentication token. Please try again.");
-            setIsGoogleLoading(false);
-            return;
-          }
-          
-          const result = await loginWithGoogle(tokenToUse);
+          const result = await refreshSession();
           if (result.success) {
             if (result.isPending && result.user) {
               setPendingUserInfo({
@@ -104,39 +64,78 @@ export default function AuthScreen() {
           } else if (result.isRejected) {
             Alert.alert("Account Rejected", "Your business application was not approved. Please contact support for more information.");
           } else {
-            Alert.alert("Error", "Google sign-in failed. Please try again.");
+            Alert.alert("Error", "Google sign-in completed but session fetch failed. Please try again.");
           }
         } catch (error) {
-          console.error("Google login error:", error);
-          Alert.alert("Error", "Google sign-in failed. Please try again.");
+          console.error("[GoogleAuth] Session refresh error:", error);
+          Alert.alert("Error", "Failed to complete sign-in. Please try again.");
         } finally {
           setIsGoogleLoading(false);
         }
-      } else if (response?.type === "error") {
-        console.error("Google auth error:", response.error);
-        Alert.alert("Error", "Google sign-in was cancelled or failed.");
+      } else if (event.url.startsWith("outsyde://auth/error")) {
+        const urlParams = new URL(event.url.replace("outsyde://", "https://outsyde.app/"));
+        const errorMessage = urlParams.searchParams.get("error") || "Google sign-in failed";
+        console.error("[GoogleAuth] Auth error:", errorMessage);
+        Alert.alert("Sign-In Error", errorMessage);
+        setIsGoogleLoading(false);
       }
     };
-    
-    handleGoogleResponse();
-  }, [response]);
+
+    const subscription = Linking.addEventListener("url", handleDeepLink);
+
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [navigation, refreshSession]);
 
   const handleGoogleSignIn = async () => {
-    console.log("[GoogleSignIn] Button pressed, request available:", !!request);
-    
-    if (!request) {
-      console.log("[GoogleSignIn] Request not available");
-      Alert.alert("Error", "Google Sign-In is not available. Please try again later.");
-      return;
-    }
+    console.log("[GoogleSignIn] Starting backend OAuth flow...");
+    setIsGoogleLoading(true);
     
     try {
-      console.log("[GoogleSignIn] Calling promptAsync...");
-      const result = await promptAsync();
-      console.log("[GoogleSignIn] promptAsync result:", JSON.stringify(result, null, 2));
+      const preflightRes = await fetch(BACKEND_GOOGLE_PREFLIGHT, {
+        credentials: "include",
+      });
+      
+      if (!preflightRes.ok) {
+        throw new Error("Failed to initialize Google Sign-In");
+      }
+      
+      const { state } = await preflightRes.json();
+      console.log("[GoogleSignIn] Got state token:", state?.substring(0, 10) + "...");
+      
+      const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+      googleAuthUrl.searchParams.set("client_id", GOOGLE_WEB_CLIENT_ID);
+      googleAuthUrl.searchParams.set("redirect_uri", BACKEND_GOOGLE_CALLBACK);
+      googleAuthUrl.searchParams.set("response_type", "code");
+      googleAuthUrl.searchParams.set("scope", "openid profile email");
+      googleAuthUrl.searchParams.set("state", state);
+      googleAuthUrl.searchParams.set("access_type", "offline");
+      googleAuthUrl.searchParams.set("prompt", "consent");
+      
+      console.log("[GoogleSignIn] Opening Google OAuth URL...");
+      
+      const result = await WebBrowser.openAuthSessionAsync(
+        googleAuthUrl.toString(),
+        "outsyde://auth"
+      );
+      
+      console.log("[GoogleSignIn] WebBrowser result:", result.type);
+      
+      if (result.type === "cancel" || result.type === "dismiss") {
+        console.log("[GoogleSignIn] User cancelled or dismissed");
+        setIsGoogleLoading(false);
+      }
     } catch (error) {
-      console.error("[GoogleSignIn] promptAsync error:", error);
-      Alert.alert("Error", "Failed to open Google Sign-In. Please try again.");
+      console.error("[GoogleSignIn] Error:", error);
+      Alert.alert("Error", "Failed to start Google Sign-In. Please try again.");
+      setIsGoogleLoading(false);
     }
   };
 
@@ -543,14 +542,14 @@ export default function AuthScreen() {
             </Pressable>
             <Pressable
               onPress={handleGoogleSignIn}
-              disabled={!request || isGoogleLoading}
+              disabled={isGoogleLoading}
               style={[
                 styles.socialButton, 
                 { 
                   backgroundColor: theme.backgroundDefault, 
                   borderColor: theme.border, 
                   borderWidth: 1,
-                  opacity: !request || isGoogleLoading ? 0.6 : 1,
+                  opacity: isGoogleLoading ? 0.6 : 1,
                 }
               ]}
             >

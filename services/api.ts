@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://outsyde-backend.onrender.com";
+export const API_BASE_URL = "https://outsyde-backend.onrender.com";
 
 export interface HealthCheckResponse {
   status: string;
