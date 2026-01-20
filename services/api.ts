@@ -1049,19 +1049,12 @@ class ApiService {
       console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
       await this.vendorSignup(vendorPayload);
       
-      // Login to get JWT, then notify admins of new business application
-      console.log("[Signup] Business created, logging in to get JWT and notify admins...");
+      // Login to get JWT (backend already notifies admins during signup)
+      console.log("[Signup] Business created, logging in to get JWT...");
       const loginResponse = await this.mobileLogin({
         email: data.email,
         password: data.password,
       });
-      
-      // Notify admins about new business application (fire-and-forget, don't block signup)
-      if (loginResponse.vendor?.id) {
-        this.notifyAdminOfBusinessApplication(loginResponse.vendor.id, loginResponse.accessToken)
-          .then(result => console.log("[Signup] Admin notification result:", result))
-          .catch(err => console.warn("[Signup] Admin notification failed:", err));
-      }
       
       return loginResponse;
     } else if (data.role === "photographer") {
