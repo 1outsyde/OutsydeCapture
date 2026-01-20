@@ -124,7 +124,40 @@ export default function AuthScreen() {
       
       console.log("[GoogleSignIn] WebBrowser result:", result.type);
       
-      if (result.type === "cancel" || result.type === "dismiss") {
+      if (result.type === "success" && result.url) {
+        console.log("[GoogleSignIn] Redirect URL:", result.url);
+        
+        if (result.url.startsWith("outsyde://auth/success")) {
+          console.log("[GoogleSignIn] Auth success, refreshing session...");
+          try {
+            const sessionResult = await refreshSession();
+            if (sessionResult.success) {
+              if (sessionResult.isPending && sessionResult.user) {
+                setPendingUserInfo({
+                  businessName: sessionResult.user.businessName || "",
+                  businessCategory: sessionResult.user.businessCategory || "",
+                  email: sessionResult.user.email,
+                });
+                setShowPendingMessage(true);
+              } else {
+                console.log("[GoogleSignIn] Login successful, navigating...");
+                navigation.goBack();
+              }
+            } else {
+              Alert.alert("Error", "Failed to complete sign-in. Please try again.");
+            }
+          } catch (error) {
+            console.error("[GoogleSignIn] Session refresh error:", error);
+            Alert.alert("Error", "Failed to complete sign-in. Please try again.");
+          }
+        } else if (result.url.startsWith("outsyde://auth/error")) {
+          const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
+          const errorMessage = urlParams.searchParams.get("error") || "Google sign-in failed";
+          console.error("[GoogleSignIn] Auth error:", errorMessage);
+          Alert.alert("Sign-In Error", errorMessage);
+        }
+        setIsGoogleLoading(false);
+      } else if (result.type === "cancel" || result.type === "dismiss") {
         console.log("[GoogleSignIn] User cancelled or dismissed");
         setIsGoogleLoading(false);
       }
