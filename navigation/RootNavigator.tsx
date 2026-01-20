@@ -33,6 +33,7 @@ import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
+import NotificationsScreen from "@/screens/NotificationsScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -567,6 +568,26 @@ export default function RootNavigator() {
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
         }}
+      />
+
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={({ navigation }) => ({
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Notifications",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
     </Stack.Navigator>
   );

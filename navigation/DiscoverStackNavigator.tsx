@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable } from "react-native";
+import { Pressable, View, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -7,9 +7,12 @@ import { Feather } from "@expo/vector-icons";
 import DiscoverScreen from "@/screens/DiscoverScreen";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
 import { DiscoverStackParamList, RootStackParamList } from "@/navigation/types";
-import { Spacing } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
+import { ThemedText } from "@/components/ThemedText";
 
 const Stack = createNativeStackNavigator<DiscoverStackParamList>();
 
@@ -30,20 +33,53 @@ function BookSessionButton() {
   );
 }
 
-function CartButton() {
+function HeaderRightButtons() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { user } = useAuth();
+  const { unreadCount } = useNotifications();
+
+  const isAdmin = user?.isAdmin;
 
   return (
-    <Pressable
-      onPress={() => navigation.navigate("CartOrders")}
-      style={({ pressed }) => ({
-        opacity: pressed ? 0.7 : 1,
-        padding: Spacing.sm,
-      })}
-    >
-      <Feather name="shopping-bag" size={22} color={theme.text} />
-    </Pressable>
+    <View style={styles.headerRightContainer}>
+      {isAdmin ? (
+        <Pressable
+          onPress={() => navigation.navigate("Notifications")}
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.7 : 1,
+            padding: Spacing.sm,
+            position: "relative",
+          })}
+        >
+          <Feather name="bell" size={22} color={theme.text} />
+          {unreadCount > 0 ? (
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: theme.error },
+              ]}
+            >
+              <ThemedText
+                type="caption"
+                style={styles.badgeText}
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </ThemedText>
+            </View>
+          ) : null}
+        </Pressable>
+      ) : null}
+      <Pressable
+        onPress={() => navigation.navigate("CartOrders")}
+        style={({ pressed }) => ({
+          opacity: pressed ? 0.7 : 1,
+          padding: Spacing.sm,
+        })}
+      >
+        <Feather name="shopping-bag" size={22} color={theme.text} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -62,9 +98,32 @@ export default function DiscoverStackNavigator() {
         options={{
           headerTitle: () => <HeaderTitle />,
           headerLeft: () => <BookSessionButton />,
-          headerRight: () => <CartButton />,
+          headerRight: () => <HeaderRightButtons />,
         }}
       />
     </Stack.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  headerRightContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  badge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: BorderRadius.round,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+});

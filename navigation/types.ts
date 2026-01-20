@@ -93,6 +93,7 @@ export type RootStackParamList = {
   StorefrontEditor: undefined;
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
+  Notifications: undefined;
 };
 
 export type MainTabParamList = {
