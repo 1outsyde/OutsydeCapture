@@ -15,6 +15,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import Card from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/context/AuthContext";
 import { useNotifications, Notification } from "@/context/NotificationContext";
 import { Spacing, FontSizes, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
@@ -24,6 +25,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function NotificationsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const { user } = useAuth();
   const {
     isEnabled,
     notifications,
@@ -48,7 +50,9 @@ export default function NotificationsScreen() {
 
   const handleNotificationPress = (notification: Notification) => {
     markAsRead(notification.id);
-    if (notification.metadata?.sessionId) {
+    if (notification.type === "business_pending" && notification.metadata?.businessId) {
+      navigation.navigate("AdminDashboard");
+    } else if (notification.metadata?.sessionId) {
       navigation.navigate("SessionDetail", {
         sessionId: notification.metadata.sessionId as string,
       });
@@ -83,6 +87,8 @@ export default function NotificationsScreen() {
         return "shield";
       case "follow":
         return "user-plus";
+      case "business_pending":
+        return "briefcase";
       case "system":
       default:
         return "bell";
@@ -185,7 +191,7 @@ export default function NotificationsScreen() {
     emptyState: {
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: Spacing.xxl,
+      paddingVertical: Spacing["3xl"],
       gap: Spacing.md,
     },
     emptyIconContainer: {
@@ -207,7 +213,7 @@ export default function NotificationsScreen() {
   return (
     <ScreenScrollView contentContainerStyle={styles.container}>
       <View style={styles.section}>
-        <ThemedText type="subtitle" style={styles.sectionTitle}>
+        <ThemedText type="h3" style={styles.sectionTitle}>
           Settings
         </ThemedText>
         <Card style={styles.settingCard}>
@@ -216,8 +222,8 @@ export default function NotificationsScreen() {
               <Feather name="bell" size={20} color={theme.primary} />
             </View>
             <View style={styles.settingContent}>
-              <ThemedText type="bodyBold">Push Notifications</ThemedText>
-              <ThemedText type="caption" color="secondary">
+              <ThemedText type="body" style={{ fontWeight: "600" }}>Push Notifications</ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
                 {Platform.OS === "web"
                   ? "In-app notifications only"
                   : isEnabled
@@ -239,7 +245,7 @@ export default function NotificationsScreen() {
 
         {Platform.OS === "web" ? (
           <ThemedView style={styles.webNotice}>
-            <ThemedText type="caption" color="secondary">
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
               Push notifications are not available on web. Use Expo Go on your
               mobile device to receive push notifications.
             </ThemedText>
@@ -249,10 +255,10 @@ export default function NotificationsScreen() {
 
       <View style={styles.section}>
         <View style={styles.headerRow}>
-          <ThemedText type="subtitle">
+          <ThemedText type="h3">
             Notifications{" "}
             {unreadCount > 0 ? (
-              <ThemedText type="body" color="secondary">
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>
                 ({unreadCount} unread)
               </ThemedText>
             ) : null}
@@ -266,8 +272,7 @@ export default function NotificationsScreen() {
                 >
                   <ThemedText
                     type="caption"
-                    color="primary"
-                    style={styles.actionButtonText}
+                    style={[styles.actionButtonText, { color: theme.primary }]}
                   >
                     Mark all read
                   </ThemedText>
@@ -291,13 +296,12 @@ export default function NotificationsScreen() {
               <View style={styles.emptyIconContainer}>
                 <Feather name="bell-off" size={32} color={theme.textSecondary} />
               </View>
-              <ThemedText type="body" color="secondary">
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>
                 No notifications yet
               </ThemedText>
               <ThemedText
                 type="caption"
-                color="secondary"
-                style={{ textAlign: "center" }}
+                style={{ textAlign: "center", color: theme.textSecondary }}
               >
                 {isEnabled
                   ? "You'll receive notifications about your upcoming sessions here"
@@ -334,8 +338,11 @@ export default function NotificationsScreen() {
                   <View style={styles.notificationContent}>
                     <View style={styles.notificationHeader}>
                       <ThemedText
-                        type={notification.read ? "body" : "bodyBold"}
-                        style={styles.notificationTitle}
+                        type="body"
+                        style={[
+                          styles.notificationTitle,
+                          !notification.read && { fontWeight: "600" }
+                        ]}
                         numberOfLines={1}
                       >
                         {notification.title}
@@ -343,8 +350,7 @@ export default function NotificationsScreen() {
                       <View style={{ flexDirection: "row", alignItems: "center" }}>
                         <ThemedText
                           type="caption"
-                          color="secondary"
-                          style={styles.notificationTime}
+                          style={[styles.notificationTime, { color: theme.textSecondary }]}
                         >
                           {formatTimestamp(new Date(notification.date))}
                         </ThemedText>
@@ -355,7 +361,7 @@ export default function NotificationsScreen() {
                     </View>
                     <ThemedText
                       type="caption"
-                      color="secondary"
+                      style={{ color: theme.textSecondary }}
                       numberOfLines={2}
                     >
                       {notification.body}

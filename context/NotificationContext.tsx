@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
+import api from "@/services/api";
 
 export interface Notification {
   id: string;
   title: string;
   body: string;
-  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow";
+  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow" | "business_pending";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;
@@ -23,17 +24,24 @@ interface NotificationContextType {
   notifications: Notification[];
   settings: NotificationSettings;
   unreadCount: number;
+  isEnabled: boolean;
+  pendingBusinessCount: number;
   addNotification: (notification: Omit<Notification, "id" | "date" | "read">) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   updateSettings: (updates: Partial<NotificationSettings>) => Promise<void>;
   clearNotifications: () => Promise<void>;
+  enableNotifications: () => Promise<boolean>;
+  disableNotifications: () => void;
+  refreshAdminNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 const getNotificationsKey = (userId: string) => `@outsyde_notifications_${userId}`;
 const getSettingsKey = (userId: string) => `@outsyde_notification_settings_${userId}`;
+const getEnabledKey = (userId: string) => `@outsyde_notifications_enabled_${userId}`;
+const getSeenBusinessesKey = (userId: string) => `@outsyde_seen_businesses_${userId}`;
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   bookingConfirmations: true,
@@ -43,31 +51,108 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 };
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, getToken } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
+  const [isEnabled, setIsEnabled] = useState(true);
+  const [pendingBusinessCount, setPendingBusinessCount] = useState(0);
+  const [seenBusinessIds, setSeenBusinessIds] = useState<string[]>([]);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && user) {
       loadNotificationData();
+      if (user.isAdmin) {
+        startAdminPolling();
+      }
     } else {
       setNotifications([]);
       setSettings(DEFAULT_SETTINGS);
+      setIsEnabled(true);
+      setPendingBusinessCount(0);
+      stopAdminPolling();
     }
+    return () => stopAdminPolling();
   }, [isAuthenticated, user]);
 
   const loadNotificationData = async () => {
     if (!user) return;
     try {
-      const [storedNotifications, storedSettings] = await Promise.all([
+      const [storedNotifications, storedSettings, storedEnabled, storedSeenBusinesses] = await Promise.all([
         AsyncStorage.getItem(getNotificationsKey(user.id)),
         AsyncStorage.getItem(getSettingsKey(user.id)),
+        AsyncStorage.getItem(getEnabledKey(user.id)),
+        AsyncStorage.getItem(getSeenBusinessesKey(user.id)),
       ]);
       if (storedNotifications) setNotifications(JSON.parse(storedNotifications));
       if (storedSettings) setSettings(JSON.parse(storedSettings));
+      if (storedEnabled !== null) setIsEnabled(storedEnabled === "true");
+      if (storedSeenBusinesses) setSeenBusinessIds(JSON.parse(storedSeenBusinesses));
     } catch (err) {
       console.error("Failed to load notification data:", err);
     }
+  };
+
+  const startAdminPolling = () => {
+    stopAdminPolling();
+    fetchAdminNotifications();
+    pollingRef.current = setInterval(() => {
+      fetchAdminNotifications();
+    }, 30000);
+  };
+
+  const stopAdminPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  const fetchAdminNotifications = useCallback(async () => {
+    if (!user?.isAdmin) return;
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const pendingBusinesses = await api.getAdminBusinesses(token, "pending");
+      const pendingList = pendingBusinesses || [];
+      setPendingBusinessCount(pendingList.length);
+
+      const newBusinesses = pendingList.filter(
+        (b: { id: string }) => !seenBusinessIds.includes(b.id)
+      );
+
+      if (newBusinesses.length > 0) {
+        const newNotifications: Notification[] = newBusinesses.map((business: { id: string; businessName?: string; name?: string }) => ({
+          id: `business_pending_${business.id}`,
+          title: "New Business Application",
+          body: `${business.businessName || business.name || "A business"} is pending approval`,
+          type: "business_pending" as const,
+          date: new Date().toISOString(),
+          read: false,
+          metadata: { businessId: business.id },
+        }));
+
+        const existingIds = new Set(notifications.map(n => n.id));
+        const uniqueNewNotifications = newNotifications.filter(n => !existingIds.has(n.id));
+        
+        if (uniqueNewNotifications.length > 0) {
+          const updated = [...uniqueNewNotifications, ...notifications];
+          await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(updated));
+          setNotifications(updated);
+
+          const newSeenIds = [...seenBusinessIds, ...newBusinesses.map((b: { id: string }) => b.id)];
+          await AsyncStorage.setItem(getSeenBusinessesKey(user.id), JSON.stringify(newSeenIds));
+          setSeenBusinessIds(newSeenIds);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch admin notifications:", error);
+    }
+  }, [user, getToken, seenBusinessIds, notifications]);
+
+  const refreshAdminNotifications = async () => {
+    await fetchAdminNotifications();
   };
 
   const addNotification = async (notification: Omit<Notification, "id" | "date" | "read">) => {
@@ -110,6 +195,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotifications([]);
   };
 
+  const enableNotifications = async (): Promise<boolean> => {
+    if (!user) return false;
+    await AsyncStorage.setItem(getEnabledKey(user.id), "true");
+    setIsEnabled(true);
+    return true;
+  };
+
+  const disableNotifications = async () => {
+    if (!user) return;
+    await AsyncStorage.setItem(getEnabledKey(user.id), "false");
+    setIsEnabled(false);
+  };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
@@ -118,11 +216,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         notifications,
         settings,
         unreadCount,
+        isEnabled,
+        pendingBusinessCount,
         addNotification,
         markAsRead,
         markAllAsRead,
         updateSettings,
         clearNotifications,
+        enableNotifications,
+        disableNotifications,
+        refreshAdminNotifications,
       }}
     >
       {children}
