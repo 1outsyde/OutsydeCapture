@@ -21,8 +21,6 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type AuthMode = "login" | "signup";
 
-const GOOGLE_WEB_CLIENT_ID = "315196435620-06bf0ng91lbqfdop97si4iaoldr2trjj.apps.googleusercontent.com";
-const BACKEND_GOOGLE_CALLBACK = `${API_BASE_URL}/api/auth/mobile/google/callback`;
 const BACKEND_GOOGLE_PREFLIGHT = `${API_BASE_URL}/api/auth/mobile/google/preflight`;
 
 export default function AuthScreen() {
@@ -100,29 +98,27 @@ export default function AuthScreen() {
     
     try {
       const preflightRes = await fetch(BACKEND_GOOGLE_PREFLIGHT, {
+        method: "POST",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       
       if (!preflightRes.ok) {
+        const errorText = await preflightRes.text();
+        console.error("[GoogleSignIn] Preflight failed:", preflightRes.status, errorText);
         throw new Error("Failed to initialize Google Sign-In");
       }
       
-      const { state } = await preflightRes.json();
+      const { state, authUrl } = await preflightRes.json();
       console.log("[GoogleSignIn] Got state token:", state?.substring(0, 10) + "...");
-      
-      const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-      googleAuthUrl.searchParams.set("client_id", GOOGLE_WEB_CLIENT_ID);
-      googleAuthUrl.searchParams.set("redirect_uri", BACKEND_GOOGLE_CALLBACK);
-      googleAuthUrl.searchParams.set("response_type", "code");
-      googleAuthUrl.searchParams.set("scope", "openid profile email");
-      googleAuthUrl.searchParams.set("state", state);
-      googleAuthUrl.searchParams.set("access_type", "offline");
-      googleAuthUrl.searchParams.set("prompt", "consent");
+      console.log("[GoogleSignIn] Got authUrl from backend");
       
       console.log("[GoogleSignIn] Opening Google OAuth URL...");
       
       const result = await WebBrowser.openAuthSessionAsync(
-        googleAuthUrl.toString(),
+        authUrl,
         "outsyde://auth"
       );
       
