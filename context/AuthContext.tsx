@@ -85,13 +85,27 @@ interface SignupResult {
   errorMessage?: string;
 }
 
+export interface GoogleAuthUserData {
+  userId: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  profileImageUrl?: string;
+  isVendor?: boolean;
+  isPhotographer?: boolean;
+  isAdmin?: boolean;
+  businessId?: string;
+  photographerId?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   loginWithGoogle: (idToken: string) => Promise<LoginResult>;
-  loginWithTokens: (accessToken: string, refreshToken: string, userId: string) => Promise<LoginResult>;
+  loginWithTokens: (accessToken: string, refreshToken: string, userData: GoogleAuthUserData) => Promise<LoginResult>;
   signup: (data: SignupData) => Promise<SignupResult>;
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
@@ -491,91 +505,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithTokens = async (accessToken: string, refreshToken: string, userId: string): Promise<LoginResult> => {
+  const loginWithTokens = async (accessToken: string, refreshToken: string, userData: GoogleAuthUserData): Promise<LoginResult> => {
     setIsLoading(true);
     try {
-      console.log("[AuthContext] loginWithTokens called with userId:", userId);
+      console.log("[AuthContext] loginWithTokens called with userId:", userData.userId);
+      console.log("[AuthContext] User data from URL:", JSON.stringify(userData, null, 2));
       
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
       await AsyncStorage.setItem("@outsyde_refresh_token", refreshToken);
       
-      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        console.error("[AuthContext] Failed to fetch user profile:", response.status);
-        return { success: false, isPending: false, isRejected: false };
-      }
-
-      const data = await response.json();
-      console.log("[AuthContext] loginWithTokens user data:", JSON.stringify(data, null, 2));
-      
-      const userData = data.user || data;
-      
-      const isPhotographer = userData.isPhotographer || !!data.photographer;
-      const isVendor = userData.isVendor || !!data.vendor;
-      
       let derivedRole: UserRole = "consumer";
-      if (isPhotographer) {
+      if (userData.isPhotographer) {
         derivedRole = "photographer";
-      } else if (isVendor) {
+      } else if (userData.isVendor) {
         derivedRole = "business";
       }
       
-      const approvalStatus = userData.approvalStatus || data.vendor?.approvalStatus;
-      
-      if (derivedRole === "business" && approvalStatus === "pending") {
-        return {
-          success: true,
-          isPending: true,
-          isRejected: false,
-          user: {
-            id: userData.id,
-            email: userData.email || "",
-            firstName: userData.firstName || userData.name?.split(" ")[0] || "",
-            lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
-            phone: userData.phone || "",
-            dateOfBirth: userData.dateOfBirth || "",
-            role: derivedRole,
-            approvalStatus: approvalStatus || "pending",
-            businessName: data.vendor?.businessName,
-            businessCategory: data.vendor?.businessCategory,
-          },
-        };
-      }
-      
-      if (approvalStatus === "rejected") {
-        return { success: false, isPending: false, isRejected: true };
-      }
+      const nameParts = userData.name?.split(" ") || [];
+      const firstName = userData.firstName || nameParts[0] || "";
+      const lastName = userData.lastName || nameParts.slice(1).join(" ") || "";
       
       const newUser: User = {
-        id: userData.id,
-        email: userData.email || "",
-        firstName: userData.firstName || userData.name?.split(" ")[0] || "",
-        lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
-        phone: userData.phone || "",
-        dateOfBirth: userData.dateOfBirth || "",
+        id: userData.userId,
+        email: userData.email,
+        firstName,
+        lastName,
+        phone: "",
+        dateOfBirth: "",
         role: derivedRole,
-        approvalStatus: approvalStatus || "approved",
-        avatar: userData.avatar,
-        city: isPhotographer ? data.photographer?.city : data.vendor?.city,
-        state: isPhotographer ? data.photographer?.state : data.vendor?.state,
-        displayName: isPhotographer ? data.photographer?.displayName : undefined,
-        bio: isPhotographer ? data.photographer?.bio : undefined,
-        hourlyRate: isPhotographer ? data.photographer?.hourlyRate : undefined,
-        portfolioUrl: isPhotographer ? data.photographer?.portfolioUrl : undefined,
-        specialties: isPhotographer ? data.photographer?.specialties : undefined,
-        businessName: data.vendor?.businessName,
-        businessCategory: data.vendor?.businessCategory,
+        approvalStatus: "approved",
+        avatar: userData.profileImageUrl,
       };
       
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       setUser(newUser);
+      
+      console.log("[AuthContext] User logged in successfully:", newUser.email, "role:", derivedRole);
       
       return { success: true, isPending: false, isRejected: false, user: newUser };
     } catch (error) {

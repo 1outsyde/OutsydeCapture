@@ -10,7 +10,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
-import { useAuth, UserRole } from "@/context/AuthContext";
+import { useAuth, UserRole, GoogleAuthUserData } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { API_BASE_URL } from "@/services/api";
@@ -134,17 +134,32 @@ export default function AuthScreen() {
             const accessToken = urlParams.searchParams.get("accessToken");
             const refreshToken = urlParams.searchParams.get("refreshToken");
             const userId = urlParams.searchParams.get("userId");
+            const email = urlParams.searchParams.get("email");
             
-            console.log("[GoogleSignIn] Tokens extracted - userId:", userId);
+            console.log("[GoogleSignIn] Tokens extracted - userId:", userId, "email:", email);
             
-            if (!accessToken || !refreshToken || !userId) {
-              console.error("[GoogleSignIn] Missing tokens in URL");
-              Alert.alert("Error", "Authentication failed. Missing tokens.");
+            if (!accessToken || !refreshToken || !userId || !email) {
+              console.error("[GoogleSignIn] Missing required params in URL");
+              Alert.alert("Error", "Authentication failed. Missing required data.");
               setIsGoogleLoading(false);
               return;
             }
             
-            const sessionResult = await loginWithTokens(accessToken, refreshToken, userId);
+            const userData: GoogleAuthUserData = {
+              userId,
+              email,
+              firstName: urlParams.searchParams.get("firstName") || undefined,
+              lastName: urlParams.searchParams.get("lastName") || undefined,
+              name: urlParams.searchParams.get("name") || undefined,
+              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
+              isVendor: urlParams.searchParams.get("isVendor") === "true",
+              isPhotographer: urlParams.searchParams.get("isPhotographer") === "true",
+              isAdmin: urlParams.searchParams.get("isAdmin") === "true",
+              businessId: urlParams.searchParams.get("businessId") || undefined,
+              photographerId: urlParams.searchParams.get("photographerId") || undefined,
+            };
+            
+            const sessionResult = await loginWithTokens(accessToken, refreshToken, userData);
             if (sessionResult.success) {
               if (sessionResult.isPending && sessionResult.user) {
                 setPendingUserInfo({
