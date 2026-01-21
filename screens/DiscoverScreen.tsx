@@ -192,15 +192,13 @@ export default function DiscoverScreen() {
       const photographerId = post.photographerId || post.providerId;
       if (photographerId) {
         const photographer = getPhotographer(photographerId);
-        if (photographer) {
-          navigation.navigate("Booking", { 
-            photographer,
-            preselectedServiceId: post.serviceId 
-          });
-        } else {
-          // Fallback to profile if photographer not found locally
-          navigation.navigate("VendorDetail", { vendorId: post.userId });
-        }
+        // Navigate to Booking with either photographer object or just photographerId
+        // BookingScreen will fetch photographer data if not provided
+        navigation.navigate("Booking", { 
+          photographer: photographer || undefined,
+          photographerId: photographerId,
+          preselectedServiceId: post.serviceId 
+        });
       }
     } else if (post.type === "vendor") {
       // Navigate directly to VendorDetail products tab for vendors with products

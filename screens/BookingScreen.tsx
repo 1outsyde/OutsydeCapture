@@ -23,15 +23,34 @@ type BookingStep = "service" | "date" | "slot" | "review";
 
 const HOLD_DURATION_SECONDS = 600;
 
+// Type for photographer data that can come from route or API
+type PhotographerData = {
+  id: string;
+  name: string;
+  avatar?: string;
+  specialty?: string;
+  location?: string;
+  rating?: number;
+  reviewCount?: number;
+  priceRange?: string;
+  bio?: string;
+};
+
 export default function BookingScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
-  const { photographer, preselectedServiceId } = route.params;
+  const { photographer: routePhotographer, photographerId, preselectedServiceId } = route.params;
   const { getToken, isAuthenticated } = useAuth();
   const { addSession } = useData();
   const { addNotification } = useNotifications();
   const insets = useSafeAreaInsets();
+
+  // State for photographer data (may need to be fetched)
+  const [photographer, setPhotographer] = useState<PhotographerData | null>(
+    routePhotographer || null
+  );
+  const [isLoadingPhotographer, setIsLoadingPhotographer] = useState(!routePhotographer && !!photographerId);
 
   const [step, setStep] = useState<BookingStep>(preselectedServiceId ? "date" : "service");
   const [selectedService, setSelectedService] = useState<PhotographerService | null>(null);
@@ -60,14 +79,46 @@ export default function BookingScreen() {
   
   const [viewingMonth, setViewingMonth] = useState(() => new Date());
 
+  // Fetch photographer data if not provided in route params
   useEffect(() => {
-    fetchServices();
+    const fetchPhotographerData = async () => {
+      if (!routePhotographer && photographerId) {
+        setIsLoadingPhotographer(true);
+        try {
+          const data = await api.getPhotographer(photographerId);
+          setPhotographer({
+            id: data.id,
+            name: data.name || "Photographer",
+            avatar: data.avatar,
+            specialty: data.specialty,
+            location: data.location || (data.city && data.state ? `${data.city}, ${data.state}` : undefined),
+            rating: data.rating,
+            reviewCount: data.reviewCount,
+            priceRange: data.priceRange,
+            bio: data.description,
+          });
+        } catch (e) {
+          console.error("Failed to fetch photographer:", e);
+          setError("Unable to load photographer details. Please try again.");
+        } finally {
+          setIsLoadingPhotographer(false);
+        }
+      }
+    };
+    fetchPhotographerData();
+  }, [routePhotographer, photographerId]);
+
+  // Fetch services once photographer data is available
+  useEffect(() => {
+    if (photographer) {
+      fetchServices();
+    }
     return () => {
       if (countdownRef.current) {
         clearInterval(countdownRef.current);
       }
     };
-  }, []);
+  }, [photographer?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -128,6 +179,7 @@ export default function BookingScreen() {
   };
 
   const fetchServices = async () => {
+    if (!photographer) return;
     setIsLoadingServices(true);
     setError(null);
     try {
@@ -170,6 +222,7 @@ export default function BookingScreen() {
   };
 
   const fetchAvailableDates = async (serviceId: string) => {
+    if (!photographer) return;
     setIsLoadingDates(true);
     setError(null);
     try {
@@ -186,6 +239,7 @@ export default function BookingScreen() {
   };
 
   const fetchAvailableSlots = async (date: string) => {
+    if (!photographer) return;
     setIsLoadingSlots(true);
     setError(null);
     setAvailableSlots([]);
@@ -218,6 +272,7 @@ export default function BookingScreen() {
       return;
     }
 
+    if (!photographer) return;
     setIsCreatingDraft(true);
     setError(null);
     try {
@@ -262,9 +317,9 @@ export default function BookingScreen() {
       }
 
       const session = await addSession({
-        photographerId: photographer.id,
-        photographerName: photographer.name,
-        photographerAvatar: photographer.avatar,
+        photographerId: photographer?.id || "",
+        photographerName: photographer?.name || "Photographer",
+        photographerAvatar: photographer?.avatar || "",
         date: selectedDate,
         time: selectedSlot.startTime,
         endTime: selectedSlot.endTime,
@@ -278,7 +333,7 @@ export default function BookingScreen() {
       await addNotification({
         type: "booking",
         title: "Booking Confirmed",
-        body: `Your session with ${photographer.name} on ${formatDate(selectedDate)} has been confirmed.`,
+        body: `Your session with ${photographer?.name || "the photographer"} on ${formatDate(selectedDate)} has been confirmed.`,
       });
 
       setBookedSessionId(session.id);
@@ -349,7 +404,7 @@ export default function BookingScreen() {
     navigation.navigate("Payment", {
       sessionId: bookedSessionId,
       amount: sessionPrice,
-      photographerName: photographer.name,
+      photographerName: photographer?.name || "Photographer",
       sessionDate: formatDate(selectedDate),
     });
   };
@@ -829,12 +884,12 @@ export default function BookingScreen() {
         <View style={[styles.reviewCard, { backgroundColor: theme.backgroundDefault }]}>
           <View style={styles.reviewHeader}>
             <Image
-              source={{ uri: photographer.avatar }}
+              source={{ uri: photographer?.avatar || "" }}
               style={styles.reviewAvatar}
               contentFit="cover"
             />
             <View>
-              <ThemedText type="h4">{photographer.name}</ThemedText>
+              <ThemedText type="h4">{photographer?.name || "Photographer"}</ThemedText>
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
                 {selectedService.name}
               </ThemedText>
@@ -904,6 +959,45 @@ export default function BookingScreen() {
   };
 
   const canConfirm = bookingDraft && bookingDraft.status === "held" && countdown > 0;
+
+  // Show loading screen while fetching photographer data
+  if (isLoadingPhotographer) {
+    return (
+      <ThemedView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+          Loading photographer...
+        </ThemedText>
+      </ThemedView>
+    );
+  }
+
+  // Show error state if photographer couldn't be loaded
+  if (!photographer) {
+    return (
+      <ThemedView style={[styles.container, { justifyContent: "center", alignItems: "center", padding: Spacing.xl }]}>
+        <Feather name="alert-circle" size={48} color={theme.error || "#EF4444"} />
+        <ThemedText type="h4" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+          Photographer Not Found
+        </ThemedText>
+        <ThemedText type="body" style={{ marginTop: Spacing.sm, color: theme.textSecondary, textAlign: "center" }}>
+          {error || "Unable to load photographer details. They may no longer be available."}
+        </ThemedText>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={{
+            marginTop: Spacing.xl,
+            paddingHorizontal: Spacing.xl,
+            paddingVertical: Spacing.md,
+            backgroundColor: theme.primary,
+            borderRadius: BorderRadius.md,
+          }}
+        >
+          <ThemedText type="body" style={{ color: "#FFFFFF" }}>Go Back</ThemedText>
+        </Pressable>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -983,7 +1077,7 @@ export default function BookingScreen() {
               Booking Confirmed!
             </ThemedText>
             <ThemedText type="body" style={[styles.modalMessage, { color: theme.textSecondary }]}>
-              Your session with {photographer.name} has been booked for {selectedDate ? formatDate(selectedDate) : ""}.
+              Your session with {photographer?.name || "the photographer"} has been booked for {selectedDate ? formatDate(selectedDate) : ""}.
             </ThemedText>
             <View style={styles.modalButtons}>
               <Pressable
