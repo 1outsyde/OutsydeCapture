@@ -47,6 +47,20 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Personalized**: Authenticated users get industry-preference and location-based personalization
   - **Anonymous Support**: Works without login using engagement and recency only
 - **Universal Notification Bell**: Available on Home screen header for all authenticated users (not just admins), with unread count badge.
+- **Post Commerce Navigation**: Commerce-enabled posts allow direct booking/purchase from feed:
+  - **Post Interactions**: 
+    - Tapping author avatar/name → navigates to provider's public profile (PhotographerDetail or VendorDetail)
+    - Tapping "Book" button → navigates directly to BookingScreen (skips profile)
+    - Tapping "Buy Now" button → navigates directly to business products tab (skips profile intro)
+    - Likes/comments are universal with no role restrictions
+  - **Commerce CTAs**: Only appear on posts with commerce context attached
+    - Posts with `serviceId` → Show "Book" button (calendar icon)
+    - Posts with `productId` → Show "Buy Now" button (shopping-bag icon)
+    - Posts without serviceId or productId → No commerce button shown
+  - **Create Post Linking**: Photographers and businesses can optionally link services/products to posts
+    - Photographers see service picker in Create Post modal
+    - Businesses see combined service/product picker with visual icons
+    - Consumers never see the linking option
 - **Booking System (Backend-Driven)**: Zero client-side availability computation. Backend is single source of truth.
   - **Flow**: Service → Date → Slot → Review/Confirm → Payment
   - **Step Gates**: Each step is disabled until previous step is complete
