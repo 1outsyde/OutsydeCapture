@@ -997,7 +997,7 @@ class ApiService {
   }
 
   async mobileLogin(data: MobileLoginRequest): Promise<MobileLoginResponse> {
-    return this.request<MobileLoginResponse>("/api/auth/login", {
+    return this.request<MobileLoginResponse>("/api/auth/mobile/login", {
       method: "POST",
       body: JSON.stringify(data),
     });
