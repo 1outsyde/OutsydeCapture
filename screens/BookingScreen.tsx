@@ -1,93 +1,366 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { StyleSheet, View, Pressable, ScrollView, TextInput, Alert, Platform, Modal, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { PhotographyCategory, CATEGORY_LABELS, TimeSlot, AvailabilitySlot } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
-import api from "@/services/api";
-import { computeAvailableDates } from "@/utils/availabilityUtils";
+import api, { AvailableSlot, BookingDraft, PhotographerService } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Booking">;
 
-type BookingStep = "date" | "time" | "details" | "review";
+type BookingStep = "service" | "date" | "slot" | "review";
 
-const SESSION_TYPES: PhotographyCategory[] = ["wedding", "portrait", "events", "product", "nature", "fashion"];
+const HOLD_DURATION_SECONDS = 600;
 
 export default function BookingScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
   const { photographer } = route.params;
+  const { getToken, isAuthenticated } = useAuth();
   const { addSession } = useData();
   const { addNotification } = useNotifications();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<BookingStep>("date");
+  const [step, setStep] = useState<BookingStep>("service");
+  const [selectedService, setSelectedService] = useState<PhotographerService | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [location, setLocation] = useState("");
-  const [sessionType, setSessionType] = useState<PhotographyCategory>(photographer.specialty);
   const [notes, setNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [services, setServices] = useState<PhotographerService[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
+  
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
+  const [isLoadingDates, setIsLoadingDates] = useState(false);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [countdown, setCountdown] = useState<number>(0);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [bookedSessionId, setBookedSessionId] = useState<string>("");
-  
-  const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
-  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
-  const [computedAvailability, setComputedAvailability] = useState<AvailabilitySlot[]>([]);
   
   const [viewingMonth, setViewingMonth] = useState(() => new Date());
 
   useEffect(() => {
-    fetchAvailability();
-  }, [photographer.id]);
+    fetchServices();
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+      }
+    };
+  }, []);
 
-  const fetchAvailability = async () => {
-    setIsLoadingAvailability(true);
-    setAvailabilityError(null);
-    
-    try {
-      const [availResponse, blockedResponse] = await Promise.all([
-        api.getPhotographerPublicAvailability(photographer.id).catch(() => ({ availability: [] })),
-        api.getPhotographerPublicBlockedDates(photographer.id).catch(() => ({ blockedDates: [] })),
-      ]);
-      
-      const computed = computeAvailableDates(
-        availResponse.availability,
-        blockedResponse.blockedDates,
-        60,
-        60
-      );
-      
-      setComputedAvailability(computed);
-    } catch (error) {
-      console.error("Failed to fetch availability:", error);
-      setAvailabilityError("Unable to load availability. Please try again.");
-    } finally {
-      setIsLoadingAvailability(false);
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        cancelDraftIfExists();
+      };
+    }, [bookingDraft])
+  );
+
+  useEffect(() => {
+    if (bookingDraft && bookingDraft.status === "held") {
+      const expiresAt = new Date(bookingDraft.expiresAt).getTime();
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+      setCountdown(remaining);
+
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+      }
+
+      countdownRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownRef.current) {
+              clearInterval(countdownRef.current);
+            }
+            handleDraftExpired();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  }, [bookingDraft]);
+
+  const cancelDraftIfExists = async () => {
+    if (bookingDraft && bookingDraft.status === "held") {
+      try {
+        const token = await getToken();
+        if (token) {
+          await api.cancelBookingDraft(token, bookingDraft.id);
+        }
+      } catch (e) {
+        console.log("Failed to cancel draft:", e);
+      }
     }
   };
 
-  const availableDates = useMemo(() => {
-    return computedAvailability.map(a => a.date);
-  }, [computedAvailability]);
-  
-  const availableTimeSlots = useMemo(() => {
-    const dayAvailability = computedAvailability.find(a => a.date === selectedDate);
-    return dayAvailability?.timeSlots.filter(s => s.available) || [];
-  }, [selectedDate, computedAvailability]);
+  const handleDraftExpired = () => {
+    setBookingDraft(null);
+    setSelectedSlot(null);
+    setStep("slot");
+    if (Platform.OS === "web") {
+      window.alert("Your held slot has expired. Please select another time.");
+    } else {
+      Alert.alert("Slot Expired", "Your held slot has expired. Please select another time.");
+    }
+  };
+
+  const fetchServices = async () => {
+    setIsLoadingServices(true);
+    setError(null);
+    try {
+      const response = await api.getPhotographerPublicServices(photographer.id);
+      const servicesList = Array.isArray(response) ? response : [];
+      const activeServices = servicesList.filter(
+        (s: any) => s.isActive && s.status === "active"
+      );
+      setServices(activeServices.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description || "",
+        duration: s.durationMinutes || s.duration || 60,
+        price: s.price || 0,
+        isActive: s.isActive,
+        status: s.status,
+        category: s.category,
+      })));
+    } catch (e) {
+      console.error("Failed to fetch services:", e);
+      setError("Unable to load services. Please try again.");
+    } finally {
+      setIsLoadingServices(false);
+    }
+  };
+
+  const fetchAvailableDates = async (serviceId: string) => {
+    setIsLoadingDates(true);
+    setError(null);
+    try {
+      const startDate = new Date().toISOString().split("T")[0];
+      const endDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const response = await api.getPhotographerAvailableDates(photographer.id, startDate, endDate);
+      setAvailableDates(response.dates || []);
+    } catch (e) {
+      console.error("Failed to fetch available dates:", e);
+      setError("Unable to load available dates. Please try again.");
+    } finally {
+      setIsLoadingDates(false);
+    }
+  };
+
+  const fetchAvailableSlots = async (date: string) => {
+    setIsLoadingSlots(true);
+    setError(null);
+    setAvailableSlots([]);
+    try {
+      const response = await api.getPhotographerAvailableSlots(
+        photographer.id,
+        date,
+        selectedService?.id
+      );
+      const openSlots = (response.slots || []).filter((s: AvailableSlot) => s.available);
+      setAvailableSlots(openSlots);
+    } catch (e) {
+      console.error("Failed to fetch slots:", e);
+      setError("Unable to load time slots. Please try again.");
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  const createDraft = async (slot: AvailableSlot) => {
+    if (!selectedService || !selectedDate) return;
+    
+    const token = await getToken();
+    if (!token) {
+      if (Platform.OS === "web") {
+        window.alert("Please sign in to book an appointment.");
+      } else {
+        Alert.alert("Sign In Required", "Please sign in to book an appointment.");
+      }
+      return;
+    }
+
+    setIsCreatingDraft(true);
+    setError(null);
+    try {
+      const response = await api.createBookingDraft(token, {
+        photographerId: photographer.id,
+        serviceId: selectedService.id,
+        date: selectedDate,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        location,
+        notes,
+      });
+      setBookingDraft(response.draft);
+      setSelectedSlot(slot);
+      setStep("review");
+    } catch (e: any) {
+      console.error("Failed to create draft:", e);
+      const message = e?.message || "Unable to hold this slot. It may have been taken.";
+      if (Platform.OS === "web") {
+        window.alert(message);
+      } else {
+        Alert.alert("Slot Unavailable", message);
+      }
+      fetchAvailableSlots(selectedDate);
+    } finally {
+      setIsCreatingDraft(false);
+    }
+  };
+
+  const confirmBooking = async () => {
+    if (!bookingDraft || !selectedService || !selectedSlot) return;
+
+    const token = await getToken();
+    if (!token) return;
+
+    setIsConfirming(true);
+    try {
+      const response = await api.confirmBookingDraft(token, bookingDraft.id);
+      
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+      }
+
+      const session = await addSession({
+        photographerId: photographer.id,
+        photographerName: photographer.name,
+        photographerAvatar: photographer.avatar,
+        date: selectedDate,
+        time: selectedSlot.startTime,
+        endTime: selectedSlot.endTime,
+        location,
+        sessionType: selectedService.category || "portrait",
+        notes,
+        status: "upcoming",
+        price: selectedService.price || bookingDraft.totalAmount,
+      });
+
+      await addNotification({
+        type: "booking",
+        title: "Booking Confirmed",
+        body: `Your session with ${photographer.name} on ${formatDate(selectedDate)} has been confirmed.`,
+      });
+
+      setBookedSessionId(session.id);
+      setShowSuccessModal(true);
+    } catch (e: any) {
+      console.error("Failed to confirm booking:", e);
+      const message = e?.message || "Failed to confirm booking. Please try again.";
+      if (Platform.OS === "web") {
+        window.alert(message);
+      } else {
+        Alert.alert("Error", message);
+      }
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleSelectService = (service: PhotographerService) => {
+    setSelectedService(service);
+    setSelectedDate("");
+    setSelectedSlot(null);
+    setBookingDraft(null);
+    fetchAvailableDates(service.id);
+    setStep("date");
+  };
+
+  const handleSelectDate = (date: string) => {
+    setSelectedDate(date);
+    setSelectedSlot(null);
+    setBookingDraft(null);
+    fetchAvailableSlots(date);
+    setStep("slot");
+  };
+
+  const handleSelectSlot = (slot: AvailableSlot) => {
+    createDraft(slot);
+  };
+
+  const handleBack = async () => {
+    switch (step) {
+      case "service":
+        navigation.goBack();
+        break;
+      case "date":
+        setStep("service");
+        break;
+      case "slot":
+        setStep("date");
+        break;
+      case "review":
+        await cancelDraftIfExists();
+        setBookingDraft(null);
+        setSelectedSlot(null);
+        setStep("slot");
+        break;
+    }
+  };
+
+  const handlePayLater = () => {
+    setShowSuccessModal(false);
+    navigation.goBack();
+  };
+
+  const handlePayNow = () => {
+    const sessionPrice = selectedService?.price || bookingDraft?.totalAmount || 0;
+    setShowSuccessModal(false);
+    navigation.goBack();
+    navigation.navigate("Payment", {
+      sessionId: bookedSessionId,
+      amount: sessionPrice,
+      photographerName: photographer.name,
+      sessionDate: formatDate(selectedDate),
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(":");
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const currentMonthLabel = useMemo(() => {
     return viewingMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -147,202 +420,76 @@ export default function BookingScreen() {
     return next <= maxMonth;
   }, [viewingMonth]);
 
-  const getPriceValue = (range: string) => {
-    switch (range) {
-      case "$": return 150;
-      case "$$": return 300;
-      case "$$$": return 500;
-      case "$$$$": return 800;
-      default: return 250;
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(":");
-    const h = parseInt(hours);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const hour12 = h % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
-  };
-
-  const handleNext = () => {
-    switch (step) {
-      case "date":
-        if (!selectedDate) {
-          Alert.alert("Select Date", "Please select a date for your session");
-          return;
-        }
-        setStep("time");
-        break;
-      case "time":
-        if (!selectedTimeSlot) {
-          Alert.alert("Select Time", "Please select a time slot");
-          return;
-        }
-        setStep("details");
-        break;
-      case "details":
-        if (!location.trim()) {
-          Alert.alert("Location Required", "Please enter a location for your session");
-          return;
-        }
-        setStep("review");
-        break;
-      case "review":
-        handleConfirmBooking();
-        break;
-    }
-  };
-
-  const handleBack = () => {
-    switch (step) {
-      case "time":
-        setStep("date");
-        break;
-      case "details":
-        setStep("time");
-        break;
-      case "review":
-        setStep("details");
-        break;
-      default:
-        navigation.goBack();
-    }
-  };
-
-  const handleConfirmBooking = async () => {
-    if (!selectedTimeSlot) return;
+  const renderStepIndicator = () => {
+    const steps: BookingStep[] = ["service", "date", "slot", "review"];
+    const stepIndex = steps.indexOf(step);
     
-    setIsSubmitting(true);
-    try {
-      const session = await addSession({
-        photographerId: photographer.id,
-        photographerName: photographer.name,
-        photographerAvatar: photographer.avatar,
-        date: selectedDate,
-        time: selectedTimeSlot.startTime,
-        endTime: selectedTimeSlot.endTime,
-        location,
-        sessionType,
-        notes,
-        status: "upcoming",
-        price: getPriceValue(photographer.priceRange),
-      });
-      
-      await addNotification({
-        type: "booking",
-        title: "Booking Confirmed",
-        body: `Your session with ${photographer.name} on ${formatDate(selectedDate)} has been confirmed.`,
-      });
-      
-      setBookedSessionId(session.id);
-      setShowSuccessModal(true);
-    } catch (error) {
-      if (Platform.OS === "web") {
-        window.alert("Failed to create booking. Please try again.");
-      } else {
-        Alert.alert("Error", "Failed to create booking. Please try again.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handlePayLater = () => {
-    setShowSuccessModal(false);
-    navigation.goBack();
-    navigation.goBack();
-  };
-
-  const handlePayNow = () => {
-    const sessionPrice = getPriceValue(photographer.priceRange);
-    setShowSuccessModal(false);
-    navigation.goBack();
-    navigation.goBack();
-    navigation.navigate("Payment", {
-      sessionId: bookedSessionId,
-      amount: sessionPrice,
-      photographerName: photographer.name,
-      sessionDate: formatDate(selectedDate),
-    });
-  };
-
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      {["date", "time", "details", "review"].map((s, index) => (
-        <View key={s} style={styles.stepItem}>
-          <View
-            style={[
-              styles.stepCircle,
-              {
-                backgroundColor:
-                  step === s
-                    ? theme.primary
-                    : ["date", "time", "details", "review"].indexOf(step) > index
-                    ? theme.success
-                    : theme.backgroundSecondary,
-              },
-            ]}
-          >
-            {["date", "time", "details", "review"].indexOf(step) > index ? (
-              <Feather name="check" size={14} color="#FFFFFF" />
-            ) : (
-              <ThemedText
-                type="caption"
-                style={{ color: step === s ? "#FFFFFF" : theme.textSecondary }}
-              >
-                {index + 1}
-              </ThemedText>
-            )}
-          </View>
-          {index < 3 ? (
+    return (
+      <View style={styles.stepIndicator}>
+        {steps.map((s, index) => (
+          <View key={s} style={styles.stepItem}>
             <View
               style={[
-                styles.stepLine,
+                styles.stepCircle,
                 {
                   backgroundColor:
-                    ["date", "time", "details", "review"].indexOf(step) > index
+                    step === s
+                      ? theme.primary
+                      : stepIndex > index
                       ? theme.success
                       : theme.backgroundSecondary,
                 },
               ]}
-            />
-          ) : null}
-        </View>
-      ))}
-    </View>
-  );
+            >
+              {stepIndex > index ? (
+                <Feather name="check" size={14} color="#FFFFFF" />
+              ) : (
+                <ThemedText
+                  type="caption"
+                  style={{ color: step === s ? "#FFFFFF" : theme.textSecondary }}
+                >
+                  {index + 1}
+                </ThemedText>
+              )}
+            </View>
+            {index < steps.length - 1 && (
+              <View
+                style={[
+                  styles.stepLine,
+                  {
+                    backgroundColor:
+                      stepIndex > index ? theme.success : theme.backgroundSecondary,
+                  },
+                ]}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
 
-  const renderDateStep = () => {
-    if (isLoadingAvailability) {
+  const renderServiceStep = () => {
+    if (isLoadingServices) {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary }}>
-            Loading availability...
+            Loading services...
           </ThemedText>
         </View>
       );
     }
 
-    if (availabilityError) {
+    if (error) {
       return (
         <View style={styles.errorContainer}>
           <Feather name="alert-circle" size={48} color={theme.error} />
           <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary, textAlign: "center" }}>
-            {availabilityError}
+            {error}
           </ThemedText>
           <Pressable
-            onPress={fetchAvailability}
+            onPress={fetchServices}
             style={[styles.retryButton, { backgroundColor: theme.primary }]}
           >
             <ThemedText type="button" style={{ color: "#FFFFFF" }}>
@@ -353,13 +500,89 @@ export default function BookingScreen() {
       );
     }
 
+    if (services.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Feather name="camera-off" size={48} color={theme.textSecondary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary, textAlign: "center" }}>
+            No services available.{"\n"}Please contact the photographer directly.
+          </ThemedText>
+        </View>
+      );
+    }
+
     return (
       <View>
         <ThemedText type="h3" style={styles.stepTitle}>
-          Select Date & Time
+          Select Service
         </ThemedText>
         <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          Choose an available date for your session
+          Choose the type of session you need
+        </ThemedText>
+
+        {services.map(service => (
+          <Pressable
+            key={service.id}
+            onPress={() => handleSelectService(service)}
+            style={({ pressed }) => [
+              styles.serviceCard,
+              {
+                backgroundColor: selectedService?.id === service.id 
+                  ? theme.primary + "15" 
+                  : theme.backgroundDefault,
+                borderColor: selectedService?.id === service.id 
+                  ? theme.primary 
+                  : "transparent",
+                borderWidth: 2,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <View style={styles.serviceHeader}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="h4">{service.name}</ThemedText>
+                {service.description && (
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                    {service.description}
+                  </ThemedText>
+                )}
+              </View>
+              <View style={styles.servicePrice}>
+                <ThemedText type="h4" style={{ color: theme.primary }}>
+                  ${service.price}
+                </ThemedText>
+                {service.duration && (
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    {service.duration} min
+                  </ThemedText>
+                )}
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
+
+  const renderDateStep = () => {
+    if (isLoadingDates) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary }}>
+            Loading available dates...
+          </ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <View>
+        <ThemedText type="h3" style={styles.stepTitle}>
+          Select Date
+        </ThemedText>
+        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
+          {selectedService?.name} - Choose an available date
         </ThemedText>
 
         <View style={styles.monthHeader}>
@@ -399,7 +622,7 @@ export default function BookingScreen() {
             <Pressable
               key={index}
               disabled={!item.isAvailable || item.isPast}
-              onPress={() => setSelectedDate(item.date)}
+              onPress={() => handleSelectDate(item.date)}
               style={({ pressed }) => [
                 styles.calendarDay,
                 {
@@ -413,7 +636,7 @@ export default function BookingScreen() {
                 },
               ]}
             >
-              {item.day > 0 ? (
+              {item.day > 0 && (
                 <ThemedText
                   type="body"
                   style={{
@@ -428,152 +651,165 @@ export default function BookingScreen() {
                 >
                   {item.day}
                 </ThemedText>
-              ) : null}
+              )}
             </Pressable>
           ))}
         </View>
 
-        {availableDates.length === 0 ? (
+        {availableDates.length === 0 && (
           <View style={styles.noAvailabilityMessage}>
             <Feather name="calendar" size={32} color={theme.textSecondary} />
             <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
-              No availability set for this photographer.{"\n"}Please contact them directly.
+              No availability for this service.{"\n"}Please contact the photographer.
             </ThemedText>
           </View>
-        ) : null}
+        )}
       </View>
     );
   };
 
-  const renderTimeStep = () => (
-    <View>
-      <ThemedText type="h3" style={styles.stepTitle}>
-        Select Time
-      </ThemedText>
-      <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-        {formatDate(selectedDate)}
-      </ThemedText>
-
-      <View style={styles.timeSlots}>
-        {availableTimeSlots.map(slot => (
-          <Pressable
-            key={slot.id}
-            onPress={() => setSelectedTimeSlot(slot)}
-            style={({ pressed }) => [
-              styles.timeSlot,
-              {
-                backgroundColor:
-                  selectedTimeSlot?.id === slot.id
-                    ? theme.primary
-                    : theme.backgroundDefault,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
-          >
-            <ThemedText
-              type="body"
-              style={{
-                color: selectedTimeSlot?.id === slot.id ? "#FFFFFF" : theme.text,
-              }}
-            >
-              {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-            </ThemedText>
-          </Pressable>
-        ))}
-      </View>
-
-      {availableTimeSlots.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Feather name="clock" size={32} color={theme.textSecondary} />
-          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-            No available time slots for this date
+  const renderSlotStep = () => {
+    if (isLoadingSlots) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary }}>
+            Loading available times...
           </ThemedText>
         </View>
-      ) : null}
-    </View>
-  );
+      );
+    }
 
-  const renderDetailsStep = () => (
-    <View>
-      <ThemedText type="h3" style={styles.stepTitle}>
-        Session Details
-      </ThemedText>
-      <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-        Tell us about your session
-      </ThemedText>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="small" style={styles.label}>
-          Location
-        </ThemedText>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text }]}
-          value={location}
-          onChangeText={setLocation}
-          placeholder="Where should the session take place?"
-          placeholderTextColor={theme.textSecondary}
-        />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="small" style={styles.label}>
-          Session Type
-        </ThemedText>
-        <View style={styles.sessionTypes}>
-          {SESSION_TYPES.map(type => (
-            <Pressable
-              key={type}
-              onPress={() => setSessionType(type)}
-              style={({ pressed }) => [
-                styles.sessionTypeChip,
-                {
-                  backgroundColor:
-                    sessionType === type ? theme.primary : theme.backgroundDefault,
-                  opacity: pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              <ThemedText
-                type="small"
-                style={{
-                  color: sessionType === type ? "#FFFFFF" : theme.text,
-                }}
-              >
-                {CATEGORY_LABELS[type]}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <ThemedText type="small" style={styles.label}>
-          Notes (Optional)
-        </ThemedText>
-        <TextInput
-          style={[styles.input, styles.textArea, { backgroundColor: theme.backgroundDefault, color: theme.text }]}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Any special requests or details..."
-          placeholderTextColor={theme.textSecondary}
-          multiline
-          textAlignVertical="top"
-        />
-      </View>
-    </View>
-  );
-
-  const renderReviewStep = () => {
-    const sessionPrice = getPriceValue(photographer.priceRange);
-    
     return (
       <View>
         <ThemedText type="h3" style={styles.stepTitle}>
-          Review Booking
+          Select Time
         </ThemedText>
         <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          Confirm your session details
+          {formatDate(selectedDate)}
         </ThemedText>
+
+        {availableSlots.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Feather name="clock" size={32} color={theme.textSecondary} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
+              No available time slots for this date.{"\n"}Please select another date.
+            </ThemedText>
+            <Pressable
+              onPress={() => setStep("date")}
+              style={[styles.retryButton, { backgroundColor: theme.primary }]}
+            >
+              <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+                Choose Another Date
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.timeSlots}>
+            {availableSlots.map((slot, index) => (
+              <Pressable
+                key={`${slot.startTime}-${index}`}
+                onPress={() => handleSelectSlot(slot)}
+                disabled={isCreatingDraft}
+                style={({ pressed }) => [
+                  styles.timeSlot,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    opacity: pressed || isCreatingDraft ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <ThemedText type="body" style={{ color: theme.text }}>
+                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {isCreatingDraft && (
+          <View style={styles.holdingOverlay}>
+            <ActivityIndicator size="small" color={theme.primary} />
+            <ThemedText type="small" style={{ marginLeft: Spacing.sm, color: theme.textSecondary }}>
+              Holding your slot...
+            </ThemedText>
+          </View>
+        )}
+
+        <View style={styles.fieldContainer}>
+          <ThemedText type="small" style={styles.label}>
+            Location (Optional)
+          </ThemedText>
+          <TextInput
+            style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text }]}
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Where should the session take place?"
+            placeholderTextColor={theme.textSecondary}
+          />
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <ThemedText type="small" style={styles.label}>
+            Notes (Optional)
+          </ThemedText>
+          <TextInput
+            style={[styles.input, styles.textArea, { backgroundColor: theme.backgroundDefault, color: theme.text }]}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Any special requests or details..."
+            placeholderTextColor={theme.textSecondary}
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+      </View>
+    );
+  };
+
+  const renderReviewStep = () => {
+    if (!bookingDraft || !selectedService || !selectedSlot) {
+      return (
+        <View style={styles.errorContainer}>
+          <Feather name="alert-circle" size={48} color={theme.error} />
+          <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary, textAlign: "center" }}>
+            No booking draft found. Please select a time slot again.
+          </ThemedText>
+          <Pressable
+            onPress={() => setStep("slot")}
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
+          >
+            <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+              Go Back
+            </ThemedText>
+          </Pressable>
+        </View>
+      );
+    }
+
+    return (
+      <View>
+        <ThemedText type="h3" style={styles.stepTitle}>
+          Review & Confirm
+        </ThemedText>
+        
+        <View style={[styles.countdownBanner, { backgroundColor: countdown < 60 ? theme.error + "20" : theme.primary + "20" }]}>
+          <Feather 
+            name="clock" 
+            size={20} 
+            color={countdown < 60 ? theme.error : theme.primary} 
+          />
+          <ThemedText 
+            type="body" 
+            style={{ 
+              marginLeft: Spacing.sm, 
+              color: countdown < 60 ? theme.error : theme.primary,
+              fontWeight: "600",
+            }}
+          >
+            Slot held for {formatCountdown(countdown)}
+          </ThemedText>
+        </View>
 
         <View style={[styles.reviewCard, { backgroundColor: theme.backgroundDefault }]}>
           <View style={styles.reviewHeader}>
@@ -585,7 +821,7 @@ export default function BookingScreen() {
             <View>
               <ThemedText type="h4">{photographer.name}</ThemedText>
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {photographer.specialty ? CATEGORY_LABELS[photographer.specialty] : "Photography"}
+                {selectedService.name}
               </ThemedText>
             </View>
           </View>
@@ -602,32 +838,36 @@ export default function BookingScreen() {
           <View style={styles.reviewItem}>
             <Feather name="clock" size={20} color={theme.primary} />
             <ThemedText type="body" style={styles.reviewItemText}>
-              {selectedTimeSlot ? `${formatTime(selectedTimeSlot.startTime)} - ${formatTime(selectedTimeSlot.endTime)}` : ""}
+              {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
             </ThemedText>
           </View>
 
-          <View style={styles.reviewItem}>
-            <Feather name="map-pin" size={20} color={theme.primary} />
-            <ThemedText type="body" style={styles.reviewItemText}>
-              {location}
-            </ThemedText>
-          </View>
+          {location && (
+            <View style={styles.reviewItem}>
+              <Feather name="map-pin" size={20} color={theme.primary} />
+              <ThemedText type="body" style={styles.reviewItemText}>
+                {location}
+              </ThemedText>
+            </View>
+          )}
 
-          <View style={styles.reviewItem}>
-            <Feather name="camera" size={20} color={theme.primary} />
-            <ThemedText type="body" style={styles.reviewItemText}>
-              {CATEGORY_LABELS[sessionType]} Session
-            </ThemedText>
-          </View>
+          {notes && (
+            <View style={styles.reviewItem}>
+              <Feather name="file-text" size={20} color={theme.primary} />
+              <ThemedText type="body" style={styles.reviewItemText}>
+                {notes}
+              </ThemedText>
+            </View>
+          )}
 
           <View style={styles.reviewDivider} />
 
           <View style={styles.reviewTotal}>
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
-              Estimated Total
+              Total
             </ThemedText>
             <ThemedText type="h3" style={{ color: theme.primary }}>
-              ${sessionPrice}
+              ${bookingDraft.totalAmount || selectedService.price}
             </ThemedText>
           </View>
         </View>
@@ -637,29 +877,18 @@ export default function BookingScreen() {
 
   const renderCurrentStep = () => {
     switch (step) {
+      case "service":
+        return renderServiceStep();
       case "date":
         return renderDateStep();
-      case "time":
-        return renderTimeStep();
-      case "details":
-        return renderDetailsStep();
+      case "slot":
+        return renderSlotStep();
       case "review":
         return renderReviewStep();
     }
   };
 
-  const getNextButtonText = () => {
-    switch (step) {
-      case "date":
-        return "NEXT";
-      case "time":
-        return "NEXT";
-      case "details":
-        return "REVIEW";
-      case "review":
-        return "CONFIRM BOOKING";
-    }
-  };
+  const canConfirm = bookingDraft && bookingDraft.status === "held" && countdown > 0;
 
   return (
     <ThemedView style={styles.container}>
@@ -681,46 +910,48 @@ export default function BookingScreen() {
         {renderCurrentStep()}
       </ScrollView>
 
-      <View
-        style={[
-          styles.footer,
-          { 
-            backgroundColor: theme.background, 
-            borderTopColor: theme.border,
-            paddingBottom: insets.bottom + Spacing.lg 
-          },
-        ]}
-      >
-        <View style={styles.footerContent}>
-          <View>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Starting at
-            </ThemedText>
-            <ThemedText type="h3" style={{ color: theme.primary }}>
-              ${getPriceValue(photographer.priceRange).toFixed(2)}
-            </ThemedText>
-          </View>
-          <Pressable
-            onPress={handleNext}
-            disabled={isSubmitting || isLoadingAvailability}
-            style={({ pressed }) => [
-              styles.nextButton,
-              {
-                backgroundColor: theme.primary,
-                opacity: pressed || isSubmitting || isLoadingAvailability ? 0.8 : 1,
-              },
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <ThemedText type="button" style={{ color: "#FFFFFF" }}>
-                {getNextButtonText()}
+      {step === "review" && (
+        <View
+          style={[
+            styles.footer,
+            { 
+              backgroundColor: theme.background, 
+              borderTopColor: theme.border,
+              paddingBottom: insets.bottom + Spacing.lg 
+            },
+          ]}
+        >
+          <View style={styles.footerContent}>
+            <View>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                Total
               </ThemedText>
-            )}
-          </Pressable>
+              <ThemedText type="h3" style={{ color: theme.primary }}>
+                ${bookingDraft?.totalAmount || selectedService?.price || 0}
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={confirmBooking}
+              disabled={!canConfirm || isConfirming}
+              style={({ pressed }) => [
+                styles.nextButton,
+                {
+                  backgroundColor: canConfirm ? theme.primary : theme.backgroundSecondary,
+                  opacity: pressed || isConfirming ? 0.8 : 1,
+                },
+              ]}
+            >
+              {isConfirming ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <ThemedText type="button" style={{ color: canConfirm ? "#FFFFFF" : theme.textSecondary }}>
+                  CONFIRM BOOKING
+                </ThemedText>
+              )}
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
 
       <Modal
         visible={showSuccessModal}
@@ -841,6 +1072,23 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
   },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: Spacing["2xl"],
+  },
+  serviceCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  serviceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  servicePrice: {
+    alignItems: "flex-end",
+  },
   monthHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -880,15 +1128,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Spacing.md,
+    marginBottom: Spacing.xl,
   },
   timeSlot: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
   },
-  emptyState: {
+  holdingOverlay: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing["2xl"],
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   fieldContainer: {
     marginBottom: Spacing.xl,
@@ -907,15 +1159,14 @@ const styles = StyleSheet.create({
     height: 120,
     paddingTop: Spacing.md,
   },
-  sessionTypes: {
+  countdownBanner: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
-  sessionTypeChip: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xl,
   },
   reviewCard: {
     borderRadius: BorderRadius.lg,
@@ -965,7 +1216,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing["2xl"],
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    minWidth: 120,
+    minWidth: 140,
     alignItems: "center",
   },
   modalOverlay: {

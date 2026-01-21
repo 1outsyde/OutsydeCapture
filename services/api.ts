@@ -583,6 +583,24 @@ export interface PhotographerBooking {
   amount: number;
 }
 
+export interface AvailableSlot {
+  startTime: string;
+  endTime: string;
+  available: boolean;
+}
+
+export interface BookingDraft {
+  id: string;
+  photographerId: string;
+  serviceId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: "held" | "expired" | "confirmed";
+  expiresAt: string;
+  totalAmount: number;
+}
+
 export interface PhotographerService {
   id: string;
   name: string;
@@ -2199,6 +2217,80 @@ class ApiService {
     return this.request<{ comment: any }>(`/api/feed/${postId}/comments`, {
       method: "POST",
       body: JSON.stringify({ content }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // ==========================================
+  // Backend-Driven Booking Slots API
+  // ==========================================
+
+  async getPhotographerAvailableSlots(
+    photographerId: string,
+    date: string,
+    serviceId?: string
+  ): Promise<{ slots: AvailableSlot[]; date: string }> {
+    const params = new URLSearchParams({ date });
+    if (serviceId) params.append("serviceId", serviceId);
+    return this.request<{ slots: AvailableSlot[]; date: string }>(
+      `/api/photographers/${photographerId}/slots?${params.toString()}`
+    );
+  }
+
+  async getPhotographerAvailableDates(
+    photographerId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<{ dates: string[] }> {
+    const params = new URLSearchParams({ startDate, endDate });
+    return this.request<{ dates: string[] }>(
+      `/api/photographers/${photographerId}/available-dates?${params.toString()}`
+    );
+  }
+
+  async createBookingDraft(
+    authToken: string,
+    data: {
+      photographerId: string;
+      serviceId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      location?: string;
+      notes?: string;
+    }
+  ): Promise<{ draft: BookingDraft }> {
+    return this.request<{ draft: BookingDraft }>("/api/bookings/draft", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async cancelBookingDraft(authToken: string, draftId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/bookings/draft/${draftId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async confirmBookingDraft(
+    authToken: string,
+    draftId: string,
+    paymentMethodId?: string
+  ): Promise<{ booking: PhotographerBooking; paymentIntentClientSecret?: string }> {
+    return this.request<{ booking: PhotographerBooking; paymentIntentClientSecret?: string }>(
+      `/api/bookings/draft/${draftId}/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ paymentMethodId }),
+        headers: { "Authorization": `Bearer ${authToken}` },
+      }
+    );
+  }
+
+  async getBookingDraft(authToken: string, draftId: string): Promise<{ draft: BookingDraft }> {
+    return this.request<{ draft: BookingDraft }>(`/api/bookings/draft/${draftId}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
