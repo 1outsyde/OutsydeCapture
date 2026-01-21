@@ -48,8 +48,16 @@ export default function AdminBusinessReviewScreen() {
 
   const fetchBusinessDetail = useCallback(async () => {
     const token = await getToken();
+    console.log(`[AdminBusinessReview] Token retrieved:`, token ? `${token.substring(0, 30)}...` : "null");
     if (!token) {
-      setFetchError("Authentication required");
+      setFetchError("Authentication required. Please log in again.");
+      setLoading(false);
+      return;
+    }
+    
+    if (token.startsWith("session_")) {
+      console.log("[AdminBusinessReview] WARNING: Token is a session indicator, not a JWT. Backend may return 401.");
+      setFetchError("Your session token is not a valid JWT. The backend requires a JWT access token for admin operations. Please log out and log back in, or contact the backend team to ensure /api/auth/login returns an accessToken.");
       setLoading(false);
       return;
     }
@@ -61,8 +69,10 @@ export default function AdminBusinessReviewScreen() {
       setBusiness(data);
       setFetchError(null);
     } catch (error: any) {
-      console.log("[AdminBusinessReview] Error fetching business detail:", error?.message || error);
-      if (error?.status === 404 || error?.message?.includes("404")) {
+      console.log("[AdminBusinessReview] Error fetching business detail:", error?.message || error, "status:", error?.status);
+      if (error?.status === 401 || error?.message?.includes("401") || error?.message?.includes("Not authenticated")) {
+        setFetchError("Authentication failed (401). Your token may be invalid or expired. Please log out and log back in. If this persists, the backend may need to return a valid JWT in the login response.");
+      } else if (error?.status === 404 || error?.message?.includes("404")) {
         setFetchError("Business detail view is not yet available from the backend. The GET /api/admin/businesses/:id endpoint may need to be implemented. You can still approve or reject businesses from the list.");
       } else {
         setFetchError(`Failed to load business details: ${error?.message || "Unknown error"}`);

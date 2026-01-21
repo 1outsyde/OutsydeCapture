@@ -779,7 +779,6 @@ export default function AdminDashboardScreen() {
         activeOpacity={0.7}
         onPress={() => { 
           console.log("Tapped business (FlatList):", item.id, item.name); 
-          Alert.alert("Navigate", `Opening ${item.name}...`);
           navigation.navigate("AdminBusinessReview", { businessId: item.id }); 
         }}
       >
@@ -1151,7 +1150,7 @@ export default function AdminDashboardScreen() {
               filteredBusinesses.map((item) => {
                 const status = getBusinessStatus(item);
                 return (
-                  <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.7} onPress={() => { console.log("Tapped business:", item.id, item.name); Alert.alert("Navigate", `Opening ${item.name}...`); navigation.navigate("AdminBusinessReview", { businessId: item.id }); }}>
+                  <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.7} onPress={() => { console.log("Tapped business:", item.id, item.name); navigation.navigate("AdminBusinessReview", { businessId: item.id }); }}>
                     <View style={styles.listItemHeader}>
                       <Text style={styles.listItemName}>{item.name}</Text>
                       <View style={[

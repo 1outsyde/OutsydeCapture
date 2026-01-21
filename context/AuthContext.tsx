@@ -203,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
+      console.log("[Auth] Token stored:", response.accessToken ? "JWT accessToken received" : "Fallback to session indicator", "Token preview:", sessionToken.substring(0, 30) + "...");
       if (response.refreshToken) {
         await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
       }
