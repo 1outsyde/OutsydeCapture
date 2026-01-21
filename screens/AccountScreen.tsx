@@ -30,6 +30,7 @@ import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost } from "@/services/api";
+import { uploadImageToCloudinary } from "@/services/cloudinary";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -2251,8 +2252,26 @@ export default function AccountScreen() {
                   quality: 0.8,
                 });
                 if (!result.canceled && result.assets[0]) {
-                  setProfile(prev => prev ? { ...prev, avatar: result.assets[0].uri } : prev);
-                  Alert.alert("Success", "Profile photo updated!");
+                  const localUri = result.assets[0].uri;
+                  setProfile(prev => prev ? { ...prev, avatar: localUri } : prev);
+                  
+                  try {
+                    Alert.alert("Uploading", "Please wait while we save your photo...");
+                    const cloudinaryUrl = await uploadImageToCloudinary(localUri, "avatars");
+                    
+                    const token = await getToken();
+                    if (token && userRole === "photographer") {
+                      await api.updatePhotographerMe(token, { logoImage: cloudinaryUrl });
+                    } else if (token && userRole === "business") {
+                      await api.updateVendorProfile(token, { avatar: cloudinaryUrl });
+                    }
+                    
+                    setProfile(prev => prev ? { ...prev, avatar: cloudinaryUrl } : prev);
+                    Alert.alert("Success", "Profile photo saved!");
+                  } catch (error) {
+                    console.error("Failed to upload profile photo:", error);
+                    Alert.alert("Error", "Failed to save profile photo. Please try again.");
+                  }
                 }
               }}
               style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
@@ -2278,8 +2297,26 @@ export default function AccountScreen() {
                   quality: 0.8,
                 });
                 if (!result.canceled && result.assets[0]) {
-                  setProfile(prev => prev ? { ...prev, coverImage: result.assets[0].uri } : prev);
-                  Alert.alert("Success", "Banner photo updated!");
+                  const localUri = result.assets[0].uri;
+                  setProfile(prev => prev ? { ...prev, coverImage: localUri } : prev);
+                  
+                  try {
+                    Alert.alert("Uploading", "Please wait while we save your banner...");
+                    const cloudinaryUrl = await uploadImageToCloudinary(localUri, "banners");
+                    
+                    const token = await getToken();
+                    if (token && userRole === "photographer") {
+                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl });
+                    } else if (token && userRole === "business") {
+                      await api.updateVendorProfile(token, { coverImage: cloudinaryUrl });
+                    }
+                    
+                    setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl } : prev);
+                    Alert.alert("Success", "Banner photo saved!");
+                  } catch (error) {
+                    console.error("Failed to upload banner photo:", error);
+                    Alert.alert("Error", "Failed to save banner photo. Please try again.");
+                  }
                 }
               }}
               style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
