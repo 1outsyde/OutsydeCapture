@@ -27,13 +27,13 @@ export default function BookingScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
-  const { photographer } = route.params;
+  const { photographer, preselectedServiceId } = route.params;
   const { getToken, isAuthenticated } = useAuth();
   const { addSession } = useData();
   const { addNotification } = useNotifications();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<BookingStep>("service");
+  const [step, setStep] = useState<BookingStep>(preselectedServiceId ? "date" : "service");
   const [selectedService, setSelectedService] = useState<PhotographerService | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
@@ -136,7 +136,7 @@ export default function BookingScreen() {
       const activeServices = servicesList.filter(
         (s: any) => s.isActive && s.status === "active"
       );
-      setServices(activeServices.map((s: any) => ({
+      const mappedServices = activeServices.map((s: any) => ({
         id: s.id,
         name: s.name,
         description: s.description || "",
@@ -145,7 +145,22 @@ export default function BookingScreen() {
         isActive: s.isActive,
         status: s.status,
         category: s.category,
-      })));
+      }));
+      setServices(mappedServices);
+      
+      // Auto-select service if preselectedServiceId is provided
+      if (preselectedServiceId && mappedServices.length > 0) {
+        const preselected = mappedServices.find((s: PhotographerService) => s.id === preselectedServiceId);
+        if (preselected) {
+          setSelectedService(preselected);
+          // Fetch available dates for preselected service
+          fetchAvailableDates(preselected.id);
+        } else if (mappedServices.length === 1) {
+          // If service not found but only one service exists, use that
+          setSelectedService(mappedServices[0]);
+          fetchAvailableDates(mappedServices[0].id);
+        }
+      }
     } catch (e) {
       console.error("Failed to fetch services:", e);
       setError("Unable to load services. Please try again.");

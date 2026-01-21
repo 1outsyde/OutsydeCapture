@@ -63,7 +63,7 @@ export type RootStackParamList = {
   SelectPhotographer: undefined;
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer: Photographer; preselectedServiceId?: string };
-  VendorDetail: { vendorId: string };
+  VendorDetail: { vendorId: string; initialTab?: "products" | "services" | "reviews"; productId?: string };
   BusinessProfile: { business: BusinessProfileData };
   PhotographerProfile: { photographer: PhotographerProfileData };
   SessionDetail: { sessionId: string };

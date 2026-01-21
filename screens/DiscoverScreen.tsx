@@ -163,24 +163,52 @@ export default function DiscoverScreen() {
   }, [fetchAlgorithmicFeed]);
 
   const handleAuthorPress = (post: Post) => {
-    if (post.type === "photographer" && post.photographerId) {
-      const photographer = getPhotographer(post.photographerId);
-      if (photographer) {
-        navigation.navigate("PhotographerDetail", { photographer });
+    // Navigate to public profile based on userId (source of truth for identity)
+    // Future: use username for /profile/:username routes when available
+    if (post.type === "photographer") {
+      const photographerId = post.photographerId || post.providerId;
+      if (photographerId) {
+        const photographer = getPhotographer(photographerId);
+        if (photographer) {
+          navigation.navigate("PhotographerDetail", { photographer });
+        } else {
+          // Fallback to vendor detail if no photographer found
+          navigation.navigate("VendorDetail", { vendorId: post.userId });
+        }
       }
     } else if (post.type === "vendor") {
-      navigation.navigate("VendorDetail", { vendorId: post.authorId });
+      navigation.navigate("VendorDetail", { vendorId: post.userId });
+    } else {
+      // Regular user posts - navigate to a user profile (future implementation)
+      // For now, we can show an alert or do nothing
+      console.log("User profile navigation for userId:", post.userId);
     }
   };
 
   const handleActionPress = (post: Post) => {
-    if (post.type === "photographer" && post.photographerId) {
-      const photographer = getPhotographer(post.photographerId);
-      if (photographer) {
-        navigation.navigate("PhotographerDetail", { photographer });
+    // Direct navigation to booking/purchase - skip profile pages
+    if (post.type === "photographer") {
+      // Navigate directly to BookingScreen for photographers
+      const photographerId = post.photographerId || post.providerId;
+      if (photographerId) {
+        const photographer = getPhotographer(photographerId);
+        if (photographer) {
+          navigation.navigate("Booking", { 
+            photographer,
+            preselectedServiceId: post.serviceId 
+          });
+        } else {
+          // Fallback to profile if photographer not found locally
+          navigation.navigate("VendorDetail", { vendorId: post.userId });
+        }
       }
     } else if (post.type === "vendor") {
-      navigation.navigate("VendorDetail", { vendorId: post.authorId });
+      // Navigate directly to VendorDetail products tab for vendors with products
+      navigation.navigate("VendorDetail", { 
+        vendorId: post.providerId || post.userId,
+        initialTab: post.productId ? "products" : undefined,
+        productId: post.productId
+      });
     }
   };
 
