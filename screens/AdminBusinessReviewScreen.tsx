@@ -85,6 +85,8 @@ export default function AdminBusinessReviewScreen() {
   }, [getToken, businessId]);
 
   useEffect(() => {
+    console.log("[AdminBusinessReviewScreen] useEffect triggered, calling fetchBusinessDetail");
+    Alert.alert("Debug", `Screen mounted with businessId: ${businessId}`);
     fetchBusinessDetail();
   }, [fetchBusinessDetail]);
 

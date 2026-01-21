@@ -460,8 +460,8 @@ export default function RootNavigator() {
         name="AdminBusinessReview"
         component={AdminBusinessReviewScreen}
         options={{
-          presentation: "card",
-          animation: "slide_from_right",
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Review Business",
           headerTitleAlign: "center",
