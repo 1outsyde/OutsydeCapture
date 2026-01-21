@@ -1117,7 +1117,6 @@ export default function AdminDashboardScreen() {
         </View>
       </View>
 
-      {renderStatsCards()}
       {renderTabs()}
       <View style={styles.bottomSheet}>
         <View style={styles.dragHandle}>
