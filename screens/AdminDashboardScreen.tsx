@@ -786,8 +786,14 @@ export default function AdminDashboardScreen() {
     const status = getBusinessStatus(item);
     
     const navigateToDetail = () => {
-      console.log("Tapped business (FlatList):", item.id, item.name);
-      navigation.navigate("AdminBusinessReview", { businessId: item.id });
+      console.log("[AdminDashboard] View Details clicked for business:", item.id, item.name);
+      try {
+        console.log("[AdminDashboard] Attempting navigation to AdminBusinessReview...");
+        navigation.navigate("AdminBusinessReview", { businessId: item.id });
+        console.log("[AdminDashboard] Navigation called successfully");
+      } catch (error) {
+        console.error("[AdminDashboard] Navigation error:", error);
+      }
     };
     
     return (
@@ -1212,8 +1218,14 @@ export default function AdminDashboardScreen() {
                         style={[styles.actionButton, styles.viewDetailsButton]}
                         activeOpacity={0.7}
                         onPress={() => { 
-                          console.log("View Details tapped:", item.id, item.name); 
-                          navigation.navigate("AdminBusinessReview", { businessId: item.id }); 
+                          console.log("[AdminDashboard] View Details tapped (ScrollView):", item.id, item.name);
+                          try {
+                            console.log("[AdminDashboard] Attempting navigation to AdminBusinessReview...");
+                            navigation.navigate("AdminBusinessReview", { businessId: item.id });
+                            console.log("[AdminDashboard] Navigation called successfully");
+                          } catch (error) {
+                            console.error("[AdminDashboard] Navigation error:", error);
+                          }
                         }}
                       >
                         <Feather name="eye" size={14} color={theme.primary} />
