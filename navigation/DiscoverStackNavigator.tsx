@@ -39,14 +39,12 @@ function HeaderRightButtons() {
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
 
-  const isAdmin = user?.isAdmin;
-
   return (
     <View style={styles.headerRightContainer}>
-      {isAdmin ? (
+      {/* Universal Notification Bell for all authenticated users */}
+      {user && (
         <Pressable
           onPress={() => {
-            console.log("[Header] Bell icon pressed, navigating to Notifications");
             navigation.navigate("Notifications");
           }}
           hitSlop={16}
@@ -74,7 +72,7 @@ function HeaderRightButtons() {
             </View>
           ) : null}
         </Pressable>
-      ) : null}
+      )}
       <Pressable
         onPress={() => navigation.navigate("CartOrders")}
         style={({ pressed }) => ({
