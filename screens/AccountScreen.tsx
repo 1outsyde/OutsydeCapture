@@ -26,6 +26,7 @@ import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import { BookingFlow, PhotographerService, PhotographerProfile } from "@/components/BookingFlow";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost } from "@/services/api";
@@ -159,6 +160,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { user, isAuthenticated, getToken } = useAuth();
+  const { unreadCount } = useNotifications();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -248,7 +250,25 @@ export default function AccountScreen() {
             api.getPhotographerMeAvailability(token),
             api.getPhotographerBlockedDates(token),
           ]);
-          setAvailabilitySlots(availRes.availability || []);
+          // Convert hoursOfOperation to availability slots format
+          if (availRes.hoursOfOperation) {
+            const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+            const slots: VendorBookerAvailabilitySlot[] = [];
+            dayNames.forEach((dayName, index) => {
+              const dayData = availRes.hoursOfOperation[dayName];
+              if (dayData && !dayData.closed) {
+                slots.push({
+                  id: `hours-${index}`,
+                  photographerId: photographer.id,
+                  dayOfWeek: index,
+                  startTime: dayData.open,
+                  endTime: dayData.close,
+                  isRecurring: true,
+                });
+              }
+            });
+            setAvailabilitySlots(slots);
+          }
           setBlockedDates(blockedRes.blockedDates || []);
         } catch (availError) {
           console.warn("[AccountScreen] Could not fetch availability:", availError);
@@ -1735,6 +1755,22 @@ export default function AccountScreen() {
               </Pressable>
             )}
             <View style={{ flex: 1 }} />
+            {/* Universal Notification Bell */}
+            {!isGuest && (
+              <Pressable
+                onPress={() => navigation.navigate("Notifications")}
+                style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.7 : 1, marginRight: Spacing.sm }]}
+              >
+                <Feather name="bell" size={22} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <ThemedText style={styles.notificationBadgeText}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </ThemedText>
+                  </View>
+                )}
+              </Pressable>
+            )}
             {!isOwner && (
               <>
                 <Pressable 
@@ -2343,6 +2379,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#FF3B30",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   followButton: {
     paddingHorizontal: Spacing.xl,
