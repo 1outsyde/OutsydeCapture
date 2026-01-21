@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { StyleSheet, View, Pressable, ScrollView, TextInput, Alert, Platform, Modal } from "react-native";
+import React, { useState, useMemo, useEffect } from "react";
+import { StyleSheet, View, Pressable, ScrollView, TextInput, Alert, Platform, Modal, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -13,8 +13,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { PhotographyCategory, CATEGORY_LABELS, TimeSlot } from "@/types";
+import { PhotographyCategory, CATEGORY_LABELS, TimeSlot, AvailabilitySlot } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
+import api from "@/services/api";
+import { computeAvailableDates } from "@/utils/availabilityUtils";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Booking">;
@@ -41,41 +43,109 @@ export default function BookingScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [bookedSessionId, setBookedSessionId] = useState<string>("");
+  
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [computedAvailability, setComputedAvailability] = useState<AvailabilitySlot[]>([]);
+  
+  const [viewingMonth, setViewingMonth] = useState(() => new Date());
 
-  const availableDates = photographer.availability.map(a => a.date);
+  useEffect(() => {
+    fetchAvailability();
+  }, [photographer.id]);
+
+  const fetchAvailability = async () => {
+    setIsLoadingAvailability(true);
+    setAvailabilityError(null);
+    
+    try {
+      const [availResponse, blockedResponse] = await Promise.all([
+        api.getPhotographerPublicAvailability(photographer.id).catch(() => ({ availability: [] })),
+        api.getPhotographerPublicBlockedDates(photographer.id).catch(() => ({ blockedDates: [] })),
+      ]);
+      
+      const computed = computeAvailableDates(
+        availResponse.availability,
+        blockedResponse.blockedDates,
+        60,
+        60
+      );
+      
+      setComputedAvailability(computed);
+    } catch (error) {
+      console.error("Failed to fetch availability:", error);
+      setAvailabilityError("Unable to load availability. Please try again.");
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  };
+
+  const availableDates = useMemo(() => {
+    return computedAvailability.map(a => a.date);
+  }, [computedAvailability]);
   
   const availableTimeSlots = useMemo(() => {
-    const dayAvailability = photographer.availability.find(a => a.date === selectedDate);
+    const dayAvailability = computedAvailability.find(a => a.date === selectedDate);
     return dayAvailability?.timeSlots.filter(s => s.available) || [];
-  }, [selectedDate, photographer.availability]);
+  }, [selectedDate, computedAvailability]);
 
-  const currentMonth = useMemo(() => {
-    const now = new Date();
-    return now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  }, []);
+  const currentMonthLabel = useMemo(() => {
+    return viewingMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }, [viewingMonth]);
 
   const calendarDays = useMemo(() => {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    now.setHours(0, 0, 0, 0);
+    const year = viewingMonth.getFullYear();
+    const month = viewingMonth.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    const days = [];
+    const days: Array<{ day: number; date: string; isAvailable: boolean; isPast: boolean }> = [];
     for (let i = 0; i < firstDay; i++) {
-      days.push({ day: 0, date: "" });
+      days.push({ day: 0, date: "", isAvailable: false, isPast: false });
     }
     
     for (let i = 1; i <= daysInMonth; i++) {
       const date = new Date(year, month, i);
       const dateStr = date.toISOString().split("T")[0];
       const isAvailable = availableDates.includes(dateStr);
-      const isPast = date < new Date(now.toDateString());
+      const isPast = date < now;
       days.push({ day: i, date: dateStr, isAvailable, isPast });
     }
     
     return days;
-  }, [availableDates]);
+  }, [viewingMonth, availableDates]);
+
+  const handlePrevMonth = () => {
+    const now = new Date();
+    const prev = new Date(viewingMonth.getFullYear(), viewingMonth.getMonth() - 1, 1);
+    if (prev >= new Date(now.getFullYear(), now.getMonth(), 1)) {
+      setViewingMonth(prev);
+    }
+  };
+
+  const handleNextMonth = () => {
+    const maxMonth = new Date();
+    maxMonth.setMonth(maxMonth.getMonth() + 2);
+    const next = new Date(viewingMonth.getFullYear(), viewingMonth.getMonth() + 1, 1);
+    if (next <= maxMonth) {
+      setViewingMonth(next);
+    }
+  };
+
+  const canGoPrev = useMemo(() => {
+    const now = new Date();
+    const prev = new Date(viewingMonth.getFullYear(), viewingMonth.getMonth() - 1, 1);
+    return prev >= new Date(now.getFullYear(), now.getMonth(), 1);
+  }, [viewingMonth]);
+
+  const canGoNext = useMemo(() => {
+    const maxMonth = new Date();
+    maxMonth.setMonth(maxMonth.getMonth() + 2);
+    const next = new Date(viewingMonth.getFullYear(), viewingMonth.getMonth() + 1, 1);
+    return next <= maxMonth;
+  }, [viewingMonth]);
 
   const getPriceValue = (range: string) => {
     switch (range) {
@@ -246,71 +316,128 @@ export default function BookingScreen() {
     </View>
   );
 
-  const renderDateStep = () => (
-    <View>
-      <ThemedText type="h3" style={styles.stepTitle}>
-        Select Date
-      </ThemedText>
-      <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-        Choose an available date for your session
-      </ThemedText>
-
-      <ThemedText type="h4" style={styles.monthTitle}>
-        {currentMonth}
-      </ThemedText>
-
-      <View style={styles.weekDays}>
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-          <ThemedText
-            key={day}
-            type="caption"
-            style={[styles.weekDay, { color: theme.textSecondary }]}
-          >
-            {day}
+  const renderDateStep = () => {
+    if (isLoadingAvailability) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary }}>
+            Loading availability...
           </ThemedText>
-        ))}
-      </View>
+        </View>
+      );
+    }
 
-      <View style={styles.calendarGrid}>
-        {calendarDays.map((item, index) => (
+    if (availabilityError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Feather name="alert-circle" size={48} color={theme.error} />
+          <ThemedText type="body" style={{ marginTop: Spacing.lg, color: theme.textSecondary, textAlign: "center" }}>
+            {availabilityError}
+          </ThemedText>
           <Pressable
-            key={index}
-            disabled={!item.isAvailable || item.isPast}
-            onPress={() => setSelectedDate(item.date)}
-            style={({ pressed }) => [
-              styles.calendarDay,
-              {
-                backgroundColor:
-                  selectedDate === item.date
-                    ? theme.primary
-                    : item.isAvailable && !item.isPast
-                    ? theme.backgroundDefault
-                    : "transparent",
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
+            onPress={fetchAvailability}
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
           >
-            {item.day > 0 ? (
-              <ThemedText
-                type="body"
-                style={{
-                  color:
-                    selectedDate === item.date
-                      ? "#FFFFFF"
-                      : item.isPast || !item.isAvailable
-                      ? theme.textSecondary
-                      : theme.text,
-                  opacity: item.isPast || !item.isAvailable ? 0.4 : 1,
-                }}
-              >
-                {item.day}
-              </ThemedText>
-            ) : null}
+            <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+              Try Again
+            </ThemedText>
           </Pressable>
-        ))}
+        </View>
+      );
+    }
+
+    return (
+      <View>
+        <ThemedText type="h3" style={styles.stepTitle}>
+          Select Date & Time
+        </ThemedText>
+        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
+          Choose an available date for your session
+        </ThemedText>
+
+        <View style={styles.monthHeader}>
+          <Pressable
+            onPress={handlePrevMonth}
+            disabled={!canGoPrev}
+            style={[styles.monthArrow, { opacity: canGoPrev ? 1 : 0.3 }]}
+          >
+            <Feather name="chevron-left" size={24} color={theme.text} />
+          </Pressable>
+          <ThemedText type="h4" style={styles.monthTitle}>
+            {currentMonthLabel}
+          </ThemedText>
+          <Pressable
+            onPress={handleNextMonth}
+            disabled={!canGoNext}
+            style={[styles.monthArrow, { opacity: canGoNext ? 1 : 0.3 }]}
+          >
+            <Feather name="chevron-right" size={24} color={theme.text} />
+          </Pressable>
+        </View>
+
+        <View style={styles.weekDays}>
+          {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map(day => (
+            <ThemedText
+              key={day}
+              type="caption"
+              style={[styles.weekDay, { color: theme.textSecondary }]}
+            >
+              {day}
+            </ThemedText>
+          ))}
+        </View>
+
+        <View style={styles.calendarGrid}>
+          {calendarDays.map((item, index) => (
+            <Pressable
+              key={index}
+              disabled={!item.isAvailable || item.isPast}
+              onPress={() => setSelectedDate(item.date)}
+              style={({ pressed }) => [
+                styles.calendarDay,
+                {
+                  backgroundColor:
+                    selectedDate === item.date
+                      ? theme.primary
+                      : item.isAvailable && !item.isPast
+                      ? theme.backgroundDefault
+                      : "transparent",
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              {item.day > 0 ? (
+                <ThemedText
+                  type="body"
+                  style={{
+                    color:
+                      selectedDate === item.date
+                        ? "#FFFFFF"
+                        : item.isPast || !item.isAvailable
+                        ? theme.textSecondary
+                        : theme.text,
+                    opacity: item.isPast || !item.isAvailable ? 0.4 : 1,
+                  }}
+                >
+                  {item.day}
+                </ThemedText>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+
+        {availableDates.length === 0 ? (
+          <View style={styles.noAvailabilityMessage}>
+            <Feather name="calendar" size={32} color={theme.textSecondary} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
+              No availability set for this photographer.{"\n"}Please contact them directly.
+            </ThemedText>
+          </View>
+        ) : null}
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderTimeStep = () => (
     <View>
@@ -402,7 +529,9 @@ export default function BookingScreen() {
             >
               <ThemedText
                 type="small"
-                style={{ color: sessionType === type ? "#FFFFFF" : theme.text }}
+                style={{
+                  color: sessionType === type ? "#FFFFFF" : theme.text,
+                }}
               >
                 {CATEGORY_LABELS[type]}
               </ThemedText>
@@ -416,110 +545,123 @@ export default function BookingScreen() {
           Notes (Optional)
         </ThemedText>
         <TextInput
-          style={[
-            styles.input,
-            styles.textArea,
-            { backgroundColor: theme.backgroundDefault, color: theme.text },
-          ]}
+          style={[styles.input, styles.textArea, { backgroundColor: theme.backgroundDefault, color: theme.text }]}
           value={notes}
           onChangeText={setNotes}
           placeholder="Any special requests or details..."
           placeholderTextColor={theme.textSecondary}
           multiline
-          numberOfLines={4}
           textAlignVertical="top"
         />
       </View>
     </View>
   );
 
-  const renderReviewStep = () => (
-    <View>
-      <ThemedText type="h3" style={styles.stepTitle}>
-        Review Booking
-      </ThemedText>
-      <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-        Confirm your session details
-      </ThemedText>
+  const renderReviewStep = () => {
+    const sessionPrice = getPriceValue(photographer.priceRange);
+    
+    return (
+      <View>
+        <ThemedText type="h3" style={styles.stepTitle}>
+          Review Booking
+        </ThemedText>
+        <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
+          Confirm your session details
+        </ThemedText>
 
-      <View style={[styles.reviewCard, { backgroundColor: theme.backgroundDefault }]}>
-        <View style={styles.reviewHeader}>
-          <Image
-            source={{ uri: photographer.avatar }}
-            style={styles.reviewAvatar}
-            contentFit="cover"
-          />
-          <View>
-            <ThemedText type="h4">{photographer.name}</ThemedText>
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              {CATEGORY_LABELS[photographer.specialty]} Photographer
-            </ThemedText>
+        <View style={[styles.reviewCard, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={styles.reviewHeader}>
+            <Image
+              source={{ uri: photographer.avatar }}
+              style={styles.reviewAvatar}
+              contentFit="cover"
+            />
+            <View>
+              <ThemedText type="h4">{photographer.name}</ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {photographer.specialty ? CATEGORY_LABELS[photographer.specialty] : "Photography"}
+              </ThemedText>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.reviewDivider} />
+          <View style={styles.reviewDivider} />
 
-        <View style={styles.reviewItem}>
-          <Feather name="calendar" size={18} color={theme.textSecondary} />
-          <ThemedText type="body" style={styles.reviewItemText}>
-            {formatDate(selectedDate)}
-          </ThemedText>
-        </View>
-
-        <View style={styles.reviewItem}>
-          <Feather name="clock" size={18} color={theme.textSecondary} />
-          <ThemedText type="body" style={styles.reviewItemText}>
-            {selectedTimeSlot
-              ? `${formatTime(selectedTimeSlot.startTime)} - ${formatTime(selectedTimeSlot.endTime)}`
-              : ""}
-          </ThemedText>
-        </View>
-
-        <View style={styles.reviewItem}>
-          <Feather name="map-pin" size={18} color={theme.textSecondary} />
-          <ThemedText type="body" style={styles.reviewItemText}>
-            {location}
-          </ThemedText>
-        </View>
-
-        <View style={styles.reviewItem}>
-          <Feather name="camera" size={18} color={theme.textSecondary} />
-          <ThemedText type="body" style={styles.reviewItemText}>
-            {CATEGORY_LABELS[sessionType]}
-          </ThemedText>
-        </View>
-
-        {notes ? (
           <View style={styles.reviewItem}>
-            <Feather name="file-text" size={18} color={theme.textSecondary} />
-            <ThemedText type="body" style={styles.reviewItemText} numberOfLines={2}>
-              {notes}
+            <Feather name="calendar" size={20} color={theme.primary} />
+            <ThemedText type="body" style={styles.reviewItemText}>
+              {formatDate(selectedDate)}
             </ThemedText>
           </View>
-        ) : null}
 
-        <View style={styles.reviewDivider} />
+          <View style={styles.reviewItem}>
+            <Feather name="clock" size={20} color={theme.primary} />
+            <ThemedText type="body" style={styles.reviewItemText}>
+              {selectedTimeSlot ? `${formatTime(selectedTimeSlot.startTime)} - ${formatTime(selectedTimeSlot.endTime)}` : ""}
+            </ThemedText>
+          </View>
 
-        <View style={styles.reviewTotal}>
-          <ThemedText type="h4">Total</ThemedText>
-          <ThemedText type="h3" style={{ color: theme.primary }}>
-            ${getPriceValue(photographer.priceRange)}
-          </ThemedText>
+          <View style={styles.reviewItem}>
+            <Feather name="map-pin" size={20} color={theme.primary} />
+            <ThemedText type="body" style={styles.reviewItemText}>
+              {location}
+            </ThemedText>
+          </View>
+
+          <View style={styles.reviewItem}>
+            <Feather name="camera" size={20} color={theme.primary} />
+            <ThemedText type="body" style={styles.reviewItemText}>
+              {CATEGORY_LABELS[sessionType]} Session
+            </ThemedText>
+          </View>
+
+          <View style={styles.reviewDivider} />
+
+          <View style={styles.reviewTotal}>
+            <ThemedText type="body" style={{ color: theme.textSecondary }}>
+              Estimated Total
+            </ThemedText>
+            <ThemedText type="h3" style={{ color: theme.primary }}>
+              ${sessionPrice}
+            </ThemedText>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
+
+  const renderCurrentStep = () => {
+    switch (step) {
+      case "date":
+        return renderDateStep();
+      case "time":
+        return renderTimeStep();
+      case "details":
+        return renderDetailsStep();
+      case "review":
+        return renderReviewStep();
+    }
+  };
+
+  const getNextButtonText = () => {
+    switch (step) {
+      case "date":
+        return "NEXT";
+      case "time":
+        return "NEXT";
+      case "details":
+        return "REVIEW";
+      case "review":
+        return "CONFIRM BOOKING";
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable
-          onPress={handleBack}
-          style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Feather name={step === "date" ? "x" : "arrow-left"} size={24} color={theme.text} />
+        <Pressable onPress={handleBack} style={styles.headerButton}>
+          <Feather name="chevron-left" size={24} color={theme.text} />
         </Pressable>
-        <ThemedText type="h4">Book Session</ThemedText>
+        <ThemedText type="h4">Book Appointment</ThemedText>
         <View style={styles.headerButton} />
       </View>
 
@@ -529,27 +671,49 @@ export default function BookingScreen() {
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
-        {step === "date" && renderDateStep()}
-        {step === "time" && renderTimeStep()}
-        {step === "details" && renderDetailsStep()}
-        {step === "review" && renderReviewStep()}
+        {renderCurrentStep()}
       </ScrollView>
 
       <View
         style={[
           styles.footer,
-          {
-            paddingBottom: insets.bottom + Spacing.lg,
-            backgroundColor: theme.backgroundRoot,
+          { 
+            backgroundColor: theme.background, 
             borderTopColor: theme.border,
+            paddingBottom: insets.bottom + Spacing.lg 
           },
         ]}
       >
-        <Button onPress={handleNext} disabled={isSubmitting}>
-          {step === "review" ? (isSubmitting ? "Confirming..." : "Confirm Booking") : "Continue"}
-        </Button>
+        <View style={styles.footerContent}>
+          <View>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              Starting at
+            </ThemedText>
+            <ThemedText type="h3" style={{ color: theme.primary }}>
+              ${getPriceValue(photographer.priceRange).toFixed(2)}
+            </ThemedText>
+          </View>
+          <Pressable
+            onPress={handleNext}
+            disabled={isSubmitting || isLoadingAvailability}
+            style={({ pressed }) => [
+              styles.nextButton,
+              {
+                backgroundColor: theme.primary,
+                opacity: pressed || isSubmitting || isLoadingAvailability ? 0.8 : 1,
+              },
+            ]}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+                {getNextButtonText()}
+              </ThemedText>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       <Modal
@@ -559,33 +723,35 @@ export default function BookingScreen() {
         onRequestClose={handlePayLater}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.backgroundRoot }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
             <View style={[styles.modalIcon, { backgroundColor: theme.success + "20" }]}>
-              <Feather name="check-circle" size={48} color={theme.success} />
+              <Feather name="check-circle" size={40} color={theme.success} />
             </View>
             <ThemedText type="h3" style={styles.modalTitle}>
-              Booking Confirmed
+              Booking Confirmed!
             </ThemedText>
             <ThemedText type="body" style={[styles.modalMessage, { color: theme.textSecondary }]}>
-              Your photography session has been booked! Would you like to complete payment now?
+              Your session with {photographer.name} has been booked for {selectedDate ? formatDate(selectedDate) : ""}.
             </ThemedText>
             <View style={styles.modalButtons}>
               <Pressable
                 onPress={handlePayLater}
-                style={({ pressed }) => [
+                style={[
                   styles.modalButton,
                   styles.modalButtonSecondary,
-                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                  { backgroundColor: theme.backgroundSecondary },
                 ]}
               >
-                <ThemedText type="button">Pay Later</ThemedText>
+                <ThemedText type="button" style={{ color: theme.text }}>
+                  Pay Later
+                </ThemedText>
               </Pressable>
               <Pressable
                 onPress={handlePayNow}
-                style={({ pressed }) => [
+                style={[
                   styles.modalButton,
                   styles.modalButtonPrimary,
-                  { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+                  { backgroundColor: theme.primary },
                 ]}
               >
                 <ThemedText type="button" style={{ color: "#FFFFFF" }}>
@@ -645,6 +811,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
   },
   stepTitle: {
     marginBottom: Spacing.xs,
@@ -652,8 +819,32 @@ const styles = StyleSheet.create({
   stepSubtitle: {
     marginBottom: Spacing.xl,
   },
-  monthTitle: {
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["3xl"],
+  },
+  errorContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing["2xl"],
+  },
+  retryButton: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing["2xl"],
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+  },
+  monthHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: Spacing.lg,
+  },
+  monthArrow: {
+    padding: Spacing.sm,
+  },
+  monthTitle: {
     textAlign: "center",
   },
   weekDays: {
@@ -674,6 +865,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: BorderRadius.sm,
+  },
+  noAvailabilityMessage: {
+    alignItems: "center",
+    paddingVertical: Spacing["2xl"],
   },
   timeSlots: {
     flexDirection: "row",
@@ -754,6 +949,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
+  },
+  footerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  nextButton: {
+    paddingHorizontal: Spacing["2xl"],
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    minWidth: 120,
+    alignItems: "center",
   },
   modalOverlay: {
     flex: 1,
