@@ -1092,7 +1092,9 @@ export default function AdminDashboardScreen() {
       {renderStatsCards()}
       {renderTabs()}
       {renderSearchBar()}
-      {renderContent()}
+      <View style={{ flex: 1 }}>
+        {renderContent()}
+      </View>
     </View>
   );
 }
