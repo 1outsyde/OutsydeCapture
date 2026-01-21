@@ -341,6 +341,13 @@ export default function AdminDashboardScreen() {
     contentArea: {
       flex: 1,
     },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 12,
+      paddingBottom: 40,
+    },
     content: {
       flex: 1,
       paddingHorizontal: 12,
@@ -1083,20 +1090,57 @@ export default function AdminDashboardScreen() {
         );
       case "businesses":
         return (
-          <FlatList
-            data={filteredBusinesses}
-            renderItem={renderBusinessItem}
-            keyExtractor={businessKeyExtractor}
-            style={{ flex: 1 }}
-            contentContainerStyle={styles.content}
-            scrollEnabled={true}
-            keyboardShouldPersistTaps="handled"
-            removeClippedSubviews={false}
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
-            ListHeaderComponent={BusinessListHeader}
-            ListEmptyComponent={BusinessEmptyComponent}
-          />
+          >
+            {BusinessListHeader}
+            {filteredBusinesses.length === 0 ? (
+              BusinessEmptyComponent
+            ) : (
+              filteredBusinesses.map((item) => (
+                <Pressable key={item.id} style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+                  <View style={styles.listItemHeader}>
+                    <Text style={styles.listItemName}>{item.name}</Text>
+                    <View style={[
+                      styles.statusBadge,
+                      item.status === "pending" ? styles.pendingBadge :
+                      item.status === "approved" ? styles.approvedBadge : styles.rejectedBadge
+                    ]}>
+                      <Text style={[
+                        styles.statusText,
+                        item.status === "pending" ? styles.pendingText :
+                        item.status === "approved" ? styles.approvedText : styles.rejectedText
+                      ]}>
+                        {item.status}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.listItemInfo}>{item.category}</Text>
+                  <Text style={styles.listItemInfo}>{item.city}, {item.state}</Text>
+                  {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
+                  {item.earnings !== undefined ? (
+                    <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
+                  ) : null}
+                  {item.status === "pending" ? (
+                    <View style={styles.actionRow}>
+                      <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("business", item.id)}>
+                        <Feather name="check" size={14} color="#34C759" />
+                        <Text style={styles.approveButtonText}>Approve</Text>
+                      </Pressable>
+                      <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("business", item.id)}>
+                        <Feather name="x" size={14} color="#FF3B30" />
+                        <Text style={styles.rejectButtonText}>Reject</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
         );
       case "photographers":
         return (
