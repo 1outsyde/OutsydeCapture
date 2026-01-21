@@ -39,7 +39,19 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Guest Mode Restrictions**: Guest users (`isGuest: true`) see a limited profile view without hamburger menu, points card, or Quick Actions.
   - **Dashboard Presentation**: Dashboard and editor screens use card presentation with slide-from-right animation and proper back navigation to Account/Profile.
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
-- **Core Features**: Personalized content feed, category/location-based search, 4-step booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
+- **Core Features**: Personalized content feed, category/location-based search, backend-driven booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
+- **Booking System (Backend-Driven)**: Zero client-side availability computation. Backend is single source of truth.
+  - **Flow**: Service → Date → Slot → Review/Confirm → Payment
+  - **Step Gates**: Each step is disabled until previous step is complete
+  - **Slot Holding**: Selecting a time slot creates a draft reservation with 10-minute hold timer
+  - **Countdown Timer**: Review step shows live countdown; confirm disabled when expired
+  - **Auto-Cleanup**: Draft cancelled on navigation away or expiration
+  - **API Endpoints**:
+    - `GET /api/photographers/:id/available-dates` - Backend-computed available dates
+    - `GET /api/photographers/:id/slots?date=YYYY-MM-DD` - Backend-computed available slots
+    - `POST /api/bookings/draft` - Create held slot reservation
+    - `DELETE /api/bookings/draft/:id` - Release held slot
+    - `POST /api/bookings/draft/:id/confirm` - Finalize booking with payment
 - **Onboarding**: 4-screen welcome flow.
 - **Profile Screens**: Instagram/Shopify-style public profiles with:
   - **Hero Section**: Full-width banner with LinearGradient overlay, overlapping circular avatar
