@@ -1361,12 +1361,12 @@ class ApiService {
     });
   }
 
-  async rejectApplication(authToken: string, type: "business" | "influencer", id: string, notes: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
+  async rejectApplication(authToken: string, type: "business" | "influencer", id: string, reason: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
     const endpoint = type === "business" ? `/api/admin/businesses/${id}/reject` : `/api/admin/applications/${id}/reject`;
     return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
-      body: JSON.stringify({ notes }),
+      body: JSON.stringify({ reason }),
     });
   }
 

@@ -1,0 +1,49 @@
+Let me implement these fixes. First, let me check the existing applications approve/reject endpoints to understand the pattern:
+Let me find where the admin businesses endpoint is and add the approve/reject there:
+Now I'll add the approve/reject endpoints and fix CORS. Let me do both:
+The endpoints are working. The "Not authenticated" error is expected since we didn't provide an admin JWT token. Let me verify both endpoints exist:
+Both endpoints are now registered and working. Let me verify the server is running properly:
+The server is running correctly and both endpoints are now available:
+
+POST /api/admin/businesses/:id/approve - Returns 401 (auth required) ✓
+POST /api/admin/businesses/:id/reject - Returns 401 (auth required) ✓
+Let me call the architect to review the changes:
+The architect found a security issue with the CORS config. Let me fix it with a proper allowlist:
+All fixes are complete. Here's the summary for your frontend team:
+
+✅ Changes Made
+New Endpoints (now available)
+Endpoint	Method	Description
+/api/admin/businesses/:id/approve	POST	Approve a business application
+/api/admin/businesses/:id/reject	POST	Reject a business application
+Request Format
+Approve:
+
+POST /api/admin/businesses/{businessId}/approve
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+{
+  "notes": "Optional approval notes"
+}
+Reject:
+
+POST /api/admin/businesses/{businessId}/reject
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+{
+  "reason": "Required rejection reason"
+}
+Response
+Both return:
+
+{
+  "success": true,
+  "business": { /* updated business object */ }
+}
+CORS Fix
+Mobile apps can now make authenticated requests with JWT tokens. The CORS configuration now properly allows:
+
+Replit domains (.replit.dev, .replit.app)
+Local development (localhost:5000, localhost:3000, localhost:8081)
+Mobile apps (null origin with Authorization header)
+The frontend team should update their API calls to use /api/admin/businesses/:id/approve and /api/admin/businesses/:id/reject with the admin's JWT token.
