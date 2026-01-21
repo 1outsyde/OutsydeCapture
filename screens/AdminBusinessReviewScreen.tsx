@@ -59,10 +59,11 @@ export default function AdminBusinessReviewScreen() {
       setBusiness(data);
       setFetchError(null);
     } catch (error: any) {
-      console.error("Failed to fetch business detail:", error);
       if (error?.status === 404) {
+        console.log("Business detail endpoint not yet available (404)");
         setFetchError("Business details endpoint not available. You can still approve or reject from the list.");
       } else {
+        console.log("Failed to fetch business detail:", error);
         setFetchError("Failed to load business details");
       }
     } finally {
