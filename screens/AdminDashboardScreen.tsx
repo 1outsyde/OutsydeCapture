@@ -469,6 +469,14 @@ export default function AdminDashboardScreen() {
     rejectButton: {
       backgroundColor: "#FF3B3020",
     },
+    viewDetailsButton: {
+      backgroundColor: `${theme.primary}20`,
+    },
+    viewDetailsButtonText: {
+      color: theme.primary,
+      fontSize: 13,
+      fontWeight: "600",
+    },
     approveButtonText: {
       color: "#34C759",
       fontSize: 13,
@@ -810,26 +818,36 @@ export default function AdminDashboardScreen() {
         {item.earnings !== undefined ? (
           <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
         ) : null}
-        {status === "pending" ? (
-          <View style={styles.actionRow} pointerEvents="box-none">
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.approveButton]} 
-              activeOpacity={0.7}
-              onPress={() => handleApprove("business", item.id)}
-            >
-              <Feather name="check" size={14} color="#34C759" />
-              <Text style={styles.approveButtonText}>Approve</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.rejectButton]} 
-              activeOpacity={0.7}
-              onPress={() => handleReject("business", item.id)}
-            >
-              <Feather name="x" size={14} color="#FF3B30" />
-              <Text style={styles.rejectButtonText}>Reject</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+        <View style={styles.actionRow} pointerEvents="box-none">
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.viewDetailsButton]} 
+            activeOpacity={0.7}
+            onPress={navigateToDetail}
+          >
+            <Feather name="eye" size={14} color={theme.primary} />
+            <Text style={styles.viewDetailsButtonText}>View Details</Text>
+          </TouchableOpacity>
+          {status === "pending" ? (
+            <>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.approveButton]} 
+                activeOpacity={0.7}
+                onPress={() => handleApprove("business", item.id)}
+              >
+                <Feather name="check" size={14} color="#34C759" />
+                <Text style={styles.approveButtonText}>Approve</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.rejectButton]} 
+                activeOpacity={0.7}
+                onPress={() => handleReject("business", item.id)}
+              >
+                <Feather name="x" size={14} color="#FF3B30" />
+                <Text style={styles.rejectButtonText}>Reject</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+        </View>
       </TouchableOpacity>
     );
   }, [styles, theme, navigation, handleApprove, handleReject]);
@@ -1189,26 +1207,39 @@ export default function AdminDashboardScreen() {
                     {item.earnings !== undefined ? (
                       <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
                     ) : null}
-                    {status === "pending" ? (
-                      <View style={styles.actionRow} pointerEvents="box-none">
-                        <TouchableOpacity 
-                          style={[styles.actionButton, styles.approveButton]}
-                          activeOpacity={0.7}
-                          onPress={() => handleApprove("business", item.id)}
-                        >
-                          <Feather name="check" size={14} color="#34C759" />
-                          <Text style={styles.approveButtonText}>Approve</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={[styles.actionButton, styles.rejectButton]}
-                          activeOpacity={0.7}
-                          onPress={() => handleReject("business", item.id)}
-                        >
-                          <Feather name="x" size={14} color="#FF3B30" />
-                          <Text style={styles.rejectButtonText}>Reject</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
+                    <View style={styles.actionRow} pointerEvents="box-none">
+                      <TouchableOpacity 
+                        style={[styles.actionButton, styles.viewDetailsButton]}
+                        activeOpacity={0.7}
+                        onPress={() => { 
+                          console.log("View Details tapped:", item.id, item.name); 
+                          navigation.navigate("AdminBusinessReview", { businessId: item.id }); 
+                        }}
+                      >
+                        <Feather name="eye" size={14} color={theme.primary} />
+                        <Text style={styles.viewDetailsButtonText}>View Details</Text>
+                      </TouchableOpacity>
+                      {status === "pending" ? (
+                        <>
+                          <TouchableOpacity 
+                            style={[styles.actionButton, styles.approveButton]}
+                            activeOpacity={0.7}
+                            onPress={() => handleApprove("business", item.id)}
+                          >
+                            <Feather name="check" size={14} color="#34C759" />
+                            <Text style={styles.approveButtonText}>Approve</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.actionButton, styles.rejectButton]}
+                            activeOpacity={0.7}
+                            onPress={() => handleReject("business", item.id)}
+                          >
+                            <Feather name="x" size={14} color="#FF3B30" />
+                            <Text style={styles.rejectButtonText}>Reject</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : null}
+                    </View>
                   </TouchableOpacity>
                 );
               })
