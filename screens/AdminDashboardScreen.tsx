@@ -786,14 +786,7 @@ export default function AdminDashboardScreen() {
     const status = getBusinessStatus(item);
     
     const navigateToDetail = () => {
-      console.log("[AdminDashboard] View Details clicked for business:", item.id, item.name);
-      try {
-        console.log("[AdminDashboard] Attempting navigation to AdminBusinessReview...");
-        navigation.navigate("AdminBusinessReview", { businessId: item.id });
-        console.log("[AdminDashboard] Navigation called successfully");
-      } catch (error) {
-        console.error("[AdminDashboard] Navigation error:", error);
-      }
+      navigation.navigate("AdminBusinessReview", { businessId: item.id });
     };
     
     return (
@@ -1217,16 +1210,7 @@ export default function AdminDashboardScreen() {
                       <TouchableOpacity 
                         style={[styles.actionButton, styles.viewDetailsButton]}
                         activeOpacity={0.7}
-                        onPress={() => { 
-                          console.log("[AdminDashboard] View Details tapped (ScrollView):", item.id, item.name);
-                          try {
-                            console.log("[AdminDashboard] Attempting navigation to AdminBusinessReview...");
-                            navigation.navigate("AdminBusinessReview", { businessId: item.id });
-                            console.log("[AdminDashboard] Navigation called successfully");
-                          } catch (error) {
-                            console.error("[AdminDashboard] Navigation error:", error);
-                          }
-                        }}
+                        onPress={() => navigation.navigate("AdminBusinessReview", { businessId: item.id })}
                       >
                         <Feather name="eye" size={14} color={theme.primary} />
                         <Text style={styles.viewDetailsButtonText}>View Details</Text>

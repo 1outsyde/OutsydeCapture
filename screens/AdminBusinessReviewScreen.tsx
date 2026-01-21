@@ -29,13 +29,11 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 type RouteParams = RouteProp<RootStackParamList, "AdminBusinessReview">;
 
 export default function AdminBusinessReviewScreen() {
-  console.log("[AdminBusinessReviewScreen] Screen mounting...");
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteParams>();
   const { businessId } = route.params;
-  console.log("[AdminBusinessReviewScreen] businessId from route:", businessId);
   const { getToken } = useAuth();
   const { addNotification } = useNotifications();
 
@@ -85,8 +83,6 @@ export default function AdminBusinessReviewScreen() {
   }, [getToken, businessId]);
 
   useEffect(() => {
-    console.log("[AdminBusinessReviewScreen] useEffect triggered, calling fetchBusinessDetail");
-    Alert.alert("Debug", `Screen mounted with businessId: ${businessId}`);
     fetchBusinessDetail();
   }, [fetchBusinessDetail]);
 
