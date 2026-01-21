@@ -227,7 +227,8 @@ export default function PhotographerDashboardScreen() {
           const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
           const parsedHours = dayNames.map((dayName, index) => {
             const dayData = availabilityData.hoursOfOperation[dayName];
-            if (dayData) {
+            if (dayData && !dayData.closed) {
+              // Day is available (has open/close times and not marked closed)
               return {
                 dayOfWeek: index,
                 isAvailable: true,
@@ -235,6 +236,7 @@ export default function PhotographerDashboardScreen() {
                 endTime: convertTo12Hour(dayData.close),
               };
             }
+            // Day is closed (either no data, or has closed: true flag)
             return {
               dayOfWeek: index,
               isAvailable: false,
@@ -586,7 +588,7 @@ export default function PhotographerDashboardScreen() {
       setSaving(true);
       // Convert DayHours array to hoursOfOperation object for backend
       const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const hoursOfOperation: Record<string, { open: string; close: string } | null> = {};
+      const hoursOfOperation: Record<string, { open: string; close: string; closed?: boolean }> = {};
       
       hours.forEach((h) => {
         const dayName = dayNames[h.dayOfWeek];
@@ -596,7 +598,12 @@ export default function PhotographerDashboardScreen() {
             close: convertTo24Hour(h.endTime) 
           };
         } else {
-          hoursOfOperation[dayName] = null;
+          // Backend requires { open: "00:00", close: "00:00", closed: true } for closed days
+          hoursOfOperation[dayName] = { 
+            open: "00:00", 
+            close: "00:00", 
+            closed: true 
+          };
         }
       });
       
