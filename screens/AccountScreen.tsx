@@ -1818,7 +1818,7 @@ export default function AccountScreen() {
             </ThemedText>
 
             {/* Profile Rating */}
-            {(profile?.rating && profile.rating > 0) && (
+            {profile?.rating != null && profile.rating > 0 ? (
               <View style={{ marginTop: Spacing.xs }}>
                 <StarRating 
                   rating={profile.rating} 
@@ -1827,7 +1827,7 @@ export default function AccountScreen() {
                   color={profileTheme}
                 />
               </View>
-            )}
+            ) : null}
 
             <View style={styles.profileMeta}>
               {(profile?.city || profile?.state) && (
@@ -1835,11 +1835,11 @@ export default function AccountScreen() {
                   {profile.city}{profile.state ? `, ${profile.state}` : ""}
                 </ThemedText>
               )}
-              {profile?.hourlyRate && (
+              {profile?.hourlyRate != null && profile.hourlyRate > 0 ? (
                 <ThemedText type="h4" style={styles.profileRate}>
                   {formatHourlyRate(profile.hourlyRate)}
                 </ThemedText>
-              )}
+              ) : null}
             </View>
 
             {profile?.specialties && profile.specialties.length > 0 && (
@@ -2064,11 +2064,11 @@ export default function AccountScreen() {
                   <ThemedText type="h4" style={{ color: profileTheme }}>
                     ${photographerServices[0]?.price || "1,500"}
                   </ThemedText>
-                  {photographerServices[0]?.durationMinutes && (
+                  {photographerServices[0]?.durationMinutes != null && photographerServices[0].durationMinutes > 0 ? (
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>
                       {photographerServices[0].durationMinutes} min
                     </ThemedText>
-                  )}
+                  ) : null}
                 </View>
               </View>
 
