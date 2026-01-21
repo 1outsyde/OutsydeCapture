@@ -1553,6 +1553,16 @@ class ApiService {
     return this.request<VendorBookerPhotographerService[]>(`/api/photographers/${photographerId}/services`);
   }
 
+  // GET /api/photographers/:id/availability - Get public availability for a photographer
+  async getPhotographerPublicAvailability(photographerId: string): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
+    return this.request<{ availability: VendorBookerAvailabilitySlot[] }>(`/api/photographers/${photographerId}/availability`);
+  }
+
+  // GET /api/photographers/:id/blocked-dates - Get public blocked dates for a photographer
+  async getPhotographerPublicBlockedDates(photographerId: string): Promise<{ blockedDates: BlockedDate[] }> {
+    return this.request<{ blockedDates: BlockedDate[] }>(`/api/photographers/${photographerId}/blocked-dates`);
+  }
+
   // POST /api/photographers/me/services - Create a new service
   async createPhotographerMeService(authToken: string, data: Partial<VendorBookerPhotographerService>): Promise<{ service: VendorBookerPhotographerService }> {
     return this.request<{ service: VendorBookerPhotographerService }>("/api/photographers/me/services", {
