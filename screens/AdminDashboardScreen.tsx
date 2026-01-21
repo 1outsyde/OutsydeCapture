@@ -1036,7 +1036,10 @@ export default function AdminDashboardScreen() {
             data={users}
             renderItem={renderUserItem}
             keyExtractor={(item) => item.id}
+            style={{ flex: 1 }}
             contentContainerStyle={styles.content}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
             ListHeaderComponent={() => (
               <Text style={styles.countBadge}>{users.length} users</Text>
@@ -1052,7 +1055,10 @@ export default function AdminDashboardScreen() {
               data={businesses}
               renderItem={renderBusinessItem}
               keyExtractor={(item) => item.id}
+              style={{ flex: 1 }}
               contentContainerStyle={styles.content}
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
               ListHeaderComponent={() => (
                 <Text style={styles.countBadge}>{businesses.length} businesses</Text>
@@ -1067,7 +1073,10 @@ export default function AdminDashboardScreen() {
             data={photographers}
             renderItem={renderPhotographerItem}
             keyExtractor={(item) => item.id}
+            style={{ flex: 1 }}
             contentContainerStyle={styles.content}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
             ListHeaderComponent={() => (
               <Text style={styles.countBadge}>{photographers.length} photographers</Text>
