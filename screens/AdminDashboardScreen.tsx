@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -749,7 +749,7 @@ export default function AdminDashboardScreen() {
     </Pressable>
   );
 
-  const renderBusinessItem = ({ item }: { item: AdminBusiness }) => (
+  const renderBusinessItem = useCallback(({ item }: { item: AdminBusiness }) => (
     <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
       <View style={styles.listItemHeader}>
         <Text style={styles.listItemName}>{item.name}</Text>
@@ -786,7 +786,21 @@ export default function AdminDashboardScreen() {
         </View>
       ) : null}
     </Pressable>
-  );
+  ), [styles, theme, navigateToUserDetail, handleApprove, handleReject]);
+
+  const businessKeyExtractor = useCallback((item: AdminBusiness) => item.id, []);
+  
+  const BusinessListHeader = useMemo(() => (
+    <Text style={styles.countBadge}>{businesses.length} businesses</Text>
+  ), [businesses.length, styles.countBadge]);
+
+  const BusinessEmptyComponent = useMemo(() => (
+    <View style={styles.emptyState}>
+      <Feather name="briefcase" size={48} color={theme.textSecondary} style={styles.emptyIcon} />
+      <Text style={styles.emptyTitle}>No Businesses</Text>
+      <Text style={styles.emptySubtitle}>No businesses found</Text>
+    </View>
+  ), [styles, theme]);
 
   const renderPhotographerItem = ({ item }: { item: AdminPhotographer }) => (
     <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
@@ -1054,16 +1068,18 @@ export default function AdminDashboardScreen() {
             <FlatList
               data={businesses}
               renderItem={renderBusinessItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={businessKeyExtractor}
               style={{ flex: 1 }}
               contentContainerStyle={styles.content}
               nestedScrollEnabled={true}
               showsVerticalScrollIndicator={true}
+              removeClippedSubviews={false}
+              initialNumToRender={20}
+              maxToRenderPerBatch={20}
+              windowSize={21}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
-              ListHeaderComponent={() => (
-                <Text style={styles.countBadge}>{businesses.length} businesses</Text>
-              )}
-              ListEmptyComponent={() => renderEmptyState("No Businesses", "No businesses found", "briefcase")}
+              ListHeaderComponent={BusinessListHeader}
+              ListEmptyComponent={BusinessEmptyComponent}
             />
           </View>
         );
