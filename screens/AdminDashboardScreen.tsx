@@ -228,35 +228,35 @@ export default function AdminDashboardScreen() {
     },
     statsRow: {
       flexDirection: "row",
-      paddingHorizontal: 12,
-      paddingVertical: 16,
-      gap: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+      gap: 6,
     },
     statCard: {
-      flex: 1,
       backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
-      padding: 12,
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      flexDirection: "row",
       alignItems: "center",
+      gap: 6,
     },
     statIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
       backgroundColor: theme.primary + "20",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 6,
     },
     statLabel: {
-      fontSize: 11,
+      fontSize: 10,
       color: theme.textSecondary,
     },
     statValue: {
-      fontSize: 18,
+      fontSize: 14,
       fontWeight: "700",
       color: theme.text,
-      marginTop: 2,
     },
     tabsContainer: {
       backgroundColor: theme.backgroundDefault,
@@ -293,12 +293,12 @@ export default function AdminDashboardScreen() {
     searchContainer: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: theme.backgroundRoot,
       borderRadius: 10,
       marginHorizontal: 12,
-      marginBottom: 12,
+      marginBottom: 8,
       paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingVertical: 8,
       gap: 8,
     },
     searchInput: {
@@ -309,14 +309,14 @@ export default function AdminDashboardScreen() {
     filterRow: {
       flexDirection: "row",
       paddingHorizontal: 12,
-      marginBottom: 12,
-      gap: 8,
+      marginBottom: 8,
+      gap: 6,
     },
     filterChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 20,
-      backgroundColor: theme.backgroundDefault,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: theme.backgroundRoot,
       borderWidth: 1,
       borderColor: "transparent",
     },
@@ -325,7 +325,7 @@ export default function AdminDashboardScreen() {
       borderColor: theme.primary,
     },
     filterText: {
-      fontSize: 13,
+      fontSize: 12,
       color: theme.textSecondary,
       fontWeight: "500",
     },
@@ -334,19 +334,37 @@ export default function AdminDashboardScreen() {
     },
     countBadge: {
       marginLeft: 12,
-      marginBottom: 8,
-      fontSize: 13,
+      marginBottom: 6,
+      fontSize: 12,
       color: theme.textSecondary,
+    },
+    bottomSheet: {
+      flex: 1,
+      backgroundColor: theme.backgroundDefault,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      marginTop: 8,
+      overflow: "hidden",
+    },
+    dragHandle: {
+      alignItems: "center",
+      paddingVertical: 10,
+    },
+    dragBar: {
+      width: 36,
+      height: 4,
+      backgroundColor: theme.textSecondary + "40",
+      borderRadius: 2,
     },
     content: {
       flex: 1,
       paddingHorizontal: 12,
     },
     listItem: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
-      padding: 14,
-      marginBottom: 10,
+      backgroundColor: theme.backgroundRoot,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 8,
     },
     listItemHeader: {
       flexDirection: "row",
@@ -581,38 +599,48 @@ export default function AdminDashboardScreen() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsRow}>
       <View style={styles.statCard}>
         <View style={styles.statIcon}>
-          <Feather name="users" size={16} color={theme.primary} />
+          <Feather name="users" size={12} color={theme.primary} />
         </View>
-        <Text style={styles.statLabel}>Users</Text>
-        <Text style={styles.statValue}>{stats.users}</Text>
+        <View>
+          <Text style={styles.statValue}>{stats.users}</Text>
+          <Text style={styles.statLabel}>Users</Text>
+        </View>
       </View>
       <View style={styles.statCard}>
         <View style={styles.statIcon}>
-          <Feather name="briefcase" size={16} color={theme.primary} />
+          <Feather name="briefcase" size={12} color={theme.primary} />
         </View>
-        <Text style={styles.statLabel}>Businesses</Text>
-        <Text style={styles.statValue}>{stats.businesses}</Text>
+        <View>
+          <Text style={styles.statValue}>{stats.businesses}</Text>
+          <Text style={styles.statLabel}>Businesses</Text>
+        </View>
       </View>
       <View style={styles.statCard}>
         <View style={styles.statIcon}>
-          <Feather name="camera" size={16} color={theme.primary} />
+          <Feather name="camera" size={12} color={theme.primary} />
         </View>
-        <Text style={styles.statLabel}>Photographers</Text>
-        <Text style={styles.statValue}>{stats.photographers}</Text>
+        <View>
+          <Text style={styles.statValue}>{stats.photographers}</Text>
+          <Text style={styles.statLabel}>Photographers</Text>
+        </View>
       </View>
       <View style={styles.statCard}>
         <View style={styles.statIcon}>
-          <Feather name="shopping-bag" size={16} color={theme.primary} />
+          <Feather name="shopping-bag" size={12} color={theme.primary} />
         </View>
-        <Text style={styles.statLabel}>Orders</Text>
-        <Text style={styles.statValue}>{stats.orders}</Text>
+        <View>
+          <Text style={styles.statValue}>{stats.orders}</Text>
+          <Text style={styles.statLabel}>Orders</Text>
+        </View>
       </View>
       <View style={styles.statCard}>
         <View style={styles.statIcon}>
-          <Feather name="calendar" size={16} color={theme.primary} />
+          <Feather name="calendar" size={12} color={theme.primary} />
         </View>
-        <Text style={styles.statLabel}>Bookings</Text>
-        <Text style={styles.statValue}>{stats.bookings}</Text>
+        <View>
+          <Text style={styles.statValue}>{stats.bookings}</Text>
+          <Text style={styles.statLabel}>Bookings</Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -1091,8 +1119,11 @@ export default function AdminDashboardScreen() {
 
       {renderStatsCards()}
       {renderTabs()}
-      {renderSearchBar()}
-      <View style={{ flex: 1 }}>
+      <View style={styles.bottomSheet}>
+        <View style={styles.dragHandle}>
+          <View style={styles.dragBar} />
+        </View>
+        {renderSearchBar()}
         {renderContent()}
       </View>
     </View>
