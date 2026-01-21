@@ -2213,6 +2213,8 @@ class ApiService {
     videoUrl?: string;
     taggedBusinessId?: string;
     taggedPhotographerId?: string;
+    serviceId?: string;
+    productId?: string;
   }): Promise<{ post: ApiPost }> {
     return this.request<{ post: ApiPost }>("/api/feed", {
       method: "POST",

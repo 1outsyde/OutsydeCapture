@@ -176,6 +176,8 @@ export default function AccountScreen() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostImage, setNewPostImage] = useState<string>("");
   const [newPostCaption, setNewPostCaption] = useState("");
+  const [linkedServiceId, setLinkedServiceId] = useState<string>("");
+  const [linkedProductId, setLinkedProductId] = useState<string>("");
   const [businessHasProducts, setBusinessHasProducts] = useState(false);
   const [businessHasServices, setBusinessHasServices] = useState(false);
   const [businessProducts, setBusinessProducts] = useState<VendorProduct[]>([]);
@@ -190,7 +192,7 @@ export default function AccountScreen() {
   const [tabBarLayoutY, setTabBarLayoutY] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const userRole = user?.role || "consumer";
+  const userRole: "consumer" | "photographer" | "business" = user?.role || "consumer";
   const isOwner = true;
   const isGuest = user?.isGuest || false;
 
@@ -587,6 +589,8 @@ export default function AccountScreen() {
       const response = await api.createPost(authToken, {
         imageUrl: newPostImage,
         content: newPostCaption || undefined,
+        serviceId: linkedServiceId || undefined,
+        productId: linkedProductId || undefined,
       });
       
       if (response.post) {
@@ -594,6 +598,8 @@ export default function AccountScreen() {
         setFeaturedPosts([newPost, ...featuredPosts]);
         setNewPostImage("");
         setNewPostCaption("");
+        setLinkedServiceId("");
+        setLinkedProductId("");
         setShowCreatePost(false);
         console.log("[AccountScreen] Post created successfully:", response.post.id);
       }
@@ -1017,7 +1023,7 @@ export default function AccountScreen() {
           }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
               <ThemedText type="h3">Create Post</ThemedText>
-              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); }}>
+              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); }}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
@@ -1065,6 +1071,146 @@ export default function AccountScreen() {
                 marginBottom: Spacing.md,
               }}
             />
+
+            {/* Service/Product Link - Photographers */}
+            {userRole === "photographer" && photographerServices.length > 0 && (
+              <View style={{ marginBottom: Spacing.md }}>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                  Link a service (optional)
+                </ThemedText>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginHorizontal: -Spacing.lg }}
+                  contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+                >
+                  <Pressable
+                    onPress={() => setLinkedServiceId("")}
+                    style={{
+                      paddingHorizontal: Spacing.md,
+                      paddingVertical: Spacing.sm,
+                      borderRadius: 20,
+                      backgroundColor: !linkedServiceId ? profileTheme : theme.backgroundSecondary,
+                      borderWidth: 1,
+                      borderColor: !linkedServiceId ? profileTheme : theme.border,
+                    }}
+                  >
+                    <ThemedText type="small" style={{ color: !linkedServiceId ? "#000" : theme.text }}>
+                      No link
+                    </ThemedText>
+                  </Pressable>
+                  {photographerServices.map((service) => (
+                    <Pressable
+                      key={service.id}
+                      onPress={() => setLinkedServiceId(service.id)}
+                      style={{
+                        paddingHorizontal: Spacing.md,
+                        paddingVertical: Spacing.sm,
+                        borderRadius: 20,
+                        backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
+                        borderWidth: 1,
+                        borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
+                      }}
+                    >
+                      <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
+                        {service.name}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                {linkedServiceId && (
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+                    <Feather name="tag" size={14} color={profileTheme} />
+                    <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
+                      Post will show "Book" button for this service
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Service/Product Link - Businesses */}
+            {(userRole as string) === "business" && (businessServices.length > 0 || businessProducts.length > 0) && (
+              <View style={{ marginBottom: Spacing.md }}>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                  Link a service or product (optional)
+                </ThemedText>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginHorizontal: -Spacing.lg }}
+                  contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+                >
+                  <Pressable
+                    onPress={() => { setLinkedServiceId(""); setLinkedProductId(""); }}
+                    style={{
+                      paddingHorizontal: Spacing.md,
+                      paddingVertical: Spacing.sm,
+                      borderRadius: 20,
+                      backgroundColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.backgroundSecondary,
+                      borderWidth: 1,
+                      borderColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.border,
+                    }}
+                  >
+                    <ThemedText type="small" style={{ color: !linkedServiceId && !linkedProductId ? "#000" : theme.text }}>
+                      No link
+                    </ThemedText>
+                  </Pressable>
+                  {businessServices.filter(s => s.status === "live").map((service) => (
+                    <Pressable
+                      key={`svc-${service.id}`}
+                      onPress={() => { setLinkedServiceId(service.id); setLinkedProductId(""); }}
+                      style={{
+                        paddingHorizontal: Spacing.md,
+                        paddingVertical: Spacing.sm,
+                        borderRadius: 20,
+                        backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
+                        borderWidth: 1,
+                        borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: Spacing.xs,
+                      }}
+                    >
+                      <Feather name="briefcase" size={12} color={linkedServiceId === service.id ? "#000" : theme.textSecondary} />
+                      <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
+                        {service.name}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                  {businessProducts.filter(p => p.status === "live").map((product) => (
+                    <Pressable
+                      key={`prod-${product.id}`}
+                      onPress={() => { setLinkedProductId(product.id); setLinkedServiceId(""); }}
+                      style={{
+                        paddingHorizontal: Spacing.md,
+                        paddingVertical: Spacing.sm,
+                        borderRadius: 20,
+                        backgroundColor: linkedProductId === product.id ? profileTheme : theme.backgroundSecondary,
+                        borderWidth: 1,
+                        borderColor: linkedProductId === product.id ? profileTheme : theme.border,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: Spacing.xs,
+                      }}
+                    >
+                      <Feather name="shopping-bag" size={12} color={linkedProductId === product.id ? "#000" : theme.textSecondary} />
+                      <ThemedText type="small" style={{ color: linkedProductId === product.id ? "#000" : theme.text }}>
+                        {product.name}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                {(linkedServiceId || linkedProductId) && (
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+                    <Feather name="tag" size={14} color={profileTheme} />
+                    <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
+                      Post will show "{linkedProductId ? "Buy Now" : "Book"}" button
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Post Button */}
             <Pressable
