@@ -405,6 +405,14 @@ export interface AdminBusiness {
   earnings?: number;
 }
 
+export interface AdminBusinessDetailOwner {
+  id: string;
+  email: string;
+  name: string;
+  profileImage?: string;
+  phone?: string;
+}
+
 export interface AdminBusinessDetail {
   id: string;
   name: string;
@@ -438,6 +446,12 @@ export interface AdminBusinessDetail {
   ownerId?: string;
   ownerName?: string;
   ownerEmail?: string;
+  owner?: AdminBusinessDetailOwner;
+  products?: any[];
+  staff?: any[];
+  productCount?: number;
+  serviceCount?: number;
+  staffCount?: number;
   createdAt: string;
   updatedAt?: string;
   priceRange?: string;
