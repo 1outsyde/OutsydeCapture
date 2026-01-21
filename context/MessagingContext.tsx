@@ -76,10 +76,15 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
     try {
       const token = await getToken();
       const apiConversations = await api.getConversations(token);
-      setConversations(apiConversations.map(mapApiConversation));
+      // Ensure apiConversations is an array before mapping
+      if (Array.isArray(apiConversations)) {
+        setConversations(apiConversations.map(mapApiConversation));
+      } else {
+        setConversations([]);
+      }
     } catch (err: any) {
       console.error("Failed to fetch conversations:", err);
-      if (err?.status === 404) {
+      if (err?.status === 404 || err?.status === 401) {
         setConversations([]);
       } else {
         setError(err?.message || "Failed to load conversations");
