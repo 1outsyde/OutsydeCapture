@@ -115,7 +115,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (!token) return;
 
       const pendingBusinesses = await api.getAdminBusinesses(token, "pending");
-      const pendingList = pendingBusinesses || [];
+      // Handle various response formats - could be array directly or nested in object
+      let pendingList: Array<{ id: string; businessName?: string; name?: string }> = [];
+      if (Array.isArray(pendingBusinesses)) {
+        pendingList = pendingBusinesses;
+      } else if (pendingBusinesses && typeof pendingBusinesses === 'object') {
+        // Check common nested properties
+        const nested = (pendingBusinesses as Record<string, unknown>);
+        if (Array.isArray(nested.businesses)) {
+          pendingList = nested.businesses;
+        } else if (Array.isArray(nested.data)) {
+          pendingList = nested.data;
+        }
+      }
       setPendingBusinessCount(pendingList.length);
 
       const newBusinesses = pendingList.filter(
