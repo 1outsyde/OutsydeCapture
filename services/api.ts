@@ -89,14 +89,20 @@ export interface ApiPost {
   isActive?: boolean;
   createdAt: string;
   updatedAt?: string;
+  // Optional commerce context
+  serviceId?: string;
+  productId?: string;
+  providerId?: string;
   user?: {
     id: string;
     name: string;
+    username?: string;
     profileImageUrl?: string;
   };
   author?: {
     id: string;
     name: string;
+    username?: string;
     profileImageUrl?: string;
     businessId?: string;
     photographerId?: string;

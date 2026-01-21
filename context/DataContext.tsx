@@ -91,14 +91,20 @@ export interface Comment {
   createdAt: string;
 }
 
-export type PostType = "photographer" | "vendor";
+export type PostType = "photographer" | "vendor" | "user";
 
 export interface Post {
   id: string;
   type: PostType;
+  // Canonical identity fields (userId is source of truth)
+  userId: string;
+  username?: string;
+  displayName: string;
+  authorAvatar: string;
+  // Legacy field - use userId instead
   authorId: string;
   authorName: string;
-  authorAvatar: string;
+  // Post content
   subscriptionTier?: "basic" | "pro" | "premium";
   rating: number;
   reviewCount: number;
@@ -108,6 +114,10 @@ export interface Post {
   isLiked: boolean;
   comments: Comment[];
   createdAt: string;
+  // Optional commerce context
+  serviceId?: string;
+  productId?: string;
+  providerId?: string;
   // Vendor-specific fields
   productName?: string;
   productPrice?: number;
@@ -244,12 +254,16 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post1",
     type: "photographer",
+    userId: "user_p1",
+    username: "sarahmitchell",
+    displayName: "Sarah Mitchell",
     authorId: "p1",
     authorName: "Sarah Mitchell",
     authorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
     photographerId: "p1",
     photographerName: "Sarah Mitchell",
     photographerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+    providerId: "p1",
     subscriptionTier: "premium",
     rating: 4.9,
     reviewCount: 127,
@@ -266,9 +280,14 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post6",
     type: "vendor",
+    userId: "user_v1",
+    username: "printmasterstudio",
+    displayName: "PrintMaster Studio",
     authorId: "v1",
     authorName: "PrintMaster Studio",
     authorAvatar: "https://images.unsplash.com/photo-1560264280-88b68371db39?w=200",
+    providerId: "v1",
+    productId: "prod_canvas_print",
     subscriptionTier: "premium",
     rating: 4.8,
     reviewCount: 342,
@@ -286,12 +305,16 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post2",
     type: "photographer",
+    userId: "user_p2",
+    username: "jameschen",
+    displayName: "James Chen",
     authorId: "p2",
     authorName: "James Chen",
     authorAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
     photographerId: "p2",
     photographerName: "James Chen",
     photographerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    providerId: "p2",
     subscriptionTier: "pro",
     rating: 4.8,
     reviewCount: 89,
@@ -307,9 +330,14 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post7",
     type: "vendor",
+    userId: "user_v2",
+    username: "memorybookco",
+    displayName: "MemoryBook Co",
     authorId: "v2",
     authorName: "MemoryBook Co",
     authorAvatar: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=200",
+    providerId: "v2",
+    productId: "prod_leather_album",
     subscriptionTier: "pro",
     rating: 4.7,
     reviewCount: 218,
@@ -325,12 +353,16 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post3",
     type: "photographer",
+    userId: "user_p4",
+    username: "marcusjohnson",
+    displayName: "Marcus Johnson",
     authorId: "p4",
     authorName: "Marcus Johnson",
     authorAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
     photographerId: "p4",
     photographerName: "Marcus Johnson",
     photographerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
+    providerId: "p4",
     subscriptionTier: "premium",
     rating: 4.9,
     reviewCount: 156,
@@ -344,9 +376,14 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post8",
     type: "vendor",
+    userId: "user_v3",
+    username: "lenscraftgear",
+    displayName: "LensCraft Gear",
     authorId: "v3",
     authorName: "LensCraft Gear",
     authorAvatar: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200",
+    providerId: "v3",
+    productId: "prod_camera_strap",
     subscriptionTier: "basic",
     rating: 4.5,
     reviewCount: 87,
@@ -364,12 +401,16 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post4",
     type: "photographer",
+    userId: "user_p5",
+    username: "oliviapark",
+    displayName: "Olivia Park",
     authorId: "p5",
     authorName: "Olivia Park",
     authorAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
     photographerId: "p5",
     photographerName: "Olivia Park",
     photographerAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
+    providerId: "p5",
     subscriptionTier: "pro",
     rating: 4.8,
     reviewCount: 98,
@@ -386,9 +427,14 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post9",
     type: "vendor",
+    userId: "user_v4",
+    username: "frameartgallery",
+    displayName: "FrameArt Gallery",
     authorId: "v4",
     authorName: "FrameArt Gallery",
     authorAvatar: "https://images.unsplash.com/photo-1513519245088-0e12902e35a6?w=200",
+    providerId: "v4",
+    productId: "prod_oak_frame",
     subscriptionTier: "premium",
     rating: 4.9,
     reviewCount: 176,
@@ -404,12 +450,16 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post5",
     type: "photographer",
+    userId: "user_p3",
+    username: "emmarodriguez",
+    displayName: "Emma Rodriguez",
     authorId: "p3",
     authorName: "Emma Rodriguez",
     authorAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
     photographerId: "p3",
     photographerName: "Emma Rodriguez",
     photographerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
+    providerId: "p3",
     subscriptionTier: "basic",
     rating: 4.7,
     reviewCount: 64,
@@ -423,9 +473,14 @@ const MOCK_POSTS: Post[] = [
   {
     id: "post10",
     type: "vendor",
+    userId: "user_v5",
+    username: "photogearpro",
+    displayName: "PhotoGear Pro",
     authorId: "v5",
     authorName: "PhotoGear Pro",
     authorAvatar: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=200",
+    providerId: "v5",
+    productId: "prod_ring_light",
     subscriptionTier: "pro",
     rating: 4.6,
     reviewCount: 203,

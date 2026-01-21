@@ -21,7 +21,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, SubscriptionTiers } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import { useData, Post } from "@/context/DataContext";
+import { useData, Post, PostType } from "@/context/DataContext";
 import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useHealthCheck } from "@/context/HealthCheckContext";
@@ -48,16 +48,37 @@ export default function DiscoverScreen() {
 
   // Convert API posts to local Post format
   const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
-    const authorName = apiPost.author?.name || apiPost.user?.name || "Unknown";
+    const displayName = apiPost.author?.name || apiPost.user?.name || "Unknown";
     const authorAvatar = apiPost.author?.profileImageUrl || apiPost.user?.profileImageUrl || "";
-    const authorId = apiPost.authorId || apiPost.userId || apiPost.id;
+    const userId = apiPost.userId || apiPost.author?.id || apiPost.user?.id || apiPost.id;
+    const username = apiPost.author?.username || apiPost.user?.username;
+    
+    // Determine post type
+    let postType: PostType = "user";
+    if (apiPost.authorType === "photographer") {
+      postType = "photographer";
+    } else if (apiPost.authorType === "vendor" || apiPost.authorType === "business") {
+      postType = "vendor";
+    }
+    
+    // Determine provider ID for commerce context
+    const providerId = apiPost.providerId || 
+      apiPost.author?.photographerId || 
+      apiPost.author?.businessId ||
+      apiPost.taggedPhotographerId ||
+      apiPost.taggedBusinessId;
     
     return {
       id: apiPost.id,
-      type: apiPost.authorType === "photographer" ? "photographer" : "vendor",
-      authorId: authorId,
-      authorName: authorName,
+      type: postType,
+      // Canonical identity (userId is source of truth)
+      userId: userId,
+      username: username,
+      displayName: displayName,
       authorAvatar: authorAvatar,
+      // Legacy fields for backwards compatibility
+      authorId: userId,
+      authorName: displayName,
       subscriptionTier: undefined,
       rating: 0,
       reviewCount: 0,
@@ -67,8 +88,13 @@ export default function DiscoverScreen() {
       isLiked: false,
       comments: [],
       createdAt: apiPost.createdAt,
-      photographerId: apiPost.authorType === "photographer" ? authorId : undefined,
-      photographerName: apiPost.authorType === "photographer" ? authorName : undefined,
+      // Optional commerce context
+      serviceId: apiPost.serviceId,
+      productId: apiPost.productId,
+      providerId: providerId,
+      // Backwards compatibility
+      photographerId: apiPost.authorType === "photographer" ? userId : undefined,
+      photographerName: apiPost.authorType === "photographer" ? displayName : undefined,
     };
   }, []);
 
