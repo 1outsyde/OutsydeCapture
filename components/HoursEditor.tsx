@@ -86,6 +86,42 @@ export function getDefaultHours(): DayHours[] {
   }));
 }
 
+export function convertTo24Hour(time12h: string): string {
+  if (!time12h || time12h.includes(":") && !time12h.includes(" ")) {
+    return time12h;
+  }
+  const match = time12h.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return time12h;
+  
+  let [, hours, minutes, period] = match;
+  let h = parseInt(hours, 10);
+  
+  if (period.toUpperCase() === "AM") {
+    if (h === 12) h = 0;
+  } else {
+    if (h !== 12) h += 12;
+  }
+  
+  return `${h.toString().padStart(2, "0")}:${minutes}`;
+}
+
+export function convertTo12Hour(time24h: string): string {
+  if (!time24h || time24h.includes("AM") || time24h.includes("PM")) {
+    return time24h;
+  }
+  const match = time24h.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return time24h;
+  
+  let [, hours, minutes] = match;
+  let h = parseInt(hours, 10);
+  const period = h >= 12 ? "PM" : "AM";
+  
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  
+  return `${h}:${minutes} ${period}`;
+}
+
 export function hoursArrayToObject(hours: DayHours[]): HoursOfOperation {
   const dayKeys: (keyof HoursOfOperation)[] = [
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
