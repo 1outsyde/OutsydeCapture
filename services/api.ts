@@ -1623,37 +1623,76 @@ class ApiService {
     });
   }
 
-  // GET /api/photographers/me/availability - Get availability slots
-  async getPhotographerMeAvailability(authToken: string): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
-    return this.request<{ availability: VendorBookerAvailabilitySlot[] }>("/api/photographers/me/availability", {
+  // GET /api/photographers/me/availability - Get weekly schedule and travel settings
+  async getPhotographerMeAvailability(authToken: string): Promise<{
+    hoursOfOperation: Record<string, { open: string; close: string } | null>;
+    travel_buffer_minutes: number;
+    service_radius_miles: number;
+    service_locations: Array<{ name: string; address: string }>;
+    blackoutDates: Array<{ id: number; date: string; reason?: string }>;
+  }> {
+    return this.request<{
+      hoursOfOperation: Record<string, { open: string; close: string } | null>;
+      travel_buffer_minutes: number;
+      service_radius_miles: number;
+      service_locations: Array<{ name: string; address: string }>;
+      blackoutDates: Array<{ id: number; date: string; reason?: string }>;
+    }>("/api/photographers/me/availability", {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
-  // PUT /api/photographers/me/availability - Update availability slots (bulk)
-  async updatePhotographerMeAvailability(authToken: string, availability: VendorBookerAvailabilitySlot[]): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
-    return this.request<{ availability: VendorBookerAvailabilitySlot[] }>("/api/photographers/me/availability", {
-      method: "PUT",
-      body: JSON.stringify({ availability }),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
-  }
-
-  // POST /api/photographers/me/availability - Create a single availability slot
-  async createPhotographerAvailabilitySlot(
+  // PUT /api/photographers/me/availability - Update base hours and travel buffer settings
+  async updatePhotographerMeAvailability(
     authToken: string,
-    data: { date: string; startTime: string; endTime: string; slotType?: string }
-  ): Promise<{ slot: VendorBookerAvailabilitySlot }> {
-    return this.request<{ slot: VendorBookerAvailabilitySlot }>("/api/photographers/me/availability", {
-      method: "POST",
-      body: JSON.stringify({
-        date: data.date,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        slotType: data.slotType || "available",
-      }),
+    data: {
+      hoursOfOperation?: Record<string, { open: string; close: string } | null>;
+      travel_buffer_minutes?: number;
+      service_radius_miles?: number;
+      service_locations?: Array<{ name: string; address: string }>;
+    }
+  ): Promise<{
+    hoursOfOperation: Record<string, { open: string; close: string } | null>;
+    travel_buffer_minutes: number;
+    service_radius_miles: number;
+    service_locations: Array<{ name: string; address: string }>;
+  }> {
+    return this.request<{
+      hoursOfOperation: Record<string, { open: string; close: string } | null>;
+      travel_buffer_minutes: number;
+      service_radius_miles: number;
+      service_locations: Array<{ name: string; address: string }>;
+    }>("/api/photographers/me/availability", {
+      method: "PUT",
+      body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+  }
+
+  // POST /api/photographers/me/availability/blackout-dates - Add blackout date
+  async addPhotographerBlackoutDate(
+    authToken: string,
+    data: { date: string; reason?: string }
+  ): Promise<{ blackoutDate: { id: number; date: string; reason?: string } }> {
+    return this.request<{ blackoutDate: { id: number; date: string; reason?: string } }>(
+      "/api/photographers/me/availability/blackout-dates",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Authorization": `Bearer ${authToken}` },
+      }
+    );
+  }
+
+  // DELETE /api/photographers/me/availability/blackout-dates/:id - Remove blackout date
+  async removePhotographerBlackoutDate(authToken: string, blackoutDateId: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(
+      `/api/photographers/me/availability/blackout-dates/${blackoutDateId}`,
+      {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${authToken}` },
+      }
+    );
   }
 
   // GET /api/photographers/me/bookings - Get booking records
@@ -1663,20 +1702,26 @@ class ApiService {
     });
   }
 
-  // GET /api/photographers/me/blocked-dates - Get blocked dates
+  // GET /api/photographers/me/blocked-dates - Get blocked dates (legacy, now uses blackout-dates)
   async getPhotographerBlockedDates(authToken: string): Promise<{ blockedDates: BlockedDate[] }> {
-    return this.request<{ blockedDates: BlockedDate[] }>("/api/photographers/me/blocked-dates", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    try {
+      const result = await this.getPhotographerMeAvailability(authToken);
+      const blockedDates: BlockedDate[] = (result.blackoutDates || []).map((bd) => ({
+        id: bd.id.toString(),
+        date: bd.date,
+        isFullDay: true,
+        reason: bd.reason,
+      }));
+      return { blockedDates };
+    } catch {
+      return { blockedDates: [] };
+    }
   }
 
-  // PUT /api/photographers/me/blocked-dates - Update blocked dates
+  // PUT /api/photographers/me/blocked-dates - Update blocked dates (legacy adapter)
   async updatePhotographerBlockedDates(authToken: string, blockedDates: BlockedDate[]): Promise<{ blockedDates: BlockedDate[] }> {
-    return this.request<{ blockedDates: BlockedDate[] }>("/api/photographers/me/blocked-dates", {
-      method: "PUT",
-      body: JSON.stringify({ blockedDates }),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    console.warn("[API] updatePhotographerBlockedDates is deprecated - use addPhotographerBlackoutDate/removePhotographerBlackoutDate");
+    return { blockedDates };
   }
 
   // ==========================================

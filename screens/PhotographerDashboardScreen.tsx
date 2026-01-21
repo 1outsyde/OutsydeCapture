@@ -222,26 +222,38 @@ export default function PhotographerDashboardScreen() {
       }
 
       try {
-        const { availability } = await api.getPhotographerMeAvailability(token);
-        if (availability && availability.length > 0) {
-          setHours(availability.map((a: any) => ({
-            dayOfWeek: a.dayOfWeek,
-            isAvailable: a.isAvailable !== false,
-            startTime: a.startTime,
-            endTime: a.endTime,
+        const availabilityData = await api.getPhotographerMeAvailability(token);
+        if (availabilityData.hoursOfOperation) {
+          const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+          const parsedHours = dayNames.map((dayName, index) => {
+            const dayData = availabilityData.hoursOfOperation[dayName];
+            if (dayData) {
+              return {
+                dayOfWeek: index,
+                isAvailable: true,
+                startTime: dayData.open,
+                endTime: dayData.close,
+              };
+            }
+            return {
+              dayOfWeek: index,
+              isAvailable: false,
+              startTime: "09:00",
+              endTime: "17:00",
+            };
+          });
+          setHours(parsedHours);
+        }
+        if (availabilityData.blackoutDates && availabilityData.blackoutDates.length > 0) {
+          setBlockedDates(availabilityData.blackoutDates.map((bd) => ({
+            id: bd.id.toString(),
+            date: bd.date,
+            isFullDay: true,
+            reason: bd.reason,
           })));
         }
       } catch {
-        // Keep default hours
-      }
-
-      try {
-        const { blockedDates: dates } = await api.getPhotographerBlockedDates(token);
-        if (dates && dates.length > 0) {
-          setBlockedDates(dates);
-        }
-      } catch {
-        // No blocked dates yet
+        // Keep default hours and no blocked dates
       }
 
     } catch (error: any) {
@@ -572,21 +584,22 @@ export default function PhotographerDashboardScreen() {
 
     try {
       setSaving(true);
-      // Map DayHours to VendorBookerAvailabilitySlot format
-      // Only include days where isAvailable is true
-      const availabilitySlots = hours
-        .filter(h => h.isAvailable)
-        .map(h => ({
-          dayOfWeek: h.dayOfWeek,
-          startTime: h.startTime,
-          endTime: h.endTime,
-          isRecurring: true,
-        }));
+      // Convert DayHours array to hoursOfOperation object for backend
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const hoursOfOperation: Record<string, { open: string; close: string } | null> = {};
       
-      await api.updatePhotographerMeAvailability(token, availabilitySlots as any);
+      hours.forEach((h) => {
+        const dayName = dayNames[h.dayOfWeek];
+        if (h.isAvailable) {
+          hoursOfOperation[dayName] = { open: h.startTime, close: h.endTime };
+        } else {
+          hoursOfOperation[dayName] = null;
+        }
+      });
+      
+      await api.updatePhotographerMeAvailability(token, { hoursOfOperation });
       Alert.alert("Success", "Your availability has been updated");
       setActiveModal(null);
-      // Refresh to get updated availability
       fetchDashboard();
     } catch (error: any) {
       console.error("[Dashboard] Failed to save availability:", error);
@@ -596,35 +609,62 @@ export default function PhotographerDashboardScreen() {
     }
   };
 
-  const handleAddBlockedDate = (blockedDate: BlockedDate) => {
-    // Check if date is already blocked
+  const handleAddBlockedDate = async (blockedDate: BlockedDate) => {
     const exists = blockedDates.some(b => b.date === blockedDate.date);
     if (exists) {
       Alert.alert("Already Blocked", "This date is already blocked.");
       return;
     }
-    setBlockedDates(prev => [...prev, blockedDate]);
-  };
-
-  const handleRemoveBlockedDate = (index: number) => {
-    setBlockedDates(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSaveBlockedDates = async () => {
+    
     const token = await getToken();
     if (!token) return;
-
+    
     try {
       setSaving(true);
-      await api.updatePhotographerBlockedDates(token, blockedDates);
-      Alert.alert("Success", "Your blocked dates have been saved");
-      setActiveModal(null);
+      const result = await api.addPhotographerBlackoutDate(token, {
+        date: blockedDate.date,
+        reason: blockedDate.reason,
+      });
+      setBlockedDates(prev => [...prev, {
+        id: result.blackoutDate.id.toString(),
+        date: result.blackoutDate.date,
+        isFullDay: true,
+        reason: result.blackoutDate.reason,
+      }]);
     } catch (error: any) {
-      console.error("[Dashboard] Failed to save blocked dates:", error);
-      Alert.alert("Error", error.message || "Failed to save blocked dates");
+      console.error("[Dashboard] Failed to add blocked date:", error);
+      Alert.alert("Error", error.message || "Failed to add blocked date");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRemoveBlockedDate = async (index: number) => {
+    const dateToRemove = blockedDates[index];
+    if (!dateToRemove) return;
+    
+    const token = await getToken();
+    if (!token) return;
+    
+    if (dateToRemove.id) {
+      try {
+        setSaving(true);
+        await api.removePhotographerBlackoutDate(token, parseInt(dateToRemove.id, 10));
+        setBlockedDates(prev => prev.filter((_, i) => i !== index));
+      } catch (error: any) {
+        console.error("[Dashboard] Failed to remove blocked date:", error);
+        Alert.alert("Error", error.message || "Failed to remove blocked date");
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setBlockedDates(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSaveBlockedDates = async () => {
+    Alert.alert("Success", "Your blocked dates are saved automatically when added or removed");
+    setActiveModal(null);
   };
 
   const handleAddService = () => {
