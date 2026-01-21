@@ -7,12 +7,12 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  ScrollView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-
-import { ScreenScrollView } from "@/components/ScreenScrollView";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import Card from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -28,6 +28,7 @@ export default function PaymentScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
+  const insets = useSafeAreaInsets();
   const { sessionId, amount, photographerName, sessionDate } = route.params;
   const {
     paymentMethods,
@@ -371,7 +372,7 @@ export default function PaymentScreen() {
 
   return (
     <>
-      <ScreenScrollView contentContainerStyle={styles.container}>
+      <ScrollView style={{ flex: 1, backgroundColor: theme.backgroundRoot }} contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + Spacing.xl }]}>
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>
             Order Summary
@@ -511,7 +512,7 @@ export default function PaymentScreen() {
             Secure payment powered by Stripe
           </ThemedText>
         </View>
-      </ScreenScrollView>
+      </ScrollView>
 
       {isProcessing ? (
         <View style={styles.processingOverlay}>

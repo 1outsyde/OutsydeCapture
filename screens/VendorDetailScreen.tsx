@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, ActivityIndicator, Pressable, Alert } from "react-native";
+import { View, StyleSheet, ActivityIndicator, Pressable, Alert, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
-import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import api, { VendorProduct, VendorService } from "@/services/api";
@@ -119,14 +118,14 @@ export default function VendorDetailScreen({ route }: Props) {
 
   if (loading || !vendor) {
     return (
-      <ScreenScrollView>
+      <ScrollView style={{ flex: 1, backgroundColor: theme.backgroundRoot }} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
             Loading business...
           </ThemedText>
         </View>
-      </ScreenScrollView>
+      </ScrollView>
     );
   }
 
@@ -229,7 +228,7 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   return (
-    <ScreenScrollView>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.backgroundRoot }} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}>
       <View style={styles.coverContainer}>
         <Image
           source={{ uri: vendor.coverImage || vendor.avatar }}
@@ -314,7 +313,7 @@ export default function VendorDetailScreen({ route }: Props) {
           )}
         </View>
       </View>
-    </ScreenScrollView>
+    </ScrollView>
   );
 }
 
