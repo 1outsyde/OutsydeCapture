@@ -39,7 +39,14 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Guest Mode Restrictions**: Guest users (`isGuest: true`) see a limited profile view without hamburger menu, points card, or Quick Actions.
   - **Dashboard Presentation**: Dashboard and editor screens use card presentation with slide-from-right animation and proper back navigation to Account/Profile.
 - **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
-- **Core Features**: Personalized content feed, category/location-based search, backend-driven booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
+- **Core Features**: Algorithmic content feed, category/location-based search, backend-driven booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
+- **Algorithmic Feed (Instagram/TikTok-style)**: Backend-driven feed ranking at `GET /api/feed`:
+  - **All Posts Visible**: Shows posts from all vendors, not just followed accounts
+  - **Ranking Factors**: Recency (72-hour decay), engagement (likes/comments), product/service boost, user industry preferences, location proximity (10/25/50/100 mile tiers)
+  - **Location-Based**: Requests user location permission for proximity ranking
+  - **Personalized**: Authenticated users get industry-preference and location-based personalization
+  - **Anonymous Support**: Works without login using engagement and recency only
+- **Universal Notification Bell**: Available on Home screen header for all authenticated users (not just admins), with unread count badge.
 - **Booking System (Backend-Driven)**: Zero client-side availability computation. Backend is single source of truth.
   - **Flow**: Service → Date → Slot → Review/Confirm → Payment
   - **Step Gates**: Each step is disabled until previous step is complete
