@@ -33,36 +33,50 @@ export default function AdminBusinessReviewScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteParams>();
-  const { businessId, businessData } = route.params;
+  const { businessId } = route.params;
   const { getToken } = useAuth();
   const { addNotification } = useNotifications();
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [business, setBusiness] = useState<AdminBusinessDetail | null>(() => {
-    if (businessData) {
-      return {
-        id: businessData.id,
-        name: businessData.name,
-        category: businessData.category,
-        city: businessData.city,
-        state: businessData.state,
-        email: businessData.email,
-        phone: businessData.phone,
-        status: businessData.status,
-        createdAt: businessData.createdAt,
-      };
-    }
-    return null;
-  });
+  const [business, setBusiness] = useState<AdminBusinessDetail | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
 
+  const fetchBusinessDetail = useCallback(async () => {
+    const token = await getToken();
+    if (!token) {
+      setFetchError("Authentication required");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const data = await api.getAdminBusinessDetail(token, businessId);
+      setBusiness(data);
+      setFetchError(null);
+    } catch (error: any) {
+      console.error("Failed to fetch business detail:", error);
+      if (error?.status === 404) {
+        setFetchError("Business details endpoint not available. You can still approve or reject from the list.");
+      } else {
+        setFetchError("Failed to load business details");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, businessId]);
+
+  useEffect(() => {
+    fetchBusinessDetail();
+  }, [fetchBusinessDetail]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await fetchBusinessDetail();
     setRefreshing(false);
   };
 
@@ -475,13 +489,19 @@ export default function AdminBusinessReviewScreen() {
     );
   }
 
-  if (!business) {
+  if (fetchError || !business) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
         <Feather name="alert-circle" size={48} color={theme.textSecondary} />
-        <Text style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
-          Business not found
+        <Text style={{ marginTop: Spacing.md, color: theme.textSecondary, textAlign: "center", paddingHorizontal: Spacing.xl }}>
+          {fetchError || "Business not found"}
         </Text>
+        <Pressable
+          style={{ marginTop: Spacing.lg, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg, backgroundColor: theme.primary, borderRadius: BorderRadius.md }}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={{ color: "#FFFFFF", fontWeight: "600" }}>Go Back</Text>
+        </Pressable>
       </View>
     );
   }

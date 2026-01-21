@@ -1105,7 +1105,7 @@ export default function AdminDashboardScreen() {
               BusinessEmptyComponent
             ) : (
               filteredBusinesses.map((item) => (
-                <Pressable key={item.id} style={styles.listItem} onPress={() => navigation.navigate("AdminBusinessReview", { businessId: item.id, businessData: item })}>
+                <Pressable key={item.id} style={styles.listItem} onPress={() => navigation.navigate("AdminBusinessReview", { businessId: item.id })}>
                   <View style={styles.listItemHeader}>
                     <Text style={styles.listItemName}>{item.name}</Text>
                     <View style={[
