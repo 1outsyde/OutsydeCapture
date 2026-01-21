@@ -338,23 +338,8 @@ export default function AdminDashboardScreen() {
       fontSize: 12,
       color: theme.textSecondary,
     },
-    bottomSheet: {
+    contentArea: {
       flex: 1,
-      backgroundColor: theme.backgroundDefault,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      marginTop: 8,
-      overflow: "hidden",
-    },
-    dragHandle: {
-      alignItems: "center",
-      paddingVertical: 10,
-    },
-    dragBar: {
-      width: 36,
-      height: 4,
-      backgroundColor: theme.textSecondary + "40",
-      borderRadius: 2,
     },
     content: {
       flex: 1,
@@ -789,10 +774,45 @@ export default function AdminDashboardScreen() {
   ), [styles, theme, navigateToUserDetail, handleApprove, handleReject]);
 
   const businessKeyExtractor = useCallback((item: AdminBusiness) => item.id, []);
-  
+
+  const filteredBusinesses = useMemo(() => {
+    if (businessFilter === "all") return businesses;
+    return businesses.filter(b => b.status === businessFilter);
+  }, [businesses, businessFilter]);
+
   const BusinessListHeader = useMemo(() => (
-    <Text style={styles.countBadge}>{businesses.length} businesses</Text>
-  ), [businesses.length, styles.countBadge]);
+    <View>
+      <View style={styles.searchContainer}>
+        <Feather name="search" size={18} color={theme.textSecondary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search businesses..."
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 ? (
+          <Pressable onPress={() => setSearchQuery("")}>
+            <Feather name="x" size={18} color={theme.textSecondary} />
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={styles.filterRow}>
+        {(["pending", "approved", "rejected", "all"] as StatusFilter[]).map((status) => (
+          <Pressable
+            key={status}
+            style={[styles.filterChip, businessFilter === status && styles.activeFilterChip]}
+            onPress={() => setBusinessFilter(status)}
+          >
+            <Text style={[styles.filterText, businessFilter === status && styles.activeFilterText]}>
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.countBadge}>{filteredBusinesses.length} businesses</Text>
+    </View>
+  ), [styles, theme, searchQuery, businessFilter, filteredBusinesses.length]);
 
   const BusinessEmptyComponent = useMemo(() => (
     <View style={styles.emptyState}>
@@ -1063,25 +1083,20 @@ export default function AdminDashboardScreen() {
         );
       case "businesses":
         return (
-          <View style={{ flex: 1 }}>
-            {renderStatusFilter(businessFilter, setBusinessFilter)}
-            <FlatList
-              data={businesses}
-              renderItem={renderBusinessItem}
-              keyExtractor={businessKeyExtractor}
-              style={{ flex: 1 }}
-              contentContainerStyle={styles.content}
-              nestedScrollEnabled={true}
-              showsVerticalScrollIndicator={true}
-              removeClippedSubviews={false}
-              initialNumToRender={20}
-              maxToRenderPerBatch={20}
-              windowSize={21}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
-              ListHeaderComponent={BusinessListHeader}
-              ListEmptyComponent={BusinessEmptyComponent}
-            />
-          </View>
+          <FlatList
+            data={filteredBusinesses}
+            renderItem={renderBusinessItem}
+            keyExtractor={businessKeyExtractor}
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.content}
+            scrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+            removeClippedSubviews={false}
+            showsVerticalScrollIndicator={true}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+            ListHeaderComponent={BusinessListHeader}
+            ListEmptyComponent={BusinessEmptyComponent}
+          />
         );
       case "photographers":
         return (
@@ -1143,11 +1158,8 @@ export default function AdminDashboardScreen() {
       </View>
 
       {renderTabs()}
-      <View style={styles.bottomSheet}>
-        <View style={styles.dragHandle}>
-          <View style={styles.dragBar} />
-        </View>
-        {renderSearchBar()}
+      <View style={styles.contentArea}>
+        {activeTab !== "businesses" ? renderSearchBar() : null}
         {renderContent()}
       </View>
     </View>
