@@ -30,8 +30,8 @@ export default function BookingScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
   const { photographer } = route.params;
-  const { createSession } = useData();
-  const { scheduleBookingConfirmation } = useNotifications();
+  const { addSession } = useData();
+  const { addNotification } = useNotifications();
   const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<BookingStep>("date");
@@ -224,20 +224,26 @@ export default function BookingScreen() {
     
     setIsSubmitting(true);
     try {
-      const session = await createSession(
-        {
-          photographerId: photographer.id,
-          date: selectedDate,
-          timeSlotId: selectedTimeSlot.id,
-          location,
-          sessionType,
-          notes,
-        },
-        photographer,
-        { startTime: selectedTimeSlot.startTime, endTime: selectedTimeSlot.endTime }
-      );
+      const session = await addSession({
+        photographerId: photographer.id,
+        photographerName: photographer.name,
+        photographerAvatar: photographer.avatar,
+        date: selectedDate,
+        time: selectedTimeSlot.startTime,
+        endTime: selectedTimeSlot.endTime,
+        location,
+        sessionType,
+        notes,
+        status: "upcoming",
+        price: getPriceValue(photographer.priceRange),
+      });
       
-      await scheduleBookingConfirmation(session);
+      await addNotification({
+        type: "booking",
+        title: "Booking Confirmed",
+        body: `Your session with ${photographer.name} on ${formatDate(selectedDate)} has been confirmed.`,
+      });
+      
       setBookedSessionId(session.id);
       setShowSuccessModal(true);
     } catch (error) {

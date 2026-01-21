@@ -184,6 +184,8 @@ export default function AccountScreen() {
   const [followLoading, setFollowLoading] = useState(false);
   const [showVideoFullscreen, setShowVideoFullscreen] = useState(false);
   const [postSaving, setPostSaving] = useState(false);
+  const [tabBarLayoutY, setTabBarLayoutY] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const userRole = user?.role || "consumer";
   const isOwner = true;
@@ -1689,6 +1691,7 @@ export default function AccountScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
@@ -1905,7 +1908,10 @@ export default function AccountScreen() {
         )}
 
         {/* Tab Navigation - Now for all users including consumers */}
-        <View style={[styles.tabBar, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
+        <View 
+          style={[styles.tabBar, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}
+          onLayout={(e) => setTabBarLayoutY(e.nativeEvent.layout.y)}
+        >
           {tabs.map((tab) => (
             <Pressable
               key={tab.key}
@@ -2042,7 +2048,15 @@ export default function AccountScreen() {
                   <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
                     Today: 3:30 PM - 6:00 PM
                   </ThemedText>
-                  <Pressable onPress={() => setActiveTab("availability")} style={styles.quickInfoLink}>
+                  <Pressable 
+                    onPress={() => {
+                      setActiveTab("availability");
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: tabBarLayoutY - 100, animated: true });
+                      }, 100);
+                    }} 
+                    style={styles.quickInfoLink}
+                  >
                     <ThemedText type="small" style={{ color: profileTheme }}>
                       View full availability
                     </ThemedText>
