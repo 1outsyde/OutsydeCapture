@@ -1,0 +1,114 @@
+I'll add the missing endpoint to fetch a single business by ID for admin review. Let me first check the existing admin business routes to understand the pattern.
+Now I'll add the GET endpoint for fetching a single business by ID. I'll insert it right after the GET all businesses endpoint (line 7828):
+The endpoint has been added. Let me verify the storage methods exist:
+I need to check what storage methods actually exist. Let me search for the correct method names:
+I need to update the endpoint to use the correct method names. Let me also check for product and service methods:
+I see the correct method names. Let me also check for business services:
+Let me search for service-related methods:
+Let me check the AlaCarteService - that seems to be the business service model:
+I see that alaCarteServices is for predefined services and vendorProducts are for products. Let me check if there's a services table for businesses - looking at the schema:
+Now I see there's vendorServices table. Let me check the storage interface for vendor services:
+Now I have all the method names. Let me update the endpoint to use the correct methods:
+The endpoint is now using the correct storage methods. Let me restart the workflow and verify there are no issues:
+The application is running. Let me now update the task list and provide the comprehensive API documentation for notifications:
+I've added the missing endpoint. Now let me provide you with the complete API documentation for all notification-related endpoints and the business approval workflow:
+
+Complete API Documentation for Frontend Team
+Notification Types
+Type	Description	Triggered By
+new_vendor_application	Admin notification for new business application	User submits business application
+vendor_approved	Owner notification when business is approved	Admin approves application
+vendor_rejected	Owner notification when business is rejected	Admin rejects application
+Business Application Endpoints
+1. Get Single Business by ID (NEW)
+GET /api/admin/businesses/:id
+Authorization: Admin required
+Response:
+
+{
+  "id": "business-uuid",
+  "name": "Business Name",
+  "description": "Business description",
+  "category": "Barbershop",
+  "city": "Atlanta",
+  "state": "GA",
+  "approvalStatus": "pending|approved|rejected",
+  "stripeOnboardingComplete": false,
+  "createdAt": "2025-01-21T...",
+  "owner": {
+    "id": "owner-uuid",
+    "email": "owner@example.com",
+    "name": "Owner Name",
+    "profileImage": "url",
+    "phone": "+1234567890"
+  },
+  "products": [...],
+  "services": [...],
+  "staff": [...],
+  "productCount": 5,
+  "serviceCount": 3,
+  "staffCount": 2
+}
+2. Approve Business Application
+POST /api/admin/businesses/:id/approve
+Authorization: Admin required
+Response:
+
+{
+  "success": true,
+  "business": { /* updated business object */ },
+  "stripeOnboardingUrl": "https://connect.stripe.com/...",  // If Stripe not complete
+  "message": "Business approved successfully"
+}
+Notifications Sent:
+
+In-app notification to business owner
+Email to owner with Stripe onboarding CTA (if applicable)
+3. Reject Business Application
+POST /api/admin/businesses/:id/reject
+Authorization: Admin required
+Body: { "reason": "Reason for rejection" }
+Response:
+
+{
+  "success": true,
+  "business": { /* updated business object */ },
+  "message": "Business rejected successfully"
+}
+Notifications Sent:
+
+In-app notification to business owner with rejection reason
+Email to owner explaining rejection and reapply options
+4. List All Businesses (Admin)
+GET /api/admin/businesses?search=&category=&limit=50&offset=0
+Authorization: Admin required
+Notification Endpoints
+5. Get User Notifications
+GET /api/notifications
+Authorization: Required
+Response:
+
+{
+  "notifications": [
+    {
+      "id": "notification-uuid",
+      "type": "vendor_approved",
+      "title": "Application Approved!",
+      "message": "Your business 'My Barbershop' has been approved...",
+      "url": "/vendor/dashboard",
+      "read": false,
+      "createdAt": "2025-01-21T..."
+    }
+  ]
+}
+6. Mark Notification as Read
+PATCH /api/notifications/:id/read
+Authorization: Required
+7. Mark All Notifications as Read
+POST /api/notifications/read-all
+Authorization: Required
+The frontend can now:
+
+Fetch individual business details using GET /api/admin/businesses/:id
+Approve/reject businesses and notifications will be sent automatically
+Business owners receive both in-app and email notifications
