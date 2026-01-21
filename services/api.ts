@@ -1299,9 +1299,13 @@ class ApiService {
     if (status) params.append("status", status);
     if (search) params.append("search", search);
     const query = params.toString() ? `?${params.toString()}` : "";
-    return this.request<AdminBusiness[]>(`/api/admin/businesses${query}`, {
+    const response = await this.request<{ businesses: AdminBusiness[] } | AdminBusiness[]>(`/api/admin/businesses${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return response.businesses || [];
   }
 
   async getAdminPhotographers(authToken: string, search?: string): Promise<AdminPhotographer[]> {
@@ -1349,7 +1353,8 @@ class ApiService {
   }
 
   async approveApplication(authToken: string, type: "business" | "influencer", id: string, notes?: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
-    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(`/api/admin/applications/${id}/approve`, {
+    const endpoint = type === "business" ? `/api/admin/businesses/${id}/approve` : `/api/admin/applications/${id}/approve`;
+    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ notes }),
@@ -1357,7 +1362,8 @@ class ApiService {
   }
 
   async rejectApplication(authToken: string, type: "business" | "influencer", id: string, notes: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
-    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(`/api/admin/applications/${id}/reject`, {
+    const endpoint = type === "business" ? `/api/admin/businesses/${id}/reject` : `/api/admin/applications/${id}/reject`;
+    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ notes }),
