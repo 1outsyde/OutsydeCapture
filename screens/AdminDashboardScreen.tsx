@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
+  TouchableOpacity,
   ScrollView,
   FlatList,
   ActivityIndicator,
@@ -1105,7 +1106,7 @@ export default function AdminDashboardScreen() {
               BusinessEmptyComponent
             ) : (
               filteredBusinesses.map((item) => (
-                <Pressable key={item.id} style={styles.listItem} onPress={() => { console.log("Tapped business:", item.id, item.name); navigation.navigate("AdminBusinessReview", { businessId: item.id }); }}>
+                <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.7} onPress={() => { console.log("Tapped business:", item.id, item.name); navigation.navigate("AdminBusinessReview", { businessId: item.id }); }}>
                   <View style={styles.listItemHeader}>
                     <Text style={styles.listItemName}>{item.name}</Text>
                     <View style={[
@@ -1140,7 +1141,7 @@ export default function AdminDashboardScreen() {
                       </Pressable>
                     </View>
                   ) : null}
-                </Pressable>
+                </TouchableOpacity>
               ))
             )}
           </ScrollView>
