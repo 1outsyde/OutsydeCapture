@@ -165,11 +165,13 @@ export default function AdminDashboardScreen() {
     const token = await getToken();
     if (!token) return;
     try {
+      console.log(`[AdminDashboard] Approving ${type} with id: ${id}`);
       await api.approveApplication(token, type, id);
       Alert.alert("Success", `${type === "business" ? "Business" : "Influencer"} approved successfully`);
       fetchTabData();
-    } catch (error) {
-      Alert.alert("Error", "Failed to approve application");
+    } catch (error: any) {
+      console.log("[AdminDashboard] Approve error:", error?.message || error);
+      Alert.alert("Error", `Failed to approve application: ${error?.message || "Unknown error"}`);
     }
   };
 
@@ -189,11 +191,13 @@ export default function AdminDashboardScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              console.log(`[AdminDashboard] Rejecting ${type} with id: ${id}`);
               await api.rejectApplication(token, type, id, rejectionReason);
               Alert.alert("Success", `${type === "business" ? "Business" : "Influencer"} rejected`);
               fetchTabData();
-            } catch (error) {
-              Alert.alert("Error", "Failed to reject application");
+            } catch (error: any) {
+              console.log("[AdminDashboard] Reject error:", error?.message || error);
+              Alert.alert("Error", `Failed to reject application: ${error?.message || "Unknown error"}`);
             }
           },
         },
@@ -752,7 +756,14 @@ export default function AdminDashboardScreen() {
   const renderBusinessItem = useCallback(({ item }: { item: AdminBusiness }) => {
     const status = getBusinessStatus(item);
     return (
-      <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+      <TouchableOpacity 
+        style={styles.listItem} 
+        activeOpacity={0.7}
+        onPress={() => { 
+          console.log("Tapped business (FlatList):", item.id, item.name); 
+          navigation.navigate("AdminBusinessReview", { businessId: item.id }); 
+        }}
+      >
         <View style={styles.listItemHeader}>
           <Text style={styles.listItemName}>{item.name}</Text>
           <View style={[
@@ -777,19 +788,25 @@ export default function AdminDashboardScreen() {
         ) : null}
         {status === "pending" ? (
           <View style={styles.actionRow}>
-            <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("business", item.id)}>
+            <Pressable 
+              style={[styles.actionButton, styles.approveButton]} 
+              onPress={(e) => { e.stopPropagation(); handleApprove("business", item.id); }}
+            >
               <Feather name="check" size={14} color="#34C759" />
               <Text style={styles.approveButtonText}>Approve</Text>
             </Pressable>
-            <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("business", item.id)}>
+            <Pressable 
+              style={[styles.actionButton, styles.rejectButton]} 
+              onPress={(e) => { e.stopPropagation(); handleReject("business", item.id); }}
+            >
               <Feather name="x" size={14} color="#FF3B30" />
               <Text style={styles.rejectButtonText}>Reject</Text>
             </Pressable>
           </View>
         ) : null}
-      </Pressable>
+      </TouchableOpacity>
     );
-  }, [styles, theme, navigateToUserDetail, handleApprove, handleReject]);
+  }, [styles, theme, navigation, handleApprove, handleReject]);
 
   const businessKeyExtractor = useCallback((item: AdminBusiness) => item.id, []);
 
@@ -1140,11 +1157,17 @@ export default function AdminDashboardScreen() {
                     ) : null}
                     {status === "pending" ? (
                       <View style={styles.actionRow}>
-                        <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("business", item.id)}>
+                        <Pressable 
+                          style={[styles.actionButton, styles.approveButton]} 
+                          onPress={(e) => { e.stopPropagation(); handleApprove("business", item.id); }}
+                        >
                           <Feather name="check" size={14} color="#34C759" />
                           <Text style={styles.approveButtonText}>Approve</Text>
                         </Pressable>
-                        <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("business", item.id)}>
+                        <Pressable 
+                          style={[styles.actionButton, styles.rejectButton]} 
+                          onPress={(e) => { e.stopPropagation(); handleReject("business", item.id); }}
+                        >
                           <Feather name="x" size={14} color="#FF3B30" />
                           <Text style={styles.rejectButtonText}>Reject</Text>
                         </Pressable>
