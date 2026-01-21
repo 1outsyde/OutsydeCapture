@@ -58,12 +58,23 @@ export default function AdminDashboardScreen() {
     
     try {
       setLoading(true);
-      const [statsData, pendingBusinesses] = await Promise.all([
+      const [statsData, pendingBusinessesResponse] = await Promise.all([
         api.getAdminStats(token),
         api.getAdminBusinesses(token, "pending"),
       ]);
       setStats(statsData);
-      setPendingBusinessCount(pendingBusinesses?.length || 0);
+      let pendingList: unknown[] = [];
+      if (Array.isArray(pendingBusinessesResponse)) {
+        pendingList = pendingBusinessesResponse;
+      } else if (pendingBusinessesResponse && typeof pendingBusinessesResponse === 'object') {
+        const nested = pendingBusinessesResponse as Record<string, unknown>;
+        if (Array.isArray(nested.businesses)) {
+          pendingList = nested.businesses;
+        } else if (Array.isArray(nested.data)) {
+          pendingList = nested.data;
+        }
+      }
+      setPendingBusinessCount(pendingList.length);
     } catch (error) {
       console.error("Failed to fetch admin stats:", error);
       setStats({ users: 0, businesses: 0, photographers: 0, orders: 0, bookings: 0 });
@@ -86,7 +97,19 @@ export default function AdminDashboardScreen() {
         case "businesses":
           const statusParam = businessFilter !== "all" ? businessFilter : undefined;
           const businessesData = await api.getAdminBusinesses(token, statusParam, searchQuery || undefined);
-          setBusinesses(businessesData || []);
+          console.log("[AdminDashboard] Businesses API response:", JSON.stringify(businessesData)?.slice(0, 500));
+          let businessesList: AdminBusiness[] = [];
+          if (Array.isArray(businessesData)) {
+            businessesList = businessesData;
+          } else if (businessesData && typeof businessesData === 'object') {
+            const nested = businessesData as Record<string, unknown>;
+            if (Array.isArray(nested.businesses)) {
+              businessesList = nested.businesses as AdminBusiness[];
+            } else if (Array.isArray(nested.data)) {
+              businessesList = nested.data as AdminBusiness[];
+            }
+          }
+          setBusinesses(businessesList);
           break;
         case "photographers":
           const photographersData = await api.getAdminPhotographers(token, searchQuery || undefined);
