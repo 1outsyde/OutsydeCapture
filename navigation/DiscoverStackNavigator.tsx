@@ -45,7 +45,11 @@ function HeaderRightButtons() {
     <View style={styles.headerRightContainer}>
       {isAdmin ? (
         <Pressable
-          onPress={() => navigation.navigate("Notifications")}
+          onPress={() => {
+            console.log("[Header] Bell icon pressed, navigating to Notifications");
+            navigation.navigate("Notifications");
+          }}
+          hitSlop={16}
           style={({ pressed }) => ({
             opacity: pressed ? 0.7 : 1,
             padding: Spacing.sm,
@@ -58,6 +62,7 @@ function HeaderRightButtons() {
               style={[
                 styles.badge,
                 { backgroundColor: theme.error },
+                { pointerEvents: "none" },
               ]}
             >
               <ThemedText

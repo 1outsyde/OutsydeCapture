@@ -115,6 +115,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (!token) return;
 
       const pendingBusinesses = await api.getAdminBusinesses(token, "pending");
+      console.log("[NotificationContext] API response type:", typeof pendingBusinesses, "isArray:", Array.isArray(pendingBusinesses));
+      console.log("[NotificationContext] API response:", JSON.stringify(pendingBusinesses)?.slice(0, 500));
+      
       // Handle various response formats - could be array directly or nested in object
       let pendingList: Array<{ id: string; businessName?: string; name?: string }> = [];
       if (Array.isArray(pendingBusinesses)) {
