@@ -31,7 +31,7 @@ import api, {
   BlockedDate,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
-import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
+import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hour } from "@/components/HoursEditor";
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import { VendorBookerPhotographerService } from "@/services/api";
@@ -231,15 +231,15 @@ export default function PhotographerDashboardScreen() {
               return {
                 dayOfWeek: index,
                 isAvailable: true,
-                startTime: dayData.open,
-                endTime: dayData.close,
+                startTime: convertTo12Hour(dayData.open),
+                endTime: convertTo12Hour(dayData.close),
               };
             }
             return {
               dayOfWeek: index,
               isAvailable: false,
-              startTime: "09:00",
-              endTime: "17:00",
+              startTime: "9:00 AM",
+              endTime: "5:00 PM",
             };
           });
           setHours(parsedHours);
@@ -591,7 +591,10 @@ export default function PhotographerDashboardScreen() {
       hours.forEach((h) => {
         const dayName = dayNames[h.dayOfWeek];
         if (h.isAvailable) {
-          hoursOfOperation[dayName] = { open: h.startTime, close: h.endTime };
+          hoursOfOperation[dayName] = { 
+            open: convertTo24Hour(h.startTime), 
+            close: convertTo24Hour(h.endTime) 
+          };
         } else {
           hoursOfOperation[dayName] = null;
         }
