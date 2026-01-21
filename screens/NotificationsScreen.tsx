@@ -5,12 +5,12 @@ import {
   Pressable,
   Platform,
   Switch,
+  ScrollView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-
-import { ScreenScrollView } from "@/components/ScreenScrollView";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import Card from "@/components/Card";
@@ -26,6 +26,7 @@ export default function NotificationsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const {
     isEnabled,
     notifications,
@@ -211,7 +212,10 @@ export default function NotificationsScreen() {
   });
 
   return (
-    <ScreenScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
+      contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + Spacing.xl }]}
+    >
       <View style={styles.section}>
         <ThemedText type="h3" style={styles.sectionTitle}>
           Settings
@@ -373,6 +377,6 @@ export default function NotificationsScreen() {
           </View>
         )}
       </View>
-    </ScreenScrollView>
+    </ScrollView>
   );
 }
