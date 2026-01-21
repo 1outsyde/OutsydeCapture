@@ -17,6 +17,7 @@ import { LoyaltyProvider } from "@/context/LoyaltyContext";
 import { OrdersProvider } from "@/context/OrdersContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { HealthCheckProvider } from "@/context/HealthCheckContext";
+import { CalendarProvider } from "@/context/CalendarContext";
 import { Colors } from "@/constants/theme";
 
 export default function App() {
@@ -38,9 +39,11 @@ export default function App() {
                         <NotificationProvider>
                           <MessagingProvider>
                             <HealthCheckProvider>
-                              <NavigationContainer>
-                                <RootNavigator />
-                              </NavigationContainer>
+                              <CalendarProvider>
+                                <NavigationContainer>
+                                  <RootNavigator />
+                                </NavigationContainer>
+                              </CalendarProvider>
                             </HealthCheckProvider>
                           </MessagingProvider>
                         </NotificationProvider>

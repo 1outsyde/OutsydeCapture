@@ -71,12 +71,15 @@ export interface Session {
   photographerAvatar: string;
   date: string;
   time: string;
+  endTime?: string;
   location: string;
   sessionType: string;
   status: "upcoming" | "completed" | "cancelled";
   price: number;
   notes?: string;
   photos?: string[];
+  calendarEventId?: string;
+  calendarSynced?: boolean;
 }
 
 export interface Comment {
