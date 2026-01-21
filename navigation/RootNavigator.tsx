@@ -26,6 +26,7 @@ import PhotographerSignupScreen from "@/screens/PhotographerSignupScreen";
 import OnboardingScreen, { checkOnboardingComplete } from "@/screens/OnboardingScreen";
 import AdminDashboardScreen from "@/screens/AdminDashboardScreen";
 import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
+import AdminBusinessReviewScreen from "@/screens/AdminBusinessReviewScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
@@ -448,6 +449,21 @@ export default function RootNavigator() {
           animation: "slide_from_right",
           headerShown: true,
           headerTitle: "User Details",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="AdminBusinessReview"
+        component={AdminBusinessReviewScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Review Business",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },

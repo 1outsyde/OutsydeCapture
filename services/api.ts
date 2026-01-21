@@ -405,6 +405,45 @@ export interface AdminBusiness {
   earnings?: number;
 }
 
+export interface AdminBusinessDetail {
+  id: string;
+  name: string;
+  category: string;
+  city: string;
+  state: string;
+  address?: string;
+  zipCode?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  description?: string;
+  bio?: string;
+  services?: string[];
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+  tiktok?: string;
+  linkedin?: string;
+  coverImage?: string;
+  logo?: string;
+  images?: string[];
+  documents?: string[];
+  status: "pending" | "approved" | "rejected";
+  approvalStatus?: "pending" | "approved" | "rejected";
+  isLive?: boolean;
+  isSearchable?: boolean;
+  subscriptionActive?: boolean;
+  subscriptionTier?: string;
+  stripeOnboardingComplete?: boolean;
+  ownerId?: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  createdAt: string;
+  updatedAt?: string;
+  priceRange?: string;
+  businessHours?: Record<string, { open: string; close: string; closed?: boolean }>;
+}
+
 export interface AdminPhotographer {
   id: string;
   name: string;
@@ -1316,6 +1355,12 @@ class ApiService {
     earnings: number;
   }> {
     return this.request(`/api/admin/users/${userId}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminBusinessDetail(authToken: string, businessId: string): Promise<AdminBusinessDetail> {
+    return this.request<AdminBusinessDetail>(`/api/admin/businesses/${businessId}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
