@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -14,6 +14,7 @@ import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import * as Location from "expo-location";
 
 import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { ThemedText } from "@/components/ThemedText";
@@ -25,86 +26,105 @@ import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useHealthCheck } from "@/context/HealthCheckContext";
 import { useAuth } from "@/context/AuthContext";
+import api, { ApiPost } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { posts, photographers, businesses, isLoading, likePost, addComment, getPhotographer } = useData();
+  const { photographers, businesses, likePost, addComment, getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
   const { isFavorite, toggleFavorite, favorites } = useFavorites();
   const { isLoading: healthLoading, data: healthData, error: healthError, refetch: refetchHealth } = useHealthCheck();
-  const { user } = useAuth();
+  const { user, getToken } = useAuth();
   
   const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
 
-  // Personalized feed: favorites first, then nearby cities based on user's saved preferences
-  const personalizedPosts = useMemo(() => {
-    // Get favorite photographer and vendor IDs
-    const favoritePhotographerIds = favorites
-      .filter(f => f.type === "photographer")
-      .map(f => f.id);
-    const favoriteVendorIds = favorites
-      .filter(f => f.type === "product" || f.type === "business")
-      .map(f => f.id);
+  // Algorithmic feed state - fetched from backend
+  const [feedPosts, setFeedPosts] = useState<Post[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  // Convert API posts to local Post format
+  const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
+    const authorName = apiPost.author?.name || apiPost.user?.name || "Unknown";
+    const authorAvatar = apiPost.author?.profileImageUrl || apiPost.user?.profileImageUrl || "";
+    const authorId = apiPost.authorId || apiPost.userId || apiPost.id;
     
-    // Get cities from user's favorite businesses for "nearby" prioritization
-    const favoriteCities = new Set<string>();
-    favorites.forEach(fav => {
-      // Try to find matching business to get city
-      const business = businesses.find(b => b.id === fav.id || b.name === fav.name);
-      if (business) {
-        favoriteCities.add(business.city.toLowerCase());
-      }
-    });
+    return {
+      id: apiPost.id,
+      type: apiPost.authorType === "photographer" ? "photographer" : "vendor",
+      authorId: authorId,
+      authorName: authorName,
+      authorAvatar: authorAvatar,
+      subscriptionTier: undefined,
+      rating: 0,
+      reviewCount: 0,
+      image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
+      caption: apiPost.content || "",
+      likes: apiPost.likesCount || 0,
+      isLiked: false,
+      comments: [],
+      createdAt: apiPost.createdAt,
+      photographerId: apiPost.authorType === "photographer" ? authorId : undefined,
+      photographerName: apiPost.authorType === "photographer" ? authorName : undefined,
+    };
+  }, []);
 
-    // Sort posts with priority scoring
-    return [...posts].sort((a, b) => {
-      let scoreA = 0;
-      let scoreB = 0;
+  // Fetch algorithmic feed from backend
+  const fetchAlgorithmicFeed = useCallback(async () => {
+    try {
+      setFeedLoading(true);
+      const token = await getToken();
+      
+      const response = await api.getFeed({
+        limit: 50,
+        latitude: userLocation?.latitude,
+        longitude: userLocation?.longitude,
+      }, token || undefined);
+      
+      if (response.posts && Array.isArray(response.posts)) {
+        const convertedPosts = response.posts.map(convertApiPostToPost);
+        setFeedPosts(convertedPosts);
+      }
+    } catch (error) {
+      console.error("[DiscoverScreen] Failed to fetch algorithmic feed:", error);
+    } finally {
+      setFeedLoading(false);
+    }
+  }, [getToken, userLocation, convertApiPostToPost]);
 
-      // Priority 1: Posts from favorite photographers/vendors (highest priority)
-      if (a.type === "photographer" && a.photographerId && favoritePhotographerIds.includes(a.photographerId)) {
-        scoreA += 100;
-      }
-      if (a.type === "vendor" && favoriteVendorIds.includes(a.authorId)) {
-        scoreA += 100;
-      }
-      if (b.type === "photographer" && b.photographerId && favoritePhotographerIds.includes(b.photographerId)) {
-        scoreB += 100;
-      }
-      if (b.type === "vendor" && favoriteVendorIds.includes(b.authorId)) {
-        scoreB += 100;
-      }
-
-      // Priority 2: Posts from cities the user has shown interest in
-      if (a.type === "photographer" && a.photographerId) {
-        const photographer = photographers.find(p => p.id === a.photographerId);
-        if (photographer && favoriteCities.has(photographer.location.split(",")[0].toLowerCase().trim())) {
-          scoreA += 50;
+  // Get user location for location-based ranking (optional)
+  useEffect(() => {
+    const requestLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          setUserLocation({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
         }
+      } catch (error) {
+        // Location not available - feed will still work without it
+        console.log("[DiscoverScreen] Location not available");
       }
-      if (b.type === "photographer" && b.photographerId) {
-        const photographer = photographers.find(p => p.id === b.photographerId);
-        if (photographer && favoriteCities.has(photographer.location.split(",")[0].toLowerCase().trim())) {
-          scoreB += 50;
-        }
-      }
+    };
+    requestLocation();
+  }, []);
 
-      // Priority 3: Featured/premium content
-      if (a.subscriptionTier === "premium") scoreA += 10;
-      if (a.subscriptionTier === "pro") scoreA += 5;
-      if (b.subscriptionTier === "premium") scoreB += 10;
-      if (b.subscriptionTier === "pro") scoreB += 5;
+  // Fetch feed when location is available or on mount
+  useEffect(() => {
+    fetchAlgorithmicFeed();
+  }, [userLocation]);
 
-      // Sort by score descending, then by date
-      if (scoreB !== scoreA) {
-        return scoreB - scoreA;
-      }
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [posts, favorites, photographers, businesses]);
+  // Use algorithmic feed posts
+  const personalizedPosts = feedPosts;
+  const isLoading = feedLoading;
 
   const [refreshing, setRefreshing] = useState(false);
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
@@ -112,9 +132,9 @@ export default function DiscoverScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await fetchAlgorithmicFeed();
     setRefreshing(false);
-  }, []);
+  }, [fetchAlgorithmicFeed]);
 
   const handleAuthorPress = (post: Post) => {
     if (post.type === "photographer" && post.photographerId) {
@@ -204,7 +224,7 @@ export default function DiscoverScreen() {
     return "Just now";
   };
 
-  if (isLoading && posts.length === 0) {
+  if (isLoading && feedPosts.length === 0) {
     return (
       <ScreenScrollView>
         <View style={styles.loadingContainer}>
