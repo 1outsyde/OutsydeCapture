@@ -1625,14 +1625,14 @@ class ApiService {
 
   // GET /api/photographers/me/availability - Get weekly schedule and travel settings
   async getPhotographerMeAvailability(authToken: string): Promise<{
-    hoursOfOperation: Record<string, { open: string; close: string } | null>;
+    hoursOfOperation: Record<string, { open: string; close: string; closed?: boolean } | null>;
     travel_buffer_minutes: number;
     service_radius_miles: number;
     service_locations: Array<{ name: string; address: string }>;
     blackoutDates: Array<{ id: number; date: string; reason?: string }>;
   }> {
     return this.request<{
-      hoursOfOperation: Record<string, { open: string; close: string } | null>;
+      hoursOfOperation: Record<string, { open: string; close: string; closed?: boolean } | null>;
       travel_buffer_minutes: number;
       service_radius_miles: number;
       service_locations: Array<{ name: string; address: string }>;
@@ -1652,13 +1652,13 @@ class ApiService {
       service_locations?: Array<{ name: string; address: string }>;
     }
   ): Promise<{
-    hoursOfOperation: Record<string, { open: string; close: string } | null>;
+    hoursOfOperation: Record<string, { open: string; close: string; closed?: boolean } | null>;
     travel_buffer_minutes: number;
     service_radius_miles: number;
     service_locations: Array<{ name: string; address: string }>;
   }> {
     return this.request<{
-      hoursOfOperation: Record<string, { open: string; close: string } | null>;
+      hoursOfOperation: Record<string, { open: string; close: string; closed?: boolean } | null>;
       travel_buffer_minutes: number;
       service_radius_miles: number;
       service_locations: Array<{ name: string; address: string }>;
