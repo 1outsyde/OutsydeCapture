@@ -86,7 +86,21 @@ export type RootStackParamList = {
   };
   AdminDashboard: undefined;
   AdminUserDetail: { userId: string };
-  AdminBusinessReview: { businessId: string };
+  AdminBusinessReview: { 
+    businessId: string;
+    businessData?: {
+      id: string;
+      name: string;
+      category: string;
+      city: string;
+      state: string;
+      email?: string;
+      phone?: string;
+      status: "pending" | "approved" | "rejected";
+      createdAt: string;
+      earnings?: number;
+    };
+  };
   PhotographerDashboard: undefined;
   BusinessDashboard: undefined;
   InfluencerApplication: undefined;

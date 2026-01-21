@@ -33,40 +33,36 @@ export default function AdminBusinessReviewScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteParams>();
-  const { businessId } = route.params;
+  const { businessId, businessData } = route.params;
   const { getToken } = useAuth();
   const { addNotification } = useNotifications();
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [business, setBusiness] = useState<AdminBusinessDetail | null>(null);
+  const [business, setBusiness] = useState<AdminBusinessDetail | null>(() => {
+    if (businessData) {
+      return {
+        id: businessData.id,
+        name: businessData.name,
+        category: businessData.category,
+        city: businessData.city,
+        state: businessData.state,
+        email: businessData.email,
+        phone: businessData.phone,
+        status: businessData.status,
+        createdAt: businessData.createdAt,
+      };
+    }
+    return null;
+  });
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const fetchBusinessDetail = useCallback(async () => {
-    const token = await getToken();
-    if (!token) return;
-
-    try {
-      const data = await api.getAdminBusinessDetail(token, businessId);
-      setBusiness(data);
-    } catch (error) {
-      console.error("Failed to fetch business detail:", error);
-      Alert.alert("Error", "Failed to load business details");
-    } finally {
-      setLoading(false);
-    }
-  }, [getToken, businessId]);
-
-  useEffect(() => {
-    fetchBusinessDetail();
-  }, [fetchBusinessDetail]);
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchBusinessDetail();
+    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshing(false);
   };
 
