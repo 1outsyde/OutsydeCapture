@@ -400,7 +400,8 @@ export interface AdminBusiness {
   state: string;
   email?: string;
   phone?: string;
-  status: "pending" | "approved" | "rejected";
+  status?: "pending" | "approved" | "rejected";
+  approvalStatus?: "pending" | "approved" | "rejected";
   createdAt: string;
   earnings?: number;
 }

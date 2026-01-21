@@ -25,6 +25,10 @@ type TabType = "users" | "businesses" | "photographers" | "payments" | "messages
 type StatusFilter = "pending" | "approved" | "rejected" | "all";
 type PaymentSubTab = "orders" | "bookings" | "refunds";
 
+const getBusinessStatus = (business: AdminBusiness): "pending" | "approved" | "rejected" => {
+  return business.approvalStatus || business.status || "pending";
+};
+
 export default function AdminDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -745,50 +749,53 @@ export default function AdminDashboardScreen() {
     </Pressable>
   );
 
-  const renderBusinessItem = useCallback(({ item }: { item: AdminBusiness }) => (
-    <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
-      <View style={styles.listItemHeader}>
-        <Text style={styles.listItemName}>{item.name}</Text>
-        <View style={[
-          styles.statusBadge,
-          item.status === "pending" ? styles.pendingBadge :
-          item.status === "approved" ? styles.approvedBadge : styles.rejectedBadge
-        ]}>
-          <Text style={[
-            styles.statusText,
-            item.status === "pending" ? styles.pendingText :
-            item.status === "approved" ? styles.approvedText : styles.rejectedText
+  const renderBusinessItem = useCallback(({ item }: { item: AdminBusiness }) => {
+    const status = getBusinessStatus(item);
+    return (
+      <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+        <View style={styles.listItemHeader}>
+          <Text style={styles.listItemName}>{item.name}</Text>
+          <View style={[
+            styles.statusBadge,
+            status === "pending" ? styles.pendingBadge :
+            status === "approved" ? styles.approvedBadge : styles.rejectedBadge
           ]}>
-            {item.status}
-          </Text>
+            <Text style={[
+              styles.statusText,
+              status === "pending" ? styles.pendingText :
+              status === "approved" ? styles.approvedText : styles.rejectedText
+            ]}>
+              {status}
+            </Text>
+          </View>
         </View>
-      </View>
-      <Text style={styles.listItemInfo}>{item.category}</Text>
-      <Text style={styles.listItemInfo}>{item.city}, {item.state}</Text>
-      {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
-      {item.earnings !== undefined ? (
-        <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
-      ) : null}
-      {item.status === "pending" ? (
-        <View style={styles.actionRow}>
-          <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("business", item.id)}>
-            <Feather name="check" size={14} color="#34C759" />
-            <Text style={styles.approveButtonText}>Approve</Text>
-          </Pressable>
-          <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("business", item.id)}>
-            <Feather name="x" size={14} color="#FF3B30" />
-            <Text style={styles.rejectButtonText}>Reject</Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </Pressable>
-  ), [styles, theme, navigateToUserDetail, handleApprove, handleReject]);
+        <Text style={styles.listItemInfo}>{item.category}</Text>
+        <Text style={styles.listItemInfo}>{item.city}, {item.state}</Text>
+        {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
+        {item.earnings !== undefined ? (
+          <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
+        ) : null}
+        {status === "pending" ? (
+          <View style={styles.actionRow}>
+            <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("business", item.id)}>
+              <Feather name="check" size={14} color="#34C759" />
+              <Text style={styles.approveButtonText}>Approve</Text>
+            </Pressable>
+            <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("business", item.id)}>
+              <Feather name="x" size={14} color="#FF3B30" />
+              <Text style={styles.rejectButtonText}>Reject</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  }, [styles, theme, navigateToUserDetail, handleApprove, handleReject]);
 
   const businessKeyExtractor = useCallback((item: AdminBusiness) => item.id, []);
 
   const filteredBusinesses = useMemo(() => {
     if (businessFilter === "all") return businesses;
-    return businesses.filter(b => b.status === businessFilter);
+    return businesses.filter(b => getBusinessStatus(b) === businessFilter);
   }, [businesses, businessFilter]);
 
   const BusinessListHeader = useMemo(() => (
@@ -1105,44 +1112,47 @@ export default function AdminDashboardScreen() {
             {filteredBusinesses.length === 0 ? (
               BusinessEmptyComponent
             ) : (
-              filteredBusinesses.map((item) => (
-                <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.7} onPress={() => { console.log("Tapped business:", item.id, item.name); navigation.navigate("AdminBusinessReview", { businessId: item.id }); }}>
-                  <View style={styles.listItemHeader}>
-                    <Text style={styles.listItemName}>{item.name}</Text>
-                    <View style={[
-                      styles.statusBadge,
-                      item.status === "pending" ? styles.pendingBadge :
-                      item.status === "approved" ? styles.approvedBadge : styles.rejectedBadge
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        item.status === "pending" ? styles.pendingText :
-                        item.status === "approved" ? styles.approvedText : styles.rejectedText
+              filteredBusinesses.map((item) => {
+                const status = getBusinessStatus(item);
+                return (
+                  <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.7} onPress={() => { console.log("Tapped business:", item.id, item.name); navigation.navigate("AdminBusinessReview", { businessId: item.id }); }}>
+                    <View style={styles.listItemHeader}>
+                      <Text style={styles.listItemName}>{item.name}</Text>
+                      <View style={[
+                        styles.statusBadge,
+                        status === "pending" ? styles.pendingBadge :
+                        status === "approved" ? styles.approvedBadge : styles.rejectedBadge
                       ]}>
-                        {item.status}
-                      </Text>
+                        <Text style={[
+                          styles.statusText,
+                          status === "pending" ? styles.pendingText :
+                          status === "approved" ? styles.approvedText : styles.rejectedText
+                        ]}>
+                          {status}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                  <Text style={styles.listItemInfo}>{item.category}</Text>
-                  <Text style={styles.listItemInfo}>{item.city}, {item.state}</Text>
-                  {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
-                  {item.earnings !== undefined ? (
-                    <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
-                  ) : null}
-                  {item.status === "pending" ? (
-                    <View style={styles.actionRow}>
-                      <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("business", item.id)}>
-                        <Feather name="check" size={14} color="#34C759" />
-                        <Text style={styles.approveButtonText}>Approve</Text>
-                      </Pressable>
-                      <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("business", item.id)}>
-                        <Feather name="x" size={14} color="#FF3B30" />
-                        <Text style={styles.rejectButtonText}>Reject</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-              ))
+                    <Text style={styles.listItemInfo}>{item.category}</Text>
+                    <Text style={styles.listItemInfo}>{item.city}, {item.state}</Text>
+                    {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
+                    {item.earnings !== undefined ? (
+                      <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
+                    ) : null}
+                    {status === "pending" ? (
+                      <View style={styles.actionRow}>
+                        <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("business", item.id)}>
+                          <Feather name="check" size={14} color="#34C759" />
+                          <Text style={styles.approveButtonText}>Approve</Text>
+                        </Pressable>
+                        <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("business", item.id)}>
+                          <Feather name="x" size={14} color="#FF3B30" />
+                          <Text style={styles.rejectButtonText}>Reject</Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })
             )}
           </ScrollView>
         );
