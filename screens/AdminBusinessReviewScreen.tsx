@@ -619,31 +619,69 @@ export default function AdminBusinessReviewScreen() {
           ) : null}
         </View>
 
-        {business.ownerName || business.ownerEmail ? (
+        {business.owner || business.ownerName || business.ownerEmail ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Owner Information</Text>
             
-            {business.ownerName ? (
+            {(business.owner?.name || business.ownerName) ? (
               <View style={styles.infoRow}>
                 <Feather name="user" size={16} color={theme.textSecondary} style={styles.infoIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.infoLabel}>Owner Name</Text>
-                  <Text style={styles.infoValue}>{business.ownerName}</Text>
+                  <Text style={styles.infoValue}>{business.owner?.name || business.ownerName}</Text>
                 </View>
               </View>
             ) : null}
 
-            {business.ownerEmail ? (
+            {(business.owner?.email || business.ownerEmail) ? (
               <View style={styles.infoRow}>
                 <Feather name="mail" size={16} color={theme.textSecondary} style={styles.infoIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.infoLabel}>Owner Email</Text>
-                  <Text style={[styles.infoValue, styles.linkText]} onPress={() => Linking.openURL(`mailto:${business.ownerEmail}`)}>
-                    {business.ownerEmail}
+                  <Text style={[styles.infoValue, styles.linkText]} onPress={() => Linking.openURL(`mailto:${business.owner?.email || business.ownerEmail}`)}>
+                    {business.owner?.email || business.ownerEmail}
                   </Text>
                 </View>
               </View>
             ) : null}
+
+            {business.owner?.phone ? (
+              <View style={styles.infoRow}>
+                <Feather name="phone" size={16} color={theme.textSecondary} style={styles.infoIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.infoLabel}>Owner Phone</Text>
+                  <Text style={[styles.infoValue, styles.linkText]} onPress={() => Linking.openURL(`tel:${business.owner?.phone}`)}>
+                    {business.owner?.phone}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {(business.productCount !== undefined || business.serviceCount !== undefined || business.staffCount !== undefined) ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Business Stats</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-around", paddingVertical: Spacing.sm }}>
+              {business.productCount !== undefined ? (
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 24, fontWeight: "700", color: theme.primary }}>{business.productCount}</Text>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary }}>Products</Text>
+                </View>
+              ) : null}
+              {business.serviceCount !== undefined ? (
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 24, fontWeight: "700", color: theme.primary }}>{business.serviceCount}</Text>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary }}>Services</Text>
+                </View>
+              ) : null}
+              {business.staffCount !== undefined ? (
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 24, fontWeight: "700", color: theme.primary }}>{business.staffCount}</Text>
+                  <Text style={{ fontSize: 12, color: theme.textSecondary }}>Staff</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
         ) : null}
 
