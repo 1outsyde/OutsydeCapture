@@ -171,7 +171,16 @@ export default function AdminDashboardScreen() {
       fetchTabData();
     } catch (error: any) {
       console.log("[AdminDashboard] Approve error:", error?.message || error);
-      Alert.alert("Error", `Failed to approve application: ${error?.message || "Unknown error"}`);
+      const errorMessage = error?.message?.toLowerCase() || "";
+      if (errorMessage.includes("already approved")) {
+        Alert.alert("Already Approved", "This business has already been approved.");
+        fetchTabData();
+      } else if (errorMessage.includes("already rejected")) {
+        Alert.alert("Already Rejected", "This business has already been rejected.");
+        fetchTabData();
+      } else {
+        Alert.alert("Error", `Failed to approve application: ${error?.message || "Unknown error"}`);
+      }
     }
   };
 
@@ -197,7 +206,16 @@ export default function AdminDashboardScreen() {
               fetchTabData();
             } catch (error: any) {
               console.log("[AdminDashboard] Reject error:", error?.message || error);
-              Alert.alert("Error", `Failed to reject application: ${error?.message || "Unknown error"}`);
+              const errorMessage = error?.message?.toLowerCase() || "";
+              if (errorMessage.includes("already approved")) {
+                Alert.alert("Already Approved", "This business has already been approved.");
+                fetchTabData();
+              } else if (errorMessage.includes("already rejected")) {
+                Alert.alert("Already Rejected", "This business has already been rejected.");
+                fetchTabData();
+              } else {
+                Alert.alert("Error", `Failed to reject application: ${error?.message || "Unknown error"}`);
+              }
             }
           },
         },
