@@ -114,40 +114,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const token = await getToken();
       if (!token) return;
 
-      const pendingBusinesses = await api.getAdminBusinesses(token, "pending");
-      console.log("[NotificationContext] API response type:", typeof pendingBusinesses, "isArray:", Array.isArray(pendingBusinesses));
-      console.log("[NotificationContext] API response:", JSON.stringify(pendingBusinesses)?.slice(0, 500));
-      
-      // Handle various response formats - could be array directly or nested in object
-      let pendingList: Array<{ id: string; businessName?: string; name?: string }> = [];
-      if (Array.isArray(pendingBusinesses)) {
-        pendingList = pendingBusinesses;
-      } else if (pendingBusinesses && typeof pendingBusinesses === 'object') {
-        // Check common nested properties
-        const nested = (pendingBusinesses as Record<string, unknown>);
-        if (Array.isArray(nested.businesses)) {
-          pendingList = nested.businesses;
-        } else if (Array.isArray(nested.data)) {
-          pendingList = nested.data;
-        }
-      }
-      setPendingBusinessCount(pendingList.length);
+      const [serverNotifications, pendingBusinesses] = await Promise.all([
+        api.getNotifications(token),
+        api.getAdminBusinesses(token, "pending"),
+      ]);
 
-      const newBusinesses = pendingList.filter(
-        (b: { id: string }) => !seenBusinessIds.includes(b.id)
+      const pendingCount = Array.isArray(pendingBusinesses) ? pendingBusinesses.length : 0;
+      setPendingBusinessCount(pendingCount);
+
+      const vendorNotifications = serverNotifications.filter(
+        n => n.type === "new_vendor_application" || n.type === "business_pending"
       );
 
-      if (newBusinesses.length > 0) {
-        const newNotifications: Notification[] = newBusinesses.map((business: { id: string; businessName?: string; name?: string }) => ({
-          id: `business_pending_${business.id}`,
-          title: "New Business Application",
-          body: `${business.businessName || business.name || "A business"} is pending approval`,
+      const newNotifications: Notification[] = vendorNotifications
+        .filter(n => !seenBusinessIds.includes(n.businessId || n.id))
+        .map(n => ({
+          id: n.id,
+          title: n.title || "New Business Application",
+          body: n.body || n.message || `${n.businessName || "A business"} is pending approval`,
           type: "business_pending" as const,
-          date: new Date().toISOString(),
-          read: false,
-          metadata: { businessId: business.id },
+          date: n.createdAt || new Date().toISOString(),
+          read: n.read || false,
+          metadata: n.businessId ? { businessId: n.businessId } : undefined,
         }));
 
+      if (newNotifications.length > 0) {
         const existingIds = new Set(notifications.map(n => n.id));
         const uniqueNewNotifications = newNotifications.filter(n => !existingIds.has(n.id));
         
@@ -156,7 +147,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(updated));
           setNotifications(updated);
 
-          const newSeenIds = [...seenBusinessIds, ...newBusinesses.map((b: { id: string }) => b.id)];
+          const newSeenIds = [...seenBusinessIds, ...newNotifications.map(n => n.metadata?.businessId || n.id)];
           await AsyncStorage.setItem(getSeenBusinessesKey(user.id), JSON.stringify(newSeenIds));
           setSeenBusinessIds(newSeenIds);
         }

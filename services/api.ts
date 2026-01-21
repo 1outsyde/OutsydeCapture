@@ -2075,6 +2075,36 @@ class ApiService {
     }
   }
 
+  async getNotifications(authToken: string): Promise<Array<{
+    id: string;
+    type: string;
+    title?: string;
+    body?: string;
+    message?: string;
+    businessId?: string;
+    businessName?: string;
+    createdAt: string;
+    read?: boolean;
+  }>> {
+    try {
+      return await this.request<Array<{
+        id: string;
+        type: string;
+        title?: string;
+        body?: string;
+        message?: string;
+        businessId?: string;
+        businessName?: string;
+        createdAt: string;
+        read?: boolean;
+      }>>("/api/notifications", {
+        headers: { "Authorization": `Bearer ${authToken}` },
+      });
+    } catch {
+      return [];
+    }
+  }
+
   // ==========================================
   // Posts/Feed API
   // ==========================================
