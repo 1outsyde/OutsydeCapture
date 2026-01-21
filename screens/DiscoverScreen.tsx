@@ -187,24 +187,23 @@ export default function DiscoverScreen() {
 
   const handleActionPress = (post: Post) => {
     // Direct navigation to booking/purchase - skip profile pages
-    if (post.type === "photographer") {
-      // Navigate directly to BookingScreen for photographers
-      const photographerId = post.photographerId || post.providerId;
-      if (photographerId) {
-        const photographer = getPhotographer(photographerId);
-        // Navigate to Booking with either photographer object or just photographerId
-        // BookingScreen will fetch photographer data if not provided
-        navigation.navigate("Booking", { 
-          photographer: photographer || undefined,
-          photographerId: photographerId,
-          preselectedServiceId: post.serviceId 
-        });
-      }
-    } else if (post.type === "vendor") {
-      // Navigate directly to VendorDetail products tab for vendors with products
+    // Navigation is based on commerce context (serviceId or productId), not post type
+    
+    if (post.serviceId) {
+      // Service linked → Navigate directly to BookingScreen
+      const photographerId = post.photographerId || post.providerId || post.userId;
+      const photographer = getPhotographer(photographerId);
+      navigation.navigate("Booking", { 
+        photographer: photographer || undefined,
+        photographerId: photographerId,
+        preselectedServiceId: post.serviceId 
+      });
+    } else if (post.productId) {
+      // Product linked → Navigate directly to business products tab
+      const businessId = post.providerId || post.userId;
       navigation.navigate("VendorDetail", { 
-        vendorId: post.providerId || post.userId,
-        initialTab: post.productId ? "products" : undefined,
+        vendorId: businessId,
+        initialTab: "products",
         productId: post.productId
       });
     }
@@ -394,15 +393,18 @@ export default function DiscoverScreen() {
             />
           </Pressable>
 
-          <Pressable
-            onPress={() => handleActionPress(post)}
-            style={({ pressed }) => [styles.actionButton, styles.bookButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
-          >
-            <Feather name={isVendor ? "shopping-bag" : "calendar"} size={16} color="#FFFFFF" />
-            <ThemedText type="small" style={{ color: "#FFFFFF", marginLeft: Spacing.xs }}>
-              {isVendor ? "Buy Now" : "Book"}
-            </ThemedText>
-          </Pressable>
+          {/* Commerce CTA - Only show when post has serviceId or productId */}
+          {(post.serviceId || post.productId) && (
+            <Pressable
+              onPress={() => handleActionPress(post)}
+              style={({ pressed }) => [styles.actionButton, styles.bookButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Feather name={post.productId ? "shopping-bag" : "calendar"} size={16} color="#FFFFFF" />
+              <ThemedText type="small" style={{ color: "#FFFFFF", marginLeft: Spacing.xs }}>
+                {post.productId ? "Buy Now" : "Book"}
+              </ThemedText>
+            </Pressable>
+          )}
         </View>
 
         {/* Caption */}
