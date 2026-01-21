@@ -84,6 +84,10 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **API Endpoints**: `GET/PUT /api/photographers/me/availability`, `GET/PUT /api/photographers/me/blocked-dates`.
 - **Storefront Editor**: Full-featured customization for businesses, including branding (cover, logo, colors), profile details, business hours, and product/service management. Products/services have statuses (draft, live, paused, archived) with specific publishing gates (admin approval, Stripe setup, active subscription).
 - **Image Handling**: Reusable `ImageUploader` component with camera/library options and aspect ratio support.
+- **Cloudinary Image Upload**: Profile photos and banner images are uploaded to Cloudinary (unsigned upload preset) and saved to the backend. Flow: Pick image → Upload to Cloudinary → Save URL to profile via API.
+  - **Cloud Name**: `doraffjvp`
+  - **Upload Preset**: `outsyde_unsigned`
+  - **Utility**: `services/cloudinary.ts` - `uploadImageToCloudinary(uri, folder)`
 - **Backend Enforcement**: Critical logic (publishing validation, subscription lapse auto-pause) is enforced server-side.
 
 ### System Design Choices
