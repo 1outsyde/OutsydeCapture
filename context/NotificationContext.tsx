@@ -162,7 +162,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (error) {
-      console.error("Failed to fetch admin notifications:", error);
+      console.log("Failed to fetch admin notifications (non-critical):", error);
     }
   }, [user, getToken, seenBusinessIds, notifications]);
 

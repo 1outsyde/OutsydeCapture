@@ -507,7 +507,8 @@ export default function AdminBusinessReviewScreen() {
     );
   }
 
-  const isPending = business.status === "pending" || business.approvalStatus === "pending";
+  const businessStatus = business.approvalStatus || business.status || "pending";
+  const isPending = businessStatus === "pending";
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   return (
@@ -534,15 +535,15 @@ export default function AdminBusinessReviewScreen() {
               <Text style={styles.businessName}>{business.name}</Text>
               <View style={[
                 styles.statusBadge,
-                business.status === "pending" ? styles.pendingBadge :
-                business.status === "approved" ? styles.approvedBadge : styles.rejectedBadge
+                businessStatus === "pending" ? styles.pendingBadge :
+                businessStatus === "approved" ? styles.approvedBadge : styles.rejectedBadge
               ]}>
                 <Text style={[
                   styles.statusText,
-                  business.status === "pending" ? styles.pendingText :
-                  business.status === "approved" ? styles.approvedText : styles.rejectedText
+                  businessStatus === "pending" ? styles.pendingText :
+                  businessStatus === "approved" ? styles.approvedText : styles.rejectedText
                 ]}>
-                  {business.status}
+                  {businessStatus}
                 </Text>
               </View>
             </View>
