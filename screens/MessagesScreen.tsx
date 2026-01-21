@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, View, Pressable, ActivityIndicator } from "react-native";
+import { StyleSheet, View, Pressable, ActivityIndicator, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -9,10 +9,9 @@ import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { useMessaging } from "@/context/MessagingContext";
+import { useMessaging, Conversation } from "@/context/MessagingContext";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { Conversation } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -34,7 +33,7 @@ function formatMessageTime(timestamp: string): string {
 }
 
 function ConversationItem({ conversation, onPress }: { conversation: Conversation; onPress: () => void }) {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const hasUnread = conversation.unreadCount > 0;
 
   return (
@@ -42,16 +41,26 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
       onPress={onPress}
       style={({ pressed }) => [
         styles.conversationItem,
-        { backgroundColor: pressed ? theme.backgroundElevated : theme.backgroundDefault },
+        { backgroundColor: pressed ? theme.backgroundSecondary : theme.background },
       ]}
     >
       <View style={styles.avatarContainer}>
-        <Image
-          source={{ uri: conversation.photographerAvatar }}
-          style={styles.avatar}
-          contentFit="cover"
-          transition={200}
-        />
+        {conversation.participantAvatar ? (
+          <Image
+            source={{ uri: conversation.participantAvatar }}
+            style={styles.avatar}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
+            <Feather 
+              name={conversation.participantType === "business" ? "briefcase" : "camera"} 
+              size={24} 
+              color={theme.textSecondary} 
+            />
+          </View>
+        )}
         {hasUnread ? (
           <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />
         ) : null}
@@ -59,29 +68,28 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
       <View style={styles.conversationContent}>
         <View style={styles.conversationHeader}>
           <ThemedText
-            type={hasUnread ? "defaultBold" : "default"}
+            type={hasUnread ? "h4" : "body"}
             numberOfLines={1}
-            style={styles.photographerName}
+            style={styles.participantName}
           >
-            {conversation.photographerName}
+            {conversation.participantName}
           </ThemedText>
-          {conversation.lastMessage ? (
+          {conversation.lastMessageAt ? (
             <ThemedText type="caption" style={{ color: hasUnread ? theme.primary : theme.textSecondary }}>
-              {formatMessageTime(conversation.lastMessage.timestamp)}
+              {formatMessageTime(conversation.lastMessageAt)}
             </ThemedText>
           ) : null}
         </View>
         {conversation.lastMessage ? (
           <ThemedText
-            type={hasUnread ? "defaultBold" : "body"}
+            type="body"
             numberOfLines={2}
             style={[
               styles.lastMessage,
-              { color: hasUnread ? theme.textPrimary : theme.textSecondary },
+              { color: hasUnread ? theme.text : theme.textSecondary },
             ]}
           >
-            {conversation.lastMessage.senderId === conversation.clientId ? "You: " : ""}
-            {conversation.lastMessage.content}
+            {conversation.lastMessage}
           </ThemedText>
         ) : (
           <ThemedText type="body" style={{ color: theme.textSecondary }}>
@@ -95,37 +103,37 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
 }
 
 function EmptyState() {
-  const theme = useTheme();
+  const { theme } = useTheme();
 
   return (
     <View style={styles.emptyState}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundElevated }]}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSecondary }]}>
         <Feather name="message-circle" size={48} color={theme.textSecondary} />
       </View>
       <ThemedText type="h3" style={styles.emptyTitle}>
         No Messages Yet
       </ThemedText>
       <ThemedText type="body" style={[styles.emptyDescription, { color: theme.textSecondary }]}>
-        When you book a session with a photographer, you can message them here to discuss details.
+        When you connect with photographers or businesses, you can message them here.
       </ThemedText>
     </View>
   );
 }
 
 function SignInPrompt() {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
 
   return (
     <View style={styles.emptyState}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundElevated }]}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSecondary }]}>
         <Feather name="lock" size={48} color={theme.textSecondary} />
       </View>
       <ThemedText type="h3" style={styles.emptyTitle}>
         Sign In to Message
       </ThemedText>
       <ThemedText type="body" style={[styles.emptyDescription, { color: theme.textSecondary }]}>
-        Sign in to view your conversations and message photographers.
+        Sign in to view your conversations and message others.
       </ThemedText>
       <Pressable
         onPress={() => navigation.navigate("Auth", { returnTo: "messages" })}
@@ -143,13 +151,17 @@ function SignInPrompt() {
 }
 
 export default function MessagesScreen() {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
   const { conversations, isLoading, refreshConversations } = useMessaging();
 
   const sortedConversations = [...conversations].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    (a, b) => {
+      const dateA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const dateB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return dateB - dateA;
+    }
   );
 
   if (!user) {
@@ -160,7 +172,7 @@ export default function MessagesScreen() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && conversations.length === 0) {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -177,15 +189,26 @@ export default function MessagesScreen() {
       renderItem={({ item }) => (
         <ConversationItem
           conversation={item}
-          onPress={() => navigation.navigate("Conversation", { conversationId: item.id })}
+          onPress={() => navigation.navigate("Chat", { 
+            conversationId: item.id,
+            participantId: item.participantId,
+            participantName: item.participantName,
+            participantAvatar: item.participantAvatar,
+            participantType: item.participantType,
+          })}
         />
       )}
       ListEmptyComponent={<EmptyState />}
       contentContainerStyle={styles.listContent}
-      refreshing={isLoading}
-      onRefresh={refreshConversations}
+      refreshControl={
+        <RefreshControl
+          refreshing={isLoading}
+          onRefresh={refreshConversations}
+          tintColor={theme.primary}
+        />
+      }
       ItemSeparatorComponent={() => (
-        <View style={[styles.separator, { backgroundColor: theme.divider }]} />
+        <View style={[styles.separator, { backgroundColor: theme.border }]} />
       )}
     />
   );
@@ -216,6 +239,8 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   unreadDot: {
     position: "absolute",
@@ -238,7 +263,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.xs,
   },
-  photographerName: {
+  participantName: {
     flex: 1,
     marginRight: Spacing.sm,
   },

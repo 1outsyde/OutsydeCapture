@@ -1227,6 +1227,16 @@ class ApiService {
     return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
   }
 
+  async getConversations(authToken?: string | null): Promise<ApiConversation[]> {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    return this.request<ApiConversation[]>("/api/conversations", {
+      headers,
+    });
+  }
+
   async createOrGetConversation(data: CreateConversationRequest, authToken?: string | null): Promise<ApiConversation> {
     const headers: Record<string, string> = {};
     if (authToken) {

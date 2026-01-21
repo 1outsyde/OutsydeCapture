@@ -1,137 +1,160 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useAuth } from "./AuthContext";
-
-export interface Message {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  text: string;
-  timestamp: string;
-  read: boolean;
-}
+import api, { ApiConversation, ApiMessage, CreateConversationRequest } from "@/services/api";
 
 export interface Conversation {
   id: string;
   participantId: string;
   participantName: string;
-  participantAvatar: string;
-  lastMessage: string;
-  lastMessageTime: string;
+  participantAvatar?: string;
+  participantType: "business" | "photographer";
+  lastMessage?: string;
+  lastMessageAt?: string;
   unreadCount: number;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
 }
 
 interface MessagingContextType {
   conversations: Conversation[];
-  getMessages: (conversationId: string) => Message[];
-  sendMessage: (conversationId: string, participantId: string, participantName: string, participantAvatar: string, text: string) => Promise<void>;
-  markConversationAsRead: (conversationId: string) => Promise<void>;
+  isLoading: boolean;
+  error: string | null;
+  refreshConversations: () => Promise<void>;
+  getMessages: (conversationId: string) => Promise<Message[]>;
+  sendMessage: (conversationId: string, content: string) => Promise<Message | null>;
+  createOrGetConversation: (data: CreateConversationRequest) => Promise<Conversation | null>;
+  markConversationAsRead: (conversationId: string) => void;
   totalUnreadCount: number;
 }
 
 const MessagingContext = createContext<MessagingContextType | undefined>(undefined);
 
-const getConversationsKey = (userId: string) => `@outsyde_conversations_${userId}`;
-const getMessagesKey = (userId: string, conversationId: string) => `@outsyde_messages_${userId}_${conversationId}`;
+function mapApiConversation(conv: ApiConversation): Conversation {
+  return {
+    id: conv.id,
+    participantId: conv.participantId,
+    participantName: conv.participantName,
+    participantAvatar: conv.participantAvatar,
+    participantType: conv.participantType,
+    lastMessage: conv.lastMessage,
+    lastMessageAt: conv.lastMessageAt,
+    unreadCount: conv.unreadCount || 0,
+  };
+}
+
+function mapApiMessage(msg: ApiMessage): Message {
+  return {
+    id: msg.id,
+    conversationId: msg.conversationId,
+    senderId: msg.senderId,
+    content: msg.content,
+    createdAt: msg.createdAt,
+  };
+}
 
 export function MessagingProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, getToken } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshConversations = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      setConversations([]);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const token = await getToken();
+      const apiConversations = await api.getConversations(token);
+      setConversations(apiConversations.map(mapApiConversation));
+    } catch (err: any) {
+      console.error("Failed to fetch conversations:", err);
+      if (err?.status === 404) {
+        setConversations([]);
+      } else {
+        setError(err?.message || "Failed to load conversations");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, user, getToken]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      loadConversations();
+      refreshConversations();
     } else {
       setConversations([]);
-      setMessagesCache({});
     }
   }, [isAuthenticated, user]);
 
-  const loadConversations = async () => {
-    if (!user) return;
+  const getMessages = useCallback(async (conversationId: string): Promise<Message[]> => {
     try {
-      const stored = await AsyncStorage.getItem(getConversationsKey(user.id));
-      if (stored) setConversations(JSON.parse(stored));
-    } catch (err) {
-      console.error("Failed to load conversations:", err);
+      const token = await getToken();
+      const apiMessages = await api.getMessages(conversationId, token);
+      return apiMessages.map(mapApiMessage);
+    } catch (err: any) {
+      console.error("Failed to fetch messages:", err);
+      if (err?.status === 404) {
+        return [];
+      }
+      throw err;
     }
-  };
+  }, [getToken]);
 
-  const getMessages = (conversationId: string): Message[] => {
-    return messagesCache[conversationId] || [];
-  };
-
-  const loadMessages = async (conversationId: string): Promise<Message[]> => {
-    if (!user) return [];
+  const sendMessage = useCallback(async (conversationId: string, content: string): Promise<Message | null> => {
     try {
-      const stored = await AsyncStorage.getItem(getMessagesKey(user.id, conversationId));
-      const messages = stored ? JSON.parse(stored) : [];
-      setMessagesCache((prev) => ({ ...prev, [conversationId]: messages }));
-      return messages;
-    } catch (err) {
-      console.error("Failed to load messages:", err);
-      return [];
+      const token = await getToken();
+      const apiMessage = await api.sendMessage(conversationId, content, token);
+      
+      setConversations(prev => prev.map(conv => 
+        conv.id === conversationId
+          ? { ...conv, lastMessage: content, lastMessageAt: apiMessage.createdAt }
+          : conv
+      ));
+      
+      return mapApiMessage(apiMessage);
+    } catch (err: any) {
+      console.error("Failed to send message:", err);
+      return null;
     }
-  };
+  }, [getToken]);
 
-  const sendMessage = async (
-    conversationId: string,
-    participantId: string,
-    participantName: string,
-    participantAvatar: string,
-    text: string
-  ) => {
-    if (!user) return;
-
-    const newMessage: Message = {
-      id: "msg_" + Date.now(),
-      senderId: user.id,
-      receiverId: participantId,
-      text,
-      timestamp: new Date().toISOString(),
-      read: true,
-    };
-
-    const existingMessages = await loadMessages(conversationId);
-    const updatedMessages = [...existingMessages, newMessage];
-    await AsyncStorage.setItem(getMessagesKey(user.id, conversationId), JSON.stringify(updatedMessages));
-    setMessagesCache((prev) => ({ ...prev, [conversationId]: updatedMessages }));
-
-    const existingConversation = conversations.find((c) => c.id === conversationId);
-    let updatedConversations: Conversation[];
-
-    if (existingConversation) {
-      updatedConversations = conversations.map((c) =>
-        c.id === conversationId
-          ? { ...c, lastMessage: text, lastMessageTime: newMessage.timestamp }
-          : c
-      );
-    } else {
-      const newConversation: Conversation = {
-        id: conversationId,
-        participantId,
-        participantName,
-        participantAvatar,
-        lastMessage: text,
-        lastMessageTime: newMessage.timestamp,
-        unreadCount: 0,
-      };
-      updatedConversations = [newConversation, ...conversations];
+  const createOrGetConversation = useCallback(async (data: CreateConversationRequest): Promise<Conversation | null> => {
+    try {
+      const token = await getToken();
+      const apiConversation = await api.createOrGetConversation(data, token);
+      const conversation = mapApiConversation(apiConversation);
+      
+      setConversations(prev => {
+        const exists = prev.find(c => c.id === conversation.id);
+        if (exists) {
+          return prev;
+        }
+        return [conversation, ...prev];
+      });
+      
+      return conversation;
+    } catch (err: any) {
+      console.error("Failed to create/get conversation:", err);
+      return null;
     }
+  }, [getToken]);
 
-    await AsyncStorage.setItem(getConversationsKey(user.id), JSON.stringify(updatedConversations));
-    setConversations(updatedConversations);
-  };
-
-  const markConversationAsRead = async (conversationId: string) => {
-    if (!user) return;
-    const updated = conversations.map((c) =>
-      c.id === conversationId ? { ...c, unreadCount: 0 } : c
-    );
-    await AsyncStorage.setItem(getConversationsKey(user.id), JSON.stringify(updated));
-    setConversations(updated);
-  };
+  const markConversationAsRead = useCallback((conversationId: string) => {
+    setConversations(prev => prev.map(conv =>
+      conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
+    ));
+  }, []);
 
   const totalUnreadCount = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
@@ -139,8 +162,12 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
     <MessagingContext.Provider
       value={{
         conversations,
+        isLoading,
+        error,
+        refreshConversations,
         getMessages,
         sendMessage,
+        createOrGetConversation,
         markConversationAsRead,
         totalUnreadCount,
       }}
