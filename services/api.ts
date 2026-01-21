@@ -1333,16 +1333,25 @@ class ApiService {
     });
   }
 
-  async approveApplication(authToken: string, type: "business" | "influencer", id: string): Promise<void> {
-    await this.request<void>(`/api/admin/${type}s/${id}/approve`, {
+  async approveApplication(authToken: string, type: "business" | "influencer", id: string, notes?: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
+    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(`/api/admin/applications/${id}/approve`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ notes }),
     });
   }
 
-  async rejectApplication(authToken: string, type: "business" | "influencer", id: string): Promise<void> {
-    await this.request<void>(`/api/admin/${type}s/${id}/reject`, {
+  async rejectApplication(authToken: string, type: "business" | "influencer", id: string, notes: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
+    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(`/api/admin/applications/${id}/reject`, {
       method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async getAdminApplications(authToken: string, status?: "pending" | "approved" | "rejected"): Promise<{ applications: AdminBusiness[] }> {
+    const query = status ? `?status=${status}` : "";
+    return this.request<{ applications: AdminBusiness[] }>(`/api/admin/applications${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

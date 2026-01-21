@@ -7,7 +7,7 @@ export interface Notification {
   id: string;
   title: string;
   body: string;
-  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow" | "business_pending";
+  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow" | "business_pending" | "new_vendor_application" | "vendor_approved" | "vendor_rejected";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;

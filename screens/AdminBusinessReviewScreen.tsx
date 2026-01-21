@@ -9,6 +9,10 @@ import {
   Alert,
   Linking,
   RefreshControl,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -38,6 +42,8 @@ export default function AdminBusinessReviewScreen() {
   const [business, setBusiness] = useState<AdminBusinessDetail | null>(null);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const fetchBusinessDetail = useCallback(async () => {
     const token = await getToken();
@@ -106,38 +112,37 @@ export default function AdminBusinessReviewScreen() {
     );
   };
 
-  const handleReject = async () => {
+  const handleReject = () => {
+    if (!business) return;
+    setRejectionReason("");
+    setShowRejectModal(true);
+  };
+
+  const confirmReject = async () => {
     const token = await getToken();
     if (!token || !business) return;
 
-    Alert.alert(
-      "Reject Business",
-      `Are you sure you want to reject "${business.name}"? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            setRejecting(true);
-            try {
-              await api.rejectApplication(token, "business", businessId);
-              
-              Alert.alert(
-                "Rejected",
-                `"${business.name}" has been rejected.`,
-                [{ text: "OK", onPress: () => navigation.goBack() }]
-              );
-            } catch (error) {
-              console.error("Failed to reject business:", error);
-              Alert.alert("Error", "Failed to reject business. Please try again.");
-            } finally {
-              setRejecting(false);
-            }
-          },
-        },
-      ]
-    );
+    if (!rejectionReason.trim()) {
+      Alert.alert("Required", "Please provide a reason for rejection.");
+      return;
+    }
+
+    setRejecting(true);
+    try {
+      await api.rejectApplication(token, "business", businessId, rejectionReason.trim());
+      setShowRejectModal(false);
+      
+      Alert.alert(
+        "Rejected",
+        `"${business.name}" has been rejected.`,
+        [{ text: "OK", onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      console.error("Failed to reject business:", error);
+      Alert.alert("Error", "Failed to reject business. Please try again.");
+    } finally {
+      setRejecting(false);
+    }
   };
 
   const openUrl = (url: string) => {
@@ -393,6 +398,73 @@ export default function AdminBusinessReviewScreen() {
       fontSize: 14,
       color: theme.textSecondary,
       fontStyle: "italic",
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: Spacing.lg,
+    },
+    modalContent: {
+      backgroundColor: theme.background,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.lg,
+      width: "100%",
+      maxWidth: 400,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: Spacing.md,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.text,
+    },
+    modalSubtitle: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginBottom: Spacing.md,
+      lineHeight: 20,
+    },
+    reasonInput: {
+      backgroundColor: theme.backgroundSecondary,
+      borderRadius: BorderRadius.md,
+      padding: Spacing.md,
+      fontSize: 15,
+      color: theme.text,
+      minHeight: 100,
+      marginBottom: Spacing.lg,
+    },
+    modalActions: {
+      flexDirection: "row",
+      gap: Spacing.md,
+    },
+    modalButton: {
+      flex: 1,
+      paddingVertical: Spacing.md,
+      borderRadius: BorderRadius.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelButton: {
+      backgroundColor: theme.backgroundSecondary,
+    },
+    cancelButtonText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.text,
+    },
+    confirmRejectButton: {
+      backgroundColor: "#FF3B30",
+    },
+    confirmRejectText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: "#FFFFFF",
     },
   });
 
@@ -745,6 +817,62 @@ export default function AdminBusinessReviewScreen() {
           </Pressable>
         </View>
       ) : null}
+
+      <Modal
+        visible={showRejectModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRejectModal(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reject Business</Text>
+              <Pressable onPress={() => setShowRejectModal(false)} hitSlop={16}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+            
+            <Text style={styles.modalSubtitle}>
+              Please provide a reason for rejecting "{business?.name}". This will be shared with the business owner.
+            </Text>
+
+            <TextInput
+              style={styles.reasonInput}
+              placeholder="Enter rejection reason..."
+              placeholderTextColor={theme.textSecondary}
+              value={rejectionReason}
+              onChangeText={setRejectionReason}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalActions}>
+              <Pressable 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={() => setShowRejectModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.modalButton, styles.confirmRejectButton, rejecting && styles.disabledButton]} 
+                onPress={confirmReject}
+                disabled={rejecting}
+              >
+                {rejecting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmRejectText}>Reject</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }

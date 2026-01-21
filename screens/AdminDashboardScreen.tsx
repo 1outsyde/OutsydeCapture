@@ -168,9 +168,12 @@ export default function AdminDashboardScreen() {
     }
   };
 
-  const handleReject = async (type: "business" | "influencer", id: string) => {
+  const handleReject = async (type: "business" | "influencer", id: string, reason?: string) => {
     const token = await getToken();
     if (!token) return;
+    
+    const rejectionReason = reason || "Application did not meet requirements";
+    
     Alert.alert(
       "Confirm Rejection",
       `Are you sure you want to reject this ${type}?`,
@@ -181,7 +184,7 @@ export default function AdminDashboardScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await api.rejectApplication(token, type, id);
+              await api.rejectApplication(token, type, id, rejectionReason);
               Alert.alert("Success", `${type === "business" ? "Business" : "Influencer"} rejected`);
               fetchTabData();
             } catch (error) {
