@@ -1,0 +1,35 @@
+I'll implement a social media-style algorithmic feed that shows posts from all vendors (not just followed ones), prioritizing based on user preferences, engagement, and location - similar to how Instagram and TikTok work.
+Now I'll add the algorithmic feed interface and implementation. First, let me add the interface method:
+Now let me add the implementation of the algorithmic feed function:
+Now let me update the GET /api/feed endpoint to use the algorithmic feed:
+I need to fix the type error in the getAlgorithmicFeed function:
+The algorithmic feed is working. Now let me update the task list and mark the completed tasks:
+I need to fix the critical location-scoring bug. Let me update the coordinate checks:
+Now let me also increase the fetch limit to address the issue of potentially missing high-scoring older posts:
+I've implemented the algorithmic feed for your discovery/home feed. Here's what it does now:
+
+How the new feed works (like Instagram/TikTok):
+
+Everyone sees all vendor posts - Not just from accounts they follow. When a business owner posts, it appears on everyone's timeline.
+Posts are ranked by a scoring algorithm:
+Recency - Newer posts rank higher but decay over 72 hours
+Engagement - Posts with more likes and comments get boosted
+Product/Service posts - Get a slight priority boost
+User preferences - If a user selected industries they're interested in, matching business posts rank higher
+Location - Posts from nearby businesses rank higher (within 10 miles = highest boost, 25/50/100 miles = decreasing boosts)
+Works for both logged-in and anonymous users - Anonymous users get posts ranked by engagement and recency, while logged-in users get personalized ranking based on their preferences and location.
+Now to answer your earlier question about closed days format for the photographer availability endpoint:
+
+The PUT /api/photographers/me/availability endpoint expects the hoursOfOperation field in this format:
+
+{
+  "hoursOfOperation": {
+    "monday": { "open": "09:00", "close": "17:00" },
+    "tuesday": { "open": "09:00", "close": "17:00", "closed": true },
+    "wednesday": { "open": "09:00", "close": "17:00" }
+  }
+}
+For closed days, you should use:
+
+{ "open": "09:00", "close": "17:00", "closed": true } - The closed: true flag marks the day as unavailable
+Days that are simply omitted from the object will fall back to whatever default behavior exists (typically treated as unavailable). The format { monday: null } would fail validation since the schema requires open and close strings.

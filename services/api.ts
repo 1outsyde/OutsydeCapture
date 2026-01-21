@@ -2215,17 +2215,27 @@ class ApiService {
     });
   }
 
-  // GET /api/feed - Get feed posts (paginated)
+  // GET /api/feed - Get algorithmic feed posts (ranked by engagement, recency, location, user preferences)
   async getFeed(params?: {
     page?: number;
     limit?: number;
-  }): Promise<{ posts: ApiPost[] }> {
+    latitude?: number;
+    longitude?: number;
+  }, authToken?: string): Promise<{ posts: ApiPost[] }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.latitude) queryParams.append("latitude", params.latitude.toString());
+    if (params?.longitude) queryParams.append("longitude", params.longitude.toString());
     const queryString = queryParams.toString();
     const url = queryString ? `/api/feed?${queryString}` : "/api/feed";
-    return this.request<{ posts: ApiPost[] }>(url);
+    
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    
+    return this.request<{ posts: ApiPost[] }>(url, { headers });
   }
 
   // DELETE /api/feed/:postId - Delete own post
