@@ -1018,7 +1018,7 @@ export default function AdminDashboardScreen() {
         );
       case "businesses":
         return (
-          <>
+          <View style={{ flex: 1 }}>
             {renderStatusFilter(businessFilter, setBusinessFilter)}
             <FlatList
               data={businesses}
@@ -1031,7 +1031,7 @@ export default function AdminDashboardScreen() {
               )}
               ListEmptyComponent={() => renderEmptyState("No Businesses", "No businesses found", "briefcase")}
             />
-          </>
+          </View>
         );
       case "photographers":
         return (
