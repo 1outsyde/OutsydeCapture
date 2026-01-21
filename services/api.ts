@@ -1302,10 +1302,14 @@ class ApiService {
     const response = await this.request<{ businesses: AdminBusiness[] } | AdminBusiness[]>(`/api/admin/businesses${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    let businesses: AdminBusiness[];
     if (Array.isArray(response)) {
-      return response;
+      businesses = response;
+    } else {
+      businesses = response.businesses || [];
     }
-    return response.businesses || [];
+    console.log(`[API] getAdminBusinesses - Fetched ${businesses.length} businesses. Sample IDs:`, businesses.slice(0, 3).map(b => ({ id: b.id, name: b.name })));
+    return businesses;
   }
 
   async getAdminPhotographers(authToken: string, search?: string): Promise<AdminPhotographer[]> {
@@ -1354,6 +1358,7 @@ class ApiService {
 
   async approveApplication(authToken: string, type: "business" | "influencer", id: string, notes?: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
     const endpoint = type === "business" ? `/api/admin/businesses/${id}/approve` : `/api/admin/applications/${id}/approve`;
+    console.log(`[API] approveApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`);
     return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
@@ -1363,6 +1368,7 @@ class ApiService {
 
   async rejectApplication(authToken: string, type: "business" | "influencer", id: string, reason: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
     const endpoint = type === "business" ? `/api/admin/businesses/${id}/reject` : `/api/admin/applications/${id}/reject`;
+    console.log(`[API] rejectApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`);
     return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
