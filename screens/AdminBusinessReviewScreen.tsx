@@ -55,16 +55,17 @@ export default function AdminBusinessReviewScreen() {
     }
 
     try {
+      console.log(`[AdminBusinessReview] Fetching business detail for ID: ${businessId}`);
       const data = await api.getAdminBusinessDetail(token, businessId);
+      console.log(`[AdminBusinessReview] Business detail loaded:`, data?.name);
       setBusiness(data);
       setFetchError(null);
     } catch (error: any) {
-      if (error?.status === 404) {
-        console.log("Business detail endpoint not yet available (404)");
-        setFetchError("Business details endpoint not available. You can still approve or reject from the list.");
+      console.log("[AdminBusinessReview] Error fetching business detail:", error?.message || error);
+      if (error?.status === 404 || error?.message?.includes("404")) {
+        setFetchError("Business detail view is not yet available from the backend. The GET /api/admin/businesses/:id endpoint may need to be implemented. You can still approve or reject businesses from the list.");
       } else {
-        console.log("Failed to fetch business detail:", error);
-        setFetchError("Failed to load business details");
+        setFetchError(`Failed to load business details: ${error?.message || "Unknown error"}`);
       }
     } finally {
       setLoading(false);

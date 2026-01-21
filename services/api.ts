@@ -1396,6 +1396,7 @@ class ApiService {
   }
 
   async getAdminBusinessDetail(authToken: string, businessId: string): Promise<AdminBusinessDetail> {
+    console.log(`[API] getAdminBusinessDetail - ID: ${businessId}, Full URL: ${this.baseUrl}/api/admin/businesses/${businessId}`);
     return this.request<AdminBusinessDetail>(`/api/admin/businesses/${businessId}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
