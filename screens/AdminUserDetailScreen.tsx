@@ -37,6 +37,7 @@ export default function AdminUserDetailScreen() {
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<UserDetailData | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState<"orders" | "bookings" | "conversations">("orders");
 
   const fetchData = useCallback(async () => {
@@ -45,24 +46,15 @@ export default function AdminUserDetailScreen() {
     
     try {
       setLoading(true);
+      setNotFound(false);
       const result = await api.getAdminUserDetail(token, userId);
       setData(result);
-    } catch (error) {
-      console.error("Failed to fetch user detail:", error);
-      setData({
-        user: {
-          id: userId,
-          name: "Unknown User",
-          email: "",
-          accountType: "consumer",
-          createdAt: "",
-          status: "active",
-        },
-        orders: [],
-        bookings: [],
-        conversations: [],
-        earnings: 0,
-      });
+    } catch (error: any) {
+      const statusCode = error?.status || error?.message?.includes("404") ? 404 : 0;
+      if (statusCode === 404 || error?.message?.includes("User not found")) {
+        setNotFound(true);
+      }
+      setData(null);
     } finally {
       setLoading(false);
     }
