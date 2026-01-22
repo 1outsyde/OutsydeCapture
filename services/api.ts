@@ -2398,7 +2398,7 @@ class ApiService {
     paymentMethodId?: string
   ): Promise<{ booking: PhotographerBooking; paymentIntentClientSecret?: string }> {
     return this.request<{ booking: PhotographerBooking; paymentIntentClientSecret?: string }>(
-      `/api/bookings/draft/${draftId}/confirm`,
+      `/api/bookings/photographer/${draftId}/confirm-payment`,
       {
         method: "POST",
         body: JSON.stringify({ paymentMethodId }),
