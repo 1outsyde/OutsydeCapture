@@ -586,12 +586,35 @@ export default function AccountScreen() {
 
     setPostSaving(true);
     try {
-      const response = await api.createPost(authToken, {
-        imageUrl: newPostImage,
+      // Upload image to Cloudinary first
+      console.log("[AccountScreen] Uploading post image to Cloudinary...");
+      const cloudinaryUrl = await uploadImageToCloudinary(newPostImage, "posts");
+      if (!cloudinaryUrl) {
+        throw new Error("Failed to upload image. Please try again.");
+      }
+      console.log("[AccountScreen] Image uploaded to Cloudinary:", cloudinaryUrl);
+      
+      // Create post with Cloudinary URL (serviceId/productId are optional)
+      const postData: {
+        imageUrl: string;
+        content?: string;
+        serviceId?: string;
+        productId?: string;
+      } = {
+        imageUrl: cloudinaryUrl,
         content: newPostCaption || undefined,
-        serviceId: linkedServiceId || undefined,
-        productId: linkedProductId || undefined,
-      });
+      };
+      
+      // Only include serviceId/productId if they have values
+      if (linkedServiceId) {
+        postData.serviceId = linkedServiceId;
+      }
+      if (linkedProductId) {
+        postData.productId = linkedProductId;
+      }
+      
+      console.log("[AccountScreen] Creating post with data:", JSON.stringify(postData));
+      const response = await api.createPost(authToken, postData);
       
       if (response.post) {
         const newPost = mapApiPostToFeaturedPost(response.post);
