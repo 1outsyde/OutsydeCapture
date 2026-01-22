@@ -88,8 +88,8 @@ export default function DiscoverScreen() {
       isLiked: false,
       comments: [],
       createdAt: apiPost.createdAt,
-      // Optional commerce context
-      serviceId: apiPost.serviceId,
+      // Optional commerce context (photographerServiceId is the backend field name)
+      serviceId: apiPost.photographerServiceId || apiPost.serviceId,
       productId: apiPost.productId,
       providerId: providerId,
       // Backwards compatibility
@@ -166,14 +166,27 @@ export default function DiscoverScreen() {
     // Navigate to public profile based on userId (source of truth for identity)
     // Future: use username for /profile/:username routes when available
     if (post.type === "photographer") {
-      const photographerId = post.photographerId || post.providerId;
+      const photographerId = post.photographerId || post.providerId || post.userId;
       if (photographerId) {
         const photographer = getPhotographer(photographerId);
         if (photographer) {
           navigation.navigate("PhotographerDetail", { photographer });
         } else {
-          // Fallback to vendor detail if no photographer found
-          navigation.navigate("VendorDetail", { vendorId: post.userId });
+          // Create minimal photographer object from post data for navigation
+          const minimalPhotographer = {
+            id: photographerId,
+            name: post.displayName || post.authorName || "Photographer",
+            avatar: post.authorAvatar || "",
+            specialty: "portrait" as const,
+            rating: post.rating || 0,
+            reviews: post.reviewCount || 0,
+            hourlyRate: 0,
+            location: "",
+            portfolio: post.image ? [post.image] : [],
+            about: "",
+            availability: [],
+          };
+          navigation.navigate("PhotographerDetail", { photographer: minimalPhotographer });
         }
       }
     } else if (post.type === "vendor") {

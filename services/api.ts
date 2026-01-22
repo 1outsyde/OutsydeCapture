@@ -91,6 +91,7 @@ export interface ApiPost {
   updatedAt?: string;
   // Optional commerce context
   serviceId?: string;
+  photographerServiceId?: string;
   productId?: string;
   providerId?: string;
   user?: {
