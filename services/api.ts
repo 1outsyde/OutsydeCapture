@@ -1241,11 +1241,14 @@ class ApiService {
   }
 
   async getPhotographer(id: string): Promise<ApiPhotographerDetail> {
-    return this.request<ApiPhotographerDetail>(`/api/photographers/${id}`);
+    const response = await this.request<{ success: boolean; photographer: ApiPhotographerDetail }>(`/api/photographers/${id}`);
+    return response.photographer;
   }
 
   async getBusiness(id: string): Promise<ApiBusinessDetail> {
-    return this.request<ApiBusinessDetail>(`/api/businesses/${id}`);
+    const response = await this.request<{ success?: boolean; business?: ApiBusinessDetail } & ApiBusinessDetail>(`/api/businesses/${id}`);
+    // Handle both wrapped {business: {...}} and direct {...} response formats
+    return response.business || response;
   }
 
   async getBusinessPublicProducts(businessId: string): Promise<{ products: VendorProduct[] }> {
