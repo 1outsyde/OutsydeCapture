@@ -598,16 +598,16 @@ export default function AccountScreen() {
       const postData: {
         imageUrl: string;
         content?: string;
-        serviceId?: string;
+        photographerServiceId?: string;
         productId?: string;
       } = {
         imageUrl: cloudinaryUrl,
         content: newPostCaption.trim() || " ",
       };
       
-      // Only include serviceId/productId if they have values
+      // Only include photographerServiceId/productId if they have values
       if (linkedServiceId) {
-        postData.serviceId = linkedServiceId;
+        postData.photographerServiceId = linkedServiceId;
       }
       if (linkedProductId) {
         postData.productId = linkedProductId;
