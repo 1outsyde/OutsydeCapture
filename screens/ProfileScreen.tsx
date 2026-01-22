@@ -172,6 +172,7 @@ export default function ProfileScreen() {
   const [businessServices, setBusinessServices] = useState<VendorService[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [isSelfProfile, setIsSelfProfile] = useState(false); // Backend-detected self-profile
   const [showVideoFullscreen, setShowVideoFullscreen] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostImage, setNewPostImage] = useState<string>("");
@@ -180,10 +181,24 @@ export default function ProfileScreen() {
   const [postSaving, setPostSaving] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const isOwner = user?.id === userId;
+  const isOwnerComputed = user?.id === userId;
+  const isOwner = isOwnerComputed || isSelfProfile; // Use backend-detected self-profile as fallback
   const fetchId = profileId || userId;
   const profileUserType = userType || "consumer";
   const isGuest = user?.isGuest || false;
+
+  // Debug ownership detection with type info
+  console.log("[ProfileScreen] Ownership check:", {
+    "user.id": user?.id,
+    "user.id type": typeof user?.id,
+    "userId (from route)": userId,
+    "userId type": typeof userId,
+    "strict equal": user?.id === userId,
+    isOwnerComputed,
+    isSelfProfile,
+    isOwner,
+    fetchId,
+  });
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -424,12 +439,22 @@ export default function ProfileScreen() {
         console.warn("[ProfileScreen] Could not fetch posts:", e);
       }
 
-      if (!isOwner && userId) {
+      if (!isOwnerComputed && userId) {
         try {
           const result = await api.checkFollowStatus(userId);
-          setIsFollowing(result.isFollowing);
-        } catch (e) {
+          // Check if backend response indicates self-profile
+          if ((result as any).isSelf) {
+            setIsSelfProfile(true);
+          } else {
+            setIsFollowing(result.isFollowing);
+          }
+        } catch (e: any) {
           console.warn("[ProfileScreen] Could not check follow status:", e);
+          // Check if error indicates self-follow scenario
+          const errorStr = typeof e === "object" ? JSON.stringify(e) : String(e);
+          if (errorStr.includes("Cannot follow yourself") || errorStr.includes("self")) {
+            setIsSelfProfile(true);
+          }
         }
       }
     } catch (error) {
@@ -443,7 +468,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [userId, fetchId, profileUserType, isOwner, getToken, initialDisplayName, initialAvatar]);
+  }, [userId, fetchId, profileUserType, isOwnerComputed, getToken, initialDisplayName, initialAvatar]);
 
   useEffect(() => {
     fetchProfile();
@@ -466,6 +491,12 @@ export default function ProfileScreen() {
   const handleFollowToggle = async () => {
     if (!profile?.userId || followLoading) return;
     
+    // Double-check: prevent following yourself even if isOwner check failed
+    if (user?.id === profile.userId || user?.id === userId) {
+      console.warn("[ProfileScreen] Prevented self-follow attempt");
+      return;
+    }
+    
     setFollowLoading(true);
     try {
       if (isFollowing) {
@@ -477,8 +508,15 @@ export default function ProfileScreen() {
         await api.followUser(profile.userId, targetType);
         setIsFollowing(true);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Follow toggle failed:", error);
+      // If backend says "Cannot follow yourself", the user is viewing their own profile
+      const errorStr = typeof error === "object" ? JSON.stringify(error) : String(error);
+      if (error?.message?.includes("Cannot follow yourself") || errorStr.includes("Cannot follow yourself")) {
+        console.warn("[ProfileScreen] Backend rejected self-follow - marking as self-profile");
+        setIsSelfProfile(true); // Hide the follow button going forward
+        return;
+      }
     } finally {
       setFollowLoading(false);
     }
