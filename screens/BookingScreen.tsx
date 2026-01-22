@@ -34,6 +34,7 @@ type PhotographerData = {
   reviewCount?: number;
   priceRange?: string;
   bio?: string;
+  hoursOfOperation?: Record<string, { open?: string; close?: string; closed?: boolean }>;
 };
 
 export default function BookingScreen() {
@@ -85,17 +86,18 @@ export default function BookingScreen() {
       if (!routePhotographer && photographerId) {
         setIsLoadingPhotographer(true);
         try {
-          const data = await api.getPhotographer(photographerId);
+          const data = await api.getPhotographer(photographerId) as any;
           setPhotographer({
             id: data.id,
-            name: data.name || "Photographer",
-            avatar: data.avatar,
+            name: data.displayName || data.name || "Photographer",
+            avatar: data.logoImage || data.avatar,
             specialty: data.specialty,
             location: data.location || (data.city && data.state ? `${data.city}, ${data.state}` : undefined),
             rating: data.rating,
             reviewCount: data.reviewCount,
             priceRange: data.priceRange,
-            bio: data.description,
+            bio: data.bio || data.description,
+            hoursOfOperation: data.hoursOfOperation,
           });
         } catch (e) {
           console.error("Failed to fetch photographer:", e);
@@ -199,8 +201,9 @@ export default function BookingScreen() {
         id: s.id,
         name: s.name,
         description: s.description || "",
-        duration: s.durationMinutes || s.duration || 60,
-        price: s.price || 0,
+        duration: s.estimatedDurationMinutes || s.durationMinutes || s.duration || 60,
+        // Convert priceCents to dollars, fallback to price field
+        price: s.priceCents ? s.priceCents / 100 : (s.price || 0),
         isActive: s.isActive,
         status: s.status,
         category: s.category,
@@ -233,12 +236,36 @@ export default function BookingScreen() {
     setIsLoadingDates(true);
     setError(null);
     try {
-      const startDate = new Date().toISOString().split("T")[0];
-      const endDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      const response = await api.getPhotographerAvailableDates(photographer.id, startDate, endDate);
-      setAvailableDates(response.dates || []);
+      // Compute available dates locally based on hoursOfOperation
+      const dayNameMap: Record<number, string> = {
+        0: "sunday",
+        1: "monday",
+        2: "tuesday",
+        3: "wednesday",
+        4: "thursday",
+        5: "friday",
+        6: "saturday",
+      };
+      
+      const hours = photographer.hoursOfOperation;
+      const computedDates: string[] = [];
+      
+      // Generate dates for next 60 days
+      for (let i = 0; i < 60; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        const dayOfWeek = date.getDay();
+        const dayName = dayNameMap[dayOfWeek];
+        
+        // Check if photographer works on this day
+        if (hours && hours[dayName] && !hours[dayName].closed) {
+          computedDates.push(date.toISOString().split("T")[0]);
+        }
+      }
+      
+      setAvailableDates(computedDates);
     } catch (e) {
-      console.error("Failed to fetch available dates:", e);
+      console.error("Failed to compute available dates:", e);
       setError("Unable to load available dates. Please try again.");
     } finally {
       setIsLoadingDates(false);
@@ -251,15 +278,71 @@ export default function BookingScreen() {
     setError(null);
     setAvailableSlots([]);
     try {
-      const response = await api.getPhotographerAvailableSlots(
-        photographer.id,
-        date,
-        selectedService?.id
-      );
-      const openSlots = (response.slots || []).filter((s: AvailableSlot) => s.available);
-      setAvailableSlots(openSlots);
+      // Compute available slots locally based on hoursOfOperation
+      const dayNameMap: Record<number, string> = {
+        0: "sunday",
+        1: "monday",
+        2: "tuesday",
+        3: "wednesday",
+        4: "thursday",
+        5: "friday",
+        6: "saturday",
+      };
+      
+      const selectedDateObj = new Date(date + "T00:00:00");
+      const dayOfWeek = selectedDateObj.getDay();
+      const dayName = dayNameMap[dayOfWeek];
+      const hours = photographer.hoursOfOperation;
+      
+      const computedSlots: AvailableSlot[] = [];
+      
+      if (hours && hours[dayName] && !hours[dayName].closed && hours[dayName].open && hours[dayName].close) {
+        const openTime = hours[dayName].open!;
+        const closeTime = hours[dayName].close!;
+        const serviceDuration = selectedService?.duration || 60;
+        
+        // Parse open and close times
+        const [openHour, openMin] = openTime.split(":").map(Number);
+        const [closeHour, closeMin] = closeTime.split(":").map(Number);
+        
+        // Generate slots at 30-minute intervals
+        let currentHour = openHour;
+        let currentMin = openMin;
+        
+        while (true) {
+          const slotStartTime = `${String(currentHour).padStart(2, "0")}:${String(currentMin).padStart(2, "0")}`;
+          
+          // Calculate end time for this slot based on service duration
+          const endMinutes = currentHour * 60 + currentMin + serviceDuration;
+          const endHour = Math.floor(endMinutes / 60);
+          const endMin = endMinutes % 60;
+          const slotEndTime = `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`;
+          
+          // Check if slot ends before closing time
+          const closeMinutes = closeHour * 60 + closeMin;
+          if (endMinutes > closeMinutes) break;
+          
+          computedSlots.push({
+            startTime: slotStartTime,
+            endTime: slotEndTime,
+            available: true,
+          });
+          
+          // Move to next slot (30 min intervals)
+          currentMin += 30;
+          if (currentMin >= 60) {
+            currentHour += 1;
+            currentMin = 0;
+          }
+          
+          // Safety break
+          if (currentHour >= 24) break;
+        }
+      }
+      
+      setAvailableSlots(computedSlots);
     } catch (e) {
-      console.error("Failed to fetch slots:", e);
+      console.error("Failed to compute slots:", e);
       setError("Unable to load time slots. Please try again.");
     } finally {
       setIsLoadingSlots(false);
