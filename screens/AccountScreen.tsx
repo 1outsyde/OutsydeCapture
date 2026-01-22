@@ -628,7 +628,17 @@ export default function AccountScreen() {
       }
     } catch (error: any) {
       console.error("[AccountScreen] Failed to create post:", error);
-      Alert.alert("Error", error.message || "Failed to create post. Please try again.");
+      // Check if it's a service/product not found error
+      const errorMsg = error.message?.toLowerCase() || "";
+      if (errorMsg.includes("service not found") || errorMsg.includes("product not found") || error.status === 404) {
+        Alert.alert(
+          "Linking Not Available",
+          "Service/product linking is not yet supported. Try posting without linking a service or product.",
+          [{ text: "OK" }]
+        );
+      } else {
+        Alert.alert("Error", error.message || "Failed to create post. Please try again.");
+      }
     } finally {
       setPostSaving(false);
     }
