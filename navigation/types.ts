@@ -68,6 +68,7 @@ export type RootStackParamList = {
   PhotographerProfile: { photographer: PhotographerProfileData };
   Profile: { 
     userId: string; 
+    profileId?: string;
     userType?: "photographer" | "business" | "consumer";
     displayName?: string;
     avatar?: string;

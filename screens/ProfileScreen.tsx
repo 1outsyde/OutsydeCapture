@@ -47,6 +47,7 @@ const FALLBACK_COVER =
 
 interface ProfileData {
   id: string;
+  userId: string;
   name: string;
   avatar?: string;
   coverImage?: string;
@@ -154,7 +155,7 @@ export default function ProfileScreen() {
   const { user, isAuthenticated, getToken } = useAuth();
   const { unreadCount } = useNotifications();
 
-  const { userId, userType, displayName: initialDisplayName, avatar: initialAvatar } = route.params;
+  const { userId, profileId, userType, displayName: initialDisplayName, avatar: initialAvatar } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -180,6 +181,7 @@ export default function ProfileScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const isOwner = user?.id === userId;
+  const fetchId = profileId || userId;
   const profileUserType = userType || "consumer";
   const isGuest = user?.isGuest || false;
 
@@ -195,6 +197,7 @@ export default function ProfileScreen() {
           const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
           setProfile({
             id: photographer.id,
+            userId: userId,
             name: photographer.displayName || initialDisplayName || "Photographer",
             avatar: photographer.logoImage || initialAvatar,
             coverImage: isVideo ? undefined : photographer.coverImage,
@@ -270,11 +273,12 @@ export default function ProfileScreen() {
             console.warn("[ProfileScreen] Could not fetch services:", e);
           }
         } else {
-          const photographerPublic = await api.getPhotographer(userId) as any;
+          const photographerPublic = await api.getPhotographer(fetchId) as any;
           const coverUrl = photographerPublic.coverImage || "";
           const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
           setProfile({
             id: photographerPublic.id,
+            userId: photographerPublic.userId || userId,
             name: photographerPublic.displayName || photographerPublic.name || initialDisplayName || "Photographer",
             avatar: photographerPublic.logoImage || photographerPublic.avatar || initialAvatar,
             coverImage: isVideo ? undefined : photographerPublic.coverImage,
@@ -293,7 +297,7 @@ export default function ProfileScreen() {
           });
 
           try {
-            const publicServicesResponse = await api.getPhotographerPublicServices(userId);
+            const publicServicesResponse = await api.getPhotographerPublicServices(fetchId);
             let servicesList: any[] = [];
             if (Array.isArray(publicServicesResponse)) {
               servicesList = publicServicesResponse;
@@ -333,6 +337,7 @@ export default function ProfileScreen() {
           const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
           setProfile({
             id: vendor.id,
+            userId: userId,
             name: vendor.name,
             avatar: vendor.logoImage || undefined,
             coverImage: isVideo ? undefined : (vendor.coverImage || undefined),
@@ -363,11 +368,12 @@ export default function ProfileScreen() {
           setBusinessHasProducts(hasLiveProducts);
           setBusinessHasServices(hasLiveServices);
         } else {
-          const vendorPublic = await api.getBusiness(userId) as any;
+          const vendorPublic = await api.getBusiness(fetchId) as any;
           const coverUrl = vendorPublic.coverImage || "";
           const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
           setProfile({
             id: vendorPublic.id,
+            userId: vendorPublic.userId || userId,
             name: vendorPublic.name || initialDisplayName || "Business",
             avatar: vendorPublic.logoImage || vendorPublic.avatar || initialAvatar,
             coverImage: isVideo ? undefined : vendorPublic.coverImage,
@@ -385,8 +391,8 @@ export default function ProfileScreen() {
 
           try {
             const [productsRes, servicesRes] = await Promise.all([
-              api.getBusinessPublicProducts(userId).catch(() => ({ products: [] })),
-              api.getBusinessPublicServices(userId).catch(() => ({ services: [] })),
+              api.getBusinessPublicProducts(fetchId).catch(() => ({ products: [] })),
+              api.getBusinessPublicServices(fetchId).catch(() => ({ services: [] })),
             ]);
             const allProducts = productsRes.products || [];
             const allServices = servicesRes.services || [];
@@ -401,6 +407,7 @@ export default function ProfileScreen() {
       } else {
         setProfile({
           id: userId,
+          userId: userId,
           name: initialDisplayName || "User",
           avatar: initialAvatar,
         });
@@ -429,13 +436,14 @@ export default function ProfileScreen() {
       console.error("[ProfileScreen] Failed to fetch profile:", error);
       setProfile({
         id: userId,
+        userId: userId,
         name: initialDisplayName || "User",
         avatar: initialAvatar,
       });
     } finally {
       setLoading(false);
     }
-  }, [userId, profileUserType, isOwner, getToken, initialDisplayName, initialAvatar]);
+  }, [userId, fetchId, profileUserType, isOwner, getToken, initialDisplayName, initialAvatar]);
 
   useEffect(() => {
     fetchProfile();
@@ -456,17 +464,17 @@ export default function ProfileScreen() {
   }, [profileUserType, businessHasProducts, businessHasServices]);
 
   const handleFollowToggle = async () => {
-    if (!profile?.id || followLoading) return;
+    if (!profile?.userId || followLoading) return;
     
     setFollowLoading(true);
     try {
       if (isFollowing) {
-        await api.unfollowUser(profile.id);
+        await api.unfollowUser(profile.userId);
         setIsFollowing(false);
       } else {
         const targetType = profileUserType === "photographer" ? "photographer" : 
                           profileUserType === "business" ? "business" : "user";
-        await api.followUser(profile.id, targetType);
+        await api.followUser(profile.userId, targetType);
         setIsFollowing(true);
       }
     } catch (error) {

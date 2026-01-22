@@ -163,15 +163,16 @@ export default function DiscoverScreen() {
   }, [fetchAlgorithmicFeed]);
 
   const handleAuthorPress = (post: Post) => {
-    // Navigate to unified Profile screen based on userId
-    // isOwner is computed in ProfileScreen: auth.user?.id === profile.userId
-    const profileUserId = post.photographerId || post.providerId || post.userId;
+    // Navigate to unified Profile screen
+    // userId is for ownership detection (compare with auth.user.id)
+    // profileId is for fetching photographer/business records (their record ID)
     const userType = post.type === "photographer" ? "photographer" 
                    : post.type === "vendor" ? "business" 
                    : "consumer";
     
     navigation.navigate("Profile", {
-      userId: profileUserId,
+      userId: post.userId,
+      profileId: post.providerId,
       userType,
       displayName: post.displayName || post.authorName,
       avatar: post.authorAvatar,
