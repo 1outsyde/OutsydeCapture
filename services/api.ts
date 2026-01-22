@@ -2326,12 +2326,54 @@ class ApiService {
       serviceId: string;
       date: string;
       startTime: string;
-      endTime: string;
+      endTime?: string;
       location?: string;
       notes?: string;
     }
-  ): Promise<{ draft: BookingDraft }> {
-    return this.request<{ draft: BookingDraft }>("/api/bookings/draft", {
+  ): Promise<{
+    success: boolean;
+    draftId: string;
+    expiresAt: string;
+    slot: {
+      date: string;
+      startTime: string;
+      endTime: string;
+      durationMinutes: number;
+    };
+    service: {
+      id: string;
+      name: string;
+      priceCents: number;
+      description?: string;
+    };
+    pricing: {
+      totalCents: number;
+      platformFeeCents: number;
+      vendorNetCents: number;
+    };
+  }> {
+    return this.request<{
+      success: boolean;
+      draftId: string;
+      expiresAt: string;
+      slot: {
+        date: string;
+        startTime: string;
+        endTime: string;
+        durationMinutes: number;
+      };
+      service: {
+        id: string;
+        name: string;
+        priceCents: number;
+        description?: string;
+      };
+      pricing: {
+        totalCents: number;
+        platformFeeCents: number;
+        vendorNetCents: number;
+      };
+    }>("/api/bookings/photographer/draft", {
       method: "POST",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },

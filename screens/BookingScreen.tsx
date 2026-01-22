@@ -371,12 +371,25 @@ export default function BookingScreen() {
         serviceId: selectedService.id,
         date: selectedDate,
         startTime: slot.startTime,
-        endTime: slot.endTime,
-        location,
-        notes,
       });
-      setBookingDraft(response.draft);
-      setSelectedSlot(slot);
+      // Convert new response format to BookingDraft
+      const draft: BookingDraft = {
+        id: response.draftId,
+        photographerId: photographer.id,
+        serviceId: response.service.id,
+        date: response.slot.date,
+        startTime: response.slot.startTime,
+        endTime: response.slot.endTime,
+        status: "held",
+        expiresAt: response.expiresAt,
+        totalAmount: response.pricing.totalCents / 100,
+      };
+      setBookingDraft(draft);
+      setSelectedSlot({
+        startTime: response.slot.startTime,
+        endTime: response.slot.endTime,
+        available: true,
+      });
       setStep("review");
     } catch (e: any) {
       console.error("Failed to create draft:", e);
