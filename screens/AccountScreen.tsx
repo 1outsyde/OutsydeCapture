@@ -602,7 +602,7 @@ export default function AccountScreen() {
         productId?: string;
       } = {
         imageUrl: cloudinaryUrl,
-        content: newPostCaption || undefined,
+        content: newPostCaption.trim() || " ",
       };
       
       // Only include serviceId/productId if they have values
