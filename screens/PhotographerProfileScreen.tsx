@@ -81,7 +81,12 @@ export default function PhotographerProfileScreen() {
         portfolio: apiData.portfolio?.length ? apiData.portfolio : photographer.portfolio,
         specialties: apiData.specialties?.length ? apiData.specialties : photographer.specialties,
         brandColors: apiData.brandColors || photographer.brandColors,
-        stripeOnboardingComplete: apiData.stripeOnboardingComplete ?? photographer.stripeOnboardingComplete,
+        // Check multiple Stripe fields - backend may return stripeOnboardingComplete, stripeConnected, or both
+        stripeOnboardingComplete: 
+          (apiData as any).stripeOnboardingComplete === true || 
+          (apiData as any).stripeConnected === true ||
+          !!(apiData as any).stripeAccountId ||
+          photographer.stripeOnboardingComplete,
       };
     },
     [photographer]
@@ -192,6 +197,14 @@ export default function PhotographerProfileScreen() {
   };
 
   const handleBook = () => {
+    console.log("[PhotographerProfile] handleBook - stripeOnboardingComplete:", photographer.stripeOnboardingComplete);
+    
+    // Require authentication to book
+    if (!isAuthenticated) {
+      navigation.navigate("Auth", {});
+      return;
+    }
+    
     // Check if photographer has completed Stripe onboarding
     if (!photographer.stripeOnboardingComplete) {
       Alert.alert(
