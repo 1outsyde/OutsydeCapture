@@ -2392,6 +2392,22 @@ class ApiService {
     });
   }
 
+  async initiateBookingPayment(
+    authToken: string,
+    draftId: string,
+    successUrl: string,
+    cancelUrl: string
+  ): Promise<{ checkoutUrl: string; sessionId: string }> {
+    return this.request<{ checkoutUrl: string; sessionId: string }>(
+      `/api/bookings/shoot/${draftId}/initiate-payment`,
+      {
+        method: "POST",
+        body: JSON.stringify({ successUrl, cancelUrl }),
+        headers: { "Authorization": `Bearer ${authToken}` },
+      }
+    );
+  }
+
   async confirmBookingDraft(
     authToken: string,
     draftId: string,
