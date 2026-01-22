@@ -163,42 +163,19 @@ export default function DiscoverScreen() {
   }, [fetchAlgorithmicFeed]);
 
   const handleAuthorPress = (post: Post) => {
-    // Navigate to public profile based on userId (source of truth for identity)
-    // Future: use username for /profile/:username routes when available
-    if (post.type === "photographer") {
-      const photographerId = post.photographerId || post.providerId || post.userId;
-      if (photographerId) {
-        const photographer = getPhotographer(photographerId);
-        if (photographer) {
-          navigation.navigate("PhotographerDetail", { photographer });
-        } else {
-          // Create minimal photographer object from post data for navigation
-          const minimalPhotographer = {
-            id: photographerId,
-            name: post.displayName || post.authorName || "Photographer",
-            avatar: post.authorAvatar || "",
-            specialty: "portrait" as const,
-            rating: post.rating || 0,
-            reviews: post.reviewCount || 0,
-            reviewCount: post.reviewCount || 0,
-            hourlyRate: 0,
-            priceRange: "$",
-            location: "",
-            portfolio: post.image ? [post.image] : [],
-            about: "",
-            bio: "",
-            availability: [],
-          };
-          navigation.navigate("PhotographerDetail", { photographer: minimalPhotographer });
-        }
-      }
-    } else if (post.type === "vendor") {
-      navigation.navigate("VendorDetail", { vendorId: post.userId });
-    } else {
-      // Regular user posts - navigate to a user profile (future implementation)
-      // For now, we can show an alert or do nothing
-      console.log("User profile navigation for userId:", post.userId);
-    }
+    // Navigate to unified Profile screen based on userId
+    // isOwner is computed in ProfileScreen: auth.user?.id === profile.userId
+    const profileUserId = post.photographerId || post.providerId || post.userId;
+    const userType = post.type === "photographer" ? "photographer" 
+                   : post.type === "vendor" ? "business" 
+                   : "consumer";
+    
+    navigation.navigate("Profile", {
+      userId: profileUserId,
+      userType,
+      displayName: post.displayName || post.authorName,
+      avatar: post.authorAvatar,
+    });
   };
 
   const handleActionPress = (post: Post) => {

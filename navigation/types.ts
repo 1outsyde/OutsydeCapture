@@ -66,6 +66,12 @@ export type RootStackParamList = {
   VendorDetail: { vendorId: string; initialTab?: "products" | "services" | "reviews"; productId?: string };
   BusinessProfile: { business: BusinessProfileData };
   PhotographerProfile: { photographer: PhotographerProfileData };
+  Profile: { 
+    userId: string; 
+    userType?: "photographer" | "business" | "consumer";
+    displayName?: string;
+    avatar?: string;
+  };
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };

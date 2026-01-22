@@ -35,6 +35,7 @@ import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
+import ProfileScreen from "@/screens/ProfileScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -250,6 +251,18 @@ export default function RootNavigator() {
             </Pressable>
           ),
         })}
+      />
+
+      <Stack.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: false,
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
       />
 
       <Stack.Screen
