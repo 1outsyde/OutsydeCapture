@@ -1,0 +1,80 @@
+I'll add the missing endpoints now. Let me start with the public photographer services endpoint:
+
+I found that the public endpoint already exists at line 774 in the photographers controller. Let me check its implementation:
+
+The public endpoint already exists at GET /api/photographers/:id/services. The issue is likely that:
+
+The photographer's services aren't in "live" status (only status: 'live' services are returned)
+Or the services don't exist in this database
+Let me check the response format and then move to task 2 - the draft booking endpoint:
+
+The public services endpoint already exists. Let me update the task list and add the draft booking endpoint:
+
+The schema already supports drafts with status: 'draft' and draftExpiresAt. Now let me add the draft booking endpoint. I'll find the right place to add it:
+
+Now I'll add the draft booking endpoint:
+
+Server is running. Now let me update the task list and document the endpoints for the frontend team:
+
+Let me fix the issues identified by the architect:
+
+Server running successfully. Let me call the architect for a re-review of the fixed draft endpoint:
+
+Let me fix the remaining issues by extending the storage method and adding validation:
+
+Now let me update the interface in storage.ts and the route to include draftExpiresAt during creation:
+
+Now let me update the route to pass draftExpiresAt during creation and add date/service status validation:
+
+Now let me update the booking creation to include draftExpiresAt and remove the separate update:
+
+Let me add proper compensating cleanup logic to handle failures:
+
+The current flow is already safe - after reservation, the only step is sending the JSON response. But let me add explicit cleanup to handle any edge case:
+
+The endpoint is functionally correct. The draft cleanup job (running every 60s) handles any orphaned drafts. Let me update the task list and create the documentation:
+
+The photographer draft booking endpoint is ready. Here's a summary for your mobile team:
+
+POST /api/bookings/photographer/draft
+Purpose: Creates a draft booking to hold a photographer's time slot for 10 minutes during checkout.
+
+Request:
+
+{
+  "photographerId": "uuid",
+  "serviceId": "uuid",
+  "date": "2026-01-25",
+  "startTime": "14:00"
+}
+Response:
+
+{
+  "success": true,
+  "draftId": "booking-uuid",
+  "expiresAt": "2026-01-22T17:30:00.000Z",
+  "slot": {
+    "date": "2026-01-25",
+    "startTime": "14:00",
+    "endTime": "15:30",
+    "durationMinutes": 90
+  },
+  "service": {
+    "id": "service-uuid",
+    "name": "Portrait Session",
+    "priceCents": 15000,
+    "description": "..."
+  },
+  "pricing": {
+    "totalCents": 15000,
+    "platformFeeCents": 1500,
+    "vendorNetCents": 13500
+  }
+}
+Validations:
+
+Service must be active AND status='live' AND price ≥ $1.00
+Date format YYYY-MM-DD, no past dates
+Start time format HH:MM, no overnight bookings
+Slot must be available (409 if taken)
+Draft Cleanup: Background job runs every 60s to expire drafts past their 10-min TTL and release held slots.
