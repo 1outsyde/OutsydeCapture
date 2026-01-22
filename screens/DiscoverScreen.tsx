@@ -180,10 +180,13 @@ export default function DiscoverScreen() {
             specialty: "portrait" as const,
             rating: post.rating || 0,
             reviews: post.reviewCount || 0,
+            reviewCount: post.reviewCount || 0,
             hourlyRate: 0,
+            priceRange: "$",
             location: "",
             portfolio: post.image ? [post.image] : [],
             about: "",
+            bio: "",
             availability: [],
           };
           navigation.navigate("PhotographerDetail", { photographer: minimalPhotographer });
