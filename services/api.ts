@@ -971,8 +971,12 @@ class ApiService {
         let validationErrors: string[] = [];
         try {
           const errorBody = await response.json();
+          // Check for various error message formats
           if (errorBody.message) {
             errorMessage = errorBody.message;
+          } else if (errorBody.error) {
+            // Some endpoints return { error: "message" } instead of { message: "..." }
+            errorMessage = errorBody.error;
           }
           if (errorBody.errors && Array.isArray(errorBody.errors)) {
             validationErrors = errorBody.errors;

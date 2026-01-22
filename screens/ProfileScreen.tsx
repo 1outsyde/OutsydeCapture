@@ -181,23 +181,35 @@ export default function ProfileScreen() {
   const [postSaving, setPostSaving] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const isOwnerComputed = user?.id === userId;
-  const isOwner = isOwnerComputed || isSelfProfile; // Use backend-detected self-profile as fallback
   const fetchId = profileId || userId;
   const profileUserType = userType || "consumer";
   const isGuest = user?.isGuest || false;
 
-  // Debug ownership detection with type info
+  // Multi-layer ownership detection:
+  // 1. Compare user.id with userId from route
+  // 2. For photographers: compare user.photographerId with profileId (photographer record ID)
+  // 3. For businesses: compare user.businessId with profileId (business record ID)
+  // 4. Fallback to backend-detected self-profile
+  const isOwnerByUserId = user?.id === userId;
+  const isOwnerByPhotographerId = profileUserType === "photographer" && !!user?.photographerId && user.photographerId === fetchId;
+  const isOwnerByBusinessId = profileUserType === "business" && !!user?.businessId && user.businessId === fetchId;
+  const isOwnerComputed = isOwnerByUserId || isOwnerByPhotographerId || isOwnerByBusinessId;
+  const isOwner = isOwnerComputed || isSelfProfile;
+
+  // Debug ownership detection
   console.log("[ProfileScreen] Ownership check:", {
     "user.id": user?.id,
-    "user.id type": typeof user?.id,
-    "userId (from route)": userId,
-    "userId type": typeof userId,
-    "strict equal": user?.id === userId,
+    "user.photographerId": user?.photographerId,
+    "user.businessId": user?.businessId,
+    userId,
+    fetchId,
+    profileUserType,
+    isOwnerByUserId,
+    isOwnerByPhotographerId,
+    isOwnerByBusinessId,
     isOwnerComputed,
     isSelfProfile,
     isOwner,
-    fetchId,
   });
 
   const fetchProfile = useCallback(async () => {
