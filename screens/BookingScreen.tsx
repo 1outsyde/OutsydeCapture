@@ -184,9 +184,16 @@ export default function BookingScreen() {
     setError(null);
     try {
       const response = await api.getPhotographerPublicServices(photographer.id);
-      const servicesList = Array.isArray(response) ? response : [];
+      // Handle both array response and wrapped {services: [...]} response
+      let servicesList: any[] = [];
+      if (Array.isArray(response)) {
+        servicesList = response;
+      } else if (response && typeof response === "object" && (response as any).services) {
+        servicesList = (response as any).services;
+      }
+      // Filter for active services - status can be "live" or "active"
       const activeServices = servicesList.filter(
-        (s: any) => s.isActive && s.status === "active"
+        (s: any) => s.isActive && (s.status === "active" || s.status === "live")
       );
       const mappedServices = activeServices.map((s: any) => ({
         id: s.id,
