@@ -301,8 +301,18 @@ export default function ProfileScreen() {
           }
         } else {
           const photographerPublic = await api.getPhotographer(fetchId) as any;
+          console.log("[ProfileScreen] Public photographer data:", {
+            id: photographerPublic.id,
+            stripeOnboardingComplete: photographerPublic.stripeOnboardingComplete,
+            stripeConnected: photographerPublic.stripeConnected,
+            stripeAccountId: photographerPublic.stripeAccountId,
+          });
           const coverUrl = photographerPublic.coverImage || "";
           const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
+          // Check multiple Stripe fields - backend may return stripeOnboardingComplete, stripeConnected, or both
+          const isStripeReady = photographerPublic.stripeOnboardingComplete === true || 
+                               photographerPublic.stripeConnected === true ||
+                               !!photographerPublic.stripeAccountId;
           setProfile({
             id: photographerPublic.id,
             userId: photographerPublic.userId || userId,
@@ -319,7 +329,7 @@ export default function ProfileScreen() {
             portfolio: photographerPublic.portfolio,
             brandColors: photographerPublic.brandColors,
             hourlyRate: photographerPublic.hourlyRate,
-            stripeOnboardingComplete: photographerPublic.stripeOnboardingComplete,
+            stripeOnboardingComplete: isStripeReady,
             availability: photographerPublic.todayAvailability || null,
           });
 
@@ -610,11 +620,13 @@ export default function ProfileScreen() {
       navigation.navigate("Auth", {});
       return;
     }
+    // stripeOnboardingComplete is now computed from multiple backend fields (stripeOnboardingComplete, stripeConnected, stripeAccountId)
+    console.log("[ProfileScreen] handleBookNow - stripeOnboardingComplete:", profile?.stripeOnboardingComplete);
     if (!profile?.stripeOnboardingComplete && profileUserType === "photographer") {
       Alert.alert("Booking Unavailable", "This photographer hasn't completed their payment setup yet.");
       return;
     }
-    navigation.navigate("Booking", { photographerId: userId });
+    navigation.navigate("Booking", { photographerId: fetchId });
   };
 
   const handlePickPostImage = async () => {
