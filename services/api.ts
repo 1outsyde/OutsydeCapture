@@ -2314,9 +2314,14 @@ class ApiService {
     endDate: string
   ): Promise<{ dates: string[] }> {
     const params = new URLSearchParams({ startDate, endDate });
-    return this.request<{ dates: string[] }>(
-      `/api/photographers/${photographerId}/available-dates?${params.toString()}`
+    // Use the backend availability endpoint that checks for existing bookings
+    const response = await this.request<{
+      availableDates?: string[];
+      dates?: string[];
+    }>(
+      `/api/availability/photographer/${photographerId}?${params.toString()}`
     );
+    return { dates: response.availableDates || response.dates || [] };
   }
 
   async createBookingDraft(

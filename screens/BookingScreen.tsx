@@ -236,7 +236,21 @@ export default function BookingScreen() {
     setIsLoadingDates(true);
     setError(null);
     try {
-      // Compute available dates locally based on hoursOfOperation
+      const startDate = new Date().toISOString().split("T")[0];
+      const endDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      
+      // Try backend endpoint first (checks for existing bookings to prevent double-booking)
+      try {
+        const response = await api.getPhotographerAvailableDates(photographer.id, startDate, endDate);
+        if (response.dates && response.dates.length > 0) {
+          setAvailableDates(response.dates);
+          return;
+        }
+      } catch (backendErr) {
+        console.log("Backend availability endpoint unavailable, using local computation");
+      }
+      
+      // Fallback: Compute available dates locally based on hoursOfOperation
       const dayNameMap: Record<number, string> = {
         0: "sunday",
         1: "monday",
