@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Pressable, ScrollView, TextInput, Alert, Platform, Modal, ActivityIndicator } from "react-native";
+import { StyleSheet, View, Pressable, ScrollView, TextInput, Alert, Platform, Modal, ActivityIndicator, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -427,7 +428,43 @@ export default function BookingScreen() {
 
     setIsConfirming(true);
     try {
-      const response = await api.confirmBookingDraft(token, bookingDraft.id);
+      // Step 1: Initiate payment to get Stripe checkout URL
+      const successUrl = "outsyde://booking/success";
+      const cancelUrl = "outsyde://booking/cancel";
+      
+      const paymentResponse = await api.initiateBookingPayment(
+        token,
+        bookingDraft.id,
+        successUrl,
+        cancelUrl
+      );
+      
+      // Step 2: Open Stripe checkout in browser
+      if (Platform.OS === "web") {
+        // On web, open in new tab and poll or use redirect
+        window.open(paymentResponse.checkoutUrl, "_blank");
+        // For web, we'll proceed to confirm after user clicks (they'll return to the app)
+      } else {
+        // On mobile, use WebBrowser which handles deep link return
+        const result = await WebBrowser.openBrowserAsync(paymentResponse.checkoutUrl, {
+          showInRecents: true,
+          dismissButtonStyle: "close",
+        });
+        
+        // Check if user dismissed without completing
+        if (result.type === "cancel") {
+          setIsConfirming(false);
+          if (Platform.OS === "web") {
+            window.alert("Payment was cancelled. Please try again.");
+          } else {
+            Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
+          }
+          return;
+        }
+      }
+      
+      // Step 3: Confirm payment after Stripe checkout completes
+      const confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
       
       if (countdownRef.current) {
         clearInterval(countdownRef.current);
