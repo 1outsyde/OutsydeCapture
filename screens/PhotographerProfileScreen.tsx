@@ -57,17 +57,35 @@ export default function PhotographerProfileScreen() {
         ? apiData.location.split(",").map((s) => s.trim())
         : [];
 
+      // Helper to validate image URLs (filter out local file paths)
+      const isValidImageUrl = (url?: string): boolean => {
+        if (!url) return false;
+        return url.startsWith("http://") || url.startsWith("https://");
+      };
+
+      // Get valid avatar URL - check both avatar and logoImage fields
+      const avatarUrl = isValidImageUrl(apiData.avatar) 
+        ? apiData.avatar 
+        : isValidImageUrl((apiData as any).logoImage)
+          ? (apiData as any).logoImage
+          : photographer.avatar;
+
+      // Get valid cover image URL
+      const coverUrl = isValidImageUrl(apiData.coverImage)
+        ? apiData.coverImage
+        : photographer.coverImage;
+
       return {
         ...photographer,
         id: apiData.id || photographer.id,
-        name: apiData.name || photographer.name,
-        avatar: apiData.avatar || photographer.avatar,
+        name: (apiData as any).displayName || apiData.name || photographer.name,
+        avatar: avatarUrl,
         city: apiData.city || locationParts[0] || photographer.city,
         state: apiData.state || locationParts[1] || photographer.state,
         rating: apiData.rating ?? photographer.rating,
         priceRange: apiData.priceRange || photographer.priceRange,
         specialty: apiData.specialty || photographer.specialty,
-        description: apiData.description || photographer.description,
+        description: (apiData as any).bio || apiData.description || photographer.description,
         subscriptionTier: apiData.subscriptionTier || photographer.subscriptionTier,
         website: apiData.website || photographer.website,
         phone: apiData.phone || photographer.phone,
@@ -76,7 +94,7 @@ export default function PhotographerProfileScreen() {
         facebook: apiData.facebook || photographer.facebook,
         twitter: apiData.twitter || photographer.twitter,
         reviewCount: apiData.reviewCount ?? photographer.reviewCount,
-        coverImage: apiData.coverImage || photographer.coverImage,
+        coverImage: coverUrl,
         yearsOfExperience: apiData.yearsOfExperience ?? photographer.yearsOfExperience,
         portfolio: apiData.portfolio?.length ? apiData.portfolio : photographer.portfolio,
         specialties: apiData.specialties?.length ? apiData.specialties : photographer.specialties,
