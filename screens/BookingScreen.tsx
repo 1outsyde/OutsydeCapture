@@ -454,11 +454,7 @@ export default function BookingScreen() {
         // Check if user dismissed without completing
         if (result.type === "cancel") {
           setIsConfirming(false);
-          if (Platform.OS === "web") {
-            window.alert("Payment was cancelled. Please try again.");
-          } else {
-            Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
-          }
+          Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
           return;
         }
       }
