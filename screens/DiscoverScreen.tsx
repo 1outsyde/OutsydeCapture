@@ -49,7 +49,15 @@ export default function DiscoverScreen() {
   // Convert API posts to local Post format
   const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
     const displayName = apiPost.author?.name || apiPost.user?.name || "Unknown";
-    const authorAvatar = apiPost.author?.profileImageUrl || apiPost.user?.profileImageUrl || "";
+    // Check multiple possible avatar fields (backend may use different names for different account types)
+    const authorAvatar = 
+      (apiPost.author as any)?.logoImage || 
+      (apiPost.author as any)?.avatar ||
+      apiPost.author?.profileImageUrl || 
+      (apiPost.user as any)?.logoImage ||
+      (apiPost.user as any)?.avatar ||
+      apiPost.user?.profileImageUrl || 
+      "";
     const userId = apiPost.userId || apiPost.author?.id || apiPost.user?.id || apiPost.id;
     const username = apiPost.author?.username || apiPost.user?.username;
     
