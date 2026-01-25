@@ -295,7 +295,15 @@ export default function DiscoverScreen() {
           onPress={() => handleAuthorPress(post)}
           style={styles.postHeader}
         >
-          <Image source={{ uri: post.authorAvatar }} style={styles.avatar} contentFit="cover" />
+          {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
+            <Image source={{ uri: post.authorAvatar }} style={styles.avatar} contentFit="cover" />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.primary }]}>
+              <ThemedText type="h3" style={{ color: "#000000" }}>
+                {(post.authorName || post.displayName || "?").charAt(0).toUpperCase()}
+              </ThemedText>
+            </View>
+          )}
           <View style={styles.headerInfo}>
             <View style={styles.nameRow}>
               <ThemedText type="h4">{post.authorName}</ThemedText>
@@ -607,6 +615,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+  },
+  avatarPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerInfo: {
     flex: 1,
