@@ -194,6 +194,7 @@ export interface VendorBookerBusiness {
   hasProducts: boolean;
   hasServices: boolean;
   coverImage?: string | null;
+  coverMediaType?: "image" | "video" | null;
   logoImage?: string | null;
   brandColors?: string | null;
   hoursOfOperation?: string | null;
@@ -267,6 +268,7 @@ export interface BusinessOnboardingData {
   hoursOfOperation?: HoursOfOperationData;
   brandColors?: string; // JSON string with { primary: "#hex" }
   coverImage?: string;
+  coverMediaType?: "image" | "video";
   logoImage?: string;
 }
 
