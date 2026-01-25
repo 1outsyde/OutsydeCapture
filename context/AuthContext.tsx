@@ -15,6 +15,9 @@ export interface User {
   role: UserRole;
   approvalStatus: ApprovalStatus;
   avatar?: string;
+  profileImageUrl?: string;
+  coverMediaUrl?: string;
+  coverMediaType?: "image" | "video";
   isGuest?: boolean;
   isAdmin?: boolean;
   businessName?: string;
@@ -183,6 +186,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approvalStatus: backendUser.approvalStatus || "approved",
         isProfileComplete: backendUser.isProfileComplete,
         avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || email.split("@")[0])}&background=D4A84B&color=fff`,
+        profileImageUrl: backendUser.profileImageUrl,
+        coverMediaUrl: (backendUser as any).coverMediaUrl,
+        coverMediaType: (backendUser as any).coverMediaType,
         city: backendUser.city || photographerData?.city,
         state: backendUser.state || photographerData?.state,
         businessName: backendUser.businessName,
@@ -261,6 +267,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approvalStatus: backendUser.approvalStatus || "approved",
         isProfileComplete: backendUser.isProfileComplete,
         avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || "User")}&background=D4A84B&color=fff`,
+        profileImageUrl: backendUser.profileImageUrl,
+        coverMediaUrl: (backendUser as any).coverMediaUrl,
+        coverMediaType: (backendUser as any).coverMediaType,
         city: backendUser.city || photographerData?.city,
         state: backendUser.state || photographerData?.state,
         businessName: backendUser.businessName,

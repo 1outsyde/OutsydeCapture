@@ -1581,7 +1581,11 @@ class ApiService {
   }
 
   // PATCH /api/users/me - Update current user profile (for consumers/influencers)
-  async updateUserMe(authToken: string, data: { profileImageUrl?: string }): Promise<{ success: boolean; user?: any; message?: string }> {
+  async updateUserMe(authToken: string, data: { 
+    profileImageUrl?: string | null; 
+    coverMediaUrl?: string | null; 
+    coverMediaType?: "image" | "video" | null;
+  }): Promise<{ success: boolean; user?: any; message?: string }> {
     console.log("[API] updateUserMe payload:", JSON.stringify(data, null, 2));
     
     if (!data || Object.keys(data).length === 0) {

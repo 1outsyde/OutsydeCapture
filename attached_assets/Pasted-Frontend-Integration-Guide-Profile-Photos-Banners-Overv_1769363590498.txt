@@ -1,0 +1,73 @@
+Frontend Integration Guide: Profile Photos & Banners
+Overview
+Profile images and banners are now persisted server-side in the database instead of being stored in local storage. This means:
+
+Data persists across devices and sessions
+Media URLs are tied to user accounts, not browser storage
+Video banners are now supported for all user types
+Supported Profile Types
+All three profile types support profile photos and video/image banners:
+
+Profile Type	Profile Photo	Banner (Image)	Banner (Video)
+Regular Users	✅	✅	✅
+Photographers	✅	✅	✅
+Businesses	✅	✅	✅
+API Endpoint
+PATCH /api/users/me
+
+Updates the authenticated user's profile. Requires valid session or JWT token.
+
+Request Body
+{
+  "profileImageUrl": "https://your-storage.com/profile.jpg",
+  "coverMediaUrl": "https://your-storage.com/banner.mp4",
+  "coverMediaType": "video"
+}
+Field Descriptions
+Field	Type	Required	Description
+profileImageUrl	string (URL) or null	Optional	Profile picture URL. Set to null to remove.
+coverMediaUrl	string (URL) or null	Optional	Banner/cover media URL. Set to null to remove.
+coverMediaType	"image" or "video"	Required if coverMediaUrl is set	Specifies whether the banner is an image or video.
+Validation Rules
+URL format required - Both profileImageUrl and coverMediaUrl must be valid URLs
+Type required for banners - When setting coverMediaUrl, you must include coverMediaType
+Clearing media - Set fields to null to remove (can clear coverMediaUrl and coverMediaType together)
+Example Requests
+Set profile photo only:
+
+{
+  "profileImageUrl": "https://storage.example.com/user123/profile.jpg"
+}
+Set video banner:
+
+{
+  "coverMediaUrl": "https://storage.example.com/user123/banner.mp4",
+  "coverMediaType": "video"
+}
+Set image banner:
+
+{
+  "coverMediaUrl": "https://storage.example.com/user123/banner.png",
+  "coverMediaType": "image"
+}
+Set both profile photo and banner:
+
+{
+  "profileImageUrl": "https://storage.example.com/user123/profile.jpg",
+  "coverMediaUrl": "https://storage.example.com/user123/banner.mp4",
+  "coverMediaType": "video"
+}
+Clear banner:
+
+{
+  "coverMediaUrl": null,
+  "coverMediaType": null
+}
+Response
+Returns the updated user object with the new media URLs included.
+
+Frontend Migration Notes
+Remove local storage logic - Profile/banner URLs should no longer be saved to localStorage or AsyncStorage
+Upload flow - Upload media to your storage service (Cloudinary, Object Storage, etc.), then call this endpoint with the resulting URL
+Display logic - Fetch user profile and use coverMediaType to determine whether to render an <img> or <video> element
+FlutterFlow/Expo - These fields are available in the user profile response for all authenticated users
