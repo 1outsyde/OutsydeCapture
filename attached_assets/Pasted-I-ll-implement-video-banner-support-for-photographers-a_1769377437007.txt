@@ -1,0 +1,68 @@
+I'll implement video banner support for photographers and businesses. The existing coverImage field stores URLs, but we need to add coverMediaType to differentiate between images and videos.
+Now let me update the photographer and business endpoints to accept and validate coverMediaType:
+Now let me update the business endpoint:
+The server is running. Now let me update the task list and call the architect to review all changes:
+I've implemented video banner support for all three profile types. Here's the complete overview for the frontend team:
+
+Profile Photo & Banner Implementation Overview
+What Changed
+Profile photos and banners are now server-side persistent instead of stored in local data. All profile types support both image AND video banners.
+
+Consumer Profiles (Regular Users)
+Endpoint: PATCH /api/users/me
+
+Fields:
+
+Field	Type	Description
+profileImageUrl	string (URL)	Profile photo URL
+coverMediaUrl	string (URL)	Banner media URL (image or video)
+coverMediaType	"image" | "video"	Required when setting coverMediaUrl
+Example Request:
+
+{
+  "profileImageUrl": "https://cloudinary.com/my-photo.jpg",
+  "coverMediaUrl": "https://cloudinary.com/my-banner.mp4",
+  "coverMediaType": "video"
+}
+Photographer Profiles
+Endpoint: PATCH /api/photographers/me
+
+Fields:
+
+Field	Type	Description
+logoImage	string (URL)	Profile photo URL
+coverImage	string (URL)	Banner media URL (image or video)
+coverMediaType	"image" | "video"	Required when setting coverImage
+Example Request:
+
+{
+  "logoImage": "https://cloudinary.com/my-logo.jpg",
+  "coverImage": "https://cloudinary.com/my-video-banner.mp4",
+  "coverMediaType": "video"
+}
+Business Profiles
+Endpoint: PATCH /api/vendor/my-business
+
+Fields:
+
+Field	Type	Description
+logoImage	string (URL)	Business logo/profile photo
+coverImage	string (URL)	Banner media URL (image or video)
+coverMediaType	"image" | "video"	Required when setting coverImage
+Example Request:
+
+{
+  "logoImage": "https://cloudinary.com/business-logo.jpg",
+  "coverImage": "https://cloudinary.com/storefront-video.mp4",
+  "coverMediaType": "video"
+}
+Validation Rules (All Profile Types)
+coverMediaType is required when setting a cover image/URL (cannot be omitted)
+Valid values: "image" or "video" only
+To clear the banner, send coverImage: null (or coverMediaUrl: null for consumers)
+All URLs should point to Cloudinary-hosted media
+Response Format
+All endpoints return the updated profile object with the new fields included:
+
+Consumers: coverMediaUrl and coverMediaType
+Photographers & Businesses: coverImage and coverMediaType
