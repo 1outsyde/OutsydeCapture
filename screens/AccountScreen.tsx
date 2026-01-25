@@ -2500,14 +2500,20 @@ export default function AccountScreen() {
                   
                   try {
                     Alert.alert("Uploading", "Please wait while we save your banner...");
+                    console.log("[Banner] Starting image upload from:", localUri);
                     const cloudinaryUrl = await uploadImageToCloudinary(localUri, "banners");
+                    console.log("[Banner] Cloudinary upload complete:", cloudinaryUrl);
                     
                     const token = await getToken();
                     if (token && userRole === "photographer") {
-                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "image" });
+                      console.log("[Banner] Updating photographer profile with coverImage");
+                      const updateResult = await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "image" });
+                      console.log("[Banner] Photographer update result:", JSON.stringify(updateResult));
                     } else if (token && userRole === "business") {
+                      console.log("[Banner] Updating business profile with coverImage");
                       await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: "image" });
                     } else if (token) {
+                      console.log("[Banner] Updating consumer profile with coverMediaUrl");
                       await api.updateUserMe(token, { coverMediaUrl: cloudinaryUrl, coverMediaType: "image" });
                     }
                     
@@ -2517,16 +2523,20 @@ export default function AccountScreen() {
                       coverMediaUrl: cloudinaryUrl, 
                       coverMediaType: "image" 
                     });
+                    console.log("[Banner] Banner update complete, refreshing profile...");
+                    // Re-fetch profile to ensure we have the latest from backend
+                    await fetchProfile();
                     Alert.alert("Success", "Banner photo saved!");
                   } catch (error: any) {
                     console.error("Failed to upload banner photo:", error);
+                    console.error("Error details:", JSON.stringify(error));
                     if (error?.status === 404) {
                       Alert.alert(
                         "Backend Update Pending",
                         "Your banner was uploaded but the save endpoint is not yet available. Please contact support or try again later."
                       );
                     } else {
-                      Alert.alert("Error", "Failed to save banner photo. Please try again.");
+                      Alert.alert("Error", `Failed to save banner photo: ${error?.message || "Unknown error"}`);
                     }
                   }
                 }
@@ -2559,14 +2569,20 @@ export default function AccountScreen() {
                   
                   try {
                     Alert.alert("Uploading", "Please wait while we upload your video. This may take a moment...");
+                    console.log("[Banner] Starting video upload from:", localUri);
                     const cloudinaryUrl = await uploadVideoToCloudinary(localUri, "banners");
+                    console.log("[Banner] Cloudinary video upload complete:", cloudinaryUrl);
                     
                     const token = await getToken();
                     if (token && userRole === "photographer") {
-                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "video" });
+                      console.log("[Banner] Updating photographer profile with video coverImage");
+                      const updateResult = await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "video" });
+                      console.log("[Banner] Photographer video update result:", JSON.stringify(updateResult));
                     } else if (token && userRole === "business") {
+                      console.log("[Banner] Updating business profile with video coverImage");
                       await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: "video" });
                     } else if (token) {
+                      console.log("[Banner] Updating consumer profile with video coverMediaUrl");
                       await api.updateUserMe(token, { coverMediaUrl: cloudinaryUrl, coverMediaType: "video" });
                     }
                     
@@ -2576,16 +2592,20 @@ export default function AccountScreen() {
                       coverMediaUrl: cloudinaryUrl, 
                       coverMediaType: "video" 
                     });
+                    console.log("[Banner] Banner video update complete, refreshing profile...");
+                    // Re-fetch profile to ensure we have the latest from backend
+                    await fetchProfile();
                     Alert.alert("Success", "Banner video saved!");
                   } catch (error: any) {
                     console.error("Failed to upload banner video:", error);
+                    console.error("Error details:", JSON.stringify(error));
                     if (error?.status === 404) {
                       Alert.alert(
                         "Backend Update Pending",
                         "Your video was uploaded but the save endpoint is not yet available. Please contact support or try again later."
                       );
                     } else {
-                      Alert.alert("Error", "Failed to save banner video. Please try again.");
+                      Alert.alert("Error", `Failed to save banner video: ${error?.message || "Unknown error"}`);
                     }
                   }
                 }
