@@ -76,10 +76,10 @@ export async function uploadVideoToCloudinary(
 
   formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
   formData.append("folder", folder);
-  formData.append("resource_type", "video");
 
+  // Use auto resource type endpoint to let Cloudinary detect the file type
   const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`,
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
     {
       method: "POST",
       body: formData,
@@ -92,6 +92,13 @@ export async function uploadVideoToCloudinary(
   if (!response.ok) {
     const errorText = await response.text();
     console.error("[Cloudinary] Video upload failed:", errorText);
+    
+    // Check if preset doesn't support videos
+    if (errorText.includes("not allowed") || errorText.includes("resource_type")) {
+      throw new Error(
+        "Video uploads are not enabled. Please update your Cloudinary upload preset to allow videos, or contact support."
+      );
+    }
     throw new Error(`Video upload failed: ${response.status}`);
   }
 
