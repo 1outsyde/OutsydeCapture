@@ -30,7 +30,7 @@ import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost } from "@/services/api";
-import { uploadImageToCloudinary } from "@/services/cloudinary";
+import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -2529,6 +2529,60 @@ export default function AccountScreen() {
                 <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Change Banner Photo</ThemedText>
               </View>
               <Feather name="camera" size={20} color={profileTheme} />
+            </Pressable>
+
+            <Pressable
+              onPress={async () => {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== "granted") {
+                  Alert.alert("Permission Required", "Please grant media library access to select videos.");
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ["videos"],
+                  allowsEditing: true,
+                  quality: 0.8,
+                  videoMaxDuration: 30,
+                });
+                if (!result.canceled && result.assets[0]) {
+                  const localUri = result.assets[0].uri;
+                  setProfile(prev => prev ? { ...prev, coverVideo: localUri, coverImage: undefined } : prev);
+                  
+                  try {
+                    Alert.alert("Uploading", "Please wait while we upload your video. This may take a moment...");
+                    const cloudinaryUrl = await uploadVideoToCloudinary(localUri, "banners");
+                    
+                    const token = await getToken();
+                    if (token && userRole === "photographer") {
+                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl });
+                    } else if (token && userRole === "business") {
+                      await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl });
+                    } else if (token) {
+                      await api.updateUserMe(token, { coverMediaUrl: cloudinaryUrl, coverMediaType: "video" });
+                    }
+                    
+                    setProfile(prev => prev ? { ...prev, coverVideo: cloudinaryUrl, coverImage: undefined } : prev);
+                    Alert.alert("Success", "Banner video saved!");
+                  } catch (error: any) {
+                    console.error("Failed to upload banner video:", error);
+                    if (error?.status === 404) {
+                      Alert.alert(
+                        "Backend Update Pending",
+                        "Your video was uploaded but the save endpoint is not yet available. Please contact support or try again later."
+                      );
+                    } else {
+                      Alert.alert("Error", "Failed to save banner video. Please try again.");
+                    }
+                  }
+                }
+              }}
+              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather name="video" size={20} color={theme.text} />
+                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Change Banner Video</ThemedText>
+              </View>
+              <Feather name="film" size={20} color={profileTheme} />
             </Pressable>
 
             <Pressable
