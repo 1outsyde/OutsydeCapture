@@ -208,8 +208,7 @@ export default function AccountScreen() {
 
       if (userRole === "photographer") {
         const photographer = (await api.getPhotographerMe(token)) as any;
-        const coverUrl = photographer.coverImage || "";
-        const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
+        const isVideo = photographer.coverMediaType === "video";
         setProfile({
           id: photographer.id,
           name: photographer.displayName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
@@ -318,8 +317,7 @@ export default function AccountScreen() {
           api.getVendorServices(token).catch(() => ({ services: [] })),
         ]);
         const vendor = businessRes.business;
-        const coverUrl = vendor.coverImage || "";
-        const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
+        const isVideo = vendor.coverMediaType === "video";
         setProfile({
           id: vendor.id,
           name: vendor.name,
@@ -352,14 +350,16 @@ export default function AccountScreen() {
         setBusinessHasProducts(hasLiveProducts);
         setBusinessHasServices(hasLiveServices);
       } else {
-        // Consumer profile - map coverMediaUrl to coverImage for consistency
+        // Consumer profile - use coverMediaType from user context
+        const isVideo = user?.coverMediaType === "video";
         setProfile({
           id: user?.id || "",
           name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
           avatar: user?.avatar || user?.profileImageUrl,
           city: user?.city,
           state: user?.state,
-          coverImage: user?.coverMediaUrl,
+          coverImage: isVideo ? undefined : user?.coverMediaUrl,
+          coverVideo: isVideo ? user?.coverMediaUrl : undefined,
         });
       }
       // Fetch user's posts from the backend feed
@@ -2499,15 +2499,14 @@ export default function AccountScreen() {
                     
                     const token = await getToken();
                     if (token && userRole === "photographer") {
-                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl });
+                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "image" });
                     } else if (token && userRole === "business") {
-                      await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl });
+                      await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: "image" });
                     } else if (token) {
-                      // Consumer/influencer accounts use the new coverMediaUrl field
                       await api.updateUserMe(token, { coverMediaUrl: cloudinaryUrl, coverMediaType: "image" });
                     }
                     
-                    setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl } : prev);
+                    setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl, coverVideo: undefined } : prev);
                     Alert.alert("Success", "Banner photo saved!");
                   } catch (error: any) {
                     console.error("Failed to upload banner photo:", error);
@@ -2554,9 +2553,9 @@ export default function AccountScreen() {
                     
                     const token = await getToken();
                     if (token && userRole === "photographer") {
-                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl });
+                      await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "video" });
                     } else if (token && userRole === "business") {
-                      await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl });
+                      await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: "video" });
                     } else if (token) {
                       await api.updateUserMe(token, { coverMediaUrl: cloudinaryUrl, coverMediaType: "video" });
                     }
