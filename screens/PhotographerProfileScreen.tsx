@@ -78,6 +78,7 @@ export default function PhotographerProfileScreen() {
       return {
         ...photographer,
         id: apiData.id || photographer.id,
+        userId: (apiData as any).userId || photographer.userId, // The actual user ID for messaging
         name: (apiData as any).displayName || apiData.name || photographer.name,
         avatar: avatarUrl,
         city: apiData.city || locationParts[0] || photographer.city,
@@ -193,8 +194,11 @@ export default function PhotographerProfileScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       const authToken = await getToken();
+      // Use userId for conversation creation (backend expects user ID, not photographer profile ID)
+      const participantUserId = photographer.userId || photographer.id;
+      
       const conversation = await api.createOrGetConversation({
-        participantId: photographer.id,
+        participantId: participantUserId,
         participantType: "photographer",
         participantName: photographer.name,
         participantAvatar: photographer.avatar,
@@ -202,13 +206,17 @@ export default function PhotographerProfileScreen() {
       
       navigation.navigate("Chat", {
         conversationId: conversation.id,
-        participantId: photographer.id,
+        participantId: participantUserId,
         participantName: photographer.name,
         participantAvatar: photographer.avatar,
         participantType: "photographer",
       });
     } catch (error) {
       console.error("Failed to create conversation:", error);
+      Alert.alert(
+        "Message Failed",
+        "Unable to start a conversation right now. Please try again later."
+      );
     } finally {
       setIsStartingChat(false);
     }
