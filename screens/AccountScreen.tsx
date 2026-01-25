@@ -2443,6 +2443,9 @@ export default function AccountScreen() {
                       await api.updatePhotographerMe(token, { logoImage: cloudinaryUrl });
                     } else if (token && userRole === "business") {
                       await api.updateVendorMyBusiness(token, { logoImage: cloudinaryUrl });
+                    } else if (token) {
+                      // Consumer/influencer accounts
+                      await api.updateUserMe(token, { profileImageUrl: cloudinaryUrl });
                     }
                     
                     setProfile(prev => prev ? { ...prev, avatar: cloudinaryUrl } : prev);
@@ -2488,6 +2491,9 @@ export default function AccountScreen() {
                       await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl });
                     } else if (token && userRole === "business") {
                       await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl });
+                    } else if (token) {
+                      // Consumer/influencer accounts
+                      await api.updateUserMe(token, { coverImageUrl: cloudinaryUrl });
                     }
                     
                     setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl } : prev);
