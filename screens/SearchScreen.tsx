@@ -39,6 +39,21 @@ const RESULT_TYPE_ICONS: Record<SearchResultType, string> = {
   service: "scissors",
 };
 
+const isValidImageUrl = (url?: string): boolean => {
+  if (!url) return false;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return !url.includes("placeholder.com");
+  }
+  return false;
+};
+
+const getInitials = (name: string): string => {
+  const words = name.split(" ").filter(w => w.length > 0);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].charAt(0).toUpperCase();
+  return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+};
+
 const RESULT_TYPE_LABELS: Record<SearchResultType, string> = {
   business: "Business",
   photographer: "Photographer",
@@ -233,6 +248,7 @@ export default function SearchScreen() {
     const tierConfig = item.subscriptionTier ? TIER_CONFIG[item.subscriptionTier] : null;
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
+    const hasValidAvatar = isValidImageUrl(item.avatar);
 
     return (
       <Pressable
@@ -245,12 +261,20 @@ export default function SearchScreen() {
           },
         ]}
       >
-        <Image
-          source={{ uri: item.avatar }}
-          style={styles.resultImage}
-          contentFit="cover"
-          transition={200}
-        />
+        {hasValidAvatar ? (
+          <Image
+            source={{ uri: item.avatar }}
+            style={styles.resultImage}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={[styles.resultImage, { backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }]}>
+            <ThemedText type="h2" style={{ color: "#000000", fontWeight: "700" }}>
+              {getInitials(item.name)}
+            </ThemedText>
+          </View>
+        )}
         <View style={styles.resultInfo}>
           <View style={styles.resultHeader}>
             <ThemedText type="h4" numberOfLines={1} style={styles.resultName}>
