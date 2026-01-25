@@ -208,6 +208,11 @@ export default function AccountScreen() {
 
       if (userRole === "photographer") {
         const photographer = (await api.getPhotographerMe(token)) as any;
+        console.log("[AccountScreen] Photographer data from API:", JSON.stringify({
+          coverImage: photographer.coverImage,
+          coverMediaType: photographer.coverMediaType,
+          logoImage: photographer.logoImage,
+        }));
         const isVideo = photographer.coverMediaType === "video";
         setProfile({
           id: photographer.id,
