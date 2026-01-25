@@ -1580,6 +1580,22 @@ class ApiService {
     });
   }
 
+  // PATCH /api/users/me - Update current user profile (for consumers/influencers)
+  async updateUserMe(authToken: string, data: { profileImageUrl?: string; coverImageUrl?: string }): Promise<{ success: boolean; user?: any }> {
+    console.log("[API] updateUserMe payload:", JSON.stringify(data, null, 2));
+    
+    if (!data || Object.keys(data).length === 0) {
+      console.warn("[API] updateUserMe: Empty payload");
+      throw { message: "No changes to save.", status: 400 };
+    }
+    
+    return this.request<{ success: boolean; user?: any }>("/api/users/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // GET /api/photographers/me/stripe-status - Get Stripe onboarding status
   async getPhotographerStripeStatus(authToken: string): Promise<StripeOnboardingStatus> {
     return this.request<StripeOnboardingStatus>("/api/photographers/me/stripe-status", {
