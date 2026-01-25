@@ -1581,7 +1581,7 @@ class ApiService {
   }
 
   // PATCH /api/users/me - Update current user profile (for consumers/influencers)
-  async updateUserMe(authToken: string, data: { profileImageUrl?: string; coverImageUrl?: string }): Promise<{ success: boolean; user?: any }> {
+  async updateUserMe(authToken: string, data: { profileImageUrl?: string }): Promise<{ success: boolean; user?: any; message?: string }> {
     console.log("[API] updateUserMe payload:", JSON.stringify(data, null, 2));
     
     if (!data || Object.keys(data).length === 0) {
@@ -1589,7 +1589,7 @@ class ApiService {
       throw { message: "No changes to save.", status: 400 };
     }
     
-    return this.request<{ success: boolean; user?: any }>("/api/users/me", {
+    return this.request<{ success: boolean; user?: any; message?: string }>("/api/users/me", {
       method: "PATCH",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },

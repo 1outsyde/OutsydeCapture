@@ -2479,6 +2479,12 @@ export default function AccountScreen() {
                   quality: 0.8,
                 });
                 if (!result.canceled && result.assets[0]) {
+                  // Check if banner is supported for this user type before uploading
+                  if (userRole !== "photographer" && userRole !== "business") {
+                    Alert.alert("Not Supported", "Banner photos are not yet available for consumer accounts.");
+                    return;
+                  }
+                  
                   const localUri = result.assets[0].uri;
                   setProfile(prev => prev ? { ...prev, coverImage: localUri } : prev);
                   
@@ -2491,9 +2497,6 @@ export default function AccountScreen() {
                       await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl });
                     } else if (token && userRole === "business") {
                       await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl });
-                    } else if (token) {
-                      // Consumer/influencer accounts
-                      await api.updateUserMe(token, { coverImageUrl: cloudinaryUrl });
                     }
                     
                     setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl } : prev);
