@@ -2453,9 +2453,17 @@ export default function AccountScreen() {
                     
                     setProfile(prev => prev ? { ...prev, avatar: cloudinaryUrl } : prev);
                     Alert.alert("Success", "Profile photo saved!");
-                  } catch (error) {
+                  } catch (error: any) {
                     console.error("Failed to upload profile photo:", error);
-                    Alert.alert("Error", "Failed to save profile photo. Please try again.");
+                    if (error?.status === 404) {
+                      // Keep the Cloudinary URL locally even if backend save fails
+                      Alert.alert(
+                        "Backend Update Pending",
+                        "Your photo was uploaded but the save endpoint is not yet available. Please contact support or try again later."
+                      );
+                    } else {
+                      Alert.alert("Error", "Failed to save profile photo. Please try again.");
+                    }
                   }
                 }
               }}
@@ -2501,9 +2509,16 @@ export default function AccountScreen() {
                     
                     setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl } : prev);
                     Alert.alert("Success", "Banner photo saved!");
-                  } catch (error) {
+                  } catch (error: any) {
                     console.error("Failed to upload banner photo:", error);
-                    Alert.alert("Error", "Failed to save banner photo. Please try again.");
+                    if (error?.status === 404) {
+                      Alert.alert(
+                        "Backend Update Pending",
+                        "Your banner was uploaded but the save endpoint is not yet available. Please contact support or try again later."
+                      );
+                    } else {
+                      Alert.alert("Error", "Failed to save banner photo. Please try again.");
+                    }
                   }
                 }
               }}
