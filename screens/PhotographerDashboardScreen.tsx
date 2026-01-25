@@ -35,6 +35,7 @@ import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hou
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import { VendorBookerPhotographerService } from "@/services/api";
+import { uploadImageToCloudinary } from "@/services/cloudinary";
 
 const SPECIALTIES = [
   "Portraits", "Weddings", "Events", "Products",
@@ -1525,7 +1526,15 @@ export default function PhotographerDashboardScreen() {
                       quality: 0.8,
                     });
                     if (!result.canceled && result.assets[0]) {
-                      setEditProfile({ ...editProfile, bannerImage: result.assets[0].uri });
+                      try {
+                        setEditProfile({ ...editProfile, bannerImage: result.assets[0].uri });
+                        const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, "banners");
+                        setEditProfile(prev => ({ ...prev, bannerImage: cloudinaryUrl }));
+                      } catch (error) {
+                        console.error("[Dashboard] Banner upload failed:", error);
+                        Alert.alert("Upload Failed", "Could not upload banner image. Please try again.");
+                        setEditProfile(prev => ({ ...prev, bannerImage: "" }));
+                      }
                     }
                   }}
                   style={{ 
@@ -1635,7 +1644,15 @@ export default function PhotographerDashboardScreen() {
                           quality: 0.8,
                         });
                         if (!result.canceled && result.assets[0]) {
-                          setEditProfile({ ...editProfile, avatar: result.assets[0].uri });
+                          try {
+                            setEditProfile(prev => ({ ...prev, avatar: result.assets[0].uri }));
+                            const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, "profiles");
+                            setEditProfile(prev => ({ ...prev, avatar: cloudinaryUrl }));
+                          } catch (error) {
+                            console.error("[Dashboard] Profile photo upload failed:", error);
+                            Alert.alert("Upload Failed", "Could not upload photo. Please try again.");
+                            setEditProfile(prev => ({ ...prev, avatar: "" }));
+                          }
                         }
                       },
                     },
@@ -1654,7 +1671,15 @@ export default function PhotographerDashboardScreen() {
                           quality: 0.8,
                         });
                         if (!result.canceled && result.assets[0]) {
-                          setEditProfile({ ...editProfile, avatar: result.assets[0].uri });
+                          try {
+                            setEditProfile(prev => ({ ...prev, avatar: result.assets[0].uri }));
+                            const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, "profiles");
+                            setEditProfile(prev => ({ ...prev, avatar: cloudinaryUrl }));
+                          } catch (error) {
+                            console.error("[Dashboard] Profile photo upload failed:", error);
+                            Alert.alert("Upload Failed", "Could not upload photo. Please try again.");
+                            setEditProfile(prev => ({ ...prev, avatar: "" }));
+                          }
                         }
                       },
                     },

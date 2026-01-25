@@ -541,15 +541,22 @@ export interface PaymentStats {
 export interface ApiPhotographer {
   id: string;
   name: string;
+  displayName?: string;
   avatar?: string;
   image?: string;
+  logoImage?: string;
+  coverImage?: string;
   location?: string;
+  city?: string;
+  state?: string;
   rating?: number;
   specialty?: string;
   priceRange?: string;
   description?: string;
+  bio?: string;
   subscriptionTier?: "basic" | "pro" | "premium";
   userId?: string;
+  ownerId?: string;
   approvalStatus?: "pending" | "approved" | "rejected";
   stripeOnboardingComplete?: boolean;
 }
@@ -2135,18 +2142,46 @@ class ApiService {
       response.photographers.forEach(p => {
         if (!isVisibleToUsers(p)) return;
 
-        const locationParts = (p.location || "Unknown, Unknown").split(",").map(s => s.trim());
+        // Check for separate city/state fields first, then fall back to parsing location string
+        let city = p.city || "";
+        let state = p.state || "";
+        if (!city && p.location) {
+          const locationParts = p.location.split(",").map(s => s.trim());
+          city = locationParts[0] || "";
+          state = locationParts[1] || "";
+        }
+
+        // Helper to validate image URLs (filter out local file paths)
+        const isValidImageUrl = (url?: string): string => {
+          if (!url) return "";
+          if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+          }
+          return "";
+        };
+
+        // Check multiple field names for avatar: logoImage, avatar, image
+        const avatarUrl = isValidImageUrl(p.logoImage) || isValidImageUrl(p.avatar) || isValidImageUrl(p.image) || "";
+        const coverUrl = isValidImageUrl(p.coverImage) || "";
+        
+        // Check multiple field names for name: displayName, name
+        const displayName = p.displayName || p.name || "Unknown Photographer";
+        
+        // Check multiple field names for description: bio, description
+        const description = p.bio || p.description || "";
         
         results.push({
           id: p.id,
-          name: p.name || "Unknown Photographer",
-          avatar: p.avatar || p.image || "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?w=400",
-          city: locationParts[0] || "Unknown",
-          state: locationParts[1] || "",
+          userId: p.userId,
+          name: displayName,
+          avatar: avatarUrl || "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?w=400",
+          coverImage: coverUrl,
+          city: city || "Unknown",
+          state: state,
           rating: p.rating || 0,
           priceRange: p.priceRange || "$$",
           category: p.specialty || "Photography",
-          description: p.description || "",
+          description: description,
           subscriptionTier: p.subscriptionTier,
           resultType: "photographer",
         });
