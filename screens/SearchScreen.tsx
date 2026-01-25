@@ -126,8 +126,10 @@ export default function SearchScreen() {
     if (item.resultType === "photographer") {
       const photographerData: PhotographerProfileData = {
         id: item.id,
+        userId: item.userId,
         name: item.name,
         avatar: item.avatar,
+        coverImage: item.coverImage,
         city: item.city,
         state: item.state,
         rating: item.rating,

@@ -751,6 +751,7 @@ export interface UnifiedSearchParams {
 
 export interface UnifiedSearchItem {
   id: string;
+  userId?: string;
   type: "business" | "photographer" | "product" | "service";
   name: string;
   description?: string;
@@ -761,6 +762,7 @@ export interface UnifiedSearchItem {
   reviewCount?: number;
   priceRange?: string;
   avatar?: string;
+  logoImage?: string;
   coverImage?: string;
   subscriptionTier?: "basic" | "pro" | "premium";
   hourlyRate?: number;
@@ -920,8 +922,10 @@ export interface SessionSignupResponse {
 
 export interface UnifiedSearchResult {
   id: string;
+  userId?: string;
   name: string;
   avatar: string;
+  coverImage?: string;
   city: string;
   state: string;
   rating: number;
@@ -1224,20 +1228,37 @@ class ApiService {
   }
 
   normalizeUnifiedResults(response: UnifiedSearchResponse): UnifiedSearchResult[] {
-    return response.results.map(item => ({
-      id: item.id,
-      name: item.name,
-      avatar: item.avatar || "https://via.placeholder.com/100",
-      city: item.city || "Unknown",
-      state: item.state || "",
-      rating: item.rating || 0,
-      priceRange: item.priceRange || (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : ""),
-      category: item.category || item.type,
-      description: item.description || "",
-      subscriptionTier: item.subscriptionTier,
-      resultType: item.type,
-      originalType: item.type,
-    }));
+    // Helper to validate image URLs (filter out local file paths)
+    const isValidImageUrl = (url?: string): string => {
+      if (!url) return "";
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        return url;
+      }
+      return "";
+    };
+
+    return response.results.map(item => {
+      // Get valid avatar URL - check both avatar and logoImage fields
+      const avatarUrl = isValidImageUrl(item.avatar) || isValidImageUrl(item.logoImage) || "";
+      const coverUrl = isValidImageUrl(item.coverImage) || "";
+
+      return {
+        id: item.id,
+        userId: item.userId,
+        name: item.name,
+        avatar: avatarUrl || "https://via.placeholder.com/100",
+        coverImage: coverUrl,
+        city: item.city || "Unknown",
+        state: item.state || "",
+        rating: item.rating || 0,
+        priceRange: item.priceRange || (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : ""),
+        category: item.category || item.type,
+        description: item.description || "",
+        subscriptionTier: item.subscriptionTier,
+        resultType: item.type,
+        originalType: item.type,
+      };
+    });
   }
 
   async getPhotographer(id: string): Promise<ApiPhotographerDetail> {

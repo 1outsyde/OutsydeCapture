@@ -332,12 +332,20 @@ export default function PhotographerProfileScreen() {
 
           <View style={styles.heroContent}>
             <View style={styles.avatarContainer}>
-              <Image
-                source={{ uri: photographer.avatar }}
-                style={styles.avatar}
-                contentFit="cover"
-                transition={200}
-              />
+              {photographer.avatar && photographer.avatar.startsWith("http") ? (
+                <Image
+                  source={{ uri: photographer.avatar }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: profileTheme }]}>
+                  <ThemedText type="h1" style={{ color: "#000000" }}>
+                    {(photographer.name || "?").charAt(0).toUpperCase()}
+                  </ThemedText>
+                </View>
+              )}
               {tierConfig ? (
                 <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
                   <Feather name="award" size={12} color="#000000" />
@@ -667,6 +675,10 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     borderWidth: 3,
     borderColor: "#FFFFFF",
+  },
+  avatarPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   tierBadge: {
     position: "absolute",
