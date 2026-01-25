@@ -160,7 +160,7 @@ export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { user, isAuthenticated, getToken } = useAuth();
+  const { user, isAuthenticated, getToken, updateProfile } = useAuth();
   const { unreadCount } = useNotifications();
 
   const [loading, setLoading] = useState(true);
@@ -2452,6 +2452,11 @@ export default function AccountScreen() {
                     }
                     
                     setProfile(prev => prev ? { ...prev, avatar: cloudinaryUrl } : prev);
+                    // Persist to AuthContext/AsyncStorage so it survives reload
+                    await updateProfile({ 
+                      avatar: cloudinaryUrl, 
+                      profileImageUrl: cloudinaryUrl 
+                    });
                     Alert.alert("Success", "Profile photo saved!");
                   } catch (error: any) {
                     console.error("Failed to upload profile photo:", error);
@@ -2507,6 +2512,11 @@ export default function AccountScreen() {
                     }
                     
                     setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl, coverVideo: undefined } : prev);
+                    // Persist to AuthContext/AsyncStorage so it survives reload
+                    await updateProfile({ 
+                      coverMediaUrl: cloudinaryUrl, 
+                      coverMediaType: "image" 
+                    });
                     Alert.alert("Success", "Banner photo saved!");
                   } catch (error: any) {
                     console.error("Failed to upload banner photo:", error);
@@ -2561,6 +2571,11 @@ export default function AccountScreen() {
                     }
                     
                     setProfile(prev => prev ? { ...prev, coverVideo: cloudinaryUrl, coverImage: undefined } : prev);
+                    // Persist to AuthContext/AsyncStorage so it survives reload
+                    await updateProfile({ 
+                      coverMediaUrl: cloudinaryUrl, 
+                      coverMediaType: "video" 
+                    });
                     Alert.alert("Success", "Banner video saved!");
                   } catch (error: any) {
                     console.error("Failed to upload banner video:", error);
