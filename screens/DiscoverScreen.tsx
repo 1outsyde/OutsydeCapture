@@ -1,11 +1,13 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
   Pressable,
-  RefreshControl,
   ActivityIndicator,
   TextInput,
+  Dimensions,
+  FlatList,
+  Modal,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -14,47 +16,50 @@ import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 
-import { ScreenScrollView } from "@/components/ScreenScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, SubscriptionTiers } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useData, Post, PostType } from "@/context/DataContext";
 import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 import { useFavorites } from "@/context/FavoritesContext";
-import { useHealthCheck } from "@/context/HealthCheckContext";
 import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { photographers, businesses, likePost, addComment, getPhotographer } = useData();
+  const insets = useSafeAreaInsets();
+  const { likePost, addComment, getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
-  const { isFavorite, toggleFavorite, favorites } = useFavorites();
-  const { isLoading: healthLoading, data: healthData, error: healthError, refetch: refetchHealth } = useHealthCheck();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const { user, getToken } = useAuth();
-  
-  const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
 
-  // Algorithmic feed state - fetched from backend
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Comments modal state
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [commentText, setCommentText] = useState("");
 
   // Convert API posts to local Post format
   const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
-    // Backend returns author object with { userId, username, displayName, profilePhotoUrl, role }
     const displayName = 
       (apiPost.author as any)?.displayName ||
       apiPost.author?.name ||
       "Unknown";
     
-    // Backend uses profilePhotoUrl in author object
     const authorAvatar = 
       (apiPost.author as any)?.profilePhotoUrl ||
       apiPost.author?.profileImageUrl || 
@@ -63,7 +68,6 @@ export default function DiscoverScreen() {
     const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id || apiPost.id;
     const username = apiPost.author?.username;
     
-    // Determine post type from author role or authorType
     const authorRole = (apiPost.author as any)?.role;
     let postType: PostType = "user";
     if (apiPost.authorType === "photographer" || authorRole === "photographer") {
@@ -72,7 +76,6 @@ export default function DiscoverScreen() {
       postType = "vendor";
     }
     
-    // Determine provider ID for commerce context
     const providerId = apiPost.providerId || 
       apiPost.author?.photographerId || 
       apiPost.author?.businessId ||
@@ -82,28 +85,24 @@ export default function DiscoverScreen() {
     return {
       id: apiPost.id,
       type: postType,
-      // Canonical identity (userId is source of truth)
       userId: userId,
       username: username,
       displayName: displayName,
       authorAvatar: authorAvatar,
-      // Legacy fields for backwards compatibility
       authorId: userId,
       authorName: displayName,
       subscriptionTier: undefined,
-      rating: (apiPost.author as any)?.rating || (apiPost.user as any)?.rating || 0,
-      reviewCount: (apiPost.author as any)?.reviewCount || (apiPost.user as any)?.reviewCount || 0,
+      rating: (apiPost.author as any)?.rating || 0,
+      reviewCount: (apiPost.author as any)?.reviewCount || 0,
       image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
       caption: apiPost.content || "",
       likes: apiPost.likesCount || 0,
       isLiked: false,
       comments: [],
       createdAt: apiPost.createdAt,
-      // Optional commerce context (photographerServiceId is the backend field name)
       serviceId: apiPost.photographerServiceId || apiPost.serviceId,
       productId: apiPost.productId,
       providerId: providerId,
-      // Backwards compatibility
       photographerId: apiPost.authorType === "photographer" ? userId : undefined,
       photographerName: apiPost.authorType === "photographer" ? displayName : undefined,
     };
@@ -132,7 +131,7 @@ export default function DiscoverScreen() {
     }
   }, [getToken, userLocation, convertApiPostToPost]);
 
-  // Get user location for location-based ranking (optional)
+  // Get user location for location-based ranking
   useEffect(() => {
     const requestLocation = async () => {
       try {
@@ -147,7 +146,6 @@ export default function DiscoverScreen() {
           });
         }
       } catch (error) {
-        // Location not available - feed will still work without it
         console.log("[DiscoverScreen] Location not available");
       }
     };
@@ -159,24 +157,14 @@ export default function DiscoverScreen() {
     fetchAlgorithmicFeed();
   }, [userLocation]);
 
-  // Use algorithmic feed posts
-  const personalizedPosts = feedPosts;
-  const isLoading = feedLoading;
-
-  const [refreshing, setRefreshing] = useState(false);
-  const [expandedComments, setExpandedComments] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState<{ [key: string]: string }>({});
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchAlgorithmicFeed();
     setRefreshing(false);
   }, [fetchAlgorithmicFeed]);
 
+  // Navigation handlers
   const handleAuthorPress = (post: Post) => {
-    // Navigate to unified Profile screen
-    // userId is for ownership detection (compare with auth.user.id)
-    // profileId is for fetching photographer/business records (their record ID)
     const userType = post.type === "photographer" ? "photographer" 
                    : post.type === "vendor" ? "business" 
                    : "consumer";
@@ -191,11 +179,7 @@ export default function DiscoverScreen() {
   };
 
   const handleActionPress = (post: Post) => {
-    // Direct navigation to booking/purchase - skip profile pages
-    // Navigation is based on commerce context (serviceId or productId), not post type
-    
     if (post.serviceId) {
-      // Service linked → Navigate directly to BookingScreen
       const photographerId = post.photographerId || post.providerId || post.userId;
       const photographer = getPhotographer(photographerId);
       navigation.navigate("Booking", { 
@@ -204,7 +188,6 @@ export default function DiscoverScreen() {
         preselectedServiceId: post.serviceId 
       });
     } else if (post.productId) {
-      // Product linked → Navigate directly to business products tab
       const businessId = post.providerId || post.userId;
       navigation.navigate("VendorDetail", { 
         vendorId: businessId,
@@ -229,27 +212,23 @@ export default function DiscoverScreen() {
     });
   };
 
-  const handleComment = (postId: string) => {
-    const text = commentText[postId];
-    if (text?.trim()) {
-      addComment(postId, text);
-      setCommentText((prev) => ({ ...prev, [postId]: "" }));
-    }
+  const openCommentsModal = (post: Post) => {
+    setSelectedPost(post);
+    setCommentsModalVisible(true);
   };
 
-  const toggleComments = (postId: string) => {
-    setExpandedComments((prev) => (prev === postId ? null : postId));
+  const handleSubmitComment = () => {
+    if (selectedPost && commentText.trim()) {
+      addComment(selectedPost.id, commentText);
+      setCommentText("");
+    }
   };
 
   const handleRatePress = (post: Post) => {
     const eligibility = checkEligibility(post);
     
     if (!eligibility.canRate) {
-      Alert.alert(
-        "Rating Not Available",
-        eligibility.reason,
-        [{ text: "OK", style: "default" }]
-      );
+      Alert.alert("Rating Not Available", eligibility.reason, [{ text: "OK" }]);
       return;
     }
 
@@ -268,450 +247,451 @@ export default function DiscoverScreen() {
     );
   };
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
+  // Calculate post height (full screen minus tab bar)
+  const TAB_BAR_HEIGHT = 80;
+  const POST_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
 
-    if (diffDays > 0) return `${diffDays}d ago`;
-    if (diffHours > 0) return `${diffHours}h ago`;
-    return "Just now";
+  // Full-screen post component
+  const renderFullScreenPost = ({ item: post, index }: { item: Post; index: number }) => {
+    const isVendor = post.type === "vendor";
+    const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
+    const hasCommerce = post.serviceId || post.productId;
+
+    return (
+      <View style={[styles.postContainer, { height: POST_HEIGHT }]}>
+        {/* Full-screen media background */}
+        <Image
+          source={{ uri: post.image }}
+          style={styles.fullScreenMedia}
+          contentFit="cover"
+          transition={200}
+        />
+
+        {/* Bottom gradient for text legibility */}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.8)"]}
+          style={styles.bottomGradient}
+        />
+
+        {/* Right-side vertical action bar */}
+        <View style={[styles.actionBar, { bottom: insets.bottom + 100 }]}>
+          {/* Like */}
+          <Pressable
+            onPress={() => handleLike(post.id)}
+            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <View style={styles.actionIconContainer}>
+              <Feather
+                name="heart"
+                size={28}
+                color={post.isLiked ? "#FF3B30" : "#FFFFFF"}
+              />
+            </View>
+            <ThemedText style={styles.actionCount}>{post.likes}</ThemedText>
+          </Pressable>
+
+          {/* Comment */}
+          <Pressable
+            onPress={() => openCommentsModal(post)}
+            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <View style={styles.actionIconContainer}>
+              <Feather name="message-circle" size={28} color="#FFFFFF" />
+            </View>
+            <ThemedText style={styles.actionCount}>{post.comments.length}</ThemedText>
+          </Pressable>
+
+          {/* Rating */}
+          <Pressable
+            onPress={() => handleRatePress(post)}
+            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <View style={styles.actionIconContainer}>
+              <Feather name="star" size={28} color="#FFFFFF" />
+            </View>
+            <ThemedText style={styles.actionCount}>{post.rating.toFixed(1)}</ThemedText>
+          </Pressable>
+
+          {/* Save/Bookmark */}
+          <Pressable
+            onPress={() => handleSavePost(post)}
+            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <View style={styles.actionIconContainer}>
+              <Feather
+                name="bookmark"
+                size={28}
+                color={isSaved ? theme.primary : "#FFFFFF"}
+              />
+            </View>
+          </Pressable>
+        </View>
+
+        {/* Bottom-left author info and caption */}
+        <View style={[styles.authorSection, { bottom: insets.bottom + 20 }]}>
+          {/* Author row */}
+          <Pressable
+            onPress={() => handleAuthorPress(post)}
+            style={styles.authorRow}
+          >
+            {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
+              <Image
+                source={{ uri: post.authorAvatar }}
+                style={styles.authorAvatar}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.authorAvatar, styles.avatarPlaceholder, { backgroundColor: theme.primary }]}>
+                <ThemedText style={styles.avatarInitial}>
+                  {(post.displayName || post.authorName || "?").charAt(0).toUpperCase()}
+                </ThemedText>
+              </View>
+            )}
+            <View style={styles.authorInfo}>
+              <ThemedText style={styles.displayName}>
+                {post.displayName || post.authorName}
+              </ThemedText>
+              {post.username ? (
+                <ThemedText style={styles.username}>@{post.username}</ThemedText>
+              ) : null}
+            </View>
+          </Pressable>
+
+          {/* Caption */}
+          {post.caption ? (
+            <ThemedText style={styles.caption} numberOfLines={3}>
+              {post.caption}
+            </ThemedText>
+          ) : null}
+
+          {/* Commerce CTA */}
+          {hasCommerce ? (
+            <Pressable
+              onPress={() => handleActionPress(post)}
+              style={({ pressed }) => [
+                styles.commerceCTA,
+                { backgroundColor: theme.primary, opacity: pressed ? 0.9 : 1 },
+              ]}
+            >
+              <Feather
+                name={post.productId ? "shopping-bag" : "calendar"}
+                size={18}
+                color="#000000"
+              />
+              <ThemedText style={styles.commerceCTAText}>
+                {post.productId ? "Buy Now" : "Book Now"}
+              </ThemedText>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    );
   };
 
-  if (isLoading && feedPosts.length === 0) {
+  // Loading state
+  if (feedLoading && feedPosts.length === 0) {
     return (
-      <ScreenScrollView>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
-            Loading feed...
-          </ThemedText>
-        </View>
-      </ScreenScrollView>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+          Loading feed...
+        </ThemedText>
+      </View>
     );
   }
 
-  const renderPost = (post: Post) => {
-    const tierConfig = post.subscriptionTier
-      ? SubscriptionTiers[post.subscriptionTier as keyof typeof SubscriptionTiers]
-      : null;
-    const isVendor = post.type === "vendor";
-
+  // Empty state
+  if (feedPosts.length === 0) {
     return (
-      <View key={post.id} style={[styles.postCard, { backgroundColor: theme.card }]}>
-        {/* Post Header */}
+      <View style={[styles.emptyContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <Feather name="image" size={64} color={theme.textSecondary} />
+        <ThemedText type="h3" style={{ marginTop: Spacing.lg, color: theme.text }}>
+          No posts yet
+        </ThemedText>
+        <ThemedText type="body" style={{ marginTop: Spacing.sm, color: theme.textSecondary, textAlign: "center" }}>
+          Follow photographers and vendors to see their content here
+        </ThemedText>
         <Pressable
-          onPress={() => handleAuthorPress(post)}
-          style={styles.postHeader}
+          onPress={() => navigation.getParent()?.navigate("SearchTab")}
+          style={[styles.exploreButton, { backgroundColor: theme.primary }]}
         >
-          {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
-            <Image source={{ uri: post.authorAvatar }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.primary }]}>
-              <ThemedText type="h3" style={{ color: "#000000" }}>
-                {(post.authorName || post.displayName || "?").charAt(0).toUpperCase()}
-              </ThemedText>
+          <ThemedText style={{ color: "#000000", fontWeight: "600" }}>
+            Explore
+          </ThemedText>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: "#000000" }]}>
+      <FlatList
+        data={feedPosts}
+        renderItem={renderFullScreenPost}
+        keyExtractor={(item) => item.id}
+        pagingEnabled
+        snapToInterval={POST_HEIGHT}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        getItemLayout={(data, index) => ({
+          length: POST_HEIGHT,
+          offset: POST_HEIGHT * index,
+          index,
+        })}
+      />
+
+      {/* Comments Modal */}
+      <Modal
+        visible={commentsModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCommentsModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.modalOverlay}
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setCommentsModalVisible(false)}
+          />
+          <View style={[styles.commentsModal, { backgroundColor: theme.card }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <ThemedText type="h4">Comments</ThemedText>
+              <Pressable onPress={() => setCommentsModalVisible(false)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
             </View>
-          )}
-          <View style={styles.headerInfo}>
-            <View style={styles.nameRow}>
-              <ThemedText type="h4">{post.authorName}</ThemedText>
-              {tierConfig ? (
-                <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
-                  <Feather name={isVendor ? "shopping-bag" : "award"} size={10} color="#000000" />
-                  <ThemedText type="small" style={styles.tierBadgeText}>
-                    {tierConfig.label}
+
+            {/* Comments list */}
+            <FlatList
+              data={selectedPost?.comments || []}
+              keyExtractor={(item) => item.id}
+              style={styles.commentsList}
+              ListEmptyComponent={
+                <View style={styles.emptyComments}>
+                  <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                    No comments yet. Be the first!
                   </ThemedText>
                 </View>
-              ) : null}
-            </View>
-            <View style={styles.subtitleRow}>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {isVendor ? "Vendor" : "Photographer"}
-              </ThemedText>
-              <View style={styles.ratingBadge}>
-                <Feather name="star" size={12} color={theme.primary} />
-                <ThemedText type="caption" style={{ color: theme.primary, marginLeft: 2 }}>
-                  {post.rating.toFixed(1)}
-                </ThemedText>
-              </View>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {formatTimeAgo(post.createdAt)}
-              </ThemedText>
-            </View>
-          </View>
-        </Pressable>
-
-        {/* Post Image */}
-        <Image source={{ uri: post.image }} style={styles.postImage} contentFit="cover" />
-
-        {/* Product Info (for vendors) */}
-        {isVendor && post.productName ? (
-          <View style={[styles.productInfo, { backgroundColor: theme.backgroundSecondary }]}>
-            <View style={styles.productDetails}>
-              <ThemedText type="h4">{post.productName}</ThemedText>
-              <ThemedText type="h3" style={{ color: theme.primary }}>
-                ${post.productPrice?.toFixed(2)}
-              </ThemedText>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Post Actions */}
-        <View style={styles.postActions}>
-          <Pressable
-            onPress={() => handleLike(post.id)}
-            style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Feather
-              name="heart"
-              size={24}
-              color={post.isLiked ? "#FF3B30" : theme.text}
-            />
-            <ThemedText type="body" style={styles.actionText}>
-              {post.likes}
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => toggleComments(post.id)}
-            style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Feather name="message-circle" size={24} color={theme.text} />
-            <ThemedText type="body" style={styles.actionText}>
-              {post.comments.length}
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => handleRatePress(post)}
-            style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Feather name="star" size={24} color={theme.text} />
-            <ThemedText type="body" style={styles.actionText}>
-              {post.rating.toFixed(1)}
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => handleSavePost(post)}
-            style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Feather
-              name="bookmark"
-              size={24}
-              color={isFavorite(post.id, post.type === "vendor" ? "product" : "photographer") ? theme.primary : theme.text}
-            />
-          </Pressable>
-
-          {/* Commerce CTA - Only show when post has serviceId or productId */}
-          {(post.serviceId || post.productId) && (
-            <Pressable
-              onPress={() => handleActionPress(post)}
-              style={({ pressed }) => [styles.actionButton, styles.bookButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
-            >
-              <Feather name={post.productId ? "shopping-bag" : "calendar"} size={16} color="#FFFFFF" />
-              <ThemedText type="small" style={{ color: "#FFFFFF", marginLeft: Spacing.xs }}>
-                {post.productId ? "Buy Now" : "Book"}
-              </ThemedText>
-            </Pressable>
-          )}
-        </View>
-
-        {/* Caption */}
-        <View style={styles.captionContainer}>
-          <ThemedText type="body">
-            <ThemedText type="h4">{post.authorName} </ThemedText>
-            {post.caption}
-          </ThemedText>
-        </View>
-
-        {/* Comments Section */}
-        {expandedComments === post.id ? (
-          <View style={styles.commentsSection}>
-            {post.comments.length > 0 ? (
-              post.comments.map((comment) => (
-                <View key={comment.id} style={styles.commentRow}>
-                  <Image source={{ uri: comment.userAvatar }} style={styles.commentAvatar} contentFit="cover" />
+              }
+              renderItem={({ item: comment }) => (
+                <View style={styles.commentRow}>
+                  <Image
+                    source={{ uri: comment.userAvatar }}
+                    style={styles.commentAvatar}
+                    contentFit="cover"
+                  />
                   <View style={styles.commentContent}>
                     <ThemedText type="body">
-                      <ThemedText type="h4">{comment.userName} </ThemedText>
+                      <ThemedText style={{ fontWeight: "600" }}>{comment.userName} </ThemedText>
                       {comment.text}
-                    </ThemedText>
-                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                      {formatTimeAgo(comment.createdAt)}
                     </ThemedText>
                   </View>
                 </View>
-              ))
-            ) : (
-              <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center", paddingVertical: Spacing.md }}>
-                No comments yet. Be the first!
-              </ThemedText>
-            )}
+              )}
+            />
 
-            {/* Add Comment Input */}
+            {/* Comment input */}
             <View style={[styles.commentInputRow, { borderTopColor: theme.border }]}>
               <TextInput
                 style={[styles.commentInput, { backgroundColor: theme.backgroundSecondary, color: theme.text }]}
                 placeholder="Add a comment..."
                 placeholderTextColor={theme.textSecondary}
-                value={commentText[post.id] || ""}
-                onChangeText={(text) => setCommentText((prev) => ({ ...prev, [post.id]: text }))}
-                onSubmitEditing={() => handleComment(post.id)}
+                value={commentText}
+                onChangeText={setCommentText}
+                onSubmitEditing={handleSubmitComment}
               />
               <Pressable
-                onPress={() => handleComment(post.id)}
-                style={({ pressed }) => [styles.sendButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
+                onPress={handleSubmitComment}
+                style={[styles.sendButton, { backgroundColor: theme.primary }]}
               >
-                <Feather name="send" size={16} color="#FFFFFF" />
+                <Feather name="send" size={18} color="#000000" />
               </Pressable>
             </View>
           </View>
-        ) : post.comments.length > 0 ? (
-          <Pressable onPress={() => toggleComments(post.id)} style={styles.viewCommentsButton}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              View all {post.comments.length} comments
-            </ThemedText>
-          </Pressable>
-        ) : null}
-      </View>
-    );
-  };
-
-  return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScreenScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Backend Health Check Banner - Admin Only */}
-        {isAdmin ? (
-          <View style={[styles.healthBanner, { 
-            backgroundColor: healthLoading 
-              ? theme.backgroundSecondary 
-              : healthError 
-                ? "#FFE5E5" 
-                : "#E8F5E9" 
-          }]}>
-            {healthLoading ? (
-              <View style={styles.healthRow}>
-                <ActivityIndicator size="small" color={theme.primary} />
-                <ThemedText type="caption" style={{ marginLeft: Spacing.sm, color: theme.textSecondary }}>
-                  Connecting to backend...
-                </ThemedText>
-              </View>
-            ) : healthError ? (
-              <View style={styles.healthContent}>
-                <View style={styles.healthRow}>
-                  <Feather name="alert-circle" size={16} color="#D32F2F" />
-                  <ThemedText type="caption" style={{ marginLeft: Spacing.sm, color: "#D32F2F", fontWeight: "600" }}>
-                    Backend Connection Failed
-                  </ThemedText>
-                </View>
-                <ThemedText type="small" style={{ color: "#D32F2F", marginTop: 4 }}>
-                  {healthError}
-                </ThemedText>
-                <Pressable onPress={refetchHealth} style={styles.retryButton}>
-                  <ThemedText type="small" style={{ color: "#D32F2F", fontWeight: "600" }}>
-                    Tap to retry
-                  </ThemedText>
-                </Pressable>
-              </View>
-            ) : healthData ? (
-              <View style={styles.healthContent}>
-                <View style={styles.healthRow}>
-                  <Feather name="check-circle" size={16} color="#2E7D32" />
-                  <ThemedText type="caption" style={{ marginLeft: Spacing.sm, color: "#2E7D32", fontWeight: "600" }}>
-                    Backend Connected
-                  </ThemedText>
-                </View>
-                <View style={styles.healthDetails}>
-                  <View style={styles.healthItem}>
-                    <ThemedText type="small" style={{ color: "#666" }}>Status:</ThemedText>
-                    <ThemedText type="small" style={{ color: "#2E7D32", fontWeight: "500", marginLeft: 4 }}>
-                      {healthData.status}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.healthItem}>
-                    <ThemedText type="small" style={{ color: "#666" }}>Service:</ThemedText>
-                    <ThemedText type="small" style={{ color: "#2E7D32", fontWeight: "500", marginLeft: 4 }}>
-                      {healthData.service}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.healthItem}>
-                    <ThemedText type="small" style={{ color: "#666" }}>Environment:</ThemedText>
-                    <ThemedText type="small" style={{ color: "#2E7D32", fontWeight: "500", marginLeft: 4 }}>
-                      {healthData.environment}
-                    </ThemedText>
-                  </View>
-                </View>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {personalizedPosts.map(renderPost)}
-
-        {/* Browse Photographers CTA */}
-        <View style={[styles.browseCTA, { backgroundColor: theme.backgroundSecondary }]}>
-          <ThemedText type="h4" style={{ marginBottom: Spacing.sm }}>
-            Looking to book?
-          </ThemedText>
-          <ThemedText type="caption" style={{ color: theme.textSecondary, marginBottom: Spacing.md }}>
-            Browse our talented photographers and vendors
-          </ThemedText>
-          <Pressable
-            onPress={() => navigation.getParent()?.navigate("SearchTab")}
-            style={({ pressed }) => [
-              styles.browseButton,
-              { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <Feather name="search" size={18} color="#FFFFFF" />
-            <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
-              Browse All
-            </ThemedText>
-          </Pressable>
-        </View>
-      </ScreenScrollView>
-    </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  healthBanner: {
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.lg,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-  },
-  healthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  healthContent: {
+  container: {
     flex: 1,
-  },
-  healthDetails: {
-    marginTop: Spacing.sm,
-    gap: 4,
-  },
-  healthItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  retryButton: {
-    marginTop: Spacing.sm,
-    paddingVertical: Spacing.xs,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: Spacing["3xl"],
   },
-  postCard: {
-    marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
   },
-  postHeader: {
+  exploreButton: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+  },
+  postContainer: {
+    width: SCREEN_WIDTH,
+    position: "relative",
+  },
+  fullScreenMedia: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+  },
+  bottomGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "50%",
+  },
+
+  // Right-side action bar
+  actionBar: {
+    position: "absolute",
+    right: Spacing.md,
+    alignItems: "center",
+    gap: Spacing.lg,
+  },
+  actionItem: {
+    alignItems: "center",
+  },
+  actionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionCount: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+
+  // Bottom-left author section
+  authorSection: {
+    position: "absolute",
+    left: Spacing.md,
+    right: 80,
+  },
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  avatar: {
+  authorAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   avatarPlaceholder: {
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
-  headerInfo: {
-    flex: 1,
+  avatarInitial: {
+    color: "#000000",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  authorInfo: {
     marginLeft: Spacing.sm,
   },
-  nameRow: {
+  displayName: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  username: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+  },
+  caption: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+
+  // Commerce CTA
+  commerceCTA: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
     gap: Spacing.sm,
   },
-  subtitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginTop: 2,
-  },
-  ratingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tierBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xxs,
-    borderRadius: BorderRadius.sm,
-    gap: Spacing.xxs,
-  },
-  tierBadgeText: {
+  commerceCTAText: {
     color: "#000000",
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: "600",
   },
-  postImage: {
-    width: "100%",
-    aspectRatio: 1,
+
+  // Comments Modal
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
-  productInfo: {
-    padding: Spacing.md,
-    marginHorizontal: 0,
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
-  productDetails: {
+  commentsModal: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: SCREEN_HEIGHT * 0.7,
+    paddingBottom: Spacing.xl,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#999",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: Spacing.sm,
+  },
+  modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
   },
-  postActions: {
-    flexDirection: "row",
+  commentsList: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyComments: {
+    paddingVertical: Spacing["2xl"],
     alignItems: "center",
-    padding: Spacing.md,
-    gap: Spacing.lg,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  actionText: {
-    marginLeft: Spacing.xs,
-  },
-  bookButton: {
-    marginLeft: "auto",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-  },
-  captionContainer: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  commentsSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
   },
   commentRow: {
     flexDirection: "row",
-    marginBottom: Spacing.sm,
+    paddingVertical: Spacing.sm,
   },
   commentAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginRight: Spacing.sm,
   },
   commentContent: {
@@ -720,39 +700,22 @@ const styles = StyleSheet.create({
   commentInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
   },
   commentInput: {
     flex: 1,
-    height: 40,
+    height: 44,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
     marginRight: Spacing.sm,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-  },
-  viewCommentsButton: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  browseCTA: {
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    marginBottom: Spacing["2xl"],
-  },
-  browseButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
   },
 });
