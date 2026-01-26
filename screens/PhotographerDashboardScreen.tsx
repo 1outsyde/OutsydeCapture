@@ -219,9 +219,13 @@ export default function PhotographerDashboardScreen() {
         specialties: photographer.specialties || [],
         profileTheme: originalTheme,
         avatar: photographer.logoImage || "",
-        bannerType: photographer.coverImage ? "image" : "color",
-        bannerImage: photographer.coverImage || "",
-        bannerVideo: "",
+        bannerType: photographer.coverMediaType === "video" 
+          ? "video" 
+          : photographer.coverImage 
+            ? "image" 
+            : "color",
+        bannerImage: photographer.coverMediaType !== "video" ? (photographer.coverImage || "") : "",
+        bannerVideo: photographer.coverMediaType === "video" ? (photographer.coverImage || "") : "",
         bannerMock: "",
       });
 
@@ -577,19 +581,29 @@ export default function PhotographerDashboardScreen() {
       
       // coverImage (banner) - determine based on banner type
       let finalBannerImage = "";
+      let finalMediaType: "image" | "video" | "" = "";
       if (editProfile.bannerType === "image" && editProfile.bannerImage) {
         finalBannerImage = editProfile.bannerImage;
+        finalMediaType = "image";
       } else if (editProfile.bannerType === "mock" && editProfile.bannerMock) {
         finalBannerImage = editProfile.bannerMock;
+        finalMediaType = "image";
       } else if (editProfile.bannerType === "video" && editProfile.bannerVideo) {
-        finalBannerImage = editProfile.bannerVideo; // Store video URL in coverImage
+        finalBannerImage = editProfile.bannerVideo;
+        finalMediaType = "video";
       }
       // For "color" type, we leave coverImage empty and the profile theme is used
       
       const originalCover = rawPhotographer?.coverImage || "";
+      const originalMediaType = rawPhotographer?.coverMediaType || "";
       console.log(`[Dashboard] coverImage: current="${finalBannerImage.slice(0, 50)}..." vs original="${originalCover.slice(0, 50)}..."`);
+      console.log(`[Dashboard] coverMediaType: current="${finalMediaType}" vs original="${originalMediaType}"`);
+      
       if (finalBannerImage !== originalCover) {
         updateData.coverImage = finalBannerImage;
+      }
+      if (finalMediaType !== originalMediaType) {
+        updateData.coverMediaType = finalMediaType;
       }
       
       console.log("[Dashboard] === FINAL UPDATE DATA ===");
