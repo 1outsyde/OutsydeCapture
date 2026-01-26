@@ -53,6 +53,65 @@ function PostVideoMedia({ videoUrl }: { videoUrl: string }) {
   );
 }
 
+// Image aspect ratio types for smart rendering
+type ImageAspectType = "portrait" | "landscape" | "square";
+
+// Component for image posts with aspect-aware rendering
+function PostImageMedia({ 
+  imageUrl, 
+  onAspectDetected 
+}: { 
+  imageUrl: string; 
+  onAspectDetected?: (aspect: ImageAspectType) => void;
+}) {
+  const [aspectType, setAspectType] = useState<ImageAspectType>("portrait");
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  const handleImageLoad = useCallback((event: any) => {
+    const { width, height } = event.source || {};
+    if (width && height) {
+      const ratio = width / height;
+      let newAspect: ImageAspectType;
+      if (ratio > 1.2) {
+        newAspect = "landscape";
+      } else if (ratio < 0.8) {
+        newAspect = "portrait";
+      } else {
+        newAspect = "square";
+      }
+      setAspectType(newAspect);
+      onAspectDetected?.(newAspect);
+    }
+    setImageLoaded(true);
+  }, [onAspectDetected]);
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {/* Blurred background for landscape/square images - fills empty space */}
+      {(aspectType === "landscape" || aspectType === "square") && (
+        <Image
+          source={{ uri: imageUrl }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          blurRadius={30}
+        />
+      )}
+      {/* Dark overlay on blurred background */}
+      {(aspectType === "landscape" || aspectType === "square") && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.4)" }]} />
+      )}
+      {/* Main image - always contain mode for images, never crop */}
+      <Image
+        source={{ uri: imageUrl }}
+        style={StyleSheet.absoluteFill}
+        contentFit="contain"
+        onLoad={handleImageLoad}
+        transition={200}
+      />
+    </View>
+  );
+}
+
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -284,17 +343,14 @@ export default function DiscoverScreen() {
     const hasVideo = !!post.videoUrl;
 
     return (
-      <View style={[styles.postContainer, { height: POST_HEIGHT }]}>
+      <View style={[styles.postContainer, { height: POST_HEIGHT, backgroundColor: "#000000" }]}>
         {/* Full-screen media background - Video or Image */}
+        {/* Videos: cover mode (full-screen native feel) */}
+        {/* Images: contain mode with aspect-aware background (never crop) */}
         {hasVideo ? (
           <PostVideoMedia videoUrl={post.videoUrl!} />
         ) : (
-          <Image
-            source={{ uri: post.image }}
-            style={styles.fullScreenMedia}
-            contentFit="cover"
-            transition={200}
-          />
+          <PostImageMedia imageUrl={post.image} />
         )}
 
         {/* Bottom gradient for text legibility */}
