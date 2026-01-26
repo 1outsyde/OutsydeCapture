@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Alert } from "react-native";
 import { useAuth } from "./AuthContext";
 import { fetchPhotographers } from "@/api/photographers";
+import api from "@/services/api";
 
 export type PhotographyCategory = "portrait" | "wedding" | "events" | "product" | "nature" | "fashion";
 
@@ -142,8 +144,8 @@ interface DataContextType {
   getUpcomingSessions: () => Session[];
   getPastSessions: () => Session[];
   hasCompletedSessionWith: (photographerId: string, photographerName?: string) => boolean;
-  likePost: (postId: string) => void;
-  addComment: (postId: string, text: string) => void;
+  likePost: (postId: string) => Promise<void>;
+  addComment: (postId: string, text: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -945,7 +947,8 @@ const MOCK_BUSINESSES: Business[] = [
 ];
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, getToken } = useAuth();
+  const isGuest = user?.isGuest ?? false;
   const [photographers, setPhotographers] = useState<Photographer[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -1108,7 +1111,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   }, [sessions]);
 
-  const likePost = (postId: string) => {
+  const likePost = useCallback(async (postId: string) => {
+    // Check if user is authenticated
+    if (!user || isGuest) {
+      Alert.alert(
+        "Sign In Required",
+        "Please sign in to like posts.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    // Find current post state
+    const currentPost = posts.find(p => p.id === postId);
+    if (!currentPost) return;
+
+    const wasLiked = currentPost.isLiked;
+
+    // Optimistically update UI
     setPosts((prev) =>
       prev.map((post) =>
         post.id === postId
@@ -1116,24 +1136,85 @@ export function DataProvider({ children }: { children: ReactNode }) {
           : post
       )
     );
-  };
 
-  const addComment = (postId: string, text: string) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        // Revert if no token
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.id === postId
+              ? { ...post, isLiked: wasLiked, likes: wasLiked ? post.likes + 1 : post.likes - 1 }
+              : post
+          )
+        );
+        Alert.alert("Sign In Required", "Please sign in to like posts.");
+        return;
+      }
+
+      if (wasLiked) {
+        await api.unlikePost(token, postId);
+      } else {
+        await api.likePost(token, postId);
+      }
+    } catch (error: any) {
+      console.error("Failed to like/unlike post:", error);
+      // Revert on error
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? { ...post, isLiked: wasLiked, likes: wasLiked ? post.likes + 1 : post.likes - 1 }
+            : post
+        )
+      );
+      Alert.alert("Error", "Failed to update like. Please try again.");
+    }
+  }, [user, isGuest, posts, getToken]);
+
+  const addComment = useCallback(async (postId: string, text: string) => {
     if (!text.trim()) return;
-    const newComment: Comment = {
-      id: `comment_${Date.now()}`,
-      userId: user?.id || "guest",
-      userName: user ? `${user.firstName} ${user.lastName}`.trim() : "Guest User",
-      userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100",
-      text: text.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    setPosts((prev) =>
-      prev.map((post) =>
-        post.id === postId ? { ...post, comments: [...post.comments, newComment] } : post
-      )
-    );
-  };
+
+    // Check if user is authenticated
+    if (!user || isGuest) {
+      Alert.alert(
+        "Sign In Required",
+        "Please sign in to comment on posts.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Sign In Required", "Please sign in to comment on posts.");
+        return;
+      }
+
+      // Call backend API to add comment
+      const response = await api.addPostComment(token, postId, text.trim());
+      
+      // Create comment from response or build locally
+      const newComment: Comment = {
+        id: response.comment?.id || `comment_${Date.now()}`,
+        userId: user.id,
+        userName: `${user.firstName} ${user.lastName}`.trim() || user.email || "User",
+        userAvatar: user.profileImageUrl || user.avatar || "",
+        text: text.trim(),
+        createdAt: response.comment?.createdAt || new Date().toISOString(),
+      };
+
+      // Update local state with new comment
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId ? { ...post, comments: [...post.comments, newComment] } : post
+        )
+      );
+    } catch (error: any) {
+      console.error("Failed to add comment:", error);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
+    }
+  }, [user, isGuest, getToken]);
 
   return (
     <DataContext.Provider
