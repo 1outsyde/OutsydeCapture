@@ -1623,13 +1623,15 @@ export default function PhotographerDashboardScreen() {
                       quality: 0.8,
                     });
                     if (!result.canceled && result.assets[0]) {
-                      const localUri = result.assets[0].uri;
+                      const asset = result.assets[0];
+                      const localUri = asset.uri;
                       setUploadingVideo(true);
                       try {
                         console.log("[Dashboard] Starting video upload to Cloudinary...");
-                        const cloudinaryUrl = await uploadVideoToCloudinary(localUri, "banners");
+                        console.log("[Dashboard] Video asset:", { uri: localUri, mimeType: asset.mimeType, fileName: asset.fileName });
+                        const cloudinaryUrl = await uploadVideoToCloudinary(localUri, "banners", asset.mimeType);
                         console.log("[Dashboard] Video uploaded successfully:", cloudinaryUrl);
-                        setEditProfile(prev => ({ ...prev, bannerVideo: cloudinaryUrl }));
+                        setEditProfile(prev => ({ ...prev, bannerVideo: cloudinaryUrl, bannerType: "video" }));
                       } catch (error) {
                         console.error("[Dashboard] Video upload failed:", error);
                         Alert.alert("Upload Failed", "Could not upload banner video. Please try again.");

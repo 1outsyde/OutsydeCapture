@@ -53,12 +53,19 @@ export async function uploadImageToCloudinary(
 
 export async function uploadVideoToCloudinary(
   videoUri: string,
-  folder: string = "videos"
+  folder: string = "videos",
+  providedMimeType?: string | null
 ): Promise<string> {
   const formData = new FormData();
 
+  // Try to get file extension from URI, but iOS often uses cache URIs without extensions
   const uriParts = videoUri.split(".");
-  const fileType = uriParts[uriParts.length - 1].toLowerCase();
+  let fileType = uriParts.length > 1 ? uriParts[uriParts.length - 1].toLowerCase() : "";
+  
+  // Clean up file type (remove query params if any)
+  if (fileType.includes("?")) {
+    fileType = fileType.split("?")[0];
+  }
 
   const mimeTypes: Record<string, string> = {
     mp4: "video/mp4",
@@ -66,11 +73,30 @@ export async function uploadVideoToCloudinary(
     avi: "video/x-msvideo",
     mkv: "video/x-matroska",
     webm: "video/webm",
+    m4v: "video/x-m4v",
+    "3gp": "video/3gpp",
   };
+
+  // Determine MIME type: prefer provided mimeType, then lookup by extension, then default to mp4
+  let mimeType = providedMimeType || mimeTypes[fileType] || "video/mp4";
+  
+  // Determine file extension from MIME type if we don't have one
+  if (!fileType || !mimeTypes[fileType]) {
+    if (mimeType === "video/quicktime" || mimeType === "video/mov") {
+      fileType = "mov";
+    } else if (mimeType === "video/mp4") {
+      fileType = "mp4";
+    } else {
+      fileType = "mp4"; // Default extension
+    }
+  }
+
+  console.log("[Cloudinary] Video upload - URI:", videoUri.substring(0, 80) + "...");
+  console.log("[Cloudinary] Video upload - Detected/provided mimeType:", mimeType, "extension:", fileType);
 
   formData.append("file", {
     uri: videoUri,
-    type: mimeTypes[fileType] || "video/mp4",
+    type: mimeType,
     name: `upload.${fileType}`,
   } as any);
 
