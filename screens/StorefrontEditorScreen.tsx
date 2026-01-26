@@ -31,6 +31,7 @@ import api, {
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, hoursObjectToArray } from "@/components/HoursEditor";
 import ImageUploader from "@/components/ImageUploader";
+import MediaUploader from "@/components/MediaUploader";
 
 type TabType = "branding" | "profile" | "hours" | "products" | "services";
 
@@ -67,6 +68,8 @@ export default function StorefrontEditorScreen() {
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
 
   const [coverImage, setCoverImage] = useState("");
+  const [coverVideo, setCoverVideo] = useState("");
+  const [coverMediaType, setCoverMediaType] = useState<"image" | "video" | null>(null);
   const [logoImage, setLogoImage] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#eab308");
 
@@ -127,7 +130,16 @@ export default function StorefrontEditorScreen() {
       setProducts(productsRes.products || []);
       setServices(servicesRes.services || []);
 
-      setCoverImage(biz.coverImage || "");
+      const isVideo = biz.coverMediaType === "video";
+      if (isVideo) {
+        setCoverVideo(biz.coverImage || "");
+        setCoverImage("");
+        setCoverMediaType("video");
+      } else {
+        setCoverImage(biz.coverImage || "");
+        setCoverVideo("");
+        setCoverMediaType(biz.coverImage ? "image" : null);
+      }
       setLogoImage(biz.logoImage || "");
       const brandColors = biz.brandColors ? JSON.parse(biz.brandColors) : {};
       setPrimaryColor(brandColors.primary || "#eab308");
@@ -175,10 +187,18 @@ export default function StorefrontEditorScreen() {
     try {
       setSaving(true);
       const brandColorsJson = JSON.stringify({ primary: primaryColor });
-      console.log("[Storefront] Saving branding:", { brandColors: brandColorsJson, coverImage, logoImage });
+      const finalCoverImage = coverMediaType === "video" ? coverVideo : coverImage;
+      const finalCoverMediaType = coverMediaType || (coverImage ? "image" : undefined);
+      console.log("[Storefront] Saving branding:", { 
+        brandColors: brandColorsJson, 
+        coverImage: finalCoverImage, 
+        coverMediaType: finalCoverMediaType,
+        logoImage 
+      });
       await api.updateVendorMyBusiness(token, {
         brandColors: brandColorsJson,
-        coverImage: coverImage || undefined,
+        coverImage: finalCoverImage || undefined,
+        coverMediaType: finalCoverMediaType,
         logoImage: logoImage || undefined,
       });
       Alert.alert("Success", "Branding updated successfully");
@@ -827,14 +847,32 @@ export default function StorefrontEditorScreen() {
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Cover Image</Text>
-          <Text style={styles.cardDesc}>The banner image at the top of your storefront</Text>
-          <ImageUploader
+          <Text style={styles.cardTitle}>Cover Media</Text>
+          <Text style={styles.cardDesc}>Upload an image or video banner for your storefront</Text>
+          <MediaUploader
             currentImage={coverImage || undefined}
-            onImageSelected={setCoverImage}
-            onRemove={() => setCoverImage("")}
-            aspectRatio="cover"
-            placeholder="Upload Cover Image"
+            currentVideo={coverVideo || undefined}
+            currentMediaType={coverMediaType}
+            onMediaUploaded={(url, mediaType) => {
+              console.log("[Storefront] MediaUploader callback:", { url: url.substring(0, 50), mediaType });
+              if (mediaType === "video") {
+                setCoverVideo(url);
+                setCoverImage("");
+                setCoverMediaType("video");
+              } else {
+                setCoverImage(url);
+                setCoverVideo("");
+                setCoverMediaType("image");
+              }
+            }}
+            onRemove={() => {
+              setCoverImage("");
+              setCoverVideo("");
+              setCoverMediaType(null);
+            }}
+            folder="banners"
+            maxVideoDuration={15}
+            placeholder="Upload cover image"
           />
         </View>
 
