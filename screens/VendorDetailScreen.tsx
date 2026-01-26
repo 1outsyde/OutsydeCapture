@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, ActivityIndicator, Pressable, Alert, ScrollView } from "react-native";
 import { Image } from "expo-image";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -31,6 +32,13 @@ export default function VendorDetailScreen({ route }: Props) {
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
   const [servicesLoading, setServicesLoading] = useState(true);
+
+  const isVideoBanner = vendor?.coverMediaType === "video" && vendor?.coverImage;
+  const bannerVideoPlayer = useVideoPlayer(isVideoBanner ? vendor.coverImage : null, player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   useEffect(() => {
     loadVendor();
@@ -230,11 +238,20 @@ export default function VendorDetailScreen({ route }: Props) {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.backgroundRoot }} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}>
       <View style={styles.coverContainer}>
-        <Image
-          source={{ uri: vendor.coverImage || vendor.avatar }}
-          style={styles.coverImage}
-          contentFit="cover"
-        />
+        {isVideoBanner ? (
+          <VideoView
+            player={bannerVideoPlayer}
+            style={styles.coverImage}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        ) : (
+          <Image
+            source={{ uri: vendor.coverImage || vendor.avatar }}
+            style={styles.coverImage}
+            contentFit="cover"
+          />
+        )}
         
         <View style={[styles.headerOverlay, { paddingTop: insets.top + Spacing.sm }]}>
           <Pressable
