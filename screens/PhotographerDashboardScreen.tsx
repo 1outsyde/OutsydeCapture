@@ -35,7 +35,8 @@ import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hou
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import { VendorBookerPhotographerService } from "@/services/api";
-import { uploadImageToCloudinary } from "@/services/cloudinary";
+import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 const SPECIALTIES = [
   "Portraits", "Weddings", "Events", "Products",
@@ -64,6 +65,7 @@ export default function PhotographerDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
@@ -109,6 +111,42 @@ export default function PhotographerDashboardScreen() {
     { id: "minimal", label: "Minimal", url: "https://images.unsplash.com/photo-1557683316-973673baf926?w=800&q=80" },
     { id: "creative", label: "Creative", url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80" },
   ];
+
+  const VideoPreview = ({ uri }: { uri: string }) => {
+    const player = useVideoPlayer(uri, (p) => {
+      p.loop = true;
+      p.muted = true;
+      p.play();
+    });
+
+    return (
+      <View style={{ flex: 1, position: "relative" }}>
+        <VideoView
+          player={player}
+          style={{ flex: 1 }}
+          contentFit="cover"
+          nativeControls={false}
+        />
+        <View 
+          style={{ 
+            position: "absolute", 
+            top: 4, 
+            right: 4, 
+            backgroundColor: "rgba(0,0,0,0.6)", 
+            paddingHorizontal: 6, 
+            paddingVertical: 2, 
+            borderRadius: 4,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Feather name="video" size={10} color="#fff" />
+          <Text style={{ color: "#fff", fontSize: 10 }}>Video</Text>
+        </View>
+      </View>
+    );
+  };
 
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [editingService, setEditingService] = useState<ServiceFormData | null>(null);
@@ -1558,6 +1596,7 @@ export default function PhotographerDashboardScreen() {
               {editProfile.bannerType === "video" && (
                 <Pressable
                   onPress={async () => {
+                    if (uploadingVideo) return;
                     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
                     if (status !== "granted") {
                       Alert.alert("Permission Required", "Please allow access to your photo library.");
@@ -1570,7 +1609,20 @@ export default function PhotographerDashboardScreen() {
                       quality: 0.8,
                     });
                     if (!result.canceled && result.assets[0]) {
-                      setEditProfile({ ...editProfile, bannerVideo: result.assets[0].uri });
+                      const localUri = result.assets[0].uri;
+                      setUploadingVideo(true);
+                      try {
+                        console.log("[Dashboard] Starting video upload to Cloudinary...");
+                        const cloudinaryUrl = await uploadVideoToCloudinary(localUri, "banners");
+                        console.log("[Dashboard] Video uploaded successfully:", cloudinaryUrl);
+                        setEditProfile(prev => ({ ...prev, bannerVideo: cloudinaryUrl }));
+                      } catch (error) {
+                        console.error("[Dashboard] Video upload failed:", error);
+                        Alert.alert("Upload Failed", "Could not upload banner video. Please try again.");
+                        setEditProfile(prev => ({ ...prev, bannerVideo: "" }));
+                      } finally {
+                        setUploadingVideo(false);
+                      }
                     }
                   }}
                   style={{ 
@@ -1580,11 +1632,13 @@ export default function PhotographerDashboardScreen() {
                     overflow: "hidden",
                   }}
                 >
-                  {editProfile.bannerVideo ? (
-                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#1a1a2e" }}>
-                      <Feather name="play-circle" size={32} color={theme.primary} />
-                      <Text style={{ color: "#fff", marginTop: 8, fontSize: 12 }}>Video selected (max 15s)</Text>
+                  {uploadingVideo ? (
+                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                      <ActivityIndicator size="large" color={theme.primary} />
+                      <Text style={{ color: theme.textSecondary, marginTop: 8, fontSize: 12 }}>Uploading video...</Text>
                     </View>
+                  ) : editProfile.bannerVideo ? (
+                    <VideoPreview uri={editProfile.bannerVideo} />
                   ) : (
                     <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                       <Feather name="video" size={24} color={theme.textSecondary} />
