@@ -48,32 +48,27 @@ export default function DiscoverScreen() {
 
   // Convert API posts to local Post format
   const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
-    // Check multiple possible name fields - backend may use different names for different account types
+    // Backend returns author object with { userId, username, displayName, profilePhotoUrl, role }
     const displayName = 
       (apiPost.author as any)?.displayName ||
-      (apiPost.author as any)?.businessName ||
       apiPost.author?.name ||
-      (apiPost.user as any)?.displayName ||
-      (apiPost.user as any)?.businessName ||
-      apiPost.user?.name ||
       "Unknown";
-    // Check multiple possible avatar fields (backend may use different names for different account types)
-    const authorAvatar = 
-      (apiPost.author as any)?.logoImage || 
-      (apiPost.author as any)?.avatar ||
-      apiPost.author?.profileImageUrl || 
-      (apiPost.user as any)?.logoImage ||
-      (apiPost.user as any)?.avatar ||
-      apiPost.user?.profileImageUrl || 
-      "";
-    const userId = apiPost.userId || apiPost.author?.id || apiPost.user?.id || apiPost.id;
-    const username = apiPost.author?.username || apiPost.user?.username;
     
-    // Determine post type
+    // Backend uses profilePhotoUrl in author object
+    const authorAvatar = 
+      (apiPost.author as any)?.profilePhotoUrl ||
+      apiPost.author?.profileImageUrl || 
+      "";
+    
+    const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id || apiPost.id;
+    const username = apiPost.author?.username;
+    
+    // Determine post type from author role or authorType
+    const authorRole = (apiPost.author as any)?.role;
     let postType: PostType = "user";
-    if (apiPost.authorType === "photographer") {
+    if (apiPost.authorType === "photographer" || authorRole === "photographer") {
       postType = "photographer";
-    } else if (apiPost.authorType === "vendor" || apiPost.authorType === "business") {
+    } else if (apiPost.authorType === "vendor" || apiPost.authorType === "business" || authorRole === "vendor" || authorRole === "business") {
       postType = "vendor";
     }
     
