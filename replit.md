@@ -98,10 +98,12 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **API Endpoints**: `GET/PUT /api/photographers/me/availability`, `GET/PUT /api/photographers/me/blocked-dates`.
 - **Storefront Editor**: Full-featured customization for businesses, including branding (cover, logo, colors), profile details, business hours, and product/service management. Products/services have statuses (draft, live, paused, archived) with specific publishing gates (admin approval, Stripe setup, active subscription).
 - **Image Handling**: Reusable `ImageUploader` component with camera/library options and aspect ratio support.
-- **Cloudinary Image Upload**: Profile photos and banner images are uploaded to Cloudinary (unsigned upload preset) and saved to the backend. Flow: Pick image → Upload to Cloudinary → Save URL to profile via API.
+- **Cloudinary Media Upload**: Profile photos and banner media (images/videos) are uploaded to Cloudinary (unsigned upload preset) and saved to the backend. Flow: Pick media → Upload to Cloudinary → Save URL to profile via API.
   - **Cloud Name**: `doraffjvp`
   - **Upload Preset**: `outsyde_unsigned`
-  - **Utility**: `services/cloudinary.ts` - `uploadImageToCloudinary(uri, folder)`
+  - **Image Utility**: `services/cloudinary.ts` - `uploadImageToCloudinary(uri, folder)`
+  - **Video Utility**: `services/cloudinary.ts` - `uploadVideoToCloudinary(uri, folder)` - Uses `/video/upload` endpoint for video files
+  - **Video Banner Support**: Profile banners can be images or videos. Backend stores both in `coverImage` field with `coverMediaType` ("image" or "video") for detection. Dashboard shows actual video preview using expo-video's VideoView component. Videos are uploaded immediately on selection (mirroring photo flow).
 - **Backend Enforcement**: Critical logic (publishing validation, subscription lapse auto-pause) is enforced server-side.
 - **Push Notifications**: Complete push notification system using `expo-notifications` and `expo-device`:
   - **Service Layer**: `services/pushNotifications.ts` handles registration, scheduling, and badge management
