@@ -103,6 +103,14 @@ I prefer clear, concise communication. When making changes, please explain the r
   - **Upload Preset**: `outsyde_unsigned`
   - **Utility**: `services/cloudinary.ts` - `uploadImageToCloudinary(uri, folder)`
 - **Backend Enforcement**: Critical logic (publishing validation, subscription lapse auto-pause) is enforced server-side.
+- **Push Notifications**: Complete push notification system using `expo-notifications` and `expo-device`:
+  - **Service Layer**: `services/pushNotifications.ts` handles registration, scheduling, and badge management
+  - **Context Integration**: `NotificationContext` initializes push notifications, listens for events, and provides helper functions
+  - **Booking Confirmation**: Immediate push notification sent when booking is confirmed
+  - **Booking Reminders**: Scheduled notifications at 24 hours and 1 hour before sessions
+  - **Badge Count**: Syncs with unread notification count automatically
+  - **Platform Support**: Works on physical devices (iOS/Android); gracefully skips on web/simulators
+  - **Notification Types**: booking, reminder, promotion, system, admin, follow, business_pending, new_vendor_application, vendor_approved, vendor_rejected
 
 ### System Design Choices
 - **Cross-Platform**: Expo/React Native for iOS, Android, and web.
@@ -116,7 +124,8 @@ I prefer clear, concise communication. When making changes, please explain the r
 - **AsyncStorage**: Client-side persistence.
 - **expo-image**: Image optimization.
 - **expo-image-picker**: Image uploads.
-- **expo-notifications**: Push notifications.
+- **expo-notifications**: Push notifications (scheduling, badges, listeners).
+- **expo-device**: Device detection for push notification support.
 - **react-native-reanimated**: Animations.
 - **Outsyde Backend API**: `https://outsyde-backend.onrender.com`.
 - **Stripe-like Payment Gateway**: For payment processing.

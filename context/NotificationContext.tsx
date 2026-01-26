@@ -1,7 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { useAuth } from "./AuthContext";
 import api from "@/services/api";
+import {
+  registerForPushNotificationsAsync,
+  scheduleBookingConfirmationNotification,
+  scheduleBookingReminderNotification,
+  sendLocalNotification,
+  addNotificationReceivedListener,
+  addNotificationResponseReceivedListener,
+  setBadgeCount,
+} from "@/services/pushNotifications";
 
 export interface Notification {
   id: string;
@@ -26,6 +36,7 @@ interface NotificationContextType {
   unreadCount: number;
   isEnabled: boolean;
   pendingBusinessCount: number;
+  pushToken: string | null;
   addNotification: (notification: Omit<Notification, "id" | "date" | "read">) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -34,6 +45,8 @@ interface NotificationContextType {
   enableNotifications: () => Promise<boolean>;
   disableNotifications: () => void;
   refreshAdminNotifications: () => Promise<void>;
+  sendBookingConfirmation: (photographerName: string, date: string, time: string) => Promise<void>;
+  scheduleBookingReminders: (photographerName: string, date: string, time: string, sessionDate: Date) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -57,11 +70,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [isEnabled, setIsEnabled] = useState(true);
   const [pendingBusinessCount, setPendingBusinessCount] = useState(0);
   const [seenBusinessIds, setSeenBusinessIds] = useState<string[]>([]);
+  const [pushToken, setPushToken] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notificationListenerRef = useRef<any>(null);
+  const responseListenerRef = useRef<any>(null);
 
   useEffect(() => {
     if (isAuthenticated && user) {
       loadNotificationData();
+      initializePushNotifications();
       if (user.isAdmin) {
         startAdminPolling();
       }
@@ -70,10 +87,50 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setSettings(DEFAULT_SETTINGS);
       setIsEnabled(true);
       setPendingBusinessCount(0);
+      setPushToken(null);
       stopAdminPolling();
     }
-    return () => stopAdminPolling();
+    return () => {
+      stopAdminPolling();
+      if (notificationListenerRef.current) {
+        notificationListenerRef.current.remove();
+      }
+      if (responseListenerRef.current) {
+        responseListenerRef.current.remove();
+      }
+    };
   }, [isAuthenticated, user]);
+
+  const initializePushNotifications = async () => {
+    if (Platform.OS === "web") return;
+    
+    try {
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        setPushToken(token);
+        console.log("[NotificationContext] Push token obtained:", token);
+      }
+
+      notificationListenerRef.current = addNotificationReceivedListener(notification => {
+        console.log("[NotificationContext] Notification received:", notification);
+        const { title, body, data } = notification.request.content;
+        if (title && body) {
+          addNotification({
+            title,
+            body,
+            type: (data?.type as any) || "system",
+            metadata: data as Record<string, string>,
+          });
+        }
+      });
+
+      responseListenerRef.current = addNotificationResponseReceivedListener(response => {
+        console.log("[NotificationContext] Notification response:", response);
+      });
+    } catch (error) {
+      console.error("[NotificationContext] Failed to initialize push notifications:", error);
+    }
+  };
 
   const loadNotificationData = async () => {
     if (!user) return;
@@ -214,7 +271,52 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setIsEnabled(false);
   };
 
+  const sendBookingConfirmation = async (
+    photographerName: string,
+    date: string,
+    time: string
+  ): Promise<void> => {
+    if (Platform.OS === "web" || !isEnabled) return;
+    
+    try {
+      await scheduleBookingConfirmationNotification(photographerName, date, time);
+      await addNotification({
+        title: "Booking Confirmed!",
+        body: `Your session with ${photographerName} on ${date} at ${time} is confirmed.`,
+        type: "booking",
+        metadata: { photographerName, date, time },
+      });
+    } catch (error) {
+      console.error("[NotificationContext] Failed to send booking confirmation:", error);
+    }
+  };
+
+  const scheduleBookingReminders = async (
+    photographerName: string,
+    date: string,
+    time: string,
+    sessionDate: Date
+  ): Promise<void> => {
+    if (Platform.OS === "web" || !isEnabled) return;
+    
+    try {
+      await Promise.all([
+        scheduleBookingReminderNotification(photographerName, date, time, sessionDate, "24h"),
+        scheduleBookingReminderNotification(photographerName, date, time, sessionDate, "1h"),
+      ]);
+      console.log("[NotificationContext] Booking reminders scheduled for", sessionDate);
+    } catch (error) {
+      console.error("[NotificationContext] Failed to schedule booking reminders:", error);
+    }
+  };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      setBadgeCount(unreadCount);
+    }
+  }, [unreadCount]);
 
   return (
     <NotificationContext.Provider
@@ -224,6 +326,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         unreadCount,
         isEnabled,
         pendingBusinessCount,
+        pushToken,
         addNotification,
         markAsRead,
         markAllAsRead,
@@ -232,6 +335,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         enableNotifications,
         disableNotifications,
         refreshAdminNotifications,
+        sendBookingConfirmation,
+        scheduleBookingReminders,
       }}
     >
       {children}

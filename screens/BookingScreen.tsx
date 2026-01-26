@@ -45,7 +45,7 @@ export default function BookingScreen() {
   const { photographer: routePhotographer, photographerId, preselectedServiceId } = route.params;
   const { getToken, isAuthenticated } = useAuth();
   const { addSession } = useData();
-  const { addNotification } = useNotifications();
+  const { addNotification, sendBookingConfirmation, scheduleBookingReminders } = useNotifications();
   const insets = useSafeAreaInsets();
 
   // State for photographer data (may need to be fetched)
@@ -480,11 +480,22 @@ export default function BookingScreen() {
         price: selectedService.price || bookingDraft.totalAmount,
       });
 
+      const photographerName = photographer?.name || "the photographer";
+      const formattedDate = formatDate(selectedDate);
+      const formattedTime = selectedSlot.startTime;
+
       await addNotification({
         type: "booking",
         title: "Booking Confirmed",
-        body: `Your session with ${photographer?.name || "the photographer"} on ${formatDate(selectedDate)} has been confirmed.`,
+        body: `Your session with ${photographerName} on ${formattedDate} has been confirmed.`,
       });
+
+      await sendBookingConfirmation(photographerName, formattedDate, formattedTime);
+
+      const [year, month, day] = selectedDate.split("-").map(Number);
+      const [hours, minutes] = selectedSlot.startTime.split(":").map(Number);
+      const sessionDate = new Date(year, month - 1, day, hours, minutes);
+      await scheduleBookingReminders(photographerName, formattedDate, formattedTime, sessionDate);
 
       setBookedSessionId(session.id);
       setShowSuccessModal(true);
