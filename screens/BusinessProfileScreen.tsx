@@ -45,11 +45,10 @@ export default function BusinessProfileScreen() {
 
   const [business, setBusiness] = useState<BusinessProfileData>(initialData);
   
-  // Detect if viewing own profile - compare current user ID with business's userId
-  const isOwner = Boolean(
-    user?.id && 
-    ((business as any).userId === user.id || business.id === user.id)
-  );
+  // Detect if viewing own profile - compare current user's auth ID with business owner's auth userId
+  // Must compare user-to-user, not user-to-entity
+  const businessAuthUserId = (business as any).userId || (business as any).ownerId;
+  const isOwner = Boolean(user?.id && businessAuthUserId && businessAuthUserId === user.id);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isStartingChat, setIsStartingChat] = useState(false);
@@ -160,14 +159,29 @@ export default function BusinessProfileScreen() {
       return;
     }
     
-    // Get the correct userId for the business owner
-    const participantUserId = (business as any).userId || business.id;
+    // CRITICAL: Messaging is user-to-user, not entity-to-entity
+    // Must use the profile owner's auth userId, never the business entity ID
+    const profileData = business as any;
+    const authUserId = profileData.userId || profileData.ownerId;
     const senderId = user?.id;
     
     // Dev logging for ID mapping debugging
     if (__DEV__) {
-      console.log("[BusinessProfile] handleMessage - senderId:", senderId, "recipientId:", participantUserId);
+      console.log("[BusinessProfile] handleMessage - senderId:", senderId, "recipientId (authUserId):", authUserId);
+      if (!authUserId) {
+        console.warn("[BusinessProfile] WARNING: No userId/ownerId found, messaging may fail. Business ID:", business.id);
+      } else if (authUserId === business.id) {
+        console.warn("[BusinessProfile] WARNING: userId matches business ID - verify this is the auth user ID, not entity ID");
+      }
     }
+    
+    // Block messaging if no valid auth userId found
+    if (!authUserId) {
+      Alert.alert("Unable to Message", "This business profile is not set up for messaging.");
+      return;
+    }
+    
+    const participantUserId = authUserId;
     
     // Frontend guard: Block self-messaging
     if (senderId && (participantUserId === senderId)) {

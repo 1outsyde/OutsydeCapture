@@ -37,11 +37,10 @@ export default function PhotographerDetailScreen() {
   const [additionalPhotos, setAdditionalPhotos] = useState<string[]>([]);
   const [isStartingChat, setIsStartingChat] = useState(false);
   
-  // Detect if viewing own profile
-  const isOwner = Boolean(
-    user?.id && 
-    ((photographer as any).userId === user.id || photographer.id === user.id)
-  );
+  // Detect if viewing own profile - compare current user's auth ID with photographer's auth userId
+  // Must compare user-to-user, not user-to-entity
+  const photographerAuthUserId = (photographer as any).userId || (photographer as any).ownerId;
+  const isOwner = Boolean(user?.id && photographerAuthUserId && photographerAuthUserId === user.id);
 
   const allPortfolioPhotos = [...photographer.portfolio, ...additionalPhotos];
   const isPhotographerSaved = isFavorite(photographer.id, "photographer");
@@ -64,14 +63,29 @@ export default function PhotographerDetailScreen() {
       return;
     }
     
-    // Get the correct userId for the photographer
-    const participantUserId = (photographer as any).userId || photographer.id;
+    // CRITICAL: Messaging is user-to-user, not entity-to-entity
+    // Must use the profile owner's auth userId, never the photographer profile ID
+    const profileData = photographer as any;
+    const authUserId = profileData.userId || profileData.ownerId;
     const senderId = user?.id;
     
     // Dev logging for ID mapping debugging
     if (__DEV__) {
-      console.log("[PhotographerDetail] handleMessage - senderId:", senderId, "recipientId:", participantUserId);
+      console.log("[PhotographerDetail] handleMessage - senderId:", senderId, "recipientId (authUserId):", authUserId);
+      if (!authUserId) {
+        console.warn("[PhotographerDetail] WARNING: No userId/ownerId found, messaging may fail. Photographer ID:", photographer.id);
+      } else if (authUserId === photographer.id) {
+        console.warn("[PhotographerDetail] WARNING: userId matches profile ID - verify this is the auth user ID, not entity ID");
+      }
     }
+    
+    // Block messaging if no valid auth userId found
+    if (!authUserId) {
+      Alert.alert("Unable to Message", "This photographer's profile is not set up for messaging.");
+      return;
+    }
+    
+    const participantUserId = authUserId;
     
     // Frontend guard: Block self-messaging
     if (senderId && (participantUserId === senderId)) {
