@@ -13,6 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { Image } from "expo-image";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -33,6 +34,24 @@ import api, { ApiPost } from "@/services/api";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Separate component for video playback (allows hook usage)
+function PostVideoMedia({ videoUrl }: { videoUrl: string }) {
+  const player = useVideoPlayer(videoUrl, p => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+
+  return (
+    <VideoView
+      player={player}
+      style={StyleSheet.absoluteFill}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+}
 
 export default function DiscoverScreen() {
   const { theme } = useTheme();
@@ -95,6 +114,7 @@ export default function DiscoverScreen() {
       rating: (apiPost.author as any)?.rating || 0,
       reviewCount: (apiPost.author as any)?.reviewCount || 0,
       image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
+      videoUrl: apiPost.videoUrl,
       caption: apiPost.content || "",
       likes: apiPost.likesCount || 0,
       isLiked: false,
@@ -257,15 +277,21 @@ export default function DiscoverScreen() {
     const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
     const hasCommerce = post.serviceId || post.productId;
 
+    const hasVideo = !!post.videoUrl;
+
     return (
       <View style={[styles.postContainer, { height: POST_HEIGHT }]}>
-        {/* Full-screen media background */}
-        <Image
-          source={{ uri: post.image }}
-          style={styles.fullScreenMedia}
-          contentFit="cover"
-          transition={200}
-        />
+        {/* Full-screen media background - Video or Image */}
+        {hasVideo ? (
+          <PostVideoMedia videoUrl={post.videoUrl!} />
+        ) : (
+          <Image
+            source={{ uri: post.image }}
+            style={styles.fullScreenMedia}
+            contentFit="cover"
+            transition={200}
+          />
+        )}
 
         {/* Bottom gradient for text legibility */}
         <LinearGradient

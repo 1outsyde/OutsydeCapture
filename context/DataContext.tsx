@@ -109,6 +109,7 @@ export interface Post {
   rating: number;
   reviewCount: number;
   image: string;
+  videoUrl?: string;
   caption: string;
   likes: number;
   isLiked: boolean;

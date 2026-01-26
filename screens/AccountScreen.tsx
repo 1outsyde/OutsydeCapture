@@ -174,7 +174,8 @@ export default function AccountScreen() {
   const [bookedSlots, setBookedSlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
   const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [newPostImage, setNewPostImage] = useState<string>("");
+  const [newPostMedia, setNewPostMedia] = useState<string>("");
+  const [newPostMediaType, setNewPostMediaType] = useState<"image" | "video">("image");
   const [newPostCaption, setNewPostCaption] = useState("");
   const [linkedServiceId, setLinkedServiceId] = useState<string>("");
   const [linkedProductId, setLinkedProductId] = useState<string>("");
@@ -563,26 +564,30 @@ export default function AccountScreen() {
     );
   }
 
-  const handlePickPostImage = async () => {
+  const handlePickPostMedia = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission Required", "Please allow access to your photo library.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsEditing: true,
-      aspect: [1, 1],
+      aspect: [9, 16],
       quality: 0.8,
+      videoMaxDuration: 60,
     });
     if (!result.canceled && result.assets[0]) {
-      setNewPostImage(result.assets[0].uri);
+      const asset = result.assets[0];
+      const isVideo = asset.type === "video" || asset.uri.includes(".mp4") || asset.uri.includes(".mov") || (asset.mimeType && asset.mimeType.startsWith("video/"));
+      setNewPostMedia(asset.uri);
+      setNewPostMediaType(isVideo ? "video" : "image");
     }
   };
 
   const handleCreatePost = async () => {
-    if (!newPostImage) {
-      Alert.alert("No Image", "Please select an image for your post.");
+    if (!newPostMedia) {
+      Alert.alert("No Media", "Please select a photo or video for your post.");
       return;
     }
     
@@ -594,24 +599,38 @@ export default function AccountScreen() {
 
     setPostSaving(true);
     try {
-      // Upload image to Cloudinary first
-      console.log("[AccountScreen] Uploading post image to Cloudinary...");
-      const cloudinaryUrl = await uploadImageToCloudinary(newPostImage, "posts");
-      if (!cloudinaryUrl) {
-        throw new Error("Failed to upload image. Please try again.");
+      // Upload media to Cloudinary first
+      let cloudinaryUrl: string;
+      if (newPostMediaType === "video") {
+        console.log("[AccountScreen] Uploading post video to Cloudinary...");
+        cloudinaryUrl = await uploadVideoToCloudinary(newPostMedia, "posts");
+      } else {
+        console.log("[AccountScreen] Uploading post image to Cloudinary...");
+        cloudinaryUrl = await uploadImageToCloudinary(newPostMedia, "posts");
       }
-      console.log("[AccountScreen] Image uploaded to Cloudinary:", cloudinaryUrl);
+      
+      if (!cloudinaryUrl) {
+        throw new Error("Failed to upload media. Please try again.");
+      }
+      console.log("[AccountScreen] Media uploaded to Cloudinary:", cloudinaryUrl, "type:", newPostMediaType);
       
       // Create post with Cloudinary URL (serviceId/productId are optional)
       const postData: {
-        imageUrl: string;
+        imageUrl?: string;
+        videoUrl?: string;
         content?: string;
         photographerServiceId?: string;
         productId?: string;
       } = {
-        imageUrl: cloudinaryUrl,
         content: newPostCaption.trim() || " ",
       };
+      
+      // Set image or video URL based on media type
+      if (newPostMediaType === "video") {
+        postData.videoUrl = cloudinaryUrl;
+      } else {
+        postData.imageUrl = cloudinaryUrl;
+      }
       
       // Only include photographerServiceId/productId if they have values
       if (linkedServiceId) {
@@ -627,7 +646,8 @@ export default function AccountScreen() {
       if (response.post) {
         const newPost = mapApiPostToFeaturedPost(response.post);
         setFeaturedPosts([newPost, ...featuredPosts]);
-        setNewPostImage("");
+        setNewPostMedia("");
+        setNewPostMediaType("image");
         setNewPostCaption("");
         setLinkedServiceId("");
         setLinkedProductId("");
@@ -1064,17 +1084,18 @@ export default function AccountScreen() {
           }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
               <ThemedText type="h3">Create Post</ThemedText>
-              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); }}>
+              <Pressable onPress={() => { setShowCreatePost(false); setNewPostMedia(""); setNewPostMediaType("image"); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); }}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
 
-            {/* Image Picker */}
+            {/* Media Picker - Images and Videos */}
             <Pressable
-              onPress={handlePickPostImage}
+              onPress={handlePickPostMedia}
               style={{
                 width: "100%",
-                aspectRatio: 1,
+                aspectRatio: 9 / 16,
+                maxHeight: 400,
                 backgroundColor: theme.backgroundSecondary,
                 borderRadius: 12,
                 alignItems: "center",
@@ -1083,13 +1104,30 @@ export default function AccountScreen() {
                 overflow: "hidden",
               }}
             >
-              {newPostImage ? (
-                <Image source={{ uri: newPostImage }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              {newPostMedia ? (
+                newPostMediaType === "video" ? (
+                  <View style={{ width: "100%", height: "100%", position: "relative" }}>
+                    <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+                      <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
+                        <Feather name="play" size={28} color="#FFFFFF" />
+                      </View>
+                    </View>
+                    <View style={{ position: "absolute", top: Spacing.sm, right: Spacing.sm, backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: 4 }}>
+                      <ThemedText type="small" style={{ color: "#FFFFFF" }}>VIDEO</ThemedText>
+                    </View>
+                  </View>
+                ) : (
+                  <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                )
               ) : (
                 <View style={{ alignItems: "center" }}>
-                  <Feather name="image" size={48} color={theme.textSecondary} />
+                  <Feather name="film" size={48} color={theme.textSecondary} />
                   <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                    Tap to select photo
+                    Tap to select photo or video
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                    Videos up to 60 seconds
                   </ThemedText>
                 </View>
               )}
