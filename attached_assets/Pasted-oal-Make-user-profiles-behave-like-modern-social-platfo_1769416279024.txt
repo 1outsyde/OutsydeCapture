@@ -1,0 +1,144 @@
+oal: Make user profiles behave like modern social platforms (Instagram/TikTok), where:
+
+Public profiles look the same for everyone
+
+Owner-only controls appear only when the logged-in user is viewing their own profile
+
+✅ Required Behavior
+1️⃣ Single Profile Screen (NO DUPLICATES)
+
+Use one unified Profile screen for photographers & businesses.
+
+Do not maintain separate “Dashboard Profile” vs “Public Profile” screens.
+
+Instead, conditionally render UI based on ownership.
+
+const isOwner = viewerUserId === profileUserId;
+
+2️⃣ Public Profile View (When isOwner === false)
+
+When viewing someone else’s profile, show:
+
+✅ Banner (photo or video)
+✅ Profile photo
+✅ Display name
+✅ Username
+✅ Location
+✅ Price / hourly rate (if applicable)
+✅ Categories (e.g. Weddings, Portraits)
+✅ Availability preview
+✅ Tabs:
+
+Featured
+
+Book
+
+Availability
+
+Reviews
+
+✅ Feed / portfolio posts
+✅ CTA buttons:
+
+Book Now (if stripeOnboardingComplete === true)
+
+Follow
+
+Share
+
+🚫 DO NOT SHOW:
+
+Edit Profile
+
+Dashboard
+
+Earnings
+
+Messages count
+
+Create Post button
+
+Internal stats
+
+3️⃣ Owner Profile View (When isOwner === true)
+
+When the logged-in user views their own profile, additionally show:
+
+✅ Create Post button
+✅ Edit Profile
+✅ Dashboard shortcut
+✅ Earnings / bookings / messages cards
+✅ Admin-only UI
+
+👉 The layout stays the same — only extra controls appear.
+
+4️⃣ Fix Author Identity on Feed Posts (CRITICAL)
+
+On every post in the feed:
+
+Profile photo
+
+Display name
+
+Username
+
+MUST ALL COME FROM THE POST AUTHOR, not the viewer.
+
+post.author.profilePhoto
+post.author.displayName
+post.author.username
+post.author.userId
+
+
+✅ All three are tappable
+✅ All navigate to the author’s public profile
+
+onPress={() => navigate("PublicProfile", { userId: post.author.userId })}
+
+
+This must behave like:
+
+TikTok
+
+Instagram
+
+Twitter/X
+
+5️⃣ Booking Availability Bug Fix (Stripe)
+
+If:
+
+photographer.stripeOnboardingComplete === true
+
+
+Then:
+
+Booking MUST be allowed on the consumer side
+
+Do NOT block booking with “payment not set up”
+
+⚠️ Verify API unwrapping:
+
+// API returns:
+{ success: true, photographer: {...} }
+
+// Frontend must use:
+response.photographer.stripeOnboardingComplete
+
+6️⃣ Feed Layout Direction (Design Decision)
+
+Keep:
+
+Vertical, immersive TikTok-style feed for Discover
+
+Full-screen media priority
+
+Floating action icons on right (like, comment, save)
+
+Profiles remain structured & professional, feeds remain engaging.
+
+This balances:
+
+Consumer engagement (TikTok-style)
+
+Business trust (profile clarity)
