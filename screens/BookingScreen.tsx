@@ -78,8 +78,27 @@ export default function BookingScreen() {
   
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [bookedSessionId, setBookedSessionId] = useState<string>("");
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
   
   const [viewingMonth, setViewingMonth] = useState(() => new Date());
+  
+  // State machine validation: check if booking state is valid for confirmation
+  const isBookingStateValid = useCallback(() => {
+    return bookingDraft !== null && 
+           bookingDraft.id && 
+           bookingDraft.status === "held" && 
+           countdown > 0;
+  }, [bookingDraft, countdown]);
+  
+  // Invalidate all booking state (used after errors)
+  const invalidateBookingState = useCallback(() => {
+    setBookingDraft(null);
+    setSelectedSlot(null);
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+    }
+    setCountdown(0);
+  }, []);
 
   // Fetch photographer data if not provided in route params
   useEffect(() => {
@@ -378,6 +397,17 @@ export default function BookingScreen() {
     }
 
     if (!photographer) return;
+    
+    // Enforce single active draft: cancel existing draft before creating new one
+    if (bookingDraft && bookingDraft.id) {
+      try {
+        await api.cancelBookingDraft(token, bookingDraft.id);
+      } catch (cancelErr) {
+        console.log("Failed to cancel existing draft:", cancelErr);
+      }
+      invalidateBookingState();
+    }
+    
     setIsCreatingDraft(true);
     setError(null);
     try {
@@ -408,12 +438,39 @@ export default function BookingScreen() {
       setStep("review");
     } catch (e: any) {
       console.error("Failed to create draft:", e);
-      const message = e?.message || "Unable to hold this slot. It may have been taken.";
-      if (Platform.OS === "web") {
-        window.alert(message);
+      
+      // Handle 409 SlotUnavailable specifically
+      const statusCode = e?.status || e?.response?.status;
+      const isSlotUnavailable = statusCode === 409 || 
+        e?.message?.toLowerCase()?.includes("slot") ||
+        e?.message?.toLowerCase()?.includes("unavailable") ||
+        e?.message?.toLowerCase()?.includes("already booked");
+      
+      if (isSlotUnavailable) {
+        // Clear all booking state and force slot re-selection
+        invalidateBookingState();
+        setStep("slot");
+        
+        const message = "This time slot is no longer available. Please select a different time.";
+        if (Platform.OS === "web") {
+          window.alert(message);
+        } else {
+          Alert.alert("Slot Unavailable", message);
+        }
       } else {
-        Alert.alert("Slot Unavailable", message);
+        // Generic error - still invalidate state and force re-selection
+        invalidateBookingState();
+        setStep("slot");
+        
+        const message = e?.message || "Unable to hold this slot. Please try again.";
+        if (Platform.OS === "web") {
+          window.alert(message);
+        } else {
+          Alert.alert("Error", message);
+        }
       }
+      
+      // Refresh available slots to get updated availability
       fetchAvailableSlots(selectedDate);
     } finally {
       setIsCreatingDraft(false);
@@ -421,6 +478,18 @@ export default function BookingScreen() {
   };
 
   const confirmBooking = async () => {
+    // Prevent double-tap: if already confirming, block immediately
+    if (isConfirming) return;
+    
+    // Global guard: validate booking state before proceeding
+    if (!isBookingStateValid()) {
+      // Booking expired or invalid - show modal and reset
+      invalidateBookingState();
+      setStep("slot");
+      setShowExpiredModal(true);
+      return;
+    }
+    
     if (!bookingDraft || !selectedService || !selectedSlot) return;
 
     const token = await getToken();
@@ -501,11 +570,30 @@ export default function BookingScreen() {
       setShowSuccessModal(true);
     } catch (e: any) {
       console.error("Failed to confirm booking:", e);
-      const message = e?.message || "Failed to confirm booking. Please try again.";
-      if (Platform.OS === "web") {
-        window.alert(message);
+      
+      // Check if this is a booking expiration/conflict error
+      const statusCode = e?.status || e?.response?.status;
+      const isExpiredOrConflict = statusCode === 409 || statusCode === 410 ||
+        e?.message?.toLowerCase()?.includes("expired") ||
+        e?.message?.toLowerCase()?.includes("conflict") ||
+        e?.message?.toLowerCase()?.includes("no longer available");
+      
+      if (isExpiredOrConflict) {
+        // Booking expired or conflicted - show expiration modal
+        invalidateBookingState();
+        setStep("slot");
+        setShowExpiredModal(true);
       } else {
-        Alert.alert("Error", message);
+        // Other error - still invalidate state to prevent stale bookings
+        invalidateBookingState();
+        setStep("slot");
+        
+        const message = e?.message || "Failed to confirm booking. Please select a new time.";
+        if (Platform.OS === "web") {
+          window.alert(message);
+        } else {
+          Alert.alert("Booking Failed", message);
+        }
       }
     } finally {
       setIsConfirming(false);
@@ -1223,6 +1311,43 @@ export default function BookingScreen() {
         </View>
       )}
 
+      {/* Booking Expired Modal */}
+      <Modal
+        visible={showExpiredModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExpiredModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+            <View style={[styles.modalIcon, { backgroundColor: theme.error + "20" }]}>
+              <Feather name="clock" size={40} color={theme.error} />
+            </View>
+            <ThemedText type="h3" style={styles.modalTitle}>
+              Booking Expired
+            </ThemedText>
+            <ThemedText type="body" style={[styles.modalMessage, { color: theme.textSecondary }]}>
+              This booking has expired or is no longer available. Please select a new time to continue.
+            </ThemedText>
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={() => setShowExpiredModal(false)}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  { backgroundColor: theme.primary },
+                ]}
+              >
+                <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+                  Select New Time
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
       <Modal
         visible={showSuccessModal}
         transparent
