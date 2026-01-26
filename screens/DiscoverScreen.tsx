@@ -237,10 +237,14 @@ export default function DiscoverScreen() {
     setCommentsModalVisible(true);
   };
 
-  const handleSubmitComment = () => {
+  const handleSubmitComment = async () => {
     if (selectedPost && commentText.trim()) {
-      addComment(selectedPost.id, commentText);
-      setCommentText("");
+      try {
+        await addComment(selectedPost.id, commentText);
+        setCommentText("");
+      } catch (error) {
+        console.error("Error submitting comment:", error);
+      }
     }
   };
 

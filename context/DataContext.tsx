@@ -1112,8 +1112,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [sessions]);
 
   const likePost = useCallback(async (postId: string) => {
+    console.log("[likePost] Attempting to like. User:", user?.id, "isGuest:", isGuest);
+    
     // Check if user is authenticated
     if (!user || isGuest) {
+      console.log("[likePost] User not authenticated, showing alert");
       Alert.alert(
         "Sign In Required",
         "Please sign in to like posts.",
@@ -1174,8 +1177,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addComment = useCallback(async (postId: string, text: string) => {
     if (!text.trim()) return;
 
+    console.log("[addComment] Attempting to add comment. User:", user?.id, "isGuest:", isGuest);
+
     // Check if user is authenticated
     if (!user || isGuest) {
+      console.log("[addComment] User not authenticated, showing alert");
       Alert.alert(
         "Sign In Required",
         "Please sign in to comment on posts.",
