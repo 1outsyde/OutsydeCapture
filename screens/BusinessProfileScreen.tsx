@@ -7,6 +7,7 @@ import {
   Linking,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -39,10 +40,16 @@ export default function BusinessProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<BusinessProfileRouteProp>();
-  const { getToken, isAuthenticated } = useAuth();
+  const { getToken, isAuthenticated, user } = useAuth();
   const initialData = route.params.business;
 
   const [business, setBusiness] = useState<BusinessProfileData>(initialData);
+  
+  // Detect if viewing own profile - compare current user ID with business's userId
+  const isOwner = Boolean(
+    user?.id && 
+    ((business as any).userId === user.id || business.id === user.id)
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isStartingChat, setIsStartingChat] = useState(false);
@@ -153,13 +160,22 @@ export default function BusinessProfileScreen() {
       return;
     }
     
+    // Get the correct userId for the business owner
+    const participantUserId = (business as any).userId || business.id;
+    
+    // Frontend guard: Block self-messaging
+    if (user?.id && (participantUserId === user.id)) {
+      Alert.alert("Cannot Message", "You cannot send a message to yourself.");
+      return;
+    }
+    
     try {
       setIsStartingChat(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       const authToken = await getToken();
       const conversation = await api.createOrGetConversation({
-        participantId: business.id,
+        participantId: participantUserId,
         participantType: business.resultType === "photographer" ? "photographer" : "business",
         participantName: business.name,
         participantAvatar: business.avatar,
@@ -328,24 +344,26 @@ export default function BusinessProfileScreen() {
 
         <View style={styles.contentSection}>
           <View style={styles.actionButtons}>
-            <Pressable
-              onPress={handleMessage}
-              disabled={isStartingChat}
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.actionButtonSecondary,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed || isStartingChat ? 0.6 : 1 },
-              ]}
-            >
-              {isStartingChat ? (
-                <ActivityIndicator size="small" color={theme.text} />
-              ) : (
-                <Feather name="message-circle" size={20} color={theme.text} />
-              )}
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
-                Message
-              </ThemedText>
-            </Pressable>
+            {!isOwner && (
+              <Pressable
+                onPress={handleMessage}
+                disabled={isStartingChat}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  styles.actionButtonSecondary,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed || isStartingChat ? 0.6 : 1 },
+                ]}
+              >
+                {isStartingChat ? (
+                  <ActivityIndicator size="small" color={theme.text} />
+                ) : (
+                  <Feather name="message-circle" size={20} color={theme.text} />
+                )}
+                <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
+                  Message
+                </ThemedText>
+              </Pressable>
+            )}
 
             <Pressable
               onPress={handleBook}

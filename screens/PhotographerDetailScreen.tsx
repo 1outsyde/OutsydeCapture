@@ -6,8 +6,10 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
+import api from "@/services/api";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
@@ -27,12 +29,19 @@ export default function PhotographerDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
   const { photographer } = route.params;
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, getToken } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
   const insets = useSafeAreaInsets();
   
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [additionalPhotos, setAdditionalPhotos] = useState<string[]>([]);
+  const [isStartingChat, setIsStartingChat] = useState(false);
+  
+  // Detect if viewing own profile
+  const isOwner = Boolean(
+    user?.id && 
+    ((photographer as any).userId === user.id || photographer.id === user.id)
+  );
 
   const allPortfolioPhotos = [...photographer.portfolio, ...additionalPhotos];
   const isPhotographerSaved = isFavorite(photographer.id, "photographer");
@@ -47,13 +56,51 @@ export default function PhotographerDetailScreen() {
     });
   };
 
-  const handleMessage = () => {
+  const handleMessage = async () => {
+    if (isStartingChat) return;
+    
     if (!isAuthenticated) {
       navigation.navigate("Auth", {});
       return;
     }
-    const conversationId = `conv_${photographer.id}`;
-    navigation.navigate("Conversation", { conversationId });
+    
+    // Get the correct userId for the photographer
+    const participantUserId = (photographer as any).userId || photographer.id;
+    
+    // Frontend guard: Block self-messaging
+    if (user?.id && (participantUserId === user.id)) {
+      Alert.alert("Cannot Message", "You cannot send a message to yourself.");
+      return;
+    }
+    
+    try {
+      setIsStartingChat(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const authToken = await getToken();
+      const conversation = await api.createOrGetConversation({
+        participantId: participantUserId,
+        participantType: "photographer",
+        participantName: photographer.name,
+        participantAvatar: photographer.avatar,
+      }, authToken);
+      
+      navigation.navigate("Chat", {
+        conversationId: conversation.id,
+        participantId: participantUserId,
+        participantName: photographer.name,
+        participantAvatar: photographer.avatar,
+        participantType: "photographer",
+      });
+    } catch (error) {
+      console.error("Failed to create conversation:", error);
+      Alert.alert(
+        "Message Failed",
+        "Unable to start a conversation right now. Please try again later."
+      );
+    } finally {
+      setIsStartingChat(false);
+    }
   };
 
   const handleAddPhoto = async () => {
@@ -335,15 +382,18 @@ export default function PhotographerDetailScreen() {
           },
         ]}
       >
-        <Pressable
-          onPress={handleMessage}
-          style={({ pressed }) => [
-            styles.messageButton,
-            { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-          ]}
-        >
-          <Feather name="message-circle" size={24} color={theme.primary} />
-        </Pressable>
+        {!isOwner && (
+          <Pressable
+            onPress={handleMessage}
+            disabled={isStartingChat}
+            style={({ pressed }) => [
+              styles.messageButton,
+              { backgroundColor: theme.backgroundDefault, opacity: pressed || isStartingChat ? 0.8 : 1 },
+            ]}
+          >
+            <Feather name="message-circle" size={24} color={theme.primary} />
+          </Pressable>
+        )}
         <View style={styles.footerPrice}>
           <ThemedText type="caption" style={{ color: theme.textSecondary }}>
             Starting at

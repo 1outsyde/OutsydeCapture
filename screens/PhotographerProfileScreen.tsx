@@ -43,10 +43,16 @@ export default function PhotographerProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<PhotographerProfileRouteProp>();
-  const { getToken, isAuthenticated } = useAuth();
+  const { getToken, isAuthenticated, user } = useAuth();
   const initialData = route.params.photographer;
 
   const [photographer, setPhotographer] = useState<PhotographerProfileData>(initialData);
+  
+  // Detect if viewing own profile - compare current user ID with photographer's userId
+  const isOwner = Boolean(
+    user?.id && 
+    (photographer.userId === user.id || photographer.id === user.id)
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isStartingChat, setIsStartingChat] = useState(false);
@@ -189,13 +195,20 @@ export default function PhotographerProfileScreen() {
       return;
     }
     
+    // Use userId for conversation creation (backend expects user ID, not photographer profile ID)
+    const participantUserId = photographer.userId || photographer.id;
+    
+    // Frontend guard: Block self-messaging
+    if (user?.id && (participantUserId === user.id)) {
+      Alert.alert("Cannot Message", "You cannot send a message to yourself.");
+      return;
+    }
+    
     try {
       setIsStartingChat(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       const authToken = await getToken();
-      // Use userId for conversation creation (backend expects user ID, not photographer profile ID)
-      const participantUserId = photographer.userId || photographer.id;
       
       const conversation = await api.createOrGetConversation({
         participantId: participantUserId,
@@ -406,24 +419,26 @@ export default function PhotographerProfileScreen() {
 
         <View style={styles.contentSection}>
           <View style={styles.actionButtons}>
-            <Pressable
-              onPress={handleMessage}
-              disabled={isStartingChat}
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.actionButtonSecondary,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed || isStartingChat ? 0.6 : 1 },
-              ]}
-            >
-              {isStartingChat ? (
-                <ActivityIndicator size="small" color={theme.text} />
-              ) : (
-                <Feather name="message-circle" size={20} color={theme.text} />
-              )}
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
-                Message
-              </ThemedText>
-            </Pressable>
+            {!isOwner && (
+              <Pressable
+                onPress={handleMessage}
+                disabled={isStartingChat}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  styles.actionButtonSecondary,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed || isStartingChat ? 0.6 : 1 },
+                ]}
+              >
+                {isStartingChat ? (
+                  <ActivityIndicator size="small" color={theme.text} />
+                ) : (
+                  <Feather name="message-circle" size={20} color={theme.text} />
+                )}
+                <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
+                  Message
+                </ThemedText>
+              </Pressable>
+            )}
 
             <Pressable
               onPress={handleBook}
