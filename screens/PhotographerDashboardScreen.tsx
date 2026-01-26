@@ -37,6 +37,7 @@ import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorM
 import { VendorBookerPhotographerService } from "@/services/api";
 import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
 import { useVideoPlayer, VideoView } from "expo-video";
+import MediaUploader from "@/components/MediaUploader";
 
 const SPECIALTIES = [
   "Portraits", "Weddings", "Events", "Products",
@@ -1521,17 +1522,22 @@ export default function PhotographerDashboardScreen() {
               <Text style={styles.formLabel}>Profile Banner</Text>
               <Text style={styles.formHint}>Choose a banner style for your public profile</Text>
               
-              {/* Banner Type Selector */}
+              {/* Banner Type Selector - 3 options: Color, Media, Presets */}
               <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
                 {[
                   { type: "color" as const, label: "Color", icon: "droplet" as const },
-                  { type: "image" as const, label: "Photo", icon: "image" as const },
-                  { type: "video" as const, label: "Video", icon: "video" as const },
+                  { type: "media" as const, label: "Media", icon: "upload" as const },
                   { type: "mock" as const, label: "Presets", icon: "grid" as const },
                 ].map(opt => (
                   <Pressable
                     key={opt.type}
-                    onPress={() => setEditProfile({ ...editProfile, bannerType: opt.type })}
+                    onPress={() => {
+                      if (opt.type === "media") {
+                        setEditProfile({ ...editProfile, bannerType: editProfile.bannerVideo ? "video" : "image" });
+                      } else {
+                        setEditProfile({ ...editProfile, bannerType: opt.type });
+                      }
+                    }}
                     style={{
                       flex: 1,
                       flexDirection: "row",
@@ -1539,11 +1545,11 @@ export default function PhotographerDashboardScreen() {
                       justifyContent: "center",
                       paddingVertical: 10,
                       borderRadius: 8,
-                      backgroundColor: editProfile.bannerType === opt.type ? theme.primary : theme.backgroundSecondary,
+                      backgroundColor: (opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? theme.primary : theme.backgroundSecondary,
                     }}
                   >
-                    <Feather name={opt.icon} size={14} color={editProfile.bannerType === opt.type ? "#000" : theme.text} />
-                    <Text style={{ marginLeft: 4, fontSize: 12, fontWeight: "600", color: editProfile.bannerType === opt.type ? "#000" : theme.text }}>
+                    <Feather name={opt.icon} size={14} color={(opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? "#000" : theme.text} />
+                    <Text style={{ marginLeft: 4, fontSize: 12, fontWeight: "600", color: (opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? "#000" : theme.text }}>
                       {opt.label}
                     </Text>
                   </Pressable>
@@ -1563,105 +1569,41 @@ export default function PhotographerDashboardScreen() {
                 </View>
               )}
 
-              {editProfile.bannerType === "image" && (
-                <Pressable
-                  onPress={async () => {
-                    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                    if (status !== "granted") {
-                      Alert.alert("Permission Required", "Please allow access to your photo library.");
-                      return;
-                    }
-                    const result = await ImagePicker.launchImageLibraryAsync({
-                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                      allowsEditing: true,
-                      aspect: [16, 9],
-                      quality: 0.8,
-                    });
-                    if (!result.canceled && result.assets[0]) {
-                      try {
-                        setEditProfile({ ...editProfile, bannerImage: result.assets[0].uri });
-                        const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, "banners");
-                        setEditProfile(prev => ({ ...prev, bannerImage: cloudinaryUrl }));
-                      } catch (error) {
-                        console.error("[Dashboard] Banner upload failed:", error);
-                        Alert.alert("Upload Failed", "Could not upload banner image. Please try again.");
-                        setEditProfile(prev => ({ ...prev, bannerImage: "" }));
-                      }
+              {(editProfile.bannerType === "image" || editProfile.bannerType === "video") && (
+                <MediaUploader
+                  currentImage={editProfile.bannerImage || undefined}
+                  currentVideo={editProfile.bannerVideo || undefined}
+                  currentMediaType={editProfile.bannerType === "video" ? "video" : editProfile.bannerType === "image" ? "image" : undefined}
+                  onMediaUploaded={(url, mediaType) => {
+                    console.log("[Dashboard] MediaUploader callback:", { url: url.substring(0, 50), mediaType });
+                    if (mediaType === "video") {
+                      setEditProfile(prev => ({ 
+                        ...prev, 
+                        bannerVideo: url, 
+                        bannerImage: "",
+                        bannerType: "video" 
+                      }));
+                    } else {
+                      setEditProfile(prev => ({ 
+                        ...prev, 
+                        bannerImage: url, 
+                        bannerVideo: "",
+                        bannerType: "image" 
+                      }));
                     }
                   }}
-                  style={{ 
-                    height: 120, 
-                    borderRadius: 12, 
-                    backgroundColor: theme.backgroundSecondary,
-                    overflow: "hidden",
+                  onRemove={() => {
+                    setEditProfile(prev => ({ 
+                      ...prev, 
+                      bannerImage: "", 
+                      bannerVideo: "",
+                      bannerType: "color" 
+                    }));
                   }}
-                >
-                  {editProfile.bannerImage ? (
-                    <Image source={{ uri: editProfile.bannerImage }} style={{ width: "100%", height: "100%" }} />
-                  ) : (
-                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="upload" size={24} color={theme.textSecondary} />
-                      <Text style={{ color: theme.textSecondary, marginTop: 8, fontSize: 13 }}>Tap to upload banner photo</Text>
-                    </View>
-                  )}
-                </Pressable>
-              )}
-
-              {editProfile.bannerType === "video" && (
-                <Pressable
-                  onPress={async () => {
-                    if (uploadingVideo) return;
-                    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                    if (status !== "granted") {
-                      Alert.alert("Permission Required", "Please allow access to your photo library.");
-                      return;
-                    }
-                    const result = await ImagePicker.launchImageLibraryAsync({
-                      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-                      allowsEditing: true,
-                      videoMaxDuration: 15,
-                      quality: 0.8,
-                    });
-                    if (!result.canceled && result.assets[0]) {
-                      const asset = result.assets[0];
-                      const localUri = asset.uri;
-                      setUploadingVideo(true);
-                      try {
-                        console.log("[Dashboard] Starting video upload to Cloudinary...");
-                        console.log("[Dashboard] Video asset:", { uri: localUri, mimeType: asset.mimeType, fileName: asset.fileName });
-                        const cloudinaryUrl = await uploadVideoToCloudinary(localUri, "banners", asset.mimeType);
-                        console.log("[Dashboard] Video uploaded successfully:", cloudinaryUrl);
-                        setEditProfile(prev => ({ ...prev, bannerVideo: cloudinaryUrl, bannerType: "video" }));
-                      } catch (error) {
-                        console.error("[Dashboard] Video upload failed:", error);
-                        Alert.alert("Upload Failed", "Could not upload banner video. Please try again.");
-                        setEditProfile(prev => ({ ...prev, bannerVideo: "" }));
-                      } finally {
-                        setUploadingVideo(false);
-                      }
-                    }
-                  }}
-                  style={{ 
-                    height: 120, 
-                    borderRadius: 12, 
-                    backgroundColor: theme.backgroundSecondary,
-                    overflow: "hidden",
-                  }}
-                >
-                  {uploadingVideo ? (
-                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                      <ActivityIndicator size="large" color={theme.primary} />
-                      <Text style={{ color: theme.textSecondary, marginTop: 8, fontSize: 12 }}>Uploading video...</Text>
-                    </View>
-                  ) : editProfile.bannerVideo ? (
-                    <VideoPreview uri={editProfile.bannerVideo} />
-                  ) : (
-                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="video" size={24} color={theme.textSecondary} />
-                      <Text style={{ color: theme.textSecondary, marginTop: 8, fontSize: 13 }}>Tap to upload video (max 15s)</Text>
-                    </View>
-                  )}
-                </Pressable>
+                  folder="banners"
+                  maxVideoDuration={15}
+                  placeholder="Upload banner image"
+                />
               )}
 
               {editProfile.bannerType === "mock" && (
