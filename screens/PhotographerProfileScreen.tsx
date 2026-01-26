@@ -197,9 +197,15 @@ export default function PhotographerProfileScreen() {
     
     // Use userId for conversation creation (backend expects user ID, not photographer profile ID)
     const participantUserId = photographer.userId || photographer.id;
+    const senderId = user?.id;
+    
+    // Dev logging for ID mapping debugging
+    if (__DEV__) {
+      console.log("[PhotographerProfile] handleMessage - senderId:", senderId, "recipientId:", participantUserId);
+    }
     
     // Frontend guard: Block self-messaging
-    if (user?.id && (participantUserId === user.id)) {
+    if (senderId && (participantUserId === senderId)) {
       Alert.alert("Cannot Message", "You cannot send a message to yourself.");
       return;
     }

@@ -162,9 +162,15 @@ export default function BusinessProfileScreen() {
     
     // Get the correct userId for the business owner
     const participantUserId = (business as any).userId || business.id;
+    const senderId = user?.id;
+    
+    // Dev logging for ID mapping debugging
+    if (__DEV__) {
+      console.log("[BusinessProfile] handleMessage - senderId:", senderId, "recipientId:", participantUserId);
+    }
     
     // Frontend guard: Block self-messaging
-    if (user?.id && (participantUserId === user.id)) {
+    if (senderId && (participantUserId === senderId)) {
       Alert.alert("Cannot Message", "You cannot send a message to yourself.");
       return;
     }
@@ -183,7 +189,7 @@ export default function BusinessProfileScreen() {
       
       navigation.navigate("Chat", {
         conversationId: conversation.id,
-        participantId: business.id,
+        participantId: participantUserId,
         participantName: business.name,
         participantAvatar: business.avatar,
         participantType: business.resultType === "photographer" ? "photographer" : "business",

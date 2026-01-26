@@ -66,9 +66,15 @@ export default function PhotographerDetailScreen() {
     
     // Get the correct userId for the photographer
     const participantUserId = (photographer as any).userId || photographer.id;
+    const senderId = user?.id;
+    
+    // Dev logging for ID mapping debugging
+    if (__DEV__) {
+      console.log("[PhotographerDetail] handleMessage - senderId:", senderId, "recipientId:", participantUserId);
+    }
     
     // Frontend guard: Block self-messaging
-    if (user?.id && (participantUserId === user.id)) {
+    if (senderId && (participantUserId === senderId)) {
       Alert.alert("Cannot Message", "You cannot send a message to yourself.");
       return;
     }
