@@ -150,8 +150,10 @@ export default function ChatScreen() {
       setIsLoading(true);
       setError(null);
       const authToken = await getToken();
-      const fetchedMessages = await api.getMessages(conversationId, authToken);
-      setMessages(fetchedMessages);
+      const response = await api.getMessages(conversationId, authToken);
+      // Normalize response: handle both array and { messages: [...] } shapes
+      const messagesArray = Array.isArray(response) ? response : ((response as any).messages || []);
+      setMessages(messagesArray);
     } catch (err) {
       const apiError = err as ApiError;
       if (apiError.status === 404) {
@@ -208,10 +210,13 @@ export default function ChatScreen() {
     }
   };
 
+  // GUARD: Ensure messages is always an array before processing
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  
   const groupedMessages: { date: string; messages: ApiMessage[] }[] = [];
   let currentDate = "";
 
-  messages.forEach((message) => {
+  safeMessages.forEach((message) => {
     const messageDate = formatMessageDate(message.createdAt);
     if (messageDate !== currentDate) {
       currentDate = messageDate;
