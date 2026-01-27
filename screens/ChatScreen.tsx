@@ -73,17 +73,28 @@ function MessageBubble({ message, isOwnMessage }: MessageBubbleProps) {
       >
         {message.content}
       </ThemedText>
-      <ThemedText
-        type="small"
-        style={[
-          styles.messageTime,
-          { color: isOwnMessage ? "rgba(255,255,255,0.7)" : theme.textSecondary },
-        ]}
-      >
-        {formatMessageTime(message.createdAt)}
+    </View>
+  );
+}
+
+function HourSeparator({ time }: { time: string }) {
+  const { theme } = useTheme();
+
+  return (
+    <View style={styles.hourSeparator}>
+      <ThemedText type="small" style={[styles.hourText, { color: theme.textSecondary }]}>
+        {time}
       </ThemedText>
     </View>
   );
+}
+
+function shouldShowHourSeparator(currentMsg: ApiMessage, prevMsg: ApiMessage | null): boolean {
+  if (!prevMsg) return true;
+  const currentTime = new Date(currentMsg.createdAt).getTime();
+  const prevTime = new Date(prevMsg.createdAt).getTime();
+  const diffMinutes = (currentTime - prevTime) / (1000 * 60);
+  return diffMinutes >= 60;
 }
 
 function DateSeparator({ date }: { date: string }) {
@@ -229,13 +240,21 @@ export default function ChatScreen() {
   const renderItem = ({ item }: { item: { date: string; messages: ApiMessage[] } }) => (
     <View>
       <DateSeparator key={`date-${item.date}`} date={item.date} />
-      {item.messages.map((message) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-          isOwnMessage={message.senderId === user?.id || message.senderId === "current-user"}
-        />
-      ))}
+      {item.messages.map((message, index) => {
+        const prevMessage = index > 0 ? item.messages[index - 1] : null;
+        const showHourSeparator = shouldShowHourSeparator(message, prevMessage);
+        return (
+          <React.Fragment key={message.id}>
+            {showHourSeparator && (
+              <HourSeparator time={formatMessageTime(message.createdAt)} />
+            )}
+            <MessageBubble
+              message={message}
+              isOwnMessage={message.senderId === user?.id || message.senderId === "current-user"}
+            />
+          </React.Fragment>
+        );
+      })}
     </View>
   );
 
@@ -417,6 +436,13 @@ const styles = StyleSheet.create({
   },
   dateText: {
     marginHorizontal: Spacing.md,
+  },
+  hourSeparator: {
+    alignItems: "center",
+    marginVertical: Spacing.sm,
+  },
+  hourText: {
+    fontSize: 11,
   },
   emptyMessages: {
     flex: 1,
