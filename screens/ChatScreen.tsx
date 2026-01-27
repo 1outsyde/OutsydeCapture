@@ -246,7 +246,7 @@ export default function ChatScreen() {
   const renderItem = ({ item }: { item: { date: string; messages: ApiMessage[] } }) => (
     <View>
       {item.date !== "Unknown" ? (
-        <DateSeparator key={`date-${item.date}`} date={item.date} />
+        <DateSeparator date={item.date} />
       ) : null}
       {item.messages.map((message, index) => {
         const prevMessage = index > 0 ? item.messages[index - 1] : null;
