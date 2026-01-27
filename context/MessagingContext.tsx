@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import { useAuth } from "./AuthContext";
 import api, { ApiConversation, ApiMessage, CreateConversationRequest } from "@/services/api";
 
@@ -63,23 +64,20 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const appState = useRef(AppState.currentState);
 
   const refreshConversations = useCallback(async () => {
     if (!isAuthenticated || !user) {
-      console.log("[MessagingContext] Not authenticated, clearing conversations");
       setConversations([]);
       return;
     }
 
-    console.log("[MessagingContext] Fetching conversations for user:", user.id);
     setIsLoading(true);
     setError(null);
 
     try {
       const token = await getToken();
-      console.log("[MessagingContext] Token obtained, calling API");
       const response = await api.getConversations(token);
-      console.log("[MessagingContext] API response:", JSON.stringify(response));
       
       // Normalize response - handle both array and wrapped object shapes
       let apiConversations: ApiConversation[] = [];
@@ -89,10 +87,9 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
         apiConversations = (response as any).conversations || [];
       }
       
-      console.log("[MessagingContext] Parsed conversations count:", apiConversations.length);
       setConversations(apiConversations.map(mapApiConversation));
     } catch (err: any) {
-      console.error("[MessagingContext] Failed to fetch conversations:", err);
+      console.error("Failed to fetch conversations:", err);
       if (err?.status === 404 || err?.status === 401) {
         setConversations([]);
       } else {
@@ -103,13 +100,32 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, user, getToken]);
 
+  // Fetch on initial mount and when auth state changes
   useEffect(() => {
     if (isAuthenticated && user) {
       refreshConversations();
     } else {
       setConversations([]);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, refreshConversations]);
+
+  // Fetch on app resume (background -> foreground)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active" &&
+        isAuthenticated &&
+        user
+      ) {
+        refreshConversations();
+      }
+      appState.current = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription.remove();
+  }, [isAuthenticated, user, refreshConversations]);
 
   const getMessages = useCallback(async (conversationId: string): Promise<Message[]> => {
     try {
@@ -149,6 +165,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
       const apiConversation = await api.createOrGetConversation(data, token);
       const conversation = mapApiConversation(apiConversation);
       
+      // Immediately add to local state for instant UI feedback
       setConversations(prev => {
         const exists = prev.find(c => c.id === conversation.id);
         if (exists) {
@@ -157,12 +174,16 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
         return [conversation, ...prev];
       });
       
+      // Also trigger a full refresh to sync with server
+      // This ensures the Messages tab always reflects the true server state
+      refreshConversations();
+      
       return conversation;
     } catch (err: any) {
       console.error("Failed to create/get conversation:", err);
       return null;
     }
-  }, [getToken]);
+  }, [getToken, refreshConversations]);
 
   const markConversationAsRead = useCallback((conversationId: string) => {
     setConversations(prev => prev.map(conv =>

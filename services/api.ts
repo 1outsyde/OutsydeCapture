@@ -1308,11 +1308,9 @@ class ApiService {
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    console.log("[API] GET /api/conversations", authToken ? "with auth" : "no auth");
     const response = await this.request<ApiConversation[] | { conversations: ApiConversation[] }>("/api/conversations", {
       headers,
     });
-    console.log("[API] Response /api/conversations:", JSON.stringify(response));
     
     // Normalize response - handle both array and wrapped object
     if (Array.isArray(response)) {
