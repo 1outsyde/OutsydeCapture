@@ -185,32 +185,31 @@ export default function ProfileScreen() {
   const profileUserType = userType || "consumer";
   const isGuest = user?.isGuest || false;
 
-  // Multi-layer ownership detection:
-  // 1. Compare user.id with userId from route
-  // 2. For photographers: compare user.photographerId with profileId (photographer record ID)
-  // 3. For businesses: compare user.businessId with profileId (business record ID)
-  // 4. Fallback to backend-detected self-profile
-  const isOwnerByUserId = user?.id === userId;
-  const isOwnerByPhotographerId = profileUserType === "photographer" && !!user?.photographerId && user.photographerId === fetchId;
-  const isOwnerByBusinessId = profileUserType === "business" && !!user?.businessId && user.businessId === fetchId;
-  const isOwnerComputed = isOwnerByUserId || isOwnerByPhotographerId || isOwnerByBusinessId;
-  const isOwner = isOwnerComputed || isSelfProfile;
+  // CANDIDATE ownership for API endpoint selection only (may be stale from route params)
+  // This decides which API to call (public vs /me endpoint)
+  const isCandidateOwner = Boolean(
+    user?.id && userId && user.id === userId
+  );
+
+  // AUTHORITATIVE ownership from fetched profile data
+  // This is the ONLY source of truth for showing owner-only UI (Edit Profile, etc.)
+  // Never use route params or role flags - those can be stale/desync'd
+  const isOwner = Boolean(
+    profile?.userId && 
+    user?.id && 
+    profile.userId === user.id
+  );
 
   // Debug ownership detection
-  console.log("[ProfileScreen] Ownership check:", {
-    "user.id": user?.id,
-    "user.photographerId": user?.photographerId,
-    "user.businessId": user?.businessId,
-    userId,
-    fetchId,
-    profileUserType,
-    isOwnerByUserId,
-    isOwnerByPhotographerId,
-    isOwnerByBusinessId,
-    isOwnerComputed,
-    isSelfProfile,
-    isOwner,
-  });
+  if (__DEV__) {
+    console.log("[ProfileScreen] Ownership check:", {
+      "profile?.userId": profile?.userId,
+      "user?.id": user?.id,
+      isCandidateOwner,
+      isOwner,
+      profileUserType,
+    });
+  }
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -218,7 +217,7 @@ export default function ProfileScreen() {
       const token = await getToken();
 
       if (profileUserType === "photographer") {
-        if (isOwner && token) {
+        if (isCandidateOwner && token) {
           const photographer = (await api.getPhotographerMe(token)) as any;
           const coverUrl = photographer.coverImage || "";
           const isVideo = coverUrl.match(/\.(mp4|mov|webm|m4v)$/i) || coverUrl.includes("video");
@@ -363,7 +362,7 @@ export default function ProfileScreen() {
           }
         }
       } else if (profileUserType === "business") {
-        if (isOwner && token) {
+        if (isCandidateOwner && token) {
           const [businessRes, productsRes, servicesRes] = await Promise.all([
             api.getVendorMyBusiness(token),
             api.getVendorProducts(token).catch(() => ({ products: [] })),
@@ -461,7 +460,8 @@ export default function ProfileScreen() {
         console.warn("[ProfileScreen] Could not fetch posts:", e);
       }
 
-      if (!isOwnerComputed && userId) {
+      // Always check follow status - backend will indicate if it's self-profile
+      if (userId) {
         try {
           const result = await api.checkFollowStatus(userId);
           // Check if backend response indicates self-profile
@@ -490,7 +490,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [userId, fetchId, profileUserType, isOwnerComputed, getToken, initialDisplayName, initialAvatar]);
+  }, [userId, fetchId, profileUserType, isCandidateOwner, getToken, initialDisplayName, initialAvatar]);
 
   useEffect(() => {
     fetchProfile();
