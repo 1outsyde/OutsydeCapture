@@ -12,7 +12,7 @@ import {
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -199,13 +199,19 @@ export default function BusinessProfileScreen() {
         throw new Error("No conversation ID returned from API");
       }
       
-      navigation.navigate("Chat", {
-        conversationId,
-        participantId: business.id,
-        participantName: business.name,
-        participantAvatar: business.avatar,
-        participantType,
-      });
+      // Use dispatch with CommonActions to escape modal/nested stack
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: "Chat",
+          params: {
+            conversationId,
+            participantId: business.id,
+            participantName: business.name,
+            participantAvatar: business.avatar,
+            participantType,
+          },
+        })
+      );
     } catch (error) {
       console.error("Failed to create conversation:", error);
     } finally {
