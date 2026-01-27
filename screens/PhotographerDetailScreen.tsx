@@ -87,15 +87,23 @@ export default function PhotographerDetailScreen() {
       const authToken = await getToken();
       
       // API expects photographer entity ID, not auth userId
-      const conversation = await api.createOrGetConversation({
+      const response = await api.createOrGetConversation({
         participantId: photographer.id,
         participantType: "photographer",
         participantName: photographer.name,
         participantAvatar: photographer.avatar,
       }, authToken);
       
+      // Handle both { id } and { conversation: { id } } response shapes
+      const conversationId = (response as any).conversation?.id || response.id;
+      console.log("[PhotographerDetail] Navigating to conversation:", conversationId);
+      
+      if (!conversationId) {
+        throw new Error("No conversation ID returned from API");
+      }
+      
       navigation.navigate("Chat", {
-        conversationId: conversation.id,
+        conversationId,
         participantId: photographer.id,
         participantName: photographer.name,
         participantAvatar: photographer.avatar,

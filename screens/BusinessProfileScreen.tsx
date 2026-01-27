@@ -184,15 +184,23 @@ export default function BusinessProfileScreen() {
       const participantType = business.resultType === "photographer" ? "photographer" : "business";
       
       // API expects business/photographer entity ID, not auth userId
-      const conversation = await api.createOrGetConversation({
+      const response = await api.createOrGetConversation({
         participantId: business.id,
         participantType,
         participantName: business.name,
         participantAvatar: business.avatar,
       }, authToken);
       
+      // Handle both { id } and { conversation: { id } } response shapes
+      const conversationId = (response as any).conversation?.id || response.id;
+      console.log("[BusinessProfile] Navigating to conversation:", conversationId);
+      
+      if (!conversationId) {
+        throw new Error("No conversation ID returned from API");
+      }
+      
       navigation.navigate("Chat", {
-        conversationId: conversation.id,
+        conversationId,
         participantId: business.id,
         participantName: business.name,
         participantAvatar: business.avatar,

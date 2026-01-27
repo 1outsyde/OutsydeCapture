@@ -139,6 +139,13 @@ export default function ChatScreen() {
   }, [participantName, participantAvatar, theme]);
 
   const fetchMessages = useCallback(async () => {
+    // GUARD: Never fetch if conversationId is undefined
+    if (!conversationId) {
+      console.error("[ChatScreen] Cannot fetch messages - conversationId is undefined");
+      setError("Invalid conversation");
+      return;
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
