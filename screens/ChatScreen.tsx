@@ -27,13 +27,15 @@ import api, { ApiMessage, ApiError } from "@/services/api";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Chat">;
 
-function formatMessageTime(timestamp: string): string {
+function formatMessageTime(timestamp: string): string | null {
   const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function formatMessageDate(timestamp: string): string {
+function formatMessageDate(timestamp: string): string | null {
   const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -90,10 +92,12 @@ function HourSeparator({ time }: { time: string }) {
 }
 
 function shouldShowHourSeparator(currentMsg: ApiMessage, prevMsg: ApiMessage | null): boolean {
+  const currentDate = new Date(currentMsg.createdAt);
+  if (isNaN(currentDate.getTime())) return false;
   if (!prevMsg) return true;
-  const currentTime = new Date(currentMsg.createdAt).getTime();
-  const prevTime = new Date(prevMsg.createdAt).getTime();
-  const diffMinutes = (currentTime - prevTime) / (1000 * 60);
+  const prevDate = new Date(prevMsg.createdAt);
+  if (isNaN(prevDate.getTime())) return true;
+  const diffMinutes = (currentDate.getTime() - prevDate.getTime()) / (1000 * 60);
   return diffMinutes >= 60;
 }
 
@@ -228,26 +232,31 @@ export default function ChatScreen() {
   let currentDate = "";
 
   safeMessages.forEach((message) => {
-    const messageDate = formatMessageDate(message.createdAt);
+    const messageDate = formatMessageDate(message.createdAt) || "Unknown";
     if (messageDate !== currentDate) {
       currentDate = messageDate;
       groupedMessages.push({ date: messageDate, messages: [message] });
-    } else {
+    } else if (groupedMessages.length > 0) {
       groupedMessages[groupedMessages.length - 1].messages.push(message);
+    } else {
+      groupedMessages.push({ date: messageDate, messages: [message] });
     }
   });
 
   const renderItem = ({ item }: { item: { date: string; messages: ApiMessage[] } }) => (
     <View>
-      <DateSeparator key={`date-${item.date}`} date={item.date} />
+      {item.date !== "Unknown" ? (
+        <DateSeparator key={`date-${item.date}`} date={item.date} />
+      ) : null}
       {item.messages.map((message, index) => {
         const prevMessage = index > 0 ? item.messages[index - 1] : null;
         const showHourSeparator = shouldShowHourSeparator(message, prevMessage);
+        const timeText = formatMessageTime(message.createdAt);
         return (
           <React.Fragment key={message.id}>
-            {showHourSeparator && (
-              <HourSeparator time={formatMessageTime(message.createdAt)} />
-            )}
+            {showHourSeparator && timeText ? (
+              <HourSeparator time={timeText} />
+            ) : null}
             <MessageBubble
               message={message}
               isOwnMessage={message.senderId === user?.id || message.senderId === "current-user"}
