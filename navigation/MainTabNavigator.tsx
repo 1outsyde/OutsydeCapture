@@ -14,11 +14,7 @@ import AccountStackNavigator from "@/navigation/AccountStackNavigator";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-
-const useMessaging = () => ({
-  getTotalUnreadCount: () => 0,
-});
-
+import { useMessaging } from "@/context/MessagingContext";
 import { MainTabParamList } from "@/navigation/types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -27,7 +23,7 @@ const TAB_BAR_HEIGHT = 83;
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { getTotalUnreadCount } = useMessaging();
+  const { totalUnreadCount } = useMessaging();
   const { user } = useAuth();
   const navigation = useNavigation();
   const isGuest = user?.isGuest || !user;
@@ -105,7 +101,7 @@ export default function MainTabNavigator() {
             tabBarIcon: ({ color, size }) => (
               <Feather name="message-circle" size={size} color={color} />
             ),
-            tabBarBadge: getTotalUnreadCount() > 0 ? getTotalUnreadCount() : undefined,
+            tabBarBadge: totalUnreadCount > 0 ? totalUnreadCount : undefined,
           }}
         />
 
