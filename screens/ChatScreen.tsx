@@ -228,7 +228,7 @@ export default function ChatScreen() {
 
   const renderItem = ({ item }: { item: { date: string; messages: ApiMessage[] } }) => (
     <View>
-      <DateSeparator date={item.date} />
+      <DateSeparator key={`date-${item.date}`} date={item.date} />
       {item.messages.map((message) => (
         <MessageBubble
           key={message.id}
