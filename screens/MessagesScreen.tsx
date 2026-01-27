@@ -16,17 +16,27 @@ import { RootStackParamList } from "@/navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-function formatMessageTime(timestamp: string): string {
+function formatRelativeTime(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
 
-  if (diffDays === 0) {
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (diffMins < 1) {
+    return "now";
+  } else if (diffMins < 60) {
+    return `${diffMins}m`;
+  } else if (diffHours < 24) {
+    return `${diffHours}h`;
   } else if (diffDays === 1) {
-    return "Yesterday";
+    return "1d";
   } else if (diffDays < 7) {
-    return date.toLocaleDateString([], { weekday: "short" });
+    return `${diffDays}d`;
+  } else if (diffWeeks < 4) {
+    return `${diffWeeks}w`;
   } else {
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
   }
@@ -36,12 +46,20 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
   const { theme } = useTheme();
   const hasUnread = conversation.unreadCount > 0;
 
+  const messagePreview = conversation.lastMessage 
+    ? conversation.lastMessage 
+    : "Tap to send a message";
+  
+  const timeDisplay = conversation.lastMessageAt 
+    ? ` · ${formatRelativeTime(conversation.lastMessageAt)}` 
+    : "";
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.conversationItem,
-        { backgroundColor: pressed ? theme.backgroundSecondary : theme.background },
+        { backgroundColor: pressed ? theme.backgroundSecondary : "transparent" },
       ]}
     >
       <View style={styles.avatarContainer}>
@@ -55,7 +73,7 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
         ) : (
           <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
             <Feather 
-              name={conversation.participantType === "business" ? "briefcase" : "camera"} 
+              name={conversation.participantType === "business" ? "briefcase" : "user"} 
               size={24} 
               color={theme.textSecondary} 
             />
@@ -66,38 +84,27 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
         ) : null}
       </View>
       <View style={styles.conversationContent}>
-        <View style={styles.conversationHeader}>
-          <ThemedText
-            type={hasUnread ? "h4" : "body"}
-            numberOfLines={1}
-            style={styles.participantName}
-          >
-            {conversation.participantName}
-          </ThemedText>
-          {conversation.lastMessageAt ? (
-            <ThemedText type="caption" style={{ color: hasUnread ? theme.primary : theme.textSecondary }}>
-              {formatMessageTime(conversation.lastMessageAt)}
-            </ThemedText>
-          ) : null}
-        </View>
-        {conversation.lastMessage ? (
-          <ThemedText
-            type="body"
-            numberOfLines={2}
-            style={[
-              styles.lastMessage,
-              { color: hasUnread ? theme.text : theme.textSecondary },
-            ]}
-          >
-            {conversation.lastMessage}
-          </ThemedText>
-        ) : (
-          <ThemedText type="body" style={{ color: theme.textSecondary }}>
-            Start a conversation
-          </ThemedText>
-        )}
+        <ThemedText
+          type={hasUnread ? "h4" : "body"}
+          numberOfLines={1}
+          style={styles.participantName}
+        >
+          {conversation.participantName}
+        </ThemedText>
+        <ThemedText
+          type="caption"
+          numberOfLines={1}
+          style={[
+            styles.lastMessage,
+            { color: hasUnread ? theme.text : theme.textSecondary },
+          ]}
+        >
+          {messagePreview}{timeDisplay}
+        </ThemedText>
       </View>
-      <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+      {hasUnread ? (
+        <View style={[styles.unreadIndicator, { backgroundColor: theme.primary }]} />
+      ) : null}
     </Pressable>
   );
 }
@@ -263,24 +270,23 @@ const styles = StyleSheet.create({
   conversationContent: {
     flex: 1,
     marginLeft: Spacing.md,
-    marginRight: Spacing.sm,
-  },
-  conversationHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
+    justifyContent: "center",
   },
   participantName: {
-    flex: 1,
-    marginRight: Spacing.sm,
+    marginBottom: 0,
   },
   lastMessage: {
-    lineHeight: 20,
+    marginTop: 2,
+  },
+  unreadIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginLeft: Spacing.sm,
   },
   separator: {
-    height: 1,
-    marginLeft: 84,
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 76,
   },
   emptyState: {
     flex: 1,
