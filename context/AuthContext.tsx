@@ -147,6 +147,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (parsed.approvalStatus === "rejected") {
           return;
         }
+        
+        // SESSION VERIFICATION: Check if backend session matches stored user
+        // This prevents frontend/backend session desync
+        try {
+          const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+            method: "GET",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          });
+          
+          if (response.ok) {
+            const backendData = await response.json();
+            const backendUserId = backendData.user?.id || backendData.id;
+            
+            // If backend session has different userId, force logout
+            if (backendUserId && backendUserId !== parsed.id) {
+              console.warn("[Auth] Session mismatch - stored:", parsed.id, "backend:", backendUserId);
+              await AsyncStorage.multiRemove([
+                STORAGE_KEYS.USER, 
+                STORAGE_KEYS.TOKEN, 
+                "@outsyde_refresh_token",
+              ]);
+              setUser(null);
+              return;
+            }
+            
+            console.log("[Auth] Session verified - userId:", parsed.id);
+          } else if (response.status === 401) {
+            // Backend session expired - clear stored auth
+            console.log("[Auth] Session expired - clearing stored auth");
+            await AsyncStorage.multiRemove([
+              STORAGE_KEYS.USER, 
+              STORAGE_KEYS.TOKEN, 
+              "@outsyde_refresh_token",
+            ]);
+            setUser(null);
+            return;
+          }
+          // Other errors (network, 500) - allow using stored auth
+        } catch (verifyError) {
+          console.warn("[Auth] Session verification failed (using cached auth):", verifyError);
+        }
+        
         setUser(parsed);
       }
     } catch (error) {
@@ -415,10 +458,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN, "@outsyde_refresh_token"]);
+      // Call backend logout to invalidate session cookie
+      try {
+        await fetch("https://outsyde-backend.onrender.com/api/auth/logout", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (e) {
+        console.warn("[Auth] Backend logout failed (non-critical):", e);
+      }
+      
+      // Clear all auth-related storage
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.USER, 
+        STORAGE_KEYS.TOKEN, 
+        "@outsyde_refresh_token",
+        "@outsyde_favorites",
+        "@outsyde_notifications",
+        "@outsyde_cart",
+      ]);
+      
+      // Reset user state
       setUser(null);
+      console.log("[Auth] Logout complete - all state cleared");
     } catch (error) {
       console.error("Failed to logout:", error);
+      // Force reset user even if storage fails
+      setUser(null);
     }
   };
 
