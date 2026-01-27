@@ -64,6 +64,9 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
     messagePreview = "";
   }
 
+  // Build inline preview with timestamp
+  const inlinePreview = messagePreview + (relativeTime ? ` · ${relativeTime}` : "");
+
   return (
     <Pressable
       onPress={onPress}
@@ -72,24 +75,22 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
         { backgroundColor: pressed ? theme.backgroundSecondary : "transparent" },
       ]}
     >
-      <View style={styles.avatarContainer}>
-        {conversation.participantAvatar ? (
-          <Image
-            source={{ uri: conversation.participantAvatar }}
-            style={styles.avatar}
-            contentFit="cover"
-            transition={200}
+      {conversation.participantAvatar ? (
+        <Image
+          source={{ uri: conversation.participantAvatar }}
+          style={styles.avatar}
+          contentFit="cover"
+          transition={200}
+        />
+      ) : (
+        <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
+          <Feather 
+            name={conversation.participantType === "business" ? "briefcase" : "user"} 
+            size={18} 
+            color={theme.textSecondary} 
           />
-        ) : (
-          <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
-            <Feather 
-              name={conversation.participantType === "business" ? "briefcase" : "user"} 
-              size={24} 
-              color={theme.textSecondary} 
-            />
-          </View>
-        )}
-      </View>
+        </View>
+      )}
       <View style={styles.conversationContent}>
         <ThemedText
           type="body"
@@ -98,34 +99,22 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
         >
           {conversation.participantName}
         </ThemedText>
-        <View style={styles.messageRow}>
-          <ThemedText
-            type="caption"
-            numberOfLines={1}
-            style={[
-              styles.lastMessage,
-              { color: hasUnread ? theme.text : theme.textSecondary },
-              hasUnread && { fontWeight: "500" },
-            ]}
-          >
-            {messagePreview}
-          </ThemedText>
-          {relativeTime ? (
-            <ThemedText
-              type="caption"
-              style={[styles.timestamp, { color: theme.textSecondary }]}
-            >
-              {` · ${relativeTime}`}
-            </ThemedText>
-          ) : null}
-        </View>
+        <ThemedText
+          type="caption"
+          numberOfLines={1}
+          style={[
+            styles.previewText,
+            { color: hasUnread ? theme.text : theme.textSecondary },
+            hasUnread && { fontWeight: "500" },
+          ]}
+        >
+          {inlinePreview}
+        </ThemedText>
       </View>
-      <View style={styles.rightSection}>
-        {hasUnread ? (
-          <View style={[styles.unreadIndicator, { backgroundColor: "#3797F0" }]} />
-        ) : null}
-        <Feather name="camera" size={24} color={theme.textSecondary} style={styles.cameraIcon} />
-      </View>
+      {hasUnread ? (
+        <View style={[styles.unreadIndicator, { backgroundColor: "#3797F0" }]} />
+      ) : null}
+      <Feather name="camera" size={22} color={theme.textSecondary} style={styles.cameraIcon} />
     </Pressable>
   );
 }
@@ -279,55 +268,42 @@ const styles = StyleSheet.create({
   conversationItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    minHeight: 72,
-  },
-  avatarContainer: {
-    position: "relative",
+    paddingHorizontal: 16,
+    height: 64,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },
   conversationContent: {
     flex: 1,
-    marginLeft: Spacing.md,
-    justifyContent: "center",
+    marginLeft: 12,
   },
   participantName: {
-    marginBottom: 2,
+    fontSize: 15,
+    lineHeight: 20,
   },
-  messageRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  lastMessage: {
-    flexShrink: 1,
-  },
-  timestamp: {
-    flexShrink: 0,
-  },
-  rightSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: Spacing.sm,
+  previewText: {
+    fontSize: 14,
+    lineHeight: 18,
+    marginTop: 1,
   },
   unreadIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: Spacing.md,
+    marginLeft: 8,
   },
   cameraIcon: {
-    opacity: 0.6,
+    marginLeft: 12,
+    opacity: 0.5,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: 76,
+    marginLeft: 72,
   },
   emptyState: {
     flex: 1,
