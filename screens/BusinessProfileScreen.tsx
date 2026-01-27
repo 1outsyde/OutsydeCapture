@@ -159,32 +159,19 @@ export default function BusinessProfileScreen() {
       return;
     }
     
-    // CRITICAL: Messaging is user-to-user, not entity-to-entity
-    // Must use the profile owner's auth userId, never the business entity ID
+    // API expects entity ID (business.id), backend resolves to user internally
+    // For self-messaging guard, we need the business owner's auth userId
     const profileData = business as any;
-    const authUserId = profileData.userId || profileData.ownerId;
+    const businessAuthUserId = profileData.userId || profileData.ownerId;
     const senderId = user?.id;
     
     // Dev logging for ID mapping debugging
     if (__DEV__) {
-      console.log("[BusinessProfile] handleMessage - senderId:", senderId, "recipientId (authUserId):", authUserId);
-      if (!authUserId) {
-        console.warn("[BusinessProfile] WARNING: No userId/ownerId found, messaging may fail. Business ID:", business.id);
-      } else if (authUserId === business.id) {
-        console.warn("[BusinessProfile] WARNING: userId matches business ID - verify this is the auth user ID, not entity ID");
-      }
+      console.log("[BusinessProfile] handleMessage - senderId:", senderId, "businessAuthUserId:", businessAuthUserId, "entityId:", business.id);
     }
     
-    // Block messaging if no valid auth userId found
-    if (!authUserId) {
-      Alert.alert("Unable to Message", "This business profile is not set up for messaging.");
-      return;
-    }
-    
-    const participantUserId = authUserId;
-    
-    // Frontend guard: Block self-messaging
-    if (senderId && (participantUserId === senderId)) {
+    // Frontend guard: Block self-messaging using auth user IDs
+    if (senderId && businessAuthUserId && businessAuthUserId === senderId) {
       Alert.alert("Cannot Message", "You cannot send a message to yourself.");
       return;
     }
@@ -194,19 +181,22 @@ export default function BusinessProfileScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       const authToken = await getToken();
+      const participantType = business.resultType === "photographer" ? "photographer" : "business";
+      
+      // API expects business/photographer entity ID, not auth userId
       const conversation = await api.createOrGetConversation({
-        participantId: participantUserId,
-        participantType: business.resultType === "photographer" ? "photographer" : "business",
+        participantId: business.id,
+        participantType,
         participantName: business.name,
         participantAvatar: business.avatar,
       }, authToken);
       
       navigation.navigate("Chat", {
         conversationId: conversation.id,
-        participantId: participantUserId,
+        participantId: business.id,
         participantName: business.name,
         participantAvatar: business.avatar,
-        participantType: business.resultType === "photographer" ? "photographer" : "business",
+        participantType,
       });
     } catch (error) {
       console.error("Failed to create conversation:", error);

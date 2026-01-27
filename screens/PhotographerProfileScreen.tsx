@@ -194,32 +194,19 @@ export default function PhotographerProfileScreen() {
       return;
     }
     
-    // CRITICAL: Messaging is user-to-user, not entity-to-entity
-    // Must use the profile owner's auth userId, never the photographer profile ID
+    // API expects entity ID (photographer.id), backend resolves to user internally
+    // For self-messaging guard, we need the photographer's auth userId
     const profileData = photographer as any;
-    const authUserId = profileData.userId || profileData.ownerId;
+    const photographerAuthUserId = profileData.userId || profileData.ownerId;
     const senderId = user?.id;
     
     // Dev logging for ID mapping debugging
     if (__DEV__) {
-      console.log("[PhotographerProfile] handleMessage - senderId:", senderId, "recipientId (authUserId):", authUserId);
-      if (!authUserId) {
-        console.warn("[PhotographerProfile] WARNING: No userId/ownerId found, messaging may fail. Profile ID:", photographer.id);
-      } else if (authUserId === photographer.id) {
-        console.warn("[PhotographerProfile] WARNING: userId matches profile ID - verify this is the auth user ID, not entity ID");
-      }
+      console.log("[PhotographerProfile] handleMessage - senderId:", senderId, "photographerAuthUserId:", photographerAuthUserId, "entityId:", photographer.id);
     }
     
-    // Block messaging if no valid auth userId found
-    if (!authUserId) {
-      Alert.alert("Unable to Message", "This photographer's profile is not set up for messaging.");
-      return;
-    }
-    
-    const participantUserId = authUserId;
-    
-    // Frontend guard: Block self-messaging
-    if (senderId && (participantUserId === senderId)) {
+    // Frontend guard: Block self-messaging using auth user IDs
+    if (senderId && photographerAuthUserId && photographerAuthUserId === senderId) {
       Alert.alert("Cannot Message", "You cannot send a message to yourself.");
       return;
     }
@@ -230,8 +217,9 @@ export default function PhotographerProfileScreen() {
       
       const authToken = await getToken();
       
+      // API expects photographer entity ID, not auth userId
       const conversation = await api.createOrGetConversation({
-        participantId: participantUserId,
+        participantId: photographer.id,
         participantType: "photographer",
         participantName: photographer.name,
         participantAvatar: photographer.avatar,
@@ -239,7 +227,7 @@ export default function PhotographerProfileScreen() {
       
       navigation.navigate("Chat", {
         conversationId: conversation.id,
-        participantId: participantUserId,
+        participantId: photographer.id,
         participantName: photographer.name,
         participantAvatar: photographer.avatar,
         participantType: "photographer",
