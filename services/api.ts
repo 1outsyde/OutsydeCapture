@@ -978,6 +978,20 @@ class ApiService {
         signal: controller.signal,
       });
 
+      // DIAGNOSTIC: Log response status and CORS headers for auth debugging
+      if (__DEV__) {
+        const corsHeaders = {
+          'access-control-allow-credentials': response.headers.get('access-control-allow-credentials'),
+          'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+        };
+        console.log(`[API] Response ${response.status} ${endpoint}`, corsHeaders);
+        
+        // Extra logging for 401 errors
+        if (response.status === 401) {
+          console.warn(`[API] 401 UNAUTHORIZED on ${endpoint} - Check: 1) Session expired? 2) CORS blocking cookies? 3) Cookie not set on login?`);
+        }
+      }
+
       if (!response.ok) {
         // Try to parse error response body for validation messages
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
