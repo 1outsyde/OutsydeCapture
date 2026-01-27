@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { StyleSheet, View, Pressable, ActivityIndicator, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ScreenFlatList } from "@/components/ScreenFlatList";
@@ -155,6 +155,14 @@ export default function MessagesScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
   const { conversations, isLoading, refreshConversations } = useMessaging();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        refreshConversations();
+      }
+    }, [user, refreshConversations])
+  );
 
   const sortedConversations = [...conversations].sort(
     (a, b) => {
