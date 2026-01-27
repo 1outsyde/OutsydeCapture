@@ -33,15 +33,42 @@ function formatMessageTime(timestamp: string): string | null {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function formatHourSeparator(timestamp: string): string | null {
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
+  
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  
+  const timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  
+  if (isToday) {
+    return timeStr;
+  } else if (isYesterday) {
+    return `Yesterday ${timeStr}`;
+  } else {
+    const dateStr = date.toLocaleDateString([], { month: "short", day: "numeric" });
+    return `${dateStr} at ${timeStr}`;
+  }
+}
+
 function formatMessageDate(timestamp: string): string | null {
   const date = new Date(timestamp);
   if (isNaN(date.getTime())) return null;
   const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
 
-  if (diffDays === 0) {
+  if (isToday) {
     return "Today";
-  } else if (diffDays === 1) {
+  } else if (isYesterday) {
     return "Yesterday";
   } else {
     return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
@@ -251,9 +278,10 @@ export default function ChatScreen() {
       {item.messages.map((message, index) => {
         const prevMessage = index > 0 ? item.messages[index - 1] : null;
         const showHourSeparator = shouldShowHourSeparator(message, prevMessage);
-        const timeText = formatMessageTime(message.createdAt);
+        const timeText = formatHourSeparator(message.createdAt);
+        const uniqueKey = `${message.id}-${message.createdAt}`;
         return (
-          <React.Fragment key={message.id}>
+          <View key={uniqueKey}>
             {showHourSeparator && timeText ? (
               <HourSeparator time={timeText} />
             ) : null}
@@ -261,7 +289,7 @@ export default function ChatScreen() {
               message={message}
               isOwnMessage={message.senderId === user?.id || message.senderId === "current-user"}
             />
-          </React.Fragment>
+          </View>
         );
       })}
     </View>

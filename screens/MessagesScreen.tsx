@@ -16,8 +16,10 @@ import { RootStackParamList } from "@/navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-function formatRelativeTime(timestamp: string): string {
+function formatRelativeTime(timestamp: string): string | null {
   const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
+  
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -45,14 +47,22 @@ function formatRelativeTime(timestamp: string): string {
 function ConversationItem({ conversation, onPress }: { conversation: Conversation; onPress: () => void }) {
   const { theme } = useTheme();
   const hasUnread = conversation.unreadCount > 0;
+  const unreadCount = conversation.unreadCount || 0;
 
-  const messagePreview = conversation.lastMessage 
-    ? conversation.lastMessage 
-    : "Tap to send a message";
-  
-  const timeDisplay = conversation.lastMessageAt 
-    ? ` · ${formatRelativeTime(conversation.lastMessageAt)}` 
-    : "";
+  const relativeTime = conversation.lastMessageAt 
+    ? formatRelativeTime(conversation.lastMessageAt) 
+    : null;
+
+  let messagePreview: string;
+  if (hasUnread && unreadCount > 1) {
+    messagePreview = `${unreadCount}+ new messages`;
+  } else if (hasUnread && unreadCount === 1) {
+    messagePreview = conversation.lastMessage || "New message";
+  } else if (conversation.lastMessage) {
+    messagePreview = conversation.lastMessage;
+  } else {
+    messagePreview = "Tap to message";
+  }
 
   return (
     <Pressable
@@ -79,32 +89,43 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
             />
           </View>
         )}
-        {hasUnread ? (
-          <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />
-        ) : null}
       </View>
       <View style={styles.conversationContent}>
         <ThemedText
-          type={hasUnread ? "h4" : "body"}
+          type="body"
           numberOfLines={1}
-          style={styles.participantName}
+          style={[styles.participantName, hasUnread && { fontWeight: "600" }]}
         >
           {conversation.participantName}
         </ThemedText>
-        <ThemedText
-          type="caption"
-          numberOfLines={1}
-          style={[
-            styles.lastMessage,
-            { color: hasUnread ? theme.text : theme.textSecondary },
-          ]}
-        >
-          {messagePreview}{timeDisplay}
-        </ThemedText>
+        <View style={styles.messageRow}>
+          <ThemedText
+            type="caption"
+            numberOfLines={1}
+            style={[
+              styles.lastMessage,
+              { color: hasUnread ? theme.text : theme.textSecondary },
+              hasUnread && { fontWeight: "500" },
+            ]}
+          >
+            {messagePreview}
+          </ThemedText>
+          {relativeTime ? (
+            <ThemedText
+              type="caption"
+              style={[styles.timestamp, { color: theme.textSecondary }]}
+            >
+              {` · ${relativeTime}`}
+            </ThemedText>
+          ) : null}
+        </View>
       </View>
-      {hasUnread ? (
-        <View style={[styles.unreadIndicator, { backgroundColor: theme.primary }]} />
-      ) : null}
+      <View style={styles.rightSection}>
+        {hasUnread ? (
+          <View style={[styles.unreadIndicator, { backgroundColor: "#3797F0" }]} />
+        ) : null}
+        <Feather name="camera" size={24} color={theme.textSecondary} style={styles.cameraIcon} />
+      </View>
     </Pressable>
   );
 }
@@ -245,7 +266,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minHeight: 72,
   },
   avatarContainer: {
     position: "relative",
@@ -257,32 +279,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  unreadDot: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
   conversationContent: {
     flex: 1,
     marginLeft: Spacing.md,
     justifyContent: "center",
   },
   participantName: {
-    marginBottom: 0,
+    marginBottom: 2,
+  },
+  messageRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   lastMessage: {
-    marginTop: 2,
+    flexShrink: 1,
+  },
+  timestamp: {
+    flexShrink: 0,
+  },
+  rightSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: Spacing.sm,
   },
   unreadIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginLeft: Spacing.sm,
+    marginRight: Spacing.md,
+  },
+  cameraIcon: {
+    opacity: 0.6,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

@@ -1,0 +1,73 @@
+This task is FRONTEND ONLY. Do NOT change backend APIs, schemas, or auth logic.
+
+GOAL:
+Fix the Messages tab and Chat UI so conversations behave like Instagram.
+
+BACKEND STATUS (DO NOT MODIFY):
+- Conversations and messages are persisted correctly in PostgreSQL
+- /api/conversations returns all conversations for the authenticated user
+- /api/conversations/:id/messages returns messages with ISO createdAt timestamps
+- Auth and ownership are correct
+
+REQUIREMENTS:
+
+1. Messages Tab (Conversation List)
+- Always render ALL conversations returned by GET /api/conversations
+- Do NOT show “Start a conversation” if at least one conversation exists
+- Each row must show:
+  - Other participant’s profile photo
+  - Other participant’s display name
+  - Last message preview (truncate to 1 line)
+  - Timestamp of last message (e.g. “2h”, “Yesterday”, or date)
+  - Unread indicator if applicable
+- Conversation rows must be proportional in height (similar to Instagram)
+- Tapping a row must navigate to the Chat screen with the correct conversationId
+
+2. Conversation State
+- When a conversation is created or a message is sent:
+  - Immediately refresh the conversation list
+  - Ensure it appears in the Messages tab without reopening the profile
+- Messages tab must be the SINGLE source of truth for conversations
+
+3. Chat Screen – Message Rendering
+- Messages must render in chronological order
+- Messages are grouped by date
+- Date separator rules:
+  - Show a date separator when the calendar date changes
+- Hour separator rules:
+  - If time difference between consecutive messages >= 60 minutes, show an hour separator
+  - If less than 60 minutes, do NOT show a new timestamp
+
+4. Timestamp Formatting
+- Parse timestamps using: new Date(message.createdAt)
+- Never render “Invalid Date”
+- Use local device time
+- Format similar to Instagram:
+  - Today → “2:24 PM”
+  - Yesterday → “Yesterday 1:41 PM”
+  - Older → “Nov 26 at 8:43 PM”
+
+5. React List Keys (CRITICAL)
+- When rendering messages with separators:
+  - Wrap each message + separators in a single parent element
+  - That parent MUST have a unique key
+  - Example key format: `${message.id}-${message.createdAt}`
+- Do NOT return multiple sibling elements without a parent key
+- Eliminate all “Each child in a list should have a unique key” warnings
+
+6. Navigation
+- Messages tab must always reflect backend state
+- Chat screen must only fetch messages when conversationId is defined
+- No placeholder rows once conversations exist
+
+CONSTRAINTS:
+- FRONTEND ONLY
+- Do NOT add new state libraries
+- Do NOT modify backend responses
+- Do NOT infer ownership from role
+- Minimal changes, correctness over refactor
+
+DELIVERABLE:
+- Messages tab behaves like Instagram
+- Chat screen timestamps behave exactly as specified
+- No console warnings or errors
