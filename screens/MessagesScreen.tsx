@@ -158,8 +158,12 @@ export default function MessagesScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      console.log("[MessagesScreen] Screen focused, user:", user?.id);
       if (user) {
+        console.log("[MessagesScreen] Calling refreshConversations");
         refreshConversations();
+      } else {
+        console.log("[MessagesScreen] No user, skipping refresh");
       }
     }, [user, refreshConversations])
   );

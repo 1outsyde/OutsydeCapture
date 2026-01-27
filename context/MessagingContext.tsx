@@ -66,24 +66,33 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
   const refreshConversations = useCallback(async () => {
     if (!isAuthenticated || !user) {
+      console.log("[MessagingContext] Not authenticated, clearing conversations");
       setConversations([]);
       return;
     }
 
+    console.log("[MessagingContext] Fetching conversations for user:", user.id);
     setIsLoading(true);
     setError(null);
 
     try {
       const token = await getToken();
-      const apiConversations = await api.getConversations(token);
-      // Ensure apiConversations is an array before mapping
-      if (Array.isArray(apiConversations)) {
-        setConversations(apiConversations.map(mapApiConversation));
-      } else {
-        setConversations([]);
+      console.log("[MessagingContext] Token obtained, calling API");
+      const response = await api.getConversations(token);
+      console.log("[MessagingContext] API response:", JSON.stringify(response));
+      
+      // Normalize response - handle both array and wrapped object shapes
+      let apiConversations: ApiConversation[] = [];
+      if (Array.isArray(response)) {
+        apiConversations = response;
+      } else if (response && typeof response === 'object' && 'conversations' in response) {
+        apiConversations = (response as any).conversations || [];
       }
+      
+      console.log("[MessagingContext] Parsed conversations count:", apiConversations.length);
+      setConversations(apiConversations.map(mapApiConversation));
     } catch (err: any) {
-      console.error("Failed to fetch conversations:", err);
+      console.error("[MessagingContext] Failed to fetch conversations:", err);
       if (err?.status === 404 || err?.status === 401) {
         setConversations([]);
       } else {
