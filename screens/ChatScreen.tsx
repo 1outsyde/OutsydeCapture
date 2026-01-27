@@ -342,7 +342,7 @@ export default function ChatScreen() {
         <FlatList
           ref={flatListRef}
           data={groupedMessages}
-          keyExtractor={(item) => item.date}
+          keyExtractor={(item, index) => `${item.date}-${index}`}
           renderItem={renderItem}
           contentContainerStyle={[
             styles.messageList,

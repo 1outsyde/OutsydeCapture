@@ -1,0 +1,81 @@
+FRONTEND-ONLY TASK. Do NOT change backend.
+
+Replit, your message claims “all requirements implemented”, but the app UI is still wrong:
+
+CURRENT REALITY (from device screenshots):
+- Messages tab shows placeholder rows like “Tap to send a message…” with default user icon
+- No profile picture / no display name / no last message preview
+- Layout is NOT Instagram-like and not proportionate
+- “Start a conversation” block behavior is still wrong
+- We STILL see React warning: “Each child in a list should have a unique key prop”
+- Chat screen sometimes shows “Invalid Date” separators
+
+This means you either edited the wrong screen, wrong navigator route, or the UI is still using placeholder data.
+
+MANDATORY: PROVE WHICH COMPONENT IS RENDERING
+1) Identify the EXACT route + component that renders the Messages tab the user is seeing.
+   - Add TEMP log at top of the Messages tab component:
+     console.log("[MessagesTab] RENDERING FILE:", __filename ?? "unknown");
+     console.log("[MessagesTab] ROUTE NAME:", route.name);
+   - Add TEMP log of conversations being rendered:
+     console.log("[MessagesTab] conversations length:", conversations?.length);
+     console.log("[MessagesTab] first conversation sample:", conversations?.[0]);
+
+2) Remove placeholder rows entirely.
+   - If conversations exist, render ONLY real conversations from backend.
+   - If conversations is empty, render an empty state with small height.
+
+DATA CONTRACT (must be used)
+Backend GET /api/conversations returns either:
+A) { conversations: Conversation[] }
+or
+B) Conversation[] directly
+
+Normalize response so UI always uses:
+const list = Array.isArray(res) ? res : res.conversations ?? [];
+
+ROW UI REQUIREMENTS (Instagram-style)
+For each conversation row show:
+- avatar: conversation.otherParticipant.profileImageUrl (fallback only if missing)
+- name: conversation.otherParticipant.displayName || name || username
+- preview: conversation.lastMessagePreview OR latest message content (truncate 1 line)
+- timestamp: relative time based on conversation.lastMessageAt (e.g. 22m, 2h, 1d)
+- unread dot if unreadCount > 0
+
+PROPORTION / LAYOUT
+- Row height should be compact like IG (approx 64-72).
+- Top padding should NOT push list down (no giant header).
+- Ensure list starts near top safe area, not far down the screen.
+
+KEY WARNING FIX (must actually eliminate warning)
+Where you map messages OR grouped messages:
+- Any map returning a Fragment must put the key on the Fragment itself:
+  <React.Fragment key={`${message.id}-${message.createdAtMs}`}>
+    ...separators + bubble...
+  </React.Fragment>
+- Do NOT put keys only on MessageBubble.
+- Ensure every separator element inside map has stable keys too if needed.
+
+INVALID DATE FIX (Chat screen)
+Normalize message timestamps before render:
+- Support createdAt OR created_at
+- Convert to Date safely:
+  const ts = m.createdAt ?? m.created_at;
+  const d = ts ? new Date(ts) : new Date();
+  if (isNaN(d.getTime())) use new Date();
+Store createdAtMs = d.getTime().
+
+TIME SEPARATOR RULES (must match)
+- Date separator when calendar day changes
+- Hour separator ONLY when gap >= 60 minutes
+- No hour separator when gap < 60 minutes
+
+OUTPUT REQUIRED (do not skip)
+A) List EXACT files modified (full paths)
+B) Paste the exact code blocks for:
+   - Messages tab data normalization (response parsing)
+   - Conversation row render (avatar/name/preview/time)
+   - Chat render map showing Fragment key fix
+C) Show the TEMP console logs you added and where they appear
+D) Confirm placeholders removed
+E) Confirm key warning is gone on device

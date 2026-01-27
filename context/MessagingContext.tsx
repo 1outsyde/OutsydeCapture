@@ -79,6 +79,9 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
       const token = await getToken();
       const response = await api.getConversations(token);
       
+      // TEMP DEBUG - log raw response
+      console.log("[MessagingContext] Raw API response:", JSON.stringify(response, null, 2));
+      
       // Normalize response - handle both array and wrapped object shapes
       let apiConversations: ApiConversation[] = [];
       if (Array.isArray(response)) {
@@ -87,7 +90,27 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
         apiConversations = (response as any).conversations || [];
       }
       
-      setConversations(apiConversations.map(mapApiConversation));
+      console.log("[MessagingContext] Normalized conversations count:", apiConversations.length);
+      console.log("[MessagingContext] First conversation:", JSON.stringify(apiConversations[0], null, 2));
+      
+      // Map with flexible field handling (handle otherParticipant object format)
+      const mapped = apiConversations.map((conv: any) => {
+        const otherP = conv.otherParticipant || {};
+        return {
+          id: conv.id,
+          participantId: conv.participantId || otherP.id || "",
+          participantName: conv.participantName || otherP.displayName || otherP.name || otherP.username || "Unknown",
+          participantAvatar: conv.participantAvatar || otherP.profileImageUrl || otherP.avatar,
+          participantType: conv.participantType || otherP.type || "photographer",
+          lastMessage: conv.lastMessage || conv.lastMessagePreview || "",
+          lastMessageAt: conv.lastMessageAt || conv.updatedAt || conv.createdAt,
+          unreadCount: conv.unreadCount || 0,
+        };
+      });
+      
+      console.log("[MessagingContext] Mapped conversations:", JSON.stringify(mapped[0], null, 2));
+      
+      setConversations(mapped);
     } catch (err: any) {
       console.error("Failed to fetch conversations:", err);
       if (err?.status === 404 || err?.status === 401) {

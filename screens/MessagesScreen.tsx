@@ -61,7 +61,7 @@ function ConversationItem({ conversation, onPress }: { conversation: Conversatio
   } else if (conversation.lastMessage) {
     messagePreview = conversation.lastMessage;
   } else {
-    messagePreview = "Tap to message";
+    messagePreview = "";
   }
 
   return (
@@ -183,6 +183,11 @@ export default function MessagesScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
   const { conversations, isLoading, refreshConversations } = useMessaging();
+
+  // TEMP DEBUG LOGS - remove after debugging
+  console.log("[MessagesTab] RENDERING");
+  console.log("[MessagesTab] conversations length:", conversations?.length);
+  console.log("[MessagesTab] first conversation sample:", JSON.stringify(conversations?.[0], null, 2));
 
   useFocusEffect(
     useCallback(() => {
