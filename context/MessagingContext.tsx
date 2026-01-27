@@ -68,6 +68,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
   const refreshConversations = useCallback(async () => {
     if (!isAuthenticated || !user) {
+      console.log("[MessagingContext] Not authenticated, clearing conversations");
       setConversations([]);
       return;
     }
@@ -77,13 +78,15 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
     try {
       const token = await getToken();
+      console.log("[MessagingContext] Fetching conversations with token:", token ? "present" : "missing");
+      
       const response = await api.getConversations(token);
       
       // TEMP DEBUG - log raw response
       console.log("[MessagingContext] Raw API response:", JSON.stringify(response, null, 2));
       
       // Normalize response - handle both array and wrapped object shapes
-      let apiConversations: ApiConversation[] = [];
+      let apiConversations: any[] = [];
       if (Array.isArray(response)) {
         apiConversations = response;
       } else if (response && typeof response === 'object' && 'conversations' in response) {
@@ -91,28 +94,40 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
       }
       
       console.log("[MessagingContext] Normalized conversations count:", apiConversations.length);
-      console.log("[MessagingContext] First conversation:", JSON.stringify(apiConversations[0], null, 2));
+      if (apiConversations.length > 0) {
+        console.log("[MessagingContext] First raw conversation:", JSON.stringify(apiConversations[0], null, 2));
+      }
       
-      // Map with flexible field handling (handle otherParticipant object format)
+      // Map using otherParticipant ONLY (correct backend schema)
       const mapped = apiConversations.map((conv: any) => {
         const otherP = conv.otherParticipant || {};
-        return {
+        const mapped = {
           id: conv.id,
-          participantId: conv.participantId || otherP.id || "",
-          participantName: conv.participantName || otherP.displayName || otherP.name || otherP.username || "Unknown",
-          participantAvatar: conv.participantAvatar || otherP.profileImageUrl || otherP.avatar,
-          participantType: conv.participantType || otherP.type || "photographer",
-          lastMessage: conv.lastMessage || conv.lastMessagePreview || "",
-          lastMessageAt: conv.lastMessageAt || conv.updatedAt || conv.createdAt,
+          participantId: otherP.id || "",
+          participantName: otherP.displayName || otherP.name || otherP.username || "Unknown",
+          participantAvatar: otherP.profileImageUrl || otherP.avatar || undefined,
+          participantType: (otherP.type as "business" | "photographer") || "photographer",
+          lastMessage: conv.lastMessagePreview || conv.lastMessage || "",
+          lastMessageAt: conv.lastMessageAt || conv.updatedAt || conv.createdAt || "",
           unreadCount: conv.unreadCount || 0,
         };
+        return mapped;
       });
       
-      console.log("[MessagingContext] Mapped conversations:", JSON.stringify(mapped[0], null, 2));
+      console.log("[MessagingContext] Mapped conversations count:", mapped.length);
+      if (mapped.length > 0) {
+        console.log("[MessagingContext] First mapped conversation:", JSON.stringify(mapped[0], null, 2));
+      }
       
       setConversations(mapped);
     } catch (err: any) {
-      console.error("Failed to fetch conversations:", err);
+      console.error("[MessagingContext] FETCH ERROR:", err);
+      console.error("[MessagingContext] Error details:", {
+        message: err?.message,
+        status: err?.status,
+        response: err?.response,
+        stack: err?.stack,
+      });
       if (err?.status === 404 || err?.status === 401) {
         setConversations([]);
       } else {

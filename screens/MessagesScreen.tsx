@@ -185,9 +185,10 @@ export default function MessagesScreen() {
   const { conversations, isLoading, refreshConversations } = useMessaging();
 
   // TEMP DEBUG LOGS - remove after debugging
-  console.log("[MessagesTab] RENDERING");
-  console.log("[MessagesTab] conversations length:", conversations?.length);
-  console.log("[MessagesTab] first conversation sample:", JSON.stringify(conversations?.[0], null, 2));
+  console.log("[MessagesTab] FILE: screens/MessagesScreen.tsx");
+  console.log("[MessagesTab] user:", user?.id, user?.email);
+  console.log("[MessagesTab] isLoading:", isLoading);
+  console.log("[MessagesTab] conversations:", conversations);
 
   useFocusEffect(
     useCallback(() => {
@@ -223,6 +224,15 @@ export default function MessagesScreen() {
     );
   }
 
+  // Only render FlatList if we have conversations, otherwise show empty state
+  if (sortedConversations.length === 0) {
+    return (
+      <ThemedView style={styles.container}>
+        <EmptyState />
+      </ThemedView>
+    );
+  }
+
   return (
     <ScreenFlatList
       data={sortedConversations}
@@ -239,7 +249,6 @@ export default function MessagesScreen() {
           })}
         />
       )}
-      ListEmptyComponent={<EmptyState />}
       contentContainerStyle={styles.listContent}
       refreshControl={
         <RefreshControl
