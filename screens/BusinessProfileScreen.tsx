@@ -199,19 +199,22 @@ export default function BusinessProfileScreen() {
         throw new Error("No conversation ID returned from API");
       }
       
-      // Use dispatch with CommonActions to escape modal/nested stack
-      navigation.dispatch(
-        CommonActions.navigate({
-          name: "Chat",
-          params: {
-            conversationId,
-            participantId: business.id,
-            participantName: business.name,
-            participantAvatar: business.avatar,
-            participantType,
-          },
-        })
-      );
+      // First dismiss the modal, then navigate to Chat after a brief delay
+      navigation.goBack();
+      setTimeout(() => {
+        navigation.dispatch(
+          CommonActions.navigate({
+            name: "Chat",
+            params: {
+              conversationId,
+              participantId: business.id,
+              participantName: business.name,
+              participantAvatar: business.avatar,
+              participantType,
+            },
+          })
+        );
+      }, 100);
     } catch (error) {
       console.error("Failed to create conversation:", error);
     } finally {

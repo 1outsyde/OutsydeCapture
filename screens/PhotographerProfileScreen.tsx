@@ -233,19 +233,22 @@ export default function PhotographerProfileScreen() {
         throw new Error("No conversation ID returned from API");
       }
       
-      // Use dispatch with CommonActions to escape modal/nested stack
-      navigation.dispatch(
-        CommonActions.navigate({
-          name: "Chat",
-          params: {
-            conversationId,
-            participantId: photographer.id,
-            participantName: photographer.name,
-            participantAvatar: photographer.avatar,
-            participantType: "photographer",
-          },
-        })
-      );
+      // First dismiss the modal, then navigate to Chat after a brief delay
+      navigation.goBack();
+      setTimeout(() => {
+        navigation.dispatch(
+          CommonActions.navigate({
+            name: "Chat",
+            params: {
+              conversationId,
+              participantId: photographer.id,
+              participantName: photographer.name,
+              participantAvatar: photographer.avatar,
+              participantType: "photographer",
+            },
+          })
+        );
+      }, 100);
     } catch (error) {
       console.error("Failed to create conversation:", error);
       Alert.alert(
