@@ -303,7 +303,6 @@ export default function PhotographerDashboardScreen() {
           const parsedHours = dayNames.map((dayName, index) => {
             const dayData = availabilityData.hoursOfOperation[dayName];
             if (dayData && !dayData.closed) {
-              // Day is available (has open/close times and not marked closed)
               return {
                 dayOfWeek: index,
                 isAvailable: true,
@@ -311,7 +310,6 @@ export default function PhotographerDashboardScreen() {
                 endTime: convertTo12Hour(dayData.close),
               };
             }
-            // Day is closed (either no data, or has closed: true flag)
             return {
               dayOfWeek: index,
               isAvailable: false,
@@ -321,16 +319,24 @@ export default function PhotographerDashboardScreen() {
           });
           setHours(parsedHours);
         }
-        if (availabilityData.blackoutDates && availabilityData.blackoutDates.length > 0) {
-          setBlockedDates(availabilityData.blackoutDates.map((bd) => ({
-            id: bd.id.toString(),
-            date: bd.date,
-            isFullDay: true,
-            reason: bd.reason,
-          })));
-        }
       } catch {
-        // Keep default hours and no blocked dates
+        // Keep default hours
+      }
+
+      // Fetch blocked dates from new blocks endpoint
+      try {
+        const blocks = await api.getBlocks(token, "photographer");
+        setBlockedDates(blocks.map((b) => ({
+          id: b.id,
+          date: b.startDate.split("T")[0], // Extract date part from ISO string
+          isFullDay: b.isFullDay,
+          startTime: b.isFullDay ? undefined : b.startDate.split("T")[1]?.substring(0, 5),
+          endTime: b.isFullDay ? undefined : b.endDate.split("T")[1]?.substring(0, 5),
+          reason: b.reason,
+        })));
+      } catch {
+        // Keep empty blocked dates
+        setBlockedDates([]);
       }
 
     } catch (error: any) {
@@ -765,8 +771,8 @@ export default function PhotographerDashboardScreen() {
   };
 
   const handleAddBlockedDate = async (blockedDate: BlockedDate) => {
-    const exists = blockedDates.some(b => b.date === blockedDate.date);
-    if (exists) {
+    const exists = blockedDates.some(b => b.date === blockedDate.date && b.isFullDay === blockedDate.isFullDay);
+    if (exists && blockedDate.isFullDay) {
       Alert.alert("Already Blocked", "This date is already blocked.");
       return;
     }
@@ -776,15 +782,20 @@ export default function PhotographerDashboardScreen() {
     
     try {
       setSaving(true);
-      const result = await api.addPhotographerBlackoutDate(token, {
-        date: blockedDate.date,
+      // Use new blocks endpoint for full-featured blocking (full day or time ranges)
+      const result = await api.createBlock(token, "photographer", {
+        startDate: blockedDate.isFullDay ? blockedDate.date : `${blockedDate.date}T${blockedDate.startTime || "00:00"}`,
+        endDate: blockedDate.isFullDay ? blockedDate.date : `${blockedDate.date}T${blockedDate.endTime || "23:59"}`,
+        isFullDay: blockedDate.isFullDay,
         reason: blockedDate.reason,
       });
       setBlockedDates(prev => [...prev, {
-        id: result.blackoutDate.id.toString(),
-        date: result.blackoutDate.date,
-        isFullDay: true,
-        reason: result.blackoutDate.reason,
+        id: result.id,
+        date: blockedDate.date,
+        isFullDay: result.isFullDay,
+        startTime: blockedDate.startTime,
+        endTime: blockedDate.endTime,
+        reason: result.reason,
       }]);
     } catch (error: any) {
       console.error("[Dashboard] Failed to add blocked date:", error);
@@ -804,7 +815,8 @@ export default function PhotographerDashboardScreen() {
     if (dateToRemove.id) {
       try {
         setSaving(true);
-        await api.removePhotographerBlackoutDate(token, parseInt(dateToRemove.id, 10));
+        // Use new blocks endpoint for deletion
+        await api.deleteBlock(token, "photographer", dateToRemove.id);
         setBlockedDates(prev => prev.filter((_, i) => i !== index));
       } catch (error: any) {
         console.error("[Dashboard] Failed to remove blocked date:", error);
