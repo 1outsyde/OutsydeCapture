@@ -2709,6 +2709,57 @@ export default function PhotographerDashboardScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* Calendar Overview */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Calendar</Text>
+          <View style={{ marginTop: 12 }}>
+            <ProviderCalendar
+              bookings={bookings.map(b => ({
+                id: b.id,
+                date: b.date,
+                startTime: b.time || "9:00 AM",
+                clientName: b.clientName,
+                serviceName: b.sessionType,
+                status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined",
+                amount: b.amount,
+              }))}
+              blockedDates={blockedDates.map(bd => ({
+                id: bd.id,
+                date: bd.date,
+                startTime: bd.startTime,
+                endTime: bd.endTime,
+                isFullDay: bd.isFullDay,
+                reason: bd.reason,
+              }))}
+              weeklyAvailability={hours.map((h, idx) => ({
+                dayOfWeek: idx,
+                isAvailable: h.isAvailable,
+                windows: h.isAvailable ? [{ startTime: h.startTime, endTime: h.endTime }] : [],
+              }))}
+              onBlockDate={async (date, isFullDay, startTime, endTime, reason) => {
+                await handleAddBlockedDate({
+                  id: `temp-${Date.now()}`,
+                  date,
+                  isFullDay,
+                  startTime,
+                  endTime,
+                  reason,
+                });
+              }}
+              onUnblockDate={async (blockId) => {
+                const index = blockedDates.findIndex(b => b.id === blockId);
+                if (index >= 0) {
+                  await handleRemoveBlockedDate(index);
+                }
+              }}
+              onBookingPress={(booking) => {
+                setActiveModal("bookings");
+              }}
+              monthsAhead={3}
+            />
+          </View>
+        </View>
       </ScrollView>
 
       {renderProfileModal()}

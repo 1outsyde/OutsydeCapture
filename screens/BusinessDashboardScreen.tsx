@@ -32,6 +32,7 @@ import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject } from "@/components/HoursEditor";
 import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
+import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 
 type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile";
@@ -152,9 +153,9 @@ export default function BusinessDashboardScreen() {
         website: business.websiteUrl || undefined,
         stripeConnected: business.stripeOnboardingComplete || false,
         businessType: businessTypeValue,
-        autoAcceptBookings: business.autoAcceptBookings ?? false,
+        autoAcceptBookings: (business as any).autoAcceptBookings ?? false,
       });
-      setAutoAcceptBookings(business.autoAcceptBookings ?? false);
+      setAutoAcceptBookings((business as any).autoAcceptBookings ?? false);
       
       setEditProfile({
         name: business.name || "",
@@ -1531,6 +1532,36 @@ export default function BusinessDashboardScreen() {
             value={autoAcceptBookings}
             onChange={handleAutoAcceptChange}
             loading={autoAcceptLoading}
+          />
+        </View>
+      )}
+
+      {/* Calendar Overview - Only for service-based businesses */}
+      {(businessType === "service" || businessType === "both") && (
+        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, marginBottom: 12 }}>Calendar</Text>
+          <ProviderCalendar
+            bookings={bookings.map(b => ({
+              id: b.id,
+              date: b.date,
+              startTime: b.time || "9:00 AM",
+              clientName: b.customerName,
+              serviceName: b.serviceName,
+              status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined",
+              amount: b.amount,
+            }))}
+            blockedDates={[]}
+            weeklyAvailability={hours.map((h, idx) => ({
+              dayOfWeek: idx,
+              isAvailable: h.isAvailable,
+              windows: h.isAvailable ? [{ startTime: h.startTime, endTime: h.endTime }] : [],
+            }))}
+            onBlockDate={() => {}}
+            onUnblockDate={() => {}}
+            onBookingPress={(booking) => {
+              setActiveTab("bookings");
+            }}
+            monthsAhead={3}
           />
         </View>
       )}
