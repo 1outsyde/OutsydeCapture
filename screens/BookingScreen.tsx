@@ -79,6 +79,7 @@ export default function BookingScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [bookedSessionId, setBookedSessionId] = useState<string>("");
   const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const [bookingPending, setBookingPending] = useState(false);
   
   const [viewingMonth, setViewingMonth] = useState(() => new Date());
   
@@ -535,6 +536,10 @@ export default function BookingScreen() {
         clearInterval(countdownRef.current);
       }
 
+      // Check if booking is pending provider approval (auto-accept is OFF)
+      const isPending = confirmResponse.status === "pending" || confirmResponse.status === "pending_approval";
+      setBookingPending(isPending);
+
       const session = await addSession({
         photographerId: photographer?.id || "",
         photographerName: photographer?.name || "Photographer",
@@ -545,7 +550,7 @@ export default function BookingScreen() {
         location,
         sessionType: selectedService.category || "portrait",
         notes,
-        status: "upcoming",
+        status: isPending ? "pending" : "upcoming",
         price: selectedService.price || bookingDraft.totalAmount,
       });
 
@@ -555,16 +560,20 @@ export default function BookingScreen() {
 
       await addNotification({
         type: "booking",
-        title: "Booking Confirmed",
-        body: `Your session with ${photographerName} on ${formattedDate} has been confirmed.`,
+        title: isPending ? "Booking Submitted" : "Booking Confirmed",
+        body: isPending 
+          ? `Your booking request with ${photographerName} on ${formattedDate} has been submitted. Awaiting provider approval (up to 24h).`
+          : `Your session with ${photographerName} on ${formattedDate} has been confirmed.`,
       });
 
-      await sendBookingConfirmation(photographerName, formattedDate, formattedTime);
+      if (!isPending) {
+        await sendBookingConfirmation(photographerName, formattedDate, formattedTime);
 
-      const [year, month, day] = selectedDate.split("-").map(Number);
-      const [hours, minutes] = selectedSlot.startTime.split(":").map(Number);
-      const sessionDate = new Date(year, month - 1, day, hours, minutes);
-      await scheduleBookingReminders(photographerName, formattedDate, formattedTime, sessionDate);
+        const [year, month, day] = selectedDate.split("-").map(Number);
+        const [hours, minutes] = selectedSlot.startTime.split(":").map(Number);
+        const sessionDate = new Date(year, month - 1, day, hours, minutes);
+        await scheduleBookingReminders(photographerName, formattedDate, formattedTime, sessionDate);
+      }
 
       setBookedSessionId(session.id);
       setShowSuccessModal(true);
@@ -1356,40 +1365,57 @@ export default function BookingScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalIcon, { backgroundColor: theme.success + "20" }]}>
-              <Feather name="check-circle" size={40} color={theme.success} />
+            <View style={[styles.modalIcon, { backgroundColor: bookingPending ? "#FF9500" + "20" : theme.success + "20" }]}>
+              <Feather 
+                name={bookingPending ? "clock" : "check-circle"} 
+                size={40} 
+                color={bookingPending ? "#FF9500" : theme.success} 
+              />
             </View>
             <ThemedText type="h3" style={styles.modalTitle}>
-              Booking Confirmed!
+              {bookingPending ? "Booking Submitted!" : "Booking Confirmed!"}
             </ThemedText>
             <ThemedText type="body" style={[styles.modalMessage, { color: theme.textSecondary }]}>
-              Your session with {photographer?.name || "the photographer"} has been booked for {selectedDate ? formatDate(selectedDate) : ""}.
+              {bookingPending 
+                ? `Your booking request with ${photographer?.name || "the photographer"} for ${selectedDate ? formatDate(selectedDate) : ""} has been submitted and is awaiting approval. You'll be notified within 24 hours.`
+                : `Your session with ${photographer?.name || "the photographer"} has been booked for ${selectedDate ? formatDate(selectedDate) : ""}.`
+              }
             </ThemedText>
+            {bookingPending && (
+              <View style={{ backgroundColor: "#FF9500" + "15", padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                <ThemedText type="body" style={{ color: "#FF9500", fontSize: 13, textAlign: "center" }}>
+                  Payment will only be processed after the provider confirms your booking.
+                </ThemedText>
+              </View>
+            )}
             <View style={styles.modalButtons}>
               <Pressable
                 onPress={handlePayLater}
                 style={[
                   styles.modalButton,
-                  styles.modalButtonSecondary,
-                  { backgroundColor: theme.backgroundSecondary },
+                  bookingPending ? styles.modalButtonPrimary : styles.modalButtonSecondary,
+                  { backgroundColor: bookingPending ? theme.primary : theme.backgroundSecondary },
+                  bookingPending && { flex: 1 },
                 ]}
               >
-                <ThemedText type="button" style={{ color: theme.text }}>
-                  Pay Later
+                <ThemedText type="button" style={{ color: bookingPending ? "#FFFFFF" : theme.text }}>
+                  {bookingPending ? "Got It" : "Pay Later"}
                 </ThemedText>
               </Pressable>
-              <Pressable
-                onPress={handlePayNow}
-                style={[
-                  styles.modalButton,
-                  styles.modalButtonPrimary,
-                  { backgroundColor: theme.primary },
-                ]}
-              >
-                <ThemedText type="button" style={{ color: "#FFFFFF" }}>
-                  Pay Now
-                </ThemedText>
-              </Pressable>
+              {!bookingPending && (
+                <Pressable
+                  onPress={handlePayNow}
+                  style={[
+                    styles.modalButton,
+                    styles.modalButtonPrimary,
+                    { backgroundColor: theme.primary },
+                  ]}
+                >
+                  <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+                    Pay Now
+                  </ThemedText>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
