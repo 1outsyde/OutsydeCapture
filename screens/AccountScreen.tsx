@@ -9,8 +9,10 @@ import {
   Modal,
   TextInput,
   Alert,
+  Share,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
@@ -194,6 +196,8 @@ export default function AccountScreen() {
   const [showVideoFullscreen, setShowVideoFullscreen] = useState(false);
   const [postSaving, setPostSaving] = useState(false);
   const [tabBarLayoutY, setTabBarLayoutY] = useState(0);
+  const [showShareProfile, setShowShareProfile] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
   const userRole: "consumer" | "photographer" | "business" = user?.role || "consumer";
@@ -585,6 +589,37 @@ export default function AccountScreen() {
       const isVideo = asset.type === "video" || asset.uri.includes(".mp4") || asset.uri.includes(".mov") || (asset.mimeType && asset.mimeType.startsWith("video/"));
       setNewPostMedia(asset.uri);
       setNewPostMediaType(isVideo ? "video" : "image");
+    }
+  };
+
+  const getProfileUsername = () => {
+    if (user?.username) return user.username;
+    // Fallback to generating a display ID from the user ID
+    if (user?.id) return `user_${user.id.slice(-8)}`;
+    return null;
+  };
+
+  const getProfileShareUrl = () => {
+    const username = getProfileUsername();
+    return `outsyde.app/u/${username || user?.id || ""}`;
+  };
+
+  const handleCopyToClipboard = async (text: string, field: string) => {
+    await Clipboard.setStringAsync(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleShareProfile = async () => {
+    const profileUrl = getProfileShareUrl();
+    const username = getProfileUsername();
+    try {
+      await Share.share({
+        message: `Check out my profile on Outsyde! ${profileUrl}`,
+        title: "Share Profile",
+      });
+    } catch (error) {
+      console.log("Share error:", error);
     }
   };
 
@@ -2182,6 +2217,15 @@ export default function AccountScreen() {
                 )}
               </Pressable>
             )}
+            {/* Share Profile Button for Owners */}
+            {isOwner && !isGuest && (
+              <Pressable
+                onPress={() => setShowShareProfile(true)}
+                style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.7 : 1, marginRight: Spacing.sm }]}
+              >
+                <Feather name="share-2" size={20} color="#FFFFFF" />
+              </Pressable>
+            )}
             {!isOwner && (
               <>
                 <Pressable 
@@ -2227,6 +2271,19 @@ export default function AccountScreen() {
             <ThemedText type="h2" style={styles.profileName}>
               {profile?.name || "Your Profile"}
             </ThemedText>
+
+            {/* Username / User ID Display */}
+            {getProfileUsername() && (
+              <Pressable 
+                onPress={() => setShowShareProfile(true)}
+                style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.xs }}
+              >
+                <ThemedText type="small" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  @{getProfileUsername()}
+                </ThemedText>
+                <Feather name="copy" size={12} color="rgba(255,255,255,0.5)" style={{ marginLeft: Spacing.xs }} />
+              </Pressable>
+            )}
 
             {/* Profile Rating */}
             {profile?.rating != null && profile.rating > 0 ? (
@@ -2858,6 +2915,115 @@ export default function AccountScreen() {
               }}
             >
               <ThemedText type="button" style={{ color: "#000" }}>Done</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Share Profile Modal */}
+      <Modal
+        visible={showShareProfile}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowShareProfile(false)}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{
+            backgroundColor: theme.card,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: Spacing.lg,
+            paddingBottom: insets.bottom + Spacing.lg,
+          }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg }}>
+              <ThemedText type="h3">Share Profile</ThemedText>
+              <Pressable onPress={() => setShowShareProfile(false)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+
+            {/* User ID Section */}
+            <View style={{ marginBottom: Spacing.lg }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }}>
+                Your User ID
+              </ThemedText>
+              <Pressable 
+                onPress={() => handleCopyToClipboard(getProfileUsername() || "", "username")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor: theme.backgroundSecondary,
+                  padding: Spacing.md,
+                  borderRadius: 12,
+                }}
+              >
+                <ThemedText type="h4">@{getProfileUsername()}</ThemedText>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  {copiedField === "username" ? (
+                    <>
+                      <Feather name="check" size={18} color="#4CAF50" />
+                      <ThemedText type="small" style={{ color: "#4CAF50", marginLeft: Spacing.xs }}>Copied!</ThemedText>
+                    </>
+                  ) : (
+                    <>
+                      <Feather name="copy" size={18} color={theme.textSecondary} />
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>Tap to copy</ThemedText>
+                    </>
+                  )}
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Profile Link Section */}
+            <View style={{ marginBottom: Spacing.lg }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }}>
+                Profile Link
+              </ThemedText>
+              <Pressable 
+                onPress={() => handleCopyToClipboard(getProfileShareUrl(), "link")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor: theme.backgroundSecondary,
+                  padding: Spacing.md,
+                  borderRadius: 12,
+                }}
+              >
+                <ThemedText type="body" style={{ flex: 1, marginRight: Spacing.sm }} numberOfLines={1}>
+                  {getProfileShareUrl()}
+                </ThemedText>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  {copiedField === "link" ? (
+                    <>
+                      <Feather name="check" size={18} color="#4CAF50" />
+                      <ThemedText type="small" style={{ color: "#4CAF50", marginLeft: Spacing.xs }}>Copied!</ThemedText>
+                    </>
+                  ) : (
+                    <>
+                      <Feather name="copy" size={18} color={theme.textSecondary} />
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>Tap to copy</ThemedText>
+                    </>
+                  )}
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Share Button */}
+            <Pressable
+              onPress={handleShareProfile}
+              style={{
+                backgroundColor: profileTheme,
+                paddingVertical: 16,
+                borderRadius: 12,
+                alignItems: "center",
+                flexDirection: "row",
+                justifyContent: "center",
+              }}
+            >
+              <Feather name="share" size={18} color="#000" />
+              <ThemedText type="button" style={{ color: "#000", marginLeft: Spacing.sm }}>Share Profile</ThemedText>
             </Pressable>
           </View>
         </View>
