@@ -784,6 +784,13 @@ export interface UnifiedSearchItem {
   distance?: number;
   isInfluencer?: boolean;
   influencerStatus?: string;
+  providerId?: string;
+  providerName?: string;
+  providerType?: "photographer" | "business";
+  businessId?: string;
+  businessName?: string;
+  price?: number;
+  productImage?: string;
 }
 
 export interface UnifiedSearchResponse {
@@ -953,6 +960,13 @@ export interface UnifiedSearchResult {
   originalType?: string;
   isInfluencer?: boolean;
   influencerStatus?: string;
+  providerId?: string;
+  providerName?: string;
+  providerType?: "photographer" | "business";
+  businessId?: string;
+  businessName?: string;
+  price?: number;
+  productImage?: string;
 }
 
 class ApiService {
@@ -1317,7 +1331,7 @@ class ApiService {
         city: item.city || "Unknown",
         state: item.state || "",
         rating: item.rating || 0,
-        priceRange: item.priceRange || (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : ""),
+        priceRange: item.priceRange || (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : "") || (item.price ? `$${item.price}` : ""),
         category: item.category || item.type,
         description: item.description || "",
         subscriptionTier: item.subscriptionTier,
@@ -1325,6 +1339,13 @@ class ApiService {
         originalType: item.type,
         isInfluencer: item.isInfluencer,
         influencerStatus: item.influencerStatus,
+        providerId: item.providerId,
+        providerName: item.providerName,
+        providerType: item.providerType,
+        businessId: item.businessId,
+        businessName: item.businessName,
+        price: item.price,
+        productImage: isValidImageUrl(item.productImage) || undefined,
       };
     });
   }

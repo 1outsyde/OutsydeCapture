@@ -160,16 +160,34 @@ export default function SearchScreen() {
     const profileId = item.id;
     
     if (item.resultType === "product") {
+      // Navigate to business detail with products tab and highlight the product
+      const businessId = item.businessId || item.userId || item.id;
       navigation.navigate("VendorDetail", { 
-        vendorId: (item as any).vendorId || item.id,
+        vendorId: businessId,
         initialTab: "products",
         productId: item.id,
       });
     } else if (item.resultType === "service") {
-      navigation.navigate("VendorDetail", { 
-        vendorId: (item as any).vendorId || item.id,
-        initialTab: "services",
-      });
+      // Navigate directly to booking flow with service preselected
+      const providerId = item.providerId || item.userId;
+      if (item.providerType === "photographer" && providerId) {
+        navigation.navigate("Booking", { 
+          photographerId: providerId,
+          preselectedServiceId: item.id,
+        });
+      } else if (item.businessId) {
+        // Business service - go to business detail with services tab
+        navigation.navigate("VendorDetail", { 
+          vendorId: item.businessId,
+          initialTab: "services",
+        });
+      } else {
+        // Fallback to VendorDetail
+        navigation.navigate("VendorDetail", { 
+          vendorId: providerId || item.id,
+          initialTab: "services",
+        });
+      }
     } else {
       const userType = item.resultType === "photographer" ? "photographer" 
                      : item.resultType === "business" ? "business" 
@@ -261,7 +279,7 @@ export default function SearchScreen() {
     );
   };
 
-  const renderResultItem = ({ item }: { item: UnifiedSearchResult }) => {
+  const renderEntityCard = (item: UnifiedSearchResult) => {
     const tierConfig = item.subscriptionTier ? TIER_CONFIG[item.subscriptionTier] : null;
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
@@ -328,29 +346,37 @@ export default function SearchScreen() {
             <ThemedText type="small" style={{ color: theme.primary, marginLeft: 4 }}>
               {RESULT_TYPE_LABELS[item.resultType]}
             </ThemedText>
-            <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
-              - {item.category}
-            </ThemedText>
+            {item.category && item.category !== item.resultType && (
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
+                - {item.category}
+              </ThemedText>
+            )}
           </View>
 
           <View style={styles.resultMeta}>
-            <View style={styles.ratingContainer}>
-              <Feather name="star" size={14} color="#FFD700" />
-              <ThemedText type="small"> {item.rating.toFixed(1)}</ThemedText>
-            </View>
-            <View style={styles.locationContainer}>
-              <Feather name="map-pin" size={14} color={theme.textSecondary} />
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {" "}
-                {item.city}
-                {item.state ? `, ${item.state}` : ""}
-              </ThemedText>
-            </View>
+            {item.rating > 0 && (
+              <View style={styles.ratingContainer}>
+                <Feather name="star" size={14} color="#FFD700" />
+                <ThemedText type="small"> {item.rating.toFixed(1)}</ThemedText>
+              </View>
+            )}
+            {(item.city && item.city !== "Unknown") && (
+              <View style={styles.locationContainer}>
+                <Feather name="map-pin" size={14} color={theme.textSecondary} />
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  {" "}
+                  {item.city}
+                  {item.state ? `, ${item.state}` : ""}
+                </ThemedText>
+              </View>
+            )}
           </View>
 
-          <ThemedText type="caption" style={{ color: theme.secondary }}>
-            {item.priceRange}
-          </ThemedText>
+          {item.priceRange ? (
+            <ThemedText type="caption" style={{ color: theme.secondary }}>
+              {item.priceRange}
+            </ThemedText>
+          ) : null}
 
           <Pressable
             onPress={() => handleCardPress(item)}
@@ -364,6 +390,126 @@ export default function SearchScreen() {
         </View>
       </Pressable>
     );
+  };
+
+  const renderServiceCard = (item: UnifiedSearchResult) => {
+    const priceDisplay = item.price 
+      ? `$${item.price}` 
+      : item.priceRange || "";
+
+    return (
+      <Pressable
+        onPress={() => handleCardPress(item)}
+        style={({ pressed }) => [
+          styles.serviceCard,
+          {
+            backgroundColor: theme.backgroundDefault,
+            borderColor: theme.border,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          },
+        ]}
+      >
+        <View style={styles.serviceIconContainer}>
+          <View style={[styles.serviceIcon, { backgroundColor: theme.primary + "20" }]}>
+            <Feather name="scissors" size={24} color={theme.primary} />
+          </View>
+        </View>
+        <View style={styles.serviceInfo}>
+          <ThemedText type="h4" numberOfLines={1} style={styles.serviceName}>
+            {item.name}
+          </ThemedText>
+          {item.providerName && (
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              by {item.providerName}
+            </ThemedText>
+          )}
+          {item.description && (
+            <ThemedText type="caption" numberOfLines={2} style={{ color: theme.textSecondary, marginTop: 4 }}>
+              {item.description}
+            </ThemedText>
+          )}
+        </View>
+        <View style={styles.serviceRight}>
+          {priceDisplay ? (
+            <ThemedText type="h4" style={{ color: theme.primary, fontWeight: "700" }}>
+              {priceDisplay}
+            </ThemedText>
+          ) : null}
+          <View style={[styles.bookButton, { backgroundColor: theme.primary }]}>
+            <Feather name="calendar" size={14} color="#000" />
+            <ThemedText type="small" style={{ color: "#000", fontWeight: "600", marginLeft: 4 }}>
+              Book
+            </ThemedText>
+          </View>
+        </View>
+      </Pressable>
+    );
+  };
+
+  const renderProductCard = (item: UnifiedSearchResult) => {
+    const hasProductImage = isValidImageUrl(item.productImage || item.avatar);
+    const imageUrl = item.productImage || item.avatar;
+    const priceDisplay = item.price 
+      ? `$${item.price}` 
+      : item.priceRange || "";
+
+    return (
+      <Pressable
+        onPress={() => handleCardPress(item)}
+        style={({ pressed }) => [
+          styles.productCard,
+          {
+            backgroundColor: theme.backgroundDefault,
+            borderColor: theme.border,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          },
+        ]}
+      >
+        {hasProductImage ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.productImage}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={[styles.productImage, { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }]}>
+            <Feather name="shopping-bag" size={32} color={theme.textSecondary} />
+          </View>
+        )}
+        <View style={styles.productInfo}>
+          <ThemedText type="h4" numberOfLines={2} style={styles.productName}>
+            {item.name}
+          </ThemedText>
+          {item.businessName && (
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              by {item.businessName}
+            </ThemedText>
+          )}
+          {priceDisplay ? (
+            <ThemedText type="h4" style={{ color: theme.primary, fontWeight: "700", marginTop: 4 }}>
+              {priceDisplay}
+            </ThemedText>
+          ) : null}
+          <View style={[styles.buyButton, { backgroundColor: theme.primary }]}>
+            <Feather name="shopping-bag" size={14} color="#000" />
+            <ThemedText type="small" style={{ color: "#000", fontWeight: "600", marginLeft: 4 }}>
+              View
+            </ThemedText>
+          </View>
+        </View>
+      </Pressable>
+    );
+  };
+
+  const renderResultItem = ({ item }: { item: UnifiedSearchResult }) => {
+    if (item.resultType === "service") {
+      return renderServiceCard(item);
+    }
+    if (item.resultType === "product") {
+      return renderProductCard(item);
+    }
+    return renderEntityCard(item);
   };
 
   const ListHeader = () => (
@@ -651,5 +797,69 @@ const styles = StyleSheet.create({
   viewProfileText: {
     color: "#000000",
     fontWeight: "600",
+  },
+  serviceCard: {
+    flexDirection: "row",
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    alignItems: "center",
+  },
+  serviceIconContainer: {
+    marginRight: Spacing.md,
+  },
+  serviceIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  serviceInfo: {
+    flex: 1,
+  },
+  serviceName: {
+    marginBottom: 2,
+  },
+  serviceRight: {
+    alignItems: "flex-end",
+    marginLeft: Spacing.md,
+  },
+  bookButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+  },
+  productCard: {
+    flexDirection: "row",
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: Spacing.md,
+  },
+  productImage: {
+    width: 100,
+    height: 120,
+  },
+  productInfo: {
+    flex: 1,
+    padding: Spacing.md,
+    justifyContent: "space-between",
+  },
+  productName: {
+    marginBottom: 4,
+  },
+  buyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+    alignSelf: "flex-start",
   },
 });
