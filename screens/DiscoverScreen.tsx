@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -20,6 +21,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
+import PagerView from "react-native-pager-view";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -30,6 +32,8 @@ import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost } from "@/services/api";
+import { FeedToggle, FeedMode } from "@/components/FeedToggle";
+import { ProFeedCard } from "@/components/ProFeedCard";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -121,6 +125,8 @@ export default function DiscoverScreen() {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { user, getToken } = useAuth();
 
+  const [feedMode, setFeedMode] = useState<FeedMode>("pro");
+  const pagerRef = useRef<PagerView>(null);
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -130,6 +136,18 @@ export default function DiscoverScreen() {
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
+
+  // Handle feed mode change from toggle
+  const handleModeChange = useCallback((mode: FeedMode) => {
+    setFeedMode(mode);
+    pagerRef.current?.setPage(mode === "pro" ? 0 : 1);
+  }, []);
+
+  // Handle pager swipe
+  const handlePageSelected = useCallback((e: { nativeEvent: { position: number } }) => {
+    const newMode = e.nativeEvent.position === 0 ? "pro" : "pulse";
+    setFeedMode(newMode);
+  }, []);
 
   // Convert API posts to local Post format
   const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
@@ -509,24 +527,72 @@ export default function DiscoverScreen() {
     );
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: "#000000" }]}>
-      <FlatList
-        data={feedPosts}
-        renderItem={renderFullScreenPost}
-        keyExtractor={(item) => item.id}
-        pagingEnabled
-        snapToInterval={POST_HEIGHT}
-        decelerationRate="fast"
-        showsVerticalScrollIndicator={false}
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-        getItemLayout={(data, index) => ({
-          length: POST_HEIGHT,
-          offset: POST_HEIGHT * index,
-          index,
-        })}
+  // Render Pro feed item (card-based)
+  const renderProFeedItem = ({ item: post }: { item: Post }) => {
+    const isVendor = post.type === "vendor";
+    const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
+
+    return (
+      <ProFeedCard
+        post={post}
+        onLike={handleLike}
+        onComment={openCommentsModal}
+        onSave={handleSavePost}
+        onAuthorPress={handleAuthorPress}
+        onActionPress={handleActionPress}
+        isSaved={isSaved}
       />
+    );
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+      
+      <PagerView
+        ref={pagerRef}
+        style={styles.pager}
+        initialPage={0}
+        onPageSelected={handlePageSelected}
+      >
+        {/* Pro Feed - Card-based Instagram style */}
+        <View key="pro" style={styles.feedPage}>
+          <FlatList
+            data={feedPosts}
+            renderItem={renderProFeedItem}
+            keyExtractor={(item) => `pro-${item.id}`}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.primary}
+              />
+            }
+            contentContainerStyle={styles.proFeedContent}
+          />
+        </View>
+
+        {/* Pulse Feed - TikTok-style full-screen */}
+        <View key="pulse" style={[styles.feedPage, { backgroundColor: "#000000" }]}>
+          <FlatList
+            data={feedPosts}
+            renderItem={renderFullScreenPost}
+            keyExtractor={(item) => `pulse-${item.id}`}
+            pagingEnabled
+            snapToInterval={POST_HEIGHT}
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
+            onRefresh={onRefresh}
+            refreshing={refreshing}
+            getItemLayout={(data, index) => ({
+              length: POST_HEIGHT,
+              offset: POST_HEIGHT * index,
+              index,
+            })}
+          />
+        </View>
+      </PagerView>
 
       {/* Comments Modal */}
       <Modal
@@ -608,6 +674,15 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  pager: {
+    flex: 1,
+  },
+  feedPage: {
+    flex: 1,
+  },
+  proFeedContent: {
+    paddingBottom: Spacing.xl,
   },
   loadingContainer: {
     flex: 1,
