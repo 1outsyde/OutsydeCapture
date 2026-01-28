@@ -239,6 +239,29 @@ export default function BusinessProfileScreen() {
     }
   };
 
+  const handleViewFullProfile = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (business.resultType === "photographer") {
+      const photographerData = {
+        id: business.id,
+        userId: (business as any).userId,
+        name: business.name,
+        avatar: business.avatar,
+        coverImage: business.coverImage,
+        location: `${business.city}, ${business.state}`,
+        rating: business.rating,
+        specialty: business.category,
+        priceRange: business.priceRange,
+        bio: business.description,
+        portfolio: [],
+        subscriptionTier: business.subscriptionTier,
+      };
+      navigation.navigate("PhotographerDetail", { photographer: photographerData as any });
+    } else {
+      navigation.navigate("VendorDetail", { vendorId: business.id });
+    }
+  };
+
   const handleVisitWebsite = async () => {
     if (business.website) {
       const url = business.website.startsWith("http")
@@ -371,6 +394,23 @@ export default function BusinessProfileScreen() {
 
         <View style={styles.contentSection}>
           <View style={styles.actionButtons}>
+            <Pressable
+              onPress={handleViewFullProfile}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.actionButtonPrimary,
+                { backgroundColor: profileTheme, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="user" size={20} color="#000000" />
+              <ThemedText
+                type="body"
+                style={{ marginLeft: Spacing.sm, color: "#000000", fontWeight: "600" }}
+              >
+                View Profile
+              </ThemedText>
+            </Pressable>
+
             {!isOwner && (
               <Pressable
                 onPress={handleMessage}
@@ -396,19 +436,16 @@ export default function BusinessProfileScreen() {
               onPress={handleBook}
               style={({ pressed }) => [
                 styles.actionButton,
-                styles.actionButtonPrimary,
-                { backgroundColor: profileTheme, opacity: pressed ? 0.8 : 1 },
+                styles.actionButtonSecondary,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
               ]}
             >
               <Feather
                 name={business.resultType === "photographer" ? "calendar" : "shopping-bag"}
                 size={20}
-                color="#FFFFFF"
+                color={theme.text}
               />
-              <ThemedText
-                type="body"
-                style={{ marginLeft: Spacing.sm, color: "#FFFFFF", fontWeight: "600" }}
-              >
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
                 {business.resultType === "photographer" ? "Book" : "View Services"}
               </ThemedText>
             </Pressable>

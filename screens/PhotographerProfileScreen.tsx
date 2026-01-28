@@ -291,6 +291,27 @@ export default function PhotographerProfileScreen() {
     navigation.navigate("Booking", { photographer: photographerData as any });
   };
 
+  const handleViewFullProfile = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const photographerData = {
+      id: photographer.id,
+      userId: (photographer as any).userId,
+      name: photographer.name,
+      avatar: photographer.avatar,
+      coverImage: photographer.coverImage,
+      location: `${photographer.city}, ${photographer.state}`,
+      rating: photographer.rating,
+      specialty: photographer.specialty,
+      priceRange: photographer.priceRange,
+      bio: photographer.description,
+      portfolio: photographer.portfolio || [],
+      yearsOfExperience: photographer.yearsOfExperience,
+      subscriptionTier: photographer.subscriptionTier,
+      stripeOnboardingComplete: photographer.stripeOnboardingComplete,
+    };
+    navigation.navigate("PhotographerDetail", { photographer: photographerData as any });
+  };
+
   const handleVisitWebsite = async () => {
     if (photographer.website) {
       const url = photographer.website.startsWith("http")
@@ -444,6 +465,23 @@ export default function PhotographerProfileScreen() {
 
         <View style={styles.contentSection}>
           <View style={styles.actionButtons}>
+            <Pressable
+              onPress={handleViewFullProfile}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.actionButtonPrimary,
+                { backgroundColor: profileTheme, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="user" size={20} color="#000000" />
+              <ThemedText
+                type="body"
+                style={{ marginLeft: Spacing.sm, color: "#000000", fontWeight: "600" }}
+              >
+                View Profile
+              </ThemedText>
+            </Pressable>
+
             {!isOwner && (
               <Pressable
                 onPress={handleMessage}
@@ -469,15 +507,12 @@ export default function PhotographerProfileScreen() {
               onPress={handleBook}
               style={({ pressed }) => [
                 styles.actionButton,
-                styles.actionButtonPrimary,
-                { backgroundColor: profileTheme, opacity: pressed ? 0.8 : 1 },
+                styles.actionButtonSecondary,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
               ]}
             >
-              <Feather name="calendar" size={20} color="#FFFFFF" />
-              <ThemedText
-                type="body"
-                style={{ marginLeft: Spacing.sm, color: "#FFFFFF", fontWeight: "600" }}
-              >
+              <Feather name="calendar" size={20} color={theme.text} />
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
                 Book Session
               </ThemedText>
             </Pressable>
