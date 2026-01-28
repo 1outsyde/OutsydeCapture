@@ -585,6 +585,11 @@ export interface PhotographerDashboardProfile {
   specialties: string[];
   stripeConnected: boolean;
   profileTheme?: string; // Brand color primary
+  autoAcceptBookings?: boolean; // Auto-accept new bookings without manual approval
+}
+
+export interface ProviderSettings {
+  autoAcceptBookings: boolean;
 }
 
 export interface PhotographerBooking {
@@ -668,6 +673,7 @@ export interface BusinessDashboardProfile {
   website?: string;
   stripeConnected: boolean;
   businessType: "service" | "product" | "both";
+  autoAcceptBookings?: boolean; // Auto-accept new bookings without manual approval
 }
 
 export interface BusinessOrder {
@@ -2278,6 +2284,69 @@ class ApiService {
     await this.request<void>(`/api/business/orders/${orderId}/status`, {
       method: "PUT",
       body: JSON.stringify({ status }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Accept a pending booking
+  async acceptBooking(
+    authToken: string, 
+    type: "photographer" | "business", 
+    bookingId: string
+  ): Promise<{ success: boolean; booking?: PhotographerBooking | BusinessBooking }> {
+    return this.request(`/api/${type}/bookings/${bookingId}/accept`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Decline a pending booking (triggers refund/void)
+  async declineBooking(
+    authToken: string, 
+    type: "photographer" | "business", 
+    bookingId: string,
+    reason?: string
+  ): Promise<{ success: boolean; refunded?: boolean }> {
+    return this.request(`/api/${type}/bookings/${bookingId}/decline`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // Issue refund for a confirmed booking
+  async issueRefund(
+    authToken: string, 
+    type: "photographer" | "business", 
+    bookingId: string,
+    amount?: number // Optional partial refund amount, full refund if not provided
+  ): Promise<{ success: boolean; refundedAmount?: number; message?: string }> {
+    return this.request(`/api/${type}/bookings/${bookingId}/refund`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ amount }),
+    });
+  }
+
+  // Update provider settings (auto-accept, etc.)
+  async updateProviderSettings(
+    authToken: string,
+    type: "photographer" | "business",
+    settings: Partial<ProviderSettings>
+  ): Promise<{ success: boolean; settings: ProviderSettings }> {
+    return this.request(`/api/${type}/settings`, {
+      method: "PUT",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(settings),
+    });
+  }
+
+  // Get provider settings
+  async getProviderSettings(
+    authToken: string,
+    type: "photographer" | "business"
+  ): Promise<ProviderSettings> {
+    return this.request<ProviderSettings>(`/api/${type}/settings`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

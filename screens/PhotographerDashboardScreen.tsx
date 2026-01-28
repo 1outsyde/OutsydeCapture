@@ -34,6 +34,9 @@ import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hour } from "@/components/HoursEditor";
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
+import AutoAcceptToggle from "@/components/AutoAcceptToggle";
+import RefundModal from "@/components/RefundModal";
+import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import { VendorBookerPhotographerService } from "@/services/api";
 import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -87,6 +90,12 @@ export default function PhotographerDashboardScreen() {
   const [services, setServices] = useState<PhotographerService[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  
+  // Auto-accept and refund state
+  const [autoAcceptBookings, setAutoAcceptBookings] = useState(false);
+  const [autoAcceptLoading, setAutoAcceptLoading] = useState(false);
+  const [refundModalVisible, setRefundModalVisible] = useState(false);
+  const [selectedBookingForRefund, setSelectedBookingForRefund] = useState<PhotographerBooking | null>(null);
 
   const [editProfile, setEditProfile] = useState({
     name: "",
@@ -218,7 +227,9 @@ export default function PhotographerDashboardScreen() {
         specialties: photographer.specialties || [],
         stripeConnected: photographer.stripeOnboardingComplete || false,
         profileTheme: originalTheme,
+        autoAcceptBookings: photographer.autoAcceptBookings ?? false,
       });
+      setAutoAcceptBookings(photographer.autoAcceptBookings ?? false);
       
       setEditProfile({
         name: photographer.displayName || "",
@@ -975,11 +986,52 @@ export default function PhotographerDashboardScreen() {
     if (!token) return;
 
     try {
-      await api.updateBookingStatus(token, "photographer", bookingId, action === "confirm" ? "confirmed" : "cancelled");
+      if (action === "confirm") {
+        await api.acceptBooking(token, "photographer", bookingId);
+      } else {
+        await api.declineBooking(token, "photographer", bookingId);
+      }
       Alert.alert("Success", `Booking ${action}ed successfully`);
       fetchDashboard();
     } catch {
       Alert.alert("Error", `Failed to ${action} booking`);
+    }
+  };
+
+  const handleAutoAcceptChange = async (value: boolean) => {
+    const token = await getToken();
+    if (!token) return;
+
+    setAutoAcceptLoading(true);
+    try {
+      await api.updateProviderSettings(token, "photographer", { autoAcceptBookings: value });
+      setAutoAcceptBookings(value);
+      setProfile(prev => prev ? { ...prev, autoAcceptBookings: value } : prev);
+    } catch (error) {
+      console.error("Failed to update auto-accept setting:", error);
+      Alert.alert("Error", "Failed to update booking settings. Please try again.");
+    } finally {
+      setAutoAcceptLoading(false);
+    }
+  };
+
+  const handleRefundPress = (booking: PhotographerBooking) => {
+    setSelectedBookingForRefund(booking);
+    setRefundModalVisible(true);
+  };
+
+  const handleRefundConfirm = async (amount?: number) => {
+    if (!selectedBookingForRefund) return;
+    
+    const token = await getToken();
+    if (!token) throw new Error("Not authenticated");
+
+    const result = await api.issueRefund(token, "photographer", selectedBookingForRefund.id, amount);
+    if (result.success) {
+      Alert.alert("Refund Issued", `$${result.refundedAmount?.toFixed(2) || amount || selectedBookingForRefund.amount} has been refunded to the customer.`);
+      fetchDashboard();
+    } else {
+      throw new Error(result.message || "Failed to issue refund");
     }
   };
 
@@ -2120,6 +2172,16 @@ export default function PhotographerDashboardScreen() {
                         </Pressable>
                       </View>
                     )}
+                    {booking.status === "confirmed" && (
+                      <View style={styles.bookingActions}>
+                        <Pressable
+                          onPress={() => handleRefundPress(booking)}
+                          style={[styles.bookingActionButton, { backgroundColor: theme.error + "15", borderColor: theme.error }]}
+                        >
+                          <Text style={[styles.bookingActionText, { color: theme.error }]}>Issue Refund</Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </View>
                 );
               })
@@ -2597,6 +2659,18 @@ export default function PhotographerDashboardScreen() {
           </View>
         </View>
 
+        {/* Booking Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Booking Settings</Text>
+          <View style={{ marginTop: 12 }}>
+            <AutoAcceptToggle
+              value={autoAcceptBookings}
+              onChange={handleAutoAcceptChange}
+              loading={autoAcceptLoading}
+            />
+          </View>
+        </View>
+
         {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -2652,6 +2726,18 @@ export default function PhotographerDashboardScreen() {
         onSave={handleSaveService}
         initialData={editingService}
         brandColor={profile?.profileTheme || theme.primary}
+      />
+
+      <RefundModal
+        visible={refundModalVisible}
+        onClose={() => {
+          setRefundModalVisible(false);
+          setSelectedBookingForRefund(null);
+        }}
+        onConfirm={handleRefundConfirm}
+        bookingAmount={selectedBookingForRefund?.amount || 0}
+        clientName={selectedBookingForRefund?.clientName || ""}
+        serviceName={selectedBookingForRefund?.sessionType || ""}
       />
     </>
   );
