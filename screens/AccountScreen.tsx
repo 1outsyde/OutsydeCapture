@@ -328,25 +328,34 @@ function EditProfileModal({
         await updateProfile({ coverMediaUrl: cloudinaryUrl, coverMediaType: pendingBannerType });
       }
 
-      // Update display name if changed
-      if (editDisplayName !== originalDisplayName) {
-        updates.displayName = editDisplayName;
-      }
-
-      // Update username if changed
-      if (editUsername !== originalUsername) {
-        updates.username = editUsername;
-      }
-
-      // Save text fields to backend
+      // Save media updates (profileImageUrl, coverMediaUrl) to /api/users/me
       if (Object.keys(updates).length > 0) {
+        await api.updateUserMe(token, updates);
+        await updateProfile(updates);
+      }
+
+      // Update username and/or display name via /api/users/identity
+      const identityChanges: { username?: string; displayName?: string } = {};
+      if (editDisplayName !== originalDisplayName) {
+        identityChanges.displayName = editDisplayName;
+      }
+      if (editUsername !== originalUsername) {
+        identityChanges.username = editUsername;
+      }
+
+      if (Object.keys(identityChanges).length > 0) {
         try {
-          await api.updateUserMe(token, updates);
-          await updateProfile(updates);
+          await api.updateUserIdentity(token, identityChanges);
+          await updateProfile(identityChanges);
           setProfile(prev => prev ? { ...prev, name: editDisplayName || prev.name } : prev);
         } catch (error: any) {
           if (error?.message?.toLowerCase().includes("username") || error?.status === 409) {
             setUsernameError("This username is already taken. Please choose another.");
+            setSaving(false);
+            return;
+          }
+          if (error?.message?.toLowerCase().includes("cooldown")) {
+            Alert.alert("Please Wait", error.message || "You can only change your username/display name once every 14 days.");
             setSaving(false);
             return;
           }

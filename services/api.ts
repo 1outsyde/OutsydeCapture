@@ -1681,6 +1681,46 @@ class ApiService {
     });
   }
 
+  // PATCH /api/users/identity - Update username and/or display name
+  async updateUserIdentity(authToken: string, data: { 
+    username?: string; 
+    displayName?: string;
+  }): Promise<{ success: boolean; user?: any; message?: string }> {
+    console.log("[API] updateUserIdentity payload:", JSON.stringify(data, null, 2));
+    
+    const filteredData = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined && value !== null && value !== "")
+    );
+    
+    if (!filteredData || Object.keys(filteredData).length === 0) {
+      console.warn("[API] updateUserIdentity: Empty payload after filtering");
+      throw { message: "No changes to save.", status: 400 };
+    }
+    
+    return this.request<{ success: boolean; user?: any; message?: string }>("/api/users/identity", {
+      method: "PATCH",
+      body: JSON.stringify(filteredData),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/users/identity/status - Get cooldown status for username/display name changes
+  async getUserIdentityStatus(authToken: string): Promise<{ 
+    usernameCooldownDays?: number; 
+    displayNameCooldownDays?: number;
+    canChangeUsername: boolean;
+    canChangeDisplayName: boolean;
+  }> {
+    return this.request<{ 
+      usernameCooldownDays?: number; 
+      displayNameCooldownDays?: number;
+      canChangeUsername: boolean;
+      canChangeDisplayName: boolean;
+    }>("/api/users/identity/status", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // GET /api/photographers/me/stripe-status - Get Stripe onboarding status
   async getPhotographerStripeStatus(authToken: string): Promise<StripeOnboardingStatus> {
     return this.request<StripeOnboardingStatus>("/api/photographers/me/stripe-status", {
