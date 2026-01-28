@@ -537,7 +537,9 @@ export default function BookingScreen() {
       }
 
       // Check if booking is pending provider approval (auto-accept is OFF)
-      const isPending = confirmResponse.status === "pending" || confirmResponse.status === "pending_approval";
+      // Backend may return "pending" or "pending_approval" when auto-accept is disabled
+      const bookingStatus = (confirmResponse.booking?.status as string) || "confirmed";
+      const isPending = bookingStatus === "pending" || bookingStatus === "pending_approval";
       setBookingPending(isPending);
 
       const session = await addSession({
@@ -550,7 +552,7 @@ export default function BookingScreen() {
         location,
         sessionType: selectedService.category || "portrait",
         notes,
-        status: isPending ? "pending" : "upcoming",
+        status: "upcoming",
         price: selectedService.price || bookingDraft.totalAmount,
       });
 
