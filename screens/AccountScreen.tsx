@@ -158,6 +158,399 @@ const StarRating = ({ rating, reviewCount, size = 12, showCount = true, color = 
   );
 };
 
+// Edit Profile Modal Component
+interface EditProfileModalProps {
+  visible: boolean;
+  onClose: () => void;
+  profile: ProfileData | null;
+  user: any;
+  userRole: "consumer" | "photographer" | "business";
+  profileTheme: string;
+  theme: any;
+  isDark: boolean;
+  insets: { top: number; bottom: number };
+  setProfile: React.Dispatch<React.SetStateAction<ProfileData | null>>;
+  updateProfile: (data: any) => Promise<void>;
+  fetchProfile: () => Promise<void>;
+  getToken: () => Promise<string | null>;
+}
+
+function EditProfileModal({
+  visible,
+  onClose,
+  profile,
+  user,
+  userRole,
+  profileTheme,
+  theme,
+  isDark,
+  insets,
+  setProfile,
+  updateProfile,
+  fetchProfile,
+  getToken,
+}: EditProfileModalProps) {
+  const [editDisplayName, setEditDisplayName] = useState(user?.displayName || user?.firstName || "");
+  const [editUsername, setEditUsername] = useState(user?.username || "");
+  const [pendingAvatarUri, setPendingAvatarUri] = useState<string | null>(null);
+  const [pendingBannerUri, setPendingBannerUri] = useState<string | null>(null);
+  const [pendingBannerType, setPendingBannerType] = useState<"image" | "video">("image");
+  const [saving, setSaving] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (visible) {
+      setEditDisplayName(user?.displayName || user?.firstName || "");
+      setEditUsername(user?.username || "");
+      setPendingAvatarUri(null);
+      setPendingBannerUri(null);
+      setPendingBannerType("image");
+      setUsernameError(null);
+    }
+  }, [visible, user]);
+
+  const originalDisplayName = user?.displayName || user?.firstName || "";
+  const originalUsername = user?.username || "";
+
+  const hasChanges = 
+    editDisplayName !== originalDisplayName ||
+    editUsername !== originalUsername ||
+    pendingAvatarUri !== null ||
+    pendingBannerUri !== null;
+
+  const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingAvatarUri(result.assets[0].uri);
+    }
+  };
+
+  const handlePickBannerPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingBannerUri(result.assets[0].uri);
+      setPendingBannerType("image");
+    }
+  };
+
+  const handlePickBannerVideo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please grant media library access to select videos.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["videos"],
+      allowsEditing: true,
+      quality: 0.8,
+      videoMaxDuration: 30,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingBannerUri(result.assets[0].uri);
+      setPendingBannerType("video");
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!hasChanges) return;
+    
+    setSaving(true);
+    setUsernameError(null);
+    
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Error", "You must be logged in to save changes.");
+        setSaving(false);
+        return;
+      }
+
+      const updates: any = {};
+
+      // Upload avatar if changed
+      if (pendingAvatarUri) {
+        const cloudinaryUrl = await uploadImageToCloudinary(pendingAvatarUri, "avatars");
+        if (userRole === "photographer") {
+          await api.updatePhotographerMe(token, { logoImage: cloudinaryUrl });
+        } else if (userRole === "business") {
+          await api.updateVendorMyBusiness(token, { logoImage: cloudinaryUrl });
+        } else {
+          updates.profileImageUrl = cloudinaryUrl;
+        }
+        setProfile(prev => prev ? { ...prev, avatar: cloudinaryUrl } : prev);
+        await updateProfile({ avatar: cloudinaryUrl, profileImageUrl: cloudinaryUrl });
+      }
+
+      // Upload banner if changed
+      if (pendingBannerUri) {
+        let cloudinaryUrl: string;
+        if (pendingBannerType === "video") {
+          cloudinaryUrl = await uploadVideoToCloudinary(pendingBannerUri, "banners");
+        } else {
+          cloudinaryUrl = await uploadImageToCloudinary(pendingBannerUri, "banners");
+        }
+        
+        if (userRole === "photographer") {
+          await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: pendingBannerType });
+        } else if (userRole === "business") {
+          await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: pendingBannerType });
+        } else {
+          updates.coverMediaUrl = cloudinaryUrl;
+          updates.coverMediaType = pendingBannerType;
+        }
+        
+        if (pendingBannerType === "video") {
+          setProfile(prev => prev ? { ...prev, coverVideo: cloudinaryUrl, coverImage: undefined } : prev);
+        } else {
+          setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl, coverVideo: undefined } : prev);
+        }
+        await updateProfile({ coverMediaUrl: cloudinaryUrl, coverMediaType: pendingBannerType });
+      }
+
+      // Update display name if changed
+      if (editDisplayName !== originalDisplayName) {
+        updates.displayName = editDisplayName;
+      }
+
+      // Update username if changed
+      if (editUsername !== originalUsername) {
+        updates.username = editUsername;
+      }
+
+      // Save text fields to backend
+      if (Object.keys(updates).length > 0) {
+        try {
+          await api.updateUserMe(token, updates);
+          await updateProfile(updates);
+          setProfile(prev => prev ? { ...prev, name: editDisplayName || prev.name } : prev);
+        } catch (error: any) {
+          if (error?.message?.toLowerCase().includes("username") || error?.status === 409) {
+            setUsernameError("This username is already taken. Please choose another.");
+            setSaving(false);
+            return;
+          }
+          throw error;
+        }
+      }
+
+      await fetchProfile();
+      Alert.alert("Success", "Profile updated successfully!");
+      onClose();
+    } catch (error: any) {
+      console.error("Failed to save profile:", error);
+      Alert.alert("Error", error?.message || "Failed to save changes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const displayAvatar = pendingAvatarUri || profile?.avatar;
+  const displayBanner = pendingBannerUri || (pendingBannerType === "video" ? profile?.coverVideo : profile?.coverImage);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+        <View style={{
+          backgroundColor: theme.card,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          padding: Spacing.lg,
+          paddingBottom: insets.bottom + Spacing.lg,
+          maxHeight: "90%",
+        }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg }}>
+            <ThemedText type="h3">Edit Profile</ThemedText>
+            <Pressable onPress={onClose}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Profile Photo Section */}
+            <View style={{ alignItems: "center", marginBottom: Spacing.lg }}>
+              <Pressable onPress={handlePickAvatar} style={{ position: "relative" }}>
+                {displayAvatar ? (
+                  <Image
+                    source={{ uri: displayAvatar }}
+                    style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: profileTheme }}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: profileTheme }}>
+                    <Feather name="user" size={40} color={theme.textSecondary} />
+                  </View>
+                )}
+                <View style={{ position: "absolute", bottom: 0, right: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: profileTheme, alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="camera" size={16} color="#000" />
+                </View>
+              </Pressable>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                Tap to change profile photo
+              </ThemedText>
+            </View>
+
+            {/* Banner Section */}
+            <View style={{ marginBottom: Spacing.lg }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                Cover Media
+              </ThemedText>
+              <View style={{ flexDirection: "row", gap: Spacing.sm }}>
+                <Pressable
+                  onPress={handlePickBannerPhoto}
+                  style={{
+                    flex: 1,
+                    height: 80,
+                    backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: pendingBannerUri && pendingBannerType === "image" ? 2 : 0,
+                    borderColor: profileTheme,
+                  }}
+                >
+                  <Feather name="image" size={24} color={theme.textSecondary} />
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                    Photo
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={handlePickBannerVideo}
+                  style={{
+                    flex: 1,
+                    height: 80,
+                    backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: pendingBannerUri && pendingBannerType === "video" ? 2 : 0,
+                    borderColor: profileTheme,
+                  }}
+                >
+                  <Feather name="video" size={24} color={theme.textSecondary} />
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                    Video
+                  </ThemedText>
+                </Pressable>
+              </View>
+              {pendingBannerUri && (
+                <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+                  <Feather name="check-circle" size={14} color="#4CAF50" />
+                  <ThemedText type="small" style={{ color: "#4CAF50", marginLeft: Spacing.xs }}>
+                    New {pendingBannerType} selected
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+
+            {/* Display Name Field */}
+            <View style={{ marginBottom: Spacing.lg }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                Display Name
+              </ThemedText>
+              <TextInput
+                value={editDisplayName}
+                onChangeText={setEditDisplayName}
+                placeholder="Your public name"
+                placeholderTextColor={theme.textSecondary}
+                style={{
+                  backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  color: theme.text,
+                  fontSize: 16,
+                }}
+              />
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                This is how others will see you
+              </ThemedText>
+            </View>
+
+            {/* Username Field */}
+            <View style={{ marginBottom: Spacing.lg }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                Username
+              </ThemedText>
+              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", borderRadius: 12, borderWidth: usernameError ? 1 : 0, borderColor: theme.error }}>
+                <ThemedText type="body" style={{ paddingLeft: Spacing.md, color: theme.textSecondary }}>@</ThemedText>
+                <TextInput
+                  value={editUsername}
+                  onChangeText={(text) => {
+                    setEditUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ""));
+                    setUsernameError(null);
+                  }}
+                  placeholder="username"
+                  placeholderTextColor={theme.textSecondary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={{
+                    flex: 1,
+                    padding: Spacing.md,
+                    paddingLeft: 0,
+                    color: theme.text,
+                    fontSize: 16,
+                  }}
+                />
+              </View>
+              {usernameError ? (
+                <ThemedText type="small" style={{ color: theme.error, marginTop: Spacing.xs }}>
+                  {usernameError}
+                </ThemedText>
+              ) : (
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                  Used for your profile URL and mentions
+                </ThemedText>
+              )}
+            </View>
+          </ScrollView>
+
+          {/* Save Button */}
+          <Pressable
+            onPress={handleSaveChanges}
+            disabled={!hasChanges || saving}
+            style={{
+              backgroundColor: hasChanges && !saving ? profileTheme : theme.backgroundSecondary,
+              paddingVertical: Spacing.md,
+              borderRadius: BorderRadius.lg,
+              alignItems: "center",
+              marginTop: Spacing.md,
+              opacity: hasChanges && !saving ? 1 : 0.5,
+            }}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={hasChanges ? "#000" : theme.textSecondary} />
+            ) : (
+              <ThemedText type="button" style={{ color: hasChanges ? "#000" : theme.textSecondary }}>
+                Save Changes
+              </ThemedText>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -2688,237 +3081,22 @@ export default function AccountScreen() {
         </View>
       </Modal>
 
-      {/* Photo Edit Modal for Consumers */}
-      <Modal visible={showEditPhotoModal} animationType="slide" transparent>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-          <View style={{
-            backgroundColor: theme.card,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            padding: Spacing.lg,
-            paddingBottom: insets.bottom + Spacing.lg,
-          }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg }}>
-              <ThemedText type="h3">Edit Photos</ThemedText>
-              <Pressable onPress={() => setShowEditPhotoModal(false)}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-
-            <Pressable
-              onPress={async () => {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== "granted") {
-                  Alert.alert("Permission Required", "Please allow access to your photo library.");
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  allowsEditing: true,
-                  aspect: [1, 1],
-                  quality: 0.8,
-                });
-                if (!result.canceled && result.assets[0]) {
-                  const localUri = result.assets[0].uri;
-                  setProfile(prev => prev ? { ...prev, avatar: localUri } : prev);
-                  
-                  try {
-                    Alert.alert("Uploading", "Please wait while we save your photo...");
-                    const cloudinaryUrl = await uploadImageToCloudinary(localUri, "avatars");
-                    
-                    const token = await getToken();
-                    if (token && userRole === "photographer") {
-                      await api.updatePhotographerMe(token, { logoImage: cloudinaryUrl });
-                    } else if (token && userRole === "business") {
-                      await api.updateVendorMyBusiness(token, { logoImage: cloudinaryUrl });
-                    } else if (token) {
-                      // Consumer/influencer accounts
-                      await api.updateUserMe(token, { profileImageUrl: cloudinaryUrl });
-                    }
-                    
-                    setProfile(prev => prev ? { ...prev, avatar: cloudinaryUrl } : prev);
-                    // Persist to AuthContext/AsyncStorage so it survives reload
-                    await updateProfile({ 
-                      avatar: cloudinaryUrl, 
-                      profileImageUrl: cloudinaryUrl 
-                    });
-                    Alert.alert("Success", "Profile photo saved!");
-                  } catch (error: any) {
-                    console.error("Failed to upload profile photo:", error);
-                    if (error?.status === 404) {
-                      // Keep the Cloudinary URL locally even if backend save fails
-                      Alert.alert(
-                        "Backend Update Pending",
-                        "Your photo was uploaded but the save endpoint is not yet available. Please contact support or try again later."
-                      );
-                    } else {
-                      Alert.alert("Error", "Failed to save profile photo. Please try again.");
-                    }
-                  }
-                }
-              }}
-              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Feather name="user" size={20} color={theme.text} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Change Profile Photo</ThemedText>
-              </View>
-              <Feather name="camera" size={20} color={profileTheme} />
-            </Pressable>
-
-            <Pressable
-              onPress={async () => {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== "granted") {
-                  Alert.alert("Permission Required", "Please allow access to your photo library.");
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  allowsEditing: true,
-                  aspect: [16, 9],
-                  quality: 0.8,
-                });
-                if (!result.canceled && result.assets[0]) {
-                  const localUri = result.assets[0].uri;
-                  setProfile(prev => prev ? { ...prev, coverImage: localUri } : prev);
-                  
-                  try {
-                    Alert.alert("Uploading", "Please wait while we save your banner...");
-                    console.log("[Banner] Starting image upload from:", localUri);
-                    const cloudinaryUrl = await uploadImageToCloudinary(localUri, "banners");
-                    console.log("[Banner] Cloudinary upload complete:", cloudinaryUrl);
-                    
-                    const token = await getToken();
-                    if (token && userRole === "photographer") {
-                      console.log("[Banner] Updating photographer profile with coverImage");
-                      const updateResult = await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "image" });
-                      console.log("[Banner] Photographer update result:", JSON.stringify(updateResult));
-                    } else if (token && userRole === "business") {
-                      console.log("[Banner] Updating business profile with coverImage");
-                      await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: "image" });
-                    } else if (token) {
-                      console.log("[Banner] Updating consumer profile with coverMediaUrl");
-                      await api.updateUserMe(token, { coverMediaUrl: cloudinaryUrl, coverMediaType: "image" });
-                    }
-                    
-                    setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl, coverVideo: undefined } : prev);
-                    // Persist to AuthContext/AsyncStorage so it survives reload
-                    await updateProfile({ 
-                      coverMediaUrl: cloudinaryUrl, 
-                      coverMediaType: "image" 
-                    });
-                    console.log("[Banner] Banner update complete, refreshing profile...");
-                    // Re-fetch profile to ensure we have the latest from backend
-                    await fetchProfile();
-                    Alert.alert("Success", "Banner photo saved!");
-                  } catch (error: any) {
-                    console.error("Failed to upload banner photo:", error);
-                    console.error("Error details:", JSON.stringify(error));
-                    if (error?.status === 404) {
-                      Alert.alert(
-                        "Backend Update Pending",
-                        "Your banner was uploaded but the save endpoint is not yet available. Please contact support or try again later."
-                      );
-                    } else {
-                      Alert.alert("Error", `Failed to save banner photo: ${error?.message || "Unknown error"}`);
-                    }
-                  }
-                }
-              }}
-              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Feather name="image" size={20} color={theme.text} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Change Banner Photo</ThemedText>
-              </View>
-              <Feather name="camera" size={20} color={profileTheme} />
-            </Pressable>
-
-            <Pressable
-              onPress={async () => {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== "granted") {
-                  Alert.alert("Permission Required", "Please grant media library access to select videos.");
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ["videos"],
-                  allowsEditing: true,
-                  quality: 0.8,
-                  videoMaxDuration: 30,
-                });
-                if (!result.canceled && result.assets[0]) {
-                  const localUri = result.assets[0].uri;
-                  setProfile(prev => prev ? { ...prev, coverVideo: localUri, coverImage: undefined } : prev);
-                  
-                  try {
-                    Alert.alert("Uploading", "Please wait while we upload your video. This may take a moment...");
-                    console.log("[Banner] Starting video upload from:", localUri);
-                    const cloudinaryUrl = await uploadVideoToCloudinary(localUri, "banners");
-                    console.log("[Banner] Cloudinary video upload complete:", cloudinaryUrl);
-                    
-                    const token = await getToken();
-                    if (token && userRole === "photographer") {
-                      console.log("[Banner] Updating photographer profile with video coverImage");
-                      const updateResult = await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: "video" });
-                      console.log("[Banner] Photographer video update result:", JSON.stringify(updateResult));
-                    } else if (token && userRole === "business") {
-                      console.log("[Banner] Updating business profile with video coverImage");
-                      await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: "video" });
-                    } else if (token) {
-                      console.log("[Banner] Updating consumer profile with video coverMediaUrl");
-                      await api.updateUserMe(token, { coverMediaUrl: cloudinaryUrl, coverMediaType: "video" });
-                    }
-                    
-                    setProfile(prev => prev ? { ...prev, coverVideo: cloudinaryUrl, coverImage: undefined } : prev);
-                    // Persist to AuthContext/AsyncStorage so it survives reload
-                    await updateProfile({ 
-                      coverMediaUrl: cloudinaryUrl, 
-                      coverMediaType: "video" 
-                    });
-                    console.log("[Banner] Banner video update complete, refreshing profile...");
-                    // Re-fetch profile to ensure we have the latest from backend
-                    await fetchProfile();
-                    Alert.alert("Success", "Banner video saved!");
-                  } catch (error: any) {
-                    console.error("Failed to upload banner video:", error);
-                    console.error("Error details:", JSON.stringify(error));
-                    if (error?.status === 404) {
-                      Alert.alert(
-                        "Backend Update Pending",
-                        "Your video was uploaded but the save endpoint is not yet available. Please contact support or try again later."
-                      );
-                    } else {
-                      Alert.alert("Error", `Failed to save banner video: ${error?.message || "Unknown error"}`);
-                    }
-                  }
-                }
-              }}
-              style={[styles.settingsRow, { backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5" }]}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Feather name="video" size={20} color={theme.text} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Change Banner Video</ThemedText>
-              </View>
-              <Feather name="film" size={20} color={profileTheme} />
-            </Pressable>
-
-            <Pressable
-              onPress={() => setShowEditPhotoModal(false)}
-              style={{
-                backgroundColor: profileTheme,
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.lg,
-                alignItems: "center",
-                marginTop: Spacing.lg,
-              }}
-            >
-              <ThemedText type="button" style={{ color: "#000" }}>Done</ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      {/* Edit Profile Modal for Consumers */}
+      <EditProfileModal
+        visible={showEditPhotoModal}
+        onClose={() => setShowEditPhotoModal(false)}
+        profile={profile}
+        user={user}
+        userRole={userRole}
+        profileTheme={profileTheme}
+        theme={theme}
+        isDark={isDark}
+        insets={insets}
+        setProfile={setProfile}
+        updateProfile={updateProfile}
+        fetchProfile={fetchProfile}
+        getToken={getToken}
+      />
 
       {/* Share Profile Modal */}
       <Modal
