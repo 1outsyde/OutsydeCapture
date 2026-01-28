@@ -17,6 +17,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import * as Haptics from "expo-haptics";
 
 interface PersonalSettingsMenuProps {
   visible: boolean;
@@ -37,10 +38,15 @@ export function PersonalSettingsMenu({
   showLocationVisible,
   onToggleLocationVisibility,
 }: PersonalSettingsMenuProps) {
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { user, logout } = useAuth();
+
+  const handleToggleTheme = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleTheme();
+  };
 
   const isAdmin =
     user?.email?.toLowerCase() === "info@goutsyde.com" ||
@@ -288,6 +294,45 @@ export function PersonalSettingsMenu({
                   </View>
                 </Pressable>
               ) : null}
+
+              <Pressable
+                onPress={handleToggleTheme}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name={isDark ? "moon" : "sun"} size={20} color={theme.text} />
+                  <View>
+                    <ThemedText type="body" style={styles.menuItemText}>
+                      Dark Mode
+                    </ThemedText>
+                    <ThemedText
+                      type="small"
+                      style={[styles.menuItemSubtitle, { color: theme.textSecondary }]}
+                    >
+                      {isDark ? "On" : "Off"}
+                    </ThemedText>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.toggleSwitch,
+                    { backgroundColor: isDark ? "#FFD60A" : "#767577" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.toggleKnob,
+                      { marginLeft: isDark ? 22 : 2 },
+                    ]}
+                  />
+                </View>
+              </Pressable>
 
               <MenuItem
                 icon="bell"

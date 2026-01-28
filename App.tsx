@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, useColorScheme } from "react-native";
+import { StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -18,44 +18,50 @@ import { OrdersProvider } from "@/context/OrdersContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { HealthCheckProvider } from "@/context/HealthCheckContext";
 import { CalendarProvider } from "@/context/CalendarContext";
-import { Colors } from "@/constants/theme";
+import { ThemeProvider, useThemeContext } from "@/context/ThemeContext";
+
+function AppContent() {
+  const { theme, isDark } = useThemeContext();
+
+  return (
+    <GestureHandlerRootView style={[styles.root, { backgroundColor: theme.backgroundRoot }]}>
+      <KeyboardProvider>
+        <AuthProvider>
+          <DataProvider>
+            <OrdersProvider>
+              <FavoritesProvider>
+                <PaymentProvider>
+                  <LoyaltyProvider>
+                    <NotificationProvider>
+                      <MessagingProvider>
+                        <HealthCheckProvider>
+                          <CalendarProvider>
+                            <NavigationContainer>
+                              <RootNavigator />
+                            </NavigationContainer>
+                          </CalendarProvider>
+                        </HealthCheckProvider>
+                      </MessagingProvider>
+                    </NotificationProvider>
+                  </LoyaltyProvider>
+                </PaymentProvider>
+              </FavoritesProvider>
+            </OrdersProvider>
+          </DataProvider>
+        </AuthProvider>
+        <StatusBar style={isDark ? "light" : "dark"} />
+      </KeyboardProvider>
+    </GestureHandlerRootView>
+  );
+}
 
 export default function App() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const theme = Colors[colorScheme ?? "light"];
-
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <GestureHandlerRootView style={[styles.root, { backgroundColor: theme.backgroundRoot }]}>
-          <KeyboardProvider>
-            <AuthProvider>
-              <DataProvider>
-                <OrdersProvider>
-                  <FavoritesProvider>
-                    <PaymentProvider>
-                      <LoyaltyProvider>
-                        <NotificationProvider>
-                          <MessagingProvider>
-                            <HealthCheckProvider>
-                              <CalendarProvider>
-                                <NavigationContainer>
-                                  <RootNavigator />
-                                </NavigationContainer>
-                              </CalendarProvider>
-                            </HealthCheckProvider>
-                          </MessagingProvider>
-                        </NotificationProvider>
-                      </LoyaltyProvider>
-                    </PaymentProvider>
-                  </FavoritesProvider>
-                </OrdersProvider>
-              </DataProvider>
-            </AuthProvider>
-            <StatusBar style={isDark ? "light" : "dark"} />
-          </KeyboardProvider>
-        </GestureHandlerRootView>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
   );
