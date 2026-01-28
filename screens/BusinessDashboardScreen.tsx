@@ -30,6 +30,8 @@ import api, {
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject } from "@/components/HoursEditor";
+import AutoAcceptToggle from "@/components/AutoAcceptToggle";
+import RefundModal from "@/components/RefundModal";
 
 type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile";
@@ -71,6 +73,11 @@ export default function BusinessDashboardScreen() {
   const [products, setProducts] = useState<BusinessProduct[]>([]);
   const [services, setServices] = useState<BusinessService[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
+  
+  const [autoAcceptBookings, setAutoAcceptBookings] = useState(false);
+  const [autoAcceptLoading, setAutoAcceptLoading] = useState(false);
+  const [refundModalVisible, setRefundModalVisible] = useState(false);
+  const [selectedBookingForRefund, setSelectedBookingForRefund] = useState<BusinessBooking | null>(null);
 
   const [editProfile, setEditProfile] = useState({
     name: "",
@@ -145,7 +152,9 @@ export default function BusinessDashboardScreen() {
         website: business.websiteUrl || undefined,
         stripeConnected: business.stripeOnboardingComplete || false,
         businessType: businessTypeValue,
+        autoAcceptBookings: business.autoAcceptBookings ?? false,
       });
+      setAutoAcceptBookings(business.autoAcceptBookings ?? false);
       
       setEditProfile({
         name: business.name || "",
@@ -445,11 +454,52 @@ export default function BusinessDashboardScreen() {
     if (!token) return;
 
     try {
-      await api.updateBookingStatus(token, "business", bookingId, action === "confirm" ? "confirmed" : "cancelled");
+      if (action === "confirm") {
+        await api.acceptBooking(token, "business", bookingId);
+      } else {
+        await api.declineBooking(token, "business", bookingId);
+      }
       Alert.alert("Success", `Booking ${action}ed successfully`);
       fetchTabData();
     } catch (error) {
       Alert.alert("Error", `Failed to ${action} booking`);
+    }
+  };
+
+  const handleAutoAcceptChange = async (value: boolean) => {
+    const token = await getToken();
+    if (!token) return;
+
+    setAutoAcceptLoading(true);
+    try {
+      await api.updateProviderSettings(token, "business", { autoAcceptBookings: value });
+      setAutoAcceptBookings(value);
+      setProfile(prev => prev ? { ...prev, autoAcceptBookings: value } : prev);
+    } catch (error) {
+      console.error("Failed to update auto-accept setting:", error);
+      Alert.alert("Error", "Failed to update booking settings. Please try again.");
+    } finally {
+      setAutoAcceptLoading(false);
+    }
+  };
+
+  const handleRefundPress = (booking: BusinessBooking) => {
+    setSelectedBookingForRefund(booking);
+    setRefundModalVisible(true);
+  };
+
+  const handleRefundConfirm = async (amount?: number) => {
+    if (!selectedBookingForRefund) return;
+    
+    const token = await getToken();
+    if (!token) throw new Error("Not authenticated");
+
+    const result = await api.issueRefund(token, "business", selectedBookingForRefund.id, amount);
+    if (result.success) {
+      Alert.alert("Refund Issued", `$${result.refundedAmount?.toFixed(2) || amount || selectedBookingForRefund.amount} has been refunded to the customer.`);
+      fetchTabData();
+    } else {
+      throw new Error(result.message || "Failed to issue refund");
     }
   };
 
@@ -1134,6 +1184,16 @@ export default function BusinessDashboardScreen() {
               </Pressable>
             </View>
           )}
+          {booking.status === "confirmed" && (
+            <View style={styles.bookingActions}>
+              <Pressable
+                onPress={() => handleRefundPress(booking)}
+                style={[styles.actionButton, { backgroundColor: "#FF3B3015", borderWidth: 1, borderColor: "#FF3B30", flex: 1 }]}
+              >
+                <Text style={[styles.actionButtonText, { color: "#FF3B30" }]}>Issue Refund</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       );
     });
@@ -1463,6 +1523,18 @@ export default function BusinessDashboardScreen() {
         </View>
       </View>
 
+      {/* Booking Settings - Only show for service-based businesses */}
+      {(businessType === "service" || businessType === "both") && (
+        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, marginBottom: 12 }}>Booking Settings</Text>
+          <AutoAcceptToggle
+            value={autoAcceptBookings}
+            onChange={handleAutoAcceptChange}
+            loading={autoAcceptLoading}
+          />
+        </View>
+      )}
+
       {/* Tab Navigation */}
       <View style={styles.tabsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
@@ -1488,6 +1560,18 @@ export default function BusinessDashboardScreen() {
       </View>
 
       <View style={{ height: insets.bottom + 20 }} />
+
+      <RefundModal
+        visible={refundModalVisible}
+        onClose={() => {
+          setRefundModalVisible(false);
+          setSelectedBookingForRefund(null);
+        }}
+        onConfirm={handleRefundConfirm}
+        bookingAmount={selectedBookingForRefund?.amount || 0}
+        clientName={selectedBookingForRefund?.customerName || ""}
+        serviceName={selectedBookingForRefund?.serviceName || ""}
+      />
     </ScrollView>
   );
 }
