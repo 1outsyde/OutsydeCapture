@@ -1321,10 +1321,13 @@ class ApiService {
       const avatarUrl = isValidImageUrl(item.avatar) || isValidImageUrl(item.logoImage) || isValidImageUrl(item.profileImageUrl) || "";
       const coverUrl = isValidImageUrl(item.coverImage) || "";
 
+      // Resolve display name with proper priority for all entity types
+      const resolvedName = item.displayName || item.name || (item.username ? `@${item.username}` : null) || "Unknown";
+
       return {
         id: item.id,
         userId: item.userId,
-        name: item.displayName || item.name || "Unknown",
+        name: resolvedName,
         username: item.username,
         avatar: avatarUrl || "https://via.placeholder.com/100",
         coverImage: coverUrl,

@@ -286,6 +286,11 @@ export default function SearchScreen() {
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
     const hasValidAvatar = isValidImageUrl(item.avatar);
+    
+    // Resolve display label with priority: name (already resolved) > username fallback
+    const displayLabel = item.name && item.name !== "Unknown" 
+      ? item.name 
+      : (item.username ? `@${item.username}` : "Unknown");
 
     return (
       <Pressable
@@ -308,7 +313,7 @@ export default function SearchScreen() {
         ) : (
           <View style={[styles.resultImage, { backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }]}>
             <ThemedText type="h2" style={{ color: "#000000", fontWeight: "700" }}>
-              {getInitials(item.name)}
+              {getInitials(displayLabel)}
             </ThemedText>
           </View>
         )}
@@ -316,9 +321,9 @@ export default function SearchScreen() {
           <View style={styles.resultHeader}>
             <View style={{ flex: 1 }}>
               <ThemedText type="h4" numberOfLines={1} style={styles.resultName}>
-                {item.name || "Unknown"}
+                {displayLabel}
               </ThemedText>
-              {item.username && (
+              {item.username && !displayLabel.startsWith("@") && (
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>
                   @{item.username}
                 </ThemedText>
