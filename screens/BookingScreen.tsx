@@ -5,7 +5,8 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useStripe } from "@stripe/stripe-react-native";
+import * as WebBrowser from "expo-web-browser";
+import { useStripePayment } from "@/hooks/useStripePayment";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -47,7 +48,7 @@ export default function BookingScreen() {
   const { addSession } = useData();
   const { addNotification, sendBookingConfirmation, scheduleBookingReminders } = useNotifications();
   const insets = useSafeAreaInsets();
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { initPaymentSheet, presentPaymentSheet, isNative } = useStripePayment();
 
   // State for photographer data (may need to be fetched)
   const [photographer, setPhotographer] = useState<PhotographerData | null>(
@@ -499,40 +500,61 @@ export default function BookingScreen() {
 
     setIsConfirming(true);
     try {
-      // Step 1: Create payment intent to get clientSecret for PaymentSheet
-      const paymentResponse = await api.createBookingPaymentIntent(
-        token,
-        "photographer",
-        bookingDraft.id
-      );
+      let confirmResponse;
       
-      // Step 2: Initialize PaymentSheet with clientSecret
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: paymentResponse.clientSecret,
-        merchantDisplayName: "Outsyde",
-        allowsDelayedPaymentMethods: false,
-      });
-      
-      if (initError) {
-        console.error("PaymentSheet init error:", initError);
-        throw new Error(initError.message || "Failed to initialize payment");
-      }
-      
-      // Step 3: Present PaymentSheet to user
-      const { error: presentError } = await presentPaymentSheet();
-      
-      if (presentError) {
-        // User cancelled or payment failed
-        if (presentError.code === "Canceled") {
-          setIsConfirming(false);
-          Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
-          return;
+      if (!isNative) {
+        // Web: Use legacy web checkout flow
+        const successUrl = "outsyde://booking/success";
+        const cancelUrl = "outsyde://booking/cancel";
+        
+        const paymentResponse = await api.initiateBookingPayment(
+          token,
+          bookingDraft.id,
+          successUrl,
+          cancelUrl
+        );
+        
+        // Open Stripe checkout in new tab
+        window.open(paymentResponse.checkoutUrl, "_blank");
+        
+        // Confirm after checkout completes
+        confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
+      } else {
+        // Native: Use Stripe PaymentSheet (in-app)
+        const paymentResponse = await api.createBookingPaymentIntent(
+          token,
+          "photographer",
+          bookingDraft.id
+        );
+        
+        // Initialize PaymentSheet with clientSecret
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: paymentResponse.clientSecret,
+          merchantDisplayName: "Outsyde",
+          allowsDelayedPaymentMethods: false,
+        });
+        
+        if (initError) {
+          console.error("PaymentSheet init error:", initError);
+          throw new Error(initError.message || "Failed to initialize payment");
         }
-        throw new Error(presentError.message || "Payment failed");
+        
+        // Present PaymentSheet to user
+        const { error: presentError } = await presentPaymentSheet();
+        
+        if (presentError) {
+          // User cancelled or payment failed
+          if (presentError.code === "Canceled") {
+            setIsConfirming(false);
+            Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
+            return;
+          }
+          throw new Error(presentError.message || "Payment failed");
+        }
+        
+        // Payment succeeded - confirm the draft booking with backend
+        confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
       }
-      
-      // Step 4: Payment succeeded - confirm the draft booking with backend
-      const confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
       
       if (countdownRef.current) {
         clearInterval(countdownRef.current);

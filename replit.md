@@ -1,7 +1,7 @@
 # Outsyde - Social Marketplace App
 
 ## Overview
-Outsyde is a social marketplace app connecting clients with service providers and vendors (photographers, stylists, artists, restaurants). It enables users to browse feeds, book services, purchase products, and interact. The platform aims to empower local businesses and enhance user discovery across iOS, Android, and web.
+Outsyde is a social marketplace app designed to connect clients with service providers and vendors such as photographers, stylists, artists, and restaurants. The platform's primary purpose is to facilitate browsing feeds, booking services, purchasing products, and user interaction. It aims to empower local businesses and enhance user discovery across iOS, Android, and web platforms, providing a comprehensive ecosystem for service and product exchange.
 
 ## User Preferences
 I prefer clear, concise communication. When making changes, please explain the reasoning and potential impact. I prefer an iterative development approach, focusing on one feature or fix at a time. Do not make changes to folder `types/` or file `App.tsx` without explicit instruction.
@@ -9,125 +9,47 @@ I prefer clear, concise communication. When making changes, please explain the r
 ## System Architecture
 
 ### UI/UX Decisions
-- **Color Scheme**: Gold/yellow variations, white/black backgrounds, success green.
-- **Branding**: Y logo, iOS 26 Liquid Glass inspiration with transparent headers and blur effects.
-- **Tier Colors**: Gold (Premium), Silver (Pro), Bronze (Basic) badges for businesses.
-- **Reusable Components**: `ThemedText`, `ThemedView`, `Button`, `Card`, `HeaderTitle`, `HoursEditor`, `DateBlocker`.
-- **Safe Area Handling**: Custom wrappers for tab screens, manual insets for modals.
+The application features a modern UI with a color scheme centered around gold/yellow variations, complemented by white/black backgrounds and success green. Branding includes a "Y" logo and an iOS 26 Liquid Glass-inspired design with transparent headers and blur effects. Businesses are visually distinguished by Gold (Premium), Silver (Pro), and Bronze (Basic) tier badges. The UI is built using reusable components like `ThemedText`, `ThemedView`, `Button`, `Card`, `HeaderTitle`, `HoursEditor`, and `DateBlocker`, with custom wrappers for safe area handling.
 
 ### Technical Implementations
-- **Authentication**: Session-based auth with VendorBooker backend via cookies (`connect.sid`). Three signup roles: Consumer (auto-approved), Business (manual approval), Photographer (auto-approved). Role is set at signup only.
-  - **Signup Endpoints (Role-Specific)**: 
-    - `POST /api/auth/customer/signup` - Required: `{ email, password, name }`
-    - `POST /api/auth/vendor/signup` - Required: `{ email, password, name, businessName, businessCategory, offerType, acceptedSubscription }`
-    - `POST /api/auth/photographer/signup` - Required: `{ email, password, name, displayName, city, state, hourlyRate, portfolioUrl }`
-  - **Login Endpoint**: `POST /api/auth/login` - Returns `{ user, photographer?, vendor? }` with session cookie
-  - **User Role Extraction**: Determined from backend flags (`isPhotographer`, `isVendor`), not a `role` field
-  - **Photographer Data**: Returned in separate `photographer` object in login response
-  - **Mobile Signup Flow**: Call role-specific signup → immediately call /api/auth/login → for web cookies handle auth automatically
-  - **Token Storage**: AsyncStorage key `@outsyde_token` stores session indicator (`session_${userId}`)
-  - **Protected Requests**: Cookies handle auth for web; credentials: 'include' on fetch requests
-  - **401 Handling**: Logout immediately (no retries)
-- **Role-Based Access**: Dashboards (Photographer, Business) are accessible immediately upon signup without requiring profile completion or re-entry of data. Admin dashboard is accessible to specific admin emails with comprehensive user, business, payment, message, and influencer management.
-  - **Canonical Flow**: Signup saves all profile data → Dashboard reads existing data (never auto-updates) → Optional Edit Profile for explicit changes
-  - **Dashboard Behavior**: Read-only on mount, no auto-PATCH calls, handles 404 gracefully using AuthContext user data
-- **Stripe Booking Restriction**: Users cannot book photographers who haven't completed Stripe onboarding (`stripeOnboardingComplete: false`). The dashboard remains accessible, but the booking flow is blocked with a user-friendly alert. Stripe only gates bookings/payouts, never dashboard access.
-  - **Stripe Deep Link Return**: Uses `outsyde://stripe-return` as the return URL for Stripe onboarding. Dashboard screens listen for this deep link and auto-refresh Stripe status when user returns from onboarding flow.
-- **Deep Linking**: App scheme is `outsyde://`. Configured in `app.json` with `scheme: "outsyde"`. Currently handles `stripe-return` path for Stripe onboarding callbacks.
-- **Navigation**: Expo SDK 54, React Navigation 7 (Root, MainTab, Stack Navigators).
-  - **Account Tab Pattern**: Follows Instagram/Twitter pattern - Account tab shows user's own public profile (self-view). Hamburger menu in header opens PersonalSettingsMenu action sheet with Dashboard, Edit Profile, Storefront Editor, Stripe settings, and Logout options.
-  - **Guest Mode Restrictions**: Guest users (`isGuest: true`) see a limited profile view without hamburger menu, points card, or Quick Actions.
-  - **Dashboard Presentation**: Dashboard and editor screens use card presentation with slide-from-right animation and proper back navigation to Account/Profile.
-- **Data Management**: Context APIs for Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
-- **Core Features**: Algorithmic content feed, category/location-based search, backend-driven booking flow, in-app messaging, payment processing, loyalty program, rating system, and favorites.
-- **Algorithmic Feed (Instagram/TikTok-style)**: Backend-driven feed ranking at `GET /api/feed`:
-  - **All Posts Visible**: Shows posts from all vendors, not just followed accounts
-  - **Ranking Factors**: Recency (72-hour decay), engagement (likes/comments), product/service boost, user industry preferences, location proximity (10/25/50/100 mile tiers)
-  - **Location-Based**: Requests user location permission for proximity ranking
-  - **Personalized**: Authenticated users get industry-preference and location-based personalization
-  - **Anonymous Support**: Works without login using engagement and recency only
-- **Universal Notification Bell**: Available on Home screen header for all authenticated users (not just admins), with unread count badge.
-- **Post Commerce Navigation**: Commerce-enabled posts allow direct booking/purchase from feed:
-  - **Post Interactions**: 
-    - Tapping author avatar/name → navigates to provider's public profile (PhotographerDetail or VendorDetail)
-    - Tapping "Book" button → navigates directly to BookingScreen (skips profile)
-    - Tapping "Buy Now" button → navigates directly to business products tab (skips profile intro)
-    - Likes/comments are universal with no role restrictions
-  - **Commerce CTAs**: Only appear on posts with commerce context attached
-    - Posts with `serviceId` → Show "Book" button (calendar icon)
-    - Posts with `productId` → Show "Buy Now" button (shopping-bag icon)
-    - Posts without serviceId or productId → No commerce button shown
-  - **Create Post Linking**: Photographers and businesses can optionally link services/products to posts
-    - Photographers see service picker in Create Post modal
-    - Businesses see combined service/product picker with visual icons
-    - Consumers never see the linking option
-- **Booking System (Backend-Driven)**: Zero client-side availability computation. Backend is single source of truth.
-  - **Flow**: Service → Date → Slot → Review/Confirm → Payment
-  - **Step Gates**: Each step is disabled until previous step is complete
-  - **Slot Holding**: Selecting a time slot creates a draft reservation with 10-minute hold timer
-  - **Countdown Timer**: Review step shows live countdown; confirm disabled when expired
-  - **Auto-Cleanup**: Draft cancelled on navigation away or expiration
-  - **API Endpoints**:
-    - `GET /api/photographers/:id/available-dates` - Backend-computed available dates
-    - `GET /api/photographers/:id/slots?date=YYYY-MM-DD` - Backend-computed available slots
-    - `POST /api/bookings/draft` - Create held slot reservation
-    - `DELETE /api/bookings/draft/:id` - Release held slot
-    - `POST /api/bookings/draft/:id/confirm` - Finalize booking with payment
-- **Onboarding**: 4-screen welcome flow.
-- **Profile Screens**: Instagram/Shopify-style public profiles with:
-  - **Hero Section**: Full-width banner with LinearGradient overlay, overlapping circular avatar
-  - **Profile Identity**: Name, bio tagline, location, hourly rate, specialty pills with brand color accent
-  - **Availability Strip**: Tappable gold bar showing "Available Today: 10AM - 6PM" (photographers/businesses)
-  - **Tab Navigation**: Large tabs with icons - Media/Book/Availability/Reviews (photographers), Products/Services/Availability/Reviews (businesses)
-  - **Tab Content**: Media gallery grid, booking cards with pricing, availability calendar, reviews list
-  - **Browse Portfolio**: Horizontal scrolling category cards with ratings
-  - **For You Section**: Featured packages, quick availability widget, reviews snippet
-  - **Owner Controls**: Edit Profile button for owners; Follow/Share/Book buttons for visitors
-  - **Guest Restrictions**: Limited view without hamburger menu or edit actions
-- **Admin Dashboard**: Comprehensive interface for user, business, photographer, payment, message, and influencer management. Includes real-time notifications for new business applications.
-- **Provider Dashboards (Photographer & Business)**: Dedicated dashboards for managing earnings, bookings/orders, services/products, availability, and profile information. Both integrate with Stripe Connect.
-- **Photographer Service Management**: Complete CRUD for photography services via dashboard:
-  - **ServiceEditorModal Component**: Form modal with name, description, category, pricing model (package/hourly), price, duration fields
-  - **Service Status Flow**: draft → active (via Go Live) → archived. Status badges: orange (draft), green (active), gray (archived)
-  - **Publishing Gates**: Go Live requires Stripe connected, creates Stripe product for payment processing
-  - **API Endpoints**: `GET/POST /api/photographers/me/services`, `PATCH/DELETE /api/photographers/me/services/:id`, `POST .../go-live`, `POST .../archive`
-- **Photographer Availability System**: 3-tier Calendly/HoneyBook-style availability management:
-  - **Base Availability (HoursEditor)**: Weekly recurring working hours that act as constraints. Stored as `VendorBookerAvailabilitySlot` with `dayOfWeek`, `startTime`, `endTime`, `isRecurring`.
-  - **Blocked Dates (DateBlocker)**: Calendar-based UI for one-off overrides (vacations, external shoots, personal time). Uses `BlockedDate` with `date`, `isFullDay`, `startTime`, `endTime`, `reason`. Quick block options for Today/Tomorrow/Weekend/Week. Supports both full-day blocks and hourly blocks (specific time ranges) for flexible scheduling.
-  - **Computed Slots**: Public profile Availability tab shows 7-day calendar view with real-time computation: base hours minus blocked dates = available slots. Green checkmarks for available, red X for blocked, gray for unavailable.
-  - **API Endpoints**: `GET/PUT /api/photographers/me/availability`, `GET/PUT /api/photographers/me/blocked-dates`.
-- **Storefront Editor**: Full-featured customization for businesses, including branding (cover, logo, colors), profile details, business hours, and product/service management. Products/services have statuses (draft, live, paused, archived) with specific publishing gates (admin approval, Stripe setup, active subscription).
+- **Authentication**: Session-based authentication with the VendorBooker backend using cookies. It supports three signup roles: Consumer (auto-approved), Business (manual approval), and Photographer (auto-approved), with roles set exclusively at signup. User roles are determined by backend flags (`isPhotographer`, `isVendor`).
+- **Role-Based Access**: Dashboards for Photographers and Businesses are immediately accessible upon signup. An Admin dashboard provides comprehensive management capabilities.
+- **Stripe Integration**: Booking photographers is restricted until Stripe onboarding is complete, with deep linking (`outsyde://stripe-return`) for seamless return after onboarding.
+- **Deep Linking**: Uses `outsyde://` scheme for internal navigation and external callbacks.
+- **Navigation**: Built with Expo SDK 54 and React Navigation 7, featuring Root, MainTab, and Stack Navigators. The Account tab follows a social media pattern, displaying the user's public profile, with a hamburger menu for settings and dashboard access.
+- **Data Management**: Utilizes Context APIs for managing Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
+- **Core Features**: Includes an algorithmic content feed, category/location-based search, a backend-driven booking flow, in-app messaging, payment processing, a loyalty program, rating system, and favorites.
+- **Algorithmic Feed**: A backend-driven feed (`GET /api/feed`) ranks content based on recency, engagement, product/service boosts, user preferences, and location proximity. It supports both authenticated and anonymous users.
+- **Universal Notification Bell**: Located on the Home screen header for all authenticated users, displaying an unread count.
+- **Post Commerce Navigation**: Commerce-enabled posts allow direct booking or purchasing via "Book" or "Buy Now" buttons, linking directly to booking screens or product pages.
+- **Booking System**: A backend-driven system handles service booking, date/slot selection, review, and payment via Stripe PaymentSheet. It includes draft reservation holding with a 10-minute timer and auto-acceptance options based on provider settings.
+- **Onboarding**: A 4-screen welcome flow for new users.
+- **Profile Screens**: Instagram/Shopify-style public profiles with hero sections, identity details, availability strips, and tabbed navigation for media, bookings, availability, and reviews.
+- **Admin Dashboard**: Provides a comprehensive interface for managing users, businesses, payments, messages, and influencers.
+- **Provider Dashboards**: Dedicated dashboards for Photographers and Businesses to manage earnings, bookings, services/products, availability, and profile information, integrating with Stripe Connect.
+- **Photographer Service Management**: CRUD operations for photography services via a dashboard, including status management (draft, active, archived) and publishing gates.
+- **Photographer Availability System**: A 3-tier system for managing availability:
+  - **Weekly Availability**: Recurring working hours via `GET/PUT /api/photographers/me/weekly-availability`
+  - **Blocked Time Ranges**: Manual blocks via `GET/POST/PATCH/DELETE /api/photographers/me/blocks`
+  - **ProviderCalendar Component**: Visual calendar in dashboards showing bookings, blocked dates, and weekly availability with 3-month lookahead
+  - Same endpoints exist for businesses via `/api/businesses/me/...`
+- **Storefront Editor**: A full-featured editor for businesses to customize branding, profile details, hours, and manage products/services.
 - **Image Handling**: Reusable `ImageUploader` component with camera/library options and aspect ratio support.
-- **Cloudinary Media Upload**: Profile photos and banner media (images/videos) are uploaded to Cloudinary (unsigned upload preset) and saved to the backend. Flow: Pick media → Upload to Cloudinary → Save URL to profile via API.
-  - **Cloud Name**: `doraffjvp`
-  - **Upload Preset**: `outsyde_unsigned`
-  - **Image Utility**: `services/cloudinary.ts` - `uploadImageToCloudinary(uri, folder)`
-  - **Video Utility**: `services/cloudinary.ts` - `uploadVideoToCloudinary(uri, folder)` - Uses `/video/upload` endpoint for video files
-  - **Video Banner Support**: Profile banners can be images or videos. Backend stores both in `coverImage` field with `coverMediaType` ("image" or "video") for detection. Dashboard shows actual video preview using expo-video's VideoView component. Videos are uploaded immediately on selection (mirroring photo flow).
-- **Backend Enforcement**: Critical logic (publishing validation, subscription lapse auto-pause) is enforced server-side.
-- **Push Notifications**: Complete push notification system using `expo-notifications` and `expo-device`:
-  - **Service Layer**: `services/pushNotifications.ts` handles registration, scheduling, and badge management
-  - **Context Integration**: `NotificationContext` initializes push notifications, listens for events, and provides helper functions
-  - **Booking Confirmation**: Immediate push notification sent when booking is confirmed
-  - **Booking Reminders**: Scheduled notifications at 24 hours and 1 hour before sessions
-  - **Badge Count**: Syncs with unread notification count automatically
-  - **Platform Support**: Works on physical devices (iOS/Android); gracefully skips on web/simulators
-  - **Notification Types**: booking, reminder, promotion, system, admin, follow, business_pending, new_vendor_application, vendor_approved, vendor_rejected
+- **Cloudinary Media Upload**: Images and videos are uploaded to Cloudinary (unsigned preset `outsyde_unsigned`, cloud name `doraffjvp`) with URLs saved to the backend.
+- **Backend Enforcement**: Critical logic, such as publishing validation and subscription lapse handling, is enforced server-side.
+- **Push Notifications**: Implemented using `expo-notifications` and `expo-device` for booking confirmations, reminders, and badge count synchronization.
 
 ### System Design Choices
-- **Cross-Platform**: Expo/React Native for iOS, Android, and web.
-- **Security**: User-scoped keys for AsyncStorage, scoped payment methods.
-- **Backend Integration**: API service layer (`/services/api.ts`) with VendorBooker backend, including a `HealthCheckContext`.
-- **Technologies**: `expo-image`, `expo-image-picker`, `expo-notifications`, `react-native-reanimated`.
+The application is built using Expo/React Native for cross-platform compatibility (iOS, Android, web). Security measures include user-scoped keys for AsyncStorage and scoped payment methods. Backend integration is managed through an API service layer (`/services/api.ts`) connecting to the VendorBooker backend, incorporating a `HealthCheckContext`. Key technologies include `expo-image`, `expo-image-picker`, `expo-notifications`, and `react-native-reanimated`.
 
 ## External Dependencies
-- **Expo SDK 54**: Core framework.
-- **React Navigation 7**: Navigation.
-- **AsyncStorage**: Client-side persistence.
-- **expo-image**: Image optimization.
-- **expo-image-picker**: Image uploads.
-- **expo-notifications**: Push notifications (scheduling, badges, listeners).
-- **expo-device**: Device detection for push notification support.
-- **react-native-reanimated**: Animations.
-- **Outsyde Backend API**: `https://outsyde-backend.onrender.com`.
-- **Stripe-like Payment Gateway**: For payment processing.
+- **Expo SDK 54**: Core framework for development.
+- **React Navigation 7**: Handles all in-app navigation.
+- **AsyncStorage**: For client-side data persistence.
+- **expo-image**: Optimizes image loading and display.
+- **expo-image-picker**: Manages image and video selection from device.
+- **expo-notifications**: Facilitates push notification features.
+- **expo-device**: Used for device-specific functionality, particularly for push notifications.
+- **react-native-reanimated**: Powers animations and gestures.
+- **Outsyde Backend API**: `https://outsyde-backend.onrender.com` serves as the primary backend.
+- **Stripe-like Payment Gateway**: Integrated for secure payment processing.
