@@ -59,6 +59,7 @@ export default function BusinessProfileScreen() {
         ...business,
         id: apiData.id || business.id,
         name: apiData.name || business.name,
+        username: (apiData as any).username || business.username,
         avatar: apiData.avatar || business.avatar,
         city: apiData.city || business.city,
         state: apiData.state || business.state,
@@ -356,6 +357,11 @@ export default function BusinessProfileScreen() {
             <ThemedText type="h2" style={styles.businessName}>
               {business.name}
             </ThemedText>
+            {business.username ? (
+              <ThemedText type="body" style={{ color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+                @{business.username}
+              </ThemedText>
+            ) : null}
 
             <View style={styles.categoryRow}>
               <View style={[styles.categoryBadge, { backgroundColor: profileTheme }]}>

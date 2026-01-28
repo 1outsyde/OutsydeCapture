@@ -85,6 +85,7 @@ export default function PhotographerProfileScreen() {
         id: apiData.id || photographer.id,
         userId: (apiData as any).userId || photographer.userId, // The actual user ID for messaging
         name: (apiData as any).displayName || apiData.name || photographer.name,
+        username: (apiData as any).username || photographer.username,
         avatar: avatarUrl,
         city: apiData.city || locationParts[0] || photographer.city,
         state: apiData.state || locationParts[1] || photographer.state,
@@ -415,6 +416,11 @@ export default function PhotographerProfileScreen() {
             <ThemedText type="h2" style={styles.photographerName}>
               {photographer.name}
             </ThemedText>
+            {photographer.username ? (
+              <ThemedText type="body" style={{ color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+                @{photographer.username}
+              </ThemedText>
+            ) : null}
 
             <View style={styles.badgesRow}>
               <View style={[styles.specialtyBadge, { backgroundColor: profileTheme }]}>

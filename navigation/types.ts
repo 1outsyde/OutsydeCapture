@@ -4,6 +4,7 @@ import { Photographer, PhotographyCategory } from "@/context/DataContext";
 export interface BusinessProfileData {
   id: string;
   name: string;
+  username?: string;
   avatar: string;
   city: string;
   state: string;
@@ -29,6 +30,7 @@ export interface PhotographerProfileData {
   id: string;
   userId?: string; // The actual user ID for messaging/conversations
   name: string;
+  username?: string;
   avatar: string;
   city: string;
   state: string;
