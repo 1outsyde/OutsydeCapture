@@ -793,6 +793,31 @@ export interface UnifiedSearchItem {
   businessName?: string;
   price?: number;
   productImage?: string;
+  user?: {
+    id?: string;
+    displayName?: string;
+    username?: string;
+    avatar?: string;
+    profileImage?: string;
+  };
+  photographer?: {
+    user?: {
+      id?: string;
+      displayName?: string;
+      username?: string;
+      avatar?: string;
+      profileImage?: string;
+    };
+  };
+  vendor?: {
+    user?: {
+      id?: string;
+      displayName?: string;
+      username?: string;
+      avatar?: string;
+      profileImage?: string;
+    };
+  };
 }
 
 export interface UnifiedSearchResponse {
@@ -1320,8 +1345,17 @@ class ApiService {
     };
 
     return response.results.map(item => {
-      // Get valid avatar URL - check all possible avatar fields
+      // Extract nested user for photographers/businesses
+      const nestedUser = 
+        item.user || 
+        item.photographer?.user || 
+        item.vendor?.user || 
+        null;
+
+      // Get valid avatar URL - check nested user fields first, then flat fields
       const avatarUrl = 
+        isValidImageUrl(nestedUser?.profileImage) ||
+        isValidImageUrl(nestedUser?.avatar) ||
         isValidImageUrl(item.profileImage) || 
         isValidImageUrl(item.avatarUrl) || 
         isValidImageUrl(item.avatar) || 
@@ -1330,15 +1364,23 @@ class ApiService {
         "";
       const coverUrl = isValidImageUrl(item.coverImage) || "";
 
-      // Resolve display name with proper priority for all entity types
-      const resolvedName = item.displayName || item.name || (item.username ? `@${item.username}` : null) || "Unknown";
+      // Resolve display name - check nested user first for photographers/businesses
+      const resolvedDisplayName = 
+        item.displayName || 
+        nestedUser?.displayName || 
+        null;
+      
+      const resolvedUsername = item.username || nestedUser?.username || null;
+      
+      // Final name resolution
+      const resolvedName = resolvedDisplayName || item.name || (resolvedUsername ? `@${resolvedUsername}` : null) || "Unknown";
 
       return {
         id: item.id,
         userId: item.userId,
         name: resolvedName,
-        displayName: item.displayName,
-        username: item.username,
+        displayName: resolvedDisplayName || undefined,
+        username: resolvedUsername || undefined,
         avatar: avatarUrl || "https://via.placeholder.com/100",
         coverImage: coverUrl,
         city: item.city || "Unknown",
