@@ -90,6 +90,7 @@ export default function PhotographerDashboardScreen() {
 
   const [editProfile, setEditProfile] = useState({
     name: "",
+    username: "",
     hourlyRate: "",
     bio: "",
     city: "",
@@ -103,6 +104,15 @@ export default function PhotographerDashboardScreen() {
     bannerVideo: "" as string,
     bannerMock: "" as string,
   });
+  
+  const [identityStatus, setIdentityStatus] = useState<{
+    canChangeUsername: boolean;
+    canChangeDisplayName: boolean;
+    usernameCooldownDays?: number;
+    displayNameCooldownDays?: number;
+  } | null>(null);
+  const [savingIdentity, setSavingIdentity] = useState(false);
+  const [originalUsername, setOriginalUsername] = useState("");
 
   const MOCK_BANNERS = [
     { id: "studio", label: "Studio", url: "https://images.unsplash.com/photo-1598128558393-70ff21433be0?w=800&q=80" },
@@ -212,6 +222,7 @@ export default function PhotographerDashboardScreen() {
       
       setEditProfile({
         name: photographer.displayName || "",
+        username: photographer.username || "",
         hourlyRate: photographer.hourlyRate ? (photographer.hourlyRate / 100).toString() : "",
         bio: photographer.bio || "",
         city: photographer.city || "",
@@ -229,6 +240,15 @@ export default function PhotographerDashboardScreen() {
         bannerVideo: photographer.coverMediaType === "video" ? (photographer.coverImage || "") : "",
         bannerMock: "",
       });
+      setOriginalUsername(photographer.username || "");
+      
+      // Fetch identity status for cooldown info
+      try {
+        const status = await api.getUserIdentityStatus(token);
+        setIdentityStatus(status);
+      } catch (err) {
+        console.log("[Dashboard] Could not fetch identity status:", err);
+      }
 
       try {
         const { bookings: bookingsData } = await api.getPhotographerMeBookings(token);
@@ -334,6 +354,7 @@ export default function PhotographerDashboardScreen() {
         setProfile(defaultProfile);
         setEditProfile({
           name: defaultProfile.name,
+          username: user?.username || "",
           hourlyRate: defaultProfile.hourlyRate > 0 ? defaultProfile.hourlyRate.toString() : "",
           bio: defaultProfile.bio || "",
           city: defaultProfile.city || "",
@@ -347,6 +368,15 @@ export default function PhotographerDashboardScreen() {
           bannerVideo: "",
           bannerMock: "",
         });
+        setOriginalUsername(user?.username || "");
+        
+        // Fetch identity status for cooldown info
+        try {
+          const status = await api.getUserIdentityStatus(token);
+          setIdentityStatus(status);
+        } catch (err) {
+          console.log("[Dashboard] Could not fetch identity status:", err);
+        }
         // Don't set needsProfileSetup - allow dashboard access
       } else if (status === 403 || message.includes("403") || message.toLowerCase().includes("forbidden")) {
         setAuthError("You don't have permission to access this dashboard.");
@@ -471,6 +501,52 @@ export default function PhotographerDashboardScreen() {
       setStripeError(errorMsg);
     } finally {
       setConnectingStripe(false);
+    }
+  };
+
+  const handleSaveUsername = async () => {
+    const token = await getToken();
+    if (!token) return;
+    
+    const newUsername = editProfile.username.trim().toLowerCase();
+    if (newUsername === originalUsername) {
+      Alert.alert("No Changes", "Username is the same as before.");
+      return;
+    }
+    
+    if (!newUsername) {
+      Alert.alert("Invalid Username", "Username cannot be empty.");
+      return;
+    }
+    
+    if (!/^[a-z0-9_]+$/.test(newUsername)) {
+      Alert.alert("Invalid Username", "Username can only contain lowercase letters, numbers, and underscores.");
+      return;
+    }
+    
+    if (!identityStatus?.canChangeUsername) {
+      Alert.alert(
+        "Cooldown Active",
+        `You can change your username again in ${identityStatus?.usernameCooldownDays || 14} days.`
+      );
+      return;
+    }
+    
+    try {
+      setSavingIdentity(true);
+      await api.updateUserIdentity(token, { username: newUsername });
+      setOriginalUsername(newUsername);
+      
+      // Refresh identity status
+      const status = await api.getUserIdentityStatus(token);
+      setIdentityStatus(status);
+      
+      Alert.alert("Success", "Username updated successfully!");
+    } catch (error: any) {
+      const message = error?.message || "Failed to update username";
+      Alert.alert("Error", message);
+    } finally {
+      setSavingIdentity(false);
     }
   };
 
@@ -1751,6 +1827,56 @@ export default function PhotographerDashboardScreen() {
                   keyboardType="numeric"
                 />
               </View>
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Username</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={[
+                      styles.formInput,
+                      !identityStatus?.canChangeUsername && editProfile.username === originalUsername 
+                        ? { opacity: 0.6 } 
+                        : null
+                    ]}
+                    value={editProfile.username}
+                    onChangeText={(text) => setEditProfile({ ...editProfile, username: text.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
+                    placeholder="your_username"
+                    placeholderTextColor={theme.textSecondary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={identityStatus?.canChangeUsername !== false}
+                  />
+                </View>
+                {editProfile.username !== originalUsername && (
+                  <Pressable 
+                    onPress={handleSaveUsername} 
+                    disabled={savingIdentity}
+                    style={{
+                      backgroundColor: theme.primary,
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                    }}
+                  >
+                    {savingIdentity ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <Text style={{ color: "#000", fontWeight: "600" }}>Save</Text>
+                    )}
+                  </Pressable>
+                )}
+              </View>
+              {!identityStatus?.canChangeUsername && identityStatus?.usernameCooldownDays ? (
+                <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
+                  You can change your username again in {identityStatus.usernameCooldownDays} days
+                </Text>
+              ) : (
+                <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
+                  This is how others find you (@{editProfile.username || "username"})
+                </Text>
+              )}
             </View>
 
             <View style={styles.formGroup}>
