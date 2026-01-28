@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -261,6 +261,72 @@ export default function DiscoverScreen() {
     await fetchAlgorithmicFeed();
     setRefreshing(false);
   }, [fetchAlgorithmicFeed]);
+
+  // Feed-specific sorting
+  const proFeedPosts = useMemo(() => {
+    return [...feedPosts].sort((a, b) => {
+      const roleOrder: Record<string, number> = { 
+        photographer: 1, 
+        vendor: 2, 
+        user: 3 
+      };
+      const aRole = roleOrder[a.type] || 3;
+      const bRole = roleOrder[b.type] || 3;
+      if (aRole !== bRole) return aRole - bRole;
+      
+      const aRating = a.rating || 0;
+      const bRating = b.rating || 0;
+      if (bRating !== aRating) return bRating - aRating;
+      
+      const aDate = new Date(a.createdAt).getTime();
+      const bDate = new Date(b.createdAt).getTime();
+      return bDate - aDate;
+    });
+  }, [feedPosts]);
+
+  const pulseFeedPosts = useMemo(() => {
+    return [...feedPosts].sort((a, b) => {
+      const aHasVerticalVideo = a.videoUrl ? 1 : 0;
+      const bHasVerticalVideo = b.videoUrl ? 1 : 0;
+      if (bHasVerticalVideo !== aHasVerticalVideo) return bHasVerticalVideo - aHasVerticalVideo;
+      
+      const aDate = new Date(a.createdAt).getTime();
+      const bDate = new Date(b.createdAt).getTime();
+      if (bDate !== aDate) return bDate - aDate;
+      
+      const aEngagement = (a.likes || 0) + (a.comments?.length || 0);
+      const bEngagement = (b.likes || 0) + (b.comments?.length || 0);
+      return bEngagement - aEngagement;
+    });
+  }, [feedPosts]);
+
+  // Scroll position refs for each feed
+  const proScrollOffset = useRef(0);
+  const pulseScrollOffset = useRef(0);
+  const proListRef = useRef<FlatList>(null);
+  const pulseListRef = useRef<FlatList>(null);
+
+  // Save scroll position when switching feeds
+  const handleProScroll = useCallback((event: any) => {
+    proScrollOffset.current = event.nativeEvent.contentOffset.y;
+  }, []);
+
+  const handlePulseScroll = useCallback((event: any) => {
+    pulseScrollOffset.current = event.nativeEvent.contentOffset.y;
+  }, []);
+
+  // Restore scroll position when switching back
+  useEffect(() => {
+    if (feedMode === "pro" && proListRef.current) {
+      setTimeout(() => {
+        proListRef.current?.scrollToOffset({ offset: proScrollOffset.current, animated: false });
+      }, 50);
+    } else if (feedMode === "pulse" && pulseListRef.current) {
+      setTimeout(() => {
+        pulseListRef.current?.scrollToOffset({ offset: pulseScrollOffset.current, animated: false });
+      }, 50);
+    }
+  }, [feedMode]);
 
   // Navigation handlers
   const handleAuthorPress = (post: Post) => {
@@ -567,10 +633,13 @@ export default function DiscoverScreen() {
         <View style={styles.feedPage}>
           {feedMode === "pro" ? (
             <FlatList
-              data={feedPosts}
+              ref={proListRef}
+              data={proFeedPosts}
               renderItem={renderProFeedItem}
               keyExtractor={(item) => `pro-${item.id}`}
               showsVerticalScrollIndicator={false}
+              onScroll={handleProScroll}
+              scrollEventThrottle={16}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -582,13 +651,16 @@ export default function DiscoverScreen() {
             />
           ) : (
             <FlatList
-              data={feedPosts}
+              ref={pulseListRef}
+              data={pulseFeedPosts}
               renderItem={renderFullScreenPost}
               keyExtractor={(item) => `pulse-${item.id}`}
               pagingEnabled
               snapToInterval={POST_HEIGHT}
               decelerationRate="fast"
               showsVerticalScrollIndicator={false}
+              onScroll={handlePulseScroll}
+              scrollEventThrottle={16}
               onRefresh={onRefresh}
               refreshing={refreshing}
               getItemLayout={(data, index) => ({
