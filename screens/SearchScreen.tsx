@@ -14,14 +14,15 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
-import { RootStackParamList, BusinessProfileData, PhotographerProfileData } from "@/navigation/types";
+import { RootStackParamList } from "@/navigation/types";
 
-type TabType = "all" | "business" | "photographer" | "product" | "service";
+type TabType = "all" | "consumer" | "business" | "photographer" | "product" | "service";
 
 const TABS: { id: TabType; label: string; icon: string }[] = [
   { id: "all", label: "All", icon: "grid" },
-  { id: "business", label: "Businesses", icon: "briefcase" },
+  { id: "consumer", label: "Consumers", icon: "user" },
   { id: "photographer", label: "Photographers", icon: "camera" },
+  { id: "business", label: "Businesses", icon: "briefcase" },
   { id: "product", label: "Products", icon: "shopping-bag" },
   { id: "service", label: "Services", icon: "scissors" },
 ];
@@ -32,7 +33,8 @@ const TIER_CONFIG: Record<string, { label: string; color: string }> = {
   basic: { label: "Basic", color: "#CD7F32" },
 };
 
-const RESULT_TYPE_ICONS: Record<SearchResultType, string> = {
+const RESULT_TYPE_ICONS: Record<string, string> = {
+  consumer: "user",
   business: "briefcase",
   photographer: "camera",
   product: "shopping-bag",
@@ -54,7 +56,8 @@ const getInitials = (name: string): string => {
   return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
 };
 
-const RESULT_TYPE_LABELS: Record<SearchResultType, string> = {
+const RESULT_TYPE_LABELS: Record<string, string> = {
+  consumer: "Consumer",
   business: "Business",
   photographer: "Photographer",
   product: "Product",
@@ -138,37 +141,32 @@ export default function SearchScreen() {
   };
 
   const handleCardPress = (item: UnifiedSearchResult) => {
-    if (item.resultType === "photographer") {
-      const photographerData: PhotographerProfileData = {
-        id: item.id,
-        userId: item.userId,
-        name: item.name,
-        avatar: item.avatar,
-        coverImage: item.coverImage,
-        city: item.city,
-        state: item.state,
-        rating: item.rating,
-        priceRange: item.priceRange,
-        specialty: item.category,
-        description: item.description,
-        subscriptionTier: item.subscriptionTier,
-      };
-      navigation.navigate("PhotographerProfile", { photographer: photographerData });
+    const userId = item.userId || item.id;
+    const profileId = item.id;
+    
+    if (item.resultType === "product") {
+      navigation.navigate("VendorDetail", { 
+        vendorId: (item as any).vendorId || item.id,
+        initialTab: "products",
+        productId: item.id,
+      });
+    } else if (item.resultType === "service") {
+      navigation.navigate("VendorDetail", { 
+        vendorId: (item as any).vendorId || item.id,
+        initialTab: "services",
+      });
     } else {
-      const businessData: BusinessProfileData = {
-        id: item.id,
-        name: item.name,
+      const userType = item.resultType === "photographer" ? "photographer" 
+                     : item.resultType === "business" ? "business" 
+                     : "consumer";
+      
+      navigation.navigate("Profile", {
+        userId,
+        profileId,
+        userType,
+        displayName: item.name,
         avatar: item.avatar,
-        city: item.city,
-        state: item.state,
-        rating: item.rating,
-        priceRange: item.priceRange,
-        category: item.category,
-        description: item.description,
-        subscriptionTier: item.subscriptionTier,
-        resultType: item.resultType,
-      };
-      navigation.navigate("BusinessProfile", { business: businessData });
+      });
     }
   };
 
@@ -182,6 +180,7 @@ export default function SearchScreen() {
   const tabCounts = useMemo(() => {
     const counts: Record<TabType, number> = {
       all: results.length,
+      consumer: 0,
       business: 0,
       photographer: 0,
       product: 0,
@@ -189,7 +188,10 @@ export default function SearchScreen() {
     };
 
     results.forEach(r => {
-      counts[r.resultType]++;
+      const type = r.resultType as TabType;
+      if (type in counts) {
+        counts[type]++;
+      }
     });
 
     return counts;
