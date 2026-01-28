@@ -170,6 +170,7 @@ interface EditProfileModalProps {
   isDark: boolean;
   insets: { top: number; bottom: number };
   setProfile: React.Dispatch<React.SetStateAction<ProfileData | null>>;
+  refreshUser: () => Promise<void>;
   updateProfile: (data: any) => Promise<void>;
   fetchProfile: () => Promise<void>;
   getToken: () => Promise<string | null>;
@@ -186,6 +187,7 @@ function EditProfileModal({
   isDark,
   insets,
   setProfile,
+  refreshUser,
   updateProfile,
   fetchProfile,
   getToken,
@@ -347,6 +349,9 @@ function EditProfileModal({
         try {
           await api.updateUserIdentity(token, identityChanges);
           await updateProfile(identityChanges);
+          // Refresh user from backend to get fresh username
+          await refreshUser();
+          console.log("[EditProfile] Username/displayName updated, refreshed user from backend");
           setProfile(prev => prev ? { ...prev, name: editDisplayName || prev.name } : prev);
         } catch (error: any) {
           if (error?.message?.toLowerCase().includes("username") || error?.status === 409) {
@@ -564,7 +569,7 @@ export default function AccountScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { user, isAuthenticated, getToken, updateProfile } = useAuth();
+  const { user, isAuthenticated, getToken, updateProfile, refreshUser } = useAuth();
   const { unreadCount } = useNotifications();
 
   const [loading, setLoading] = useState(true);
@@ -3102,6 +3107,7 @@ export default function AccountScreen() {
         isDark={isDark}
         insets={insets}
         setProfile={setProfile}
+        refreshUser={refreshUser}
         updateProfile={updateProfile}
         fetchProfile={fetchProfile}
         getToken={getToken}

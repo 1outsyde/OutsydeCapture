@@ -115,8 +115,9 @@ export default function SearchScreen() {
         isAdmin
       );
       console.log("[SearchScreen] Search query:", query, "Scope:", scope, "Total results:", response.total, "isAdmin:", isAdmin);
-      console.log("[SearchScreen] Result types:", response.results.map(r => `${r.type}: ${r.name}`));
+      console.log("[SearchScreen] Raw result types:", response.results.map(r => `${r.type}: ${r.name} (@${r.username || "no-username"})`));
       const normalized = api.normalizeUnifiedResults(response);
+      console.log("[SearchScreen] Normalized results:", normalized.map(r => `${r.resultType}: ${r.name} (@${r.username || "no-username"})`));
       setResults(normalized);
       setIsPersonalizedResults(response.personalized);
     } catch (err) {

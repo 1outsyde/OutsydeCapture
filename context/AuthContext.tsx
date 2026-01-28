@@ -120,6 +120,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<User>) => Promise<void>;
   getToken: () => Promise<string | null>;
   refreshSession: () => Promise<LoginResult>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -161,7 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           if (response.ok) {
             const backendData = await response.json();
-            const backendUserId = backendData.user?.id || backendData.id;
+            const backendUser = backendData.user || backendData;
+            const backendUserId = backendUser?.id;
             
             // If backend session has different userId, force logout
             if (backendUserId && backendUserId !== parsed.id) {
@@ -175,7 +177,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return;
             }
             
-            console.log("[Auth] Session verified - userId:", parsed.id);
+            // Hydrate user with fresh data from backend (especially username)
+            if (backendUser) {
+              parsed.username = backendUser.username || parsed.username;
+              parsed.displayName = backendUser.displayName || parsed.displayName;
+              parsed.avatar = backendUser.avatar || backendUser.profileImageUrl || parsed.avatar;
+              parsed.profileImageUrl = backendUser.profileImageUrl || parsed.profileImageUrl;
+              parsed.coverMediaUrl = backendUser.coverMediaUrl || parsed.coverMediaUrl;
+              parsed.coverMediaType = backendUser.coverMediaType || parsed.coverMediaType;
+              console.log("[Auth] Session verified - userId:", parsed.id, "username:", parsed.username);
+              
+              // Save updated user to storage
+              await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(parsed));
+            } else {
+              console.log("[Auth] Session verified - userId:", parsed.id);
+            }
           } else if (response.status === 401) {
             // Backend session expired - clear stored auth
             console.log("[Auth] Session expired - clearing stored auth");
@@ -247,7 +263,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: backendUser.isAdmin || false,
         businessId: (response as any).vendor?.id,
         photographerId: photographerData?.id,
+        username: (backendUser as any).username,
       };
+      console.log("[Auth] Login user constructed with username:", newUser.username);
 
       if (newUser.approvalStatus === "rejected") {
         return { success: false, isPending: false, isRejected: true };
@@ -597,6 +615,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUser = async (): Promise<void> => {
+    try {
+      console.log("[Auth] Refreshing user from /api/auth/me...");
+      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!response.ok) {
+        console.warn("[Auth] refreshUser failed - status:", response.status);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log("[Auth] refreshUser response:", JSON.stringify(data, null, 2));
+      
+      const backendUser = data.user || data;
+      if (!backendUser?.id) {
+        console.warn("[Auth] refreshUser - no user in response");
+        return;
+      }
+      
+      // Update current user with fresh data from backend
+      if (user) {
+        const updatedUser: User = {
+          ...user,
+          username: backendUser.username,
+          displayName: backendUser.displayName || user.displayName,
+          avatar: backendUser.avatar || backendUser.profileImageUrl || user.avatar,
+          profileImageUrl: backendUser.profileImageUrl || user.profileImageUrl,
+          coverMediaUrl: backendUser.coverMediaUrl || user.coverMediaUrl,
+          coverMediaType: backendUser.coverMediaType || user.coverMediaType,
+          city: backendUser.city || user.city,
+          state: backendUser.state || user.state,
+          bio: backendUser.bio || user.bio,
+        };
+        
+        console.log("[Auth] User refreshed - username:", updatedUser.username);
+        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+        setUser(updatedUser);
+      }
+    } catch (error) {
+      console.error("[Auth] refreshUser error:", error);
+    }
+  };
+
   const loginWithTokens = async (accessToken: string, refreshToken: string, userData: GoogleAuthUserData): Promise<LoginResult> => {
     setIsLoading(true);
     try {
@@ -661,6 +726,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateProfile,
         getToken,
         refreshSession,
+        refreshUser,
       }}
     >
       {children}

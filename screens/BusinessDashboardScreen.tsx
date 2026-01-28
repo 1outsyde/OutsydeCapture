@@ -40,7 +40,7 @@ export default function BusinessDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { getToken, logout, user, isLoading: authLoading } = useAuth();
+  const { getToken, logout, user, isLoading: authLoading, refreshUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>("orders");
   const [loading, setLoading] = useState(true);
@@ -374,6 +374,10 @@ export default function BusinessDashboardScreen() {
       // Refresh identity status
       const status = await api.getUserIdentityStatus(token);
       setIdentityStatus(status);
+      
+      // Refresh user from backend to update AuthContext with new username
+      await refreshUser();
+      console.log("[Dashboard] Username updated, refreshed user from backend");
       
       Alert.alert("Success", "Username updated successfully!");
     } catch (error: any) {

@@ -61,7 +61,7 @@ export default function PhotographerDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { getToken, logout, user, isLoading: authLoading } = useAuth();
+  const { getToken, logout, user, isLoading: authLoading, refreshUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -540,6 +540,10 @@ export default function PhotographerDashboardScreen() {
       // Refresh identity status
       const status = await api.getUserIdentityStatus(token);
       setIdentityStatus(status);
+      
+      // Refresh user from backend to update AuthContext with new username
+      await refreshUser();
+      console.log("[Dashboard] Username updated, refreshed user from backend");
       
       Alert.alert("Success", "Username updated successfully!");
     } catch (error: any) {
