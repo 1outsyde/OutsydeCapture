@@ -236,13 +236,13 @@ export function PersonalSettingsMenu({
 
               {onEditPhotos ? (
                 <MenuItem
-                  icon="camera"
-                  label="Edit Photos"
+                  icon="user"
+                  label="Edit Profile"
                   onPress={() => {
                     onClose();
                     onEditPhotos();
                   }}
-                  subtitle="Profile photo and banner"
+                  subtitle="Customize your profile"
                 />
               ) : null}
 
