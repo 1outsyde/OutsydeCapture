@@ -16,6 +16,7 @@ interface ProFeedCardProps {
   onLike: (postId: string) => void;
   onComment: (post: Post) => void;
   onSave: (post: Post) => void;
+  onRate?: (post: Post) => void;
   onAuthorPress: (post: Post) => void;
   onActionPress: (post: Post) => void;
   isSaved: boolean;
@@ -56,6 +57,7 @@ export function ProFeedCard({
   onLike,
   onComment,
   onSave,
+  onRate,
   onAuthorPress,
   onActionPress,
   isSaved,
@@ -163,6 +165,14 @@ export function ProFeedCard({
           >
             <Feather name="send" size={24} color={theme.text} />
           </Pressable>
+          {onRate && post.type !== "user" && (
+            <Pressable
+              onPress={() => onRate(post)}
+              style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Feather name="star" size={24} color="#FFD700" />
+            </Pressable>
+          )}
         </View>
         <Pressable
           onPress={() => onSave(post)}

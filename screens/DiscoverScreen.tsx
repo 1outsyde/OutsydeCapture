@@ -606,6 +606,7 @@ export default function DiscoverScreen() {
         onLike={handleLike}
         onComment={openCommentsModal}
         onSave={handleSavePost}
+        onRate={handleRatePress}
         onAuthorPress={handleAuthorPress}
         onActionPress={handleActionPress}
         isSaved={isSaved}
