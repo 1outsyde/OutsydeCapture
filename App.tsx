@@ -57,13 +57,13 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <ErrorBoundary>
           <AppContent />
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
+        </ErrorBoundary>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
