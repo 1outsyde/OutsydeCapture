@@ -49,7 +49,8 @@ const isValidImageUrl = (url?: string): boolean => {
   return false;
 };
 
-const getInitials = (name: string): string => {
+const getInitials = (name: string | undefined | null): string => {
+  if (!name) return "?";
   const words = name.split(" ").filter(w => w.length > 0);
   if (words.length === 0) return "?";
   if (words.length === 1) return words[0].charAt(0).toUpperCase();
@@ -315,7 +316,7 @@ export default function SearchScreen() {
           <View style={styles.resultHeader}>
             <View style={{ flex: 1 }}>
               <ThemedText type="h4" numberOfLines={1} style={styles.resultName}>
-                {item.name}
+                {item.name || "Unknown"}
               </ThemedText>
               {item.username && (
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>
@@ -417,7 +418,7 @@ export default function SearchScreen() {
         </View>
         <View style={styles.serviceInfo}>
           <ThemedText type="h4" numberOfLines={1} style={styles.serviceName}>
-            {item.name}
+            {item.name || "Unnamed Service"}
           </ThemedText>
           {item.providerName && (
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
@@ -480,7 +481,7 @@ export default function SearchScreen() {
         )}
         <View style={styles.productInfo}>
           <ThemedText type="h4" numberOfLines={2} style={styles.productName}>
-            {item.name}
+            {item.name || "Unnamed Product"}
           </ThemedText>
           {item.businessName && (
             <ThemedText type="small" style={{ color: theme.textSecondary }}>

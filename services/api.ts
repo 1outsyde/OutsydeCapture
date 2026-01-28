@@ -1324,7 +1324,7 @@ class ApiService {
       return {
         id: item.id,
         userId: item.userId,
-        name: item.displayName || item.name,
+        name: item.displayName || item.name || "Unknown",
         username: item.username,
         avatar: avatarUrl || "https://via.placeholder.com/100",
         coverImage: coverUrl,
