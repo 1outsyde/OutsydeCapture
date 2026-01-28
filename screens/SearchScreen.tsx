@@ -327,6 +327,16 @@ export default function SearchScreen() {
           <ThemedText type="caption" style={{ color: theme.secondary }}>
             {item.priceRange}
           </ThemedText>
+
+          <Pressable
+            onPress={() => handleCardPress(item)}
+            style={[styles.viewProfileButton, { backgroundColor: theme.primary }]}
+          >
+            <Feather name="user" size={14} color="#000000" />
+            <ThemedText type="small" style={styles.viewProfileText}>
+              View Profile
+            </ThemedText>
+          </Pressable>
         </View>
       </Pressable>
     );
@@ -602,5 +612,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
     marginTop: Spacing.lg,
+  },
+  viewProfileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+    alignSelf: "flex-start",
+    gap: 4,
+  },
+  viewProfileText: {
+    color: "#000000",
+    fontWeight: "600",
   },
 });
