@@ -297,12 +297,18 @@ export default function PhotographerProfileScreen() {
     const profileId = photographer.id;
     const userId = (photographer as any).userId || photographer.id;
     
-    navigation.navigate("Profile", {
-      userId,
-      profileId,
-      userType: "photographer",
-      displayName: photographer.name,
-      avatar: photographer.avatar,
+    // First dismiss this preview modal, then navigate to full Profile
+    navigation.goBack();
+    
+    // Use requestAnimationFrame to ensure modal is dismissed before navigating
+    requestAnimationFrame(() => {
+      navigation.navigate("Profile", {
+        userId,
+        profileId,
+        userType: "photographer",
+        displayName: photographer.name,
+        avatar: photographer.avatar,
+      });
     });
   };
 

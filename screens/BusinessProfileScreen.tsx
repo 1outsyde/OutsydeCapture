@@ -246,12 +246,18 @@ export default function BusinessProfileScreen() {
     const userId = (business as any).userId || (business as any).ownerId || business.id;
     const userType = business.resultType === "photographer" ? "photographer" : "business";
     
-    navigation.navigate("Profile", {
-      userId,
-      profileId,
-      userType,
-      displayName: business.name,
-      avatar: business.avatar,
+    // First dismiss this preview modal, then navigate to full Profile
+    navigation.goBack();
+    
+    // Use requestAnimationFrame to ensure modal is dismissed before navigating
+    requestAnimationFrame(() => {
+      navigation.navigate("Profile", {
+        userId,
+        profileId,
+        userType,
+        displayName: business.name,
+        avatar: business.avatar,
+      });
     });
   };
 
