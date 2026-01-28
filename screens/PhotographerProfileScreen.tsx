@@ -293,23 +293,17 @@ export default function PhotographerProfileScreen() {
 
   const handleViewFullProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const photographerData = {
-      id: photographer.id,
-      userId: (photographer as any).userId,
-      name: photographer.name,
+    
+    const profileId = photographer.id;
+    const userId = (photographer as any).userId || photographer.id;
+    
+    navigation.navigate("Profile", {
+      userId,
+      profileId,
+      userType: "photographer",
+      displayName: photographer.name,
       avatar: photographer.avatar,
-      coverImage: photographer.coverImage,
-      location: `${photographer.city}, ${photographer.state}`,
-      rating: photographer.rating,
-      specialty: photographer.specialty,
-      priceRange: photographer.priceRange,
-      bio: photographer.description,
-      portfolio: photographer.portfolio || [],
-      yearsOfExperience: photographer.yearsOfExperience,
-      subscriptionTier: photographer.subscriptionTier,
-      stripeOnboardingComplete: photographer.stripeOnboardingComplete,
-    };
-    navigation.navigate("PhotographerDetail", { photographer: photographerData as any });
+    });
   };
 
   const handleVisitWebsite = async () => {

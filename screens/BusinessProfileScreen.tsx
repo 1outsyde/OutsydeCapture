@@ -241,25 +241,18 @@ export default function BusinessProfileScreen() {
 
   const handleViewFullProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (business.resultType === "photographer") {
-      const photographerData = {
-        id: business.id,
-        userId: (business as any).userId,
-        name: business.name,
-        avatar: business.avatar,
-        coverImage: business.coverImage,
-        location: `${business.city}, ${business.state}`,
-        rating: business.rating,
-        specialty: business.category,
-        priceRange: business.priceRange,
-        bio: business.description,
-        portfolio: [],
-        subscriptionTier: business.subscriptionTier,
-      };
-      navigation.navigate("PhotographerDetail", { photographer: photographerData as any });
-    } else {
-      navigation.navigate("VendorDetail", { vendorId: business.id });
-    }
+    
+    const profileId = business.id;
+    const userId = (business as any).userId || (business as any).ownerId || business.id;
+    const userType = business.resultType === "photographer" ? "photographer" : "business";
+    
+    navigation.navigate("Profile", {
+      userId,
+      profileId,
+      userType,
+      displayName: business.name,
+      avatar: business.avatar,
+    });
   };
 
   const handleVisitWebsite = async () => {
