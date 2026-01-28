@@ -946,6 +946,7 @@ export interface UnifiedSearchResult {
   id: string;
   userId?: string;
   name: string;
+  displayName?: string;
   username?: string;
   avatar: string;
   coverImage?: string;
@@ -1328,6 +1329,7 @@ class ApiService {
         id: item.id,
         userId: item.userId,
         name: resolvedName,
+        displayName: item.displayName,
         username: item.username,
         avatar: avatarUrl || "https://via.placeholder.com/100",
         coverImage: coverUrl,
