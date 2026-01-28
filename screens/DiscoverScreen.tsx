@@ -416,6 +416,37 @@ export default function DiscoverScreen() {
     );
   };
 
+  const handleDeletePost = async (postId: string) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Error", "You must be logged in to delete posts.");
+        return;
+      }
+      await api.deletePost(token, postId);
+      setFeedPosts((prev: Post[]) => prev.filter((p: Post) => p.id !== postId));
+      Alert.alert("Success", "Post deleted successfully.");
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      Alert.alert("Error", "Failed to delete post. Please try again.");
+    }
+  };
+
+  const handleReportPost = async (postId: string, reason: string) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Error", "You must be logged in to report posts.");
+        return;
+      }
+      await api.reportPost(token, postId, reason);
+      Alert.alert("Report Submitted", "Thank you for reporting. Our team will review this content.");
+    } catch (error) {
+      console.error("Error reporting post:", error);
+      Alert.alert("Error", "Failed to submit report. Please try again.");
+    }
+  };
+
   // Calculate post height (full screen minus tab bar)
   const TAB_BAR_HEIGHT = 80;
   const POST_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
@@ -609,7 +640,11 @@ export default function DiscoverScreen() {
         onRate={handleRatePress}
         onAuthorPress={handleAuthorPress}
         onActionPress={handleActionPress}
+        onDelete={handleDeletePost}
+        onReport={handleReportPost}
         isSaved={isSaved}
+        currentUserId={user?.id}
+        isAdmin={user?.isAdmin}
       />
     );
   };
