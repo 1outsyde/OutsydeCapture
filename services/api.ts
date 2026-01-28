@@ -1654,17 +1654,29 @@ class ApiService {
     profileImageUrl?: string | null; 
     coverMediaUrl?: string | null; 
     coverMediaType?: "image" | "video" | null;
+    displayName?: string;
+    username?: string;
+    bio?: string;
+    city?: string;
+    state?: string;
   }): Promise<{ success: boolean; user?: any; message?: string }> {
     console.log("[API] updateUserMe payload:", JSON.stringify(data, null, 2));
     
-    if (!data || Object.keys(data).length === 0) {
-      console.warn("[API] updateUserMe: Empty payload");
+    // Filter out undefined/null values to only send actual changes
+    const filteredData = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined && value !== null)
+    );
+    
+    if (!filteredData || Object.keys(filteredData).length === 0) {
+      console.warn("[API] updateUserMe: Empty payload after filtering");
       throw { message: "No changes to save.", status: 400 };
     }
     
+    console.log("[API] updateUserMe filtered payload:", JSON.stringify(filteredData, null, 2));
+    
     return this.request<{ success: boolean; user?: any; message?: string }>("/api/users/me", {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(filteredData),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
