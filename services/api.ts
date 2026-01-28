@@ -755,14 +755,17 @@ export interface UnifiedSearchParams {
   lat?: number;
   lng?: number;
   personalized?: boolean;
-  type?: "business" | "photographer" | "product" | "service";
+  scope?: "all" | "consumers" | "businesses" | "photographers" | "products" | "services";
+  viewerUserId?: string;
 }
 
 export interface UnifiedSearchItem {
   id: string;
   userId?: string;
-  type: "business" | "photographer" | "product" | "service";
+  type: "business" | "photographer" | "product" | "service" | "consumer";
   name: string;
+  username?: string;
+  displayName?: string;
   description?: string;
   category?: string;
   city?: string;
@@ -772,12 +775,15 @@ export interface UnifiedSearchItem {
   priceRange?: string;
   avatar?: string;
   logoImage?: string;
+  profileImageUrl?: string;
   coverImage?: string;
   subscriptionTier?: "basic" | "pro" | "premium";
   hourlyRate?: number;
   specialties?: string[];
   preferenceScore?: number;
   distance?: number;
+  isInfluencer?: boolean;
+  influencerStatus?: string;
 }
 
 export interface UnifiedSearchResponse {
@@ -786,7 +792,7 @@ export interface UnifiedSearchResponse {
   personalized: boolean;
 }
 
-export type SearchResultType = "business" | "photographer" | "product" | "service";
+export type SearchResultType = "business" | "photographer" | "product" | "service" | "consumer";
 
 export interface MobileLoginRequest {
   email: string;
@@ -933,6 +939,7 @@ export interface UnifiedSearchResult {
   id: string;
   userId?: string;
   name: string;
+  username?: string;
   avatar: string;
   coverImage?: string;
   city: string;
@@ -944,6 +951,8 @@ export interface UnifiedSearchResult {
   subscriptionTier?: "basic" | "pro" | "premium";
   resultType: SearchResultType;
   originalType?: string;
+  isInfluencer?: boolean;
+  influencerStatus?: string;
 }
 
 class ApiService {
@@ -1223,31 +1232,64 @@ class ApiService {
   }
 
   async unifiedSearch(params?: UnifiedSearchParams, authToken?: string | null, isAdmin: boolean = false): Promise<UnifiedSearchResponse> {
-    console.log("[API] Using /api/search for unified search, isAdmin:", isAdmin);
-    const fallbackResponse = await this.search({
-      query: params?.q,
-      city: params?.city,
-      category: params?.category,
-    });
-    const normalizedResults = this.normalizeSearchResults(fallbackResponse, isAdmin);
-    console.log("[API] Filtered results:", normalizedResults.length, "from total raw businesses/photographers");
-    return {
-      results: normalizedResults.map(r => ({
-        id: r.id,
-        type: r.resultType,
-        name: r.name,
-        description: r.description,
-        category: r.category,
-        city: r.city,
-        state: r.state,
-        rating: r.rating,
-        priceRange: r.priceRange,
-        avatar: r.avatar,
-        subscriptionTier: r.subscriptionTier,
-      })),
-      total: normalizedResults.length,
-      personalized: false,
-    };
+    console.log("[API] Using /api/search for unified search, isAdmin:", isAdmin, "scope:", params?.scope);
+    
+    const queryString = new URLSearchParams();
+    if (params?.q) queryString.append("q", params.q);
+    if (params?.city) queryString.append("city", params.city);
+    if (params?.category) queryString.append("category", params.category);
+    if (params?.scope) queryString.append("scope", params.scope);
+    if (params?.viewerUserId) queryString.append("viewerUserId", params.viewerUserId);
+    if (params?.personalized) queryString.append("personalized", "true");
+    
+    const endpoint = `/api/search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
+    
+    try {
+      const headers: Record<string, string> = {};
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`;
+      }
+      
+      const response = await this.request<{
+        results: UnifiedSearchItem[];
+        total: number;
+        personalized?: boolean;
+      }>(endpoint, { headers });
+      
+      console.log("[API] Unified search results:", response.total, "items");
+      
+      return {
+        results: response.results || [],
+        total: response.total || 0,
+        personalized: response.personalized || false,
+      };
+    } catch (error) {
+      console.log("[API] Unified search endpoint failed, falling back to legacy search");
+      const fallbackResponse = await this.search({
+        query: params?.q,
+        city: params?.city,
+        category: params?.category,
+      });
+      const normalizedResults = this.normalizeSearchResults(fallbackResponse, isAdmin);
+      console.log("[API] Fallback results:", normalizedResults.length, "from legacy search");
+      return {
+        results: normalizedResults.map(r => ({
+          id: r.id,
+          type: r.resultType,
+          name: r.name,
+          description: r.description,
+          category: r.category,
+          city: r.city,
+          state: r.state,
+          rating: r.rating,
+          priceRange: r.priceRange,
+          avatar: r.avatar,
+          subscriptionTier: r.subscriptionTier,
+        })),
+        total: normalizedResults.length,
+        personalized: false,
+      };
+    }
   }
 
   normalizeUnifiedResults(response: UnifiedSearchResponse): UnifiedSearchResult[] {
@@ -1261,14 +1303,15 @@ class ApiService {
     };
 
     return response.results.map(item => {
-      // Get valid avatar URL - check both avatar and logoImage fields
-      const avatarUrl = isValidImageUrl(item.avatar) || isValidImageUrl(item.logoImage) || "";
+      // Get valid avatar URL - check avatar, logoImage, and profileImageUrl fields
+      const avatarUrl = isValidImageUrl(item.avatar) || isValidImageUrl(item.logoImage) || isValidImageUrl(item.profileImageUrl) || "";
       const coverUrl = isValidImageUrl(item.coverImage) || "";
 
       return {
         id: item.id,
         userId: item.userId,
-        name: item.name,
+        name: item.displayName || item.name,
+        username: item.username,
         avatar: avatarUrl || "https://via.placeholder.com/100",
         coverImage: coverUrl,
         city: item.city || "Unknown",
@@ -1280,6 +1323,8 @@ class ApiService {
         subscriptionTier: item.subscriptionTier,
         resultType: item.type,
         originalType: item.type,
+        isInfluencer: item.isInfluencer,
+        influencerStatus: item.influencerStatus,
       };
     });
   }

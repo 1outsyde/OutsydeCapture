@@ -85,21 +85,36 @@ export default function SearchScreen() {
   const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || 
                   user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
 
-  const fetchSearchResults = useCallback(async (query?: string) => {
+  const getSearchScope = useCallback((tab: TabType): "all" | "consumers" | "businesses" | "photographers" | "products" | "services" | undefined => {
+    switch (tab) {
+      case "all": return "all";
+      case "consumer": return "consumers";
+      case "business": return "businesses";
+      case "photographer": return "photographers";
+      case "product": return "products";
+      case "service": return "services";
+      default: return "all";
+    }
+  }, []);
+
+  const fetchSearchResults = useCallback(async (query?: string, tab?: TabType) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const authToken = isAuthenticated ? await getToken() : null;
+      const scope = getSearchScope(tab || activeTab);
       const response = await api.unifiedSearch(
         { 
           q: query || undefined,
           personalized: isAuthenticated && personalized,
+          scope,
+          viewerUserId: user?.id,
         },
         authToken,
         isAdmin
       );
-      console.log("[SearchScreen] Search query:", query, "Total results:", response.total, "isAdmin:", isAdmin);
+      console.log("[SearchScreen] Search query:", query, "Scope:", scope, "Total results:", response.total, "isAdmin:", isAdmin);
       console.log("[SearchScreen] Result types:", response.results.map(r => `${r.type}: ${r.name}`));
       const normalized = api.normalizeUnifiedResults(response);
       setResults(normalized);
@@ -112,7 +127,7 @@ export default function SearchScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, personalized, getToken, isAdmin]);
+  }, [isAuthenticated, personalized, getToken, isAdmin, activeTab, user?.id, getSearchScope]);
 
   useEffect(() => {
     fetchSearchResults();
@@ -121,14 +136,14 @@ export default function SearchScreen() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchQuery.trim()) {
-        fetchSearchResults(searchQuery);
+        fetchSearchResults(searchQuery, activeTab);
       } else {
-        fetchSearchResults();
+        fetchSearchResults(undefined, activeTab);
       }
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, fetchSearchResults]);
+  }, [searchQuery, activeTab]);
 
   const handleSaveResult = (item: UnifiedSearchResult) => {
     toggleFavorite({
@@ -279,9 +294,16 @@ export default function SearchScreen() {
         )}
         <View style={styles.resultInfo}>
           <View style={styles.resultHeader}>
-            <ThemedText type="h4" numberOfLines={1} style={styles.resultName}>
-              {item.name}
-            </ThemedText>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="h4" numberOfLines={1} style={styles.resultName}>
+                {item.name}
+              </ThemedText>
+              {item.username && (
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  @{item.username}
+                </ThemedText>
+              )}
+            </View>
             <View style={styles.headerRight}>
               {tierConfig ? (
                 <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
