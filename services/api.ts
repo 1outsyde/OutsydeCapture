@@ -321,6 +321,25 @@ export interface BlockedDate {
   createdAt?: string;
 }
 
+// Weekly availability slot (recurring pattern)
+export interface WeeklyAvailabilitySlot {
+  id?: string;
+  dayOfWeek: number; // 0=Sunday, 1=Monday, etc.
+  startTime: string; // "09:00"
+  endTime: string;   // "17:00"
+  isActive: boolean;
+}
+
+// Availability block (manual time-off)
+export interface AvailabilityBlock {
+  id: string;
+  startDate: string;  // ISO date or datetime
+  endDate: string;    // ISO date or datetime
+  isFullDay: boolean;
+  reason?: string;
+  createdAt?: string;
+}
+
 // Product/Service status type
 // - draft: Not visible to customers, editable
 // - live: Visible and purchasable/bookable (requires Stripe + subscription + approval)
@@ -2294,7 +2313,10 @@ class ApiService {
     type: "photographer" | "business", 
     bookingId: string
   ): Promise<{ success: boolean; booking?: PhotographerBooking | BusinessBooking }> {
-    return this.request(`/api/${type}/bookings/${bookingId}/accept`, {
+    const endpoint = type === "photographer" 
+      ? `/api/bookings/photographer/${bookingId}/accept`
+      : `/api/bookings/appointments/${bookingId}/accept`;
+    return this.request(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
@@ -2307,7 +2329,10 @@ class ApiService {
     bookingId: string,
     reason?: string
   ): Promise<{ success: boolean; refunded?: boolean }> {
-    return this.request(`/api/${type}/bookings/${bookingId}/decline`, {
+    const endpoint = type === "photographer" 
+      ? `/api/bookings/photographer/${bookingId}/decline`
+      : `/api/bookings/appointments/${bookingId}/decline`;
+    return this.request(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ reason }),
@@ -2321,10 +2346,28 @@ class ApiService {
     bookingId: string,
     amount?: number // Optional partial refund amount, full refund if not provided
   ): Promise<{ success: boolean; refundedAmount?: number; message?: string }> {
-    return this.request(`/api/${type}/bookings/${bookingId}/refund`, {
+    const endpoint = type === "photographer" 
+      ? `/api/bookings/photographer/${bookingId}/refund`
+      : `/api/bookings/appointments/${bookingId}/refund`;
+    return this.request(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ amount }),
+    });
+  }
+
+  // Create payment intent for service booking (returns clientSecret for PaymentSheet)
+  async createBookingPaymentIntent(
+    authToken: string,
+    type: "photographer" | "business",
+    bookingId: string
+  ): Promise<{ clientSecret: string; paymentIntentId: string; captureMethod: "automatic" | "manual" }> {
+    const endpoint = type === "photographer"
+      ? `/api/bookings/photographer/${bookingId}/create-payment-intent`
+      : `/api/bookings/appointments/${bookingId}/create-payment-intent`;
+    return this.request(endpoint, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
@@ -2348,6 +2391,93 @@ class ApiService {
   ): Promise<ProviderSettings> {
     return this.request<ProviderSettings>(`/api/${type}/settings`, {
       headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Weekly availability endpoints
+  async getWeeklyAvailability(
+    authToken: string,
+    type: "photographer" | "business"
+  ): Promise<WeeklyAvailabilitySlot[]> {
+    const endpoint = type === "photographer"
+      ? "/api/photographers/me/weekly-availability"
+      : "/api/businesses/me/weekly-availability";
+    return this.request<WeeklyAvailabilitySlot[]>(endpoint, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateWeeklyAvailability(
+    authToken: string,
+    type: "photographer" | "business",
+    availability: WeeklyAvailabilitySlot[]
+  ): Promise<WeeklyAvailabilitySlot[]> {
+    const endpoint = type === "photographer"
+      ? "/api/photographers/me/weekly-availability"
+      : "/api/businesses/me/weekly-availability";
+    return this.request<WeeklyAvailabilitySlot[]>(endpoint, {
+      method: "PUT",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ availability }),
+    });
+  }
+
+  // Blocked dates/times endpoints
+  async getBlocks(
+    authToken: string,
+    type: "photographer" | "business"
+  ): Promise<AvailabilityBlock[]> {
+    const endpoint = type === "photographer"
+      ? "/api/photographers/me/blocks"
+      : "/api/businesses/me/blocks";
+    return this.request<AvailabilityBlock[]>(endpoint, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async createBlock(
+    authToken: string,
+    type: "photographer" | "business",
+    block: Omit<AvailabilityBlock, "id">
+  ): Promise<AvailabilityBlock> {
+    const endpoint = type === "photographer"
+      ? "/api/photographers/me/blocks"
+      : "/api/businesses/me/blocks";
+    return this.request<AvailabilityBlock>(endpoint, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(block),
+    });
+  }
+
+  async updateBlock(
+    authToken: string,
+    type: "photographer" | "business",
+    blockId: string,
+    updates: Partial<AvailabilityBlock>
+  ): Promise<AvailabilityBlock> {
+    const endpoint = type === "photographer"
+      ? "/api/photographers/me/blocks"
+      : "/api/businesses/me/blocks";
+    return this.request<AvailabilityBlock>(endpoint, {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ id: blockId, ...updates }),
+    });
+  }
+
+  async deleteBlock(
+    authToken: string,
+    type: "photographer" | "business",
+    blockId: string
+  ): Promise<{ success: boolean }> {
+    const endpoint = type === "photographer"
+      ? "/api/photographers/me/blocks"
+      : "/api/businesses/me/blocks";
+    return this.request<{ success: boolean }>(endpoint, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ id: blockId }),
     });
   }
 

@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as WebBrowser from "expo-web-browser";
+import { useStripe } from "@stripe/stripe-react-native";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -47,6 +47,7 @@ export default function BookingScreen() {
   const { addSession } = useData();
   const { addNotification, sendBookingConfirmation, scheduleBookingReminders } = useNotifications();
   const insets = useSafeAreaInsets();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   // State for photographer data (may need to be fetched)
   const [photographer, setPhotographer] = useState<PhotographerData | null>(
@@ -498,48 +499,50 @@ export default function BookingScreen() {
 
     setIsConfirming(true);
     try {
-      // Step 1: Initiate payment to get Stripe checkout URL
-      const successUrl = "outsyde://booking/success";
-      const cancelUrl = "outsyde://booking/cancel";
-      
-      const paymentResponse = await api.initiateBookingPayment(
+      // Step 1: Create payment intent to get clientSecret for PaymentSheet
+      const paymentResponse = await api.createBookingPaymentIntent(
         token,
-        bookingDraft.id,
-        successUrl,
-        cancelUrl
+        "photographer",
+        bookingDraft.id
       );
       
-      // Step 2: Open Stripe checkout in browser
-      if (Platform.OS === "web") {
-        // On web, open in new tab and poll or use redirect
-        window.open(paymentResponse.checkoutUrl, "_blank");
-        // For web, we'll proceed to confirm after user clicks (they'll return to the app)
-      } else {
-        // On mobile, use WebBrowser which handles deep link return
-        const result = await WebBrowser.openBrowserAsync(paymentResponse.checkoutUrl, {
-          showInRecents: true,
-          dismissButtonStyle: "close",
-        });
-        
-        // Check if user dismissed without completing
-        if (result.type === "cancel") {
+      // Step 2: Initialize PaymentSheet with clientSecret
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: paymentResponse.clientSecret,
+        merchantDisplayName: "Outsyde",
+        allowsDelayedPaymentMethods: false,
+      });
+      
+      if (initError) {
+        console.error("PaymentSheet init error:", initError);
+        throw new Error(initError.message || "Failed to initialize payment");
+      }
+      
+      // Step 3: Present PaymentSheet to user
+      const { error: presentError } = await presentPaymentSheet();
+      
+      if (presentError) {
+        // User cancelled or payment failed
+        if (presentError.code === "Canceled") {
           setIsConfirming(false);
           Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
           return;
         }
+        throw new Error(presentError.message || "Payment failed");
       }
       
-      // Step 3: Confirm payment after Stripe checkout completes
+      // Step 4: Payment succeeded - confirm the draft booking with backend
       const confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
       
       if (countdownRef.current) {
         clearInterval(countdownRef.current);
       }
 
-      // Check if booking is pending provider approval (auto-accept is OFF)
-      // Backend may return "pending" or "pending_approval" when auto-accept is disabled
+      // Check booking status from backend response
+      // captureMethod: "automatic" + autoAcceptBookings=true → CONFIRMED
+      // captureMethod: "manual" + autoAcceptBookings=false → PENDING_PROVIDER (24h)
       const bookingStatus = (confirmResponse.booking?.status as string) || "confirmed";
-      const isPending = bookingStatus === "pending" || bookingStatus === "pending_approval";
+      const isPending = bookingStatus === "pending" || bookingStatus === "pending_approval" || bookingStatus === "pending_provider";
       setBookingPending(isPending);
 
       const session = await addSession({

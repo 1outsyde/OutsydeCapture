@@ -1,0 +1,136 @@
+FRONTEND-ONLY: Integrate finalized booking + payment backend (PaymentIntents + availability + accept/decline + refunds)
+
+IMPORTANT CONTEXT
+Backend is now COMPLETE for booking payments and availability.
+Please do NOT create or assume any backend endpoints.
+Only use the endpoints listed below.
+
+------------------------
+AVAILABLE BACKEND ENDPOINTS (FINAL)
+------------------------
+
+PAYMENT (SERVICE BOOKINGS – IN-APP)
+
+Business appointments:
+POST /api/bookings/appointments/:id/create-payment-intent
+
+Photographer shoots:
+POST /api/bookings/photographer/:id/create-payment-intent
+
+Response includes:
+- clientSecret (for Stripe PaymentSheet)
+- paymentIntentId
+- capture_method (automatic | manual)
+
+Behavior:
+- autoAcceptBookings = true → automatic capture → CONFIRMED
+- autoAcceptBookings = false → manual capture → PENDING_PROVIDER (24h)
+
+------------------------
+PROVIDER ACTIONS
+------------------------
+
+Accept booking:
+POST /api/bookings/appointments/:id/accept
+POST /api/bookings/photographer/:id/accept
+
+Decline booking:
+POST /api/bookings/appointments/:id/decline
+POST /api/bookings/photographer/:id/decline
+
+Refund booking:
+POST /api/bookings/appointments/:id/refund
+POST /api/bookings/photographer/:id/refund
+
+Backend handles:
+- capture on accept
+- void on decline / expiry
+- refunds if already captured
+
+------------------------
+AVAILABILITY
+------------------------
+
+Weekly recurring availability:
+GET /api/businesses/me/weekly-availability
+PUT /api/businesses/me/weekly-availability
+GET /api/photographers/me/weekly-availability
+PUT /api/photographers/me/weekly-availability
+
+Blocked dates / times (timestamp-based):
+GET /api/businesses/me/blocks
+POST /api/businesses/me/blocks
+PATCH /api/businesses/me/blocks
+DELETE /api/businesses/me/blocks
+
+GET /api/photographers/me/blocks
+POST /api/photographers/me/blocks
+PATCH /api/photographers/me/blocks
+DELETE /api/photographers/me/blocks
+
+Existing availability endpoints now:
+- Generate availability from weekly patterns
+- Subtract blocks, bookings, pending bookings, and draft holds
+- Respect service duration (no double booking)
+
+------------------------
+FRONTEND TASKS
+------------------------
+
+1) PAYMENT (CRITICAL)
+- Replace Stripe Checkout web flow for SERVICE BOOKINGS with Stripe PaymentSheet.
+- Use clientSecret returned by create-payment-intent endpoints.
+- Do NOT open web pages for service bookings anymore.
+
+2) CONSUMER BOOKING FLOW
+- Keep existing 10-minute draft hold + countdown.
+- After PaymentSheet success:
+  - If booking status = CONFIRMED → show "Booking confirmed"
+  - If booking status = PENDING_PROVIDER → show "Pending provider approval (up to 24h)"
+
+⚠️ Do NOT say “payment is pending” unless status is PENDING_PROVIDER.
+Backend now guarantees correct status.
+
+3) PROVIDER DASHBOARDS (PHOTOGRAPHER + BUSINESS)
+- Auto-accept bookings toggle → calls provider settings endpoint (already implemented).
+- Pending bookings list:
+  - Accept → call accept endpoint
+  - Decline → call decline endpoint
+- Confirmed bookings list:
+  - Issue Refund → call refund endpoint
+  - Show refund success/failure
+
+4) CALENDAR + AVAILABILITY UI
+- Weekly availability editor must repeat week-to-week indefinitely.
+- Calendar must show:
+  - Confirmed bookings
+  - Pending bookings (24h hold)
+  - Blocked ranges (manual blocks)
+- Allow providers to block:
+  - Full days
+  - Partial hours
+  - Multi-day ranges (weeks in advance)
+
+5) DO NOT
+- Do not create new endpoints
+- Do not assume payment behavior
+- Do not bypass backend availability checks
+- Do not allow booking without calling availability + draft endpoints
+
+------------------------
+SUCCESS CRITERIA
+------------------------
+
+Consumer:
+- Can book services months in advance
+- Never double-books
+- Sees correct status (confirmed vs pending)
+- Gets refunded automatically on decline/expiry
+
+Provider:
+- Controls weekly availability
+- Blocks time freely
+- Accepts or declines bookings
+- Issues refunds from dashboard
+
+All service payments happen IN-APP via PaymentSheet.
