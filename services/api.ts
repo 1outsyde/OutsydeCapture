@@ -762,8 +762,11 @@ export interface UnifiedSearchParams {
 export interface UnifiedSearchItem {
   id: string;
   userId?: string;
+  providerUserId?: string;
   type: "business" | "photographer" | "product" | "service" | "consumer";
-  name: string;
+  name?: string;
+  title?: string;
+  subtitle?: string;
   username?: string;
   displayName?: string;
   description?: string;
@@ -771,10 +774,13 @@ export interface UnifiedSearchItem {
   city?: string;
   state?: string;
   rating?: number;
+  ratingAvg?: number;
   reviewCount?: number;
+  ratingCount?: number;
   priceRange?: string;
   avatar?: string;
   avatarUrl?: string;
+  imageUrl?: string;
   profileImage?: string;
   logoImage?: string;
   profileImageUrl?: string;
@@ -783,6 +789,8 @@ export interface UnifiedSearchItem {
   hourlyRate?: number;
   specialties?: string[];
   preferenceScore?: number;
+  baseScore?: number;
+  personalizationScore?: number;
   distance?: number;
   isInfluencer?: boolean;
   influencerStatus?: string;
@@ -793,31 +801,6 @@ export interface UnifiedSearchItem {
   businessName?: string;
   price?: number;
   productImage?: string;
-  user?: {
-    id?: string;
-    displayName?: string;
-    username?: string;
-    avatar?: string;
-    profileImage?: string;
-  };
-  photographer?: {
-    user?: {
-      id?: string;
-      displayName?: string;
-      username?: string;
-      avatar?: string;
-      profileImage?: string;
-    };
-  };
-  vendor?: {
-    user?: {
-      id?: string;
-      displayName?: string;
-      username?: string;
-      avatar?: string;
-      profileImage?: string;
-    };
-  };
 }
 
 export interface UnifiedSearchResponse {
@@ -1345,17 +1328,12 @@ class ApiService {
     };
 
     return response.results.map(item => {
-      // Extract nested user for photographers/businesses
-      const nestedUser = 
-        item.user || 
-        item.photographer?.user || 
-        item.vendor?.user || 
-        null;
-
-      // Get valid avatar URL - check nested user fields first, then flat fields
+      // Backend returns: title, imageUrl, subtitle, providerUserId, ratingAvg, ratingCount, baseScore
+      // Map these to our normalized fields
+      
+      // Get valid avatar URL - check imageUrl first (actual backend field), then fallbacks
       const avatarUrl = 
-        isValidImageUrl(nestedUser?.profileImage) ||
-        isValidImageUrl(nestedUser?.avatar) ||
+        isValidImageUrl(item.imageUrl) ||
         isValidImageUrl(item.profileImage) || 
         isValidImageUrl(item.avatarUrl) || 
         isValidImageUrl(item.avatar) || 
@@ -1364,28 +1342,42 @@ class ApiService {
         "";
       const coverUrl = isValidImageUrl(item.coverImage) || "";
 
-      // Resolve display name - check nested user first for photographers/businesses
+      // Resolve display name - title is the primary field from backend
       const resolvedDisplayName = 
+        item.title ||
         item.displayName || 
-        nestedUser?.displayName || 
+        item.name ||
         null;
       
-      const resolvedUsername = item.username || nestedUser?.username || null;
+      const resolvedUsername = item.username || null;
+      
+      // Parse city/state from subtitle if not provided separately
+      let resolvedCity = item.city;
+      let resolvedState = item.state;
+      if (!resolvedCity && item.subtitle) {
+        const parts = item.subtitle.split(',').map(p => p.trim());
+        if (parts.length >= 2) {
+          resolvedCity = parts[0];
+          resolvedState = parts[1];
+        } else if (parts.length === 1) {
+          resolvedCity = parts[0];
+        }
+      }
       
       // Final name resolution
-      const resolvedName = resolvedDisplayName || item.name || (resolvedUsername ? `@${resolvedUsername}` : null) || "Unknown";
+      const resolvedName = resolvedDisplayName || (resolvedUsername ? `@${resolvedUsername}` : null) || "Unknown";
 
       return {
         id: item.id,
-        userId: item.userId,
+        userId: item.userId || item.providerUserId,
         name: resolvedName,
         displayName: resolvedDisplayName || undefined,
         username: resolvedUsername || undefined,
         avatar: avatarUrl || "https://via.placeholder.com/100",
         coverImage: coverUrl,
-        city: item.city || "Unknown",
-        state: item.state || "",
-        rating: item.rating || 0,
+        city: resolvedCity || "Unknown",
+        state: resolvedState || "",
+        rating: item.rating || item.ratingAvg || 0,
         priceRange: item.priceRange || (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : "") || (item.price ? `$${item.price}` : ""),
         category: item.category || item.type,
         description: item.description || "",
@@ -1394,8 +1386,8 @@ class ApiService {
         originalType: item.type,
         isInfluencer: item.isInfluencer,
         influencerStatus: item.influencerStatus,
-        providerId: item.providerId,
-        providerName: item.providerName,
+        providerId: item.providerId || item.id,
+        providerName: item.providerName || resolvedDisplayName || undefined,
         providerType: item.providerType,
         businessId: item.businessId,
         businessName: item.businessName,
