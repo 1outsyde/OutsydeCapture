@@ -774,6 +774,8 @@ export interface UnifiedSearchItem {
   reviewCount?: number;
   priceRange?: string;
   avatar?: string;
+  avatarUrl?: string;
+  profileImage?: string;
   logoImage?: string;
   profileImageUrl?: string;
   coverImage?: string;
@@ -1318,8 +1320,14 @@ class ApiService {
     };
 
     return response.results.map(item => {
-      // Get valid avatar URL - check avatar, logoImage, and profileImageUrl fields
-      const avatarUrl = isValidImageUrl(item.avatar) || isValidImageUrl(item.logoImage) || isValidImageUrl(item.profileImageUrl) || "";
+      // Get valid avatar URL - check all possible avatar fields
+      const avatarUrl = 
+        isValidImageUrl(item.profileImage) || 
+        isValidImageUrl(item.avatarUrl) || 
+        isValidImageUrl(item.avatar) || 
+        isValidImageUrl(item.logoImage) || 
+        isValidImageUrl(item.profileImageUrl) || 
+        "";
       const coverUrl = isValidImageUrl(item.coverImage) || "";
 
       // Resolve display name with proper priority for all entity types

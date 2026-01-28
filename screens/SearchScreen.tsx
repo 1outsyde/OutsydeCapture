@@ -287,11 +287,12 @@ export default function SearchScreen() {
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
     const hasValidAvatar = isValidImageUrl(item.avatar);
     
-    // Resolve display label with priority: displayName > name > @username > Unknown
+    // Resolve display label with priority: displayName > @username > Unknown
+    // Do NOT use item.name as it may already be "Unknown" from normalization
     const displayLabel =
       item.displayName ||
-      item.name ||
-      (item.username ? `@${item.username}` : "Unknown");
+      (item.username ? `@${item.username}` : null) ||
+      "Unknown";
 
     return (
       <Pressable
