@@ -39,6 +39,8 @@ export interface User {
   willTravel?: boolean;
   businessId?: string;
   photographerId?: string;
+  isInfluencer?: boolean;
+  influencerStatus?: "pending" | "approved" | "rejected";
 }
 
 export interface SignupData {

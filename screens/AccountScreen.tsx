@@ -174,11 +174,14 @@ export default function AccountScreen() {
   const [bookedSlots, setBookedSlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
   const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [postIntent, setPostIntent] = useState<"social" | "review" | "promote" | null>(null);
   const [newPostMedia, setNewPostMedia] = useState<string>("");
   const [newPostMediaType, setNewPostMediaType] = useState<"image" | "video">("image");
   const [newPostCaption, setNewPostCaption] = useState("");
   const [linkedServiceId, setLinkedServiceId] = useState<string>("");
   const [linkedProductId, setLinkedProductId] = useState<string>("");
+  const [taggedProfileId, setTaggedProfileId] = useState<string>("");
+  const [taggedProfileName, setTaggedProfileName] = useState<string>("");
   const [businessHasProducts, setBusinessHasProducts] = useState(false);
   const [businessHasServices, setBusinessHasServices] = useState(false);
   const [businessProducts, setBusinessProducts] = useState<VendorProduct[]>([]);
@@ -1083,232 +1086,414 @@ export default function AccountScreen() {
             maxHeight: "90%",
           }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
-              <ThemedText type="h3">Create Post</ThemedText>
-              <Pressable onPress={() => { setShowCreatePost(false); setNewPostMedia(""); setNewPostMediaType("image"); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {postIntent && (
+                  <Pressable onPress={() => setPostIntent(null)} style={{ marginRight: Spacing.sm }}>
+                    <Feather name="arrow-left" size={24} color={theme.text} />
+                  </Pressable>
+                )}
+                <ThemedText type="h3">{postIntent ? "Create Post" : "What would you like to share?"}</ThemedText>
+              </View>
+              <Pressable onPress={() => { setShowCreatePost(false); setPostIntent(null); setNewPostMedia(""); setNewPostMediaType("image"); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); setTaggedProfileId(""); setTaggedProfileName(""); }}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
 
-            {/* Media Picker - Images and Videos */}
-            <Pressable
-              onPress={handlePickPostMedia}
-              style={{
-                width: "100%",
-                aspectRatio: 9 / 16,
-                maxHeight: 400,
-                backgroundColor: theme.backgroundSecondary,
-                borderRadius: 12,
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: Spacing.md,
-                overflow: "hidden",
-              }}
-            >
-              {newPostMedia ? (
-                newPostMediaType === "video" ? (
-                  <View style={{ width: "100%", height: "100%", position: "relative" }}>
-                    <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
-                      <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
-                        <Feather name="play" size={28} color="#FFFFFF" />
-                      </View>
-                    </View>
-                    <View style={{ position: "absolute", top: Spacing.sm, right: Spacing.sm, backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: 4 }}>
-                      <ThemedText type="small" style={{ color: "#FFFFFF" }}>VIDEO</ThemedText>
-                    </View>
+            {/* Step 1: Intent Selection */}
+            {!postIntent ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Social / Lifestyle Option - Always visible */}
+                <Pressable
+                  onPress={() => setPostIntent("social")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: Spacing.lg,
+                    backgroundColor: theme.backgroundSecondary,
+                    borderRadius: 12,
+                    marginBottom: Spacing.md,
+                  }}
+                >
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: profileTheme, alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
+                    <Feather name="camera" size={24} color="#000" />
                   </View>
-                ) : (
-                  <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                )
-              ) : (
-                <View style={{ alignItems: "center" }}>
-                  <Feather name="film" size={48} color={theme.textSecondary} />
-                  <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                    Tap to select photo or video
-                  </ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                    Videos up to 60 seconds
-                  </ThemedText>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="h4">Social / Lifestyle</ThemedText>
+                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                      Share moments, updates, or behind-the-scenes content
+                    </ThemedText>
+                  </View>
+                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+                </Pressable>
+
+                {/* Review / Experience Option - Always visible */}
+                <Pressable
+                  onPress={() => setPostIntent("review")}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: Spacing.lg,
+                    backgroundColor: theme.backgroundSecondary,
+                    borderRadius: 12,
+                    marginBottom: Spacing.md,
+                  }}
+                >
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#4CAF50", alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
+                    <Feather name="star" size={24} color="#FFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="h4">Review / Experience</ThemedText>
+                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                      Share your experience with a business or photographer
+                    </ThemedText>
+                  </View>
+                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+                </Pressable>
+
+                {/* Promote Service/Product - Role-based visibility */}
+                {(userRole === "business" || userRole === "photographer" || (userRole === "consumer" && user?.isInfluencer)) ? (
+                  <Pressable
+                    onPress={() => setPostIntent("promote")}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: Spacing.lg,
+                      backgroundColor: theme.backgroundSecondary,
+                      borderRadius: 12,
+                      marginBottom: Spacing.md,
+                    }}
+                  >
+                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#9C27B0", alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
+                      <Feather name="trending-up" size={24} color="#FFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="h4">Promote Service or Product</ThemedText>
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                        Showcase what you offer with a commerce-enabled post
+                      </ThemedText>
+                    </View>
+                    <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+                  </Pressable>
+                ) : userRole === "consumer" ? (
+                  <View style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: Spacing.lg,
+                    backgroundColor: theme.backgroundSecondary,
+                    borderRadius: 12,
+                    marginBottom: Spacing.md,
+                    opacity: 0.5,
+                  }}>
+                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#9C27B0", alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
+                      <Feather name="trending-up" size={24} color="#FFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="h4">Promote Service or Product</ThemedText>
+                      <ThemedText type="small" style={{ color: theme.error, marginTop: 2 }}>
+                        Available to approved influencers and businesses
+                      </ThemedText>
+                    </View>
+                    <Feather name="lock" size={20} color={theme.textSecondary} />
+                  </View>
+                ) : null}
+              </ScrollView>
+            ) : (
+              /* Step 2: Post Content (after intent selected) */
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Intent Badge */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.md }}>
+                  <View style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: Spacing.md,
+                    paddingVertical: Spacing.xs,
+                    backgroundColor: postIntent === "social" ? profileTheme : postIntent === "review" ? "#4CAF50" : "#9C27B0",
+                    borderRadius: 16,
+                  }}>
+                    <Feather 
+                      name={postIntent === "social" ? "camera" : postIntent === "review" ? "star" : "trending-up"} 
+                      size={14} 
+                      color={postIntent === "social" ? "#000" : "#FFF"} 
+                    />
+                    <ThemedText type="small" style={{ color: postIntent === "social" ? "#000" : "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}>
+                      {postIntent === "social" ? "Social / Lifestyle" : postIntent === "review" ? "Review / Experience" : "Promotional"}
+                    </ThemedText>
+                  </View>
                 </View>
-              )}
-            </Pressable>
 
-            {/* Caption Input */}
-            <TextInput
-              value={newPostCaption}
-              onChangeText={setNewPostCaption}
-              placeholder="Write a caption..."
-              placeholderTextColor={theme.textSecondary}
-              multiline
-              style={{
-                backgroundColor: theme.backgroundSecondary,
-                borderRadius: 12,
-                padding: Spacing.md,
-                color: theme.text,
-                minHeight: 80,
-                textAlignVertical: "top",
-                marginBottom: Spacing.md,
-              }}
-            />
-
-            {/* Service/Product Link - Photographers */}
-            {userRole === "photographer" && photographerServices.length > 0 && (
-              <View style={{ marginBottom: Spacing.md }}>
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                  Link a service (optional)
-                </ThemedText>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={{ marginHorizontal: -Spacing.lg }}
-                  contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+                {/* Media Picker - Images and Videos */}
+                <Pressable
+                  onPress={handlePickPostMedia}
+                  style={{
+                    width: "100%",
+                    aspectRatio: 9 / 16,
+                    maxHeight: 300,
+                    backgroundColor: theme.backgroundSecondary,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: Spacing.md,
+                    overflow: "hidden",
+                  }}
                 >
-                  <Pressable
-                    onPress={() => setLinkedServiceId("")}
-                    style={{
-                      paddingHorizontal: Spacing.md,
-                      paddingVertical: Spacing.sm,
-                      borderRadius: 20,
-                      backgroundColor: !linkedServiceId ? profileTheme : theme.backgroundSecondary,
-                      borderWidth: 1,
-                      borderColor: !linkedServiceId ? profileTheme : theme.border,
-                    }}
-                  >
-                    <ThemedText type="small" style={{ color: !linkedServiceId ? "#000" : theme.text }}>
-                      No link
-                    </ThemedText>
-                  </Pressable>
-                  {photographerServices.map((service) => (
-                    <Pressable
-                      key={service.id}
-                      onPress={() => setLinkedServiceId(service.id)}
-                      style={{
-                        paddingHorizontal: Spacing.md,
-                        paddingVertical: Spacing.sm,
-                        borderRadius: 20,
-                        backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
-                        borderWidth: 1,
-                        borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
-                      }}
-                    >
-                      <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
-                        {service.name}
+                  {newPostMedia ? (
+                    newPostMediaType === "video" ? (
+                      <View style={{ width: "100%", height: "100%", position: "relative" }}>
+                        <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+                          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
+                            <Feather name="play" size={28} color="#FFFFFF" />
+                          </View>
+                        </View>
+                        <View style={{ position: "absolute", top: Spacing.sm, right: Spacing.sm, backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: 4 }}>
+                          <ThemedText type="small" style={{ color: "#FFFFFF" }}>VIDEO</ThemedText>
+                        </View>
+                      </View>
+                    ) : (
+                      <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                    )
+                  ) : (
+                    <View style={{ alignItems: "center" }}>
+                      <Feather name="film" size={48} color={theme.textSecondary} />
+                      <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                        Tap to select photo or video
                       </ThemedText>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                {linkedServiceId && (
-                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
-                    <Feather name="tag" size={14} color={profileTheme} />
-                    <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
-                      Post will show "Book" button for this service
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                        Videos up to 60 seconds
+                      </ThemedText>
+                    </View>
+                  )}
+                </Pressable>
+
+                {/* Caption Input */}
+                <TextInput
+                  value={newPostCaption}
+                  onChangeText={setNewPostCaption}
+                  placeholder="Write a caption..."
+                  placeholderTextColor={theme.textSecondary}
+                  multiline
+                  style={{
+                    backgroundColor: theme.backgroundSecondary,
+                    borderRadius: 12,
+                    padding: Spacing.md,
+                    color: theme.text,
+                    minHeight: 80,
+                    textAlignVertical: "top",
+                    marginBottom: Spacing.md,
+                  }}
+                />
+
+                {/* Review Intent: Tagging required */}
+                {postIntent === "review" && (
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
+                      <Feather name="at-sign" size={16} color={profileTheme} />
+                      <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs, fontWeight: "600" }}>
+                        Tag who you worked with
+                      </ThemedText>
+                    </View>
+                    <TextInput
+                      value={taggedProfileName}
+                      onChangeText={setTaggedProfileName}
+                      placeholder="Search for a business or photographer..."
+                      placeholderTextColor={theme.textSecondary}
+                      style={{
+                        backgroundColor: theme.backgroundSecondary,
+                        borderRadius: 12,
+                        padding: Spacing.md,
+                        color: theme.text,
+                      }}
+                    />
+                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                      Your review will be linked to their profile
                     </ThemedText>
                   </View>
                 )}
-              </View>
-            )}
 
-            {/* Service/Product Link - Businesses */}
-            {(userRole as string) === "business" && (businessServices.length > 0 || businessProducts.length > 0) && (
-              <View style={{ marginBottom: Spacing.md }}>
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                  Link a service or product (optional)
-                </ThemedText>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={{ marginHorizontal: -Spacing.lg }}
-                  contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
-                >
-                  <Pressable
-                    onPress={() => { setLinkedServiceId(""); setLinkedProductId(""); }}
-                    style={{
-                      paddingHorizontal: Spacing.md,
-                      paddingVertical: Spacing.sm,
-                      borderRadius: 20,
-                      backgroundColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.backgroundSecondary,
-                      borderWidth: 1,
-                      borderColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.border,
-                    }}
-                  >
-                    <ThemedText type="small" style={{ color: !linkedServiceId && !linkedProductId ? "#000" : theme.text }}>
-                      No link
+                {/* Promote Intent: Service/Product linking for photographers */}
+                {postIntent === "promote" && userRole === "photographer" && photographerServices.length > 0 && (
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                      Link a service (optional)
                     </ThemedText>
-                  </Pressable>
-                  {businessServices.filter(s => s.status === "live").map((service) => (
-                    <Pressable
-                      key={`svc-${service.id}`}
-                      onPress={() => { setLinkedServiceId(service.id); setLinkedProductId(""); }}
-                      style={{
-                        paddingHorizontal: Spacing.md,
-                        paddingVertical: Spacing.sm,
-                        borderRadius: 20,
-                        backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
-                        borderWidth: 1,
-                        borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: Spacing.xs,
-                      }}
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      style={{ marginHorizontal: -Spacing.lg }}
+                      contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
                     >
-                      <Feather name="briefcase" size={12} color={linkedServiceId === service.id ? "#000" : theme.textSecondary} />
-                      <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
-                        {service.name}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                  {businessProducts.filter(p => p.status === "live").map((product) => (
-                    <Pressable
-                      key={`prod-${product.id}`}
-                      onPress={() => { setLinkedProductId(product.id); setLinkedServiceId(""); }}
-                      style={{
-                        paddingHorizontal: Spacing.md,
-                        paddingVertical: Spacing.sm,
-                        borderRadius: 20,
-                        backgroundColor: linkedProductId === product.id ? profileTheme : theme.backgroundSecondary,
-                        borderWidth: 1,
-                        borderColor: linkedProductId === product.id ? profileTheme : theme.border,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: Spacing.xs,
-                      }}
-                    >
-                      <Feather name="shopping-bag" size={12} color={linkedProductId === product.id ? "#000" : theme.textSecondary} />
-                      <ThemedText type="small" style={{ color: linkedProductId === product.id ? "#000" : theme.text }}>
-                        {product.name}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                {(linkedServiceId || linkedProductId) && (
-                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
-                    <Feather name="tag" size={14} color={profileTheme} />
-                    <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
-                      Post will show "{linkedProductId ? "Buy Now" : "Book"}" button
-                    </ThemedText>
+                      <Pressable
+                        onPress={() => setLinkedServiceId("")}
+                        style={{
+                          paddingHorizontal: Spacing.md,
+                          paddingVertical: Spacing.sm,
+                          borderRadius: 20,
+                          backgroundColor: !linkedServiceId ? profileTheme : theme.backgroundSecondary,
+                          borderWidth: 1,
+                          borderColor: !linkedServiceId ? profileTheme : theme.border,
+                        }}
+                      >
+                        <ThemedText type="small" style={{ color: !linkedServiceId ? "#000" : theme.text }}>
+                          No link
+                        </ThemedText>
+                      </Pressable>
+                      {photographerServices.map((service) => (
+                        <Pressable
+                          key={service.id}
+                          onPress={() => setLinkedServiceId(service.id)}
+                          style={{
+                            paddingHorizontal: Spacing.md,
+                            paddingVertical: Spacing.sm,
+                            borderRadius: 20,
+                            backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
+                            borderWidth: 1,
+                            borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
+                          }}
+                        >
+                          <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
+                            {service.name}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                    {linkedServiceId && (
+                      <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+                        <Feather name="tag" size={14} color={profileTheme} />
+                        <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
+                          Post will show "Book" button for this service
+                        </ThemedText>
+                      </View>
+                    )}
                   </View>
                 )}
-              </View>
-            )}
 
-            {/* Post Button */}
-            <Pressable
-              onPress={handleCreatePost}
-              disabled={postSaving}
-              style={{
-                backgroundColor: postSaving ? theme.textSecondary : profileTheme,
-                paddingVertical: 16,
-                borderRadius: 12,
-                alignItems: "center",
-                opacity: postSaving ? 0.7 : 1,
-              }}
-            >
-              {postSaving ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <ThemedText type="button" style={{ color: "#000" }}>Share Post</ThemedText>
-              )}
-            </Pressable>
+                {/* Promote Intent: Service/Product linking for businesses */}
+                {postIntent === "promote" && (userRole as string) === "business" && (businessServices.length > 0 || businessProducts.length > 0) && (
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                      Link a service or product (optional)
+                    </ThemedText>
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      style={{ marginHorizontal: -Spacing.lg }}
+                      contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+                    >
+                      <Pressable
+                        onPress={() => { setLinkedServiceId(""); setLinkedProductId(""); }}
+                        style={{
+                          paddingHorizontal: Spacing.md,
+                          paddingVertical: Spacing.sm,
+                          borderRadius: 20,
+                          backgroundColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.backgroundSecondary,
+                          borderWidth: 1,
+                          borderColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.border,
+                        }}
+                      >
+                        <ThemedText type="small" style={{ color: !linkedServiceId && !linkedProductId ? "#000" : theme.text }}>
+                          No link
+                        </ThemedText>
+                      </Pressable>
+                      {businessServices.filter(s => s.status === "live").map((service) => (
+                        <Pressable
+                          key={`svc-${service.id}`}
+                          onPress={() => { setLinkedServiceId(service.id); setLinkedProductId(""); }}
+                          style={{
+                            paddingHorizontal: Spacing.md,
+                            paddingVertical: Spacing.sm,
+                            borderRadius: 20,
+                            backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
+                            borderWidth: 1,
+                            borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: Spacing.xs,
+                          }}
+                        >
+                          <Feather name="briefcase" size={12} color={linkedServiceId === service.id ? "#000" : theme.textSecondary} />
+                          <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
+                            {service.name}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                      {businessProducts.filter(p => p.status === "live").map((product) => (
+                        <Pressable
+                          key={`prod-${product.id}`}
+                          onPress={() => { setLinkedProductId(product.id); setLinkedServiceId(""); }}
+                          style={{
+                            paddingHorizontal: Spacing.md,
+                            paddingVertical: Spacing.sm,
+                            borderRadius: 20,
+                            backgroundColor: linkedProductId === product.id ? profileTheme : theme.backgroundSecondary,
+                            borderWidth: 1,
+                            borderColor: linkedProductId === product.id ? profileTheme : theme.border,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: Spacing.xs,
+                          }}
+                        >
+                          <Feather name="shopping-bag" size={12} color={linkedProductId === product.id ? "#000" : theme.textSecondary} />
+                          <ThemedText type="small" style={{ color: linkedProductId === product.id ? "#000" : theme.text }}>
+                            {product.name}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                    {(linkedServiceId || linkedProductId) && (
+                      <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+                        <Feather name="tag" size={14} color={profileTheme} />
+                        <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
+                          Post will show "{linkedProductId ? "Buy Now" : "Book"}" button
+                        </ThemedText>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Promote Intent: Tagging for influencers */}
+                {postIntent === "promote" && userRole === "consumer" && user?.isInfluencer && (
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
+                      <Feather name="at-sign" size={16} color={theme.textSecondary} />
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
+                        Tag a profile (optional)
+                      </ThemedText>
+                    </View>
+                    <TextInput
+                      value={taggedProfileName}
+                      onChangeText={setTaggedProfileName}
+                      placeholder="Search for a business or photographer..."
+                      placeholderTextColor={theme.textSecondary}
+                      style={{
+                        backgroundColor: theme.backgroundSecondary,
+                        borderRadius: 12,
+                        padding: Spacing.md,
+                        color: theme.text,
+                      }}
+                    />
+                  </View>
+                )}
+
+                {/* Post Button */}
+                <Pressable
+                  onPress={handleCreatePost}
+                  disabled={postSaving}
+                  style={{
+                    backgroundColor: postSaving ? theme.textSecondary : profileTheme,
+                    paddingVertical: 16,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    opacity: postSaving ? 0.7 : 1,
+                  }}
+                >
+                  {postSaving ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <ThemedText type="button" style={{ color: "#000" }}>Share Post</ThemedText>
+                  )}
+                </Pressable>
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
