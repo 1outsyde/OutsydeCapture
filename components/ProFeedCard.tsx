@@ -112,15 +112,15 @@ export function ProFeedCard({
                 </ThemedText>
               </View>
             )}
+            {(post as any).author?.rating && (post as any).author.rating > 0 ? (
+              <View style={styles.ratingInline}>
+                <Feather name="star" size={12} color="#FFD700" />
+                <ThemedText style={[styles.ratingText, { color: theme.textSecondary }]}>
+                  {(post as any).author.rating.toFixed(1)}
+                </ThemedText>
+              </View>
+            ) : null}
           </View>
-          {post.rating > 0 && (
-            <View style={styles.ratingRow}>
-              <Feather name="star" size={12} color={theme.primary} />
-              <ThemedText style={[styles.ratingText, { color: theme.textSecondary }]}>
-                {post.rating.toFixed(1)}
-              </ThemedText>
-            </View>
-          )}
         </View>
         <ThemedText style={[styles.timestamp, { color: theme.textSecondary }]}>
           {formatTimestamp(post.createdAt)}
@@ -260,11 +260,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#000000",
   },
-  ratingRow: {
+  ratingInline: {
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
-    marginTop: 2,
+    marginLeft: 4,
   },
   ratingText: {
     fontSize: 12,
