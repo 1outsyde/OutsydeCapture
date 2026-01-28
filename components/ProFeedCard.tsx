@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, Pressable, StyleSheet, Dimensions } from "react-native";
+import { View, Pressable, StyleSheet, Dimensions, Alert, ActionSheetIOS, Platform, Modal, TouchableWithoutFeedback } from "react-native";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
@@ -19,7 +19,11 @@ interface ProFeedCardProps {
   onRate?: (post: Post) => void;
   onAuthorPress: (post: Post) => void;
   onActionPress: (post: Post) => void;
+  onDelete?: (postId: string) => void;
+  onReport?: (postId: string, reason: string) => void;
   isSaved: boolean;
+  currentUserId?: string;
+  isAdmin?: boolean;
 }
 
 function CardVideoMedia({ videoUrl }: { videoUrl: string }) {
@@ -60,11 +64,114 @@ export function ProFeedCard({
   onRate,
   onAuthorPress,
   onActionPress,
+  onDelete,
+  onReport,
   isSaved,
+  currentUserId,
+  isAdmin = false,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
+  const [menuVisible, setMenuVisible] = useState(false);
   const hasVideo = post.videoUrl && post.videoUrl.length > 0;
   const hasCommerce = post.serviceId || post.productId;
+  
+  const isOwner = currentUserId && (post.userId === currentUserId || post.authorId === currentUserId);
+  const canDelete = isOwner || isAdmin;
+
+  const handleMenuPress = () => {
+    if (Platform.OS === "ios") {
+      const options = canDelete 
+        ? ["Delete Post", "Cancel"]
+        : ["Report Post", "Cancel"];
+      const destructiveIndex = canDelete ? 0 : undefined;
+      const cancelIndex = canDelete ? 1 : 1;
+      
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          destructiveButtonIndex: destructiveIndex,
+          cancelButtonIndex: cancelIndex,
+        },
+        (buttonIndex) => {
+          if (canDelete && buttonIndex === 0 && onDelete) {
+            Alert.alert(
+              "Delete Post",
+              "Are you sure you want to delete this post? This action cannot be undone.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { 
+                  text: "Delete", 
+                  style: "destructive",
+                  onPress: () => onDelete(post.id)
+                }
+              ]
+            );
+          } else if (!canDelete && buttonIndex === 0 && onReport) {
+            showReportDialog();
+          }
+        }
+      );
+    } else {
+      setMenuVisible(true);
+    }
+  };
+
+  const showReportDialog = () => {
+    if (Platform.OS === "ios" && Alert.prompt) {
+      Alert.prompt(
+        "Report Post",
+        "Please describe why you're reporting this post:",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Submit Report",
+            onPress: (reason: string | undefined) => {
+              if (reason && onReport) {
+                onReport(post.id, reason);
+              }
+            }
+          }
+        ],
+        "plain-text"
+      );
+    } else {
+      Alert.alert(
+        "Report Post",
+        "This post will be reported to our admin team for review.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Report",
+            onPress: () => {
+              if (onReport) {
+                onReport(post.id, "Reported by user");
+              }
+            }
+          }
+        ]
+      );
+    }
+  };
+
+  const handleAndroidMenuAction = (action: "delete" | "report") => {
+    setMenuVisible(false);
+    if (action === "delete" && onDelete) {
+      Alert.alert(
+        "Delete Post",
+        "Are you sure you want to delete this post? This action cannot be undone.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Delete", 
+            style: "destructive",
+            onPress: () => onDelete(post.id)
+          }
+        ]
+      );
+    } else if (action === "report") {
+      showReportDialog();
+    }
+  };
 
   const formatTimestamp = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -127,7 +234,57 @@ export function ProFeedCard({
         <ThemedText style={[styles.timestamp, { color: theme.textSecondary }]}>
           {formatTimestamp(post.createdAt)}
         </ThemedText>
+        <Pressable
+          onPress={handleMenuPress}
+          style={({ pressed }) => [styles.menuButton, { opacity: pressed ? 0.6 : 1 }]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Feather name="more-vertical" size={20} color={theme.textSecondary} />
+        </Pressable>
       </Pressable>
+
+      {Platform.OS !== "ios" && (
+        <Modal
+          visible={menuVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMenuVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
+            <View style={styles.modalOverlay}>
+              <View style={[styles.menuContainer, { backgroundColor: theme.card }]}>
+                {canDelete ? (
+                  <Pressable
+                    onPress={() => handleAndroidMenuAction("delete")}
+                    style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Feather name="trash-2" size={18} color="#FF3B30" />
+                    <ThemedText style={[styles.menuItemText, { color: "#FF3B30" }]}>
+                      Delete Post
+                    </ThemedText>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => handleAndroidMenuAction("report")}
+                    style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <Feather name="flag" size={18} color={theme.text} />
+                    <ThemedText style={styles.menuItemText}>Report Post</ThemedText>
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => setMenuVisible(false)}
+                  style={({ pressed }) => [styles.menuItem, styles.menuItemCancel, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <ThemedText style={[styles.menuItemText, { color: theme.textSecondary }]}>
+                    Cancel
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
 
       <View style={styles.mediaContainer}>
         {hasVideo ? (
@@ -343,5 +500,42 @@ const styles = StyleSheet.create({
     color: "#000000",
     fontSize: 14,
     fontWeight: "600",
+  },
+  menuButton: {
+    marginLeft: Spacing.sm,
+    padding: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuContainer: {
+    width: 250,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  menuItemText: {
+    fontSize: 16,
+  },
+  menuItemCancel: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(128, 128, 128, 0.2)",
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.md,
+    justifyContent: "center",
   },
 });

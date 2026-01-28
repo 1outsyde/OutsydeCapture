@@ -2543,6 +2543,19 @@ class ApiService {
     });
   }
 
+  // POST /api/feed/:postId/report - Report a post for admin review
+  async reportPost(
+    authToken: string, 
+    postId: string, 
+    reason: string
+  ): Promise<{ success: boolean; message?: string }> {
+    return this.request<{ success: boolean; message?: string }>(`/api/feed/${postId}/report`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   // GET /api/feed/:postId/comments - Get comments on a post
   async getPostComments(postId: string): Promise<{ comments: any[] }> {
     return this.request<{ comments: any[] }>(`/api/feed/${postId}/comments`);
