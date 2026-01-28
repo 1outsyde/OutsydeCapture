@@ -1,0 +1,115 @@
+FRONTEND-ONLY IMPLEMENTATION — SEARCH TAB (INTENT-BASED SEARCH)
+
+GOAL:
+Implement a modern intent-based Search experience where:
+- A text query can return people, businesses, products, and services
+- Chips act as INTENT FILTERS
+- Navigation behavior matches the Home feed
+- Results are filtered by chips and ordered intelligently
+
+--------------------------------
+1) SEARCH INPUT
+--------------------------------
+- A single search input at the top of the Search tab
+- On text input:
+  - Debounce input (250–400ms)
+  - Trigger search request
+- If input is empty:
+  - Show recent searches or suggested categories (optional)
+
+--------------------------------
+2) SEARCH CHIPS (INTENT FILTERS)
+--------------------------------
+Only ONE chip can be active at a time.
+
+Chips:
+- All (default)
+- Consumers
+- Photographers
+- Businesses
+- Products
+- Services
+
+Chip behavior:
+- Chips do NOT change how text matching works
+- Chips ONLY determine which RESULT TYPES are allowed to display
+
+Examples:
+- Chip = Consumers + query “Jim”
+  → Show ONLY consumer users with “Jim” in username/display name
+
+- Chip = Products + query “Jim”
+  → Show ONLY products with “Jim” in product name or brand
+
+- Chip = All + query “Jim”
+  → Show a MIXED list of users + businesses + products + services
+
+--------------------------------
+3) RESULT FILTERING (CLIENT-SIDE)
+--------------------------------
+Results are filtered by chip selection:
+
+- Consumers → type === "consumer"
+- Photographers → type === "photographer"
+- Businesses → type === "business"
+- Products → type === "product"
+- Services → type === "service"
+- All → allow all types
+
+--------------------------------
+4) RESULT RENDERING
+--------------------------------
+When chip = All:
+- Render a single unified list with mixed result types
+- Each result card must include:
+  - Image/avatar
+  - Title (name)
+  - Subtitle (role, category, or location)
+  - Type badge (Consumer / Photographer / Business / Product / Service)
+  - Rating (if available)
+  - Follow button (for users)
+  - View Profile / View Item CTA
+
+When chip ≠ All:
+- Render only the selected type
+- Same card component, same layout
+
+--------------------------------
+5) NAVIGATION (CRITICAL)
+--------------------------------
+Navigation MUST be consistent everywhere.
+
+If result type is:
+- consumer / photographer / business:
+  navigate("UserProfile", { userId })
+
+- product:
+  navigate("ProductDetail", { productId })
+
+- service:
+  navigate("ServiceDetail", { serviceId })
+  OR navigate to provider profile and scroll to Services section
+
+IMPORTANT:
+- If Search uses a preview card or bottom sheet:
+  - It MUST dismiss automatically before navigation
+  - UserProfile must open FULL SCREEN
+  - No ❌ close button should exit the profile unintentionally
+
+--------------------------------
+6) UX STATES
+--------------------------------
+- Loading → skeleton loaders
+- No results → “No results for ‘query’”
+- Errors → friendly error state
+
+--------------------------------
+7) CONSTRAINTS
+--------------------------------
+- Do NOT use mocked profile data
+- Do NOT create role-specific profile screens
+- Do NOT pass partial user objects through navigation
+- ALWAYS navigate by ID
+- ALWAYS fetch full data on destination screen
+
+END FRONTEND PROMPT
