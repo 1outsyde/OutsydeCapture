@@ -21,7 +21,8 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
-import PagerView from "react-native-pager-view";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -126,7 +127,6 @@ export default function DiscoverScreen() {
   const { user, getToken } = useAuth();
 
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
-  const pagerRef = useRef<PagerView>(null);
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -137,17 +137,19 @@ export default function DiscoverScreen() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
 
-  // Handle feed mode change from toggle
+  // Handle feed mode change from toggle or swipe
   const handleModeChange = useCallback((mode: FeedMode) => {
     setFeedMode(mode);
-    pagerRef.current?.setPage(mode === "pro" ? 0 : 1);
   }, []);
 
-  // Handle pager swipe
-  const handlePageSelected = useCallback((e: { nativeEvent: { position: number } }) => {
-    const newMode = e.nativeEvent.position === 0 ? "pro" : "pulse";
-    setFeedMode(newMode);
-  }, []);
+  // Swipe gesture to toggle between feeds
+  const swipeToToggle = useCallback((direction: "left" | "right") => {
+    if (direction === "left" && feedMode === "pro") {
+      setFeedMode("pulse");
+    } else if (direction === "right" && feedMode === "pulse") {
+      setFeedMode("pro");
+    }
+  }, [feedMode]);
 
   // Convert API posts to local Post format
   const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
@@ -545,54 +547,59 @@ export default function DiscoverScreen() {
     );
   };
 
+  // Create horizontal swipe gesture for feed toggle
+  const horizontalSwipe = Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-10, 10])
+    .onEnd((event) => {
+      if (event.translationX < -50) {
+        runOnJS(swipeToToggle)("left");
+      } else if (event.translationX > 50) {
+        runOnJS(swipeToToggle)("right");
+      }
+    });
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+    <View style={[styles.container, { backgroundColor: feedMode === "pulse" ? "#000000" : theme.backgroundRoot }]}>
       <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
       
-      <PagerView
-        ref={pagerRef}
-        style={styles.pager}
-        initialPage={0}
-        onPageSelected={handlePageSelected}
-      >
-        {/* Pro Feed - Card-based Instagram style */}
-        <View key="pro" style={styles.feedPage}>
-          <FlatList
-            data={feedPosts}
-            renderItem={renderProFeedItem}
-            keyExtractor={(item) => `pro-${item.id}`}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.primary}
-              />
-            }
-            contentContainerStyle={styles.proFeedContent}
-          />
+      <GestureDetector gesture={horizontalSwipe}>
+        <View style={styles.feedPage}>
+          {feedMode === "pro" ? (
+            <FlatList
+              data={feedPosts}
+              renderItem={renderProFeedItem}
+              keyExtractor={(item) => `pro-${item.id}`}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={theme.primary}
+                />
+              }
+              contentContainerStyle={styles.proFeedContent}
+            />
+          ) : (
+            <FlatList
+              data={feedPosts}
+              renderItem={renderFullScreenPost}
+              keyExtractor={(item) => `pulse-${item.id}`}
+              pagingEnabled
+              snapToInterval={POST_HEIGHT}
+              decelerationRate="fast"
+              showsVerticalScrollIndicator={false}
+              onRefresh={onRefresh}
+              refreshing={refreshing}
+              getItemLayout={(data, index) => ({
+                length: POST_HEIGHT,
+                offset: POST_HEIGHT * index,
+                index,
+              })}
+            />
+          )}
         </View>
-
-        {/* Pulse Feed - TikTok-style full-screen */}
-        <View key="pulse" style={[styles.feedPage, { backgroundColor: "#000000" }]}>
-          <FlatList
-            data={feedPosts}
-            renderItem={renderFullScreenPost}
-            keyExtractor={(item) => `pulse-${item.id}`}
-            pagingEnabled
-            snapToInterval={POST_HEIGHT}
-            decelerationRate="fast"
-            showsVerticalScrollIndicator={false}
-            onRefresh={onRefresh}
-            refreshing={refreshing}
-            getItemLayout={(data, index) => ({
-              length: POST_HEIGHT,
-              offset: POST_HEIGHT * index,
-              index,
-            })}
-          />
-        </View>
-      </PagerView>
+      </GestureDetector>
 
       {/* Comments Modal */}
       <Modal
@@ -673,9 +680,6 @@ export default function DiscoverScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  pager: {
     flex: 1,
   },
   feedPage: {
