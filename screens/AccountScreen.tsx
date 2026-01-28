@@ -1151,7 +1151,7 @@ export default function AccountScreen() {
                 </Pressable>
 
                 {/* Promote Service/Product - Role-based visibility */}
-                {(userRole === "business" || userRole === "photographer" || (userRole === "consumer" && user?.isInfluencer)) ? (
+                {((userRole as string) === "business" || userRole === "photographer" || (userRole === "consumer" && user?.isInfluencer)) ? (
                   <Pressable
                     onPress={() => setPostIntent("promote")}
                     style={{
