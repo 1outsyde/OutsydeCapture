@@ -196,11 +196,7 @@ export default function BookingScreen() {
     setBookingDraft(null);
     setSelectedSlot(null);
     setStep("slot");
-    if (Platform.OS === "web") {
-      window.alert("Your held slot has expired. Please select another time.");
-    } else {
-      Alert.alert("Slot Expired", "Your held slot has expired. Please select another time.");
-    }
+    Alert.alert("Slot Expired", "Your held slot has expired. Please select another time.");
   };
 
   const fetchServices = async () => {
@@ -391,11 +387,7 @@ export default function BookingScreen() {
     
     const token = await getToken();
     if (!token) {
-      if (Platform.OS === "web") {
-        window.alert("Please sign in to book an appointment.");
-      } else {
-        Alert.alert("Sign In Required", "Please sign in to book an appointment.");
-      }
+      Alert.alert("Sign In Required", "Please sign in to book an appointment.");
       return;
     }
 
@@ -454,23 +446,14 @@ export default function BookingScreen() {
         invalidateBookingState();
         setStep("slot");
         
-        const message = "This time slot is no longer available. Please select a different time.";
-        if (Platform.OS === "web") {
-          window.alert(message);
-        } else {
-          Alert.alert("Slot Unavailable", message);
-        }
+        Alert.alert("Slot Unavailable", "This time slot is no longer available. Please select a different time.");
       } else {
         // Generic error - still invalidate state and force re-selection
         invalidateBookingState();
         setStep("slot");
         
         const message = e?.message || "Unable to hold this slot. Please try again.";
-        if (Platform.OS === "web") {
-          window.alert(message);
-        } else {
-          Alert.alert("Error", message);
-        }
+        Alert.alert("Error", message);
       }
       
       // Refresh available slots to get updated availability
@@ -502,31 +485,31 @@ export default function BookingScreen() {
     try {
       let confirmResponse;
       
+      // Create PaymentIntent and get clientSecret
+      const paymentResponse = await api.createBookingPaymentIntent(
+        token,
+        "photographer",
+        bookingDraft.id
+      );
+      
       if (!isNative) {
-        // Web: Use legacy web checkout flow
-        const successUrl = "outsyde://booking/success";
-        const cancelUrl = "outsyde://booking/cancel";
+        // Web: Use WebBrowser to open Stripe Checkout
+        const checkoutUrl = `https://checkout.stripe.com/pay/${paymentResponse.clientSecret}`;
+        const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
+          dismissButtonStyle: "close",
+          showTitle: true,
+        });
         
-        const paymentResponse = await api.initiateBookingPayment(
-          token,
-          bookingDraft.id,
-          successUrl,
-          cancelUrl
-        );
+        if (result.type === "cancel") {
+          setIsConfirming(false);
+          Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
+          return;
+        }
         
-        // Open Stripe checkout in new tab
-        window.open(paymentResponse.checkoutUrl, "_blank");
-        
-        // Confirm after checkout completes
+        // Confirm the draft booking with backend
         confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
       } else {
         // Native: Use Stripe PaymentSheet (in-app)
-        const paymentResponse = await api.createBookingPaymentIntent(
-          token,
-          "photographer",
-          bookingDraft.id
-        );
-        
         // Initialize PaymentSheet with clientSecret
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: paymentResponse.clientSecret,
@@ -625,11 +608,7 @@ export default function BookingScreen() {
         setStep("slot");
         
         const message = e?.message || "Failed to confirm booking. Please select a new time.";
-        if (Platform.OS === "web") {
-          window.alert(message);
-        } else {
-          Alert.alert("Booking Failed", message);
-        }
+        Alert.alert("Booking Failed", message);
       }
     } finally {
       setIsConfirming(false);
