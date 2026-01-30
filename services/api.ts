@@ -2418,7 +2418,7 @@ class ApiService {
     return this.request<WeeklyAvailabilitySlot[]>(endpoint, {
       method: "PUT",
       headers: { "Authorization": `Bearer ${authToken}` },
-      body: JSON.stringify({ availability }),
+      body: JSON.stringify({ slots: availability }),
     });
   }
 
