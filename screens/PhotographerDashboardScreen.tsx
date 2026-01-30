@@ -302,13 +302,13 @@ export default function PhotographerDashboardScreen() {
         if (availabilityData.hoursOfOperation) {
           const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
           const parsedHours = dayNames.map((dayName, index) => {
-            const dayData = availabilityData.hoursOfOperation[dayName];
-            if (dayData && !dayData.closed) {
+            const dayData = availabilityData.hoursOfOperation[dayName] as { open: boolean; start?: string; end?: string } | undefined;
+            if (dayData && dayData.open === true && dayData.start && dayData.end) {
               return {
                 dayOfWeek: index,
                 isAvailable: true,
-                startTime: convertTo12Hour(dayData.open),
-                endTime: convertTo12Hour(dayData.close),
+                startTime: convertTo12Hour(dayData.start),
+                endTime: convertTo12Hour(dayData.end),
               };
             }
             return {
@@ -759,18 +759,22 @@ export default function PhotographerDashboardScreen() {
       
       // Also sync to hoursOfOperation JSON field (for profile banner display)
       // Convert DayHours array to hoursOfOperation format
+      // Backend requires every day to be an object, never null
+      // Closed day: { open: false }
+      // Open day: { open: true, start: "HH:mm", end: "HH:mm" }
       const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const hoursOfOperation: Record<string, { open: string; close: string } | null> = {};
+      const hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }> = {};
       
       hours.forEach((h) => {
         const dayName = dayNames[h.dayOfWeek];
         if (h.isAvailable) {
           hoursOfOperation[dayName] = {
-            open: convertTo24Hour(h.startTime),
-            close: convertTo24Hour(h.endTime),
+            open: true,
+            start: convertTo24Hour(h.startTime),
+            end: convertTo24Hour(h.endTime),
           };
         } else {
-          hoursOfOperation[dayName] = null;
+          hoursOfOperation[dayName] = { open: false };
         }
       });
       
