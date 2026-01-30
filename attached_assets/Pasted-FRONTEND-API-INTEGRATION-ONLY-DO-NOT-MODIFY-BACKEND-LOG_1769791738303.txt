@@ -1,0 +1,143 @@
+FRONTEND + API INTEGRATION ONLY — DO NOT MODIFY BACKEND LOGIC
+
+We are building the Book tab for a provider profile.
+This is the transactional booking flow, separate from the Availability tab.
+
+Booking Flow Order (MANDATORY)
+Step 1️⃣ — Select Service
+
+Display a list of services with:
+
+Service name
+
+Duration (minutes)
+
+Price (formatted from cents)
+
+Services come from backend and include:
+
+id
+durationMinutes
+priceCents
+
+
+User must select one service to proceed.
+
+Step 2️⃣ — Select Date
+
+Display calendar
+
+Only enable days returned as available by:
+GET /availability/calendar
+
+Disable days without sufficient availability
+
+Step 3️⃣ — Select Time Slot
+
+When date is selected:
+
+Fetch slots via:
+GET /availability/slots?date=YYYY-MM-DD
+
+Filter slots by:
+POST /booking/validate
+using:
+
+selected service
+
+selected start time
+
+Only show time slots that are compatible with the selected service duration.
+
+Step 4️⃣ — Incompatible Slot Handling
+
+If user selects a slot that fails validation:
+Show modal:
+
+“This service requires more time than this slot allows.”
+
+Buttons:
+
+Find another time
+
+Request accommodation
+
+Step 5️⃣ — Request Accommodation
+
+When tapped:
+
+Navigate to Messages
+
+Start conversation with provider
+
+Pre-fill message with:
+
+Service name
+
+Desired date
+
+Desired time
+
+Step 6️⃣ — Create Booking Hold
+
+When user selects a compatible slot:
+
+Call:
+POST /booking/hold
+
+Display:
+
+Countdown timer (from backend expiry)
+
+“Slot held” indicator
+
+Step 7️⃣ — Confirm Booking
+
+Display confirmation summary:
+
+Service
+
+Duration
+
+Date
+
+Time
+
+Total price (derived from priceCents)
+
+On confirm:
+
+Call:
+POST /booking/confirm
+
+Redirect to Stripe checkout
+
+Money Rules (NON-NEGOTIABLE)
+
+All prices are in cents
+
+UI only formats:
+
+(priceCents / 100).toFixed(2)
+
+
+Stripe receives cents only
+
+Never recalculate price client-side
+
+UX Rules
+
+Show progress indicator (1–4)
+
+Show loading states between steps
+
+Disable navigation if hold expires
+
+Handle HOLD_EXPIRED gracefully
+
+DO NOT
+
+❌ Generate slots on frontend
+❌ Assume fixed durations
+❌ Calculate availability locally
+❌ Modify backend pricing

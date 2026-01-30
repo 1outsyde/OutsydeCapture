@@ -2926,6 +2926,65 @@ class ApiService {
       `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}`
     );
   }
+
+  // Booking Flow endpoints
+  async getProviderServices(
+    providerId: string,
+    providerType: "photographer" | "business"
+  ): Promise<BookingService[]> {
+    const endpoint = providerType === "photographer"
+      ? `/api/photographers/${providerId}/services`
+      : `/api/businesses/${providerId}/services`;
+    const response = await this.request<{ services: BookingService[] }>(endpoint);
+    return response.services || [];
+  }
+
+  async validateBookingSlot(
+    authToken: string,
+    data: {
+      providerId: string;
+      providerType: "photographer" | "business";
+      serviceId: string;
+      date: string;
+      startTime: string;
+    }
+  ): Promise<BookingValidationResponse> {
+    return this.request<BookingValidationResponse>("/api/booking/validate", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async createBookingHold(
+    authToken: string,
+    data: {
+      providerId: string;
+      providerType: "photographer" | "business";
+      serviceId: string;
+      date: string;
+      startTime: string;
+    }
+  ): Promise<BookingHoldResponse> {
+    return this.request<BookingHoldResponse>("/api/booking/hold", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async confirmBooking(
+    authToken: string,
+    holdId: string,
+    successUrl: string,
+    cancelUrl: string
+  ): Promise<BookingConfirmResponse> {
+    return this.request<BookingConfirmResponse>("/api/booking/confirm", {
+      method: "POST",
+      body: JSON.stringify({ holdId, successUrl, cancelUrl }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
 }
 
 // Availability Calendar types
@@ -2952,6 +3011,45 @@ export interface AvailabilitySlot {
 export interface AvailabilitySlotResponse {
   date: string;
   slots: AvailabilitySlot[];
+}
+
+// Booking Flow types
+export interface BookingService {
+  id: string;
+  name: string;
+  description?: string;
+  durationMinutes: number;
+  priceCents: number;
+  status?: "active" | "draft" | "archived";
+}
+
+export interface BookingValidationResponse {
+  valid: boolean;
+  reason?: string;
+  endTime?: string;
+}
+
+export interface BookingHoldResponse {
+  success: boolean;
+  holdId: string;
+  expiresAt: string;
+  service: {
+    id: string;
+    name: string;
+    durationMinutes: number;
+    priceCents: number;
+  };
+  slot: {
+    date: string;
+    startTime: string;
+    endTime: string;
+  };
+}
+
+export interface BookingConfirmResponse {
+  success: boolean;
+  checkoutUrl: string;
+  sessionId: string;
 }
 
 export const api = new ApiService();
