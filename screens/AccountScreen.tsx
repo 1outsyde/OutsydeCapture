@@ -961,10 +961,33 @@ export default function AccountScreen() {
   };
 
   const getAvailabilityText = (): string => {
+    // First check if todayAvailability is returned from backend
     if (profile?.availability) {
       return `Available Today: ${profile.availability.start} - ${profile.availability.end}`;
     }
-    return "Available Today: 10AM - 6PM";
+    
+    // Fallback: compute from hoursOfOperation for today
+    if (profile?.hoursOfOperation) {
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const today = new Date().getDay(); // 0=Sunday, 1=Monday, etc.
+      const todayName = dayNames[today];
+      const todayHours = profile.hoursOfOperation[todayName];
+      
+      if (todayHours && !todayHours.closed && todayHours.open && todayHours.close) {
+        // Convert 24h to 12h format for display
+        const formatTime = (time24: string): string => {
+          const [hours, minutes] = time24.split(":").map(Number);
+          const period = hours >= 12 ? "PM" : "AM";
+          const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+          return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")}${period}` : `${hours12}${period}`;
+        };
+        return `Available Today: ${formatTime(todayHours.open)} - ${formatTime(todayHours.close)}`;
+      }
+      return "Not available today";
+    }
+    
+    // No availability data at all
+    return "Availability not set";
   };
 
   if (!isAuthenticated) {
