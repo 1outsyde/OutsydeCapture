@@ -18,6 +18,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+import BookingFlow from "@/components/BookingFlow";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList, BusinessProfileData } from "@/navigation/types";
@@ -588,6 +589,12 @@ export default function BusinessProfileScreen() {
           <AvailabilityCalendar
             providerId={business.id}
             providerType="business"
+          />
+
+          <BookingFlow
+            providerId={business.id}
+            providerType="business"
+            providerName={business.name}
           />
         </View>
       </ScrollView>
