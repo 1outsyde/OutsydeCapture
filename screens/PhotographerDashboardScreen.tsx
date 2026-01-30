@@ -739,9 +739,9 @@ export default function PhotographerDashboardScreen() {
     try {
       setSaving(true);
       
-      // Convert DayHours array to WeeklyAvailabilitySlot[] for backend
+      // Convert DayHours array to WeeklyAvailabilitySlot[] for weekly_availability table
       // Backend expects: PUT /api/photographers/me/weekly-availability
-      // Payload: { availability: [{ dayOfWeek: 0-6, startTime: "HH:mm", endTime: "HH:mm", isActive: true }] }
+      // Payload: { slots: [{ dayOfWeek: 0-6, startTime: "HH:mm", endTime: "HH:mm", isActive: true }] }
       const slots = hours
         .filter((h) => h.isAvailable)
         .map((h) => ({
@@ -751,11 +751,31 @@ export default function PhotographerDashboardScreen() {
           isActive: true,
         }));
 
-      console.log("[Dashboard] Saving weekly availability - payload:", JSON.stringify(slots, null, 2));
+      console.log("[Dashboard] Saving weekly availability - slots payload:", JSON.stringify(slots, null, 2));
       
+      // Save to weekly_availability table (primary source of truth for booking/calendar)
       const response = await api.updateWeeklyAvailability(token, "photographer", slots);
-      
       console.log("[Dashboard] Weekly availability saved - response:", JSON.stringify(response, null, 2));
+      
+      // Also sync to hoursOfOperation JSON field (for profile banner display)
+      // Convert DayHours array to hoursOfOperation format
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const hoursOfOperation: Record<string, { open: string; close: string } | null> = {};
+      
+      hours.forEach((h) => {
+        const dayName = dayNames[h.dayOfWeek];
+        if (h.isAvailable) {
+          hoursOfOperation[dayName] = {
+            open: convertTo24Hour(h.startTime),
+            close: convertTo24Hour(h.endTime),
+          };
+        } else {
+          hoursOfOperation[dayName] = null;
+        }
+      });
+      
+      console.log("[Dashboard] Syncing hoursOfOperation:", JSON.stringify(hoursOfOperation, null, 2));
+      await api.updatePhotographerMeAvailability(token, { hoursOfOperation });
       
       Alert.alert("Success", "Your availability has been updated");
       setActiveModal(null);
