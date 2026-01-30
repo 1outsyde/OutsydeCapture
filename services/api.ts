@@ -2773,13 +2773,12 @@ class ApiService {
   }
 
   // GET /api/profiles/:profileId/posts - Get posts for a specific profile
+  // Note: Pro/Pulse is a display layout decision, not a backend filter
   async getProfilePosts(profileId: string, params?: {
-    intent?: "pro" | "pulse";
     page?: number;
     limit?: number;
   }): Promise<{ posts: ApiPost[] }> {
     const queryParams = new URLSearchParams();
-    if (params?.intent) queryParams.append("intent", params.intent);
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
     const queryString = queryParams.toString();

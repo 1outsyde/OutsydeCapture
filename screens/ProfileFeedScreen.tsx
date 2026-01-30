@@ -36,7 +36,7 @@ export default function ProfileFeedScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
 
-  const { profileId, profileName, intent } = route.params;
+  const { profileId, profileName, layout } = route.params;
 
   const [posts, setPosts] = useState<ApiPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,8 +44,8 @@ export default function ProfileFeedScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  const dotColor = intent === "pro" ? GOLD_DOT_COLOR : PULSE_DOT_COLOR;
-  const intentLabel = intent === "pro" ? "Pro" : "Pulse";
+  const dotColor = layout === "pro" ? GOLD_DOT_COLOR : PULSE_DOT_COLOR;
+  const layoutLabel = layout === "pro" ? "Pro" : "Pulse";
 
   const fetchPosts = useCallback(async (pageNum: number, refresh = false) => {
     try {
@@ -56,7 +56,6 @@ export default function ProfileFeedScreen() {
       }
 
       const response = await api.getProfilePosts(profileId, {
-        intent,
         page: pageNum,
         limit: 20,
       });
@@ -77,7 +76,7 @@ export default function ProfileFeedScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [profileId, intent]);
+  }, [profileId]);
 
   useEffect(() => {
     fetchPosts(1);
@@ -118,12 +117,12 @@ export default function ProfileFeedScreen() {
               {item.likesCount || 0}
             </ThemedText>
           </View>
-          {intent === "pro" && (
+          {layout === "pro" && (
             <View style={[styles.badge, { backgroundColor: "rgba(255,215,0,0.8)" }]}>
               <Feather name="camera" size={12} color="#fff" />
             </View>
           )}
-          {intent === "pulse" && item.mediaType === "video" && item.mediaDuration && (
+          {layout === "pulse" && item.mediaType === "video" && item.mediaDuration && (
             <View style={styles.durationBadge}>
               <ThemedText type="small" style={{ color: "#fff", fontSize: 10 }}>
                 {formatDuration(item.mediaDuration)}
@@ -140,7 +139,7 @@ export default function ProfileFeedScreen() {
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <View style={[styles.dot, { backgroundColor: dotColor }]} />
         <ThemedText type="h3" style={{ marginLeft: Spacing.xs }}>
-          {intentLabel} Posts
+          {layoutLabel} Posts
         </ThemedText>
       </View>
       <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
@@ -152,12 +151,12 @@ export default function ProfileFeedScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Feather 
-        name={intent === "pro" ? "camera" : "zap"} 
+        name={layout === "pro" ? "camera" : "zap"} 
         size={48} 
         color={theme.textSecondary} 
       />
       <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-        No {intentLabel.toLowerCase()} posts yet
+        No {layoutLabel.toLowerCase()} posts yet
       </ThemedText>
     </View>
   );
@@ -170,7 +169,7 @@ export default function ProfileFeedScreen() {
             <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
           <ThemedText type="h4" style={{ flex: 1, textAlign: "center" }}>
-            {profileName || "Profile"}'s {intentLabel}
+            {profileName || "Profile"}'s {layoutLabel}
           </ThemedText>
           <View style={{ width: 40 }} />
         </View>
@@ -188,7 +187,7 @@ export default function ProfileFeedScreen() {
           <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <ThemedText type="h4" style={{ flex: 1, textAlign: "center" }} numberOfLines={1}>
-          {profileName || "Profile"}'s {intentLabel}
+          {profileName || "Profile"}'s {layoutLabel}
         </ThemedText>
         <View style={{ width: 40 }} />
       </View>

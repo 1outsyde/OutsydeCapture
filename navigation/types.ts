@@ -108,7 +108,7 @@ export type RootStackParamList = {
   ProfileFeed: {
     profileId: string;
     profileName?: string;
-    intent: "pro" | "pulse";
+    layout: "pro" | "pulse";
   };
 };
 

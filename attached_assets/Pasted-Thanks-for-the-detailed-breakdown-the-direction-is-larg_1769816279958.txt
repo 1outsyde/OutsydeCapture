@@ -1,0 +1,118 @@
+Thanks for the detailed breakdown — the direction is largely correct and the UI work looks solid. I want to clarify and lock a few product-level rules so the implementation doesn’t drift as we expand this system.
+
+✅ What’s correct and should remain as implemented
+
+Accent-tinted gradient overlay on profile hero (30% opacity) is correct
+
+Accent color usage limited to:
+
+Gradient overlay
+
+Tab underline
+
+Section dots
+
+Book Now CTA
+
+Specialty chips displayed as non-interactive labels
+
+Featured tab split into Pro and Pulse horizontal sections
+
+“View all” CTAs navigating to a profile-scoped feed screen
+
+Reuse of ProfileFeedScreen for Pro / Pulse views is the right approach
+
+PhotographerDashboardScreen and BusinessDashboardScreen do not need hero gradients — agreed
+
+Please keep all of the above intact.
+
+🔴 Critical Clarification: Pro vs Pulse Logic (Very Important)
+
+I want to explicitly correct one assumption so we don’t bake in the wrong behavior.
+
+Pro vs Pulse is NOT derived from postIntent.
+
+postIntent (social | review | promotion) is semantic
+
+Pro vs Pulse is purely a presentation / layout decision
+
+This means:
+
+Any postIntent can render in either Pro or Pulse
+
+Promotional posts are differentiated by CTA behavior, not layout
+
+Review posts are allowed in Pulse and optionally Pro later
+
+We should NOT infer Pro vs Pulse from postIntent
+
+✅ Correct mental model
+postIntent → permissions, CTA, moderation
+layout (Pro | Pulse) → how the post is rendered
+
+
+If you need a grouping mechanism now:
+
+Treat Pro and Pulse as display buckets
+
+Do not hard-map them to postIntent
+
+⚠️ Please confirm the current implementation does NOT hard-code:
+
+promotion → Pro
+social → Pulse
+
+
+If it does, we should adjust immediately before this spreads.
+
+🧩 ProfileFeedScreen Contract (Lock This In)
+
+The ProfileFeedScreen should be driven by display intent, not postIntent.
+
+Recommended navigation params:
+
+{
+  profileId: string
+  layout: "pro" | "pulse"
+}
+
+
+Backend should simply return posts for the profile.
+Frontend decides how to render them based on layout.
+
+No schema change required at this time.
+
+🧠 Featured Tab = Curated Surface (One More Clarification)
+
+One additional UX rule to lock:
+
+Featured is not an editable feed
+
+The “+ Post” card should NOT live inside Featured
+
+Posting access should move to:
+
+A FAB, or
+
+A profile-owner action in the header
+
+Featured should feel like a storefront highlight, not a creation surface.
+
+📌 Summary of Required Behavior (Single Source of Truth)
+
+Featured tab contains:
+
+Pro section (horizontal, polished cards)
+
+Pulse section (horizontal, vertical cards)
+
+“View all” navigates to ProfileFeedScreen
+
+Pro / Pulse is display logic only
+
+postIntent does NOT determine Pro vs Pulse
+
+Accent color remains restrained (no full background theming)
+
+If all of the above matches the current implementation, we’re aligned.
+If any Pro/Pulse logic is tied to postIntent, let’s adjust now before we build on it.

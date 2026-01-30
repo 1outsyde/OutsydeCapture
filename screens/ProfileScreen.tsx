@@ -537,12 +537,10 @@ export default function ProfileScreen() {
     const fetchProfilePosts = async () => {
       if (!profile?.id) return;
       try {
-        const [proResponse, pulseResponse] = await Promise.all([
-          api.getProfilePosts(profile.id, { intent: "pro", limit: 10 }),
-          api.getProfilePosts(profile.id, { intent: "pulse", limit: 10 }),
-        ]);
-        setProPosts((proResponse.posts || []).map(mapApiPostToFeaturedPost));
-        setPulsePosts((pulseResponse.posts || []).map(mapApiPostToFeaturedPost));
+        const response = await api.getProfilePosts(profile.id, { limit: 20 });
+        const allPosts = (response.posts || []).map(mapApiPostToFeaturedPost);
+        setProPosts(allPosts.slice(0, 10));
+        setPulsePosts(allPosts.slice(0, 10));
       } catch (error) {
         console.warn("[ProfileScreen] Could not fetch profile posts:", error);
       }
@@ -801,46 +799,55 @@ export default function ProfileScreen() {
     return mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `0:${secs.toString().padStart(2, "0")}`;
   };
 
-  const renderPostCard = (post: FeaturedPost, intent: "pro" | "pulse") => (
-    <Pressable
-      key={post.id}
-      style={styles.horizontalPostCard}
-      onPress={() => {
-        navigation.navigate("ProfileFeed" as any, {
-          profileId: profile?.id,
-          profileName: profile?.name,
-          intent,
-        });
-      }}
-    >
-      <Image
-        source={{ uri: post.imageUri }}
-        style={styles.horizontalPostImage}
-        contentFit="cover"
-        transition={200}
-      />
-      <View style={styles.postCardOverlay}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Feather name="heart" size={12} color="#fff" />
-          <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-            {post.likes}
+  const renderPostCard = (post: FeaturedPost, layout: "pro" | "pulse") => {
+    const isPro = layout === "pro";
+    const cardStyle = isPro ? styles.proPostCard : styles.pulsePostCard;
+    
+    return (
+      <Pressable
+        key={post.id}
+        style={cardStyle}
+        onPress={() => {
+          navigation.navigate("ProfileFeed" as any, {
+            profileId: profile?.id,
+            profileName: profile?.name,
+            layout,
+          });
+        }}
+      >
+        <Image
+          source={{ uri: post.imageUri }}
+          style={styles.horizontalPostImage}
+          contentFit="cover"
+          transition={200}
+        />
+        <View style={styles.viewCountBadge}>
+          <Feather name={isPro ? "user" : "eye"} size={10} color="#fff" />
+          <ThemedText type="small" style={styles.badgeText}>
+            {post.likes || 0}
           </ThemedText>
         </View>
-        {intent === "pro" && (
-          <View style={styles.cameraBadge}>
-            <Feather name="camera" size={10} color="#fff" />
-          </View>
-        )}
-        {intent === "pulse" && post.mediaType === "video" && post.mediaDuration && (
-          <View style={styles.durationBadge}>
-            <ThemedText type="small" style={{ color: "#fff", fontSize: 10 }}>
-              {formatDuration(post.mediaDuration)}
+        <View style={styles.postCardOverlay}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Feather name="heart" size={12} color="#fff" />
+            <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+              {post.likes}
             </ThemedText>
           </View>
-        )}
-      </View>
-    </Pressable>
-  );
+          {isPro && (
+            <View style={styles.cameraBadge}>
+              <Feather name="camera" size={10} color="#fff" />
+            </View>
+          )}
+          {!isPro && (
+            <View style={styles.chatBadge}>
+              <Feather name="more-horizontal" size={12} color="#fff" />
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  };
 
   const renderFeaturedTab = () => (
     <View style={styles.tabContent}>
@@ -852,23 +859,6 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      {isOwner && !isGuest && (
-        <Pressable
-          onPress={() => setShowCreatePost(true)}
-          style={[styles.createPostButton, {
-            backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
-            borderColor: profileTheme,
-          }]}
-        >
-          <View style={[styles.createPostIcon, { backgroundColor: profileTheme }]}>
-            <Feather name="plus" size={20} color="#000" />
-          </View>
-          <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600", marginLeft: Spacing.sm }}>
-            Create Post
-          </ThemedText>
-        </Pressable>
-      )}
-
       {proPosts.length > 0 && (
         <View style={{ marginBottom: Spacing.lg }}>
           <View style={styles.sectionHeader}>
@@ -877,7 +867,7 @@ export default function ProfileScreen() {
               <ThemedText type="h4" style={{ marginLeft: Spacing.xs }}>Pro</ThemedText>
             </View>
             <Pressable
-              onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, intent: "pro" })}
+              onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, layout: "pro" })}
               style={{ flexDirection: "row", alignItems: "center" }}
             >
               <ThemedText type="small" style={{ color: profileTheme }}>View all Pro</ThemedText>
@@ -902,7 +892,7 @@ export default function ProfileScreen() {
               <ThemedText type="h4" style={{ marginLeft: Spacing.xs }}>Pulse</ThemedText>
             </View>
             <Pressable
-              onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, intent: "pulse" })}
+              onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, layout: "pulse" })}
               style={{ flexDirection: "row", alignItems: "center" }}
             >
               <ThemedText type="small" style={{ color: profileTheme }}>View all Pulse</ThemedText>
@@ -2032,20 +2022,44 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "rgba(0,0,0,0.6)",
   },
-  createPostButton: {
+  proPostCard: {
+    width: 140,
+    height: 140,
+    marginRight: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+    position: "relative",
+  },
+  pulsePostCard: {
+    width: 120,
+    height: 180,
+    marginRight: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+    position: "relative",
+  },
+  viewCountBadge: {
+    position: "absolute",
+    top: Spacing.xs,
+    left: Spacing.xs,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    marginBottom: Spacing.lg,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
   },
-  createPostIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    marginLeft: 4,
+    fontWeight: "600",
+  },
+  chatBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
