@@ -492,7 +492,15 @@ export default function BookingScreen() {
         bookingDraft.id
       );
       
-      if (!isNative) {
+      // Handle paused payment mode (dev-only: PAYMENTS_ENABLED=false)
+      if ((paymentResponse as any).paymentStatus === "paused") {
+        console.log("[DEV] Payments paused - skipping Stripe flow");
+        if ((paymentResponse as any).message) {
+          console.log("[DEV]", (paymentResponse as any).message);
+        }
+        // Skip Stripe, confirm the draft booking directly
+        confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
+      } else if (!isNative) {
         // Web: Use WebBrowser to open Stripe Checkout
         const checkoutUrl = `https://checkout.stripe.com/pay/${paymentResponse.clientSecret}`;
         const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
