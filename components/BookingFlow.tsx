@@ -190,9 +190,19 @@ export default function BookingFlow({
   };
 
   const fetchCalendar = async () => {
+    // Parse year and month from currentMonth (format: YYYY-MM)
+    const [yearStr, monthStr] = currentMonth.split("-");
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+
+    // HARD GUARD: Do NOT call API unless ALL required params are defined
+    if (!providerId || !providerType || !year || !month) {
+      return;
+    }
+
     setLoadingCalendar(true);
     try {
-      const response = await api.getAvailabilityCalendar(providerId, providerType, currentMonth);
+      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month);
       setCalendarDays(response.days || []);
     } catch (err: any) {
       setError(err.message || "Failed to load calendar");

@@ -2910,10 +2910,11 @@ class ApiService {
   async getAvailabilityCalendar(
     providerId: string,
     providerType: "photographer" | "business",
-    month: string // Format: YYYY-MM
+    year: number,
+    month: number // 1-12
   ): Promise<AvailabilityCalendarResponse> {
     return this.request<AvailabilityCalendarResponse>(
-      `/api/availability/calendar?providerId=${providerId}&providerType=${providerType}&month=${month}`
+      `/api/availability/calendar?providerType=${providerType}&providerId=${providerId}&year=${year}&month=${month}`
     );
   }
 
