@@ -180,7 +180,7 @@ export default function BookingFlow({
     setError(null);
     try {
       const data = await api.getProviderServices(providerId, providerType);
-      const activeServices = data.filter((s) => s.status === "active" || !s.status);
+      const activeServices = data.filter((s) => s.status === "live" || s.status === "active" || !s.status);
       setServices(activeServices);
     } catch (err: any) {
       setError(err.message || "Failed to load services");

@@ -3020,7 +3020,7 @@ export interface BookingService {
   description?: string;
   durationMinutes: number;
   priceCents: number;
-  status?: "active" | "draft" | "archived";
+  status?: "live" | "active" | "draft" | "archived";
 }
 
 export interface BookingValidationResponse {
