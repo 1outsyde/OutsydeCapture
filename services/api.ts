@@ -2905,6 +2905,53 @@ class ApiService {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
+
+  // Availability Calendar endpoints
+  async getAvailabilityCalendar(
+    providerId: string,
+    providerType: "photographer" | "business",
+    month: string // Format: YYYY-MM
+  ): Promise<AvailabilityCalendarResponse> {
+    return this.request<AvailabilityCalendarResponse>(
+      `/api/availability/calendar?providerId=${providerId}&providerType=${providerType}&month=${month}`
+    );
+  }
+
+  async getAvailabilitySlots(
+    providerId: string,
+    providerType: "photographer" | "business",
+    date: string // Format: YYYY-MM-DD
+  ): Promise<AvailabilitySlotResponse> {
+    return this.request<AvailabilitySlotResponse>(
+      `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}`
+    );
+  }
+}
+
+// Availability Calendar types
+export interface AvailabilityCalendarDay {
+  date: string; // YYYY-MM-DD
+  status: "available" | "partial" | "unavailable";
+  slotsAvailable?: number;
+  slotsTotal?: number;
+}
+
+export interface AvailabilityCalendarResponse {
+  month: string;
+  days: AvailabilityCalendarDay[];
+}
+
+export interface AvailabilitySlot {
+  id: string;
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  status: "available" | "held" | "booked";
+  holdExpiresAt?: string; // ISO timestamp for held slots
+}
+
+export interface AvailabilitySlotResponse {
+  date: string;
+  slots: AvailabilitySlot[];
 }
 
 export const api = new ApiService();
