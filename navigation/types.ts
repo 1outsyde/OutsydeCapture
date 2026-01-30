@@ -105,6 +105,11 @@ export type RootStackParamList = {
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
   Notifications: undefined;
+  ProfileFeed: {
+    profileId: string;
+    profileName?: string;
+    intent: "pro" | "pulse";
+  };
 };
 
 export type MainTabParamList = {

@@ -99,20 +99,31 @@ interface ProfileData {
 interface FeaturedPost {
   id: string;
   imageUri: string;
+  videoUri?: string;
   caption: string;
   likes: number;
   comments: number;
   createdAt: Date;
+  mediaType?: "image" | "video";
+  mediaDuration?: number;
+  postIntent?: "pro" | "pulse";
 }
 
 const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
   id: post.id,
   imageUri: post.imageUrl || (post.images && post.images[0]) || "",
+  videoUri: post.videoUrl,
   caption: post.content || "",
   likes: post.likesCount || 0,
   comments: post.commentsCount || 0,
   createdAt: new Date(post.createdAt),
+  mediaType: post.mediaType,
+  mediaDuration: post.mediaDuration,
+  postIntent: post.postIntent,
 });
+
+const GOLD_DOT_COLOR = "#FFD700";
+const PULSE_DOT_COLOR = "#FF69B4";
 
 type ProfileTab = "featured" | "book" | "availability" | "reviews" | "products" | "services";
 
@@ -190,6 +201,8 @@ export default function ProfileScreen() {
   const [photographerServices, setPhotographerServices] = useState<PhotographerService[]>([]);
   const [bookedSlots, setBookedSlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
   const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([]);
+  const [proPosts, setProPosts] = useState<FeaturedPost[]>([]);
+  const [pulsePosts, setPulsePosts] = useState<FeaturedPost[]>([]);
   const [businessHasProducts, setBusinessHasProducts] = useState(false);
   const [businessHasServices, setBusinessHasServices] = useState(false);
   const [businessProducts, setBusinessProducts] = useState<VendorProduct[]>([]);
@@ -521,6 +534,23 @@ export default function ProfileScreen() {
   }, [fetchProfile]);
 
   useEffect(() => {
+    const fetchProfilePosts = async () => {
+      if (!profile?.id) return;
+      try {
+        const [proResponse, pulseResponse] = await Promise.all([
+          api.getProfilePosts(profile.id, { intent: "pro", limit: 10 }),
+          api.getProfilePosts(profile.id, { intent: "pulse", limit: 10 }),
+        ]);
+        setProPosts((proResponse.posts || []).map(mapApiPostToFeaturedPost));
+        setPulsePosts((pulseResponse.posts || []).map(mapApiPostToFeaturedPost));
+      } catch (error) {
+        console.warn("[ProfileScreen] Could not fetch profile posts:", error);
+      }
+    };
+    fetchProfilePosts();
+  }, [profile?.id]);
+
+  useEffect(() => {
     if (profileUserType === "business") {
       if (businessHasProducts) {
         setActiveTab("products");
@@ -764,6 +794,54 @@ export default function ProfileScreen() {
     brandColors: profile?.brandColors,
   };
 
+  const formatDuration = (seconds?: number): string => {
+    if (!seconds) return "";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `0:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const renderPostCard = (post: FeaturedPost, intent: "pro" | "pulse") => (
+    <Pressable
+      key={post.id}
+      style={styles.horizontalPostCard}
+      onPress={() => {
+        navigation.navigate("ProfileFeed" as any, {
+          profileId: profile?.id,
+          profileName: profile?.name,
+          intent,
+        });
+      }}
+    >
+      <Image
+        source={{ uri: post.imageUri }}
+        style={styles.horizontalPostImage}
+        contentFit="cover"
+        transition={200}
+      />
+      <View style={styles.postCardOverlay}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Feather name="heart" size={12} color="#fff" />
+          <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+            {post.likes}
+          </ThemedText>
+        </View>
+        {intent === "pro" && (
+          <View style={styles.cameraBadge}>
+            <Feather name="camera" size={10} color="#fff" />
+          </View>
+        )}
+        {intent === "pulse" && post.mediaType === "video" && post.mediaDuration && (
+          <View style={styles.durationBadge}>
+            <ThemedText type="small" style={{ color: "#fff", fontSize: 10 }}>
+              {formatDuration(post.mediaDuration)}
+            </ThemedText>
+          </View>
+        )}
+      </View>
+    </Pressable>
+  );
+
   const renderFeaturedTab = () => (
     <View style={styles.tabContent}>
       {profile?.bio && (
@@ -774,70 +852,113 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <View style={styles.mediaGrid}>
-        {isOwner && !isGuest && (
-          <Pressable
-            onPress={() => setShowCreatePost(true)}
-            style={[styles.mediaGridItem, {
-              backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 2,
-              borderColor: profileTheme,
-              borderStyle: "dashed",
-            }]}
-          >
-            <View style={{
-              width: 50,
-              height: 50,
-              borderRadius: 25,
-              backgroundColor: profileTheme,
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: Spacing.xs,
-            }}>
-              <Feather name="plus" size={24} color="#000" />
+      {isOwner && !isGuest && (
+        <Pressable
+          onPress={() => setShowCreatePost(true)}
+          style={[styles.createPostButton, {
+            backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
+            borderColor: profileTheme,
+          }]}
+        >
+          <View style={[styles.createPostIcon, { backgroundColor: profileTheme }]}>
+            <Feather name="plus" size={20} color="#000" />
+          </View>
+          <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600", marginLeft: Spacing.sm }}>
+            Create Post
+          </ThemedText>
+        </Pressable>
+      )}
+
+      {proPosts.length > 0 && (
+        <View style={{ marginBottom: Spacing.lg }}>
+          <View style={styles.sectionHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={[styles.sectionDot, { backgroundColor: GOLD_DOT_COLOR }]} />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.xs }}>Pro</ThemedText>
             </View>
-            <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
-              Post
-            </ThemedText>
-          </Pressable>
-        )}
-        {featuredPosts.map((post) => (
-          <Pressable key={post.id} style={styles.mediaGridItem}>
-            <Image
-              source={{ uri: post.imageUri }}
-              style={styles.mediaGridImage}
-              contentFit="cover"
-              transition={200}
-            />
-            <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-              <Feather name="heart" size={14} color="#fff" />
-              <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-                {post.likes}
+            <Pressable
+              onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, intent: "pro" })}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
+              <ThemedText type="small" style={{ color: profileTheme }}>View all Pro</ThemedText>
+              <Feather name="chevron-right" size={14} color={profileTheme} />
+            </Pressable>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: Spacing.md }}
+          >
+            {proPosts.slice(0, 5).map((post) => renderPostCard(post, "pro"))}
+          </ScrollView>
+        </View>
+      )}
+
+      {pulsePosts.length > 0 && (
+        <View style={{ marginBottom: Spacing.lg }}>
+          <View style={styles.sectionHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={[styles.sectionDot, { backgroundColor: PULSE_DOT_COLOR }]} />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.xs }}>Pulse</ThemedText>
+            </View>
+            <Pressable
+              onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, intent: "pulse" })}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
+              <ThemedText type="small" style={{ color: profileTheme }}>View all Pulse</ThemedText>
+              <Feather name="chevron-right" size={14} color={profileTheme} />
+            </Pressable>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: Spacing.md }}
+          >
+            {pulsePosts.slice(0, 5).map((post) => renderPostCard(post, "pulse"))}
+          </ScrollView>
+        </View>
+      )}
+
+      {proPosts.length === 0 && pulsePosts.length === 0 && (
+        <>
+          <View style={styles.mediaGrid}>
+            {featuredPosts.map((post) => (
+              <Pressable key={post.id} style={styles.mediaGridItem}>
+                <Image
+                  source={{ uri: post.imageUri }}
+                  style={styles.mediaGridImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+                <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                  <Feather name="heart" size={14} color="#fff" />
+                  <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
+                    {post.likes}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            ))}
+            {profile?.portfolio?.map((img, index) => (
+              <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
+                <Image
+                  source={{ uri: img }}
+                  style={styles.mediaGridImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+              </Pressable>
+            ))}
+          </View>
+
+          {featuredPosts.length === 0 && (!profile?.portfolio || profile.portfolio.length === 0) && (
+            <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
+              <Feather name="camera" size={48} color={theme.textSecondary} />
+              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+                No posts yet
               </ThemedText>
             </View>
-          </Pressable>
-        ))}
-        {profile?.portfolio?.map((img, index) => (
-          <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
-            <Image
-              source={{ uri: img }}
-              style={styles.mediaGridImage}
-              contentFit="cover"
-              transition={200}
-            />
-          </Pressable>
-        ))}
-      </View>
-
-      {featuredPosts.length === 0 && (!profile?.portfolio || profile.portfolio.length === 0) && (
-        <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
-          <Feather name="camera" size={48} color={theme.textSecondary} />
-          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-            No posts yet
-          </ThemedText>
-        </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -1298,7 +1419,8 @@ export default function ProfileScreen() {
             />
           )}
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.7)"]}
+            colors={["transparent", `${profileTheme}30`, isDark ? "#000000" : "#1C1C1E"]}
+            locations={[0, 0.5, 1]}
             style={styles.heroGradient}
             pointerEvents="none"
           />
@@ -1872,5 +1994,70 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
+  },
+  horizontalPostCard: {
+    width: 140,
+    height: 180,
+    marginRight: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+    position: "relative",
+  },
+  horizontalPostImage: {
+    width: "100%",
+    height: "100%",
+  },
+  postCardOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: Spacing.xs,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  cameraBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,215,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  durationBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  createPostButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    marginBottom: Spacing.lg,
+  },
+  createPostIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  sectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

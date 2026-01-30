@@ -78,6 +78,9 @@ export interface ApiPost {
   authorId?: string;
   authorType?: string;
   postType?: string;
+  postIntent?: "pro" | "pulse";
+  mediaType?: "image" | "video";
+  mediaDuration?: number;
   content?: string;
   imageUrl?: string;
   images?: string[];
@@ -2767,6 +2770,23 @@ class ApiService {
       body: JSON.stringify({ content }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+  }
+
+  // GET /api/profiles/:profileId/posts - Get posts for a specific profile
+  async getProfilePosts(profileId: string, params?: {
+    intent?: "pro" | "pulse";
+    page?: number;
+    limit?: number;
+  }): Promise<{ posts: ApiPost[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.intent) queryParams.append("intent", params.intent);
+    if (params?.page) queryParams.append("page", params.page.toString());
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    const queryString = queryParams.toString();
+    const url = queryString 
+      ? `/api/profiles/${profileId}/posts?${queryString}` 
+      : `/api/profiles/${profileId}/posts`;
+    return this.request<{ posts: ApiPost[] }>(url);
   }
 
   // ==========================================

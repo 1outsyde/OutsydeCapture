@@ -36,6 +36,7 @@ import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
+import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -617,6 +618,15 @@ export default function RootNavigator() {
             </Pressable>
           ),
         })}
+      />
+
+      <Stack.Screen
+        name="ProfileFeed"
+        component={ProfileFeedScreen}
+        options={{
+          presentation: "card",
+          headerShown: false,
+        }}
       />
     </Stack.Navigator>
   );
