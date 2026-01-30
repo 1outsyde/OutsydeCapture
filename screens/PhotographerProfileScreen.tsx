@@ -17,6 +17,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList, PhotographerProfileData } from "@/navigation/types";
@@ -689,6 +690,11 @@ export default function PhotographerProfileScreen() {
               ) : null}
             </View>
           ) : null}
+
+          <AvailabilityCalendar
+            providerId={photographer.id}
+            providerType="photographer"
+          />
         </View>
       </ScrollView>
     </ThemedView>

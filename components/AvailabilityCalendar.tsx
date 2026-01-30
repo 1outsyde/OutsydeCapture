@@ -246,7 +246,7 @@ export default function AvailabilityCalendar({
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="subtitle" style={styles.header}>
+      <ThemedText type="h3" style={styles.header}>
         Availability
       </ThemedText>
       <ThemedText style={[styles.subtext, { color: theme.textSecondary }]}>
@@ -257,7 +257,7 @@ export default function AvailabilityCalendar({
         <Pressable onPress={handlePrevMonth} hitSlop={12}>
           <Feather name="chevron-left" size={24} color={theme.text} />
         </Pressable>
-        <ThemedText type="defaultSemiBold" style={styles.monthText}>
+        <ThemedText type="body" style={[styles.monthText, { fontWeight: "600" }]}>
           {monthDisplay}
         </ThemedText>
         <Pressable onPress={handleNextMonth} hitSlop={12}>
@@ -330,7 +330,7 @@ export default function AvailabilityCalendar({
 
       {selectedDate && (
         <View style={styles.slotsSection}>
-          <ThemedText type="defaultSemiBold" style={styles.slotsHeader}>
+          <ThemedText type="body" style={[styles.slotsHeader, { fontWeight: "600" }]}>
             {selectedDateDisplay}
           </ThemedText>
 
