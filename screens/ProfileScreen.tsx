@@ -23,7 +23,31 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
-import { BookingFlow, PhotographerService, PhotographerProfile } from "@/components/BookingFlow";
+import BookingFlow from "@/components/BookingFlow";
+
+interface PhotographerService {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  durationMinutes: number;
+  category?: string;
+  isPromo?: boolean;
+  promoPrice?: number;
+  promoEndDate?: string;
+  rating?: number | null;
+  reviewCount?: number | null;
+}
+
+interface PhotographerProfile {
+  id: string;
+  name: string;
+  avatar?: string;
+  rating?: number;
+  reviewCount?: number;
+  hourlyRate?: number;
+  brandColors?: string | { primary?: string };
+}
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
@@ -808,13 +832,9 @@ export default function ProfileScreen() {
       return (
         <View style={styles.bookTabContainer}>
           <BookingFlow
-            photographer={photographerProfile}
-            services={photographerServices}
-            availabilitySlots={availabilitySlots}
-            blockedDates={blockedDates}
-            bookedSlots={bookedSlots}
-            onBookingComplete={handleBookingComplete}
-            accentColor={profileTheme}
+            providerId={profile?.id || ""}
+            providerType="photographer"
+            providerName={profile?.name || "Photographer"}
           />
         </View>
       );
