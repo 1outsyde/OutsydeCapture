@@ -1,0 +1,116 @@
+FRONTEND TASK — Messaging Screen UI & Conversation Creation
+
+Scope: Frontend only.
+Do NOT modify backend logic or database schema.
+
+Messaging already works. This task is purely UI/UX and interaction improvements to the Messages screen.
+
+1️⃣ Add a Fixed Header to the Messages Screen
+
+Problem:
+The conversation list is too close to the system status bar and looks visually compressed.
+
+Requirements:
+
+Add a fixed header container at the top of the Messages screen
+
+Height: ~56–64px
+
+Header must push the conversation list downward (not overlay it)
+
+Header contents:
+
+Left: Title text “Messages”
+
+Right: Plus (+) icon button
+
+Header
+ ├─ Text: "Messages"
+ └─ IconButton: "+"
+
+2️⃣ Lower the Conversation List Below the Header
+
+Add proper top padding/margin so the first conversation row starts below the header
+
+Ensure no overlap with status bar or header
+
+3️⃣ Add Profile Pictures to Every Conversation Row
+
+Each conversation item must include:
+
+Circular avatar (40–48px)
+
+Avatar source: otherParticipant.avatarUrl
+
+If avatar is missing → show fallback initials or default icon
+
+Important rules:
+
+Never show the logged-in user’s own avatar
+
+Always use the other participant in the conversation
+
+Layout:
+
+[ Avatar ]  Display Name (bold)
+            Last message preview (muted)
+
+4️⃣ Improve Conversation Row Readability
+
+Increase vertical spacing between rows
+
+Display name in bold
+
+Last message preview in secondary/muted color
+
+Optional: timestamp aligned right
+
+5️⃣ Plus (+) Button → Create Conversation Flow
+
+On press:
+
+Open a modal or screen titled “New Message”
+
+Include a text input with placeholder:
+
+Search by @username
+
+6️⃣ Username Search UI
+
+As user types:
+
+Perform live search
+
+Display results with:
+
+Avatar
+
+Display name
+
+@username
+
+On selecting a user:
+
+Call existing createOrGetConversation(userId)
+
+If conversation exists → open it
+
+If not → create it, then open chat screen
+
+7️⃣ Guards (Frontend)
+
+Prevent self-messaging
+
+Hide current user from search results
+
+Do NOT hardcode conversation IDs
+
+✅ Done When:
+
+Messages screen has a clean header
+
+Conversations are visually scannable
+
+Every conversation shows an avatar
+
+Users can create conversations via @username
