@@ -88,6 +88,7 @@ export default function PhotographerDashboardScreen() {
   const [rawPhotographer, setRawPhotographer] = useState<any>(null); // Store raw API response for accurate comparison
   const [bookings, setBookings] = useState<PhotographerBooking[]>([]);
   const [services, setServices] = useState<PhotographerService[]>([]);
+  const [publishingServiceId, setPublishingServiceId] = useState<string | null>(null);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   
@@ -944,13 +945,38 @@ export default function PhotographerDashboardScreen() {
             const token = await getToken();
             if (!token) return;
             
+            setPublishingServiceId(serviceId);
             try {
-              await api.goLivePhotographerService(token, serviceId);
+              const response = await api.goLivePhotographerService(token, serviceId);
+              // Update the service in local state with the response
+              if (response?.service) {
+                setServices(prev => prev.map(svc => 
+                  svc.id === serviceId 
+                    ? { ...svc, status: "live" } as PhotographerService
+                    : svc
+                ));
+              }
               Alert.alert("Success", "Service is now live!");
               fetchDashboard();
             } catch (error: any) {
               console.error("[Dashboard] Failed to publish service:", error);
-              Alert.alert("Error", error.message || "Failed to publish service");
+              const errorMessage = error.message || "Failed to publish service";
+              // Check for Stripe onboarding error
+              if (errorMessage.toLowerCase().includes("stripe") || 
+                  errorMessage.toLowerCase().includes("onboarding")) {
+                Alert.alert(
+                  "Stripe Setup Required",
+                  "Provider must finish Stripe onboarding before services can go live.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Finish Stripe Setup", onPress: handleConnectStripe },
+                  ]
+                );
+              } else {
+                Alert.alert("Error", errorMessage);
+              }
+            } finally {
+              setPublishingServiceId(null);
             }
           },
         },
@@ -2207,6 +2233,7 @@ export default function PhotographerDashboardScreen() {
 
   const getServiceStatusColor = (status: string) => {
     switch (status) {
+      case "live":
       case "active": return "#22c55e";
       case "draft": return "#f97316";
       case "archived": return "#64748b";
@@ -2356,18 +2383,26 @@ export default function PhotographerDashboardScreen() {
                         profile?.stripeConnected ? (
                           <Pressable
                             onPress={() => handleGoLiveService(service.id, service.name)}
+                            disabled={publishingServiceId === service.id}
                             style={{
                               flex: 1,
                               flexDirection: "row",
                               alignItems: "center",
                               justifyContent: "center",
-                              backgroundColor: "#22c55e",
+                              backgroundColor: publishingServiceId === service.id ? "#86efac" : "#22c55e",
                               paddingVertical: 10,
                               borderRadius: 8,
+                              opacity: publishingServiceId === service.id ? 0.7 : 1,
                             }}
                           >
-                            <Feather name="zap" size={16} color="#fff" />
-                            <Text style={{ color: "#fff", fontWeight: "600", marginLeft: 6 }}>Go Live</Text>
+                            {publishingServiceId === service.id ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <>
+                                <Feather name="zap" size={16} color="#fff" />
+                                <Text style={{ color: "#fff", fontWeight: "600", marginLeft: 6 }}>Go Live</Text>
+                              </>
+                            )}
                           </Pressable>
                         ) : (
                           <Pressable
@@ -2386,7 +2421,7 @@ export default function PhotographerDashboardScreen() {
                             <Text style={{ color: "#fff", fontWeight: "600", marginLeft: 6 }}>Finish Stripe Setup</Text>
                           </Pressable>
                         )
-                      ) : status === "active" ? (
+                      ) : (status === "live" || status === "active") ? (
                         <Pressable
                           onPress={() => handleArchiveService(service.id, service.name)}
                           style={{
