@@ -1,0 +1,63 @@
+FRONTEND ONLY — Fix Book tab error triggered AFTER selecting a service.
+
+Context:
+After a user selects a service in the Book tab (Step 1),
+the app advances to Step 2 (Select Date).
+At this moment, the app throws:
+"providerType, providerId, year, and month are required"
+
+This error is triggered because the monthly availability calendar API
+is being called BEFORE required parameters are guaranteed.
+
+Goal:
+When transitioning from Step 1 (Service) → Step 2 (Date),
+the calendar must NOT fetch availability until ALL required values exist.
+
+Required params for GET /availability/calendar:
+- providerType ("photographer" | "business")
+- providerId (public provider UUID — NOT serviceId, NOT userId)
+- year (YYYY)
+- month (1–12)
+
+What to implement:
+
+1) Locate the BookingFlow logic that runs when a service is selected
+   and the step changes to "Date".
+
+2) Ensure BookingFlow receives provider context explicitly:
+   - providerType must be derived from the profile screen context
+   - providerId must be the photographer.id or business.id shown on profile
+
+3) On entering Step 2 (Date):
+   - Initialize calendarYear = current year
+   - Initialize calendarMonth = current month (JS Date.getMonth() + 1)
+
+4) Add a HARD GUARD before calling getAvailabilityCalendar:
+   Do NOT call the API unless ALL are defined:
+   - providerType
+   - providerId
+   - calendarYear
+   - calendarMonth
+
+   Example guard:
+   if (!providerType || !providerId || !calendarYear || !calendarMonth) return;
+
+5) The calendar API call should ONLY run:
+   - after service is selected
+   - AND after providerId/providerType are confirmed
+   - AND after year/month are initialized
+
+6) Do NOT show an error banner if params are missing.
+   Instead, show a loading placeholder until data is ready.
+
+7) Confirm the API request format is EXACTLY:
+   /availability/calendar?providerType=photographer&providerId=<uuid>&year=YYYY&month=MM
+
+8) Do NOT modify backend logic.
+9) Do NOT generate slots client-side.
+10) This fix applies ONLY to the Book tab flow.
+
+Deliverable:
+- Selecting a service no longer triggers the error
+- Step 2 calendar loads cleanly
+- Network logs show all required params
