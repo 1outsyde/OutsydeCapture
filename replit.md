@@ -27,7 +27,42 @@ The application features a modern UI with a color scheme centered around gold/ye
 - **Profile Screens**: Instagram/Shopify-style public profiles with hero sections, identity details, availability strips, and tabbed navigation for media, bookings, availability, and reviews.
 - **Admin Dashboard**: Provides a comprehensive interface for managing users, businesses, payments, messages, and influencers.
 - **Provider Dashboards**: Dedicated dashboards for Photographers and Businesses to manage earnings, bookings, services/products, availability, and profile information, integrating with Stripe Connect.
-- **Photographer Service Management**: CRUD operations for photography services via a dashboard, including status management (draft, active, archived) and publishing gates.
+- **Photographer Service Management**: CRUD operations for photography services via a dashboard, including status management (draft, live, archived) and publishing gates.
+
+### Booking Flow Implementation (CRITICAL - DO NOT CHANGE WITHOUT EXPLICIT INSTRUCTION)
+
+#### Service Status Values
+- **`draft`**: Service is created but not visible to clients. Shows "Go Live" button in dashboard.
+- **`live`**: Service is published, visible to clients, and bookable. Has Stripe product/price created.
+- **`archived`**: Service is hidden from clients but data is preserved. Shows in dashboard with Archive badge.
+
+#### Go Live Flow (Dashboard → Backend → Stripe)
+1. **Pre-check**: Verify provider has completed Stripe Connect onboarding (`profile.stripeConnected`)
+2. **API Call**: `POST /api/photographers/me/services/:id/go-live`
+3. **Backend creates**: Stripe Product + Stripe Price linked to provider's Connect account
+4. **Response includes**: `stripeConnectedProductId`, `stripeConnectedPriceId`, `status: "live"`
+5. **UI updates**: Loading spinner during publish, success alert, refresh dashboard
+6. **Error handling**: If Stripe onboarding incomplete, show "Finish Stripe Setup" CTA
+
+#### Service Filtering Rules
+- **Dashboard** (`PhotographerDashboardScreen.tsx`): Shows ALL services (draft, live, archived) with status badges
+- **Public Profile** (`ProfileScreen.tsx`): Filters to `status === "live" || status === "active"` only
+- **BookingFlow** (`components/BookingFlow.tsx`): Filters to `status === "live" || status === "active"` only
+- **Type Definition** (`BookingService` in `services/api.ts`): `status?: "live" | "active" | "draft" | "archived"`
+
+#### API Endpoints for Photographer Services
+- `GET /api/photographers/me/services` - List all services for dashboard
+- `POST /api/photographers/me/services` - Create new service (draft)
+- `PATCH /api/photographers/me/services/:id` - Update service details
+- `POST /api/photographers/me/services/:id/go-live` - Publish service (creates Stripe product)
+- `POST /api/photographers/me/services/:id/archive` - Archive service
+- `GET /api/photographers/:id/services` - Public endpoint for live services only
+
+#### Dashboard UI States
+- **Draft service**: Shows "Go Live" button (green) if Stripe connected, else "Finish Stripe Setup" (purple)
+- **Live service**: Shows "Archive" button (gray)
+- **Publishing**: Shows loading spinner on "Go Live" button, button disabled
+- **Error**: Alert with specific message; Stripe errors show "Finish Stripe Setup" CTA
 - **Photographer Availability System**: A 3-tier system for managing availability:
   - **Weekly Availability**: Recurring working hours via `GET/PUT /api/photographers/me/weekly-availability`
   - **Blocked Time Ranges**: Manual blocks via `GET/POST/PATCH/DELETE /api/photographers/me/blocks`
