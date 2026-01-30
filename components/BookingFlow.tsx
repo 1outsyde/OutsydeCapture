@@ -1,947 +1,958 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   StyleSheet,
   View,
-  ScrollView,
   Pressable,
-  Dimensions,
   ActivityIndicator,
+  Dimensions,
+  Modal,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
+import { useNavigation, CommonActions } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { VendorBookerAvailabilitySlot, BlockedDate } from "@/services/api";
+import api, {
+  BookingService,
+  AvailabilityCalendarDay,
+  AvailabilitySlot,
+  BookingHoldResponse,
+} from "@/services/api";
+import { RootStackParamList } from "@/navigation/types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const DAY_SIZE = (SCREEN_WIDTH - Spacing.md * 2 - Spacing.xs * 6) / 7;
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
 
-export interface PhotographerService {
-  id: string;
-  name: string;
-  description?: string;
-  price: number;
-  durationMinutes: number;
-  category?: string;
-  isPromo?: boolean;
-  promoPrice?: number;
-  promoEndDate?: string;
-  rating?: number | null;
-  reviewCount?: number | null;
-}
-
-export interface PhotographerProfile {
-  id: string;
-  name: string;
-  avatar?: string;
-  rating?: number;
-  reviewCount?: number;
-  hourlyRate?: number;
-  brandColors?: string;
-}
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 interface BookingFlowProps {
-  photographer: PhotographerProfile;
-  services: PhotographerService[];
-  availabilitySlots: VendorBookerAvailabilitySlot[];
-  blockedDates: BlockedDate[];
-  bookedSlots?: { date: string; startTime: string; endTime: string }[];
-  onBookingComplete?: (booking: {
-    serviceId: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-  }) => void;
-  accentColor?: string;
+  providerId: string;
+  providerType: "photographer" | "business";
+  providerName: string;
 }
 
-type BookingStep = "service" | "datetime" | "confirm";
+type Step = 1 | 2 | 3 | 4;
 
-const DAYS_OF_WEEK = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const formatPrice = (cents: number): string => {
+  return `$${(cents / 100).toFixed(2)}`;
+};
 
-export function BookingFlow({
-  photographer,
-  services,
-  availabilitySlots,
-  blockedDates,
-  bookedSlots = [],
-  onBookingComplete,
-  accentColor,
+const formatDuration = (minutes: number): string => {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+};
+
+export default function BookingFlow({
+  providerId,
+  providerType,
+  providerName,
 }: BookingFlowProps) {
-  const { theme, isDark } = useTheme();
-  const brandColor = accentColor || theme.primary;
+  const { theme } = useTheme();
+  const { getToken, isAuthenticated } = useAuth();
+  const navigation = useNavigation<NavigationProp>();
 
-  const [currentStep, setCurrentStep] = useState<BookingStep>("service");
-  const [selectedService, setSelectedService] = useState<PhotographerService | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-
-  const cardBg = isDark ? "#1C1C1E" : "#FFFFFF";
-  const borderColor = isDark ? "#333" : "#E5E5E5";
-
-  const getNext30Days = useMemo(() => {
-    const days: Date[] = [];
+  const [step, setStep] = useState<Step>(1);
+  const [services, setServices] = useState<BookingService[]>([]);
+  const [selectedService, setSelectedService] = useState<BookingService | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(now);
-      date.setDate(now.getDate() + i);
-      days.push(date);
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [calendarDays, setCalendarDays] = useState<AvailabilityCalendarDay[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
+  const [validatedEndTime, setValidatedEndTime] = useState<string | null>(null);
+  const [hold, setHold] = useState<BookingHoldResponse | null>(null);
+  const [holdTimeRemaining, setHoldTimeRemaining] = useState<number>(0);
+
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [creatingHold, setCreatingHold] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [showIncompatibleModal, setShowIncompatibleModal] = useState(false);
+  const [incompatibleReason, setIncompatibleReason] = useState<string>("");
+
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const monthDate = useMemo(() => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    return new Date(year, month - 1, 1);
+  }, [currentMonth]);
+
+  const monthDisplay = useMemo(() => {
+    return `${MONTHS[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
+  }, [monthDate]);
+
+  const calendarGrid = useMemo(() => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const grid: Array<{
+      date: string | null;
+      dayNum: number | null;
+      status: "available" | "partial" | "unavailable" | "past" | null;
+      isToday: boolean;
+    }> = [];
+
+    for (let i = 0; i < firstDay; i++) {
+      grid.push({ date: null, dayNum: null, status: null, isToday: false });
     }
-    return days;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const dateObj = new Date(year, month, day);
+      const isPast = dateObj < today;
+      const isToday = dateObj.getTime() === today.getTime();
+      
+      const calendarDay = calendarDays.find((d) => d.date === dateStr);
+      const status = isPast ? "past" : calendarDay?.status || "unavailable";
+
+      grid.push({ date: dateStr, dayNum: day, status, isToday });
+    }
+
+    return grid;
+  }, [monthDate, calendarDays]);
+
+  const selectedDateDisplay = useMemo(() => {
+    if (!selectedDate) return "";
+    const d = new Date(selectedDate + "T00:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  }, [selectedDate]);
+
+  useEffect(() => {
+    fetchServices();
   }, []);
 
-  const isDateBlocked = (date: Date): boolean => {
-    const dateStr = date.toISOString().split("T")[0];
-    return blockedDates.some((blocked) => blocked.date === dateStr);
+  useEffect(() => {
+    if (step === 2 && selectedService) {
+      fetchCalendar();
+    }
+  }, [step, currentMonth, selectedService]);
+
+  useEffect(() => {
+    if (step === 3 && selectedDate) {
+      fetchSlots();
+    }
+  }, [step, selectedDate]);
+
+  useEffect(() => {
+    if (hold) {
+      const updateTimer = () => {
+        const remaining = Math.max(0, new Date(hold.expiresAt).getTime() - Date.now());
+        setHoldTimeRemaining(remaining);
+        if (remaining <= 0) {
+          handleHoldExpired();
+        }
+      };
+      updateTimer();
+      holdTimerRef.current = setInterval(updateTimer, 1000);
+      return () => {
+        if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+      };
+    }
+  }, [hold]);
+
+  const fetchServices = async () => {
+    setLoadingServices(true);
+    setError(null);
+    try {
+      const data = await api.getProviderServices(providerId, providerType);
+      const activeServices = data.filter((s) => s.status === "active" || !s.status);
+      setServices(activeServices);
+    } catch (err: any) {
+      setError(err.message || "Failed to load services");
+    } finally {
+      setLoadingServices(false);
+    }
   };
 
-  const isDateBooked = (date: Date, time: string): boolean => {
-    const dateStr = date.toISOString().split("T")[0];
-    return bookedSlots.some(
-      (slot) => slot.date === dateStr && slot.startTime === time
+  const fetchCalendar = async () => {
+    setLoadingCalendar(true);
+    try {
+      const response = await api.getAvailabilityCalendar(providerId, providerType, currentMonth);
+      setCalendarDays(response.days || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load calendar");
+    } finally {
+      setLoadingCalendar(false);
+    }
+  };
+
+  const fetchSlots = async () => {
+    if (!selectedDate) return;
+    setLoadingSlots(true);
+    try {
+      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate);
+      setSlots(response.slots?.filter((s) => s.status === "available") || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load time slots");
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const validateSlot = async (slot: AvailabilitySlot) => {
+    if (!selectedService || !selectedDate) return;
+    
+    const token = await getToken();
+    if (!token) {
+      setError("Please sign in to book");
+      return;
+    }
+
+    setValidating(true);
+    try {
+      const response = await api.validateBookingSlot(token, {
+        providerId,
+        providerType,
+        serviceId: selectedService.id,
+        date: selectedDate,
+        startTime: slot.startTime,
+      });
+
+      if (response.valid) {
+        setSelectedSlot(slot);
+        setValidatedEndTime(response.endTime || null);
+        await createHold(slot);
+      } else {
+        setIncompatibleReason(response.reason || "This service requires more time than this slot allows.");
+        setShowIncompatibleModal(true);
+      }
+    } catch (err: any) {
+      setIncompatibleReason(err.message || "This slot is not compatible with the selected service.");
+      setShowIncompatibleModal(true);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const createHold = async (slot: AvailabilitySlot) => {
+    if (!selectedService || !selectedDate) return;
+    
+    const token = await getToken();
+    if (!token) return;
+
+    setCreatingHold(true);
+    try {
+      const response = await api.createBookingHold(token, {
+        providerId,
+        providerType,
+        serviceId: selectedService.id,
+        date: selectedDate,
+        startTime: slot.startTime,
+      });
+
+      if (response.success) {
+        setHold(response);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setStep(4);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to hold slot");
+    } finally {
+      setCreatingHold(false);
+    }
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!hold) return;
+    
+    const token = await getToken();
+    if (!token) return;
+
+    setConfirming(true);
+    try {
+      const baseUrl = Platform.OS === "web" 
+        ? window.location.origin 
+        : "outsyde://";
+      const successUrl = `${baseUrl}/booking-success`;
+      const cancelUrl = `${baseUrl}/booking-cancel`;
+
+      const response = await api.confirmBooking(token, hold.holdId, successUrl, cancelUrl);
+
+      if (response.checkoutUrl) {
+        if (Platform.OS === "web") {
+          window.location.href = response.checkoutUrl;
+        } else {
+          await WebBrowser.openBrowserAsync(response.checkoutUrl);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to confirm booking");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleHoldExpired = () => {
+    if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+    setHold(null);
+    setSelectedSlot(null);
+    setStep(3);
+    setError("Your hold has expired. Please select a new time slot.");
+  };
+
+  const handleRequestAccommodation = () => {
+    setShowIncompatibleModal(false);
+    const message = `Hi! I'd like to book ${selectedService?.name} on ${selectedDateDisplay}. Is there any way to accommodate this service at a time that works?`;
+    
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: "Messages",
+        params: {
+          prefilledMessage: message,
+          recipientId: providerId,
+          recipientType: providerType,
+          recipientName: providerName,
+        },
+      })
     );
   };
 
-  const getDayAvailability = (date: Date): VendorBookerAvailabilitySlot | null => {
-    const dayIndex = date.getDay();
-    return availabilitySlots.find((s) => s.dayOfWeek === dayIndex && s.isRecurring) || null;
+  const handleServiceSelect = (service: BookingService) => {
+    Haptics.selectionAsync();
+    setSelectedService(service);
+    setStep(2);
+    setSelectedDate(null);
+    setSelectedSlot(null);
   };
 
-  const generateTimeSlots = (date: Date): { morning: string[]; afternoon: string[]; evening: string[] } => {
-    const availability = getDayAvailability(date);
-    if (!availability) return { morning: [], afternoon: [], evening: [] };
+  const handleDateSelect = (date: string, status: string) => {
+    if (status === "past" || status === "unavailable") return;
+    Haptics.selectionAsync();
+    setSelectedDate(date);
+    setSlots([]);
+    setStep(3);
+  };
 
-    const parseTime = (timeStr: string): number => {
-      const [hours, minutes] = timeStr.split(":").map(Number);
-      return hours * 60 + (minutes || 0);
+  const handleSlotSelect = (slot: AvailabilitySlot) => {
+    Haptics.selectionAsync();
+    validateSlot(slot);
+  };
+
+  const handlePrevMonth = () => {
+    Haptics.selectionAsync();
+    const [year, month] = currentMonth.split("-").map(Number);
+    const prev = new Date(year, month - 2, 1);
+    const now = new Date();
+    if (prev >= new Date(now.getFullYear(), now.getMonth(), 1)) {
+      setCurrentMonth(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`);
+    }
+  };
+
+  const handleNextMonth = () => {
+    Haptics.selectionAsync();
+    const [year, month] = currentMonth.split("-").map(Number);
+    const next = new Date(year, month, 1);
+    const threeMonthsAhead = new Date();
+    threeMonthsAhead.setMonth(threeMonthsAhead.getMonth() + 3);
+    if (next <= threeMonthsAhead) {
+      setCurrentMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`);
+    }
+  };
+
+  const goBack = () => {
+    Haptics.selectionAsync();
+    if (step === 2) {
+      setStep(1);
+      setSelectedService(null);
+    } else if (step === 3) {
+      setStep(2);
+      setSelectedDate(null);
+      setSlots([]);
+    } else if (step === 4 && hold) {
+      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+      setHold(null);
+      setStep(3);
+    }
+  };
+
+  const formatHoldTime = (ms: number): string => {
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${mins}:${String(secs).padStart(2, "0")}`;
+  };
+
+  const getDayStyle = (status: string | null, isSelected: boolean, isToday: boolean) => {
+    const base: any = {
+      width: DAY_SIZE,
+      height: DAY_SIZE,
+      borderRadius: BorderRadius.sm,
+      alignItems: "center",
+      justifyContent: "center",
     };
 
-    const formatTime = (minutes: number): string => {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      const period = hours >= 12 ? "PM" : "AM";
-      const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-      return `${displayHours}:${mins.toString().padStart(2, "0")} ${period}`;
-    };
-
-    const startMinutes = parseTime(availability.startTime);
-    const endMinutes = parseTime(availability.endTime);
-    const slotDuration = selectedService?.durationMinutes || 60;
-
-    const morning: string[] = [];
-    const afternoon: string[] = [];
-    const evening: string[] = [];
-
-    for (let time = startMinutes; time + slotDuration <= endMinutes; time += slotDuration) {
-      const formattedTime = formatTime(time);
-      const hours = Math.floor(time / 60);
-
-      if (hours < 12) {
-        morning.push(formattedTime);
-      } else if (hours < 17) {
-        afternoon.push(formattedTime);
-      } else {
-        evening.push(formattedTime);
-      }
+    if (isSelected) {
+      base.backgroundColor = theme.primary;
+    } else if (status === "available") {
+      base.backgroundColor = theme.success + "30";
+    } else if (status === "partial") {
+      base.backgroundColor = theme.warning + "30";
+    } else if (status === "unavailable" || status === "past") {
+      base.backgroundColor = theme.backgroundSecondary;
     }
 
-    return { morning, afternoon, evening };
-  };
-
-  const getCalendarDays = useMemo(() => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startPadding = firstDay.getDay();
-    const days: (Date | null)[] = [];
-
-    for (let i = 0; i < startPadding; i++) {
-      days.push(null);
+    if (isToday && !isSelected) {
+      base.borderWidth = 2;
+      base.borderColor = theme.primary;
     }
 
-    for (let i = 1; i <= lastDay.getDate(); i++) {
-      days.push(new Date(year, month, i));
-    }
-
-    return days;
-  }, [currentMonth]);
-
-  const isToday = (date: Date): boolean => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
+    return base;
   };
 
-  const isPastDate = (date: Date): boolean => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+  const getDayTextColor = (status: string | null, isSelected: boolean) => {
+    if (isSelected) return "#FFFFFF";
+    if (status === "past" || status === "unavailable") return theme.textMuted;
+    return theme.text;
   };
 
-  const hasAvailability = (date: Date): boolean => {
-    if (isPastDate(date) || isDateBlocked(date)) return false;
-    return getDayAvailability(date) !== null;
-  };
-
-  const totalPrice = useMemo(() => {
-    if (!selectedService) return 0;
-    return selectedService.isPromo && selectedService.promoPrice
-      ? selectedService.promoPrice
-      : selectedService.price;
-  }, [selectedService]);
-
-  const formatPrice = (cents: number): string => {
-    return `$${(cents / 100).toFixed(2)}`;
-  };
-
-  const formatDuration = (minutes: number): string => {
-    if (minutes < 60) return `${minutes} min`;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-  };
-
-  const canProceed = (): boolean => {
-    switch (currentStep) {
-      case "service":
-        return selectedService !== null;
-      case "datetime":
-        return selectedDate !== null && selectedTime !== null;
-      case "confirm":
-        return true;
-      default:
-        return false;
-    }
-  };
-
-  const handleNext = () => {
-    if (currentStep === "service" && selectedService) {
-      setCurrentStep("datetime");
-    } else if (currentStep === "datetime" && selectedDate && selectedTime) {
-      setCurrentStep("confirm");
-    } else if (currentStep === "confirm") {
-      onBookingComplete?.({
-        serviceId: selectedService!.id,
-        date: selectedDate!.toISOString().split("T")[0],
-        startTime: selectedTime!,
-        endTime: selectedTime!,
-      });
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep === "datetime") {
-      setCurrentStep("service");
-    } else if (currentStep === "confirm") {
-      setCurrentStep("datetime");
-    }
-  };
-
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      <View style={[styles.stepDot, currentStep === "service" && { backgroundColor: brandColor }]} />
-      <View style={[styles.stepLine, { backgroundColor: currentStep !== "service" ? brandColor : borderColor }]} />
-      <View style={[styles.stepDot, currentStep === "datetime" && { backgroundColor: brandColor }]} />
-      <View style={[styles.stepLine, { backgroundColor: currentStep === "confirm" ? brandColor : borderColor }]} />
-      <View style={[styles.stepDot, currentStep === "confirm" && { backgroundColor: brandColor }]} />
-    </View>
-  );
-
-  const renderServiceStep = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <ThemedText type="h3" style={styles.stepTitle}>Select Service</ThemedText>
-      <ThemedText type="body" style={{ color: theme.textSecondary, marginBottom: Spacing.lg }}>
-        Choose a photography package
-      </ThemedText>
-
-      {services.length === 0 ? (
-        <View style={[styles.emptyCard, { backgroundColor: cardBg }]}>
-          <Feather name="camera-off" size={32} color={theme.textSecondary} />
-          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-            No services available yet
+  if (!isAuthenticated) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={styles.authPrompt}>
+          <Feather name="lock" size={32} color={theme.textMuted} />
+          <ThemedText style={[styles.authText, { color: theme.textMuted }]}>
+            Sign in to book appointments
           </ThemedText>
         </View>
-      ) : (
-        services.map((service) => {
-          const isSelected = selectedService?.id === service.id;
-          return (
-            <Pressable
-              key={service.id}
-              onPress={() => setSelectedService(service)}
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.container}>
+      <ThemedText type="h3" style={styles.header}>
+        Book Appointment
+      </ThemedText>
+
+      <View style={styles.progressContainer}>
+        {[1, 2, 3, 4].map((s) => (
+          <View key={s} style={styles.progressItem}>
+            <View
               style={[
-                styles.serviceCard,
+                styles.progressDot,
                 {
-                  backgroundColor: cardBg,
-                  borderColor: isSelected ? brandColor : borderColor,
-                  borderWidth: isSelected ? 2 : 1,
+                  backgroundColor: step >= s ? theme.primary : theme.backgroundSecondary,
+                  borderColor: step >= s ? theme.primary : theme.border,
                 },
               ]}
             >
-              <View style={styles.serviceCardLeft}>
-                <View
-                  style={[
-                    styles.radioOuter,
-                    { borderColor: isSelected ? brandColor : theme.textSecondary },
-                  ]}
-                >
-                  {isSelected && (
-                    <View style={[styles.radioInner, { backgroundColor: brandColor }]} />
-                  )}
-                </View>
-                <View style={styles.serviceInfo}>
-                  <ThemedText type="h4">{service.name}</ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                    {formatDuration(service.durationMinutes)}
-                  </ThemedText>
-                  {/* Star Rating Display */}
-                  {service.rating && service.rating > 0 && (
-                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
-                      {[...Array(Math.floor(service.rating / 10))].map((_, i) => (
-                        <Feather key={i} name="star" size={10} color={brandColor} style={{ marginRight: 1 }} />
-                      ))}
-                      {[...Array(5 - Math.floor(service.rating / 10))].map((_, i) => (
-                        <Feather key={`e-${i}`} name="star" size={10} color={theme.textSecondary} style={{ marginRight: 1 }} />
-                      ))}
-                      <ThemedText type="small" style={{ marginLeft: 4, color: theme.textSecondary, fontSize: 10 }}>
-                        {(service.rating / 10).toFixed(1)}
-                        {service.reviewCount ? ` (${service.reviewCount})` : ""}
-                      </ThemedText>
-                    </View>
-                  )}
-                  {service.description && (
-                    <ThemedText
-                      type="small"
-                      style={{ color: theme.textSecondary, marginTop: 4 }}
-                      numberOfLines={2}
-                    >
-                      {service.description}
-                    </ThemedText>
-                  )}
-                </View>
-              </View>
-              <View style={styles.serviceCardRight}>
-                {service.isPromo && service.promoPrice ? (
-                  <>
-                    <ThemedText
-                      type="small"
-                      style={{ color: theme.textSecondary, textDecorationLine: "line-through" }}
-                    >
-                      {formatPrice(service.price)}
-                    </ThemedText>
-                    <ThemedText type="h4" style={{ color: "#34C759" }}>
-                      {formatPrice(service.promoPrice)}
-                    </ThemedText>
-                    <View style={[styles.promoBadge, { backgroundColor: "#34C75920" }]}>
-                      <ThemedText type="small" style={{ color: "#34C759", fontSize: 10 }}>
-                        PROMO
-                      </ThemedText>
-                    </View>
-                  </>
-                ) : (
-                  <ThemedText type="h4">{formatPrice(service.price)}</ThemedText>
-                )}
-              </View>
-            </Pressable>
-          );
-        })
-      )}
-    </ScrollView>
-  );
-
-  const renderDateTimeStep = () => {
-    const timeSlots = selectedDate ? generateTimeSlots(selectedDate) : { morning: [], afternoon: [], evening: [] };
-    const hasTimeSlots = timeSlots.morning.length > 0 || timeSlots.afternoon.length > 0 || timeSlots.evening.length > 0;
-
-    return (
-      <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-        <ThemedText type="h3" style={styles.stepTitle}>Select Date & Time</ThemedText>
-
-        <View style={[styles.calendarHeader, { borderBottomColor: borderColor }]}>
-          <Pressable onPress={() => {
-            const prev = new Date(currentMonth);
-            prev.setMonth(prev.getMonth() - 1);
-            setCurrentMonth(prev);
-          }}>
-            <Feather name="chevron-left" size={24} color={theme.text} />
-          </Pressable>
-          <ThemedText type="h4">
-            {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-          </ThemedText>
-          <Pressable onPress={() => {
-            const next = new Date(currentMonth);
-            next.setMonth(next.getMonth() + 1);
-            setCurrentMonth(next);
-          }}>
-            <Feather name="chevron-right" size={24} color={theme.text} />
-          </Pressable>
-        </View>
-
-        <View style={styles.weekDaysRow}>
-          {DAYS_OF_WEEK.map((day) => (
-            <ThemedText key={day} type="small" style={[styles.weekDayLabel, { color: theme.textSecondary }]}>
-              {day}
+              {step > s ? (
+                <Feather name="check" size={12} color="#FFFFFF" />
+              ) : (
+                <ThemedText style={{ color: step >= s ? "#FFFFFF" : theme.textMuted, fontSize: 12 }}>
+                  {s}
+                </ThemedText>
+              )}
+            </View>
+            <ThemedText style={[styles.progressLabel, { color: step >= s ? theme.text : theme.textMuted }]}>
+              {s === 1 ? "Service" : s === 2 ? "Date" : s === 3 ? "Time" : "Confirm"}
             </ThemedText>
-          ))}
+          </View>
+        ))}
+      </View>
+
+      {step > 1 && !hold && (
+        <Pressable onPress={goBack} style={styles.backButton}>
+          <Feather name="arrow-left" size={20} color={theme.primary} />
+          <ThemedText style={{ color: theme.primary, marginLeft: Spacing.xs }}>Back</ThemedText>
+        </Pressable>
+      )}
+
+      {error && (
+        <View style={[styles.errorBanner, { backgroundColor: theme.error + "20" }]}>
+          <Feather name="alert-circle" size={16} color={theme.error} />
+          <ThemedText style={[styles.errorText, { color: theme.error }]}>{error}</ThemedText>
+          <Pressable onPress={() => setError(null)}>
+            <Feather name="x" size={16} color={theme.error} />
+          </Pressable>
         </View>
+      )}
 
-        <View style={styles.calendarGrid}>
-          {getCalendarDays.map((date, index) => {
-            if (!date) {
-              return <View key={`empty-${index}`} style={styles.calendarDay} />;
-            }
-
-            const available = hasAvailability(date);
-            const past = isPastDate(date);
-            const blocked = isDateBlocked(date);
-            const today = isToday(date);
-            const isSelectedDate = selectedDate?.toDateString() === date.toDateString();
-
-            return (
+      {step === 1 && (
+        <View style={styles.stepContent}>
+          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
+            Select a Service
+          </ThemedText>
+          {loadingServices ? (
+            <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
+          ) : services.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="calendar" size={32} color={theme.textMuted} />
+              <ThemedText style={{ color: theme.textMuted, marginTop: Spacing.sm }}>
+                No services available
+              </ThemedText>
+            </View>
+          ) : (
+            services.map((service) => (
               <Pressable
-                key={date.toISOString()}
-                onPress={() => {
-                  if (available && !past && !blocked) {
-                    setSelectedDate(date);
-                    setSelectedTime(null);
-                  }
-                }}
-                disabled={!available || past || blocked}
+                key={service.id}
+                onPress={() => handleServiceSelect(service)}
                 style={[
-                  styles.calendarDay,
-                  isSelectedDate && { backgroundColor: brandColor, borderRadius: 20 },
+                  styles.serviceCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
                 ]}
               >
-                <ThemedText
-                  type="body"
-                  style={[
-                    styles.calendarDayText,
-                    (past || blocked || !available) && { color: theme.textSecondary, opacity: 0.4 },
-                    isSelectedDate && { color: "#FFFFFF", fontWeight: "700" },
-                    today && !isSelectedDate && { color: brandColor, fontWeight: "700" },
-                  ]}
-                >
-                  {date.getDate()}
-                </ThemedText>
-                {available && !past && !blocked && !isSelectedDate && (
-                  <View style={[styles.availabilityDot, { backgroundColor: "#FFD700" }]} />
-                )}
+                <View style={styles.serviceInfo}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>
+                    {service.name}
+                  </ThemedText>
+                  {service.description ? (
+                    <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.xs }} numberOfLines={2}>
+                      {service.description}
+                    </ThemedText>
+                  ) : null}
+                  <View style={styles.serviceMeta}>
+                    <View style={styles.metaItem}>
+                      <Feather name="clock" size={14} color={theme.textSecondary} />
+                      <ThemedText style={{ color: theme.textSecondary, marginLeft: 4 }}>
+                        {formatDuration(service.durationMinutes)}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.servicePrice}>
+                  <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary }}>
+                    {formatPrice(service.priceCents)}
+                  </ThemedText>
+                  <Feather name="chevron-right" size={20} color={theme.textMuted} />
+                </View>
               </Pressable>
-            );
-          })}
+            ))
+          )}
         </View>
+      )}
 
-        {selectedDate && (
-          <View style={styles.timeSlotsSection}>
-            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
-              {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+      {step === 2 && (
+        <View style={styles.stepContent}>
+          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
+            Select a Date
+          </ThemedText>
+          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.primaryTransparent }]}>
+            <ThemedText style={{ fontWeight: "600" }}>{selectedService?.name}</ThemedText>
+            <ThemedText style={{ color: theme.textSecondary }}>
+              {formatDuration(selectedService?.durationMinutes || 0)} • {formatPrice(selectedService?.priceCents || 0)}
             </ThemedText>
-
-            {!hasTimeSlots ? (
-              <View style={[styles.emptyCard, { backgroundColor: cardBg }]}>
-                <Feather name="clock" size={24} color={theme.textSecondary} />
-                <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                  No available time slots
-                </ThemedText>
-              </View>
-            ) : (
-              <>
-                {timeSlots.morning.length > 0 && (
-                  <View style={styles.timeSection}>
-                    <ThemedText type="body" style={[styles.timeSectionTitle, { color: theme.textSecondary }]}>
-                      Morning
-                    </ThemedText>
-                    <View style={styles.timePillsRow}>
-                      {timeSlots.morning.map((time) => {
-                        const booked = isDateBooked(selectedDate, time);
-                        const isSelectedTime = selectedTime === time;
-                        return (
-                          <Pressable
-                            key={time}
-                            onPress={() => !booked && setSelectedTime(time)}
-                            disabled={booked}
-                            style={[
-                              styles.timePill,
-                              {
-                                backgroundColor: isSelectedTime ? brandColor : cardBg,
-                                borderColor: isSelectedTime ? brandColor : borderColor,
-                                opacity: booked ? 0.5 : 1,
-                              },
-                            ]}
-                          >
-                            <ThemedText
-                              type="small"
-                              style={[
-                                styles.timePillText,
-                                isSelectedTime && { color: "#FFFFFF" },
-                                booked && { textDecorationLine: "line-through" },
-                              ]}
-                            >
-                              {time}
-                            </ThemedText>
-                            {booked && (
-                              <View style={styles.bookedIndicator}>
-                                <View style={[styles.bookedDot, { backgroundColor: "#FF3B30" }]} />
-                                <ThemedText type="small" style={{ color: "#FF3B30", fontSize: 9 }}>
-                                  booked
-                                </ThemedText>
-                              </View>
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-
-                {timeSlots.afternoon.length > 0 && (
-                  <View style={styles.timeSection}>
-                    <ThemedText type="body" style={[styles.timeSectionTitle, { color: theme.textSecondary }]}>
-                      Afternoon
-                    </ThemedText>
-                    <View style={styles.timePillsRow}>
-                      {timeSlots.afternoon.map((time) => {
-                        const booked = isDateBooked(selectedDate, time);
-                        const isSelectedTime = selectedTime === time;
-                        return (
-                          <Pressable
-                            key={time}
-                            onPress={() => !booked && setSelectedTime(time)}
-                            disabled={booked}
-                            style={[
-                              styles.timePill,
-                              {
-                                backgroundColor: isSelectedTime ? brandColor : cardBg,
-                                borderColor: isSelectedTime ? brandColor : borderColor,
-                                opacity: booked ? 0.5 : 1,
-                              },
-                            ]}
-                          >
-                            <ThemedText
-                              type="small"
-                              style={[
-                                styles.timePillText,
-                                isSelectedTime && { color: "#FFFFFF" },
-                                booked && { textDecorationLine: "line-through" },
-                              ]}
-                            >
-                              {time}
-                            </ThemedText>
-                            {booked && (
-                              <View style={styles.bookedIndicator}>
-                                <View style={[styles.bookedDot, { backgroundColor: "#FF3B30" }]} />
-                                <ThemedText type="small" style={{ color: "#FF3B30", fontSize: 9 }}>
-                                  booked
-                                </ThemedText>
-                              </View>
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-
-                {timeSlots.evening.length > 0 && (
-                  <View style={styles.timeSection}>
-                    <ThemedText type="body" style={[styles.timeSectionTitle, { color: theme.textSecondary }]}>
-                      Evening
-                    </ThemedText>
-                    <View style={styles.timePillsRow}>
-                      {timeSlots.evening.map((time) => {
-                        const booked = isDateBooked(selectedDate, time);
-                        const isSelectedTime = selectedTime === time;
-                        return (
-                          <Pressable
-                            key={time}
-                            onPress={() => !booked && setSelectedTime(time)}
-                            disabled={booked}
-                            style={[
-                              styles.timePill,
-                              {
-                                backgroundColor: isSelectedTime ? brandColor : cardBg,
-                                borderColor: isSelectedTime ? brandColor : borderColor,
-                                opacity: booked ? 0.5 : 1,
-                              },
-                            ]}
-                          >
-                            <ThemedText
-                              type="small"
-                              style={[
-                                styles.timePillText,
-                                isSelectedTime && { color: "#FFFFFF" },
-                                booked && { textDecorationLine: "line-through" },
-                              ]}
-                            >
-                              {time}
-                            </ThemedText>
-                            {booked && (
-                              <View style={styles.bookedIndicator}>
-                                <View style={[styles.bookedDot, { backgroundColor: "#FF3B30" }]} />
-                                <ThemedText type="small" style={{ color: "#FF3B30", fontSize: 9 }}>
-                                  booked
-                                </ThemedText>
-                              </View>
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-              </>
-            )}
           </View>
-        )}
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
-    );
-  };
+          <View style={styles.monthNav}>
+            <Pressable onPress={handlePrevMonth} hitSlop={12}>
+              <Feather name="chevron-left" size={24} color={theme.text} />
+            </Pressable>
+            <ThemedText type="body" style={{ fontWeight: "600" }}>{monthDisplay}</ThemedText>
+            <Pressable onPress={handleNextMonth} hitSlop={12}>
+              <Feather name="chevron-right" size={24} color={theme.text} />
+            </Pressable>
+          </View>
 
-  const renderConfirmStep = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <ThemedText type="h3" style={styles.stepTitle}>Confirm Booking</ThemedText>
+          <View style={styles.weekdayRow}>
+            {WEEKDAYS.map((day) => (
+              <View key={day} style={[styles.weekdayCell, { width: DAY_SIZE }]}>
+                <ThemedText style={[styles.weekdayText, { color: theme.textSecondary }]}>{day}</ThemedText>
+              </View>
+            ))}
+          </View>
 
-      <View style={[styles.confirmCard, { backgroundColor: cardBg, borderColor }]}>
-        <View style={styles.providerRow}>
-          {photographer.avatar ? (
-            <Image source={{ uri: photographer.avatar }} style={styles.providerAvatar} />
+          {loadingCalendar ? (
+            <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
           ) : (
-            <View style={[styles.providerAvatarPlaceholder, { backgroundColor: brandColor }]}>
-              <ThemedText type="h4" style={{ color: "#FFFFFF" }}>
-                {photographer.name?.charAt(0)?.toUpperCase() || "P"}
-              </ThemedText>
+            <View style={styles.calendarGrid}>
+              {calendarGrid.map((cell, index) => (
+                <Pressable
+                  key={index}
+                  onPress={() => cell.date && cell.status && handleDateSelect(cell.date, cell.status)}
+                  disabled={!cell.date || cell.status === "past" || cell.status === "unavailable"}
+                  style={getDayStyle(cell.status, selectedDate === cell.date, cell.isToday)}
+                >
+                  {cell.dayNum && (
+                    <ThemedText
+                      style={{
+                        color: getDayTextColor(cell.status, selectedDate === cell.date),
+                        fontWeight: cell.isToday ? "700" : "400",
+                      }}
+                    >
+                      {cell.dayNum}
+                    </ThemedText>
+                  )}
+                </Pressable>
+              ))}
             </View>
           )}
-          <View style={styles.providerInfo}>
-            <ThemedText type="h4">{photographer.name}</ThemedText>
-            <View style={styles.ratingRow}>
-              <Feather name="star" size={14} color="#FFD700" />
-              <ThemedText type="small" style={{ marginLeft: 4 }}>
-                {photographer.rating?.toFixed(1) || "5.0"} ({photographer.reviewCount || 0} Reviews)
+        </View>
+      )}
+
+      {step === 3 && (
+        <View style={styles.stepContent}>
+          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
+            Select a Time
+          </ThemedText>
+          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.primaryTransparent }]}>
+            <ThemedText style={{ fontWeight: "600" }}>{selectedService?.name}</ThemedText>
+            <ThemedText style={{ color: theme.textSecondary }}>
+              {selectedDateDisplay} • {formatPrice(selectedService?.priceCents || 0)}
+            </ThemedText>
+          </View>
+
+          {loadingSlots || validating || creatingHold ? (
+            <View style={styles.loader}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                {validating ? "Validating..." : creatingHold ? "Holding slot..." : "Loading..."}
+              </ThemedText>
+            </View>
+          ) : slots.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="clock" size={32} color={theme.textMuted} />
+              <ThemedText style={{ color: theme.textMuted, marginTop: Spacing.sm }}>
+                No available time slots
+              </ThemedText>
+            </View>
+          ) : (
+            <View style={styles.slotsGrid}>
+              {slots.map((slot) => (
+                <Pressable
+                  key={slot.id}
+                  onPress={() => handleSlotSelect(slot)}
+                  style={[
+                    styles.slotButton,
+                    {
+                      backgroundColor: theme.success + "20",
+                      borderColor: theme.success,
+                    },
+                  ]}
+                >
+                  <ThemedText style={{ fontWeight: "600" }}>{slot.startTime}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
+      {step === 4 && hold && (
+        <View style={styles.stepContent}>
+          <View style={[styles.holdBanner, { backgroundColor: theme.warning + "20" }]}>
+            <Feather name="clock" size={16} color={theme.warning} />
+            <ThemedText style={{ color: theme.warning, marginLeft: Spacing.xs, fontWeight: "600" }}>
+              Slot held for {formatHoldTime(holdTimeRemaining)}
+            </ThemedText>
+          </View>
+
+          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
+            Confirm Booking
+          </ThemedText>
+
+          <View style={[styles.confirmationCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.confirmRow}>
+              <ThemedText style={{ color: theme.textSecondary }}>Service</ThemedText>
+              <ThemedText style={{ fontWeight: "600" }}>{hold.service.name}</ThemedText>
+            </View>
+            <View style={styles.confirmRow}>
+              <ThemedText style={{ color: theme.textSecondary }}>Duration</ThemedText>
+              <ThemedText>{formatDuration(hold.service.durationMinutes)}</ThemedText>
+            </View>
+            <View style={styles.confirmRow}>
+              <ThemedText style={{ color: theme.textSecondary }}>Date</ThemedText>
+              <ThemedText>{new Date(hold.slot.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</ThemedText>
+            </View>
+            <View style={styles.confirmRow}>
+              <ThemedText style={{ color: theme.textSecondary }}>Time</ThemedText>
+              <ThemedText>{hold.slot.startTime} - {hold.slot.endTime}</ThemedText>
+            </View>
+            <View style={[styles.confirmRow, styles.totalRow, { borderTopColor: theme.border }]}>
+              <ThemedText type="body" style={{ fontWeight: "600" }}>Total</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary, fontSize: 18 }}>
+                {formatPrice(hold.service.priceCents)}
               </ThemedText>
             </View>
           </View>
-        </View>
-      </View>
 
-      <View style={[styles.confirmCard, { backgroundColor: cardBg, borderColor }]}>
-        <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: 8 }}>
-          SERVICE
-        </ThemedText>
-        <ThemedText type="h4">{selectedService?.name}</ThemedText>
-        <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
-          {formatDuration(selectedService?.durationMinutes || 60)}
-        </ThemedText>
-      </View>
-
-      <View style={[styles.confirmCard, { backgroundColor: cardBg, borderColor }]}>
-        <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: 8 }}>
-          DATE & TIME
-        </ThemedText>
-        <ThemedText type="h4">
-          {selectedDate?.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-        </ThemedText>
-        <ThemedText type="body" style={{ color: brandColor, marginTop: 4 }}>
-          {selectedTime}
-        </ThemedText>
-      </View>
-
-      <View style={[styles.confirmCard, { backgroundColor: cardBg, borderColor }]}>
-        <View style={styles.priceRow}>
-          <ThemedText type="body">Subtotal</ThemedText>
-          <ThemedText type="body">{formatPrice(totalPrice)}</ThemedText>
-        </View>
-        <View style={[styles.priceRow, { marginTop: 8 }]}>
-          <ThemedText type="body" style={{ color: theme.textSecondary }}>
-            Processing Fee
-          </ThemedText>
-          <ThemedText type="body" style={{ color: theme.textSecondary }}>
-            {formatPrice(Math.round(totalPrice * 0.029 + 30))}
-          </ThemedText>
-        </View>
-        <View style={[styles.divider, { backgroundColor: borderColor }]} />
-        <View style={styles.priceRow}>
-          <ThemedText type="h4">Total</ThemedText>
-          <ThemedText type="h3" style={{ color: brandColor }}>
-            {formatPrice(totalPrice + Math.round(totalPrice * 0.029 + 30))}
-          </ThemedText>
-        </View>
-      </View>
-
-      <View style={{ height: 120 }} />
-    </ScrollView>
-  );
-
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { borderBottomColor: borderColor }]}>
-        {currentStep !== "service" ? (
-          <Pressable onPress={handleBack} style={styles.headerButton}>
-            <Feather name="chevron-left" size={24} color={theme.text} />
+          <Pressable
+            onPress={handleConfirmBooking}
+            disabled={confirming || holdTimeRemaining <= 0}
+            style={[
+              styles.confirmButton,
+              {
+                backgroundColor: holdTimeRemaining <= 0 ? theme.textMuted : theme.primary,
+                opacity: confirming ? 0.7 : 1,
+              },
+            ]}
+          >
+            {confirming ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Feather name="credit-card" size={20} color="#FFFFFF" />
+                <ThemedText style={styles.confirmButtonText}>
+                  {holdTimeRemaining <= 0 ? "Hold Expired" : "Pay Now"}
+                </ThemedText>
+              </>
+            )}
           </Pressable>
-        ) : (
-          <View style={styles.headerButton} />
-        )}
-        <ThemedText type="h4">Book Appointment</ThemedText>
-        <View style={styles.headerButton} />
-      </View>
-
-      {renderStepIndicator()}
-
-      {currentStep === "service" && renderServiceStep()}
-      {currentStep === "datetime" && renderDateTimeStep()}
-      {currentStep === "confirm" && renderConfirmStep()}
-
-      <View style={[styles.bottomBar, { backgroundColor: cardBg, borderTopColor: borderColor }]}>
-        <View>
-          <ThemedText type="small" style={{ color: theme.textSecondary }}>
-            {currentStep === "confirm" ? "Total" : "Starting at"}
-          </ThemedText>
-          <ThemedText type="h3" style={{ color: brandColor }}>
-            {formatPrice(currentStep === "confirm" ? totalPrice + Math.round(totalPrice * 0.029 + 30) : totalPrice)}
-          </ThemedText>
         </View>
-        <Pressable
-          onPress={handleNext}
-          disabled={!canProceed()}
-          style={[
-            styles.nextButton,
-            { backgroundColor: canProceed() ? brandColor : theme.textSecondary },
-          ]}
-        >
-          <ThemedText type="h4" style={{ color: "#FFFFFF" }}>
-            {currentStep === "confirm" ? "BOOK NOW" : "NEXT"}
-          </ThemedText>
-        </Pressable>
-      </View>
-    </View>
+      )}
+
+      <Modal
+        visible={showIncompatibleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowIncompatibleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <Feather name="alert-circle" size={40} color={theme.warning} />
+            <ThemedText type="body" style={[styles.modalTitle, { fontWeight: "600" }]}>
+              Slot Unavailable
+            </ThemedText>
+            <ThemedText style={[styles.modalMessage, { color: theme.textSecondary }]}>
+              {incompatibleReason}
+            </ThemedText>
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={() => setShowIncompatibleModal(false)}
+                style={[styles.modalButton, { backgroundColor: theme.backgroundSecondary }]}
+              >
+                <ThemedText>Find Another Time</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={handleRequestAccommodation}
+                style={[styles.modalButton, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText style={{ color: "#FFFFFF" }}>Request Accommodation</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.md,
   },
   header: {
+    marginBottom: Spacing.md,
+  },
+  progressContainer: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1,
+    marginBottom: Spacing.lg,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
+  progressItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  progressDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
   },
-  stepIndicator: {
+  progressLabel: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+  backButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  stepDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#666",
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
-  stepLine: {
-    width: 40,
-    height: 2,
-    marginHorizontal: 4,
+  errorText: {
+    flex: 1,
+    fontSize: 13,
   },
   stepContent: {
-    flex: 1,
-    paddingHorizontal: Spacing.md,
+    minHeight: 200,
   },
   stepTitle: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
-  emptyCard: {
+  loader: {
     padding: Spacing.xl,
-    borderRadius: BorderRadius.lg,
     alignItems: "center",
-    justifyContent: "center",
+  },
+  emptyState: {
+    padding: Spacing.xl,
+    alignItems: "center",
+  },
+  authPrompt: {
+    padding: Spacing.xl,
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  authText: {
+    textAlign: "center",
   },
   serviceCard: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-  },
-  serviceCardLeft: {
-    flexDirection: "row",
-    flex: 1,
-  },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
     alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.sm,
-    marginTop: 2,
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.sm,
   },
   serviceInfo: {
     flex: 1,
   },
-  serviceCardRight: {
+  serviceMeta: {
+    flexDirection: "row",
+    marginTop: Spacing.sm,
+    gap: Spacing.md,
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  servicePrice: {
     alignItems: "flex-end",
+    gap: Spacing.xs,
   },
-  promoBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginTop: 4,
+  selectedServiceSummary: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
   },
-  calendarHeader: {
+  monthNav: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
+    paddingVertical: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  weekDaysRow: {
+  weekdayRow: {
     flexDirection: "row",
-    marginBottom: Spacing.sm,
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
   },
-  weekDayLabel: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 11,
+  weekdayCell: {
+    alignItems: "center",
+  },
+  weekdayText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   calendarGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: Spacing.xs,
   },
-  calendarDay: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  calendarDayText: {
-    fontSize: 16,
-  },
-  availabilityDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginTop: 2,
-  },
-  timeSlotsSection: {
-    marginTop: Spacing.lg,
-  },
-  timeSection: {
-    marginBottom: Spacing.lg,
-  },
-  timeSectionTitle: {
-    marginBottom: Spacing.sm,
-    fontWeight: "600",
-  },
-  timePillsRow: {
+  slotsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: Spacing.sm,
   },
-  timePill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+  slotButton: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    minWidth: 80,
-    alignItems: "center",
   },
-  timePillText: {
-    fontWeight: "600",
-  },
-  bookedIndicator: {
+  holdBanner: {
     flexDirection: "row",
-    alignItems: "center",
-    marginTop: 2,
-  },
-  bookedDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
-  },
-  confirmCard: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-  },
-  providerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  providerAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  providerAvatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
   },
-  providerInfo: {
-    marginLeft: Spacing.md,
+  confirmationCard: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  priceRow: {
+  confirmRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    paddingVertical: Spacing.sm,
   },
-  divider: {
-    height: 1,
-    marginVertical: Spacing.md,
-  },
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    paddingBottom: Spacing.xl,
+  totalRow: {
     borderTopWidth: 1,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.md,
   },
-  nextButton: {
-    paddingHorizontal: Spacing.xl,
+  confirmButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.sm,
+  },
+  confirmButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: "center",
+  },
+  modalTitle: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  modalMessage: {
+    textAlign: "center",
+    marginBottom: Spacing.lg,
+  },
+  modalButtons: {
+    width: "100%",
+    gap: Spacing.sm,
+  },
+  modalButton: {
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
+    alignItems: "center",
   },
 });
-
-export default BookingFlow;
