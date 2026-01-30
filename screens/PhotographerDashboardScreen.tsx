@@ -738,28 +738,25 @@ export default function PhotographerDashboardScreen() {
 
     try {
       setSaving(true);
-      // Convert DayHours array to hoursOfOperation object for backend
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const hoursOfOperation: Record<string, { open: string; close: string; closed?: boolean }> = {};
       
-      hours.forEach((h) => {
-        const dayName = dayNames[h.dayOfWeek];
-        if (h.isAvailable) {
-          hoursOfOperation[dayName] = { 
-            open: convertTo24Hour(h.startTime), 
-            close: convertTo24Hour(h.endTime) 
-          };
-        } else {
-          // Backend requires { open: "00:00", close: "00:00", closed: true } for closed days
-          hoursOfOperation[dayName] = { 
-            open: "00:00", 
-            close: "00:00", 
-            closed: true 
-          };
-        }
-      });
+      // Convert DayHours array to WeeklyAvailabilitySlot[] for backend
+      // Backend expects: PUT /api/photographers/me/weekly-availability
+      // Payload: { availability: [{ dayOfWeek: 0-6, startTime: "HH:mm", endTime: "HH:mm", isActive: true }] }
+      const slots = hours
+        .filter((h) => h.isAvailable)
+        .map((h) => ({
+          dayOfWeek: h.dayOfWeek,
+          startTime: convertTo24Hour(h.startTime),
+          endTime: convertTo24Hour(h.endTime),
+          isActive: true,
+        }));
+
+      console.log("[Dashboard] Saving weekly availability - payload:", JSON.stringify(slots, null, 2));
       
-      await api.updatePhotographerMeAvailability(token, { hoursOfOperation });
+      const response = await api.updateWeeklyAvailability(token, "photographer", slots);
+      
+      console.log("[Dashboard] Weekly availability saved - response:", JSON.stringify(response, null, 2));
+      
       Alert.alert("Success", "Your availability has been updated");
       setActiveModal(null);
       fetchDashboard();
