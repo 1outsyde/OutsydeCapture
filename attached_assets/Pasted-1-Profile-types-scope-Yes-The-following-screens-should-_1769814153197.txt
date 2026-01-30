@@ -1,0 +1,75 @@
+1) Profile types scope
+
+Yes.
+The following screens should receive identical visual and structural updates, with role-based behavior preserved:
+	•	PhotographerProfileScreen
+	•	BusinessProfileScreen
+	•	UserProfileScreen
+
+Notes:
+	•	Only photographers and businesses expose booking-related UI.
+	•	Regular users do not show booking or availability, but do show Pro/Pulse featured content if they have posts.
+	•	Visual treatment, Featured tab structure, and accent color behavior should be consistent across all three.
+
+⸻
+
+2) Pro / Pulse feed screens
+
+These do not currently exist per profile.
+
+Right now:
+	•	Pro and Pulse feeds only exist in the main app feed (following / recommended context).
+	•	There are no profile-scoped Pro or Pulse catalog screens.
+
+Required change:
+	•	You will need to create new, minimal, profile-scoped feed screens:
+	•	ProfileProFeedScreen
+	•	ProfilePulseFeedScreen
+
+Behavior:
+	•	These screens are only accessible from the Featured tab on a user’s profile.
+	•	Each screen displays all posts belonging to that profile, filtered by:
+	•	postIntent === "pro"
+	•	postIntent === "pulse"
+	•	These screens should reuse existing feed logic and PostCard components.
+	•	Do not duplicate posting logic, moderation logic, or ranking logic.
+	•	No global navigation entry — profile-only access.
+
+Optional (nice-to-have, not required):
+	•	Horizontal swipe between Pro ↔ Pulse inside the profile feed context.
+
+⸻
+
+3) Accent color source
+
+profile.accentColor already exists and should be available on the frontend.
+	•	Photographers and businesses already select their storefront/profile color.
+	•	This color is intentionally limited in scope.
+
+Usage rules (important):
+	•	Accent color applies only to:
+	•	Banner gradient tint
+	•	Active tab underline
+	•	Pro / Pulse section dots
+	•	Primary CTA (Book Now)
+	•	Do not apply accent color to:
+	•	App background
+	•	Navigation bar
+	•	Cards
+	•	Global UI
+	•	Other users’ screens
+
+Fallback:
+	•	If profile.accentColor is undefined, use the existing default theme accent (do not introduce a new one).
+
+We plan to expand the color system later — for now, use the existing palette and data.
+
+⸻
+
+Final Guardrails
+	•	Do not rename existing routes, hooks, or API contracts
+	•	Do not change how Pro or Pulse posts are created or stored
+	•	Do not alter booking, availability, or calendar logic
+	•	All changes must be profile-screen scoped only
+
+If anything conflicts with an existing component or data shape, ask before refactoring.

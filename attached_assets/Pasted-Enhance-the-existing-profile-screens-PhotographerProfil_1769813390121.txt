@@ -1,0 +1,104 @@
+Enhance the existing profile screens (PhotographerProfileScreen, BusinessProfileScreen, and UserProfileScreen) to support branded storefront visuals and structured featured content, while preserving all existing layouts, navigation, and functionality.
+
+⚠️ Critical Constraints
+	•	Do NOT rename existing components, hooks, screens, or routes
+	•	Do NOT introduce new global theme providers
+	•	Do NOT change tab structure or booking flows
+	•	Do NOT modify how Pro or Pulse posts are created
+	•	All changes must be profile-screen scoped only
+
+⸻
+
+1️⃣ Banner & Visual Identity Layer
+	•	Keep the existing banner media logic exactly as-is (image | video).
+	•	Add a soft vertical gradient overlay on top of the banner:
+	•	Top: transparent
+	•	Bottom: fades into the existing dark background
+	•	Tint the gradient subtly using profile.accentColor
+	•	Accent color must be applied ONLY to:
+	•	Gradient tint
+	•	Active tab underline
+	•	Small section indicators (dots)
+	•	Primary CTA button (Book Now)
+
+❌ Do NOT recolor:
+	•	App background
+	•	Navigation bar
+	•	Other screens (Home, Search, Messages, Checkout)
+
+⸻
+
+2️⃣ Profile Header (No Layout Changes)
+	•	Preserve existing layout for:
+	•	Profile image
+	•	Display name
+	•	Location
+	•	Hourly price (if applicable)
+	•	Follow / Share / Notification icons
+	•	Improve readability by:
+	•	Increasing text contrast over banner media
+	•	Adding subtle text shadow or background blur if needed
+
+Specialty Chips
+	•	Render profile.specialties[] as static informational chips
+	•	Chips are NOT interactive
+	•	Chips do NOT filter content
+	•	Chips do NOT change state
+
+⸻
+
+3️⃣ Featured Tab (Key Change)
+
+Modify ONLY the Featured tab to include two clearly separated sections.
+
+A. Pro Section
+	•	Section title: “Pro”
+	•	Add a small gold dot indicator next to title
+	•	Horizontal scroll row showing 3–5 most recent Pro posts
+	•	Card contents:
+	•	Media thumbnail
+	•	Like count
+	•	Small camera badge icon
+	•	Add “View all Pro →” CTA at the end of the row
+
+B. Pulse Section
+	•	Section title: “Pulse”
+	•	Add a small pink dot indicator next to title
+	•	Horizontal scroll row showing 3–5 most recent Pulse posts
+	•	Card contents:
+	•	Media thumbnail
+	•	Like count
+	•	Duration badge if mediaType === “video”
+	•	Add “View all Pulse →” CTA at the end of the row
+
+⸻
+
+4️⃣ Navigation Rules (No Guessing)
+	•	Tapping a Pro card:
+→ navigates to a Pro-only feed screen scoped to this profile
+	•	Tapping a Pulse card:
+→ navigates to a Pulse-only feed screen scoped to this profile
+	•	Inside feed screens:
+	•	Vertical scroll only
+	•	Optional horizontal swipe between Pro ↔ Pulse feeds
+
+❓ If a Pro/Pulse feed screen already exists, reuse it.
+❓ If not, create minimal new screens without duplicating logic.
+
+⸻
+
+5️⃣ Booking CTA
+	•	Keep “Book Now” button:
+	•	Same position
+	•	Same size
+	•	Same behavior
+	•	Apply profile.accentColor to button background only
+
+⸻
+
+6️⃣ Implementation Guidance
+	•	Reuse existing PostCard / MediaCard components
+	•	Avoid creating new card types unless absolutely necessary
+	•	Keep all styling changes localized to profile screen stylesheets
+
+If any existing component or hook is unclear, ask before refactoring.
