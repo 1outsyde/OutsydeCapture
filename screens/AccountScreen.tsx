@@ -2636,7 +2636,8 @@ export default function AccountScreen() {
             />
           )}
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.7)"]}
+            colors={["transparent", `${profileTheme}30`, isDark ? "#000000" : "#1C1C1E"]}
+            locations={[0, 0.5, 1]}
             style={styles.heroGradient}
             pointerEvents="none"
           />
