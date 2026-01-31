@@ -55,8 +55,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost } from "@/services/api";
+import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
 import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
+import { availabilityEvents } from "@/services/availabilityEvents";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -604,6 +605,8 @@ export default function AccountScreen() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("featured");
   const [portfolioCategories, setPortfolioCategories] = useState<PortfolioCategory[]>([]);
   const [availabilitySlots, setAvailabilitySlots] = useState<VendorBookerAvailabilitySlot[]>([]);
+  const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailabilitySlot[]>([]);
+  const [todayAvailabilityHours, setTodayAvailabilityHours] = useState<{ start: string; end: string } | null>(null);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [photographerServices, setPhotographerServices] = useState<PhotographerService[]>([]);
   const [bookedSlots, setBookedSlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
@@ -693,31 +696,37 @@ export default function AccountScreen() {
           setPortfolioCategories(categories);
         }
 
-        // Fetch availability, blocked dates, and services
+        // Fetch weekly availability from weekly_availability table (primary source of truth)
         try {
-          const [availRes, blockedRes] = await Promise.all([
-            api.getPhotographerMeAvailability(token),
+          const [weeklySlots, blockedRes] = await Promise.all([
+            api.getWeeklyAvailability(token, "photographer"),
             api.getPhotographerBlockedDates(token),
           ]);
-          // Convert hoursOfOperation to availability slots format
-          if (availRes.hoursOfOperation) {
-            const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-            const slots: VendorBookerAvailabilitySlot[] = [];
-            dayNames.forEach((dayName, index) => {
-              const dayData = availRes.hoursOfOperation[dayName] as { open: boolean; start?: string; end?: string } | undefined;
-              if (dayData && dayData.open === true && dayData.start && dayData.end) {
-                slots.push({
-                  id: `hours-${index}`,
-                  photographerId: photographer.id,
-                  dayOfWeek: index,
-                  startTime: dayData.start,
-                  endTime: dayData.end,
-                  isRecurring: true,
-                });
-              }
-            });
-            setAvailabilitySlots(slots);
+          console.log("[AccountScreen] Weekly availability fetched:", weeklySlots);
+          setWeeklyAvailability(weeklySlots);
+          
+          // Convert to VendorBookerAvailabilitySlot format for Availability tab display
+          const slots: VendorBookerAvailabilitySlot[] = weeklySlots
+            .filter((s) => s.isActive)
+            .map((s) => ({
+              id: `weekly-${s.dayOfWeek}`,
+              photographerId: photographer.id,
+              dayOfWeek: s.dayOfWeek,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              isRecurring: true,
+            }));
+          setAvailabilitySlots(slots);
+          
+          // Calculate today's availability for banner
+          const today = new Date().getDay();
+          const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
+          if (todaySlot) {
+            setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
+          } else {
+            setTodayAvailabilityHours(null);
           }
+          
           setBlockedDates(blockedRes.blockedDates || []);
         } catch (availError) {
           console.warn("[AccountScreen] Could not fetch availability:", availError);
@@ -796,6 +805,24 @@ export default function AccountScreen() {
         const hasLiveServices = allServices.some(s => s.status === "live");
         setBusinessHasProducts(hasLiveProducts);
         setBusinessHasServices(hasLiveServices);
+        
+        // Fetch weekly availability for business from weekly_availability table
+        try {
+          const weeklySlots = await api.getWeeklyAvailability(token, "business");
+          console.log("[AccountScreen] Business weekly availability fetched:", weeklySlots);
+          setWeeklyAvailability(weeklySlots);
+          
+          // Calculate today's availability for banner
+          const today = new Date().getDay();
+          const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
+          if (todaySlot) {
+            setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
+          } else {
+            setTodayAvailabilityHours(null);
+          }
+        } catch (e) {
+          console.warn("[AccountScreen] Could not fetch business weekly availability:", e);
+        }
       } else {
         // Consumer profile - use coverMediaType from user context
         const isVideo = user?.coverMediaType === "video";
@@ -862,6 +889,45 @@ export default function AccountScreen() {
       setActiveTab("featured");
     }
   }, [userRole, businessHasProducts, businessHasServices]);
+
+  // Refresh availability function for event subscription
+  const refreshAvailability = useCallback(async () => {
+    if (!profile?.id || userRole === "consumer") return;
+    const token = await getToken();
+    if (!token) return;
+    
+    try {
+      const providerType = userRole === "photographer" ? "photographer" : "business";
+      const weeklySlots = await api.getWeeklyAvailability(token, providerType);
+      console.log("[AccountScreen] Refreshed weekly availability:", weeklySlots);
+      setWeeklyAvailability(weeklySlots);
+      
+      // Calculate today's availability for banner
+      const today = new Date().getDay();
+      const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
+      if (todaySlot) {
+        setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
+      } else {
+        setTodayAvailabilityHours(null);
+      }
+    } catch (e) {
+      console.warn("[AccountScreen] Could not refresh availability:", e);
+    }
+  }, [profile?.id, userRole, getToken]);
+
+  // Subscribe to availability change events (e.g., when user saves availability in Dashboard)
+  useEffect(() => {
+    if (!profile?.id || userRole === "consumer") {
+      return;
+    }
+    
+    const unsubscribe = availabilityEvents.subscribe(() => {
+      console.log("[AccountScreen] Availability event received - refreshing...");
+      refreshAvailability();
+    });
+    
+    return unsubscribe;
+  }, [profile?.id, userRole, refreshAvailability]);
 
   // Handle follow/unfollow toggle
   const handleFollowToggle = async () => {
@@ -964,29 +1030,21 @@ export default function AccountScreen() {
   };
 
   const getAvailabilityText = (): string => {
-    // First check if todayAvailability is returned from backend
-    if (profile?.availability) {
-      return `Available Today: ${profile.availability.start} - ${profile.availability.end}`;
+    // Helper to convert 24h to 12h format for display
+    const formatTime = (time24: string): string => {
+      const [hours, minutes] = time24.split(":").map(Number);
+      const period = hours >= 12 ? "PM" : "AM";
+      const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")} ${period}` : `${hours12} ${period}`;
+    };
+    
+    // Primary source: todayAvailabilityHours fetched from weekly_availability table
+    if (todayAvailabilityHours) {
+      return `Available Today: ${formatTime(todayAvailabilityHours.start)} – ${formatTime(todayAvailabilityHours.end)}`;
     }
     
-    // Fallback: compute from hoursOfOperation for today
-    // Format: { open: boolean, start?: string, end?: string }
-    if (profile?.hoursOfOperation) {
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const today = new Date().getDay(); // 0=Sunday, 1=Monday, etc.
-      const todayName = dayNames[today];
-      const todayHours = profile.hoursOfOperation[todayName] as { open: boolean; start?: string; end?: string } | undefined;
-      
-      if (todayHours && todayHours.open === true && todayHours.start && todayHours.end) {
-        // Convert 24h to 12h format for display
-        const formatTime = (time24: string): string => {
-          const [hours, minutes] = time24.split(":").map(Number);
-          const period = hours >= 12 ? "PM" : "AM";
-          const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-          return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")}${period}` : `${hours12}${period}`;
-        };
-        return `Available Today: ${formatTime(todayHours.start)} - ${formatTime(todayHours.end)}`;
-      }
+    // Check if weeklyAvailability has any active days (availability is set but not today)
+    if (weeklyAvailability.length > 0 && weeklyAvailability.some((s) => s.isActive)) {
       return "Not available today";
     }
     
@@ -1176,20 +1234,31 @@ export default function AccountScreen() {
     }
   };
 
-  // Format business hours for display
-  const formatBusinessHours = (hours: any): string => {
-    if (!hours) return "";
-    try {
-      const hoursData = typeof hours === "string" ? JSON.parse(hours) : hours;
-      const today = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
-      const todayHours = hoursData[today];
-      if (todayHours && todayHours.open && todayHours.close) {
-        return `Open Today: ${todayHours.open} - ${todayHours.close}`;
-      }
-      return "Hours vary";
-    } catch {
-      return "";
+  // Format business hours for display from weeklyAvailability
+  const formatBusinessHoursFromWeekly = (): string => {
+    if (weeklyAvailability.length === 0) return "";
+    
+    const formatTime = (time24: string): string => {
+      const [hours, minutes] = time24.split(":").map(Number);
+      const period = hours >= 12 ? "PM" : "AM";
+      const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")} ${period}` : `${hours12} ${period}`;
+    };
+    
+    const today = new Date().getDay();
+    const todaySlot = weeklyAvailability.find((s) => s.dayOfWeek === today && s.isActive);
+    
+    if (todaySlot) {
+      return `Open Today: ${formatTime(todaySlot.startTime)} – ${formatTime(todaySlot.endTime)}`;
     }
+    
+    // If not open today, check if any days are set
+    const activeDays = weeklyAvailability.filter((s) => s.isActive);
+    if (activeDays.length > 0) {
+      return "Closed Today";
+    }
+    
+    return "Hours vary";
   };
 
   const renderFeaturedTab = () => {
@@ -1334,8 +1403,8 @@ export default function AccountScreen() {
             </View>
           )}
 
-          {/* Store Hours */}
-          {profile?.hoursOfOperation && (
+          {/* Store Hours - derived from weekly_availability */}
+          {weeklyAvailability.length > 0 && (
             <View style={{ 
               backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", 
               borderRadius: 12, 
@@ -1358,7 +1427,7 @@ export default function AccountScreen() {
               <View style={{ flex: 1 }}>
                 <ThemedText type="body" style={{ fontWeight: "600" }}>Store Hours</ThemedText>
                 <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                  {formatBusinessHours(profile.hoursOfOperation)}
+                  {formatBusinessHoursFromWeekly()}
                 </ThemedText>
               </View>
             </View>
