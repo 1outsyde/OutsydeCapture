@@ -65,6 +65,23 @@ const RESULT_TYPE_LABELS: Record<string, string> = {
   service: "Service",
 };
 
+interface CityData {
+  city: string;
+  state: string;
+  displayName: string;
+}
+
+const DISCOVERY_CITIES: CityData[] = [
+  { city: "New York", state: "NY", displayName: "New York, NY" },
+  { city: "Atlanta", state: "GA", displayName: "Atlanta, GA" },
+  { city: "Miami", state: "FL", displayName: "Miami, FL" },
+  { city: "Los Angeles", state: "CA", displayName: "Los Angeles, CA" },
+  { city: "Chicago", state: "IL", displayName: "Chicago, IL" },
+  { city: "Houston", state: "TX", displayName: "Houston, TX" },
+  { city: "Dallas", state: "TX", displayName: "Dallas, TX" },
+  { city: "Phoenix", state: "AZ", displayName: "Phoenix, AZ" },
+];
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function SearchScreen() {
@@ -81,6 +98,7 @@ export default function SearchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [personalized, setPersonalized] = useState(true);
   const [isPersonalizedResults, setIsPersonalizedResults] = useState(false);
+  const [activeCity, setActiveCity] = useState<CityData | null>(null);
 
   const isAuthenticated = !!user && !user.isGuest;
   const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || 
@@ -98,7 +116,7 @@ export default function SearchScreen() {
     }
   }, []);
 
-  const fetchSearchResults = useCallback(async (query?: string, tab?: TabType) => {
+  const fetchSearchResults = useCallback(async (query?: string, tab?: TabType, cityFilter?: CityData | null) => {
     setIsLoading(true);
     setError(null);
 
@@ -108,6 +126,7 @@ export default function SearchScreen() {
       const response = await api.unifiedSearch(
         { 
           q: query || undefined,
+          city: cityFilter?.city,
           personalized: isAuthenticated && personalized,
           scope,
           viewerUserId: user?.id,
@@ -115,7 +134,7 @@ export default function SearchScreen() {
         authToken,
         isAdmin
       );
-      console.log("[SearchScreen] Search query:", query, "Scope:", scope, "Total results:", response.total, "isAdmin:", isAdmin);
+      console.log("[SearchScreen] Search query:", query, "City:", cityFilter?.city, "Scope:", scope, "Total results:", response.total);
       console.log("[SearchScreen] Raw result types:", response.results.map(r => `${r.type}: ${r.name} (@${r.username || "no-username"})`));
       const normalized = api.normalizeUnifiedResults(response);
       console.log("[SearchScreen] Normalized results:", normalized.map(r => `${r.resultType}: ${r.name} (@${r.username || "no-username"})`));
@@ -132,20 +151,30 @@ export default function SearchScreen() {
   }, [isAuthenticated, personalized, getToken, isAdmin, activeTab, user?.id, getSearchScope]);
 
   useEffect(() => {
-    fetchSearchResults();
-  }, [fetchSearchResults]);
+    fetchSearchResults(undefined, activeTab, activeCity);
+  }, []);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchQuery.trim()) {
-        fetchSearchResults(searchQuery, activeTab);
+        fetchSearchResults(searchQuery, activeTab, activeCity);
       } else {
-        fetchSearchResults(undefined, activeTab);
+        fetchSearchResults(undefined, activeTab, activeCity);
       }
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, activeCity, fetchSearchResults]);
+
+  const handleCitySelect = useCallback((city: CityData) => {
+    setActiveCity(city);
+    fetchSearchResults(searchQuery.trim() || undefined, activeTab, city);
+  }, [searchQuery, activeTab, fetchSearchResults]);
+
+  const handleClearCity = useCallback(() => {
+    setActiveCity(null);
+    fetchSearchResults(searchQuery.trim() || undefined, activeTab, null);
+  }, [searchQuery, activeTab, fetchSearchResults]);
 
   const handleSaveResult = (item: UnifiedSearchResult) => {
     toggleFavorite({
@@ -523,6 +552,65 @@ export default function SearchScreen() {
 
   const ListHeader = () => (
     <View>
+      {!searchQuery.trim() && !activeCity ? (
+        <View style={styles.cityDiscoverySection}>
+          <View style={styles.sectionHeader}>
+            <Feather name="map-pin" size={18} color={theme.primary} />
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
+              Discover by City
+            </ThemedText>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.cityCardsRow}
+          >
+            {DISCOVERY_CITIES.map((city) => (
+              <Pressable
+                key={city.displayName}
+                onPress={() => handleCitySelect(city)}
+                style={({ pressed }) => [
+                  styles.cityCard,
+                  { 
+                    backgroundColor: theme.backgroundDefault, 
+                    borderColor: theme.border,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Feather name="map-pin" size={14} color={theme.primary} />
+                <ThemedText type="body" style={{ marginLeft: Spacing.xs, fontWeight: "500" }}>
+                  {city.displayName}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {activeCity ? (
+        <View style={styles.discoveryContextRow}>
+          <View style={styles.discoveryContext}>
+            <Feather name="map-pin" size={16} color={theme.primary} />
+            <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
+              Discovering in {activeCity.displayName}
+            </ThemedText>
+          </View>
+          <Pressable
+            onPress={handleClearCity}
+            style={({ pressed }) => [
+              styles.clearCityButton,
+              { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Feather name="x" size={14} color={theme.textSecondary} />
+            <ThemedText type="caption" style={{ marginLeft: 4, color: theme.textSecondary }}>
+              Clear
+            </ThemedText>
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.tabsContainer}>
         <ScrollView
           horizontal
@@ -592,7 +680,7 @@ export default function SearchScreen() {
             {error}
           </ThemedText>
           <Pressable
-            onPress={() => fetchSearchResults(searchQuery || undefined)}
+            onPress={() => fetchSearchResults(searchQuery || undefined, activeTab, activeCity)}
             style={({ pressed }) => [
               styles.retryButton,
               { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
@@ -603,6 +691,20 @@ export default function SearchScreen() {
               Try Again
             </ThemedText>
           </Pressable>
+        </View>
+      );
+    }
+
+    if (activeCity) {
+      return (
+        <View style={styles.emptyState}>
+          <Feather name="map-pin" size={48} color={theme.textSecondary} />
+          <ThemedText type="h4" style={styles.emptyTitle}>
+            No discoverable users found
+          </ThemedText>
+          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+            No discoverable users found in {activeCity.displayName} yet
+          </ThemedText>
         </View>
       );
     }
@@ -870,5 +972,43 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     marginTop: Spacing.sm,
     alignSelf: "flex-start",
+  },
+  cityDiscoverySection: {
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  cityCardsRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingRight: Spacing.md,
+  },
+  cityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  discoveryContextRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  discoveryContext: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  clearCityButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
   },
 });
