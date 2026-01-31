@@ -1,0 +1,99 @@
+We are missing the critical user-facing control that determines whether a post appears in the Pro row or the Pulse row on a profile.
+
+Right now:
+- Pro vs Pulse exists as a display concept in the profile UI
+- BUT creators have no way to choose this at post creation
+- As a result, Featured cannot reliably render two rows
+
+This must be fixed at the Create Post flow.
+
+REQUIRED CHANGES (DO NOT SKIP ANY):
+
+1) Add a "Display Format" selection step during post creation
+
+After the user selects:
+- Social / Lifestyle
+- Review / Experience
+- Promote Service or Product
+
+And AFTER media is selected but BEFORE final "Share Post",
+
+Show a required selector labeled:
+
+"How should this post appear on your profile?"
+
+Options:
+- Pro (polished, square grid, storefront-style)
+- Pulse (vertical, immersive, feed-style)
+
+UI rules:
+- This is NOT postIntent
+- This is purely presentation
+- Use a segmented control or card selector
+- Default to Pulse if user skips (but still show selector)
+
+Store the result as:
+displayLayout: "pro" | "pulse"
+
+2) Include displayLayout in the post payload sent to the API
+
+Example payload addition:
+{
+  ...existingFields,
+  displayLayout: "pro" | "pulse"
+}
+
+DO NOT infer this value.
+DO NOT derive it from postIntent.
+It must come directly from the user's selection.
+
+3) Update Featured tab rendering logic
+
+Featured tab must render TWO DISTINCT ROWS:
+
+- Pro Row:
+  - Only posts where displayLayout === "pro"
+  - Square cards
+  - Horizontal scroll
+  - Gold dot indicator
+  - "View all Pro" CTA
+
+- Pulse Row:
+  - Only posts where displayLayout === "pulse"
+  - Vertical cards
+  - Horizontal scroll
+  - Pink dot indicator
+  - "View all Pulse" CTA
+
+If a row has zero posts:
+- Hide the row entirely (no empty shells)
+
+4) Remove "+ Post" card from Featured permanently
+
+Featured is a curated storefront surface.
+Post creation must happen via:
+- FAB, or
+- Header action (owner-only)
+
+5) ProfileFeedScreen contract (lock this in)
+
+ProfileFeedScreen should receive:
+{
+  profileId: string,
+  layout: "pro" | "pulse"
+}
+
+It should:
+- Fetch all posts for the profile
+- Filter client-side by displayLayout
+- Render using layout-specific card styles
+
+6) IMPORTANT GUARDRAILS
+
+- postIntent (social | review | promotion) remains semantic only
+- displayLayout controls visual grouping only
+- Any postIntent can be rendered in either layout
+- Promotional posts show CTA behavior, NOT layout changes
+
+This fix is REQUIRED for the two-row Featured layout to function correctly.
+Do not implement any auto-mapping or inference.

@@ -608,6 +608,7 @@ export default function AccountScreen() {
   const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postIntent, setPostIntent] = useState<"social" | "review" | "promote" | null>(null);
+  const [displayLayout, setDisplayLayout] = useState<"pro" | "pulse" | null>(null);
   const [newPostMedia, setNewPostMedia] = useState<string>("");
   const [newPostMediaType, setNewPostMediaType] = useState<"image" | "video">("image");
   const [newPostCaption, setNewPostCaption] = useState("");
@@ -1084,6 +1085,11 @@ export default function AccountScreen() {
       return;
     }
     
+    if (!displayLayout) {
+      Alert.alert("Display Format Required", "Please select how this post should appear on your profile (Pro or Pulse).");
+      return;
+    }
+    
     const authToken = await getToken();
     if (!authToken) {
       Alert.alert("Error", "You must be logged in to create a post.");
@@ -1114,8 +1120,10 @@ export default function AccountScreen() {
         content?: string;
         photographerServiceId?: string;
         productId?: string;
+        displayLayout: "pro" | "pulse";
       } = {
         content: newPostCaption.trim() || " ",
+        displayLayout: displayLayout!,
       };
       
       // Set image or video URL based on media type
@@ -1144,6 +1152,7 @@ export default function AccountScreen() {
         setNewPostCaption("");
         setLinkedServiceId("");
         setLinkedProductId("");
+        setDisplayLayout(null);
         setShowCreatePost(false);
         console.log("[AccountScreen] Post created successfully:", response.post.id);
       }
@@ -1584,7 +1593,7 @@ export default function AccountScreen() {
                 )}
                 <ThemedText type="h3">{postIntent ? "Create Post" : "What would you like to share?"}</ThemedText>
               </View>
-              <Pressable onPress={() => { setShowCreatePost(false); setPostIntent(null); setNewPostMedia(""); setNewPostMediaType("image"); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); setTaggedProfileId(""); setTaggedProfileName(""); }}>
+              <Pressable onPress={() => { setShowCreatePost(false); setPostIntent(null); setDisplayLayout(null); setNewPostMedia(""); setNewPostMediaType("image"); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); setTaggedProfileId(""); setTaggedProfileName(""); }}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
@@ -1964,16 +1973,94 @@ export default function AccountScreen() {
                   </View>
                 )}
 
+                {/* Display Format Selector - REQUIRED */}
+                {newPostMedia && (
+                  <View style={{ marginBottom: Spacing.lg }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
+                      <Feather name="layout" size={16} color={theme.text} />
+                      <ThemedText type="body" style={{ marginLeft: Spacing.xs, fontWeight: "600" }}>
+                        How should this post appear on your profile?
+                      </ThemedText>
+                      <ThemedText type="small" style={{ color: theme.error, marginLeft: Spacing.xs }}>*</ThemedText>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: Spacing.sm }}>
+                      {/* Pro Option */}
+                      <Pressable
+                        onPress={() => setDisplayLayout("pro")}
+                        style={{
+                          flex: 1,
+                          padding: Spacing.md,
+                          borderRadius: 12,
+                          borderWidth: 2,
+                          borderColor: displayLayout === "pro" ? "#FFD700" : theme.borderMuted,
+                          backgroundColor: displayLayout === "pro" ? "rgba(255, 215, 0, 0.1)" : theme.backgroundSecondary,
+                          alignItems: "center",
+                        }}
+                      >
+                        <View style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 8,
+                          backgroundColor: displayLayout === "pro" ? "#FFD700" : theme.borderMuted,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginBottom: Spacing.sm,
+                        }}>
+                          <Feather name="grid" size={24} color={displayLayout === "pro" ? "#000" : theme.textSecondary} />
+                        </View>
+                        <ThemedText type="body" style={{ fontWeight: "600", color: displayLayout === "pro" ? "#FFD700" : theme.text }}>
+                          Pro
+                        </ThemedText>
+                        <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: 2 }}>
+                          Polished, square grid
+                        </ThemedText>
+                      </Pressable>
+
+                      {/* Pulse Option */}
+                      <Pressable
+                        onPress={() => setDisplayLayout("pulse")}
+                        style={{
+                          flex: 1,
+                          padding: Spacing.md,
+                          borderRadius: 12,
+                          borderWidth: 2,
+                          borderColor: displayLayout === "pulse" ? "#FF69B4" : theme.borderMuted,
+                          backgroundColor: displayLayout === "pulse" ? "rgba(255, 105, 180, 0.1)" : theme.backgroundSecondary,
+                          alignItems: "center",
+                        }}
+                      >
+                        <View style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 8,
+                          backgroundColor: displayLayout === "pulse" ? "#FF69B4" : theme.borderMuted,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginBottom: Spacing.sm,
+                        }}>
+                          <Feather name="zap" size={24} color={displayLayout === "pulse" ? "#FFF" : theme.textSecondary} />
+                        </View>
+                        <ThemedText type="body" style={{ fontWeight: "600", color: displayLayout === "pulse" ? "#FF69B4" : theme.text }}>
+                          Pulse
+                        </ThemedText>
+                        <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: 2 }}>
+                          Vertical, immersive
+                        </ThemedText>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+
                 {/* Post Button */}
                 <Pressable
                   onPress={handleCreatePost}
-                  disabled={postSaving}
+                  disabled={postSaving || !displayLayout}
                   style={{
-                    backgroundColor: postSaving ? theme.textSecondary : profileTheme,
+                    backgroundColor: (postSaving || !displayLayout) ? theme.textSecondary : profileTheme,
                     paddingVertical: 16,
                     borderRadius: 12,
                     alignItems: "center",
-                    opacity: postSaving ? 0.7 : 1,
+                    opacity: (postSaving || !displayLayout) ? 0.7 : 1,
                   }}
                 >
                   {postSaving ? (
