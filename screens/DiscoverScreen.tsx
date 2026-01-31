@@ -41,12 +41,25 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Separate component for video playback (allows hook usage)
-function PostVideoMedia({ videoUrl }: { videoUrl: string }) {
+function PostVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVisible?: boolean }) {
+  console.log("VIDEO_URL [Pulse]:", videoUrl);
+  
   const player = useVideoPlayer(videoUrl, p => {
     p.loop = true;
     p.muted = true;
-    p.play();
+    if (isVisible) {
+      p.play();
+    }
   });
+
+  // Control playback based on visibility
+  useEffect(() => {
+    if (isVisible) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isVisible, player]);
 
   return (
     <VideoView
@@ -306,6 +319,38 @@ export default function DiscoverScreen() {
   const proListRef = useRef<FlatList>(null);
   const pulseListRef = useRef<FlatList>(null);
 
+  // Track visible post indices for viewability-based video playback
+  const [visiblePulseIndex, setVisiblePulseIndex] = useState(0);
+  const [visibleProIndices, setVisibleProIndices] = useState<Set<number>>(new Set([0, 1]));
+  
+  // Viewability config for Pulse feed - play video only when item is 70% visible
+  const pulseViewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 70,
+    minimumViewTime: 100,
+  }).current;
+  
+  const onPulseViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+    if (viewableItems.length > 0 && viewableItems[0].index !== null) {
+      setVisiblePulseIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  // Viewability config for Pro feed - play videos that are 50% visible
+  const proViewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+    minimumViewTime: 100,
+  }).current;
+  
+  const onProViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+    const visibleSet = new Set<number>();
+    viewableItems.forEach(item => {
+      if (item.index !== null) {
+        visibleSet.add(item.index);
+      }
+    });
+    setVisibleProIndices(visibleSet);
+  }).current;
+
   // Save scroll position when switching feeds
   const handleProScroll = useCallback((event: any) => {
     proScrollOffset.current = event.nativeEvent.contentOffset.y;
@@ -458,6 +503,8 @@ export default function DiscoverScreen() {
     const hasCommerce = post.serviceId || post.productId;
 
     const hasVideo = !!post.videoUrl;
+    // Only play video if this post is the currently visible one
+    const isVisible = index === visiblePulseIndex;
 
     return (
       <View style={[styles.postContainer, { height: POST_HEIGHT, backgroundColor: "#000000" }]}>
@@ -465,7 +512,7 @@ export default function DiscoverScreen() {
         {/* Videos: cover mode (full-screen native feel) */}
         {/* Images: contain mode with aspect-aware background (never crop) */}
         {hasVideo ? (
-          <PostVideoMedia videoUrl={post.videoUrl!} />
+          <PostVideoMedia videoUrl={post.videoUrl!} isVisible={isVisible} />
         ) : (
           <PostImageMedia imageUrl={post.image} />
         )}
@@ -627,9 +674,10 @@ export default function DiscoverScreen() {
   }
 
   // Render Pro feed item (card-based)
-  const renderProFeedItem = ({ item: post }: { item: Post }) => {
+  const renderProFeedItem = ({ item: post, index }: { item: Post; index: number }) => {
     const isVendor = post.type === "vendor";
     const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
+    const isVisible = visibleProIndices.has(index);
 
     return (
       <ProFeedCard
@@ -645,6 +693,7 @@ export default function DiscoverScreen() {
         isSaved={isSaved}
         currentUserId={user?.id}
         isAdmin={user?.isAdmin}
+        isVisible={isVisible}
       />
     );
   };
@@ -684,6 +733,8 @@ export default function DiscoverScreen() {
                 />
               }
               contentContainerStyle={styles.proFeedContent}
+              onViewableItemsChanged={onProViewableItemsChanged}
+              viewabilityConfig={proViewabilityConfig}
             />
           ) : (
             <FlatList
@@ -704,6 +755,8 @@ export default function DiscoverScreen() {
                 offset: POST_HEIGHT * index,
                 index,
               })}
+              onViewableItemsChanged={onPulseViewableItemsChanged}
+              viewabilityConfig={pulseViewabilityConfig}
             />
           )}
         </View>

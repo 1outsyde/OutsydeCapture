@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Pressable, StyleSheet, Dimensions, Alert, ActionSheetIOS, Platform, Modal, TouchableWithoutFeedback } from "react-native";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -24,34 +24,57 @@ interface ProFeedCardProps {
   isSaved: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
+  isVisible?: boolean;
 }
 
-function CardVideoMedia({ videoUrl }: { videoUrl: string }) {
+function CardVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVisible?: boolean }) {
+  console.log("VIDEO_URL [Pro]:", videoUrl);
+  
+  const [isPlaying, setIsPlaying] = useState(false);
+  
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
     p.muted = true;
+    if (isVisible) {
+      p.play();
+      setIsPlaying(true);
+    }
   });
 
+  // Control playback based on visibility
+  useEffect(() => {
+    if (isVisible) {
+      player.play();
+      setIsPlaying(true);
+    } else {
+      player.pause();
+      setIsPlaying(false);
+    }
+  }, [isVisible, player]);
+
+  const togglePlayback = () => {
+    if (player.playing) {
+      player.pause();
+      setIsPlaying(false);
+    } else {
+      player.play();
+      setIsPlaying(true);
+    }
+  };
+
   return (
-    <Pressable
-      onPress={() => {
-        if (player.playing) {
-          player.pause();
-        } else {
-          player.play();
-        }
-      }}
-      style={styles.mediaContainer}
-    >
+    <Pressable onPress={togglePlayback} style={styles.mediaContainer}>
       <VideoView
         player={player}
         style={styles.media}
         contentFit="cover"
         nativeControls={false}
       />
-      <View style={styles.playOverlay}>
-        <Feather name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
-      </View>
+      {!isPlaying && (
+        <View style={styles.playOverlay}>
+          <Feather name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -69,6 +92,7 @@ export function ProFeedCard({
   isSaved,
   currentUserId,
   isAdmin = false,
+  isVisible = true,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -288,7 +312,7 @@ export function ProFeedCard({
 
       <View style={styles.mediaContainer}>
         {hasVideo ? (
-          <CardVideoMedia videoUrl={post.videoUrl!} />
+          <CardVideoMedia videoUrl={post.videoUrl!} isVisible={isVisible} />
         ) : (
           <Image
             source={{ uri: post.image }}
