@@ -1573,6 +1573,28 @@ export default function AccountScreen() {
           </View>
         )}
 
+        {/* Create Post Button - For photographers/consumers on their own profile */}
+        {isOwner && !isGuest && (
+          <Pressable
+            onPress={() => setShowCreatePost(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              alignSelf: "flex-end",
+              backgroundColor: profileTheme,
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 20,
+              marginBottom: Spacing.md,
+            }}
+          >
+            <Feather name="plus" size={16} color="#000" />
+            <ThemedText type="small" style={{ color: "#000", marginLeft: 4, fontWeight: "600" }}>
+              Post
+            </ThemedText>
+          </Pressable>
+        )}
+
         {/* Pro Row - Square cards, horizontal scroll, gold indicator */}
         {hasProPosts && (
           <View style={{ marginBottom: Spacing.lg }}>
