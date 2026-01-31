@@ -55,6 +55,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
 import { uploadImageToCloudinary } from "@/services/cloudinary";
+import { availabilityEvents } from "@/services/availabilityEvents";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Profile">;
@@ -674,6 +675,20 @@ export default function ProfileScreen() {
       }
     }, [profile?.id, profileUserType, refreshAvailability])
   );
+
+  // Subscribe to availability change events (e.g., when user saves availability in Dashboard)
+  useEffect(() => {
+    if (!profile?.id || (profileUserType !== "photographer" && profileUserType !== "business")) {
+      return;
+    }
+    
+    const unsubscribe = availabilityEvents.subscribe(() => {
+      console.log("[ProfileScreen] Availability event received - refreshing...");
+      refreshAvailability();
+    });
+    
+    return unsubscribe;
+  }, [profile?.id, profileUserType, refreshAvailability]);
 
   useEffect(() => {
     const fetchProfilePosts = async () => {

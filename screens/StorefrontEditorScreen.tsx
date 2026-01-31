@@ -29,9 +29,10 @@ import api, {
   HoursOfOperationData,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
-import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, hoursObjectToArray } from "@/components/HoursEditor";
+import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, hoursObjectToArray, convertTo24Hour } from "@/components/HoursEditor";
 import ImageUploader from "@/components/ImageUploader";
 import MediaUploader from "@/components/MediaUploader";
+import { availabilityEvents } from "@/services/availabilityEvents";
 
 type TabType = "branding" | "profile" | "hours" | "products" | "services";
 
@@ -245,9 +246,25 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      const hoursOfOperation = hoursArrayToObject(hours);
-      console.log("[Storefront] Saving hours:", hoursOfOperation);
-      await api.updateVendorMyBusiness(token, { hoursOfOperation });
+      
+      // Convert DayHours to WeeklyAvailabilitySlot format for weekly_availability table
+      const slots = hours
+        .filter((h) => h.isAvailable)
+        .map((h) => ({
+          dayOfWeek: h.dayOfWeek,
+          startTime: convertTo24Hour(h.startTime),
+          endTime: convertTo24Hour(h.endTime),
+          isActive: true,
+        }));
+
+      console.log("[Storefront] Saving weekly availability:", JSON.stringify(slots, null, 2));
+      
+      // Save to weekly_availability table (primary source of truth)
+      await api.updateWeeklyAvailability(token, "business", slots);
+      
+      // Emit availability changed event so other screens can refresh
+      availabilityEvents.emit();
+      
       Alert.alert("Success", "Business hours updated successfully");
     } catch (error: any) {
       console.error("[Storefront] Failed to save hours:", error);

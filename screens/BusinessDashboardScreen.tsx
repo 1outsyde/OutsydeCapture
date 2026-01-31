@@ -29,10 +29,11 @@ import api, {
   BillingAddress,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
-import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject } from "@/components/HoursEditor";
+import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, convertTo24Hour } from "@/components/HoursEditor";
 import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
+import { availabilityEvents } from "@/services/availabilityEvents";
 
 type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile";
@@ -427,8 +428,25 @@ export default function BusinessDashboardScreen() {
 
     try {
       setSaving(true);
-      const hoursOfOperation = hoursArrayToObject(hours);
-      await api.updateVendorMyBusiness(token, { hoursOfOperation });
+      
+      // Convert DayHours to WeeklyAvailabilitySlot format for weekly_availability table
+      const slots = hours
+        .filter((h) => h.isAvailable)
+        .map((h) => ({
+          dayOfWeek: h.dayOfWeek,
+          startTime: convertTo24Hour(h.startTime),
+          endTime: convertTo24Hour(h.endTime),
+          isActive: true,
+        }));
+
+      console.log("[BusinessDashboard] Saving weekly availability:", JSON.stringify(slots, null, 2));
+      
+      // Save to weekly_availability table (primary source of truth)
+      await api.updateWeeklyAvailability(token, "business", slots);
+      
+      // Emit availability changed event so other screens can refresh
+      availabilityEvents.emit();
+      
       Alert.alert("Success", "Business hours updated successfully");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to save business hours");

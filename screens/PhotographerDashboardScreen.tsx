@@ -39,6 +39,7 @@ import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import { VendorBookerPhotographerService } from "@/services/api";
 import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
+import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
 
@@ -757,29 +758,8 @@ export default function PhotographerDashboardScreen() {
       const response = await api.updateWeeklyAvailability(token, "photographer", slots);
       console.log("[Dashboard] Weekly availability saved - response:", JSON.stringify(response, null, 2));
       
-      // Also sync to hoursOfOperation JSON field (for profile banner display)
-      // Convert DayHours array to hoursOfOperation format
-      // Backend requires every day to be an object, never null
-      // Closed day: { open: false }
-      // Open day: { open: true, start: "HH:mm", end: "HH:mm" }
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }> = {};
-      
-      hours.forEach((h) => {
-        const dayName = dayNames[h.dayOfWeek];
-        if (h.isAvailable) {
-          hoursOfOperation[dayName] = {
-            open: true,
-            start: convertTo24Hour(h.startTime),
-            end: convertTo24Hour(h.endTime),
-          };
-        } else {
-          hoursOfOperation[dayName] = { open: false };
-        }
-      });
-      
-      console.log("[Dashboard] Syncing hoursOfOperation:", JSON.stringify(hoursOfOperation, null, 2));
-      await api.updatePhotographerMeAvailability(token, { hoursOfOperation });
+      // Emit availability changed event so other screens (e.g., ProfileScreen) can refresh
+      availabilityEvents.emit();
       
       Alert.alert("Success", "Your availability has been updated");
       setActiveModal(null);
