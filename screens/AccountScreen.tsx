@@ -111,6 +111,7 @@ interface FeaturedPost {
   likes: number;
   comments: number;
   createdAt: Date;
+  displayLayout?: "pro" | "pulse";
 }
 
 const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
@@ -120,6 +121,7 @@ const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
   likes: post.likesCount || 0,
   comments: post.commentsCount || 0,
   createdAt: new Date(post.createdAt),
+  displayLayout: post.displayLayout,
 });
 
 type ProfileTab = "featured" | "book" | "availability" | "reviews" | "products" | "services";
@@ -1484,7 +1486,13 @@ export default function AccountScreen() {
       );
     }
 
-    // Photographer/Consumer Featured Tab - Show posts
+    // Photographer/Consumer Featured Tab - Show Pro and Pulse rows
+    const proPosts = featuredPosts.filter(post => post.displayLayout === "pro");
+    const pulsePosts = featuredPosts.filter(post => post.displayLayout === "pulse");
+    const hasProPosts = proPosts.length > 0;
+    const hasPulsePosts = pulsePosts.length > 0;
+    const hasAnyPosts = hasProPosts || hasPulsePosts || (profile?.portfolio && profile.portfolio.length > 0);
+
     return (
       <View style={styles.tabContent}>
         {/* Bio Section */}
@@ -1496,71 +1504,107 @@ export default function AccountScreen() {
           </View>
         )}
 
-        {/* Posts Grid - Instagram Style with Add Button */}
-        <View style={styles.mediaGrid}>
-          {/* Add Post Button as first grid item for owners */}
-          {isOwner && !isGuest && (
-            <Pressable
-              onPress={() => setShowCreatePost(true)}
-              style={[styles.mediaGridItem, {
-                backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
-                alignItems: "center",
-                justifyContent: "center",
-                borderWidth: 2,
-                borderColor: profileTheme,
-                borderStyle: "dashed",
-              }]}
-            >
-              <View style={{
-                width: 50,
-                height: 50,
-                borderRadius: 25,
-                backgroundColor: profileTheme,
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: Spacing.xs,
-              }}>
-                <Feather name="plus" size={24} color="#000" />
+        {/* Pro Row - Square cards, horizontal scroll, gold indicator */}
+        {hasProPosts && (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFD700", marginRight: Spacing.xs }} />
+                <ThemedText type="h4">Pro</ThemedText>
               </View>
-              <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
-                Post
-              </ThemedText>
-            </Pressable>
-          )}
-          {/* Featured Posts */}
-          {featuredPosts.map((post) => (
-            <Pressable key={post.id} style={styles.mediaGridItem}>
-              <Image
-                source={{ uri: post.imageUri }}
-                style={styles.mediaGridImage}
-                contentFit="cover"
-                transition={200}
-              />
-              <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-                <Feather name="heart" size={14} color="#fff" />
-                <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-                  {post.likes}
-                </ThemedText>
+              {proPosts.length > 3 && (
+                <Pressable onPress={() => navigation.navigate("ProfileFeed", { profileId: profile?.id || "", profileName: profile?.name || "", layout: "pro" })}>
+                  <ThemedText type="small" style={{ color: profileTheme }}>View all Pro</ThemedText>
+                </Pressable>
+              )}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.lg }}>
+              <View style={{ flexDirection: "row", paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
+                {proPosts.slice(0, 6).map((post) => (
+                  <Pressable key={post.id} style={{ width: 140, height: 140, borderRadius: 12, overflow: "hidden" }}>
+                    <Image
+                      source={{ uri: post.imageUri }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                    <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                      <Feather name="heart" size={12} color="#fff" />
+                      <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, fontSize: 11, textShadowColor: "#000", textShadowRadius: 2 }}>
+                        {post.likes}
+                      </ThemedText>
+                    </View>
+                    <View style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(255,215,0,0.9)", alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="grid" size={10} color="#000" />
+                    </View>
+                  </Pressable>
+                ))}
               </View>
-            </Pressable>
-          ))}
-          {/* Portfolio images */}
-          {profile?.portfolio?.map((img, index) => (
-            <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
-              <Image
-                source={{ uri: img }}
-                style={styles.mediaGridImage}
-                contentFit="cover"
-                transition={200}
-              />
-              <Pressable style={styles.favoriteButton}>
-                <Feather name="heart" size={18} color="#FFFFFF" />
-              </Pressable>
-            </Pressable>
-          ))}
-        </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Pulse Row - Vertical cards, horizontal scroll, pink indicator */}
+        {hasPulsePosts && (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#FF69B4", marginRight: Spacing.xs }} />
+                <ThemedText type="h4">Pulse</ThemedText>
+              </View>
+              {pulsePosts.length > 3 && (
+                <Pressable onPress={() => navigation.navigate("ProfileFeed", { profileId: profile?.id || "", profileName: profile?.name || "", layout: "pulse" })}>
+                  <ThemedText type="small" style={{ color: profileTheme }}>View all Pulse</ThemedText>
+                </Pressable>
+              )}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.lg }}>
+              <View style={{ flexDirection: "row", paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
+                {pulsePosts.slice(0, 6).map((post) => (
+                  <Pressable key={post.id} style={{ width: 120, height: 180, borderRadius: 12, overflow: "hidden" }}>
+                    <Image
+                      source={{ uri: post.imageUri }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                    <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
+                      <Feather name="heart" size={12} color="#fff" />
+                      <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, fontSize: 11, textShadowColor: "#000", textShadowRadius: 2 }}>
+                        {post.likes}
+                      </ThemedText>
+                    </View>
+                    <View style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(255,105,180,0.9)", alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="zap" size={10} color="#fff" />
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Portfolio images (legacy support) */}
+        {profile?.portfolio && profile.portfolio.length > 0 && (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>Portfolio</ThemedText>
+            <View style={styles.mediaGrid}>
+              {profile.portfolio.map((img, index) => (
+                <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
+                  <Image
+                    source={{ uri: img }}
+                    style={styles.mediaGridImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Empty state message when no posts */}
-        {featuredPosts.length === 0 && (!profile?.portfolio || profile.portfolio.length === 0) && (
+        {!hasAnyPosts && (
           <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
             <Feather name="camera" size={48} color={theme.textSecondary} />
             <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
@@ -1992,7 +2036,7 @@ export default function AccountScreen() {
                           padding: Spacing.md,
                           borderRadius: 12,
                           borderWidth: 2,
-                          borderColor: displayLayout === "pro" ? "#FFD700" : theme.borderMuted,
+                          borderColor: displayLayout === "pro" ? "#FFD700" : theme.border,
                           backgroundColor: displayLayout === "pro" ? "rgba(255, 215, 0, 0.1)" : theme.backgroundSecondary,
                           alignItems: "center",
                         }}
@@ -2001,7 +2045,7 @@ export default function AccountScreen() {
                           width: 48,
                           height: 48,
                           borderRadius: 8,
-                          backgroundColor: displayLayout === "pro" ? "#FFD700" : theme.borderMuted,
+                          backgroundColor: displayLayout === "pro" ? "#FFD700" : theme.border,
                           alignItems: "center",
                           justifyContent: "center",
                           marginBottom: Spacing.sm,
@@ -2024,7 +2068,7 @@ export default function AccountScreen() {
                           padding: Spacing.md,
                           borderRadius: 12,
                           borderWidth: 2,
-                          borderColor: displayLayout === "pulse" ? "#FF69B4" : theme.borderMuted,
+                          borderColor: displayLayout === "pulse" ? "#FF69B4" : theme.border,
                           backgroundColor: displayLayout === "pulse" ? "rgba(255, 105, 180, 0.1)" : theme.backgroundSecondary,
                           alignItems: "center",
                         }}
@@ -2033,7 +2077,7 @@ export default function AccountScreen() {
                           width: 48,
                           height: 48,
                           borderRadius: 8,
-                          backgroundColor: displayLayout === "pulse" ? "#FF69B4" : theme.borderMuted,
+                          backgroundColor: displayLayout === "pulse" ? "#FF69B4" : theme.border,
                           alignItems: "center",
                           justifyContent: "center",
                           marginBottom: Spacing.sm,

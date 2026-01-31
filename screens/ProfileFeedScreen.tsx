@@ -57,18 +57,20 @@ export default function ProfileFeedScreen() {
 
       const response = await api.getProfilePosts(profileId, {
         page: pageNum,
-        limit: 20,
+        limit: 50, // Fetch more to account for filtering
       });
 
-      const newPosts = response.posts || [];
+      const allPosts = response.posts || [];
+      // Filter posts by displayLayout client-side
+      const filteredPosts = allPosts.filter(post => post.displayLayout === layout);
 
       if (refresh || pageNum === 1) {
-        setPosts(newPosts);
+        setPosts(filteredPosts);
       } else {
-        setPosts((prev) => [...prev, ...newPosts]);
+        setPosts((prev) => [...prev, ...filteredPosts]);
       }
 
-      setHasMore(newPosts.length >= 20);
+      setHasMore(allPosts.length >= 50);
       setPage(pageNum);
     } catch (error) {
       console.warn("[ProfileFeedScreen] Failed to fetch posts:", error);
@@ -76,7 +78,7 @@ export default function ProfileFeedScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [profileId]);
+  }, [profileId, layout]);
 
   useEffect(() => {
     fetchPosts(1);
