@@ -216,7 +216,7 @@ export default function ProfileScreen() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostImage, setNewPostImage] = useState<string>("");
   const [newPostCaption, setNewPostCaption] = useState("");
-  const [newPostLayout, setNewPostLayout] = useState<"pro" | "pulse">("pulse");
+  const [newPostLayout, setNewPostLayout] = useState<"pro" | "pulse" | null>(null);
   const [linkedServiceId, setLinkedServiceId] = useState<string>("");
   const [postSaving, setPostSaving] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -732,6 +732,11 @@ export default function ProfileScreen() {
       return;
     }
     
+    if (!newPostLayout) {
+      Alert.alert("Layout Required", "Please choose Pro or Pulse layout for your post.");
+      return;
+    }
+    
     const authToken = await getToken();
     if (!authToken) {
       Alert.alert("Error", "You must be logged in to create a post.");
@@ -773,7 +778,7 @@ export default function ProfileScreen() {
         }
         setNewPostImage("");
         setNewPostCaption("");
-        setNewPostLayout("pulse");
+        setNewPostLayout(null);
         setLinkedServiceId("");
         setShowCreatePost(false);
       }
@@ -1667,15 +1672,18 @@ export default function ProfileScreen() {
           }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
               <ThemedText type="h3">Create Post</ThemedText>
-              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); setNewPostLayout("pulse"); setLinkedServiceId(""); }}>
+              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); setNewPostLayout(null); setLinkedServiceId(""); }}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
 
             <View style={{ marginBottom: Spacing.md }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                Display Layout
-              </ThemedText>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  How should this post appear?
+                </ThemedText>
+                <ThemedText type="small" style={{ color: "#FF3B30", marginLeft: 4 }}>*</ThemedText>
+              </View>
               <View style={{ flexDirection: "row", gap: Spacing.sm }}>
                 <Pressable
                   onPress={() => setNewPostLayout("pulse")}
@@ -1694,7 +1702,7 @@ export default function ProfileScreen() {
                     Pulse
                   </ThemedText>
                   <ThemedText type="small" style={{ color: newPostLayout === "pulse" ? "#000" : theme.textSecondary, marginTop: 2 }}>
-                    Vertical / Lifestyle
+                    Vertical / Feed
                   </ThemedText>
                 </Pressable>
                 <Pressable
@@ -1714,7 +1722,7 @@ export default function ProfileScreen() {
                     Pro
                   </ThemedText>
                   <ThemedText type="small" style={{ color: newPostLayout === "pro" ? "#000" : theme.textSecondary, marginTop: 2 }}>
-                    Polished / Storefront
+                    Grid / Editorial
                   </ThemedText>
                 </Pressable>
               </View>
@@ -1812,19 +1820,21 @@ export default function ProfileScreen() {
 
             <Pressable
               onPress={handleCreatePost}
-              disabled={postSaving}
+              disabled={postSaving || !newPostLayout}
               style={{
-                backgroundColor: postSaving ? theme.textSecondary : profileTheme,
+                backgroundColor: postSaving || !newPostLayout ? theme.textSecondary : profileTheme,
                 paddingVertical: 16,
                 borderRadius: 12,
                 alignItems: "center",
-                opacity: postSaving ? 0.7 : 1,
+                opacity: postSaving || !newPostLayout ? 0.5 : 1,
               }}
             >
               {postSaving ? (
                 <ActivityIndicator size="small" color="#000" />
               ) : (
-                <ThemedText type="button" style={{ color: "#000" }}>Share Post</ThemedText>
+                <ThemedText type="button" style={{ color: "#000" }}>
+                  {!newPostLayout ? "Select Pro or Pulse" : "Share Post"}
+                </ThemedText>
               )}
             </Pressable>
           </View>
