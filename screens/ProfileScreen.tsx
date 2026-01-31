@@ -15,7 +15,7 @@ import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -53,7 +53,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost } from "@/services/api";
+import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
 import { uploadImageToCloudinary } from "@/services/cloudinary";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -209,6 +209,8 @@ export default function ProfileScreen() {
   const [businessHasServices, setBusinessHasServices] = useState(false);
   const [businessProducts, setBusinessProducts] = useState<VendorProduct[]>([]);
   const [businessServices, setBusinessServices] = useState<VendorService[]>([]);
+  const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailabilitySlot[]>([]);
+  const [todayAvailabilityHours, setTodayAvailabilityHours] = useState<{ start: string; end: string } | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isSelfProfile, setIsSelfProfile] = useState(false); // Backend-detected self-profile
@@ -282,32 +284,42 @@ export default function ProfileScreen() {
             availability: photographer.todayAvailability || null,
           });
 
+          // Fetch weekly availability from weekly_availability table (primary source of truth)
           try {
-            const [availRes, blockedRes] = await Promise.all([
-              api.getPhotographerMeAvailability(token),
-              api.getPhotographerBlockedDates(token),
-            ]);
-            if (availRes.hoursOfOperation) {
-              const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-              const slots: VendorBookerAvailabilitySlot[] = [];
-              dayNames.forEach((dayName, index) => {
-                const dayData = availRes.hoursOfOperation[dayName] as { open: boolean; start?: string; end?: string } | undefined;
-                if (dayData && dayData.open === true && dayData.start && dayData.end) {
-                  slots.push({
-                    id: `hours-${index}`,
-                    photographerId: photographer.id,
-                    dayOfWeek: index,
-                    startTime: dayData.start,
-                    endTime: dayData.end,
-                    isRecurring: true,
-                  });
-                }
-              });
-              setAvailabilitySlots(slots);
+            const weeklySlots = await api.getWeeklyAvailability(token, "photographer");
+            console.log("[ProfileScreen] Weekly availability fetched:", weeklySlots);
+            setWeeklyAvailability(weeklySlots);
+            
+            // Convert to VendorBookerAvailabilitySlot format for Availability tab display
+            const slots: VendorBookerAvailabilitySlot[] = weeklySlots
+              .filter((s) => s.isActive)
+              .map((s, idx) => ({
+                id: `weekly-${idx}`,
+                photographerId: photographer.id,
+                dayOfWeek: s.dayOfWeek,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                isRecurring: true,
+              }));
+            setAvailabilitySlots(slots);
+            
+            // Calculate today's availability for banner
+            const today = new Date().getDay();
+            const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
+            if (todaySlot) {
+              setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
+            } else {
+              setTodayAvailabilityHours(null);
             }
+          } catch (e) {
+            console.warn("[ProfileScreen] Could not fetch weekly availability:", e);
+          }
+          
+          try {
+            const blockedRes = await api.getPhotographerBlockedDates(token);
             setBlockedDates(blockedRes.blockedDates || []);
           } catch (e) {
-            console.warn("[ProfileScreen] Could not fetch availability:", e);
+            console.warn("[ProfileScreen] Could not fetch blocked dates:", e);
           }
 
           try {
@@ -400,6 +412,35 @@ export default function ProfileScreen() {
           } catch (e) {
             console.warn("[ProfileScreen] Could not fetch public services:", e);
           }
+          
+          // Fetch today's availability from calendar API for public profiles
+          try {
+            const today = new Date();
+            const todayStr = today.toISOString().split("T")[0];
+            const slotsRes = await api.getAvailabilitySlots(fetchId, "photographer", todayStr);
+            const availableSlots = slotsRes.slots?.filter((s) => s.status === "available") || [];
+            if (availableSlots.length > 0) {
+              const firstSlot = availableSlots[0];
+              const lastSlot = availableSlots[availableSlots.length - 1];
+              setTodayAvailabilityHours({ 
+                start: firstSlot.startTime, 
+                end: lastSlot.endTime 
+              });
+              setWeeklyAvailability([{ dayOfWeek: today.getDay(), startTime: firstSlot.startTime, endTime: lastSlot.endTime, isActive: true }]);
+            } else {
+              // Check if any day in the month has availability
+              const calRes = await api.getAvailabilityCalendar(fetchId, "photographer", today.getFullYear(), today.getMonth() + 1);
+              const hasAnyAvailability = calRes.days?.some((d) => d.status === "available" || d.status === "partial") ?? false;
+              if (hasAnyAvailability) {
+                setWeeklyAvailability([{ dayOfWeek: 0, startTime: "09:00", endTime: "17:00", isActive: true }]); // Placeholder to indicate availability exists
+              } else {
+                setWeeklyAvailability([]);
+              }
+              setTodayAvailabilityHours(null);
+            }
+          } catch (e) {
+            console.warn("[ProfileScreen] Could not fetch public availability:", e);
+          }
         }
       } else if (profileUserType === "business") {
         if (isCandidateOwner && token) {
@@ -443,6 +484,24 @@ export default function ProfileScreen() {
           const hasLiveServices = allServices.some((s: any) => s.status === "live");
           setBusinessHasProducts(hasLiveProducts);
           setBusinessHasServices(hasLiveServices);
+          
+          // Fetch weekly availability for business from weekly_availability table
+          try {
+            const weeklySlots = await api.getWeeklyAvailability(token, "business");
+            console.log("[ProfileScreen] Business weekly availability fetched:", weeklySlots);
+            setWeeklyAvailability(weeklySlots);
+            
+            // Calculate today's availability for banner
+            const today = new Date().getDay();
+            const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
+            if (todaySlot) {
+              setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
+            } else {
+              setTodayAvailabilityHours(null);
+            }
+          } catch (e) {
+            console.warn("[ProfileScreen] Could not fetch business weekly availability:", e);
+          }
         } else {
           const vendorPublic = await api.getBusiness(fetchId) as any;
           const coverUrl = vendorPublic.coverImage || "";
@@ -478,6 +537,35 @@ export default function ProfileScreen() {
             setBusinessHasServices(allServices.some((s: any) => s.status === "live"));
           } catch (e) {
             console.warn("[ProfileScreen] Could not fetch public products/services:", e);
+          }
+          
+          // Fetch today's availability from calendar API for public business profiles
+          try {
+            const today = new Date();
+            const todayStr = today.toISOString().split("T")[0];
+            const slotsRes = await api.getAvailabilitySlots(fetchId, "business", todayStr);
+            const availableSlots = slotsRes.slots?.filter((s) => s.status === "available") || [];
+            if (availableSlots.length > 0) {
+              const firstSlot = availableSlots[0];
+              const lastSlot = availableSlots[availableSlots.length - 1];
+              setTodayAvailabilityHours({ 
+                start: firstSlot.startTime, 
+                end: lastSlot.endTime 
+              });
+              setWeeklyAvailability([{ dayOfWeek: today.getDay(), startTime: firstSlot.startTime, endTime: lastSlot.endTime, isActive: true }]);
+            } else {
+              // Check if any day in the month has availability
+              const calRes = await api.getAvailabilityCalendar(fetchId, "business", today.getFullYear(), today.getMonth() + 1);
+              const hasAnyAvailability = calRes.days?.some((d) => d.status === "available" || d.status === "partial") ?? false;
+              if (hasAnyAvailability) {
+                setWeeklyAvailability([{ dayOfWeek: 0, startTime: "09:00", endTime: "17:00", isActive: true }]);
+              } else {
+                setWeeklyAvailability([]);
+              }
+              setTodayAvailabilityHours(null);
+            }
+          } catch (e) {
+            console.warn("[ProfileScreen] Could not fetch public business availability:", e);
           }
         }
       } else {
@@ -535,6 +623,57 @@ export default function ProfileScreen() {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  // Refresh availability when screen gains focus (e.g., returning from Dashboard)
+  const refreshAvailability = useCallback(async () => {
+    if (!profile?.id) return;
+    const token = await getToken();
+    
+    try {
+      if (isCandidateOwner && token) {
+        // Owner: fetch from weekly_availability endpoint
+        const providerType = profileUserType === "photographer" ? "photographer" : "business";
+        const weeklySlots = await api.getWeeklyAvailability(token, providerType as "photographer" | "business");
+        console.log("[ProfileScreen] Refreshed weekly availability:", weeklySlots);
+        setWeeklyAvailability(weeklySlots);
+        
+        // Calculate today's availability for banner
+        const today = new Date().getDay();
+        const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
+        if (todaySlot) {
+          setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
+        } else {
+          setTodayAvailabilityHours(null);
+        }
+      } else {
+        // Public: fetch from availability slots API
+        const today = new Date();
+        const todayStr = today.toISOString().split("T")[0];
+        const providerType = profileUserType === "photographer" ? "photographer" : "business";
+        const slotsRes = await api.getAvailabilitySlots(fetchId, providerType as "photographer" | "business", todayStr);
+        const availableSlots = slotsRes.slots?.filter((s) => s.status === "available") || [];
+        if (availableSlots.length > 0) {
+          const firstSlot = availableSlots[0];
+          const lastSlot = availableSlots[availableSlots.length - 1];
+          setTodayAvailabilityHours({ start: firstSlot.startTime, end: lastSlot.endTime });
+          setWeeklyAvailability([{ dayOfWeek: today.getDay(), startTime: firstSlot.startTime, endTime: lastSlot.endTime, isActive: true }]);
+        } else {
+          setTodayAvailabilityHours(null);
+        }
+      }
+    } catch (e) {
+      console.warn("[ProfileScreen] Could not refresh availability:", e);
+    }
+  }, [profile?.id, isCandidateOwner, profileUserType, fetchId, getToken]);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Refresh availability when screen is focused (e.g., returning from Dashboard)
+      if (profile?.id && (profileUserType === "photographer" || profileUserType === "business")) {
+        refreshAvailability();
+      }
+    }, [profile?.id, profileUserType, refreshAvailability])
+  );
 
   useEffect(() => {
     const fetchProfilePosts = async () => {
@@ -665,29 +804,21 @@ export default function ProfileScreen() {
   };
 
   const getAvailabilityText = (): string => {
-    // First check if todayAvailability is returned from backend
-    if (profile?.availability) {
-      return `Available Today: ${profile.availability.start} - ${profile.availability.end}`;
+    // Helper to convert 24h to 12h format for display
+    const formatTime = (time24: string): string => {
+      const [hours, minutes] = time24.split(":").map(Number);
+      const period = hours >= 12 ? "PM" : "AM";
+      const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")} ${period}` : `${hours12} ${period}`;
+    };
+    
+    // Primary source: todayAvailabilityHours fetched from weekly_availability table
+    if (todayAvailabilityHours) {
+      return `Available Today: ${formatTime(todayAvailabilityHours.start)} \u2013 ${formatTime(todayAvailabilityHours.end)}`;
     }
     
-    // Fallback: compute from hoursOfOperation for today
-    // Format: { open: boolean, start?: string, end?: string }
-    if (profile?.hoursOfOperation) {
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const today = new Date().getDay(); // 0=Sunday, 1=Monday, etc.
-      const todayName = dayNames[today];
-      const todayHours = profile.hoursOfOperation[todayName] as { open: boolean; start?: string; end?: string } | undefined;
-      
-      if (todayHours && todayHours.open === true && todayHours.start && todayHours.end) {
-        // Convert 24h to 12h format for display
-        const formatTime = (time24: string): string => {
-          const [hours, minutes] = time24.split(":").map(Number);
-          const period = hours >= 12 ? "PM" : "AM";
-          const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-          return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")}${period}` : `${hours12}${period}`;
-        };
-        return `Available Today: ${formatTime(todayHours.start)} - ${formatTime(todayHours.end)}`;
-      }
+    // Check if weeklyAvailability has any active days (availability is set but not today)
+    if (weeklyAvailability.length > 0 && weeklyAvailability.some((s) => s.isActive)) {
       return "Not available today";
     }
     

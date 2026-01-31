@@ -1,0 +1,134 @@
+🚨 Blocking Issue: Pro / Pulse display assignment is missing
+
+Right now posts cannot appear in Pro or Pulse rows because there is no display assignment step during post creation.
+
+This is NOT a backend issue.
+
+We need to add a frontend-only display selector so posts can be intentionally placed into either Pro or Pulse.
+
+🔐 Product Rule (Lock This In)
+
+Pro vs Pulse is display-only
+
+postIntent remains semantic only
+
+social | review | promotion
+
+Backend does not infer Pro/Pulse
+
+Frontend controls layout choice
+
+✅ Required Change 1: Add Display Selector to Create Post Flow (FRONTEND ONLY)
+Where:
+
+In the Create Post flow, immediately after the user selects:
+
+Social / Lifestyle
+
+Review / Experience
+
+Promote Service or Product
+
+Add a new required step:
+
+“How should this post appear on your profile?”
+
+Options (single-select):
+
+Pro (Grid / Editorial)
+
+Pulse (Vertical / Feed)
+
+UI Rules:
+
+This is required (no default)
+
+Store selection as:
+
+displayLayout: "pro" | "pulse"
+
+This does NOT replace postIntent.
+✅ Required Change 2: Attach displayLayout to Post Payload
+
+When submitting a post, include:
+
+{
+  postIntent: "social" | "review" | "promotion",
+  displayLayout: "pro" | "pulse"
+}
+
+
+⚠️ This field can live purely in frontend state or metadata.
+No backend schema change required.
+
+✅ Required Change 3: Featured Tab Rendering Logic
+
+In renderFeaturedTab:
+
+const proPosts = posts.filter(p => p.displayLayout === "pro")
+const pulsePosts = posts.filter(p => p.displayLayout === "pulse")
+
+
+Render rows ONLY if they contain items:
+
+Hide empty sections
+
+Do not fallback automatically
+
+✅ Required Change 4: ProfileFeedScreen Contract (Already Agreed)
+
+Navigation params:
+
+{
+  profileId: string,
+  layout: "pro" | "pulse"
+}
+
+
+ProfileFeedScreen:
+
+Fetch all posts for profile
+
+Filter by displayLayout
+
+Apply layout-specific card UI
+
+❌ Explicitly Do NOT Do These
+
+❌ Do NOT map Pro/Pulse from postIntent
+
+❌ Do NOT auto-assign displayLayout
+
+❌ Do NOT infer layout from media type
+
+❌ Do NOT store Pro/Pulse as backend business logic
+
+🧠 Why This Fixes Everything
+
+Featured rows now have deterministic data
+
+Posting UX matches mental model
+
+Backend stays clean and reusable
+
+You can later:
+
+Auto-suggest layouts
+
+Curate Featured
+
+Add admin overrides
+
+Add analytics per layout
+
+✅ Acceptance Criteria
+
+After this change:
+
+User must choose Pro or Pulse before posting
+
+New posts immediately appear in correct Featured row
+
+“View all Pro / Pulse” screens populate correctly
+
+No backend changes required
