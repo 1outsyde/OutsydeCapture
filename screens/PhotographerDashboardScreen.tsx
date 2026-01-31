@@ -758,6 +758,26 @@ export default function PhotographerDashboardScreen() {
       const response = await api.updateWeeklyAvailability(token, "photographer", slots);
       console.log("[Dashboard] Weekly availability saved - response:", JSON.stringify(response, null, 2));
       
+      // DUAL-SYNC: Also update hoursOfOperation for legacy banner UI support
+      // This is transitional - banner should eventually read from weekly_availability directly
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }> = {};
+      dayNames.forEach((dayName, index) => {
+        const slot = slots.find((s) => s.dayOfWeek === index);
+        if (slot) {
+          hoursOfOperation[dayName] = { open: true, start: slot.startTime, end: slot.endTime };
+        } else {
+          hoursOfOperation[dayName] = { open: false };
+        }
+      });
+      console.log("[Dashboard] Syncing hoursOfOperation for banner:", JSON.stringify(hoursOfOperation, null, 2));
+      try {
+        await api.updatePhotographerProfile(token, { hoursOfOperation: hoursOfOperation as any });
+        console.log("[Dashboard] hoursOfOperation synced successfully");
+      } catch (syncError) {
+        console.warn("[Dashboard] Failed to sync hoursOfOperation (non-blocking):", syncError);
+      }
+      
       // Emit availability changed event so other screens (e.g., ProfileScreen) can refresh
       availabilityEvents.emit();
       
