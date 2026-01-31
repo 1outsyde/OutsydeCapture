@@ -174,6 +174,9 @@ export default function ChatScreen() {
     });
   }, [navigation, participantId, participantType, participantName, participantAvatar]);
 
+  // Check if this is a self-conversation (user chatting with themselves)
+  const isSelfConversation = user?.id === participantId;
+
   useEffect(() => {
     navigation.setOptions({
       headerTitle: () => (
@@ -194,7 +197,8 @@ export default function ChatScreen() {
           </ThemedText>
         </View>
       ),
-      headerRight: () => (
+      // Only show View Profile button if NOT a self-conversation
+      headerRight: isSelfConversation ? undefined : () => (
         <Pressable
           onPress={handleViewProfile}
           style={({ pressed }) => [
@@ -209,7 +213,7 @@ export default function ChatScreen() {
         </Pressable>
       ),
     });
-  }, [participantName, participantAvatar, theme, handleViewProfile]);
+  }, [participantName, participantAvatar, theme, handleViewProfile, isSelfConversation]);
 
   const fetchMessages = useCallback(async () => {
     // GUARD: Never fetch if conversationId is undefined

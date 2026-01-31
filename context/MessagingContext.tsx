@@ -8,7 +8,7 @@ export interface Conversation {
   participantId: string;
   participantName: string;
   participantAvatar?: string;
-  participantType: "business" | "photographer";
+  participantType: "business" | "photographer" | "consumer";
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount: number;
@@ -106,7 +106,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
           participantId: otherP.id || "",
           participantName: otherP.displayName || otherP.name || otherP.username || "Unknown",
           participantAvatar: otherP.profileImageUrl || otherP.avatar || undefined,
-          participantType: (otherP.type as "business" | "photographer") || "photographer",
+          participantType: (otherP.type as "business" | "photographer" | "consumer") || "consumer",
           lastMessage: conv.lastMessagePreview || conv.lastMessage || "",
           lastMessageAt: conv.lastMessageAt || conv.updatedAt || conv.createdAt || "",
           unreadCount: conv.unreadCount || 0,

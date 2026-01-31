@@ -84,7 +84,7 @@ export type RootStackParamList = {
     participantId: string;
     participantName: string;
     participantAvatar?: string;
-    participantType: "business" | "photographer";
+    participantType: "business" | "photographer" | "consumer";
   };
   CartOrders: undefined;
   Favorites: undefined;
