@@ -107,6 +107,7 @@ interface FeaturedPost {
   mediaType?: "image" | "video";
   mediaDuration?: number;
   postIntent?: "pro" | "pulse";
+  displayLayout?: "pro" | "pulse";
 }
 
 const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
@@ -120,6 +121,7 @@ const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
   mediaType: post.mediaType,
   mediaDuration: post.mediaDuration,
   postIntent: post.postIntent,
+  displayLayout: post.displayLayout,
 });
 
 const GOLD_DOT_COLOR = "#FFD700";
@@ -214,6 +216,7 @@ export default function ProfileScreen() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostImage, setNewPostImage] = useState<string>("");
   const [newPostCaption, setNewPostCaption] = useState("");
+  const [newPostLayout, setNewPostLayout] = useState<"pro" | "pulse">("pulse");
   const [linkedServiceId, setLinkedServiceId] = useState<string>("");
   const [postSaving, setPostSaving] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -537,10 +540,11 @@ export default function ProfileScreen() {
     const fetchProfilePosts = async () => {
       if (!profile?.id) return;
       try {
-        const response = await api.getProfilePosts(profile.id, { limit: 20 });
+        const response = await api.getProfilePosts(profile.id, { limit: 50 });
         const allPosts = (response.posts || []).map(mapApiPostToFeaturedPost);
-        setProPosts(allPosts.slice(0, 10));
-        setPulsePosts(allPosts.slice(0, 10));
+        setFeaturedPosts(allPosts);
+        setProPosts(allPosts.filter(p => p.displayLayout === "pro"));
+        setPulsePosts(allPosts.filter(p => p.displayLayout === "pulse"));
       } catch (error) {
         console.warn("[ProfileScreen] Could not fetch profile posts:", error);
       }
@@ -744,10 +748,12 @@ export default function ProfileScreen() {
       const postData: {
         imageUrl: string;
         content?: string;
+        displayLayout?: "pro" | "pulse";
         photographerServiceId?: string;
       } = {
         imageUrl: cloudinaryUrl,
         content: newPostCaption.trim() || " ",
+        displayLayout: newPostLayout,
       };
       
       if (linkedServiceId) {
@@ -758,9 +764,16 @@ export default function ProfileScreen() {
       
       if (response.post) {
         const newPost = mapApiPostToFeaturedPost(response.post);
+        newPost.displayLayout = newPostLayout;
         setFeaturedPosts([newPost, ...featuredPosts]);
+        if (newPostLayout === "pro") {
+          setProPosts([newPost, ...proPosts]);
+        } else {
+          setPulsePosts([newPost, ...pulsePosts]);
+        }
         setNewPostImage("");
         setNewPostCaption("");
+        setNewPostLayout("pulse");
         setLinkedServiceId("");
         setShowCreatePost(false);
       }
@@ -1654,9 +1667,57 @@ export default function ProfileScreen() {
           }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
               <ThemedText type="h3">Create Post</ThemedText>
-              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); setLinkedServiceId(""); }}>
+              <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); setNewPostLayout("pulse"); setLinkedServiceId(""); }}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
+            </View>
+
+            <View style={{ marginBottom: Spacing.md }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+                Display Layout
+              </ThemedText>
+              <View style={{ flexDirection: "row", gap: Spacing.sm }}>
+                <Pressable
+                  onPress={() => setNewPostLayout("pulse")}
+                  style={{
+                    flex: 1,
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.md,
+                    borderRadius: 12,
+                    backgroundColor: newPostLayout === "pulse" ? PULSE_DOT_COLOR : theme.backgroundSecondary,
+                    borderWidth: 2,
+                    borderColor: newPostLayout === "pulse" ? PULSE_DOT_COLOR : theme.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText type="body" style={{ color: newPostLayout === "pulse" ? "#000" : theme.text, fontWeight: "600" }}>
+                    Pulse
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: newPostLayout === "pulse" ? "#000" : theme.textSecondary, marginTop: 2 }}>
+                    Vertical / Lifestyle
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setNewPostLayout("pro")}
+                  style={{
+                    flex: 1,
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.md,
+                    borderRadius: 12,
+                    backgroundColor: newPostLayout === "pro" ? GOLD_DOT_COLOR : theme.backgroundSecondary,
+                    borderWidth: 2,
+                    borderColor: newPostLayout === "pro" ? GOLD_DOT_COLOR : theme.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText type="body" style={{ color: newPostLayout === "pro" ? "#000" : theme.text, fontWeight: "600" }}>
+                    Pro
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: newPostLayout === "pro" ? "#000" : theme.textSecondary, marginTop: 2 }}>
+                    Polished / Storefront
+                  </ThemedText>
+                </Pressable>
+              </View>
             </View>
 
             <Pressable

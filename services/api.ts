@@ -79,6 +79,7 @@ export interface ApiPost {
   authorType?: string;
   postType?: string;
   postIntent?: "pro" | "pulse";
+  displayLayout?: "pro" | "pulse";
   mediaType?: "image" | "video";
   mediaDuration?: number;
   content?: string;

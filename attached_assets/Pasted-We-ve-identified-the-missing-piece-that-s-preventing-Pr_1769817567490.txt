@@ -1,0 +1,143 @@
+We’ve identified the missing piece that’s preventing Pro and Pulse from functioning correctly. Please implement the following exactly as specified.
+
+🔴 Core Issue (Do Not Skip)
+
+Pro vs Pulse currently has no signal at post creation time, so Featured rows cannot populate deterministically.
+
+We need to introduce a presentation-only field.
+
+🧩 REQUIRED NEW FIELD
+
+Add a new frontend-controlled field to post creation:
+
+displayLayout: "pro" | "pulse"
+
+Rules:
+
+displayLayout is purely presentational
+
+It is NOT derived from postIntent
+
+It does NOT affect permissions, moderation, or CTA logic
+
+It ONLY determines how and where the post is rendered visually
+
+🧠 Mental Model (Lock This In)
+postIntent   → semantic meaning (social | review | promotion)
+displayLayout → visual presentation (pro | pulse)
+
+
+Any postIntent can be rendered in either layout.
+
+🎨 CREATE POST FLOW – REQUIRED UX CHANGE
+Where to add it:
+
+Add a layout selector to the Create Post flow.
+
+Timing:
+
+After media selection OR
+
+Inline on the Create Post screen
+
+UI Requirements:
+
+Use a segmented control or toggle
+
+Options:
+
+Pulse (default)
+
+Pro
+
+Pulse must be the default selection
+
+Labeling (suggested):
+
+Pulse → “Pulse (Vertical / Lifestyle)”
+
+Pro → “Pro (Polished / Storefront)”
+
+📦 POST PAYLOAD (EXAMPLE)
+{
+  "postIntent": "social",
+  "displayLayout": "pulse",
+  "caption": "Behind the scenes",
+  "media": [...]
+}
+
+{
+  "postIntent": "promotion",
+  "displayLayout": "pro",
+  "cta": { "type": "book" },
+  "media": [...]
+}
+
+⭐ FEATURED TAB POPULATION LOGIC
+
+Featured rows must be driven only by displayLayout:
+
+proPosts   = posts.filter(p => p.displayLayout === "pro")
+pulsePosts = posts.filter(p => p.displayLayout === "pulse")
+
+Do NOT:
+
+Infer layout from postIntent
+
+Hardcode promotion → Pro
+
+Hardcode social → Pulse
+
+🧭 PROFILE FEED SCREEN CONTRACT (UNCHANGED)
+
+Navigation params should remain:
+
+{
+  profileId: string
+  layout: "pro" | "pulse"
+}
+
+
+Backend returns all posts for the profile
+
+Frontend applies layout styling based on layout
+
+🚫 FEATURED TAB RESTRICTIONS (CONFIRMED)
+
+Featured is not a creation surface
+
+Do NOT show “+ Post” inside Featured
+
+Posting access remains via:
+
+FAB
+
+Header action (profile owner only)
+
+✅ ACCEPTANCE CRITERIA (THIS MUST PASS)
+
+User is prompted to choose Pulse or Pro when posting
+
+Posts visibly render differently based on layout
+
+Featured Pro row populates only with displayLayout === "pro"
+
+Featured Pulse row populates only with displayLayout === "pulse"
+
+postIntent remains semantic and untouched
+
+No backend logic infers layout
+
+🧠 WHY THIS IS IMPORTANT
+
+This ensures:
+
+Clean separation of concerns
+
+Creator control over presentation
+
+Zero future refactors
+
+Monetization-ready Pro content later
+
+Once this is implemented, the Pro / Pulse system is fully complete and correct.
