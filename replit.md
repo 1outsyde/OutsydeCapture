@@ -28,6 +28,12 @@ The application features a modern UI with a color scheme centered around gold/ye
 - **Admin Dashboard**: Provides a comprehensive interface for managing users, businesses, payments, messages, and influencers.
 - **Provider Dashboards**: Dedicated dashboards for Photographers and Businesses to manage earnings, bookings, services/products, availability, and profile information, integrating with Stripe Connect.
 - **Photographer Service Management**: CRUD operations for photography services via a dashboard, including status management (draft, live, archived) and publishing gates.
+- **Post Display Layout System (Pro/Pulse)**: Posts have a `displayLayout` field that controls how they appear on profiles. This is a presentation choice made during post creation, NOT derived from postIntent:
+  - **Pro**: Square grid cards (140x140), gold dot indicator, storefront-style presentation
+  - **Pulse**: Vertical cards (120x180), pink dot indicator, immersive feed-style presentation
+  - **Create Post Flow**: After selecting media, users must choose Pro or Pulse format before sharing
+  - **Featured Tab**: Renders two distinct horizontal-scroll rows (Pro row, Pulse row), hiding empty rows
+  - **ProfileFeedScreen**: Receives `{ profileId, layout }` and filters posts client-side by displayLayout
 
 ### Booking Flow Implementation (CRITICAL - DO NOT CHANGE WITHOUT EXPLICIT INSTRUCTION)
 
