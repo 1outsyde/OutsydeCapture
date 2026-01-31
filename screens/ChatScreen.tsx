@@ -146,7 +146,7 @@ export default function ChatScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
-  const { conversationId, participantName, participantAvatar } = route.params;
+  const { conversationId, participantId, participantName, participantAvatar, participantType } = route.params;
   const insets = useSafeAreaInsets();
   const { user, getToken } = useAuth();
 
@@ -156,6 +156,23 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+
+  const handleViewProfile = useCallback(() => {
+    if (!participantId) return;
+    
+    // Map participantType to userType for Profile navigation
+    const userType = participantType === "photographer" ? "photographer" 
+      : participantType === "business" ? "business" 
+      : "consumer";
+    
+    navigation.navigate("Profile", {
+      userId: participantId,
+      profileId: participantId,
+      userType,
+      displayName: participantName,
+      avatar: participantAvatar,
+    });
+  }, [navigation, participantId, participantType, participantName, participantAvatar]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -177,8 +194,22 @@ export default function ChatScreen() {
           </ThemedText>
         </View>
       ),
+      headerRight: () => (
+        <Pressable
+          onPress={handleViewProfile}
+          style={({ pressed }) => [
+            styles.viewProfileButton,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ThemedText type="small" style={{ color: theme.primary }}>
+            View Profile
+          </ThemedText>
+        </Pressable>
+      ),
     });
-  }, [participantName, participantAvatar, theme]);
+  }, [participantName, participantAvatar, theme, handleViewProfile]);
 
   const fetchMessages = useCallback(async () => {
     // GUARD: Never fetch if conversationId is undefined
@@ -521,5 +552,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
+  },
+  viewProfileButton: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
 });
