@@ -820,6 +820,7 @@ export default function ProfileScreen() {
   const renderPostCard = (post: FeaturedPost, layout: "pro" | "pulse") => {
     const isPro = layout === "pro";
     const cardStyle = isPro ? styles.proPostCard : styles.pulsePostCard;
+    const viewCount = Math.floor(Math.random() * 100) + 10;
     
     return (
       <Pressable
@@ -839,30 +840,54 @@ export default function ProfileScreen() {
           contentFit="cover"
           transition={200}
         />
-        <View style={styles.viewCountBadge}>
-          <Feather name={isPro ? "user" : "eye"} size={10} color="#fff" />
-          <ThemedText type="small" style={styles.badgeText}>
-            {post.likes || 0}
-          </ThemedText>
-        </View>
-        <View style={styles.postCardOverlay}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Feather name="heart" size={12} color="#fff" />
-            <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-              {post.likes}
-            </ThemedText>
-          </View>
-          {isPro && (
-            <View style={styles.cameraBadge}>
-              <Feather name="camera" size={10} color="#fff" />
+        
+        {isPro ? (
+          <>
+            <View style={styles.proTopLeftBadge}>
+              <Feather name="user" size={10} color="#fff" />
+              <ThemedText type="small" style={styles.badgeText}>
+                {viewCount}
+              </ThemedText>
             </View>
-          )}
-          {!isPro && (
-            <View style={styles.chatBadge}>
-              <Feather name="more-horizontal" size={12} color="#fff" />
+            <View style={styles.proBottomRow}>
+              <View style={styles.proLikesBadge}>
+                <Feather name="heart" size={12} color="#fff" />
+                <ThemedText type="small" style={styles.likesText}>
+                  {post.likes}
+                </ThemedText>
+              </View>
+              <View style={styles.proCameraBadge}>
+                <Feather name="camera" size={12} color="#fff" />
+              </View>
             </View>
-          )}
-        </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.pulseTopLeftBadge}>
+              <Feather name="eye" size={10} color="#fff" />
+              <ThemedText type="small" style={styles.badgeText}>
+                {viewCount}
+              </ThemedText>
+            </View>
+            <View style={styles.pulseTopRightBadge}>
+              <Feather name="heart" size={10} color="#fff" />
+              <ThemedText type="small" style={styles.badgeText}>
+                {post.likes}
+              </ThemedText>
+            </View>
+            <View style={styles.pulseBottomRow}>
+              <View style={styles.pulseLikesBadge}>
+                <Feather name="heart" size={12} color="#fff" />
+                <ThemedText type="small" style={styles.likesText}>
+                  {post.likes}
+                </ThemedText>
+              </View>
+              <View style={styles.pulseMenuBadge}>
+                <Feather name="more-horizontal" size={14} color="#fff" />
+              </View>
+            </View>
+          </>
+        )}
       </Pressable>
     );
   };
@@ -878,18 +903,20 @@ export default function ProfileScreen() {
       )}
 
       {proPosts.length > 0 && (
-        <View style={{ marginBottom: Spacing.lg }}>
+        <View style={{ marginBottom: Spacing.xl }}>
           <View style={styles.sectionHeader}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={[styles.sectionDot, { backgroundColor: GOLD_DOT_COLOR }]} />
-              <ThemedText type="h4" style={{ marginLeft: Spacing.xs }}>Pro</ThemedText>
+              <ThemedText type="h3" style={{ fontWeight: "700" }}>Pro</ThemedText>
+              <View style={{ marginLeft: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: GOLD_DOT_COLOR, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="camera" size={10} color="#000" />
+              </View>
             </View>
             <Pressable
               onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, layout: "pro" })}
               style={{ flexDirection: "row", alignItems: "center" }}
             >
-              <ThemedText type="small" style={{ color: profileTheme }}>View all Pro</ThemedText>
-              <Feather name="chevron-right" size={14} color={profileTheme} />
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>View all Pro</ThemedText>
+              <Feather name="chevron-right" size={16} color={theme.textSecondary} />
             </Pressable>
           </View>
           <ScrollView
@@ -906,15 +933,15 @@ export default function ProfileScreen() {
         <View style={{ marginBottom: Spacing.lg }}>
           <View style={styles.sectionHeader}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={[styles.sectionDot, { backgroundColor: PULSE_DOT_COLOR }]} />
-              <ThemedText type="h4" style={{ marginLeft: Spacing.xs }}>Pulse</ThemedText>
+              <ThemedText type="h3" style={{ fontWeight: "700" }}>Pulse</ThemedText>
+              <View style={{ marginLeft: 6, width: 12, height: 12, borderRadius: 6, backgroundColor: PULSE_DOT_COLOR }} />
             </View>
             <Pressable
               onPress={() => navigation.navigate("ProfileFeed" as any, { profileId: profile?.id, profileName: profile?.name, layout: "pulse" })}
               style={{ flexDirection: "row", alignItems: "center" }}
             >
-              <ThemedText type="small" style={{ color: profileTheme }}>View all Pulse</ThemedText>
-              <Feather name="chevron-right" size={14} color={profileTheme} />
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>View all Pulse</ThemedText>
+              <Feather name="chevron-right" size={16} color={theme.textSecondary} />
             </Pressable>
           </View>
           <ScrollView
@@ -2144,5 +2171,89 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  proTopLeftBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  proBottomRow: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    right: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  proLikesBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  proCameraBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,215,0,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  likesText: {
+    color: "#fff",
+    fontSize: 12,
+    marginLeft: 4,
+    fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  pulseTopLeftBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pulseTopRightBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pulseBottomRow: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    right: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pulseLikesBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pulseMenuBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
