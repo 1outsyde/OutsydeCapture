@@ -99,9 +99,10 @@ function PostVideoMedia({
         
         // Only report if we have meaningful watch time (> 1 second)
         if (totalWatchTime.current > 1) {
-          const completionRate = videoDuration.current > 0 
-            ? Math.min(totalWatchTime.current / videoDuration.current, 1) 
-            : 0;
+          // Estimate completion based on typical short video duration (15-60 seconds)
+          const estimatedDuration = 30; // Default 30 second assumption
+          const actualDuration = videoDuration.current > 0 ? videoDuration.current : estimatedDuration;
+          const completionRate = Math.min(totalWatchTime.current / actualDuration, 1);
           
           onEngagement({
             watchTimeSeconds: Math.round(totalWatchTime.current),
@@ -115,27 +116,28 @@ function PostVideoMedia({
     }
   }, [isVisible, player, onEngagement, postId]);
 
-  // Track video duration and loops
+  // Track video duration - simplified for web compatibility
   useEffect(() => {
-    const subscription = player.addListener("playingChange", (event) => {
-      if (player.duration && player.duration > 0) {
-        videoDuration.current = player.duration;
+    // Check duration periodically (works on both web and native)
+    const checkDuration = () => {
+      try {
+        if (player.duration && player.duration > 0) {
+          videoDuration.current = player.duration;
+        }
+        // Check for loop (position reset)
+        if (player.currentTime !== undefined) {
+          if (videoDuration.current > 0 && player.currentTime < lastReportedTime.current - 1) {
+            loopCount.current += 1;
+          }
+          lastReportedTime.current = player.currentTime;
+        }
+      } catch (e) {
+        // Silent fail on web if properties not available
       }
-    });
-    
-    // Track when video loops (completion)
-    const positionListener = player.addListener("timeUpdate", (event) => {
-      if (videoDuration.current > 0 && event.currentTime < lastReportedTime.current - 1) {
-        // Video has looped
-        loopCount.current += 1;
-      }
-      lastReportedTime.current = event.currentTime;
-    });
-
-    return () => {
-      subscription.remove();
-      positionListener.remove();
     };
+
+    const interval = setInterval(checkDuration, 1000);
+    return () => clearInterval(interval);
   }, [player]);
 
   return (
