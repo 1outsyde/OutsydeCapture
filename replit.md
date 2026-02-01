@@ -19,7 +19,10 @@ The application features a modern UI with a color scheme centered around gold/ye
 - **Navigation**: Built with Expo SDK 54 and React Navigation 7, featuring Root, MainTab, and Stack Navigators. The Account tab follows a social media pattern, displaying the user's public profile, with a hamburger menu for settings and dashboard access.
 - **Data Management**: Utilizes Context APIs for managing Auth, Data, Orders, Loyalty, Notifications, Payments, Messages, and Favorites.
 - **Core Features**: Includes an algorithmic content feed, category/location-based search, a backend-driven booking flow, in-app messaging, payment processing, a loyalty program, rating system, and favorites.
-- **Algorithmic Feed**: A backend-driven feed (`GET /api/feed`) ranks content based on recency, engagement, product/service boosts, user preferences, and location proximity. It supports both authenticated and anonymous users.
+- **Dual-Feed Architecture**: The home screen supports two distinct feed modes with separate backend endpoints:
+  - **Pro Feed** (`GET /api/feed`): Business-focused, location-aware algorithmic feed. Ranks by provider type, ratings, recency, and location proximity. Optimized for discovery of services and products.
+  - **Pulse Feed** (`GET /api/pulse/feed`): TikTok 2020-style discovery feed. Pure entertainment and engagement-ranked using watch time, completion rate, rewatches, shares, saves. No follower/business bias. Full-screen vertical video experience.
+  - **Engagement Tracking** (`POST /api/pulse/engagement`): Pulse feed tracks video watch time, completion rate, and rewatch signals for ranking algorithm.
 - **Universal Notification Bell**: Located on the Home screen header for all authenticated users, displaying an unread count.
 - **Post Commerce Navigation**: Commerce-enabled posts allow direct booking or purchasing via "Book" or "Buy Now" buttons, linking directly to booking screens or product pages.
 - **Booking System**: A backend-driven system handles service booking, date/slot selection, review, and payment via Stripe PaymentSheet. It includes draft reservation holding with a 10-minute timer and auto-acceptance options based on provider settings.
