@@ -2774,6 +2774,41 @@ class ApiService {
     });
   }
 
+  // ==========================================
+  // Pulse Feed API (TikTok-style Discovery)
+  // ==========================================
+
+  // GET /api/pulse/feed - Get TikTok-style ranked Pulse feed
+  async getPulseFeed(params?: {
+    limit?: number;
+    cursor?: string;
+  }, authToken?: string): Promise<PulseFeedResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.cursor) queryParams.append("cursor", params.cursor);
+    const queryString = queryParams.toString();
+    const url = queryString ? `/api/pulse/feed?${queryString}` : "/api/pulse/feed";
+    
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    
+    return this.request<PulseFeedResponse>(url, { headers });
+  }
+
+  // POST /api/pulse/engagement - Track engagement signals for Pulse ranking
+  async trackPulseEngagement(
+    authToken: string,
+    engagement: PulseEngagement
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>("/api/pulse/engagement", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(engagement),
+    });
+  }
+
   // GET /api/profiles/:profileId/posts - Get posts for a specific profile
   // Note: Pro/Pulse is a display layout decision, not a backend filter
   async getProfilePosts(profileId: string, params?: {
@@ -3072,6 +3107,23 @@ export interface BookingConfirmResponse {
   success: boolean;
   checkoutUrl: string;
   sessionId: string;
+}
+
+export interface PulseEngagement {
+  postId: string;
+  watchTimeSeconds?: number;
+  completionRate?: number;
+  isRewatch?: boolean;
+  shared?: boolean;
+  saved?: boolean;
+  commented?: boolean;
+  liked?: boolean;
+}
+
+export interface PulseFeedResponse {
+  posts: ApiPost[];
+  hasMore: boolean;
+  nextCursor?: string;
 }
 
 export const api = new ApiService();
