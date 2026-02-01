@@ -40,6 +40,17 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+// Viewability configs must be defined outside component to prevent "Changing viewabilityConfig on the fly" error
+const PULSE_VIEWABILITY_CONFIG = {
+  itemVisiblePercentThreshold: 70,
+  minimumViewTime: 100,
+};
+
+const PRO_VIEWABILITY_CONFIG = {
+  itemVisiblePercentThreshold: 50,
+  minimumViewTime: 100,
+};
+
 // Separate component for video playback (allows hook usage)
 function PostVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVisible?: boolean }) {
   console.log("VIDEO_URL [Pulse]:", videoUrl);
@@ -323,24 +334,13 @@ export default function DiscoverScreen() {
   const [visiblePulseIndex, setVisiblePulseIndex] = useState(0);
   const [visibleProIndices, setVisibleProIndices] = useState<Set<number>>(new Set([0, 1]));
   
-  // Viewability config for Pulse feed - play video only when item is 70% visible
-  const pulseViewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 70,
-    minimumViewTime: 100,
-  }).current;
-  
+  // Callbacks for viewability changes - must use useRef for stability
   const onPulseViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
     if (viewableItems.length > 0 && viewableItems[0].index !== null) {
       setVisiblePulseIndex(viewableItems[0].index);
     }
   }).current;
 
-  // Viewability config for Pro feed - play videos that are 50% visible
-  const proViewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-    minimumViewTime: 100,
-  }).current;
-  
   const onProViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
     const visibleSet = new Set<number>();
     viewableItems.forEach(item => {
@@ -734,7 +734,7 @@ export default function DiscoverScreen() {
               }
               contentContainerStyle={styles.proFeedContent}
               onViewableItemsChanged={onProViewableItemsChanged}
-              viewabilityConfig={proViewabilityConfig}
+              viewabilityConfig={PRO_VIEWABILITY_CONFIG}
             />
           ) : (
             <FlatList
@@ -756,7 +756,7 @@ export default function DiscoverScreen() {
                 index,
               })}
               onViewableItemsChanged={onPulseViewableItemsChanged}
-              viewabilityConfig={pulseViewabilityConfig}
+              viewabilityConfig={PULSE_VIEWABILITY_CONFIG}
             />
           )}
         </View>
