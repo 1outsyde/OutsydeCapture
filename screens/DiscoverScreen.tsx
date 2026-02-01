@@ -51,9 +51,32 @@ const PRO_VIEWABILITY_CONFIG = {
   minimumViewTime: 100,
 };
 
-// Separate component for video playback (allows hook usage)
-function PostVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVisible?: boolean }) {
+// Separate component for video playback with engagement tracking (allows hook usage)
+interface PostVideoMediaProps {
+  videoUrl: string;
+  isVisible?: boolean;
+  postId?: string;
+  onEngagement?: (engagement: { 
+    watchTimeSeconds: number; 
+    completionRate: number; 
+    isRewatch: boolean;
+  }) => void;
+}
+
+function PostVideoMedia({ 
+  videoUrl, 
+  isVisible = true, 
+  postId, 
+  onEngagement 
+}: PostVideoMediaProps) {
   console.log("VIDEO_URL [Pulse]:", videoUrl);
+  
+  // Engagement tracking state
+  const watchStartTime = useRef<number | null>(null);
+  const totalWatchTime = useRef(0);
+  const loopCount = useRef(0);
+  const videoDuration = useRef(0);
+  const lastReportedTime = useRef(0);
   
   const player = useVideoPlayer(videoUrl, p => {
     p.loop = true;
@@ -63,14 +86,57 @@ function PostVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVi
     }
   });
 
-  // Control playback based on visibility
+  // Track watch time and completion
   useEffect(() => {
     if (isVisible) {
+      watchStartTime.current = Date.now();
       player.play();
     } else {
+      // Report engagement when visibility changes (user scrolled away)
+      if (watchStartTime.current && onEngagement && postId) {
+        const sessionWatchTime = (Date.now() - watchStartTime.current) / 1000;
+        totalWatchTime.current += sessionWatchTime;
+        
+        // Only report if we have meaningful watch time (> 1 second)
+        if (totalWatchTime.current > 1) {
+          const completionRate = videoDuration.current > 0 
+            ? Math.min(totalWatchTime.current / videoDuration.current, 1) 
+            : 0;
+          
+          onEngagement({
+            watchTimeSeconds: Math.round(totalWatchTime.current),
+            completionRate: Math.round(completionRate * 100) / 100,
+            isRewatch: loopCount.current > 0,
+          });
+        }
+      }
+      watchStartTime.current = null;
       player.pause();
     }
-  }, [isVisible, player]);
+  }, [isVisible, player, onEngagement, postId]);
+
+  // Track video duration and loops
+  useEffect(() => {
+    const subscription = player.addListener("playingChange", (event) => {
+      if (player.duration && player.duration > 0) {
+        videoDuration.current = player.duration;
+      }
+    });
+    
+    // Track when video loops (completion)
+    const positionListener = player.addListener("timeUpdate", (event) => {
+      if (videoDuration.current > 0 && event.currentTime < lastReportedTime.current - 1) {
+        // Video has looped
+        loopCount.current += 1;
+      }
+      lastReportedTime.current = event.currentTime;
+    });
+
+    return () => {
+      subscription.remove();
+      positionListener.remove();
+    };
+  }, [player]);
 
   return (
     <VideoView
@@ -543,7 +609,21 @@ export default function DiscoverScreen() {
   const TAB_BAR_HEIGHT = 80;
   const POST_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
 
-  // Full-screen post component
+  // Handle video engagement tracking for Pulse feed
+  const handleVideoEngagement = useCallback((postId: string, engagement: {
+    watchTimeSeconds: number;
+    completionRate: number;
+    isRewatch: boolean;
+  }) => {
+    trackPulseEngagement({
+      postId,
+      watchTimeSeconds: engagement.watchTimeSeconds,
+      completionRate: engagement.completionRate,
+      isRewatch: engagement.isRewatch,
+    });
+  }, [trackPulseEngagement]);
+
+  // Full-screen post component (Pulse feed - TikTok style)
   const renderFullScreenPost = ({ item: post, index }: { item: Post; index: number }) => {
     const isVendor = post.type === "vendor";
     const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
@@ -559,7 +639,12 @@ export default function DiscoverScreen() {
         {/* Videos: cover mode (full-screen native feel) */}
         {/* Images: contain mode with aspect-aware background (never crop) */}
         {hasVideo ? (
-          <PostVideoMedia videoUrl={post.videoUrl!} isVisible={isVisible} />
+          <PostVideoMedia 
+            videoUrl={post.videoUrl!} 
+            isVisible={isVisible}
+            postId={post.id}
+            onEngagement={(engagement) => handleVideoEngagement(post.id, engagement)}
+          />
         ) : (
           <PostImageMedia imageUrl={post.image} />
         )}
