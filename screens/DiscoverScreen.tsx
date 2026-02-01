@@ -32,7 +32,7 @@ import { useData, Post, PostType } from "@/context/DataContext";
 import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
-import api, { ApiPost } from "@/services/api";
+import api, { ApiPost, PulseEngagement } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { ProFeedCard } from "@/components/ProFeedCard";
 
@@ -151,10 +151,14 @@ export default function DiscoverScreen() {
   const { user, getToken } = useAuth();
 
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
-  const [feedPosts, setFeedPosts] = useState<Post[]>([]);
+  const [feedPosts, setFeedPosts] = useState<Post[]>([]); // Pro feed posts
+  const [pulsePosts, setPulsePosts] = useState<Post[]>([]); // Pulse feed posts (separate TikTok-style feed)
   const [feedLoading, setFeedLoading] = useState(true);
+  const [pulseLoading, setPulseLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [pulseCursor, setPulseCursor] = useState<string | undefined>(undefined);
+  const [pulseHasMore, setPulseHasMore] = useState(true);
   
   // Comments modal state
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
@@ -232,7 +236,8 @@ export default function DiscoverScreen() {
   }, []);
 
   // Fetch algorithmic feed from backend
-  const fetchAlgorithmicFeed = useCallback(async () => {
+  // Fetch Pro feed from /api/feed (business-focused, location-aware)
+  const fetchProFeed = useCallback(async () => {
     try {
       setFeedLoading(true);
       const token = await getToken();
@@ -248,11 +253,56 @@ export default function DiscoverScreen() {
         setFeedPosts(convertedPosts);
       }
     } catch (error) {
-      console.error("[DiscoverScreen] Failed to fetch algorithmic feed:", error);
+      console.error("[DiscoverScreen] Failed to fetch Pro feed:", error);
     } finally {
       setFeedLoading(false);
     }
   }, [getToken, userLocation, convertApiPostToPost]);
+
+  // Fetch Pulse feed from /api/pulse/feed (TikTok-style discovery, engagement-ranked)
+  const fetchPulseFeed = useCallback(async (refresh = false) => {
+    try {
+      if (refresh) {
+        setPulseLoading(true);
+        setPulseCursor(undefined);
+      }
+      
+      const token = await getToken();
+      
+      const response = await api.getPulseFeed({
+        limit: 20,
+        cursor: refresh ? undefined : pulseCursor,
+      }, token || undefined);
+      
+      if (response.posts && Array.isArray(response.posts)) {
+        const convertedPosts = response.posts.map(convertApiPostToPost);
+        if (refresh) {
+          setPulsePosts(convertedPosts);
+        } else {
+          setPulsePosts(prev => [...prev, ...convertedPosts]);
+        }
+        setPulseHasMore(response.hasMore);
+        setPulseCursor(response.nextCursor);
+      }
+    } catch (error) {
+      console.error("[DiscoverScreen] Failed to fetch Pulse feed:", error);
+    } finally {
+      setPulseLoading(false);
+    }
+  }, [getToken, pulseCursor, convertApiPostToPost]);
+
+  // Track engagement for Pulse posts (watch time, completion, rewatches)
+  const trackPulseEngagement = useCallback(async (engagement: PulseEngagement) => {
+    try {
+      const token = await getToken();
+      if (token) {
+        await api.trackPulseEngagement(token, engagement);
+      }
+    } catch (error) {
+      // Silent fail - engagement tracking is non-critical
+      console.log("[DiscoverScreen] Failed to track Pulse engagement:", error);
+    }
+  }, [getToken]);
 
   // Get user location for location-based ranking
   useEffect(() => {
@@ -275,16 +325,25 @@ export default function DiscoverScreen() {
     requestLocation();
   }, []);
 
-  // Fetch feed when location is available or on mount
+  // Fetch Pro feed when location is available or on mount
   useEffect(() => {
-    fetchAlgorithmicFeed();
+    fetchProFeed();
   }, [userLocation]);
+
+  // Fetch Pulse feed on mount
+  useEffect(() => {
+    fetchPulseFeed(true);
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchAlgorithmicFeed();
+    if (feedMode === "pro") {
+      await fetchProFeed();
+    } else {
+      await fetchPulseFeed(true);
+    }
     setRefreshing(false);
-  }, [fetchAlgorithmicFeed]);
+  }, [feedMode, fetchProFeed, fetchPulseFeed]);
 
   // Feed-specific sorting
   const proFeedPosts = useMemo(() => {
@@ -308,21 +367,9 @@ export default function DiscoverScreen() {
     });
   }, [feedPosts]);
 
-  const pulseFeedPosts = useMemo(() => {
-    return [...feedPosts].sort((a, b) => {
-      const aHasVerticalVideo = a.videoUrl ? 1 : 0;
-      const bHasVerticalVideo = b.videoUrl ? 1 : 0;
-      if (bHasVerticalVideo !== aHasVerticalVideo) return bHasVerticalVideo - aHasVerticalVideo;
-      
-      const aDate = new Date(a.createdAt).getTime();
-      const bDate = new Date(b.createdAt).getTime();
-      if (bDate !== aDate) return bDate - aDate;
-      
-      const aEngagement = (a.likes || 0) + (a.comments?.length || 0);
-      const bEngagement = (b.likes || 0) + (b.comments?.length || 0);
-      return bEngagement - aEngagement;
-    });
-  }, [feedPosts]);
+  // Pulse feed is already ranked by backend (TikTok-style engagement algorithm)
+  // No client-side sorting needed - backend handles watch time, completion, rewatches
+  const pulseFeedPosts = pulsePosts;
 
   // Scroll position refs for each feed
   const proScrollOffset = useRef(0);
