@@ -1,0 +1,84 @@
+This is a substantial feature - building a TikTok-style discovery feed engine. I'll start with the database schema foundation, then work through the backend ranking logic, and finish with the frontend full-screen video experience.
+
+Let me begin with Phase 1 - the database schema for tracking Pulse engagements, distribution tiers, and user interests.
+
+Now I'll add the Pulse-related tables to the schema. I need to add:
+
+pulse_engagements - tracks user interactions with posts (watch time, completion, rewatches, shares, saves)
+post_distribution - tracks cold start and tier escalation for posts
+user_interests - behavior-based interest graph with time decay
+Now I need to add the insert schemas and types for these new tables:
+
+Now let me add the types. Let me find where the other types are defined:
+
+Now let me run the database migration to create these tables:
+
+Now let me create the Pulse service that will handle the ranking algorithm and engagement tracking. I'll create a dedicated service file for this:
+
+Now let me add the Pulse API routes to the routes file:
+
+Good - the API is working but returning empty posts as expected (no pulse posts exist yet). Now let me update the task list and continue with the frontend components:
+
+Now let me create the frontend components. First, I'll create the PulseFeedViewer component with full-screen vertical scroll and video player:
+
+Now let me create the PulseFeedViewer component with full-screen vertical scroll and TikTok-style video player:
+
+Now let me create the Pulse page that renders the PulseFeedViewer:
+
+Let me fix the LSP errors in the PulseFeedViewer component:
+
+I see the apiRequest function takes (method, url, data) not the fetch-style options. Let me fix the PulseFeedViewer component:
+
+Now let me add the Pulse route to the App.tsx. First let me check how routes are configured:
+
+Now I need to find where pages are rendered and add the Pulse page:
+
+Good - the API is working. Now let me update the task list and update the replit.md with the Pulse feed documentation:
+
+Let me update the replit.md with the Pulse feed documentation:
+
+Let me verify the implementations more thoroughly - checking that the Pro feed is untouched and the Pulse service logic is correct:
+
+Good - I can see the Pro feed endpoint at /api/feed is untouched and uses the existing getAlgorithmicFeed from storage. The Pulse feed uses a completely separate endpoint /api/pulse/feed with its own pulseService.ts. Let me verify the tables were created successfully:
+
+All three Pulse tables exist. Now let me verify the pulseService.ts implementation for ranking weights and tier thresholds:
+
+The configuration and ranking weights are correctly implemented per the TikTok 2020-style requirements. Let me also verify the getPulseFeed function:
+
+The implementation looks correct. I can see the Pulse feed:
+
+Gets user interest vector for personalization
+Filters for Pulse-eligible content (displayLayout='pulse' OR video without displayLayout)
+Excludes promotional content (postIntent='promotion') - keeping it separate from Pro feed
+Orders and scores with the configured weights
+Let me now run a comprehensive end-to-end test of the Pulse feed to validate the implementation:
+
+All tests passed. The Pulse feed system is working correctly:
+
+/pulse route loads the PulseFeedViewer component
+API endpoint returns the expected structure
+Pro feed (/) is completely separate and untouched
+Let me mark all tasks as completed now:
+
+The complete TikTok 2020-style Pulse Feed system has been implemented and tested successfully. Here's what was accomplished:
+
+Database:
+
+Created pulse_engagements, post_distribution, and user_interests tables for tracking engagement and content distribution
+Backend (pulseService.ts):
+
+Ranking algorithm with TikTok-style weights: watch time (30%), completion (25%), rewatches (20%), shares (12%), saves (8%), comments (4%), likes (1%)
+Cold start distribution (300-1000 impressions in 60-minute window)
+Tier escalation system (1k → 10k → 50k → unlimited)
+User interest graph with behavior-based clustering and time decay
+API Endpoints:
+
+GET /api/pulse/feed - Returns ranked Pulse posts with personalization
+POST /api/pulse/engagement - Tracks engagement signals
+Debug endpoints for distribution stats and interests
+Frontend (PulseFeedViewer):
+
+Full-screen vertical scroll with one post at a time
+Video autoplay with audio, tap to pause/play, loop on completion
+Engagement tracking and infinite scroll
+Integrated at /pulse route
