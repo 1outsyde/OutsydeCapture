@@ -58,6 +58,7 @@ import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
 import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
 import { availabilityEvents } from "@/services/availabilityEvents";
+import { feedEvents } from "@/services/feedEvents";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -1228,6 +1229,9 @@ export default function AccountScreen() {
             : "Your post is now live on the Pro feed!",
           [{ text: "OK" }]
         );
+        
+        // Trigger feed refresh so the new post appears immediately
+        feedEvents.emitRefresh(createdForPulse ? "pulse" : "pro");
       }
     } catch (error: any) {
       console.error("[AccountScreen] Failed to create post:", error);

@@ -35,6 +35,7 @@ import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost, PulseEngagement } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { ProFeedCard } from "@/components/ProFeedCard";
+import { feedEvents } from "@/services/feedEvents";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -477,6 +478,19 @@ export default function DiscoverScreen() {
   useEffect(() => {
     fetchPulseFeed(true);
   }, []);
+
+  // Listen for feed refresh events (triggered after posting)
+  useEffect(() => {
+    const unsubscribe = feedEvents.subscribe((feedType) => {
+      console.log(`[DiscoverScreen] Received feed refresh event for ${feedType}`);
+      if (feedType === "pulse") {
+        fetchPulseFeed(true);
+      } else if (feedType === "pro") {
+        fetchProFeed();
+      }
+    });
+    return unsubscribe;
+  }, [fetchPulseFeed, fetchProFeed]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
