@@ -61,8 +61,19 @@ export default function ProfileFeedScreen() {
       });
 
       const allPosts = response.posts || [];
-      // Filter posts by displayLayout client-side
-      const filteredPosts = allPosts.filter(post => post.displayLayout === layout);
+      
+      // DEBUG: Log what we received from backend
+      console.log("[ProfileFeedScreen] Received", allPosts.length, "posts for layout:", layout);
+      allPosts.forEach((p, i) => {
+        console.log(`[ProfileFeedScreen] Post ${i}: displayLayout=${p.displayLayout}, feedSurface=${p.feedSurface}, videoUrl=${p.videoUrl?.substring(0, 50)}, mediaUrl=${p.mediaUrl?.substring(0, 50)}`);
+      });
+      
+      // Filter posts by displayLayout OR feedSurface (backend may use either)
+      const filteredPosts = allPosts.filter(post => 
+        post.displayLayout === layout || post.feedSurface === layout
+      );
+      
+      console.log("[ProfileFeedScreen] Filtered to", filteredPosts.length, "posts");
 
       if (refresh || pageNum === 1) {
         setPosts(filteredPosts);

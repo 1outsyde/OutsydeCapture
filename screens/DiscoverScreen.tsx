@@ -365,7 +365,8 @@ export default function DiscoverScreen() {
       rating: (apiPost.author as any)?.rating || 0,
       reviewCount: (apiPost.author as any)?.reviewCount || 0,
       image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
-      videoUrl: apiPost.videoUrl,
+      // Use videoUrl, fallback to mediaUrl (backend may use either field name)
+      videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
       caption: apiPost.content || "",
       likes: apiPost.likesCount || 0,
       isLiked: false,

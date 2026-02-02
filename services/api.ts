@@ -80,12 +80,15 @@ export interface ApiPost {
   postType?: string;
   postIntent?: "pro" | "pulse";
   displayLayout?: "pro" | "pulse";
+  feedSurface?: "pro" | "pulse"; // Added: explicit feed routing
   mediaType?: "image" | "video";
   mediaDuration?: number;
+  thumbnailUrl?: string; // Added: video thumbnail
   content?: string;
   imageUrl?: string;
   images?: string[];
   videoUrl?: string;
+  mediaUrl?: string; // Added: alternative field name from backend (snake_case → camelCase)
   taggedBusinessId?: string;
   taggedPhotographerId?: string;
   likesCount: number;

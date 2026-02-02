@@ -121,12 +121,14 @@ interface FeaturedPost {
 const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
   id: post.id,
   imageUri: post.imageUrl || (post.images && post.images[0]) || "",
-  videoUri: post.videoUrl,
+  // Use videoUrl, fallback to mediaUrl (backend may use either field name)
+  videoUri: post.videoUrl || post.mediaUrl,
   caption: post.content || "",
   likes: post.likesCount || 0,
   comments: post.commentsCount || 0,
   createdAt: new Date(post.createdAt),
-  displayLayout: post.displayLayout,
+  // Use displayLayout, fallback to feedSurface (backend may return either)
+  displayLayout: post.displayLayout || post.feedSurface,
   mediaType: post.mediaType,
 });
 
@@ -874,17 +876,26 @@ export default function AccountScreen() {
         );
         console.log("[AccountScreen] Loaded posts from backend:", userPosts.length, "User ID:", user?.id);
         console.log("[AccountScreen] All posts authorIds:", allPosts.map((p: ApiPost) => p.authorId));
-        // Debug: Log pulse posts with their media data
-        const pulsePosts = userPosts.filter((p: ApiPost) => p.displayLayout === "pulse");
+        // Debug: Log ALL posts with their layout/surface data
+        userPosts.forEach((p: ApiPost, i: number) => {
+          console.log(`[AccountScreen] Post ${i}: id=${p.id}, displayLayout=${p.displayLayout}, feedSurface=${p.feedSurface}, videoUrl=${p.videoUrl?.substring(0, 50)}, mediaUrl=${p.mediaUrl?.substring(0, 50)}`);
+        });
+        // Debug: Log pulse posts with their media data (check both displayLayout and feedSurface)
+        const pulsePosts = userPosts.filter((p: ApiPost) => p.displayLayout === "pulse" || p.feedSurface === "pulse");
         if (pulsePosts.length > 0) {
+          console.log("[AccountScreen] Pulse posts count:", pulsePosts.length);
           console.log("[AccountScreen] Pulse posts media data:", pulsePosts.map((p: ApiPost) => ({
             id: p.id,
             displayLayout: p.displayLayout,
+            feedSurface: p.feedSurface,
             mediaType: p.mediaType,
             videoUrl: p.videoUrl,
+            mediaUrl: p.mediaUrl,
             imageUrl: p.imageUrl,
-            hasVideoUrl: !!p.videoUrl,
+            hasVideoUrl: !!(p.videoUrl || p.mediaUrl),
           })));
+        } else {
+          console.log("[AccountScreen] No pulse posts found");
         }
         setFeaturedPosts(userPosts.map(mapApiPostToFeaturedPost));
       } catch (postsError) {
