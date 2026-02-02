@@ -63,14 +63,83 @@ interface PostVideoMediaProps {
   }) => void;
 }
 
-function PostVideoMedia({ 
+// Web-specific video component using native HTML video element
+// This avoids expo-video hook issues on web platform
+function WebVideoMedia({ 
   videoUrl, 
   isVisible = true, 
   postId, 
   onEngagement 
 }: PostVideoMediaProps) {
-  console.log("VIDEO_URL [Pulse]:", videoUrl);
-  
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const watchStartTime = useRef<number | null>(null);
+  const totalWatchTime = useRef(0);
+  const loopCount = useRef(0);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isVisible) {
+      watchStartTime.current = Date.now();
+      video.play().catch(() => {});
+    } else {
+      // Report engagement when scrolling away
+      if (watchStartTime.current && onEngagement && postId) {
+        const sessionWatchTime = (Date.now() - watchStartTime.current) / 1000;
+        totalWatchTime.current += sessionWatchTime;
+        
+        if (totalWatchTime.current > 1) {
+          const actualDuration = video.duration > 0 ? video.duration : 30;
+          const completionRate = Math.min(totalWatchTime.current / actualDuration, 1);
+          
+          onEngagement({
+            watchTimeSeconds: Math.round(totalWatchTime.current),
+            completionRate: Math.round(completionRate * 100) / 100,
+            isRewatch: loopCount.current > 0,
+          });
+        }
+      }
+      watchStartTime.current = null;
+      video.pause();
+      video.currentTime = 0;
+    }
+  }, [isVisible, onEngagement, postId]);
+
+  const handleVideoEnded = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    loopCount.current += 1;
+    video.currentTime = 0;
+    video.play().catch(() => {});
+  }, []);
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <video
+        ref={videoRef as any}
+        src={videoUrl}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+        }}
+        muted
+        playsInline
+        onEnded={handleVideoEnded}
+      />
+    </View>
+  );
+}
+
+// Native video component using expo-video (iOS/Android)
+function NativeVideoMedia({ 
+  videoUrl, 
+  isVisible = true, 
+  postId, 
+  onEngagement 
+}: PostVideoMediaProps) {
   // Engagement tracking state
   const watchStartTime = useRef<number | null>(null);
   const totalWatchTime = useRef(0);
@@ -116,15 +185,13 @@ function PostVideoMedia({
     }
   }, [isVisible, player, onEngagement, postId]);
 
-  // Track video duration - simplified for web compatibility
+  // Track video duration - simplified for compatibility
   useEffect(() => {
-    // Check duration periodically (works on both web and native)
     const checkDuration = () => {
       try {
         if (player.duration && player.duration > 0) {
           videoDuration.current = player.duration;
         }
-        // Check for loop (position reset)
         if (player.currentTime !== undefined) {
           if (videoDuration.current > 0 && player.currentTime < lastReportedTime.current - 1) {
             loopCount.current += 1;
@@ -132,7 +199,7 @@ function PostVideoMedia({
           lastReportedTime.current = player.currentTime;
         }
       } catch (e) {
-        // Silent fail on web if properties not available
+        // Silent fail if properties not available
       }
     };
 
@@ -148,6 +215,14 @@ function PostVideoMedia({
       nativeControls={false}
     />
   );
+}
+
+// Platform-aware video component - uses HTML video on web, expo-video on native
+function PostVideoMedia(props: PostVideoMediaProps) {
+  if (Platform.OS === 'web') {
+    return <WebVideoMedia {...props} />;
+  }
+  return <NativeVideoMedia {...props} />;
 }
 
 // Image aspect ratio types for smart rendering
