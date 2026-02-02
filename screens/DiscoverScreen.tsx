@@ -927,6 +927,7 @@ export default function DiscoverScreen() {
         <View style={styles.feedPage}>
           {feedMode === "pro" ? (
             <FlatList
+              key="pro-feed-list"
               ref={proListRef}
               data={proFeedPosts}
               renderItem={renderProFeedItem}
@@ -947,6 +948,7 @@ export default function DiscoverScreen() {
             />
           ) : (
             <FlatList
+              key="pulse-feed-list"
               ref={pulseListRef}
               data={pulseFeedPosts}
               renderItem={renderFullScreenPost}
