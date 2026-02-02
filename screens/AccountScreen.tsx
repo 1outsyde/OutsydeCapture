@@ -319,8 +319,9 @@ function EditProfileModal({
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["videos"],
       allowsEditing: true,
-      quality: 0.8,
+      quality: 0.5, // Lower quality for smaller file size
       videoMaxDuration: 30,
+      videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium, // Medium quality for compression
     });
     if (!result.canceled && result.assets[0]) {
       setPendingBannerUri(result.assets[0].uri);
@@ -1133,11 +1134,12 @@ export default function AccountScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ["images", "videos"],
       allowsEditing: true,
       aspect: [9, 16],
-      quality: 0.8,
-      videoMaxDuration: 60,
+      quality: 0.5, // Lower quality for smaller file size
+      videoMaxDuration: 15, // Max 15 seconds for Pulse videos
+      videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium, // Medium quality for compression
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
@@ -1218,9 +1220,16 @@ export default function AccountScreen() {
         cloudinaryUrl = await uploadImageToCloudinary(newPostMedia, "posts");
       }
       
-      if (!cloudinaryUrl) {
-        throw new Error("Failed to upload media. Please try again.");
+      // CRITICAL: Validate upload succeeded with a proper Cloudinary URL
+      if (!cloudinaryUrl || !cloudinaryUrl.includes("cloudinary.com")) {
+        throw new Error("Upload failed - no valid media URL received. Please try again with a shorter video.");
       }
+      
+      // For video posts, validate we have the video URL properly set
+      if (newPostMediaType === "video" && !cloudinaryUrl.includes("/video/upload/")) {
+        throw new Error("Video upload failed - received invalid video URL. Please try again.");
+      }
+      
       console.log("[AccountScreen] Media uploaded to Cloudinary:", cloudinaryUrl, "type:", newPostMediaType);
       
       // Create post with Cloudinary URL + metadata (backend only receives URLs, not raw files)
