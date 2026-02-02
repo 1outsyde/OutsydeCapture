@@ -102,16 +102,37 @@ export default function ProfileFeedScreen() {
   };
 
   const renderPost = ({ item }: { item: ApiPost }) => {
-    const imageUri = item.imageUrl || (item.images && item.images[0]) || "";
+    // Determine if this is a video post
+    const isVideo = item.mediaType === "video" || (item.videoUrl && !item.imageUrl);
+    
+    // Get thumbnail: for videos, derive from Cloudinary URL; for images, use imageUrl
+    let thumbnailUri = item.imageUrl || (item.images && item.images[0]) || "";
+    
+    if (isVideo && item.videoUrl) {
+      // Convert Cloudinary video URL to thumbnail by getting first frame
+      if (item.videoUrl.includes("/video/upload/")) {
+        thumbnailUri = item.videoUrl.replace("/video/upload/", "/video/upload/so_0,f_jpg,w_400/");
+        thumbnailUri = thumbnailUri.replace(/\.(mp4|mov|webm)$/i, ".jpg");
+      } else {
+        thumbnailUri = item.videoUrl;
+      }
+    }
 
     return (
       <Pressable style={styles.postCard}>
         <Image
-          source={{ uri: imageUri }}
+          source={{ uri: thumbnailUri }}
           style={styles.postImage}
           contentFit="cover"
           transition={200}
+          placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
         />
+        {/* Play overlay for video posts */}
+        {isVideo && (
+          <View style={styles.videoPlayOverlay}>
+            <Feather name="play" size={20} color="#fff" />
+          </View>
+        )}
         <View style={styles.postOverlay}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Feather name="heart" size={14} color="#fff" />
@@ -271,6 +292,18 @@ const styles = StyleSheet.create({
   postImage: {
     width: "100%",
     height: "100%",
+  },
+  videoPlayOverlay: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: [{ translateX: -18 }, { translateY: -18 }],
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   postOverlay: {
     position: "absolute",
