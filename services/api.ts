@@ -2682,11 +2682,24 @@ class ApiService {
   // ==========================================
 
   // POST /api/feed - Create a new post (auth required)
+  // Supports both legacy format (imageUrl/videoUrl) and new media object format
   async createPost(authToken: string, data: {
     content?: string;
     imageUrl?: string;
     images?: string[];
     videoUrl?: string;
+    // New media object format for direct-to-Cloudinary uploads
+    media?: {
+      url: string;
+      type: "image" | "video";
+      thumbnailUrl?: string;
+      duration?: number;
+      width?: number;
+      height?: number;
+    };
+    mediaType?: "image" | "video";
+    thumbnailUrl?: string;
+    mediaDuration?: number;
     taggedBusinessId?: string;
     taggedPhotographerId?: string;
     photographerServiceId?: string;

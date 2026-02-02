@@ -56,7 +56,7 @@ import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
-import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
+import { uploadImageToCloudinary, uploadVideoToCloudinary, uploadVideoWithMetadata, getVideoThumbnailUrl } from "@/services/cloudinary";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { feedEvents } from "@/services/feedEvents";
 
@@ -1185,13 +1185,24 @@ export default function AccountScreen() {
 
     setPostSaving(true);
     try {
-      // Upload media to Cloudinary first
+      // Upload media directly to Cloudinary first (never goes through backend)
       let cloudinaryUrl: string;
+      let thumbnailUrl: string | undefined;
+      let mediaDuration: number | undefined;
+      
       if (newPostMediaType === "video") {
-        console.log("[AccountScreen] Uploading post video to Cloudinary...");
-        cloudinaryUrl = await uploadVideoToCloudinary(newPostMedia, "posts");
+        console.log("[AccountScreen] Uploading post video directly to Cloudinary...");
+        const videoResult = await uploadVideoWithMetadata(newPostMedia, "posts");
+        cloudinaryUrl = videoResult.url;
+        thumbnailUrl = videoResult.thumbnailUrl;
+        mediaDuration = videoResult.duration;
+        console.log("[AccountScreen] Video uploaded with metadata:", { 
+          url: cloudinaryUrl, 
+          thumbnailUrl, 
+          duration: mediaDuration 
+        });
       } else {
-        console.log("[AccountScreen] Uploading post image to Cloudinary...");
+        console.log("[AccountScreen] Uploading post image directly to Cloudinary...");
         cloudinaryUrl = await uploadImageToCloudinary(newPostMedia, "posts");
       }
       
@@ -1200,12 +1211,15 @@ export default function AccountScreen() {
       }
       console.log("[AccountScreen] Media uploaded to Cloudinary:", cloudinaryUrl, "type:", newPostMediaType);
       
-      // Create post with Cloudinary URL (serviceId/productId are optional)
+      // Create post with Cloudinary URL + metadata (backend only receives URLs, not raw files)
       // CRITICAL: feedSurface is the source of truth for feed placement
       const postData: {
         imageUrl?: string;
         videoUrl?: string;
         content?: string;
+        mediaType?: "image" | "video";
+        thumbnailUrl?: string;
+        mediaDuration?: number;
         photographerServiceId?: string;
         productId?: string;
         displayLayout: "pro" | "pulse";
@@ -1214,11 +1228,14 @@ export default function AccountScreen() {
         content: newPostCaption.trim() || " ",
         displayLayout: displayLayout!,
         feedSurface: displayLayout!, // CRITICAL: Explicit feed routing
+        mediaType: newPostMediaType,
       };
       
       // Set image or video URL based on media type
       if (newPostMediaType === "video") {
         postData.videoUrl = cloudinaryUrl;
+        postData.thumbnailUrl = thumbnailUrl;
+        postData.mediaDuration = mediaDuration;
       } else {
         postData.imageUrl = cloudinaryUrl;
       }

@@ -11,6 +11,24 @@ interface CloudinaryUploadResponse {
   duration?: number;
 }
 
+export interface VideoUploadResult {
+  url: string;
+  thumbnailUrl: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+}
+
+// Generate Cloudinary thumbnail URL from video URL
+export function getVideoThumbnailUrl(videoUrl: string, width: number = 400): string {
+  if (!videoUrl.includes("/video/upload/")) {
+    return videoUrl;
+  }
+  // Insert transformation: get first frame as JPG
+  const thumbnailUrl = videoUrl.replace("/video/upload/", `/video/upload/so_0,f_jpg,w_${width}/`);
+  return thumbnailUrl.replace(/\.(mp4|mov|webm|avi|mkv|m4v|3gp)$/i, ".jpg");
+}
+
 export async function uploadImageToCloudinary(
   imageUri: string,
   folder: string = "profiles"
@@ -131,4 +149,94 @@ export async function uploadVideoToCloudinary(
   const data: CloudinaryUploadResponse = await response.json();
   console.log("[Cloudinary] Video upload successful:", data.secure_url);
   return data.secure_url;
+}
+
+// Upload video and return full metadata including thumbnail URL
+export async function uploadVideoWithMetadata(
+  videoUri: string,
+  folder: string = "videos",
+  providedMimeType?: string | null
+): Promise<VideoUploadResult> {
+  const formData = new FormData();
+
+  const uriParts = videoUri.split(".");
+  let fileType = uriParts.length > 1 ? uriParts[uriParts.length - 1].toLowerCase() : "";
+  
+  if (fileType.includes("?")) {
+    fileType = fileType.split("?")[0];
+  }
+
+  const mimeTypes: Record<string, string> = {
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    avi: "video/x-msvideo",
+    mkv: "video/x-matroska",
+    webm: "video/webm",
+    m4v: "video/x-m4v",
+    "3gp": "video/3gpp",
+  };
+
+  let mimeType = providedMimeType || mimeTypes[fileType] || "video/mp4";
+  
+  if (!fileType || !mimeTypes[fileType]) {
+    if (mimeType === "video/quicktime" || mimeType === "video/mov") {
+      fileType = "mov";
+    } else if (mimeType === "video/mp4") {
+      fileType = "mp4";
+    } else {
+      fileType = "mp4";
+    }
+  }
+
+  console.log("[Cloudinary] Video upload with metadata - URI:", videoUri.substring(0, 80) + "...");
+  console.log("[Cloudinary] Video upload - mimeType:", mimeType, "extension:", fileType);
+
+  formData.append("file", {
+    uri: videoUri,
+    type: mimeType,
+    name: `upload.${fileType}`,
+  } as any);
+
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  formData.append("folder", folder);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+    {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[Cloudinary] Video upload failed:", errorText);
+    
+    if (errorText.includes("not allowed") || errorText.includes("resource_type")) {
+      throw new Error(
+        "Video uploads are not enabled. Please update your Cloudinary upload preset to allow videos."
+      );
+    }
+    throw new Error(`Video upload failed: ${response.status}`);
+  }
+
+  const data: CloudinaryUploadResponse = await response.json();
+  const thumbnailUrl = getVideoThumbnailUrl(data.secure_url);
+  
+  console.log("[Cloudinary] Video upload with metadata successful:", {
+    url: data.secure_url,
+    thumbnailUrl,
+    duration: data.duration,
+  });
+  
+  return {
+    url: data.secure_url,
+    thumbnailUrl,
+    duration: data.duration,
+    width: data.width,
+    height: data.height,
+  };
 }
