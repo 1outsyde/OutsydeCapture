@@ -896,21 +896,25 @@ export default function ProfileScreen() {
         throw new Error("Failed to upload image. Please try again.");
       }
       
+      // CRITICAL: feedSurface is the source of truth for feed placement
       const postData: {
         imageUrl: string;
         content?: string;
         displayLayout?: "pro" | "pulse";
+        feedSurface?: "pro" | "pulse";
         photographerServiceId?: string;
       } = {
         imageUrl: cloudinaryUrl,
         content: newPostCaption.trim() || " ",
         displayLayout: newPostLayout,
+        feedSurface: newPostLayout, // CRITICAL: Explicit feed routing
       };
       
       if (linkedServiceId) {
         postData.photographerServiceId = linkedServiceId;
       }
       
+      console.log("[ProfileScreen] Creating post with feedSurface:", newPostLayout, "data:", JSON.stringify(postData));
       const response = await api.createPost(authToken, postData);
       
       if (response.post) {
