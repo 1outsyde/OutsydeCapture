@@ -418,8 +418,11 @@ export default function DiscoverScreen() {
         cursor: refresh ? undefined : pulseCursor,
       }, token || undefined);
       
+      console.log("[DiscoverScreen] Pulse feed response:", response.posts?.length || 0, "posts");
+      
       if (response.posts && Array.isArray(response.posts)) {
         const convertedPosts = response.posts.map(convertApiPostToPost);
+        console.log("[DiscoverScreen] Pulse converted posts:", convertedPosts.length);
         if (refresh) {
           setPulsePosts(convertedPosts);
         } else {
@@ -427,6 +430,8 @@ export default function DiscoverScreen() {
         }
         setPulseHasMore(response.hasMore);
         setPulseCursor(response.nextCursor);
+      } else {
+        console.log("[DiscoverScreen] Pulse feed returned no posts array");
       }
     } catch (error) {
       console.error("[DiscoverScreen] Failed to fetch Pulse feed:", error);

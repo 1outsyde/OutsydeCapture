@@ -56,6 +56,7 @@ import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
 import { uploadImageToCloudinary } from "@/services/cloudinary";
 import { availabilityEvents } from "@/services/availabilityEvents";
+import { feedEvents } from "@/services/feedEvents";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Profile">;
@@ -942,6 +943,9 @@ export default function ProfileScreen() {
             : "Your post is now live on the Pro feed!",
           [{ text: "OK" }]
         );
+        
+        // Trigger feed refresh so the new post appears immediately
+        feedEvents.emitRefresh(createdForPulse ? "pulse" : "pro");
       }
     } catch (error: any) {
       console.error("[ProfileScreen] Failed to create post:", error);
