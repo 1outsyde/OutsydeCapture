@@ -2707,11 +2707,32 @@ class ApiService {
     displayLayout?: "pro" | "pulse";
     feedSurface?: "pro" | "pulse";
   }): Promise<{ post: ApiPost }> {
-    return this.request<{ post: ApiPost }>("/api/feed", {
+    // DEBUG: Log exactly what we're sending to the backend
+    console.log("[API.createPost] ===== SENDING TO BACKEND =====");
+    console.log("[API.createPost] videoUrl:", data.videoUrl);
+    console.log("[API.createPost] thumbnailUrl:", data.thumbnailUrl);
+    console.log("[API.createPost] mediaType:", data.mediaType);
+    console.log("[API.createPost] feedSurface:", data.feedSurface);
+    console.log("[API.createPost] displayLayout:", data.displayLayout);
+    console.log("[API.createPost] Full data:", JSON.stringify(data, null, 2));
+    
+    const response = await this.request<{ post: ApiPost }>("/api/feed", {
       method: "POST",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    
+    // DEBUG: Log what the backend returned
+    console.log("[API.createPost] ===== BACKEND RESPONSE =====");
+    console.log("[API.createPost] post.id:", response.post?.id);
+    console.log("[API.createPost] post.videoUrl:", response.post?.videoUrl);
+    console.log("[API.createPost] post.imageUrl:", response.post?.imageUrl);
+    console.log("[API.createPost] post.thumbnailUrl:", (response.post as any)?.thumbnailUrl);
+    console.log("[API.createPost] post.feedSurface:", (response.post as any)?.feedSurface);
+    console.log("[API.createPost] post.displayLayout:", response.post?.displayLayout);
+    console.log("[API.createPost] Full response:", JSON.stringify(response, null, 2));
+    
+    return response;
   }
 
   // GET /api/feed - Get algorithmic feed posts (ranked by engagement, recency, location, user preferences)
@@ -2808,7 +2829,20 @@ class ApiService {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
     
-    return this.request<PulseFeedResponse>(url, { headers });
+    const response = await this.request<PulseFeedResponse>(url, { headers });
+    
+    // DEBUG: Log Pulse feed response
+    console.log("[API.getPulseFeed] ===== PULSE FEED RESPONSE =====");
+    console.log("[API.getPulseFeed] Total posts:", response.posts?.length || 0);
+    if (response.posts?.length > 0) {
+      response.posts.slice(0, 3).forEach((post, i) => {
+        console.log(`[API.getPulseFeed] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl}, feedSurface=${(post as any).feedSurface}`);
+      });
+    } else {
+      console.log("[API.getPulseFeed] No posts returned from /api/pulse/feed");
+    }
+    
+    return response;
   }
 
   // POST /api/pulse/engagement - Track engagement signals for Pulse ranking
@@ -2836,7 +2870,20 @@ class ApiService {
     const url = queryString 
       ? `/api/profiles/${profileId}/posts?${queryString}` 
       : `/api/profiles/${profileId}/posts`;
-    return this.request<{ posts: ApiPost[] }>(url);
+    
+    const response = await this.request<{ posts: ApiPost[] }>(url);
+    
+    // DEBUG: Log profile posts response
+    console.log("[API.getProfilePosts] ===== PROFILE POSTS RESPONSE =====");
+    console.log("[API.getProfilePosts] profileId:", profileId);
+    console.log("[API.getProfilePosts] Total posts:", response.posts?.length || 0);
+    if (response.posts?.length > 0) {
+      response.posts.forEach((post, i) => {
+        console.log(`[API.getProfilePosts] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl?.substring(0, 50)}, displayLayout=${post.displayLayout}, feedSurface=${(post as any).feedSurface}`);
+      });
+    }
+    
+    return response;
   }
 
   // ==========================================
