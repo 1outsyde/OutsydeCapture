@@ -1,0 +1,135 @@
+The Pulse feed engine (TikTok-style) is already implemented and working.
+
+However, Pulse videos do not appear in the Pulse feed even after:
+
+User explicitly selects Pulse in the Create Post screen
+
+User uploads a video
+
+Post is successfully created
+
+This indicates a post creation → feed eligibility mismatch, not a feed or UI issue.
+
+1️⃣ DEFINE A HARD SOURCE OF TRUTH (REQUIRED)
+
+Introduce or confirm ONE explicit field that determines feed placement:
+
+feedSurface: 'pulse' | 'pro'
+
+
+This field answers ONLY:
+
+“Which feed should this post appear in?”
+
+It is NOT post intent.
+
+2️⃣ FRONTEND — CREATE POST FLOW (MANDATORY)
+When the user selects Pulse in the Create Post UI:
+
+The post creation payload MUST include:
+
+{
+  "feedSurface": "pulse"
+}
+
+
+This must happen:
+
+Explicitly
+
+Deterministically
+
+Every time Pulse is selected
+
+Without relying on defaults or inference
+
+❌ Do NOT rely on postIntent
+❌ Do NOT infer Pulse from route
+❌ Do NOT allow this field to be omitted
+
+If Pulse is selected → feedSurface = 'pulse' is REQUIRED.
+
+3️⃣ BACKEND — POST CREATION HANDLER (MANDATORY)
+
+In the post creation endpoint:
+
+Persist feedSurface exactly as sent
+
+Validate:
+
+If feedSurface === 'pulse'
+
+mediaType must be video
+
+visibility = public
+
+Do NOT overwrite or ignore feedSurface
+
+If the frontend sends feedSurface = 'pulse', the database record must reflect it.
+
+4️⃣ BACKEND — PULSE FEED QUERY (CONFIRMATION)
+
+Ensure /api/pulse/feed queries ONLY:
+
+WHERE feedSurface = 'pulse'
+AND mediaType = 'video'
+AND visibility = 'public'
+
+
+❌ No postIntent
+❌ No account-type filters
+❌ No Pro logic
+
+5️⃣ GUARANTEED VISIBILITY RULE (NON-NEGOTIABLE)
+
+If:
+
+User selects Pulse
+
+User posts a video
+
+Post is saved successfully
+
+THEN:
+
+That post must appear in /api/pulse/feed immediately, even before ranking expansion.
+
+Cold start ranking happens after visibility, not before.
+
+6️⃣ POST-SUBMISSION FLOW (FRONTEND)
+
+After a successful Pulse post:
+
+Invalidate Pulse feed cache/state
+
+Re-fetch /api/pulse/feed
+
+Navigate user back to Pulse feed
+
+Pulse empty state must only appear if:
+
+There are truly zero Pulse posts in the database.
+
+🚫 HARD CONSTRAINTS
+
+Do NOT require post intent for Pulse
+
+Do NOT auto-classify Pulse posts as promotional
+
+Do NOT merge Pro and Pulse feeds
+
+Do NOT change Pulse ranking logic
+
+Do NOT hide Pulse posts due to low engagement
+
+🎯 EXPECTED RESULT
+
+Selecting Pulse before posting guarantees Pulse feed visibility
+
+Newly posted Pulse videos immediately appear in Pulse feed
+
+All users can see Pulse posts
+
+Pulse engine ranks and distributes them normally
+
+Pro feed remains unchanged
