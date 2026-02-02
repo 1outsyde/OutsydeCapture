@@ -109,22 +109,48 @@ interface PortfolioCategory {
 interface FeaturedPost {
   id: string;
   imageUri: string;
+  videoUri?: string;
   caption: string;
   likes: number;
   comments: number;
   createdAt: Date;
   displayLayout?: "pro" | "pulse";
+  mediaType?: "image" | "video";
 }
 
 const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
   id: post.id,
   imageUri: post.imageUrl || (post.images && post.images[0]) || "",
+  videoUri: post.videoUrl,
   caption: post.content || "",
   likes: post.likesCount || 0,
   comments: post.commentsCount || 0,
   createdAt: new Date(post.createdAt),
   displayLayout: post.displayLayout,
+  mediaType: post.mediaType,
 });
+
+// Helper to get thumbnail URI for a post (handles both image and video posts)
+const getPostThumbnailUri = (post: FeaturedPost): string => {
+  const isVideo = post.mediaType === "video" || (post.videoUri && !post.imageUri);
+  
+  if (isVideo && post.videoUri) {
+    // Convert Cloudinary video URL to thumbnail by getting first frame
+    if (post.videoUri.includes("/video/upload/")) {
+      let thumbnailUri = post.videoUri.replace("/video/upload/", "/video/upload/so_0,f_jpg,w_400/");
+      thumbnailUri = thumbnailUri.replace(/\.(mp4|mov|webm)$/i, ".jpg");
+      return thumbnailUri;
+    }
+    return post.videoUri;
+  }
+  
+  return post.imageUri;
+};
+
+// Helper to check if a post is a video
+const isVideoPost = (post: FeaturedPost): boolean => {
+  return post.mediaType === "video" || !!(post.videoUri && !post.imageUri);
+};
 
 type ProfileTab = "featured" | "book" | "availability" | "reviews" | "products" | "services";
 
@@ -1553,11 +1579,18 @@ export default function AccountScreen() {
               {featuredPosts.map((post) => (
                 <Pressable key={post.id} style={styles.mediaGridItem}>
                   <Image
-                    source={{ uri: post.imageUri }}
+                    source={{ uri: getPostThumbnailUri(post) }}
                     style={styles.mediaGridImage}
                     contentFit="cover"
                     transition={200}
+                    placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
                   />
+                  {/* Play overlay for video posts */}
+                  {isVideoPost(post) && (
+                    <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="play" size={16} color="#fff" />
+                    </View>
+                  )}
                   <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
                     <Feather name="heart" size={14} color="#fff" />
                     <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
@@ -1631,11 +1664,18 @@ export default function AccountScreen() {
                 {proPosts.slice(0, 6).map((post) => (
                   <Pressable key={post.id} style={{ width: 140, height: 140, borderRadius: 12, overflow: "hidden" }}>
                     <Image
-                      source={{ uri: post.imageUri }}
+                      source={{ uri: getPostThumbnailUri(post) }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                       transition={200}
+                      placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
                     />
+                    {/* Play overlay for video posts */}
+                    {isVideoPost(post) && (
+                      <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
+                        <Feather name="play" size={16} color="#fff" />
+                      </View>
+                    )}
                     <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
                       <Feather name="heart" size={12} color="#fff" />
                       <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, fontSize: 11, textShadowColor: "#000", textShadowRadius: 2 }}>
@@ -1671,11 +1711,18 @@ export default function AccountScreen() {
                 {pulsePosts.slice(0, 6).map((post) => (
                   <Pressable key={post.id} style={{ width: 120, height: 180, borderRadius: 12, overflow: "hidden" }}>
                     <Image
-                      source={{ uri: post.imageUri }}
+                      source={{ uri: getPostThumbnailUri(post) }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                       transition={200}
+                      placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
                     />
+                    {/* Play overlay for video posts */}
+                    {isVideoPost(post) && (
+                      <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
+                        <Feather name="play" size={16} color="#fff" />
+                      </View>
+                    )}
                     <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
                       <Feather name="heart" size={12} color="#fff" />
                       <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, fontSize: 11, textShadowColor: "#000", textShadowRadius: 2 }}>
@@ -3076,11 +3123,18 @@ export default function AccountScreen() {
               {featuredPosts.map((post) => (
                 <Pressable key={post.id} style={styles.mediaGridItem}>
                   <Image
-                    source={{ uri: post.imageUri }}
+                    source={{ uri: getPostThumbnailUri(post) }}
                     style={styles.mediaGridImage}
                     contentFit="cover"
                     transition={200}
+                    placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
                   />
+                  {/* Play overlay for video posts */}
+                  {isVideoPost(post) && (
+                    <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="play" size={16} color="#fff" />
+                    </View>
+                  )}
                   <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
                     <Feather name="heart" size={14} color="#fff" />
                     <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>

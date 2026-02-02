@@ -987,6 +987,25 @@ export default function ProfileScreen() {
     const cardStyle = isPro ? styles.proPostCard : styles.pulsePostCard;
     const viewCount = Math.floor(Math.random() * 100) + 10;
     
+    // Determine the thumbnail to display
+    // For video posts: derive thumbnail from Cloudinary video URL (first frame)
+    // For image posts: use the imageUri
+    const isVideo = post.mediaType === "video" || (post.videoUri && !post.imageUri);
+    let thumbnailUri = post.imageUri;
+    
+    if (isVideo && post.videoUri) {
+      // Convert Cloudinary video URL to thumbnail by replacing /video/upload/ with /video/upload/so_0,f_jpg/
+      // This gets the first frame of the video as a JPG
+      if (post.videoUri.includes("/video/upload/")) {
+        thumbnailUri = post.videoUri.replace("/video/upload/", "/video/upload/so_0,f_jpg,w_400/");
+        // Also change extension to jpg if it ends with mp4/mov
+        thumbnailUri = thumbnailUri.replace(/\.(mp4|mov|webm)$/i, ".jpg");
+      } else {
+        // Fallback: just use the video URL and hope Image can extract a frame
+        thumbnailUri = post.videoUri;
+      }
+    }
+    
     return (
       <Pressable
         key={post.id}
@@ -1000,11 +1019,19 @@ export default function ProfileScreen() {
         }}
       >
         <Image
-          source={{ uri: post.imageUri }}
+          source={{ uri: thumbnailUri }}
           style={styles.horizontalPostImage}
           contentFit="cover"
           transition={200}
+          placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
         />
+        
+        {/* Play icon overlay for video posts */}
+        {isVideo && (
+          <View style={styles.videoPlayOverlay}>
+            <Feather name="play" size={24} color="#fff" />
+          </View>
+        )}
         
         {isPro ? (
           <>
@@ -2259,6 +2286,18 @@ const styles = StyleSheet.create({
   horizontalPostImage: {
     width: "100%",
     height: "100%",
+  },
+  videoPlayOverlay: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: [{ translateX: -20 }, { translateY: -20 }],
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   postCardOverlay: {
     position: "absolute",
