@@ -715,16 +715,17 @@ export default function DiscoverScreen() {
         {/* Full-screen media background - Video or Image */}
         {/* Videos: cover mode (full-screen native feel) */}
         {/* Images: contain mode with aspect-aware background (never crop) */}
-        {hasVideo ? (
+        {hasVideo && post.videoUrl ? (
           <PostVideoMedia 
-            videoUrl={post.videoUrl!} 
+            key={`video-${post.id}`}
+            videoUrl={post.videoUrl} 
             isVisible={isVisible}
             postId={post.id}
             onEngagement={(engagement) => handleVideoEngagement(post.id, engagement)}
           />
-        ) : (
-          <PostImageMedia imageUrl={post.image} />
-        )}
+        ) : post.image ? (
+          <PostImageMedia key={`image-${post.id}`} imageUrl={post.image} />
+        ) : null}
 
         {/* Bottom gradient for text legibility */}
         <LinearGradient
@@ -946,13 +947,30 @@ export default function DiscoverScreen() {
               onViewableItemsChanged={onProViewableItemsChanged}
               viewabilityConfig={PRO_VIEWABILITY_CONFIG}
             />
+          ) : pulseLoading && pulseFeedPosts.length === 0 ? (
+            <View style={[styles.pulseLoadingContainer, { flex: 1 }]}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <ThemedText type="body" style={{ marginTop: Spacing.md, color: "#FFFFFF" }}>
+                Loading Pulse...
+              </ThemedText>
+            </View>
+          ) : pulseFeedPosts.length === 0 ? (
+            <View style={[styles.pulseEmptyContainer, { flex: 1 }]}>
+              <Feather name="video" size={64} color="rgba(255,255,255,0.5)" />
+              <ThemedText type="h3" style={{ marginTop: Spacing.lg, color: "#FFFFFF" }}>
+                No Pulse content yet
+              </ThemedText>
+              <ThemedText type="body" style={{ marginTop: Spacing.sm, color: "rgba(255,255,255,0.7)", textAlign: "center" }}>
+                Be the first to share a video!
+              </ThemedText>
+            </View>
           ) : (
             <FlatList
               key="pulse-feed-list"
               ref={pulseListRef}
               data={pulseFeedPosts}
               renderItem={renderFullScreenPost}
-              keyExtractor={(item) => `pulse-${item.id}`}
+              keyExtractor={(item) => item.id}
               pagingEnabled
               snapToInterval={POST_HEIGHT}
               decelerationRate="fast"
@@ -961,6 +979,8 @@ export default function DiscoverScreen() {
               scrollEventThrottle={16}
               onRefresh={onRefresh}
               refreshing={refreshing}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
               getItemLayout={(data, index) => ({
                 length: POST_HEIGHT,
                 offset: POST_HEIGHT * index,
@@ -1057,6 +1077,19 @@ const styles = StyleSheet.create({
   feedPage: {
     flex: 1,
   },
+  pulseLoadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+  },
+  pulseEmptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+    paddingHorizontal: Spacing.xl,
+  },
   proFeedContent: {
     paddingBottom: Spacing.xl,
   },
@@ -1078,6 +1111,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   postContainer: {
+    flex: 1,
     width: SCREEN_WIDTH,
     position: "relative",
   },
