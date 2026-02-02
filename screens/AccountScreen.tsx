@@ -873,6 +873,18 @@ export default function AccountScreen() {
         );
         console.log("[AccountScreen] Loaded posts from backend:", userPosts.length, "User ID:", user?.id);
         console.log("[AccountScreen] All posts authorIds:", allPosts.map((p: ApiPost) => p.authorId));
+        // Debug: Log pulse posts with their media data
+        const pulsePosts = userPosts.filter((p: ApiPost) => p.displayLayout === "pulse");
+        if (pulsePosts.length > 0) {
+          console.log("[AccountScreen] Pulse posts media data:", pulsePosts.map((p: ApiPost) => ({
+            id: p.id,
+            displayLayout: p.displayLayout,
+            mediaType: p.mediaType,
+            videoUrl: p.videoUrl,
+            imageUrl: p.imageUrl,
+            hasVideoUrl: !!p.videoUrl,
+          })));
+        }
         setFeaturedPosts(userPosts.map(mapApiPostToFeaturedPost));
       } catch (postsError) {
         console.warn("[AccountScreen] Could not fetch posts:", postsError);
