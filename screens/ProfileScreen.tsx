@@ -920,6 +920,7 @@ export default function ProfileScreen() {
       if (response.post) {
         const newPost = mapApiPostToFeaturedPost(response.post);
         newPost.displayLayout = newPostLayout;
+        const createdForPulse = newPostLayout === "pulse";
         setFeaturedPosts([newPost, ...featuredPosts]);
         if (newPostLayout === "pro") {
           setProPosts([newPost, ...proPosts]);
@@ -931,6 +932,16 @@ export default function ProfileScreen() {
         setNewPostLayout(null);
         setLinkedServiceId("");
         setShowCreatePost(false);
+        console.log("[ProfileScreen] Post created successfully:", response.post.id, "feedSurface:", createdForPulse ? "pulse" : "pro");
+        
+        // Show success message with feed indication
+        Alert.alert(
+          "Post Shared!",
+          createdForPulse 
+            ? "Your video is now live on the Pulse feed!" 
+            : "Your post is now live on the Pro feed!",
+          [{ text: "OK" }]
+        );
       }
     } catch (error: any) {
       console.error("[ProfileScreen] Failed to create post:", error);
