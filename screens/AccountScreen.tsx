@@ -1174,6 +1174,7 @@ export default function AccountScreen() {
       console.log("[AccountScreen] Media uploaded to Cloudinary:", cloudinaryUrl, "type:", newPostMediaType);
       
       // Create post with Cloudinary URL (serviceId/productId are optional)
+      // CRITICAL: feedSurface is the source of truth for feed placement
       const postData: {
         imageUrl?: string;
         videoUrl?: string;
@@ -1181,9 +1182,11 @@ export default function AccountScreen() {
         photographerServiceId?: string;
         productId?: string;
         displayLayout: "pro" | "pulse";
+        feedSurface: "pro" | "pulse";
       } = {
         content: newPostCaption.trim() || " ",
         displayLayout: displayLayout!,
+        feedSurface: displayLayout!, // CRITICAL: Explicit feed routing
       };
       
       // Set image or video URL based on media type
@@ -1201,7 +1204,7 @@ export default function AccountScreen() {
         postData.productId = linkedProductId;
       }
       
-      console.log("[AccountScreen] Creating post with data:", JSON.stringify(postData));
+      console.log("[AccountScreen] Creating post with feedSurface:", displayLayout, "data:", JSON.stringify(postData));
       const response = await api.createPost(authToken, postData);
       
       if (response.post) {

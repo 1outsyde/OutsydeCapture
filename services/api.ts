@@ -2692,6 +2692,7 @@ class ApiService {
     photographerServiceId?: string;
     productId?: string;
     displayLayout?: "pro" | "pulse";
+    feedSurface?: "pro" | "pulse";
   }): Promise<{ post: ApiPost }> {
     return this.request<{ post: ApiPost }>("/api/feed", {
       method: "POST",
