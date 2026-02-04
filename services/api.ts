@@ -3038,19 +3038,54 @@ class ApiService {
     year: number,
     month: number // 1-12
   ): Promise<AvailabilityCalendarResponse> {
-    return this.request<AvailabilityCalendarResponse>(
+    // Backend returns { days: [{ date, hasAvailability, totalSlots }] }
+    // Frontend expects { days: [{ date, status, slotsAvailable, slotsTotal }] }
+    const rawResponse = await this.request<{ days: Array<{ date: string; hasAvailability: boolean; totalSlots?: number }> }>(
       `/api/availability/calendar?providerType=${providerType}&providerId=${providerId}&year=${year}&month=${month}`
     );
+    
+    // Transform backend format to frontend format
+    const transformedDays: AvailabilityCalendarDay[] = (rawResponse.days || []).map(day => ({
+      date: day.date,
+      status: day.hasAvailability ? "available" : "unavailable",
+      slotsTotal: day.totalSlots || 0,
+      slotsAvailable: day.hasAvailability ? (day.totalSlots || 0) : 0,
+    }));
+    
+    return {
+      month: `${year}-${String(month).padStart(2, "0")}`,
+      days: transformedDays,
+    };
   }
 
   async getAvailabilitySlots(
     providerId: string,
     providerType: "photographer" | "business",
-    date: string // Format: YYYY-MM-DD
+    date: string, // Format: YYYY-MM-DD
+    serviceDurationMinutes: number = 60 // Default to 60 minutes if not provided
   ): Promise<AvailabilitySlotResponse> {
-    return this.request<AvailabilitySlotResponse>(
-      `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}`
+    // Backend returns { date, slots: [{ startTime, endTime, available }], totalAvailable }
+    // Frontend expects { date, slots: [{ id, startTime, endTime, status }] }
+    const rawResponse = await this.request<{
+      date: string;
+      slots: Array<{ startTime: string; endTime: string; available: boolean }>;
+      totalAvailable?: number;
+    }>(
+      `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}&serviceDurationMinutes=${serviceDurationMinutes}`
     );
+    
+    // Transform backend format to frontend format
+    const transformedSlots: AvailabilitySlot[] = (rawResponse.slots || []).map((slot, index) => ({
+      id: `${date}-${slot.startTime}-${index}`,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      status: slot.available ? "available" : "booked" as const,
+    }));
+    
+    return {
+      date: rawResponse.date,
+      slots: transformedSlots,
+    };
   }
 
   // Booking Flow endpoints

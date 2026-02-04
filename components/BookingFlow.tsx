@@ -215,11 +215,12 @@ export default function BookingFlow({
   };
 
   const fetchSlots = async () => {
-    if (!selectedDate) return;
+    if (!selectedDate || !selectedService) return;
     setLoadingSlots(true);
     try {
-      console.log("[BookingFlow] Fetching slots for:", { providerId, providerType, selectedDate });
-      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate);
+      const serviceDuration = selectedService.durationMinutes || 60;
+      console.log("[BookingFlow] Fetching slots for:", { providerId, providerType, selectedDate, serviceDuration });
+      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate, serviceDuration);
       console.log("[BookingFlow] Slots response:", JSON.stringify(response, null, 2));
       const availableSlots = response.slots?.filter((s) => s.status === "available") || [];
       console.log("[BookingFlow] Available slots count:", availableSlots.length);
