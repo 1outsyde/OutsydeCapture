@@ -218,9 +218,14 @@ export default function BookingFlow({
     if (!selectedDate) return;
     setLoadingSlots(true);
     try {
+      console.log("[BookingFlow] Fetching slots for:", { providerId, providerType, selectedDate });
       const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate);
-      setSlots(response.slots?.filter((s) => s.status === "available") || []);
+      console.log("[BookingFlow] Slots response:", JSON.stringify(response, null, 2));
+      const availableSlots = response.slots?.filter((s) => s.status === "available") || [];
+      console.log("[BookingFlow] Available slots count:", availableSlots.length);
+      setSlots(availableSlots);
     } catch (err: any) {
+      console.error("[BookingFlow] Slots fetch error:", err);
       setError(err.message || "Failed to load time slots");
     } finally {
       setLoadingSlots(false);
