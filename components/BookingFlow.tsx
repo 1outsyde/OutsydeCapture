@@ -690,24 +690,24 @@ export default function BookingFlow({
           <View style={[styles.confirmationCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.confirmRow}>
               <ThemedText style={{ color: theme.textSecondary }}>Service</ThemedText>
-              <ThemedText style={{ fontWeight: "600" }}>{hold.service.name}</ThemedText>
+              <ThemedText style={{ fontWeight: "600" }}>{hold?.service?.name || selectedService?.name || "Service"}</ThemedText>
             </View>
             <View style={styles.confirmRow}>
               <ThemedText style={{ color: theme.textSecondary }}>Duration</ThemedText>
-              <ThemedText>{formatDuration(hold.service.durationMinutes)}</ThemedText>
+              <ThemedText>{formatDuration(hold?.service?.durationMinutes || selectedService?.durationMinutes || 60)}</ThemedText>
             </View>
             <View style={styles.confirmRow}>
               <ThemedText style={{ color: theme.textSecondary }}>Date</ThemedText>
-              <ThemedText>{new Date(hold.slot.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</ThemedText>
+              <ThemedText>{new Date((hold?.slot?.date || selectedDate || "") + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</ThemedText>
             </View>
             <View style={styles.confirmRow}>
               <ThemedText style={{ color: theme.textSecondary }}>Time</ThemedText>
-              <ThemedText>{hold.slot.startTime} - {hold.slot.endTime}</ThemedText>
+              <ThemedText>{(hold?.slot?.startTime || selectedSlot?.startTime || "")} - {(hold?.slot?.endTime || selectedSlot?.endTime || "")}</ThemedText>
             </View>
             <View style={[styles.confirmRow, styles.totalRow, { borderTopColor: theme.border }]}>
               <ThemedText type="body" style={{ fontWeight: "600" }}>Total</ThemedText>
               <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary, fontSize: 18 }}>
-                {formatPrice(hold.service.priceCents)}
+                {formatPrice(hold?.service?.priceCents || selectedService?.priceCents || 0)}
               </ThemedText>
             </View>
           </View>
