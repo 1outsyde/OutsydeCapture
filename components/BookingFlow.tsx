@@ -24,6 +24,8 @@ import api, {
   AvailabilityCalendarDay,
   AvailabilitySlot,
   BookingHoldResponse,
+  VendorBookerAvailabilitySlot,
+  BlockedDate,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 
@@ -79,6 +81,9 @@ export default function BookingFlow({
   const [validatedEndTime, setValidatedEndTime] = useState<string | null>(null);
   const [hold, setHold] = useState<BookingHoldResponse | null>(null);
   const [holdTimeRemaining, setHoldTimeRemaining] = useState<number>(0);
+
+  const [providerAvailability, setProviderAvailability] = useState<VendorBookerAvailabilitySlot[]>([]);
+  const [providerBlockedDates, setProviderBlockedDates] = useState<BlockedDate[]>([]);
 
   const [loadingServices, setLoadingServices] = useState(true);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
@@ -144,13 +149,14 @@ export default function BookingFlow({
 
   useEffect(() => {
     fetchServices();
+    fetchProviderAvailability();
   }, []);
 
   useEffect(() => {
     if (step === 2 && selectedService) {
       fetchCalendar();
     }
-  }, [step, currentMonth, selectedService]);
+  }, [step, currentMonth, selectedService, providerAvailability, providerBlockedDates]);
 
   useEffect(() => {
     if (step === 3 && selectedDate) {
@@ -189,25 +195,104 @@ export default function BookingFlow({
     }
   };
 
+  const fetchProviderAvailability = async () => {
+    try {
+      if (providerType === "photographer") {
+        const [availabilityRes, blockedRes] = await Promise.all([
+          api.getPhotographerPublicAvailability(providerId),
+          api.getPhotographerPublicBlockedDates(providerId),
+        ]);
+        console.log("[BookingFlow] Provider availability:", JSON.stringify(availabilityRes.availability, null, 2));
+        console.log("[BookingFlow] Provider blocked dates:", JSON.stringify(blockedRes.blockedDates, null, 2));
+        setProviderAvailability(availabilityRes.availability || []);
+        setProviderBlockedDates(blockedRes.blockedDates || []);
+      } else {
+        // For businesses, try to get from profile hoursOfOperation as fallback
+        try {
+          const business = await api.getBusiness(providerId) as any;
+          if (business.hoursOfOperation) {
+            const hours = typeof business.hoursOfOperation === 'string' 
+              ? JSON.parse(business.hoursOfOperation) 
+              : business.hoursOfOperation;
+            const slots: VendorBookerAvailabilitySlot[] = Object.entries(hours).map(([day, times]: [string, any], index) => ({
+              id: `hours-${index}`,
+              photographerId: providerId,
+              dayOfWeek: ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].indexOf(day.toLowerCase()),
+              startTime: times.open || "09:00",
+              endTime: times.close || "17:00",
+              isRecurring: true,
+            })).filter(s => s.dayOfWeek >= 0);
+            setProviderAvailability(slots);
+          }
+        } catch (e) {
+          console.log("[BookingFlow] Could not fetch business hours:", e);
+        }
+      }
+    } catch (err) {
+      console.error("[BookingFlow] Failed to fetch provider availability:", err);
+    }
+  };
+
   const fetchCalendar = async () => {
-    // Parse year and month from currentMonth (format: YYYY-MM)
     const [yearStr, monthStr] = currentMonth.split("-");
     const year = parseInt(yearStr, 10);
     const month = parseInt(monthStr, 10);
 
-    // HARD GUARD: Do NOT call API unless ALL required params are defined
     if (!providerId || !providerType || !year || !month) {
       return;
     }
 
     setLoadingCalendar(true);
     try {
-      console.log("[BookingFlow] Fetching calendar for:", { providerId, providerType, year, month });
-      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month);
-      console.log("[BookingFlow] Calendar response:", JSON.stringify(response, null, 2));
-      setCalendarDays(response.days || []);
+      console.log("[BookingFlow] Generating calendar from provider availability");
+      
+      // Get working days from provider availability (recurring slots with dayOfWeek)
+      const workingDays = new Set<number>();
+      providerAvailability.forEach(slot => {
+        if (slot.isRecurring && slot.dayOfWeek !== null && slot.dayOfWeek !== undefined) {
+          workingDays.add(slot.dayOfWeek);
+        }
+      });
+      console.log("[BookingFlow] Working days:", Array.from(workingDays));
+
+      // Get blocked dates as a Set for quick lookup
+      const blockedDateSet = new Set(
+        providerBlockedDates
+          .filter(b => b.isFullDay)
+          .map(b => b.date)
+      );
+
+      // Generate calendar days for the month
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const generatedDays: AvailabilityCalendarDay[] = [];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const dateObj = new Date(year, month - 1, day);
+        const dayOfWeek = dateObj.getDay();
+        
+        let status: "available" | "partial" | "unavailable" = "unavailable";
+        
+        // Check if this day of week is a working day
+        if (workingDays.size === 0 || workingDays.has(dayOfWeek)) {
+          // Check if date is not blocked
+          if (!blockedDateSet.has(dateStr)) {
+            // Check if date is not in the past
+            if (dateObj >= today) {
+              status = "available";
+            }
+          }
+        }
+
+        generatedDays.push({ date: dateStr, status });
+      }
+
+      console.log("[BookingFlow] Generated calendar days:", generatedDays.length);
+      setCalendarDays(generatedDays);
     } catch (err: any) {
-      console.error("[BookingFlow] Calendar fetch error:", err);
+      console.error("[BookingFlow] Calendar generation error:", err);
       setError(err.message || "Failed to load calendar");
     } finally {
       setLoadingCalendar(false);
@@ -218,9 +303,73 @@ export default function BookingFlow({
     if (!selectedDate) return;
     setLoadingSlots(true);
     try {
-      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate);
-      setSlots(response.slots?.filter((s) => s.status === "available") || []);
+      console.log("[BookingFlow] Generating slots from provider availability for:", selectedDate);
+      
+      const dateObj = new Date(selectedDate + "T00:00:00");
+      const dayOfWeek = dateObj.getDay();
+      
+      // Find availability slots for this day of week
+      const daySlots = providerAvailability.filter(slot => 
+        slot.isRecurring && slot.dayOfWeek === dayOfWeek
+      );
+      
+      console.log("[BookingFlow] Day slots for dayOfWeek", dayOfWeek, ":", JSON.stringify(daySlots, null, 2));
+
+      // Get blocked time ranges for this specific date
+      const blockedRanges = providerBlockedDates
+        .filter(b => b.date === selectedDate && !b.isFullDay)
+        .map(b => ({ start: b.startTime, end: b.endTime }));
+
+      // Generate 30-minute slots based on working hours
+      const generatedSlots: AvailabilitySlot[] = [];
+      let slotIndex = 0;
+
+      for (const daySlot of daySlots) {
+        const [startH, startM] = daySlot.startTime.split(":").map(Number);
+        const [endH, endM] = daySlot.endTime.split(":").map(Number);
+        
+        let currentMinutes = startH * 60 + startM;
+        const endMinutes = endH * 60 + endM;
+
+        while (currentMinutes + 30 <= endMinutes) {
+          const slotStartH = Math.floor(currentMinutes / 60);
+          const slotStartM = currentMinutes % 60;
+          const slotEndH = Math.floor((currentMinutes + 30) / 60);
+          const slotEndM = (currentMinutes + 30) % 60;
+
+          const startTime = `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`;
+          const endTime = `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}`;
+
+          // Check if this slot is blocked
+          const isBlocked = blockedRanges.some(range => {
+            if (!range.start || !range.end) return false;
+            return startTime >= range.start && startTime < range.end;
+          });
+
+          if (!isBlocked) {
+            generatedSlots.push({
+              id: `slot-${slotIndex++}`,
+              startTime,
+              endTime,
+              status: "available",
+            });
+          }
+
+          currentMinutes += 30;
+        }
+      }
+
+      // If no provider availability is set, fall back to backend API
+      if (daySlots.length === 0) {
+        console.log("[BookingFlow] No provider availability found, falling back to API");
+        const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate);
+        setSlots(response.slots?.filter((s) => s.status === "available") || []);
+      } else {
+        console.log("[BookingFlow] Generated slots:", generatedSlots.length);
+        setSlots(generatedSlots);
+      }
     } catch (err: any) {
+      console.error("[BookingFlow] Slots generation error:", err);
       setError(err.message || "Failed to load time slots");
     } finally {
       setLoadingSlots(false);
