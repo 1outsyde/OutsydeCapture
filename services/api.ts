@@ -1695,7 +1695,7 @@ class ApiService {
   }
 
   async updatePhotographerProfile(authToken: string, data: Partial<PhotographerDashboardProfile>): Promise<PhotographerDashboardProfile> {
-    return this.request<PhotographerDashboardProfile>("/api/photographer/profile", {
+    return this.request<PhotographerDashboardProfile>("/api/photographers/me", {
       method: "PUT",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
@@ -2409,9 +2409,14 @@ class ApiService {
     const endpoint = type === "photographer"
       ? "/api/photographers/me/weekly-availability"
       : "/api/businesses/me/weekly-availability";
-    return this.request<WeeklyAvailabilitySlot[]>(endpoint, {
+    const response = await this.request<{ availability: WeeklyAvailabilitySlot[], autoAcceptBookings?: boolean } | WeeklyAvailabilitySlot[]>(endpoint, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    // Backend may return { availability: [...] } or array directly - handle both
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return response.availability || [];
   }
 
   async updateWeeklyAvailability(
