@@ -72,6 +72,17 @@ The application features a modern UI with a color scheme centered around gold/ye
 - **Live service**: Shows "Archive" button (gray)
 - **Publishing**: Shows loading spinner on "Go Live" button, button disabled
 - **Error**: Alert with specific message; Stripe errors show "Finish Stripe Setup" CTA
+
+#### Booking Hold & Confirmation (FINALIZED - 100% CORRECT)
+- **Hold Creation**: `POST /api/booking/hold` with `{ providerId, providerType, serviceId, date, startTime }`
+- **Hold Response Handling**: Backend may not return full `service` and `slot` objects; UI uses safe fallbacks:
+  - Service name: `hold?.service?.name || selectedService?.name`
+  - Duration: `hold?.service?.durationMinutes || selectedService?.durationMinutes`
+  - Date: `hold?.slot?.date || selectedDate`
+  - Time: `hold?.slot?.startTime/endTime || selectedSlot?.startTime/endTime`
+  - Price: `hold?.service?.priceCents || selectedService?.priceCents`
+- **Confirm Step**: Displays hold timer, service details, and "Pay Now" button
+- **Calendar Integration**: Days show available/unavailable based on weekly availability; time slots filtered by service duration
 - **Photographer Availability System**: A 3-tier system for managing availability:
   - **Weekly Availability**: Recurring working hours via `GET/PUT /api/photographers/me/weekly-availability`
   - **Blocked Time Ranges**: Manual blocks via `GET/POST/PATCH/DELETE /api/photographers/me/blocks`
