@@ -37,6 +37,7 @@ import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
+import VendorsScreen from "@/screens/VendorsScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -627,6 +628,21 @@ export default function RootNavigator() {
           presentation: "card",
           headerShown: false,
         }}
+      />
+
+      <Stack.Screen
+        name="Vendors"
+        component={VendorsScreen}
+        options={({ navigation }) => ({
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Local Businesses",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
+        })}
       />
     </Stack.Navigator>
   );

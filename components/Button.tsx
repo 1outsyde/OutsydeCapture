@@ -71,7 +71,7 @@ export function Button({
     >
       <ThemedText
         type="body"
-        style={[styles.buttonText, { color: theme.buttonText }]}
+        style={[styles.buttonText, { color: "#FFFFFF" }]}
       >
         {children}
       </ThemedText>

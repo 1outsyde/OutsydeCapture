@@ -110,6 +110,7 @@ export type RootStackParamList = {
     profileName?: string;
     layout: "pro" | "pulse";
   };
+  Vendors: undefined;
 };
 
 export type MainTabParamList = {
@@ -126,8 +127,6 @@ export type DiscoverStackParamList = {
 
 export type AccountStackParamList = {
   Account: undefined;
-  EditProfile: undefined;
-  Settings: undefined;
   Notifications: undefined;
   OutsydePoints: undefined;
 };

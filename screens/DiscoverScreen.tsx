@@ -966,6 +966,21 @@ export default function DiscoverScreen() {
               contentContainerStyle={styles.proFeedContent}
               onViewableItemsChanged={onProViewableItemsChanged}
               viewabilityConfig={PRO_VIEWABILITY_CONFIG}
+              ListHeaderComponent={
+                <Pressable
+                  onPress={() => navigation.navigate("Vendors")}
+                  style={({ pressed }) => [
+                    styles.browseBizRow,
+                    { backgroundColor: theme.surfaceSecondary, opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <Feather name="briefcase" size={18} color={theme.primary} />
+                  <ThemedText type="subtitle" style={[styles.browseBizText, { color: theme.text }]}>
+                    Browse Local Businesses
+                  </ThemedText>
+                  <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+                </Pressable>
+              }
             />
           ) : pulseLoading && pulseFeedPosts.length === 0 ? (
             <View style={[styles.pulseLoadingContainer, { flex: 1 }]}>
@@ -1308,5 +1323,19 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+  },
+  browseBizRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  browseBizText: {
+    flex: 1,
   },
 });
