@@ -1,0 +1,18 @@
+Before marking item 3 complete, run through every test below in order. Do not move to item 4 until every single one passes.
+Test 1 — Fresh install
+Clear AsyncStorage completely (add a temporary AsyncStorage.clear() on app launch, run it once, then remove it). Reopen the app and confirm: onboarding slides 1–3 show normally, slide 4 shows the role picker with Consumer / Business / Photographer, the "Get Started" button is disabled until a role is selected.
+Test 2 — Each role routes to the right screen
+Select Consumer → tap Get Started → confirm you land on ConsumerSignup → tap back → confirm you land on Main, not back in onboarding. Repeat for Business → BusinessSignup. Repeat for Photographer → PhotographerSignup. All three must work.
+Test 3 — AsyncStorage is writing correctly
+After completing onboarding, add this temporary log anywhere in your app startup and paste the output back to me:
+jsconst role = await AsyncStorage.getItem('@outsyde_user_type');
+const done = await AsyncStorage.getItem('@outsyde_onboarding_complete');
+console.log('userType:', role, '| onboardingComplete:', done);
+Expected output: userType: consumer | onboardingComplete: true (or business / photographer depending on what you selected).
+Test 4 — No repeat onboarding
+Complete onboarding fully. Close the app entirely and reopen. Confirm onboarding does not show again and the app goes straight to Main.
+Test 5 — Skip goes to role picker, not past it
+On slides 1, 2, or 3 tap Skip. Confirm it lands on slide 4 (role picker). Confirm there is no way to reach Main without selecting a role.
+Test 6 — Backend receives the role
+Open your network logs or add a console.log on the API call triggered by "Get Started" and confirm the request payload includes userType with the correct value. Then check the database directly and confirm the user record has the userType field written. Paste the console output and the DB record here so I can verify.
+Run all 6 tests, paste the results for each one, and I will confirm we are clear to move to item 4.

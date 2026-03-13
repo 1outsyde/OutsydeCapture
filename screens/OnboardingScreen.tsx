@@ -146,11 +146,6 @@ export default function OnboardingScreen({ navigation }: Props) {
     });
   };
 
-  const handleScroll = (event: any) => {
-    const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    setCurrentIndex(index);
-  };
-
   const renderSlide = ({ item }: { item: Slide }) => {
     if (item.type === "role") {
       return (
@@ -262,8 +257,6 @@ export default function OnboardingScreen({ navigation }: Props) {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
         bounces={false}
         scrollEnabled={false}
       />
