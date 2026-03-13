@@ -1,0 +1,27 @@
+TASK: Fix onboarding flow — user type must be saved and persisted correctly
+What the bug is:
+The 4-screen onboarding flow is not saving the user type selection. When a user completes onboarding and selects their account type (e.g. customer, vendor, photographer), that selection is either not being written to state, not being sent to the backend, or not being stored persistently — so it gets lost.
+What you need to fix:
+
+Capture the selection — On the screen where the user picks their account type, make sure the value is being stored in local component state the moment they tap it. Add a console.log to confirm the value is captured before they hit "Next" or "Continue."
+Pass it through all 4 screens — If you're using a multi-step navigator, the user type value must travel with the user across all screens. Use a shared state object (Zustand store, Context, or a parent component state) — do NOT rely on local screen state alone, it will reset on navigation.
+Submit it to the backend on final step — On the last screen when the user taps "Finish" or "Get Started," the API call to create or update the user profile must include the userType field. Check the request payload in the network tab / console to confirm userType is present and not null or undefined.
+Backend must write it to the user record — Confirm with the backend that the userType field is being saved to the database on the /onboarding or /user/update route (whatever endpoint handles this). The frontend fix means nothing if the backend silently ignores the field.
+Persist it to AsyncStorage / secure store — After successful save, write the userType to AsyncStorage (or expo-secure-store) so it's available immediately on next app launch without waiting for an API call.
+Redirect correctly after onboarding — Once onboarding is complete, the app should route the user to the correct home screen based on their userType. A vendor or photographer should NOT land on the same screen as a regular customer. Confirm your post-onboarding navigation logic checks userType and routes accordingly.
+
+How to test this is fully working:
+
+Complete onboarding as a customer → close the app fully → reopen → confirm you land on the customer home screen
+Repeat as a vendor → confirm you land on the vendor dashboard
+Check the database / user record directly and confirm userType is saved correctly for both test accounts
+Test with a slow network (airplane mode toggle mid-onboarding) to make sure the app handles a failed save gracefully and doesn't silently drop the user type
+
+Files most likely involved:
+
+Your onboarding screen components (e.g. OnboardingScreen.js, UserTypeScreen.js, or similar)
+Your global auth or user state (e.g. AuthContext.js, userStore.js)
+Your onboarding API call / user update function
+Your post-auth navigation logic (e.g. AppNavigator.js or wherever you redirect after login/signup)
+
+Paste all of the above files here so we can review and fix them together before touching anything else.

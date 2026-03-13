@@ -14,12 +14,10 @@ import {
   RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
@@ -32,258 +30,20 @@ import { useData, Post, PostType } from "@/context/DataContext";
 import { useRatingEligibility } from "@/hooks/useRatingEligibility";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
-import api, { ApiPost, PulseEngagement } from "@/services/api";
+import api, { ApiPost } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import { feedEvents } from "@/services/feedEvents";
+import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-// Viewability configs must be defined outside component to prevent "Changing viewabilityConfig on the fly" error
-const PULSE_VIEWABILITY_CONFIG = {
-  itemVisiblePercentThreshold: 70,
-  minimumViewTime: 100,
-};
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const PRO_VIEWABILITY_CONFIG = {
   itemVisiblePercentThreshold: 50,
   minimumViewTime: 100,
 };
-
-// Separate component for video playback with engagement tracking (allows hook usage)
-interface PostVideoMediaProps {
-  videoUrl: string;
-  isVisible?: boolean;
-  postId?: string;
-  onEngagement?: (engagement: { 
-    watchTimeSeconds: number; 
-    completionRate: number; 
-    isRewatch: boolean;
-  }) => void;
-}
-
-// Web-specific video component using native HTML video element
-// This avoids expo-video hook issues on web platform
-function WebVideoMedia({ 
-  videoUrl, 
-  isVisible = true, 
-  postId, 
-  onEngagement 
-}: PostVideoMediaProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const watchStartTime = useRef<number | null>(null);
-  const totalWatchTime = useRef(0);
-  const loopCount = useRef(0);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (isVisible) {
-      watchStartTime.current = Date.now();
-      video.play().catch(() => {});
-    } else {
-      // Report engagement when scrolling away
-      if (watchStartTime.current && onEngagement && postId) {
-        const sessionWatchTime = (Date.now() - watchStartTime.current) / 1000;
-        totalWatchTime.current += sessionWatchTime;
-        
-        if (totalWatchTime.current > 1) {
-          const actualDuration = video.duration > 0 ? video.duration : 30;
-          const completionRate = Math.min(totalWatchTime.current / actualDuration, 1);
-          
-          onEngagement({
-            watchTimeSeconds: Math.round(totalWatchTime.current),
-            completionRate: Math.round(completionRate * 100) / 100,
-            isRewatch: loopCount.current > 0,
-          });
-        }
-      }
-      watchStartTime.current = null;
-      video.pause();
-      video.currentTime = 0;
-    }
-  }, [isVisible, onEngagement, postId]);
-
-  const handleVideoEnded = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    
-    loopCount.current += 1;
-    video.currentTime = 0;
-    video.play().catch(() => {});
-  }, []);
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      <video
-        ref={videoRef as any}
-        src={videoUrl}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-        }}
-        muted
-        playsInline
-        onEnded={handleVideoEnded}
-      />
-    </View>
-  );
-}
-
-// Native video component using expo-video (iOS/Android)
-function NativeVideoMedia({ 
-  videoUrl, 
-  isVisible = true, 
-  postId, 
-  onEngagement 
-}: PostVideoMediaProps) {
-  // Engagement tracking state
-  const watchStartTime = useRef<number | null>(null);
-  const totalWatchTime = useRef(0);
-  const loopCount = useRef(0);
-  const videoDuration = useRef(0);
-  const lastReportedTime = useRef(0);
-  
-  const player = useVideoPlayer(videoUrl, p => {
-    p.loop = true;
-    p.muted = true;
-    if (isVisible) {
-      p.play();
-    }
-  });
-
-  // Track watch time and completion
-  useEffect(() => {
-    if (isVisible) {
-      watchStartTime.current = Date.now();
-      player.play();
-    } else {
-      // Report engagement when visibility changes (user scrolled away)
-      if (watchStartTime.current && onEngagement && postId) {
-        const sessionWatchTime = (Date.now() - watchStartTime.current) / 1000;
-        totalWatchTime.current += sessionWatchTime;
-        
-        // Only report if we have meaningful watch time (> 1 second)
-        if (totalWatchTime.current > 1) {
-          // Estimate completion based on typical short video duration (15-60 seconds)
-          const estimatedDuration = 30; // Default 30 second assumption
-          const actualDuration = videoDuration.current > 0 ? videoDuration.current : estimatedDuration;
-          const completionRate = Math.min(totalWatchTime.current / actualDuration, 1);
-          
-          onEngagement({
-            watchTimeSeconds: Math.round(totalWatchTime.current),
-            completionRate: Math.round(completionRate * 100) / 100,
-            isRewatch: loopCount.current > 0,
-          });
-        }
-      }
-      watchStartTime.current = null;
-      player.pause();
-    }
-  }, [isVisible, player, onEngagement, postId]);
-
-  // Track video duration - simplified for compatibility
-  useEffect(() => {
-    const checkDuration = () => {
-      try {
-        if (player.duration && player.duration > 0) {
-          videoDuration.current = player.duration;
-        }
-        if (player.currentTime !== undefined) {
-          if (videoDuration.current > 0 && player.currentTime < lastReportedTime.current - 1) {
-            loopCount.current += 1;
-          }
-          lastReportedTime.current = player.currentTime;
-        }
-      } catch (e) {
-        // Silent fail if properties not available
-      }
-    };
-
-    const interval = setInterval(checkDuration, 1000);
-    return () => clearInterval(interval);
-  }, [player]);
-
-  return (
-    <VideoView
-      player={player}
-      style={StyleSheet.absoluteFill}
-      contentFit="cover"
-      nativeControls={false}
-    />
-  );
-}
-
-// Platform-aware video component - uses HTML video on web, expo-video on native
-function PostVideoMedia(props: PostVideoMediaProps) {
-  if (Platform.OS === 'web') {
-    return <WebVideoMedia {...props} />;
-  }
-  return <NativeVideoMedia {...props} />;
-}
-
-// Image aspect ratio types for smart rendering
-type ImageAspectType = "portrait" | "landscape" | "square";
-
-// Component for image posts with aspect-aware rendering
-function PostImageMedia({ 
-  imageUrl, 
-  onAspectDetected 
-}: { 
-  imageUrl: string; 
-  onAspectDetected?: (aspect: ImageAspectType) => void;
-}) {
-  const [aspectType, setAspectType] = useState<ImageAspectType>("portrait");
-  const [imageLoaded, setImageLoaded] = useState(false);
-
-  const handleImageLoad = useCallback((event: any) => {
-    const { width, height } = event.source || {};
-    if (width && height) {
-      const ratio = width / height;
-      let newAspect: ImageAspectType;
-      if (ratio > 1.2) {
-        newAspect = "landscape";
-      } else if (ratio < 0.8) {
-        newAspect = "portrait";
-      } else {
-        newAspect = "square";
-      }
-      setAspectType(newAspect);
-      onAspectDetected?.(newAspect);
-    }
-    setImageLoaded(true);
-  }, [onAspectDetected]);
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      {/* Blurred background for landscape/square images - fills empty space */}
-      {(aspectType === "landscape" || aspectType === "square") && (
-        <Image
-          source={{ uri: imageUrl }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          blurRadius={30}
-        />
-      )}
-      {/* Dark overlay on blurred background */}
-      {(aspectType === "landscape" || aspectType === "square") && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.4)" }]} />
-      )}
-      {/* Main image - always contain mode for images, never crop */}
-      <Image
-        source={{ uri: imageUrl }}
-        style={StyleSheet.absoluteFill}
-        contentFit="contain"
-        onLoad={handleImageLoad}
-        transition={200}
-      />
-    </View>
-  );
-}
 
 export default function DiscoverScreen() {
   const { theme } = useTheme();
@@ -295,77 +55,70 @@ export default function DiscoverScreen() {
   const { user, getToken } = useAuth();
 
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
-  const [feedPosts, setFeedPosts] = useState<Post[]>([]); // Pro feed posts
-  const [pulsePosts, setPulsePosts] = useState<Post[]>([]); // Pulse feed posts (separate TikTok-style feed)
+  const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
-  const [pulseLoading, setPulseLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [pulseCursor, setPulseCursor] = useState<string | undefined>(undefined);
-  const [pulseHasMore, setPulseHasMore] = useState(true);
-  
-  // Comments modal state
+
+  // Comments modal (Pro feed)
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
 
-  // Handle feed mode change from toggle or swipe
-  const handleModeChange = useCallback((mode: FeedMode) => {
-    setFeedMode(mode);
-  }, []);
+  // Feed toggle / swipe
+  const handleModeChange = useCallback((mode: FeedMode) => setFeedMode(mode), []);
 
-  // Swipe gesture to toggle between feeds
-  const swipeToToggle = useCallback((direction: "left" | "right") => {
-    if (direction === "left" && feedMode === "pro") {
-      setFeedMode("pulse");
-    } else if (direction === "right" && feedMode === "pulse") {
-      setFeedMode("pro");
-    }
-  }, [feedMode]);
+  const swipeToToggle = useCallback(
+    (direction: "left" | "right") => {
+      if (direction === "left" && feedMode === "pro") setFeedMode("pulse");
+      else if (direction === "right" && feedMode === "pulse") setFeedMode("pro");
+    },
+    [feedMode]
+  );
 
-  // Convert API posts to local Post format
+  // ─── Convert API post ─────────────────────────────────────────────────────
   const convertApiPostToPost = useCallback((apiPost: ApiPost): Post => {
-    const displayName = 
-      (apiPost.author as any)?.displayName ||
-      apiPost.author?.name ||
-      "Unknown";
-    
-    const authorAvatar = 
-      (apiPost.author as any)?.profilePhotoUrl ||
-      apiPost.author?.profileImageUrl || 
-      "";
-    
-    const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id || apiPost.id;
+    const displayName =
+      (apiPost.author as any)?.displayName || apiPost.author?.name || "Unknown";
+    const authorAvatar =
+      (apiPost.author as any)?.profilePhotoUrl || apiPost.author?.profileImageUrl || "";
+    const userId =
+      apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id || apiPost.id;
     const username = apiPost.author?.username;
-    
     const authorRole = (apiPost.author as any)?.role;
+
     let postType: PostType = "user";
     if (apiPost.authorType === "photographer" || authorRole === "photographer") {
       postType = "photographer";
-    } else if (apiPost.authorType === "vendor" || apiPost.authorType === "business" || authorRole === "vendor" || authorRole === "business") {
+    } else if (
+      apiPost.authorType === "vendor" ||
+      apiPost.authorType === "business" ||
+      authorRole === "vendor" ||
+      authorRole === "business"
+    ) {
       postType = "vendor";
     }
-    
-    const providerId = apiPost.providerId || 
-      apiPost.author?.photographerId || 
+
+    const providerId =
+      apiPost.providerId ||
+      apiPost.author?.photographerId ||
       apiPost.author?.businessId ||
       apiPost.taggedPhotographerId ||
       apiPost.taggedBusinessId;
-    
+
     return {
       id: apiPost.id,
       type: postType,
-      userId: userId,
-      username: username,
-      displayName: displayName,
-      authorAvatar: authorAvatar,
+      userId,
+      username,
+      displayName,
+      authorAvatar,
       authorId: userId,
       authorName: displayName,
       subscriptionTier: undefined,
       rating: (apiPost.author as any)?.rating || 0,
       reviewCount: (apiPost.author as any)?.reviewCount || 0,
       image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
-      // Use videoUrl, fallback to mediaUrl (backend may use either field name)
       videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
       caption: apiPost.content || "",
       likes: apiPost.likesCount || 0,
@@ -374,221 +127,113 @@ export default function DiscoverScreen() {
       createdAt: apiPost.createdAt,
       serviceId: apiPost.photographerServiceId || apiPost.serviceId,
       productId: apiPost.productId,
-      providerId: providerId,
+      providerId,
       photographerId: apiPost.authorType === "photographer" ? userId : undefined,
       photographerName: apiPost.authorType === "photographer" ? displayName : undefined,
     };
   }, []);
 
-  // Fetch algorithmic feed from backend
-  // Fetch Pro feed from /api/feed (business-focused, location-aware)
+  // ─── Pro feed fetch ───────────────────────────────────────────────────────
   const fetchProFeed = useCallback(async () => {
     try {
       setFeedLoading(true);
       const token = await getToken();
-      
-      const response = await api.getFeed({
-        limit: 50,
-        latitude: userLocation?.latitude,
-        longitude: userLocation?.longitude,
-      }, token || undefined);
-      
+      const response = await api.getFeed(
+        {
+          limit: 50,
+          latitude: userLocation?.latitude,
+          longitude: userLocation?.longitude,
+        },
+        token || undefined
+      );
       if (response.posts && Array.isArray(response.posts)) {
-        const convertedPosts = response.posts.map(convertApiPostToPost);
-        setFeedPosts(convertedPosts);
+        setFeedPosts(response.posts.map(convertApiPostToPost));
       }
-    } catch (error) {
-      console.error("[DiscoverScreen] Failed to fetch Pro feed:", error);
+    } catch (err) {
+      console.error("[DiscoverScreen] Failed to fetch Pro feed:", err);
     } finally {
       setFeedLoading(false);
     }
   }, [getToken, userLocation, convertApiPostToPost]);
 
-  // Fetch Pulse feed from /api/pulse/feed (TikTok-style discovery, engagement-ranked)
-  const fetchPulseFeed = useCallback(async (refresh = false) => {
-    try {
-      if (refresh) {
-        setPulseLoading(true);
-        setPulseCursor(undefined);
-      }
-      
-      const token = await getToken();
-      
-      const response = await api.getPulseFeed({
-        limit: 20,
-        cursor: refresh ? undefined : pulseCursor,
-      }, token || undefined);
-      
-      console.log("[DiscoverScreen] Pulse feed response:", response.posts?.length || 0, "posts");
-      
-      if (response.posts && Array.isArray(response.posts)) {
-        const convertedPosts = response.posts.map(convertApiPostToPost);
-        console.log("[DiscoverScreen] Pulse converted posts:", convertedPosts.length);
-        if (refresh) {
-          setPulsePosts(convertedPosts);
-        } else {
-          setPulsePosts(prev => [...prev, ...convertedPosts]);
-        }
-        setPulseHasMore(response.hasMore);
-        setPulseCursor(response.nextCursor);
-      } else {
-        console.log("[DiscoverScreen] Pulse feed returned no posts array");
-      }
-    } catch (error) {
-      console.error("[DiscoverScreen] Failed to fetch Pulse feed:", error);
-    } finally {
-      setPulseLoading(false);
-    }
-  }, [getToken, pulseCursor, convertApiPostToPost]);
-
-  // Track engagement for Pulse posts (watch time, completion, rewatches)
-  const trackPulseEngagement = useCallback(async (engagement: PulseEngagement) => {
-    try {
-      const token = await getToken();
-      if (token) {
-        await api.trackPulseEngagement(token, engagement);
-      }
-    } catch (error) {
-      // Silent fail - engagement tracking is non-critical
-      console.log("[DiscoverScreen] Failed to track Pulse engagement:", error);
-    }
-  }, [getToken]);
-
-  // Get user location for location-based ranking
+  // Location
   useEffect(() => {
-    const requestLocation = async () => {
+    const req = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === "granted") {
-          const location = await Location.getCurrentPositionAsync({
+          const loc = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
           });
-          setUserLocation({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          });
+          setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         }
-      } catch (error) {
-        console.log("[DiscoverScreen] Location not available");
-      }
+      } catch {}
     };
-    requestLocation();
+    req();
   }, []);
 
-  // Fetch Pro feed when location is available or on mount
+  // Fetch Pro feed when location available
   useEffect(() => {
     fetchProFeed();
   }, [userLocation]);
 
-  // Fetch Pulse feed on mount
+  // Feed refresh events (Pro only — Pulse is handled inside PulseFeedScreenV2)
   useEffect(() => {
-    fetchPulseFeed(true);
-  }, []);
-
-  // Listen for feed refresh events (triggered after posting)
-  useEffect(() => {
-    const unsubscribe = feedEvents.subscribe((feedType) => {
-      console.log(`[DiscoverScreen] Received feed refresh event for ${feedType}`);
-      if (feedType === "pulse") {
-        fetchPulseFeed(true);
-      } else if (feedType === "pro") {
-        fetchProFeed();
-      }
+    const unsub = feedEvents.subscribe((feedType) => {
+      if (feedType === "pro") fetchProFeed();
     });
-    return unsubscribe;
-  }, [fetchPulseFeed, fetchProFeed]);
+    return unsub;
+  }, [fetchProFeed]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    if (feedMode === "pro") {
-      await fetchProFeed();
-    } else {
-      await fetchPulseFeed(true);
-    }
+    await fetchProFeed();
     setRefreshing(false);
-  }, [feedMode, fetchProFeed, fetchPulseFeed]);
+  }, [fetchProFeed]);
 
-  // Feed-specific sorting
+  // ─── Pro feed sorting ─────────────────────────────────────────────────────
   const proFeedPosts = useMemo(() => {
     return [...feedPosts].sort((a, b) => {
-      const roleOrder: Record<string, number> = { 
-        photographer: 1, 
-        vendor: 2, 
-        user: 3 
-      };
-      const aRole = roleOrder[a.type] || 3;
-      const bRole = roleOrder[b.type] || 3;
-      if (aRole !== bRole) return aRole - bRole;
-      
-      const aRating = a.rating || 0;
-      const bRating = b.rating || 0;
-      if (bRating !== aRating) return bRating - aRating;
-      
-      const aDate = new Date(a.createdAt).getTime();
-      const bDate = new Date(b.createdAt).getTime();
-      return bDate - aDate;
+      const order: Record<string, number> = { photographer: 1, vendor: 2, user: 3 };
+      const aR = order[a.type] || 3;
+      const bR = order[b.type] || 3;
+      if (aR !== bR) return aR - bR;
+      const aDiff = (b.rating || 0) - (a.rating || 0);
+      if (aDiff !== 0) return aDiff;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }, [feedPosts]);
 
-  // Pulse feed is already ranked by backend (TikTok-style engagement algorithm)
-  // No client-side sorting needed - backend handles watch time, completion, rewatches
-  const pulseFeedPosts = pulsePosts;
-
-  // Scroll position refs for each feed
+  // ─── Pro scroll state ─────────────────────────────────────────────────────
   const proScrollOffset = useRef(0);
-  const pulseScrollOffset = useRef(0);
   const proListRef = useRef<FlatList>(null);
-  const pulseListRef = useRef<FlatList>(null);
-
-  // Track visible post indices for viewability-based video playback
-  const [visiblePulseIndex, setVisiblePulseIndex] = useState(0);
   const [visibleProIndices, setVisibleProIndices] = useState<Set<number>>(new Set([0, 1]));
-  
-  // Callbacks for viewability changes - must use useRef for stability
-  const onPulseViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
-    if (viewableItems.length > 0 && viewableItems[0].index !== null) {
-      setVisiblePulseIndex(viewableItems[0].index);
+
+  const onProViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+      const s = new Set<number>();
+      viewableItems.forEach((i) => { if (i.index !== null) s.add(i.index); });
+      setVisibleProIndices(s);
     }
-  }).current;
+  ).current;
 
-  const onProViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
-    const visibleSet = new Set<number>();
-    viewableItems.forEach(item => {
-      if (item.index !== null) {
-        visibleSet.add(item.index);
-      }
-    });
-    setVisibleProIndices(visibleSet);
-  }).current;
-
-  // Save scroll position when switching feeds
   const handleProScroll = useCallback((event: any) => {
     proScrollOffset.current = event.nativeEvent.contentOffset.y;
   }, []);
 
-  const handlePulseScroll = useCallback((event: any) => {
-    pulseScrollOffset.current = event.nativeEvent.contentOffset.y;
-  }, []);
-
-  // Restore scroll position when switching back
+  // Restore Pro scroll position when switching back to Pro
   useEffect(() => {
     if (feedMode === "pro" && proListRef.current) {
       setTimeout(() => {
         proListRef.current?.scrollToOffset({ offset: proScrollOffset.current, animated: false });
       }, 50);
-    } else if (feedMode === "pulse" && pulseListRef.current) {
-      setTimeout(() => {
-        pulseListRef.current?.scrollToOffset({ offset: pulseScrollOffset.current, animated: false });
-      }, 50);
     }
   }, [feedMode]);
 
-  // Navigation handlers
+  // ─── Navigation handlers ──────────────────────────────────────────────────
   const handleAuthorPress = (post: Post) => {
-    const userType = post.type === "photographer" ? "photographer" 
-                   : post.type === "vendor" ? "business" 
-                   : "consumer";
-    
+    const userType =
+      post.type === "photographer" ? "photographer" : post.type === "vendor" ? "business" : "consumer";
     navigation.navigate("Profile", {
       userId: post.userId,
       profileId: post.providerId,
@@ -602,33 +247,34 @@ export default function DiscoverScreen() {
     if (post.serviceId) {
       const photographerId = post.photographerId || post.providerId || post.userId;
       const photographer = getPhotographer(photographerId);
-      navigation.navigate("Booking", { 
+      navigation.navigate("Booking", {
         photographer: photographer || undefined,
-        photographerId: photographerId,
-        preselectedServiceId: post.serviceId 
+        photographerId,
+        preselectedServiceId: post.serviceId,
       });
     } else if (post.productId) {
       const businessId = post.providerId || post.userId;
-      navigation.navigate("VendorDetail", { 
+      navigation.navigate("VendorDetail", {
         vendorId: businessId,
         initialTab: "products",
-        productId: post.productId
+        productId: post.productId,
       });
     }
   };
 
-  const handleLike = (postId: string) => {
-    likePost(postId);
-  };
+  const handleLike = (postId: string) => likePost(postId);
 
   const handleSavePost = (post: Post) => {
     const favoriteType = post.type === "vendor" ? "product" : "photographer";
     toggleFavorite({
       id: post.id,
       type: favoriteType,
-      name: post.type === "vendor" && post.productName ? post.productName : post.authorName,
+      name: post.type === "vendor" && (post as any).productName ? (post as any).productName : post.authorName,
       image: post.image,
-      subtitle: post.type === "vendor" ? `$${post.productPrice?.toFixed(2)}` : post.caption?.substring(0, 50),
+      subtitle:
+        post.type === "vendor"
+          ? `$${(post as any).productPrice?.toFixed(2)}`
+          : post.caption?.substring(0, 50),
     });
   };
 
@@ -642,20 +288,18 @@ export default function DiscoverScreen() {
       try {
         await addComment(selectedPost.id, commentText);
         setCommentText("");
-      } catch (error) {
-        console.error("Error submitting comment:", error);
+      } catch (err) {
+        console.error("Error submitting comment:", err);
       }
     }
   };
 
   const handleRatePress = (post: Post) => {
     const eligibility = checkEligibility(post);
-    
     if (!eligibility.canRate) {
       Alert.alert("Rating Not Available", eligibility.reason, [{ text: "OK" }]);
       return;
     }
-
     const authorType = post.type === "vendor" ? "vendor" : "photographer";
     Alert.alert(
       `Rate ${post.authorName}`,
@@ -674,15 +318,12 @@ export default function DiscoverScreen() {
   const handleDeletePost = async (postId: string) => {
     try {
       const token = await getToken();
-      if (!token) {
-        Alert.alert("Error", "You must be logged in to delete posts.");
-        return;
-      }
+      if (!token) { Alert.alert("Error", "You must be logged in to delete posts."); return; }
       await api.deletePost(token, postId);
-      setFeedPosts((prev: Post[]) => prev.filter((p: Post) => p.id !== postId));
+      setFeedPosts((prev) => prev.filter((p) => p.id !== postId));
       Alert.alert("Success", "Post deleted successfully.");
-    } catch (error) {
-      console.error("Error deleting post:", error);
+    } catch (err) {
+      console.error("Error deleting post:", err);
       Alert.alert("Error", "Failed to delete post. Please try again.");
     }
   };
@@ -690,225 +331,20 @@ export default function DiscoverScreen() {
   const handleReportPost = async (postId: string, reason: string) => {
     try {
       const token = await getToken();
-      if (!token) {
-        Alert.alert("Error", "You must be logged in to report posts.");
-        return;
-      }
+      if (!token) { Alert.alert("Error", "You must be logged in to report posts."); return; }
       await api.reportPost(token, postId, reason);
       Alert.alert("Report Submitted", "Thank you for reporting. Our team will review this content.");
-    } catch (error) {
-      console.error("Error reporting post:", error);
+    } catch (err) {
+      console.error("Error reporting post:", err);
       Alert.alert("Error", "Failed to submit report. Please try again.");
     }
   };
 
-  // Calculate post height (full screen minus tab bar)
-  const TAB_BAR_HEIGHT = 80;
-  const POST_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
-
-  // Handle video engagement tracking for Pulse feed
-  const handleVideoEngagement = useCallback((postId: string, engagement: {
-    watchTimeSeconds: number;
-    completionRate: number;
-    isRewatch: boolean;
-  }) => {
-    trackPulseEngagement({
-      postId,
-      watchTimeSeconds: engagement.watchTimeSeconds,
-      completionRate: engagement.completionRate,
-      isRewatch: engagement.isRewatch,
-    });
-  }, [trackPulseEngagement]);
-
-  // Full-screen post component (Pulse feed - TikTok style)
-  const renderFullScreenPost = ({ item: post, index }: { item: Post; index: number }) => {
-    const isVendor = post.type === "vendor";
-    const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
-    const hasCommerce = post.serviceId || post.productId;
-
-    const hasVideo = !!post.videoUrl;
-    // Only play video if this post is the currently visible one
-    const isVisible = index === visiblePulseIndex;
-
-    return (
-      <View style={[styles.postContainer, { height: POST_HEIGHT, backgroundColor: "#000000" }]}>
-        {/* Full-screen media background - Video or Image */}
-        {/* Videos: cover mode (full-screen native feel) */}
-        {/* Images: contain mode with aspect-aware background (never crop) */}
-        {hasVideo && post.videoUrl ? (
-          <PostVideoMedia 
-            key={`video-${post.id}`}
-            videoUrl={post.videoUrl} 
-            isVisible={isVisible}
-            postId={post.id}
-            onEngagement={(engagement) => handleVideoEngagement(post.id, engagement)}
-          />
-        ) : post.image ? (
-          <PostImageMedia key={`image-${post.id}`} imageUrl={post.image} />
-        ) : null}
-
-        {/* Bottom gradient for text legibility */}
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.8)"]}
-          style={styles.bottomGradient}
-        />
-
-        {/* Right-side vertical action bar */}
-        <View style={[styles.actionBar, { bottom: insets.bottom + 100 }]}>
-          {/* Like */}
-          <Pressable
-            onPress={() => handleLike(post.id)}
-            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <View style={styles.actionIconContainer}>
-              <Feather
-                name="heart"
-                size={28}
-                color={post.isLiked ? "#FF3B30" : "#FFFFFF"}
-              />
-            </View>
-            <ThemedText style={styles.actionCount}>{post.likes}</ThemedText>
-          </Pressable>
-
-          {/* Comment */}
-          <Pressable
-            onPress={() => openCommentsModal(post)}
-            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <View style={styles.actionIconContainer}>
-              <Feather name="message-circle" size={28} color="#FFFFFF" />
-            </View>
-            <ThemedText style={styles.actionCount}>{post.comments.length}</ThemedText>
-          </Pressable>
-
-          {/* Rating */}
-          <Pressable
-            onPress={() => handleRatePress(post)}
-            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <View style={styles.actionIconContainer}>
-              <Feather name="star" size={28} color="#FFFFFF" />
-            </View>
-            <ThemedText style={styles.actionCount}>{post.rating.toFixed(1)}</ThemedText>
-          </Pressable>
-
-          {/* Save/Bookmark */}
-          <Pressable
-            onPress={() => handleSavePost(post)}
-            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <View style={styles.actionIconContainer}>
-              <Feather
-                name="bookmark"
-                size={28}
-                color={isSaved ? theme.primary : "#FFFFFF"}
-              />
-            </View>
-          </Pressable>
-        </View>
-
-        {/* Bottom-left author info and caption */}
-        <View style={[styles.authorSection, { bottom: insets.bottom + 20 }]}>
-          {/* Author row */}
-          <Pressable
-            onPress={() => handleAuthorPress(post)}
-            style={styles.authorRow}
-          >
-            {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
-              <Image
-                source={{ uri: post.authorAvatar }}
-                style={styles.authorAvatar}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={[styles.authorAvatar, styles.avatarPlaceholder, { backgroundColor: theme.primary }]}>
-                <ThemedText style={styles.avatarInitial}>
-                  {(post.displayName || post.authorName || "?").charAt(0).toUpperCase()}
-                </ThemedText>
-              </View>
-            )}
-            <View style={styles.authorInfo}>
-              <ThemedText style={styles.displayName}>
-                {post.displayName || post.authorName}
-              </ThemedText>
-              {post.username ? (
-                <ThemedText style={styles.username}>@{post.username}</ThemedText>
-              ) : null}
-            </View>
-          </Pressable>
-
-          {/* Caption */}
-          {post.caption ? (
-            <ThemedText style={styles.caption} numberOfLines={3}>
-              {post.caption}
-            </ThemedText>
-          ) : null}
-
-          {/* Commerce CTA */}
-          {hasCommerce ? (
-            <Pressable
-              onPress={() => handleActionPress(post)}
-              style={({ pressed }) => [
-                styles.commerceCTA,
-                { backgroundColor: theme.primary, opacity: pressed ? 0.9 : 1 },
-              ]}
-            >
-              <Feather
-                name={post.productId ? "shopping-bag" : "calendar"}
-                size={18}
-                color="#000000"
-              />
-              <ThemedText style={styles.commerceCTAText}>
-                {post.productId ? "Buy Now" : "Book Now"}
-              </ThemedText>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-    );
-  };
-
-  // Loading state
-  if (feedLoading && feedPosts.length === 0) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
-          Loading feed...
-        </ThemedText>
-      </View>
-    );
-  }
-
-  // Empty state
-  if (feedPosts.length === 0) {
-    return (
-      <View style={[styles.emptyContainer, { backgroundColor: theme.backgroundRoot }]}>
-        <Feather name="image" size={64} color={theme.textSecondary} />
-        <ThemedText type="h3" style={{ marginTop: Spacing.lg, color: theme.text }}>
-          No posts yet
-        </ThemedText>
-        <ThemedText type="body" style={{ marginTop: Spacing.sm, color: theme.textSecondary, textAlign: "center" }}>
-          Follow photographers and vendors to see their content here
-        </ThemedText>
-        <Pressable
-          onPress={() => navigation.getParent()?.navigate("SearchTab")}
-          style={[styles.exploreButton, { backgroundColor: theme.primary }]}
-        >
-          <ThemedText style={{ color: "#000000", fontWeight: "600" }}>
-            Explore
-          </ThemedText>
-        </Pressable>
-      </View>
-    );
-  }
-
-  // Render Pro feed item (card-based)
+  // ─── Pro feed render item ──────────────────────────────────────────────────
   const renderProFeedItem = ({ item: post, index }: { item: Post; index: number }) => {
     const isVendor = post.type === "vendor";
     const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
     const isVisible = visibleProIndices.has(index);
-
     return (
       <ProFeedCard
         post={post}
@@ -928,22 +364,54 @@ export default function DiscoverScreen() {
     );
   };
 
-  // Create horizontal swipe gesture for feed toggle
+  // Swipe gesture
   const horizontalSwipe = Gesture.Pan()
     .activeOffsetX([-20, 20])
     .failOffsetY([-10, 10])
     .onEnd((event) => {
-      if (event.translationX < -50) {
-        runOnJS(swipeToToggle)("left");
-      } else if (event.translationX > 50) {
-        runOnJS(swipeToToggle)("right");
-      }
+      if (event.translationX < -50) runOnJS(swipeToToggle)("left");
+      else if (event.translationX > 50) runOnJS(swipeToToggle)("right");
     });
+
+  // ─── Loading / empty states (Pro feed) ───────────────────────────────────
+  if (feedLoading && feedPosts.length === 0) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+          Loading feed...
+        </ThemedText>
+      </View>
+    );
+  }
+
+  if (feedPosts.length === 0 && feedMode === "pro") {
+    return (
+      <View style={[styles.emptyContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <Feather name="image" size={64} color={theme.textSecondary} />
+        <ThemedText type="h3" style={{ marginTop: Spacing.lg, color: theme.text }}>
+          No posts yet
+        </ThemedText>
+        <ThemedText
+          type="body"
+          style={{ marginTop: Spacing.sm, color: theme.textSecondary, textAlign: "center" }}
+        >
+          Follow photographers and vendors to see their content here
+        </ThemedText>
+        <Pressable
+          onPress={() => navigation.getParent()?.navigate("SearchTab")}
+          style={[styles.exploreButton, { backgroundColor: theme.primary }]}
+        >
+          <ThemedText style={{ color: "#000000", fontWeight: "600" }}>Explore</ThemedText>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: feedMode === "pulse" ? "#000000" : theme.backgroundRoot }]}>
       <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
-      
+
       <GestureDetector gesture={horizontalSwipe}>
         <View style={styles.feedPage}>
           {feedMode === "pro" ? (
@@ -967,53 +435,13 @@ export default function DiscoverScreen() {
               onViewableItemsChanged={onProViewableItemsChanged}
               viewabilityConfig={PRO_VIEWABILITY_CONFIG}
             />
-          ) : pulseLoading && pulseFeedPosts.length === 0 ? (
-            <View style={[styles.pulseLoadingContainer, { flex: 1 }]}>
-              <ActivityIndicator size="large" color={theme.primary} />
-              <ThemedText type="body" style={{ marginTop: Spacing.md, color: "#FFFFFF" }}>
-                Loading Pulse...
-              </ThemedText>
-            </View>
-          ) : pulseFeedPosts.length === 0 ? (
-            <View style={[styles.pulseEmptyContainer, { flex: 1 }]}>
-              <Feather name="video" size={64} color="rgba(255,255,255,0.5)" />
-              <ThemedText type="h3" style={{ marginTop: Spacing.lg, color: "#FFFFFF" }}>
-                No Pulse content yet
-              </ThemedText>
-              <ThemedText type="body" style={{ marginTop: Spacing.sm, color: "rgba(255,255,255,0.7)", textAlign: "center" }}>
-                Be the first to share a video!
-              </ThemedText>
-            </View>
           ) : (
-            <FlatList
-              key="pulse-feed-list"
-              ref={pulseListRef}
-              data={pulseFeedPosts}
-              renderItem={renderFullScreenPost}
-              keyExtractor={(item) => item.id}
-              pagingEnabled
-              snapToInterval={POST_HEIGHT}
-              decelerationRate="fast"
-              showsVerticalScrollIndicator={false}
-              onScroll={handlePulseScroll}
-              scrollEventThrottle={16}
-              onRefresh={onRefresh}
-              refreshing={refreshing}
-              style={{ flex: 1 }}
-              contentContainerStyle={{ flexGrow: 1 }}
-              getItemLayout={(data, index) => ({
-                length: POST_HEIGHT,
-                offset: POST_HEIGHT * index,
-                index,
-              })}
-              onViewableItemsChanged={onPulseViewableItemsChanged}
-              viewabilityConfig={PULSE_VIEWABILITY_CONFIG}
-            />
+            <PulseFeedScreenV2 />
           )}
         </View>
       </GestureDetector>
 
-      {/* Comments Modal */}
+      {/* Comments modal — Pro feed */}
       <Modal
         visible={commentsModalVisible}
         animationType="slide"
@@ -1037,7 +465,6 @@ export default function DiscoverScreen() {
               </Pressable>
             </View>
 
-            {/* Comments list */}
             <FlatList
               data={selectedPost?.comments || []}
               keyExtractor={(item) => item.id}
@@ -1066,10 +493,12 @@ export default function DiscoverScreen() {
               )}
             />
 
-            {/* Comment input */}
             <View style={[styles.commentInputRow, { borderTopColor: theme.border }]}>
               <TextInput
-                style={[styles.commentInput, { backgroundColor: theme.backgroundSecondary, color: theme.text }]}
+                style={[
+                  styles.commentInput,
+                  { backgroundColor: theme.backgroundSecondary, color: theme.text },
+                ]}
                 placeholder="Add a comment..."
                 placeholderTextColor={theme.textSecondary}
                 value={commentText}
@@ -1097,19 +526,6 @@ const styles = StyleSheet.create({
   feedPage: {
     flex: 1,
   },
-  pulseLoadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#000000",
-  },
-  pulseEmptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#000000",
-    paddingHorizontal: Spacing.xl,
-  },
   proFeedContent: {
     paddingBottom: Spacing.xl,
   },
@@ -1128,114 +544,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-  },
-  postContainer: {
-    flex: 1,
-    width: SCREEN_WIDTH,
-    position: "relative",
-  },
-  fullScreenMedia: {
-    ...StyleSheet.absoluteFillObject,
-    width: "100%",
-    height: "100%",
-  },
-  bottomGradient: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "50%",
+    borderRadius: 9999,
   },
 
-  // Right-side action bar
-  actionBar: {
-    position: "absolute",
-    right: Spacing.md,
-    alignItems: "center",
-    gap: Spacing.lg,
-  },
-  actionItem: {
-    alignItems: "center",
-  },
-  actionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionCount: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 4,
-  },
-
-  // Bottom-left author section
-  authorSection: {
-    position: "absolute",
-    left: Spacing.md,
-    right: 80,
-  },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  authorAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  avatarPlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitial: {
-    color: "#000000",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  authorInfo: {
-    marginLeft: Spacing.sm,
-  },
-  displayName: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  username: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-  },
-  caption: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: Spacing.md,
-  },
-
-  // Commerce CTA
-  commerceCTA: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.sm,
-  },
-  commerceCTAText: {
-    color: "#000000",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
-  // Comments Modal
+  // Comments modal
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -1299,7 +611,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.full,
+    borderRadius: 9999,
     marginRight: Spacing.sm,
   },
   sendButton: {
