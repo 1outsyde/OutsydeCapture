@@ -27,7 +27,7 @@ The application features a modern UI with a color scheme centered around gold/ye
 - **Universal Notification Bell**: Located on the Home screen header for all authenticated users, displaying an unread count.
 - **Post Commerce Navigation**: Commerce-enabled posts allow direct booking or purchasing via "Book" or "Buy Now" buttons, linking directly to booking screens or product pages.
 - **Booking System**: A backend-driven system handles service booking, date/slot selection, review, and payment via Stripe PaymentSheet. It includes draft reservation holding with a 10-minute timer and auto-acceptance options based on provider settings.
-- **Onboarding**: A 4-screen welcome flow for new users.
+- **Onboarding**: A 4-screen welcome flow for new users. Slide 4 is a role selection screen (Consumer / Business / Photographer). Selected role saved to AsyncStorage under `@outsyde_user_type`. On "Get Started", the stack resets to `[Main, <RoleSignup>]` so after signup `goBack()` lands on Main. Onboarding is registered inside the Stack.Navigator with `initialRouteName` driven by the async `checkOnboardingComplete()` check. `gestureEnabled: false` prevents swiping back into onboarding after it completes.
 - **Profile Screens**: Instagram/Shopify-style public profiles with hero sections, identity details, availability strips, and tabbed navigation for media, bookings, availability, and reviews.
 - **Admin Dashboard**: Provides a comprehensive interface for managing users, businesses, payments, messages, and influencers.
 - **Provider Dashboards**: Dedicated dashboards for Photographers and Businesses to manage earnings, bookings, services/products, availability, and profile information, integrating with Stripe Connect.

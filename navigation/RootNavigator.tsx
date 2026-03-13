@@ -47,31 +47,31 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   const { theme } = useTheme();
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [initialRoute, setInitialRoute] = useState<"Onboarding" | "Main" | null>(null);
 
   useEffect(() => {
     checkOnboardingComplete().then((complete) => {
-      setShowOnboarding(!complete);
+      setInitialRoute(complete ? "Main" : "Onboarding");
     });
   }, []);
 
-  if (showOnboarding === null) {
-    return null;
-  }
-
-  if (showOnboarding) {
-    return (
-      <OnboardingScreen onComplete={() => setShowOnboarding(false)} />
-    );
+  if (initialRoute === null) {
+    return null; // Splash while checking AsyncStorage
   }
 
   return (
     <Stack.Navigator
+      initialRouteName={initialRoute}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: theme.backgroundRoot },
       }}
     >
+      <Stack.Screen
+        name="Onboarding"
+        component={OnboardingScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
       <Stack.Screen name="Main" component={MainTabNavigator} />
 
       <Stack.Screen
