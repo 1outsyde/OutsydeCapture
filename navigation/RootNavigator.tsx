@@ -30,6 +30,8 @@ import AdminBusinessReviewScreen from "@/screens/AdminBusinessReviewScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
+import InfluencerDashboardScreen from "@/screens/InfluencerDashboardScreen";
+import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
@@ -533,6 +535,22 @@ export default function RootNavigator() {
             </Pressable>
           ),
         })}
+      />
+
+      <Stack.Screen
+        name="InfluencerDashboard"
+        component={InfluencerDashboardScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="InfluencerOnboarding"
+        component={InfluencerOnboardingScreen}
+        options={{
+          headerShown: false,
+        }}
       />
 
       <Stack.Screen

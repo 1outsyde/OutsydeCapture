@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Linking } from "react-native";
 import { api } from "../services/api";
+import { captureReferralFromURL, captureReferralFromInitialURL } from "../services/referral";
 
 export type UserRole = "consumer" | "business" | "photographer";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
@@ -137,6 +139,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadStoredAuth();
+    captureReferralFromInitialURL();
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      captureReferralFromURL(url);
+    });
+    return () => sub.remove();
   }, []);
 
   const loadStoredAuth = async () => {

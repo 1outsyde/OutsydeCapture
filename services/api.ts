@@ -2865,6 +2865,38 @@ class ApiService {
     });
   }
 
+  async getInfluencerStats(authToken: string): Promise<InfluencerStats> {
+    return this.request<InfluencerStats>("/api/influencer/me/stats", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+  }
+
+  async trackInfluencerClick(referralCode: string, postId?: string): Promise<void> {
+    try {
+      await this.request<{ success: boolean }>("/api/influencer/click", {
+        method: "POST",
+        body: JSON.stringify({ ref: referralCode, postId }),
+      });
+    } catch {
+    }
+  }
+
+  async sendInfluencerReferralEvent(
+    authToken: string,
+    eventType: "signup" | "first_purchase" | "repeat_purchase",
+    ref: string,
+    extras?: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await this.request<{ success: boolean }>("/api/influencer/event", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ ref, eventType, ...extras }),
+      });
+    } catch {
+    }
+  }
+
   // GET /api/profiles/:profileId/posts - Get posts for a specific profile
   // Note: Pro/Pulse is a display layout decision, not a backend filter
   async getProfilePosts(profileId: string, params?: {
@@ -3228,6 +3260,19 @@ export interface PulseFeedResponse {
   posts: ApiPost[];
   hasMore: boolean;
   nextCursor?: string;
+}
+
+export interface InfluencerStats {
+  referralCode: string;
+  referralLink: string;
+  totalClicks: number;
+  totalDownloads: number;
+  totalSignups: number;
+  totalPurchases: number;
+  pointsBalance: number;
+  totalCommissionCents: number;
+  tier: "Bronze" | "Silver" | "Gold" | "Elite";
+  conversionRate: number;
 }
 
 export const api = new ApiService();

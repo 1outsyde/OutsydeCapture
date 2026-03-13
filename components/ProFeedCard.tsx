@@ -7,6 +7,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Post } from "@/context/DataContext";
+import { sendClickEvent } from "@/services/referral";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 1.25;
@@ -388,7 +389,12 @@ export function ProFeedCard({
 
       {hasCommerce && (
         <Pressable
-          onPress={() => onActionPress(post)}
+          onPress={() => {
+            if (post.influencerReferralCode) {
+              sendClickEvent(post.influencerReferralCode, post.id);
+            }
+            onActionPress(post);
+          }}
           style={[styles.commerceButton, { backgroundColor: theme.primary }]}
         >
           <Feather

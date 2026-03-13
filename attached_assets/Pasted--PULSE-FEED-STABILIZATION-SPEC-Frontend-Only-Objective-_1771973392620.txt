@@ -1,0 +1,255 @@
+📋 PULSE FEED STABILIZATION SPEC (Frontend Only)
+Objective
+
+Refactor and stabilize the Pulse feed before implementing any new features (audio extraction, CTA system, or monetization).
+
+This task is strictly UI + playback stabilization.
+Do NOT modify backend.
+Do NOT add new data models.
+Do NOT infer new features.
+
+1️⃣ SCREEN STRUCTURE
+Component Name
+
+PulseFeedScreenV2
+
+Architecture
+
+Use FlatList
+
+pagingEnabled = true
+
+horizontal = false
+
+snapToInterval = screenHeight
+
+decelerationRate = "fast"
+
+showsVerticalScrollIndicator = false
+
+Each item renders a reusable component:
+
+<PulseVideoCard />
+
+2️⃣ VIDEO BEHAVIOR (CRITICAL)
+Video Library
+
+Use expo-av Video component.
+
+Playback Rules
+
+Only ONE video can play at a time.
+
+The currently visible index = activeIndex.
+
+When activeIndex changes:
+
+Pause previous video
+
+Play new video
+
+Autoplay MUST be enabled.
+
+Videos MUST be muted by default.
+
+Looping must be enabled.
+
+Tapping video toggles pause/play.
+
+Required Props for Video
+<Video
+  ref={videoRef}
+  source={{ uri: post.mediaUrl }}
+  shouldPlay={index === activeIndex}
+  isLooping={true}
+  isMuted={true}
+  resizeMode="cover"
+/>
+Active Index Detection
+
+Use:
+
+onViewableItemsChanged
+viewabilityConfig = {
+  itemVisiblePercentThreshold: 80
+}
+
+When item becomes 80% visible → setActiveIndex(index)
+
+3️⃣ UI LAYOUT STRUCTURE
+Full Screen Layout
+
+Container must:
+
+height = screenHeight
+
+width = 100%
+
+position = relative
+
+A) Right Engagement Stack
+
+Position:
+
+absolute
+
+right: 16
+
+bottom: 160
+
+Vertical stack:
+
+❤️ Like button
+
+💬 Comment button
+
+⭐ Rating display
+
+🔖 Bookmark button
+
+Each must display:
+
+Icon
+
+Count (if applicable)
+
+B) Bottom Left Block
+
+Position:
+
+absolute
+
+left: 16
+
+bottom: 100
+
+Contains:
+
+@username (bold)
+
+Caption (max 2 lines, ellipsis if longer)
+
+C) Bottom Right Sound Label
+
+Position:
+
+absolute
+
+right: 16
+
+bottom: 80
+
+Display only:
+
+🎵 Sound Name
+
+Rules:
+
+Max width: 60% screen
+
+Truncate long text
+
+No scrolling animation yet
+
+Tappable (future feature)
+
+This is UI only. Do NOT implement sound engine.
+
+4️⃣ DATA REQUIREMENTS
+
+Each post object MUST use:
+
+post.id
+
+post.mediaUrl
+
+post.caption
+
+post.user.username
+
+post.likeCount
+
+post.commentCount
+
+post.ratingAverage
+
+post.soundName (static string for now)
+
+Do NOT reference:
+
+videoUrl
+
+nested media object
+
+deprecated fields
+
+5️⃣ ENGAGEMENT BEHAVIOR
+Likes
+
+Toggle like/unlike
+
+Optimistic UI update
+
+Call backend endpoint
+
+Rollback if failure
+
+Comments
+
+Open comment screen
+
+Show commentCount from backend
+
+Update count on new comment
+
+Rating
+
+Display only
+
+Pulled from backend
+
+No per-post rating logic
+
+6️⃣ NON-NEGOTIABLE STABILITY REQUIREMENTS
+
+PulseFeed must:
+
+Not show black screen
+
+Not freeze on scroll
+
+Not allow multiple videos playing
+
+Not restart video unnecessarily when scrolling slightly
+
+Not crash on fast scroll
+
+7️⃣ OUT OF SCOPE (DO NOT IMPLEMENT)
+
+No CTA
+
+No sponsored posts
+
+No sound extraction
+
+No reusable sounds
+
+No audio editing
+
+No monetization logic
+
+Only stabilize Pulse.
+
+🎯 Final Deliverable
+
+Pulse feed must behave like:
+
+TikTok vertical scroll
+
+Smooth transitions
+
+Reliable autoplay
+
+Clean layout
+
+No additional features.

@@ -93,6 +93,14 @@ The application features a modern UI with a color scheme centered around gold/ye
 - **Cloudinary Media Upload**: Images and videos are uploaded to Cloudinary (unsigned preset `outsyde_unsigned`, cloud name `doraffjvp`) with URLs saved to the backend.
 - **Backend Enforcement**: Critical logic, such as publishing validation and subscription lapse handling, is enforced server-side.
 - **Push Notifications**: Implemented using `expo-notifications` and `expo-device` for booking confirmations, reminders, and badge count synchronization.
+- **Influencer Tracking System**: Full frontend implementation for influencer referral and performance tracking:
+  - **Referral Capture** (`services/referral.ts`): Captures `?ref=code` from deep links on app open via `Linking.getInitialURL()` and `Linking.addEventListener`. Stores in AsyncStorage and passes with signup/purchase events.
+  - **Influencer Dashboard** (`screens/InfluencerDashboardScreen.tsx`): Shows unique referral link (with copy), total clicks/downloads/sign-ups/purchases, points balance, commission earned, current tier (Bronze/Silver/Gold/Elite) with badge, and progress bar to next tier. Auto-refreshes every 30s.
+  - **Influencer Onboarding** (`screens/InfluencerOnboardingScreen.tsx`): Welcome flow for newly approved influencers showing referral link, per-platform placement instructions (Instagram, TikTok, YouTube, Twitter), commission structure, and tier thresholds.
+  - **CTA Click Tracking**: ProFeedCard's Book/Buy buttons call `sendClickEvent()` in real time when post has `influencerReferralCode` field, before navigating.
+  - **Settings Menu**: Approved influencers (`isInfluencer && influencerStatus === "approved"`) see "Influencer Dashboard" in settings; others see "Apply as Influencer".
+  - **API Endpoints**: `GET /api/influencer/me/stats`, `POST /api/influencer/click`, `POST /api/influencer/event` (all ready for backend integration).
+  - **Tier System**: Bronze (0-1%), Silver (1-3%), Gold (3-6%), Elite (6%+) based on conversion rate.
 
 ### System Design Choices
 The application is built using Expo/React Native for cross-platform compatibility (iOS, Android, web). Security measures include user-scoped keys for AsyncStorage and scoped payment methods. Backend integration is managed through an API service layer (`/services/api.ts`) connecting to the VendorBooker backend, incorporating a `HealthCheckContext`. Key technologies include `expo-image`, `expo-image-picker`, `expo-notifications`, and `react-native-reanimated`.

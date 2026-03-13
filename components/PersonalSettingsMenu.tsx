@@ -364,7 +364,18 @@ export function PersonalSettingsMenu({
                 }}
               />
 
-              {(user?.role === "consumer" || user?.isGuest) && (
+              {user?.isInfluencer && user?.influencerStatus === "approved" ? (
+                <MenuItem
+                  icon="bar-chart-2"
+                  label="Influencer Dashboard"
+                  onPress={() => handleNavigate("InfluencerDashboard")}
+                  color={theme.primary}
+                  backgroundColor={theme.primaryTransparent}
+                  subtitle="Stats, link, earnings, and tier"
+                />
+              ) : null}
+
+              {!user?.isInfluencer && (user?.role === "consumer" || user?.isGuest) ? (
                 <MenuItem
                   icon="star"
                   label="Apply as Influencer"
@@ -372,7 +383,7 @@ export function PersonalSettingsMenu({
                   color={theme.primary}
                   backgroundColor={theme.primaryTransparent}
                 />
-              )}
+              ) : null}
             </View>
 
             <View style={styles.section}>

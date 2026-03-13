@@ -128,6 +128,13 @@ export interface Post {
   photographerId?: string;
   photographerName?: string;
   photographerAvatar?: string;
+  // Influencer tracking
+  influencerReferralCode?: string;
+  displayLayout?: "pro" | "pulse";
+  soundName?: string;
+  likeCount?: number;
+  commentCount?: number;
+  ratingAverage?: number;
 }
 
 interface DataContextType {
