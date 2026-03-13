@@ -201,10 +201,23 @@ export default function InfluencerOnboardingScreen() {
           <ThemedText type="body" style={[styles.sectionTitle, { color: theme.text }]}>
             Commission Structure
           </ThemedText>
-          <ThemedText type="small" style={{ color: theme.textSecondary, lineHeight: 18, marginBottom: Spacing.md }}>
+          <View style={[styles.rateRow, { backgroundColor: theme.primary + "15", borderRadius: 10 }]}>
+            <View style={styles.rateItem}>
+              <Feather name="shopping-bag" size={20} color={theme.primary} />
+              <ThemedText type="h3" style={{ color: theme.primary }}>8%</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>Products</ThemedText>
+            </View>
+            <View style={[styles.rateDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.rateItem}>
+              <Feather name="calendar" size={20} color={theme.primary} />
+              <ThemedText type="h3" style={{ color: theme.primary }}>10%</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>Bookings</ThemedText>
+            </View>
+          </View>
+          <ThemedText type="small" style={{ color: theme.textSecondary, lineHeight: 18, marginTop: Spacing.md }}>
             You earn a commission on every purchase made by a user who signed up through your link. Your tier is based on your rolling average conversion rate (sign-ups that lead to purchases).
           </ThemedText>
-          <ThemedText type="small" style={{ color: theme.textSecondary }}>
+          <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
             Your first post is commission-only — no upfront payment. As you grow, your tier and earnings increase automatically.
           </ThemedText>
         </View>
@@ -313,6 +326,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     padding: Spacing.lg,
+  },
+  rateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+  },
+  rateItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  rateDivider: {
+    width: 1,
+    height: 50,
+    marginHorizontal: Spacing.md,
   },
   tierRow: {
     flexDirection: "row",
