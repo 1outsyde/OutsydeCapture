@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -144,23 +145,27 @@ export default function PhotographerSignupScreen() {
   };
 
   const handleSubmit = async () => {
+    const storedRole = await AsyncStorage.getItem("@outsyde_user_type");
+    if (!storedRole) {
+      console.error("[PhotographerSignup] No role found in AsyncStorage — aborting signup");
+      Alert.alert("Error", "Something went wrong. Please restart the app and try again.");
+      return;
+    }
+    console.log("[PhotographerSignup] Role read from AsyncStorage:", storedRole);
+
     // Validate hourlyRate is a valid number
     const parsedRate = Number(hourlyRate);
     if (isNaN(parsedRate) || parsedRate <= 0) {
       Alert.alert("Error", "Please enter a valid hourly rate");
       return;
     }
-    
+
     const nameParts = name.trim().split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
 
     // Convert hourlyRate to cents (multiply by 100)
     const hourlyRateInCents = Math.round(parsedRate * 100);
-    
-    // Log for debugging
-    console.log("[PhotographerSignup] Submitting with hourlyRate:", parsedRate, "-> cents:", hourlyRateInCents);
-    console.log("[PhotographerSignup] portfolioUrl:", portfolioUrl || "(empty)");
 
     const result = await signup({
       firstName,
@@ -169,7 +174,7 @@ export default function PhotographerSignupScreen() {
       phone: phone.replace(/\D/g, ""),
       dateOfBirth: "",
       password,
-      role: "photographer",
+      role: storedRole as "consumer" | "business" | "photographer",
       displayName,
       bio,
       city,

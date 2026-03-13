@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Switch } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -174,6 +175,14 @@ export default function BusinessSignupScreen() {
   };
 
   const handleSubmit = async () => {
+    const storedRole = await AsyncStorage.getItem("@outsyde_user_type");
+    if (!storedRole) {
+      console.error("[BusinessSignup] No role found in AsyncStorage — aborting signup");
+      Alert.alert("Error", "Something went wrong. Please restart the app and try again.");
+      return;
+    }
+    console.log("[BusinessSignup] Role read from AsyncStorage:", storedRole);
+
     const nameParts = name.trim().split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
@@ -185,7 +194,7 @@ export default function BusinessSignupScreen() {
       phone: phone.replace(/\D/g, ""),
       dateOfBirth: "",
       password,
-      role: "business",
+      role: storedRole as "consumer" | "business" | "photographer",
       businessName,
       businessCategory,
       businessDescription,
