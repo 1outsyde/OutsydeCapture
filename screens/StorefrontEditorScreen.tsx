@@ -168,8 +168,22 @@ export default function StorefrontEditorScreen() {
 
       const biz = businessRes.business;
       setBusiness(biz);
-      setProducts(productsRes.products || []);
-      setServices(servicesRes.services || []);
+
+      const normalizeProduct = (p: any): VendorProduct => ({
+        ...p,
+        priceCents: Number.isFinite(Number(p.priceCents)) && p.priceCents > 0
+          ? Number(p.priceCents)
+          : (Number.isFinite(Number(p.price)) && p.price > 0 ? Number(p.price) : 0),
+      });
+      const normalizeService = (s: any): VendorService => ({
+        ...s,
+        priceCents: Number.isFinite(Number(s.priceCents)) && s.priceCents > 0
+          ? Number(s.priceCents)
+          : (Number.isFinite(Number(s.price)) && s.price > 0 ? Number(s.price) : 0),
+      });
+
+      setProducts((productsRes.products || []).map(normalizeProduct));
+      setServices((servicesRes.services || []).map(normalizeService));
 
       const isVideo = biz.coverMediaType === "video";
       if (isVideo) {
@@ -337,13 +351,17 @@ export default function StorefrontEditorScreen() {
   const openProductForm = (product?: VendorProduct) => {
     if (product) {
       setEditingProduct(product);
-      setPriceInput(product.priceCents ? (product.priceCents / 100).toString() : "");
+      const rawProduct = product as any;
+      const centValue: number = Number.isFinite(Number(product.priceCents)) && product.priceCents > 0
+        ? product.priceCents
+        : (Number.isFinite(Number(rawProduct.price)) && rawProduct.price > 0 ? Number(rawProduct.price) : 0);
+      setPriceInput(centValue > 0 ? (centValue / 100).toFixed(2) : "");
       setProductForm({
         name: product.name,
         description: product.description || "",
-        priceCents: product.priceCents,
+        priceCents: centValue,
         imageUrl: product.imageUrl || "",
-        inventory: product.inventory || 0,
+        inventory: product.inventory ?? 0,
         status: product.status,
       });
     } else {
@@ -370,31 +388,39 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
-    const trimmedPrice = priceInput.trim();
-    if (!trimmedPrice || !productForm.priceCents || !Number.isFinite(productForm.priceCents) || productForm.priceCents <= 0) {
+    const parsedDollars = parseFloat(priceInput.trim());
+    if (!priceInput.trim() || !Number.isFinite(parsedDollars) || parsedDollars <= 0) {
       Alert.alert("Error", "Please enter a valid price greater than zero.");
       return;
     }
+    const priceCentsValue = Math.round(parsedDollars * 100);
 
-    if (productForm.status === "live" && !canPublishProducts) {
+    const rawInventory = productForm.inventory;
+    const inventoryValue = (rawInventory === undefined || rawInventory === null || isNaN(Number(rawInventory)))
+      ? 0
+      : Math.max(0, Math.floor(Number(rawInventory)));
+
+    const payload: typeof productForm = {
+      ...productForm,
+      priceCents: priceCentsValue,
+      inventory: inventoryValue,
+    };
+
+    if (payload.status === "live" && !canPublishProducts) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
-      setProductForm({ ...productForm, status: editingProduct?.status || "draft" });
+      setProductForm((prev) => ({ ...prev, status: editingProduct?.status || "draft" }));
       fetchData();
       return;
     }
 
-    const { priceCents: formPriceCents, ...formRest } = productForm;
-    const debugPayload = { ...formRest, price: formPriceCents };
-    console.log("[handleSaveProduct] raw productForm:", JSON.stringify(productForm));
-    console.log("[handleSaveProduct] final payload:", JSON.stringify(debugPayload));
-    console.log("[handleSaveProduct] typeof payload.price:", typeof debugPayload.price);
+    console.log("[handleSaveProduct] payload:", JSON.stringify(payload));
 
     try {
       setSaving(true);
       if (editingProduct) {
-        await api.updateVendorProduct(token, editingProduct.id, productForm);
+        await api.updateVendorProduct(token, editingProduct.id, payload);
       } else {
-        await api.createVendorProduct(token, productForm);
+        await api.createVendorProduct(token, payload);
       }
       setProductModalVisible(false);
       fetchData();
@@ -405,7 +431,7 @@ export default function StorefrontEditorScreen() {
       } else {
         Alert.alert("Error", error.message || "Failed to save product");
       }
-      setProductForm({ ...productForm, status: editingProduct?.status || "draft" });
+      setProductForm((prev) => ({ ...prev, status: editingProduct?.status || "draft" }));
       fetchData();
     } finally {
       setSaving(false);
@@ -518,7 +544,11 @@ export default function StorefrontEditorScreen() {
     ]);
   };
 
-  const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const formatPrice = (cents: number | null | undefined) => {
+    const n = Number(cents);
+    if (!isFinite(n)) return "$0.00";
+    return `$${(n / 100).toFixed(2)}`;
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1343,7 +1373,7 @@ export default function StorefrontEditorScreen() {
           <TextInput
             style={styles.input}
             value={productForm.name}
-            onChangeText={(v) => setProductForm({ ...productForm, name: v })}
+            onChangeText={(v) => setProductForm((prev) => ({ ...prev, name: v }))}
             placeholder="Product name"
             placeholderTextColor={theme.textSecondary}
           />
@@ -1352,7 +1382,7 @@ export default function StorefrontEditorScreen() {
           <TextInput
             style={[styles.input, styles.textArea]}
             value={productForm.description}
-            onChangeText={(v) => setProductForm({ ...productForm, description: v })}
+            onChangeText={(v) => setProductForm((prev) => ({ ...prev, description: v }))}
             placeholder="Product description"
             placeholderTextColor={theme.textSecondary}
             multiline
@@ -1362,17 +1392,7 @@ export default function StorefrontEditorScreen() {
           <TextInput
             style={styles.input}
             value={priceInput}
-            onChangeText={(v) => {
-              const stripped = v.replace(/[^0-9.]/g, "");
-              setPriceInput(stripped);
-              if (stripped === "" || stripped === ".") {
-                return;
-              }
-              const parsed = parseFloat(stripped);
-              if (Number.isFinite(parsed)) {
-                setProductForm((prev) => ({ ...prev, priceCents: Math.round(parsed * 100) }));
-              }
-            }}
+            onChangeText={(v) => setPriceInput(v.replace(/[^0-9.]/g, ""))}
             placeholder="0.00"
             placeholderTextColor={theme.textSecondary}
             keyboardType="decimal-pad"
@@ -1381,8 +1401,11 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.inputLabel}>Inventory</Text>
           <TextInput
             style={styles.input}
-            value={productForm.inventory?.toString() || ""}
-            onChangeText={(v) => setProductForm({ ...productForm, inventory: parseInt(v || "0", 10) })}
+            value={productForm.inventory !== undefined && productForm.inventory !== null ? String(productForm.inventory) : ""}
+            onChangeText={(v) => {
+              const parsed = parseInt(v, 10);
+              setProductForm((prev) => ({ ...prev, inventory: isNaN(parsed) ? 0 : Math.max(0, parsed) }));
+            }}
             placeholder="0"
             placeholderTextColor={theme.textSecondary}
             keyboardType="number-pad"
@@ -1391,8 +1414,8 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.inputLabel}>Product Image</Text>
           <ImageUploader
             currentImage={productForm.imageUrl || undefined}
-            onImageSelected={(uri) => setProductForm({ ...productForm, imageUrl: uri })}
-            onRemove={() => setProductForm({ ...productForm, imageUrl: "" })}
+            onImageSelected={(uri) => setProductForm((prev) => ({ ...prev, imageUrl: uri }))}
+            onRemove={() => setProductForm((prev) => ({ ...prev, imageUrl: "" }))}
             aspectRatio="product"
             placeholder="Upload Product Image"
           />
