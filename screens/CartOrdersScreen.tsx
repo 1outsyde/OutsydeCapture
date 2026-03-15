@@ -26,6 +26,10 @@ interface Order {
   total: number;
   items: { name: string; quantity: number }[];
   vendorName: string;
+  // Customer-facing fee breakdown (backend-calculated; optional until backend exposes them)
+  subtotalAmount?: number;
+  consumerServiceFeeAmount?: number;
+  taxAmount?: number;
 }
 
 const MOCK_CART: CartItem[] = [
@@ -230,12 +234,19 @@ export default function CartOrdersScreen() {
               </View>
             ))}
 
-            {/* Cart Total */}
+            {/* Cart Summary */}
             <View style={[styles.cartTotal, { borderTopColor: theme.border }]}>
-              <ThemedText type="h4">Total</ThemedText>
-              <ThemedText type="h3" style={{ color: theme.primary }}>
-                ${cartTotal.toFixed(2)}
-              </ThemedText>
+              <View style={{ flex: 1, gap: Spacing.xs }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <ThemedText type="body" style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
+                  <ThemedText type="body">${cartTotal.toFixed(2)}</ThemedText>
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    Service fees & taxes calculated at checkout
+                  </ThemedText>
+                </View>
+              </View>
             </View>
 
             <Pressable
@@ -308,11 +319,31 @@ export default function CartOrdersScreen() {
                 ))}
               </View>
 
-              <View style={[styles.orderFooter, { borderTopColor: theme.border }]}>
-                <ThemedText type="body">Order Total</ThemedText>
-                <ThemedText type="h4" style={{ color: theme.primary }}>
-                  ${order.total.toFixed(2)}
-                </ThemedText>
+              <View style={[styles.orderFooter, { borderTopColor: theme.border, flexDirection: "column", gap: Spacing.xs }]}>
+                {order.subtotalAmount != null ? (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
+                    <ThemedText type="caption">${order.subtotalAmount.toFixed(2)}</ThemedText>
+                  </View>
+                ) : null}
+                {order.consumerServiceFeeAmount != null ? (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>Outsyde Service Fee</ThemedText>
+                    <ThemedText type="caption">${order.consumerServiceFeeAmount.toFixed(2)}</ThemedText>
+                  </View>
+                ) : null}
+                {order.taxAmount != null ? (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>Sales Tax</ThemedText>
+                    <ThemedText type="caption">${order.taxAmount.toFixed(2)}</ThemedText>
+                  </View>
+                ) : null}
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <ThemedText type="body">Order Total</ThemedText>
+                  <ThemedText type="h4" style={{ color: theme.primary }}>
+                    ${order.total.toFixed(2)}
+                  </ThemedText>
+                </View>
               </View>
             </Pressable>
           ))

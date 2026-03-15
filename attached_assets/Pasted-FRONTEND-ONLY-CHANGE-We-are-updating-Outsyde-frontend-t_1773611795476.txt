@@ -1,0 +1,144 @@
+FRONTEND-ONLY CHANGE
+
+We are updating Outsyde frontend to display the new backend-provided fee breakdown correctly.
+
+IMPORTANT:
+This is a FRONTEND-ONLY change.
+Do not implement backend calculations, business logic, Stripe payout logic, database changes, or webhook logic here.
+Frontend must consume backend-calculated values only.
+Do not calculate fees client-side.
+
+==================================================
+GOAL
+==================================================
+
+Update the frontend so checkout, cart, order summaries, and relevant dashboards display the new fee model clearly using values returned by the backend.
+
+The backend is now the single source of truth for all money calculations.
+
+Frontend should only read and render these backend values.
+
+==================================================
+DISPLAY RULES
+==================================================
+
+1) CUSTOMER / CHECKOUT DISPLAY
+
+For all orders, display:
+- Subtotal
+- Outsyde Service Fee
+- Sales Tax
+- Total
+
+Important:
+- The 3% consumer fee must be labeled as "Outsyde Service Fee" or "Service Fee"
+- Do NOT label it as tax
+- Do NOT calculate this fee in frontend
+- Read the fee value directly from backend response
+
+Example display:
+
+Subtotal ........ $100.00
+Outsyde Service Fee ........ $3.00
+Sales Tax ........ $8.00
+Total ........ $111.00
+
+2) VENDOR / BUSINESS DISPLAY
+
+Where vendor/business views order earnings, display backend-provided values such as:
+- Subtotal
+- Platform Fee (product order) OR Booking Fee (service booking)
+- Influencer Commission (if applicable)
+- Vendor Net
+
+Do not show the consumer service fee as deducted from vendor.
+Because the consumer service fee is paid only by the customer and belongs fully to Outsyde.
+
+3) INFLUENCER DISPLAY
+
+Where influencer earnings are shown, read from backend:
+- commission amount
+- commission status
+- transfer/payout status
+
+Possible statuses:
+- Pending
+- Approved
+- Transfer Queued
+- Transfer Sent
+- Paid
+- Reversed
+
+Do not derive these in frontend.
+
+==================================================
+FRONTEND DATA CONTRACT EXPECTATION
+==================================================
+
+Use backend-provided fields if available, such as:
+- subtotalAmount
+- consumerServiceFeeAmount
+- taxAmount
+- grossChargeAmount or customerTotalAmount
+- platformFeeAmount
+- bookingFeeAmount
+- influencerCommissionAmount
+- vendorNetAmount
+- outsydeGrossRevenueAmount
+- attributedInfluencerId
+- isInfluencerAttributed
+- commissionStatus
+- influencerTransferStatus
+
+If actual field names differ, adapt to the backend contract once confirmed.
+
+==================================================
+UI UPDATE AREAS
+==================================================
+
+Please inspect the app and update the relevant screens/components, likely including:
+- cart summary
+- checkout screen
+- payment review screen
+- order details screen
+- vendor earnings/order details screen
+- influencer earnings dashboard if it exists
+
+Only update areas that render financial breakdowns affected by this new model.
+
+==================================================
+BEHAVIOR RULES
+==================================================
+
+- Do not hardcode percentages in frontend
+- Do not compute 3%, 8%, 12%, or 15% in frontend
+- Do not infer totals from subtotal
+- Do not assume influencer attribution logic client-side
+- Always trust backend response values
+
+If backend has not yet exposed a required field, leave a clear TODO note or wire the UI defensively without inventing calculations.
+
+==================================================
+FORMATTING
+==================================================
+
+Use existing currency formatting helpers/utilities.
+Keep display consistent with current product/checkout styles.
+
+The 3% customer fee should display as:
+- "Outsyde Service Fee"
+
+Not:
+- tax
+- extra tax
+- surcharge tax
+
+==================================================
+DELIVERABLES
+==================================================
+
+Please provide:
+1. list of frontend files changed
+2. components/screens updated
+3. any backend response fields still needed from Cursor
+4. note any places where frontend was previously calculating totals and has now been switched to backend values only

@@ -93,6 +93,10 @@ export type RootStackParamList = {
     amount: number;
     photographerName: string;
     sessionDate: string;
+    // Optional customer-facing fee breakdown (backend-calculated)
+    subtotalAmount?: number;
+    consumerServiceFeeAmount?: number;
+    taxAmount?: number;
   };
   AdminDashboard: undefined;
   AdminUserDetail: { userId: string };

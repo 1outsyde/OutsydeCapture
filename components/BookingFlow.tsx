@@ -704,10 +704,28 @@ export default function BookingFlow({
               <ThemedText style={{ color: theme.textSecondary }}>Time</ThemedText>
               <ThemedText>{(hold?.slot?.startTime || selectedSlot?.startTime || "")} - {(hold?.slot?.endTime || selectedSlot?.endTime || "")}</ThemedText>
             </View>
+            <View style={[styles.confirmRow, { borderTopColor: theme.border, borderTopWidth: 1, marginTop: Spacing.xs }]}>
+              <ThemedText style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
+              <ThemedText>
+                {formatPrice(hold?.subtotalCents ?? hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
+              </ThemedText>
+            </View>
+            {hold?.consumerServiceFeeCents != null ? (
+              <View style={styles.confirmRow}>
+                <ThemedText style={{ color: theme.textSecondary }}>Outsyde Service Fee</ThemedText>
+                <ThemedText>{formatPrice(hold.consumerServiceFeeCents)}</ThemedText>
+              </View>
+            ) : null}
+            {hold?.taxAmountCents != null ? (
+              <View style={styles.confirmRow}>
+                <ThemedText style={{ color: theme.textSecondary }}>Sales Tax</ThemedText>
+                <ThemedText>{formatPrice(hold.taxAmountCents)}</ThemedText>
+              </View>
+            ) : null}
             <View style={[styles.confirmRow, styles.totalRow, { borderTopColor: theme.border }]}>
               <ThemedText type="body" style={{ fontWeight: "600" }}>Total</ThemedText>
               <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary, fontSize: 18 }}>
-                {formatPrice(hold?.service?.priceCents || selectedService?.priceCents || 0)}
+                {formatPrice(hold?.totalAmountCents ?? hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
               </ThemedText>
             </View>
           </View>

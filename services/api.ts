@@ -712,6 +712,13 @@ export interface BusinessOrder {
   items: { name: string; quantity: number; price: number }[];
   totalAmount: number;
   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
+  subtotalAmount?: number;
+  platformFeeAmount?: number;
+  influencerCommissionAmount?: number;
+  vendorNetAmount?: number;
+  isInfluencerAttributed?: boolean;
+  attributedInfluencerId?: string;
 }
 
 export interface BusinessBooking {
@@ -723,6 +730,13 @@ export interface BusinessBooking {
   serviceName: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   amount: number;
+  // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
+  subtotalAmount?: number;
+  bookingFeeAmount?: number;
+  influencerCommissionAmount?: number;
+  vendorNetAmount?: number;
+  isInfluencerAttributed?: boolean;
+  attributedInfluencerId?: string;
 }
 
 export interface BusinessProduct {
@@ -3318,6 +3332,14 @@ export interface BookingHoldResponse {
     startTime: string;
     endTime: string;
   };
+  // Customer-facing fee breakdown (backend-calculated; optional until backend exposes them)
+  subtotalCents?: number;
+  consumerServiceFeeCents?: number;
+  taxAmountCents?: number;
+  totalAmountCents?: number;
+  // Vendor-facing breakdown
+  bookingFeeCents?: number;
+  vendorNetCents?: number;
 }
 
 export interface BookingConfirmResponse {
@@ -3354,6 +3376,10 @@ export interface InfluencerStats {
   totalCommissionCents: number;
   tier: "Bronze" | "Silver" | "Gold" | "Elite";
   conversionRate: number;
+  // Commission breakdown by status (backend-calculated; optional until backend exposes them)
+  pendingCommissionCents?: number;
+  approvedCommissionCents?: number;
+  transferredCommissionCents?: number;
 }
 
 export const api = new ApiService();

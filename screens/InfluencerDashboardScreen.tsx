@@ -308,6 +308,28 @@ export default function InfluencerDashboardScreen() {
               </ThemedText>
             </View>
           </View>
+          {(stats?.pendingCommissionCents != null || stats?.approvedCommissionCents != null || stats?.transferredCommissionCents != null) ? (
+            <View style={{ marginTop: Spacing.md, gap: Spacing.xs }}>
+              {stats.pendingCommissionCents != null ? (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Pending</ThemedText>
+                  <ThemedText type="small">${(stats.pendingCommissionCents / 100).toFixed(2)}</ThemedText>
+                </View>
+              ) : null}
+              {stats.approvedCommissionCents != null ? (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Approved</ThemedText>
+                  <ThemedText type="small" style={{ color: "#34C759" }}>${(stats.approvedCommissionCents / 100).toFixed(2)}</ThemedText>
+                </View>
+              ) : null}
+              {stats.transferredCommissionCents != null ? (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Transferred</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.primary }}>${(stats.transferredCommissionCents / 100).toFixed(2)}</ThemedText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         <View style={[styles.tiersCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>

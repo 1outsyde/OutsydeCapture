@@ -1292,7 +1292,30 @@ export default function BusinessDashboardScreen() {
             )}
           </View>
           <View style={styles.orderFooter}>
-            <Text style={styles.orderTotal}>Total: ${order.totalAmount}</Text>
+            <View>
+              {order.subtotalAmount != null ? (
+                <Text style={[styles.orderTotal, { color: theme.textSecondary, fontSize: 12 }]}>
+                  Subtotal: ${typeof order.subtotalAmount === 'number' ? order.subtotalAmount.toFixed(2) : order.subtotalAmount}
+                </Text>
+              ) : null}
+              {order.platformFeeAmount != null ? (
+                <Text style={[styles.orderTotal, { color: theme.textSecondary, fontSize: 12 }]}>
+                  Platform Fee: -${order.platformFeeAmount.toFixed(2)}
+                </Text>
+              ) : null}
+              {order.isInfluencerAttributed && order.influencerCommissionAmount != null ? (
+                <Text style={[styles.orderTotal, { color: theme.textSecondary, fontSize: 12 }]}>
+                  Influencer Commission: -${order.influencerCommissionAmount.toFixed(2)}
+                </Text>
+              ) : null}
+              {order.vendorNetAmount != null ? (
+                <Text style={[styles.orderTotal, { fontWeight: "700" }]}>
+                  You Earn: ${order.vendorNetAmount.toFixed(2)}
+                </Text>
+              ) : (
+                <Text style={styles.orderTotal}>Total: ${order.totalAmount}</Text>
+              )}
+            </View>
             {order.status === "pending" && (
               <View style={styles.orderActions}>
                 <Pressable
@@ -1354,7 +1377,30 @@ export default function BusinessDashboardScreen() {
           </View>
           <View style={styles.bookingDetails}>
             <Text style={styles.bookingInfo}>{booking.serviceName}</Text>
-            <Text style={styles.bookingAmount}>${booking.amount}</Text>
+            <View style={{ alignItems: "flex-end" }}>
+              {booking.subtotalAmount != null ? (
+                <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                  Subtotal: ${booking.subtotalAmount.toFixed(2)}
+                </Text>
+              ) : null}
+              {booking.bookingFeeAmount != null ? (
+                <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                  Booking Fee: -${booking.bookingFeeAmount.toFixed(2)}
+                </Text>
+              ) : null}
+              {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null ? (
+                <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                  Influencer: -${booking.influencerCommissionAmount.toFixed(2)}
+                </Text>
+              ) : null}
+              {booking.vendorNetAmount != null ? (
+                <Text style={[styles.bookingAmount, { fontWeight: "700" }]}>
+                  You Earn: ${booking.vendorNetAmount.toFixed(2)}
+                </Text>
+              ) : (
+                <Text style={styles.bookingAmount}>${booking.amount}</Text>
+              )}
+            </View>
           </View>
           {booking.status === "pending" && (
             <View style={styles.bookingActions}>

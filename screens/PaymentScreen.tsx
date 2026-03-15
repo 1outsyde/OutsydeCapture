@@ -29,7 +29,7 @@ export default function PaymentScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
   const insets = useSafeAreaInsets();
-  const { sessionId, amount, photographerName, sessionDate } = route.params;
+  const { sessionId, amount, photographerName, sessionDate, subtotalAmount, consumerServiceFeeAmount, taxAmount } = route.params;
   const {
     paymentMethods,
     addPaymentMethod,
@@ -389,6 +389,24 @@ export default function PaymentScreen() {
               </ThemedText>
             </View>
             <View style={styles.divider} />
+            {subtotalAmount != null ? (
+              <View style={styles.summaryRow}>
+                <ThemedText type="body">Subtotal</ThemedText>
+                <ThemedText type="body">${subtotalAmount.toFixed(2)}</ThemedText>
+              </View>
+            ) : null}
+            {consumerServiceFeeAmount != null ? (
+              <View style={styles.summaryRow}>
+                <ThemedText type="body">Outsyde Service Fee</ThemedText>
+                <ThemedText type="body">${consumerServiceFeeAmount.toFixed(2)}</ThemedText>
+              </View>
+            ) : null}
+            {taxAmount != null ? (
+              <View style={styles.summaryRow}>
+                <ThemedText type="body">Sales Tax</ThemedText>
+                <ThemedText type="body">${taxAmount.toFixed(2)}</ThemedText>
+              </View>
+            ) : null}
             <View style={styles.totalRow}>
               <ThemedText type="h4">Total</ThemedText>
               <ThemedText type="h3" style={{ color: theme.primary }}>
