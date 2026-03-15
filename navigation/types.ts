@@ -104,6 +104,7 @@ export type RootStackParamList = {
   InfluencerOnboarding: undefined;
   ProfileCompletionGate: { dashboardType: "photographer" | "business" };
   StorefrontEditor: undefined;
+  SubscriptionPlan: undefined;
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
   Notifications: undefined;

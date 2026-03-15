@@ -34,6 +34,7 @@ import InfluencerDashboardScreen from "@/screens/InfluencerDashboardScreen";
 import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
+import SubscriptionPlanScreen from "@/screens/SubscriptionPlanScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
@@ -581,6 +582,21 @@ export default function RootNavigator() {
           animation: "slide_from_right",
           headerShown: true,
           headerTitle: "Edit Storefront",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="SubscriptionPlan"
+        component={SubscriptionPlanScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Subscription Plan",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },

@@ -3203,6 +3203,17 @@ class ApiService {
     });
   }
 
+  async createBillingPortalSession(
+    authToken: string,
+    returnUrl: string
+  ): Promise<{ portalUrl: string }> {
+    return this.request<{ portalUrl: string }>("/api/stripe/billing-portal", {
+      method: "POST",
+      body: JSON.stringify({ returnUrl }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   async createTierSubscriptionCheckout(
     authToken: string,
     tierId: string,

@@ -218,6 +218,14 @@ export function PersonalSettingsMenu({
                   color="#34C759"
                   backgroundColor="#34C75910"
                 />
+                <MenuItem
+                  icon="credit-card"
+                  label="Subscription Plan"
+                  onPress={() => handleNavigate("SubscriptionPlan")}
+                  color="#34C759"
+                  backgroundColor="#34C75910"
+                  subtitle="Manage or upgrade your plan"
+                />
               </View>
             ) : null}
 
