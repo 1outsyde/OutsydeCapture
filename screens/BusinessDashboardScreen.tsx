@@ -27,6 +27,7 @@ import api, {
   BusinessService,
   BusinessProduct,
   BillingAddress,
+  VendorEligibility,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, convertTo24Hour } from "@/components/HoursEditor";
@@ -34,6 +35,7 @@ import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import { availabilityEvents } from "@/services/availabilityEvents";
+import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
 
 type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile";
@@ -52,6 +54,7 @@ export default function BusinessDashboardScreen() {
   const [saving, setSaving] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
+  const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
 
   const [stats, setStats] = useState<BusinessDashboardStats>({
     earnings: 0,
@@ -215,6 +218,17 @@ export default function BusinessDashboardScreen() {
     }
   }, [getToken, logout]);
 
+  const fetchEligibility = useCallback(async () => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      const e = await api.getVendorEligibility(token);
+      setEligibility(e);
+    } catch (err) {
+      console.warn("[Dashboard] Failed to fetch eligibility:", err);
+    }
+  }, [getToken]);
+
   const fetchTabData = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
@@ -261,6 +275,7 @@ export default function BusinessDashboardScreen() {
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
       fetchDashboard();
+      fetchEligibility();
     }
   }, [authLoading, user?.id, user?.role]);
 
@@ -324,8 +339,8 @@ export default function BusinessDashboardScreen() {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === "active") {
-        console.log("[Dashboard] App came to foreground, checking Stripe status...");
-        await refreshStripeStatus();
+        console.log("[Dashboard] App came to foreground, refreshing eligibility and Stripe status...");
+        await Promise.all([fetchEligibility(), refreshStripeStatus()]);
       }
       appStateRef.current = nextAppState;
     });
@@ -333,7 +348,7 @@ export default function BusinessDashboardScreen() {
     return () => {
       subscription.remove();
     };
-  }, [refreshStripeStatus]);
+  }, [fetchEligibility, refreshStripeStatus]);
   
   const handleConnectStripe = async () => {
     const token = await getToken();
@@ -1502,20 +1517,16 @@ export default function BusinessDashboardScreen() {
         </Pressable>
       </View>
 
-      {!profile?.stripeConnected && (
+      {eligibility && !eligibility.canPublishProducts && !eligibility.canPublishServices && !eligibility.requiresApproval && (
         <View style={styles.stripeCard}>
           <View style={styles.stripeIcon}>
             <Feather name="alert-circle" size={20} color="#FF9500" />
           </View>
           <View style={styles.stripeContent}>
-            <Text style={styles.stripeTitle}>Complete Your Payment Setup</Text>
+            <Text style={styles.stripeTitle}>Account Setup Incomplete</Text>
             <Text style={styles.stripeDescription}>
-              Connect your Stripe account to start receiving payments. This is required before customers can make purchases.
+              Complete your account setup to start publishing products and services.
             </Text>
-            <Pressable onPress={handleConnectStripe} style={styles.stripeButton}>
-              <Feather name="external-link" size={14} color="#FFFFFF" />
-              <Text style={styles.stripeButtonText}>Connect with Stripe</Text>
-            </Pressable>
           </View>
         </View>
       )}
@@ -1640,6 +1651,11 @@ export default function BusinessDashboardScreen() {
         bookingAmount={selectedBookingForRefund?.amount || 0}
         clientName={selectedBookingForRefund?.customerName || ""}
         serviceName={selectedBookingForRefund?.serviceName || ""}
+      />
+
+      <BusinessEligibilityGate
+        eligibility={eligibility}
+        onRefreshEligibility={fetchEligibility}
       />
     </ScrollView>
   );

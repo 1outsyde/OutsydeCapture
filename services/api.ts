@@ -3190,6 +3190,30 @@ class ApiService {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
+
+  async getVendorEligibility(authToken: string): Promise<VendorEligibility> {
+    return this.request<VendorEligibility>("/api/vendor/eligibility", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getSubscriptionTiers(authToken: string): Promise<{ tiers: SubscriptionTier[] }> {
+    return this.request<{ tiers: SubscriptionTier[] }>("/api/subscription-tiers", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async createTierSubscriptionCheckout(
+    authToken: string,
+    tierId: string,
+    returnUrl?: string
+  ): Promise<{ checkoutUrl: string }> {
+    return this.request<{ checkoutUrl: string }>("/api/stripe/checkout/tier-subscription", {
+      method: "POST",
+      body: JSON.stringify({ tierId, ...(returnUrl ? { returnUrl } : {}) }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
 }
 
 // Availability Calendar types
@@ -3289,3 +3313,28 @@ export interface InfluencerStats {
 
 export const api = new ApiService();
 export default api;
+
+// ==========================================
+// Vendor Eligibility + Subscription Tiers
+// ==========================================
+
+export interface VendorEligibility {
+  requiresApproval: boolean;
+  requiresPlanSelection: boolean;
+  requiresOnboarding: boolean;
+  requiresSubscription: boolean;
+  canPublishProducts: boolean;
+  canPublishServices: boolean;
+  currentStep?: string;
+}
+
+export interface SubscriptionTier {
+  id: string;
+  name: string;
+  price: number;
+  priceLabel?: string;
+  description?: string;
+  features?: string[];
+  interval?: string;
+  badge?: string;
+}

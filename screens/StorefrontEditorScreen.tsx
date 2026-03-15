@@ -27,6 +27,7 @@ import api, {
   VendorProductInput,
   VendorServiceInput,
   HoursOfOperationData,
+  VendorEligibility,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, hoursObjectToArray, convertTo24Hour } from "@/components/HoursEditor";
@@ -64,6 +65,7 @@ export default function StorefrontEditorScreen() {
   const [saving, setSaving] = useState(false);
 
   const [business, setBusiness] = useState<VendorBookerBusiness | null>(null);
+  const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<VendorService[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
@@ -87,17 +89,30 @@ export default function StorefrontEditorScreen() {
   const [profileZip, setProfileZip] = useState("");
 
   const approvalStatus = business?.approvalStatus || "pending";
-  const canPublish = Boolean(
-    business?.stripeOnboardingComplete && 
-    business?.subscriptionActive && 
-    approvalStatus === "approved"
-  );
+
+  const canPublishProducts = eligibility
+    ? Boolean(eligibility.canPublishProducts)
+    : Boolean(
+        business?.stripeOnboardingComplete &&
+        business?.subscriptionActive &&
+        approvalStatus === "approved"
+      );
+
+  const canPublishServices = eligibility
+    ? Boolean(eligibility.canPublishServices)
+    : Boolean(
+        business?.stripeOnboardingComplete &&
+        business?.subscriptionActive &&
+        approvalStatus === "approved"
+      );
+
+  const canPublish = canPublishProducts || canPublishServices;
 
   const getPublishBlockerMessage = (errorBody?: Record<string, any>): string => {
     const reasons: string[] = [];
-    const reqApproval = errorBody?.requiresApproval ?? (approvalStatus !== "approved");
-    const reqSubscription = errorBody?.requiresSubscription ?? !business?.subscriptionActive;
-    const reqOnboarding = errorBody?.requiresOnboarding ?? !business?.stripeOnboardingComplete;
+    const reqApproval = errorBody?.requiresApproval ?? eligibility?.requiresApproval ?? (approvalStatus !== "approved");
+    const reqSubscription = errorBody?.requiresSubscription ?? eligibility?.requiresSubscription ?? !business?.subscriptionActive;
+    const reqOnboarding = errorBody?.requiresOnboarding ?? eligibility?.requiresOnboarding ?? !business?.stripeOnboardingComplete;
 
     if (reqApproval) {
       reasons.push(`Storefront approval (currently ${approvalStatus})`);
@@ -142,11 +157,14 @@ export default function StorefrontEditorScreen() {
 
     try {
       setLoading(true);
-      const [businessRes, productsRes, servicesRes] = await Promise.all([
+      const [businessRes, productsRes, servicesRes, eligibilityRes] = await Promise.all([
         api.getVendorMyBusiness(token),
         api.getVendorProducts(token).catch(() => ({ products: [] })),
         api.getVendorServices(token).catch(() => ({ services: [] })),
+        api.getVendorEligibility(token).catch(() => null),
       ]);
+
+      if (eligibilityRes) setEligibility(eligibilityRes);
 
       const biz = businessRes.business;
       setBusiness(biz);
@@ -358,7 +376,7 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
-    if (productForm.status === "live" && !canPublish) {
+    if (productForm.status === "live" && !canPublishProducts) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
       setProductForm({ ...productForm, status: editingProduct?.status || "draft" });
       fetchData();
@@ -448,7 +466,7 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
-    if (serviceForm.status === "live" && !canPublish) {
+    if (serviceForm.status === "live" && !canPublishServices) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
       setServiceForm({ ...serviceForm, status: editingService?.status || "draft" });
       fetchData();
@@ -1400,13 +1418,13 @@ export default function StorefrontEditorScreen() {
                 <Text style={{ fontSize: 12, color: "#ef4444", marginTop: 2 }}>
                   Reactivate subscription to unpause
                 </Text>
-              ) : !canPublish ? (
+              ) : !canPublishProducts ? (
                 <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
                   Requires approval, Stripe setup, and active subscription
                 </Text>
               ) : null}
             </View>
-            <View style={(!canPublish || productForm.status === "paused") ? styles.disabledSwitch : undefined}>
+            <View style={(!canPublishProducts || productForm.status === "paused") ? styles.disabledSwitch : undefined}>
               <Switch
                 value={productForm.status === "live"}
                 onValueChange={(v) => {
@@ -1417,17 +1435,14 @@ export default function StorefrontEditorScreen() {
                     );
                     return;
                   }
-                  if (v && !canPublish) {
-                    Alert.alert(
-                      "Cannot Publish",
-                      "To publish products, you need storefront approval, Stripe payment setup, and an active subscription."
-                    );
+                  if (v && !canPublishProducts) {
+                    Alert.alert("Cannot Publish", getPublishBlockerMessage());
                     return;
                   }
                   setProductForm({ ...productForm, status: v ? "live" : "draft" });
                 }}
                 trackColor={{ true: theme.primary }}
-                disabled={productForm.status === "paused" || (!canPublish && productForm.status !== "live")}
+                disabled={productForm.status === "paused" || (!canPublishProducts && productForm.status !== "live")}
               />
             </View>
           </View>
@@ -1515,13 +1530,13 @@ export default function StorefrontEditorScreen() {
                 <Text style={{ fontSize: 12, color: "#ef4444", marginTop: 2 }}>
                   Reactivate subscription to unpause
                 </Text>
-              ) : !canPublish ? (
+              ) : !canPublishServices ? (
                 <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
                   Requires approval, Stripe setup, and active subscription
                 </Text>
               ) : null}
             </View>
-            <View style={(!canPublish || serviceForm.status === "paused") ? styles.disabledSwitch : undefined}>
+            <View style={(!canPublishServices || serviceForm.status === "paused") ? styles.disabledSwitch : undefined}>
               <Switch
                 value={serviceForm.status === "live"}
                 onValueChange={(v) => {
@@ -1532,17 +1547,14 @@ export default function StorefrontEditorScreen() {
                     );
                     return;
                   }
-                  if (v && !canPublish) {
-                    Alert.alert(
-                      "Cannot Publish",
-                      "To publish services, you need storefront approval, Stripe payment setup, and an active subscription."
-                    );
+                  if (v && !canPublishServices) {
+                    Alert.alert("Cannot Publish", getPublishBlockerMessage());
                     return;
                   }
                   setServiceForm({ ...serviceForm, status: v ? "live" : "draft" });
                 }}
                 trackColor={{ true: theme.primary }}
-                disabled={serviceForm.status === "paused" || (!canPublish && serviceForm.status !== "live")}
+                disabled={serviceForm.status === "paused" || (!canPublishServices && serviceForm.status !== "live")}
               />
             </View>
           </View>
@@ -1607,9 +1619,9 @@ export default function StorefrontEditorScreen() {
     if (canPublish) return null;
     
     const isDark = theme.backgroundRoot === "#000000" || theme.backgroundRoot === "#000";
-    const missingStripe = !business?.stripeOnboardingComplete;
-    const missingSub = !business?.subscriptionActive;
-    const missingApproval = approvalStatus !== "approved";
+    const missingStripe = eligibility ? eligibility.requiresOnboarding : !business?.stripeOnboardingComplete;
+    const missingSub = eligibility ? eligibility.requiresSubscription : !business?.subscriptionActive;
+    const missingApproval = eligibility ? eligibility.requiresApproval : approvalStatus !== "approved";
     
     return (
       <View style={[styles.publishGateCard, isDark && styles.publishGateCardDark]}>
