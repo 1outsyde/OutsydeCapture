@@ -35,6 +35,7 @@ import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
 import SubscriptionPlanScreen from "@/screens/SubscriptionPlanScreen";
+import ShootBookingScreen from "@/screens/ShootBookingScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
@@ -602,6 +603,12 @@ export default function RootNavigator() {
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
         }}
+      />
+
+      <Stack.Screen
+        name="ShootBooking"
+        component={ShootBookingScreen}
+        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
       />
 
       <Stack.Screen

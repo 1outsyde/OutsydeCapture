@@ -1,0 +1,75 @@
+I need to build the production shoot credit UI for the Outwyd business app (React Native/Expo).
+
+PAGES & SCREENS
+1. Credits Dashboard (tab in business profile)
+   - Large prominent card showing: "You have X credits"
+   - Below: "1 more credit for a free production shoot" (or equivalent milestone)
+   - Button: "Book a shoot"
+   - Recent redemption history (last 5 bookings with credits used)
+
+2. Shoot Booking Flow (when business clicks "Book a shoot")
+   Step 1: Select shoot type (on-location product, studio product, video)
+   Step 2: Select location (outdoor, indoor/lifestyle, studio)
+   Step 3: Review pricing- Show: Base price (e.g. $300)
+      - Show current credit balance
+      - Radio buttons:◉ Pay full price ($300)
+        ○ Use 1 credit (30% off → $210)
+        ○ Use 2 credits (50% off → $150)
+        ○ Use 3 credits (FREE)
+      - Selected option highlights and shows savings
+   Step 4: Confirm & book
+      - Summary of choice
+      - "Book shoot" button
+      - Return to credits dashboard after confirmation
+
+COMPONENTS TO BUILD
+1. CreditsCard
+   - Props: { balance, nextMilestoneCredits }
+   - Shows large credit number, progress to free shoot
+   - Visual progress bar (e.g. 2/3 filled for2 credits)
+
+2. ShootPricingSelector
+   - Props: { basePrice, availableCredits }
+   - Radio button group showing all redemption options with prices
+   - Highlight selected option with green background
+   - Show "$X savings" on discounted options
+
+3. CreditHistoryList
+   - Props: { bookings[] }
+   - Displays: date, shoot type, credits used, price paid
+   - Shows "Free" badge if 3 credits were used
+
+4. CreditMilestoneNotification
+   - Small banner at top of screen when business reaches 2+ credits
+   - Text: "You're1 credit away from a free production shoot!"
+   - Dismiss button
+
+STATE & DATA
+- Fetch from GET /api/business/:id/production-credits on screen load
+- POST to /api/production/book when business confirms booking
+- Handle loading states during booking
+- Show error if booking fails (e.g. insufficient credits, shoot type unavailable)
+
+VISUAL DESIGN
+- Credit balance should be prominent and easy to understand (large number, icon, color)
+- Use a progress bar or visual indicator for "X of3 credits to free shoot"
+- Pricing options should be clear radio buttons, not confusing text
+- Show real-time credit deduction feedback ("You'll have 2 credits after this booking")
+- Make the free shoot option visually stand out (green highlight, badge)
+
+EDGE CASES TO HANDLE
+- Business has 0 credits → show "Pay full price" option only
+- Business has 1 credit → show "Pay full" and "30% off with 1 credit"
+- Business has 2 credits → show all three options
+- Business has 3+ credits → show "Free shoot (3 credits)" as prominent option
+- Subscription expires/downgrades → credits still available but no new accrual message
+- Network error during booking → retry button, preserve credit state
+
+TESTING CHECKLIST
+- ✅ Dashboard loads and displays correct credit balance
+- ✅ All three discount tiers calculate correctly
+- ✅ "Free shoot" option only appears with 3+ credits
+- ✅ Booking confirms and deducts credits
+- ✅ History updates after booking
+- ✅ Milestone notification appears at2 credits
+- ✅ Works offline (cached balance, retry on reconnect)

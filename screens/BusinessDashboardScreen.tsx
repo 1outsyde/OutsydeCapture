@@ -28,6 +28,8 @@ import api, {
   BusinessProduct,
   BillingAddress,
   VendorEligibility,
+  ProductionCreditData,
+  ProductionCreditHistory,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, convertTo24Hour } from "@/components/HoursEditor";
@@ -38,7 +40,7 @@ import { availabilityEvents } from "@/services/availabilityEvents";
 import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
 
 type BusinessType = "service" | "product" | "both";
-type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile";
+type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile" | "credits";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -55,6 +57,9 @@ export default function BusinessDashboardScreen() {
   const [authError, setAuthError] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
   const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
+  const [creditData, setCreditData] = useState<ProductionCreditData | null>(null);
+  const [creditLoading, setCreditLoading] = useState(false);
+  const [milestoneVisible, setMilestoneVisible] = useState(true);
 
   const [stats, setStats] = useState<BusinessDashboardStats>({
     earnings: 0,
@@ -108,12 +113,12 @@ export default function BusinessDashboardScreen() {
   const getAvailableTabs = (): TabType[] => {
     switch (businessType) {
       case "product":
-        return ["orders", "products", "storefront", "profile"];
+        return ["orders", "products", "storefront", "credits", "profile"];
       case "service":
-        return ["bookings", "services", "hours", "storefront", "profile"];
+        return ["bookings", "services", "hours", "storefront", "credits", "profile"];
       case "both":
       default:
-        return ["orders", "bookings", "products", "services", "hours", "storefront", "profile"];
+        return ["orders", "bookings", "products", "services", "hours", "storefront", "credits", "profile"];
     }
   };
 
@@ -251,11 +256,24 @@ export default function BusinessDashboardScreen() {
           const servicesData = await api.getBusinessServices(token);
           setServices(servicesData || []);
           break;
+        case "credits":
+          if (!profile?.id) break;
+          setCreditLoading(true);
+          try {
+            const creditsData = await api.getBusinessProductionCredits(token, profile.id);
+            setCreditData(creditsData);
+          } catch (err) {
+            console.warn("[Dashboard] Could not fetch production credits:", err);
+            setCreditData({ balance: 0, history: [] });
+          } finally {
+            setCreditLoading(false);
+          }
+          break;
       }
     } catch (error) {
       console.error(`Failed to fetch ${activeTab} data:`, error);
     }
-  }, [getToken, activeTab]);
+  }, [getToken, activeTab, profile?.id]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -1099,6 +1117,122 @@ export default function BusinessDashboardScreen() {
       color: "#FFFFFF",
       marginLeft: 6,
     },
+    milestoneBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderRadius: 12,
+      borderWidth: 1,
+      padding: 12,
+      marginBottom: 14,
+      gap: 8,
+    },
+    milestoneText: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: "600",
+      lineHeight: 18,
+    },
+    creditsCard: {
+      borderRadius: 18,
+      borderWidth: 1,
+      padding: 20,
+      marginBottom: 22,
+    },
+    creditsCardTop: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    creditIconBg: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    creditsLabel: {
+      fontSize: 13,
+      fontWeight: "500",
+    },
+    creditsBalance: {
+      fontSize: 44,
+      fontWeight: "900",
+      lineHeight: 50,
+    },
+    freeBadge: {
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    freeBadgeText: {
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: "800",
+    },
+    progressTrack: {
+      height: 8,
+      borderRadius: 4,
+      overflow: "hidden",
+    },
+    progressFill: {
+      height: 8,
+      borderRadius: 4,
+    },
+    bookShootBtn: {
+      borderRadius: 12,
+      paddingVertical: 13,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginTop: 18,
+    },
+    bookShootBtnText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: "#000",
+    },
+    historyTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      marginBottom: 10,
+    },
+    historyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderRadius: 12,
+      borderWidth: 1,
+      padding: 14,
+      marginBottom: 10,
+    },
+    historyIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    historyShootType: {
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    historyDate: {
+      fontSize: 12,
+      marginTop: 2,
+    },
+    historyPrice: {
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    creditsUsedBadge: {
+      borderRadius: 6,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      marginTop: 3,
+    },
+    creditsUsedText: {
+      fontSize: 11,
+      fontWeight: "700",
+    },
   });
 
   const getStatusColor = (status: string) => {
@@ -1436,6 +1570,137 @@ export default function BusinessDashboardScreen() {
     </View>
   );
 
+  const renderCreditsTab = () => {
+    const balance = creditData?.balance ?? 0;
+    const history = creditData?.history ?? [];
+    const MILESTONE_TARGET = 3;
+    const showMilestone = milestoneVisible && balance >= 2 && balance < MILESTONE_TARGET;
+
+    const formatDate = (iso: string) => {
+      try {
+        return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      } catch { return iso; }
+    };
+    const formatPrice = (cents: number) => cents === 0 ? "Free" : `$${(cents / 100).toFixed(0)}`;
+    const shootTypeLabel = (raw: string) => {
+      const map: Record<string, string> = {
+        "on-location-product": "On-Location Product",
+        "studio-product": "Studio Product",
+        "video": "Video Shoot",
+      };
+      return map[raw] ?? raw;
+    };
+
+    if (creditLoading) {
+      return (
+        <View style={{ alignItems: "center", paddingVertical: 40 }}>
+          <ActivityIndicator color={theme.primary} />
+          <Text style={{ color: theme.textSecondary, marginTop: 10, fontSize: 14 }}>Loading credits...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ paddingHorizontal: 0, paddingBottom: 20 }}>
+        {showMilestone ? (
+          <View style={[styles.milestoneBar, { backgroundColor: theme.primary + "18", borderColor: theme.primary + "40" }]}>
+            <Feather name="zap" size={16} color={theme.primary} />
+            <Text style={[styles.milestoneText, { color: theme.primary }]}>
+              You are {MILESTONE_TARGET - balance} credit{MILESTONE_TARGET - balance !== 1 ? "s" : ""} away from a free production shoot!
+            </Text>
+            <Pressable onPress={() => setMilestoneVisible(false)} style={{ marginLeft: 8 }}>
+              <Feather name="x" size={14} color={theme.primary} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Credits Card */}
+        <View style={[styles.creditsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.creditsCardTop}>
+            <View style={[styles.creditIconBg, { backgroundColor: theme.primary + "18" }]}>
+              <Feather name="star" size={22} color={theme.primary} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={[styles.creditsLabel, { color: theme.textSecondary }]}>Available Credits</Text>
+              <Text style={[styles.creditsBalance, { color: theme.text }]}>{balance}</Text>
+            </View>
+            {balance >= MILESTONE_TARGET ? (
+              <View style={[styles.freeBadge, { backgroundColor: "#22c55e" }]}>
+                <Text style={styles.freeBadgeText}>Free Shoot Ready</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Progress Bar */}
+          <View style={{ marginTop: 16, marginBottom: 4 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, color: theme.textSecondary }}>
+                {Math.min(balance, MILESTONE_TARGET)}/{MILESTONE_TARGET} credits to free shoot
+              </Text>
+              <Text style={{ fontSize: 12, color: theme.primary, fontWeight: "600" }}>
+                {balance >= MILESTONE_TARGET ? "Unlocked!" : `${MILESTONE_TARGET - balance} more needed`}
+              </Text>
+            </View>
+            <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    backgroundColor: balance >= MILESTONE_TARGET ? "#22c55e" : theme.primary,
+                    width: `${Math.min((balance / MILESTONE_TARGET) * 100, 100)}%` as any,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+
+          <Pressable
+            style={[styles.bookShootBtn, { backgroundColor: theme.primary }]}
+            onPress={() => navigation.navigate("ShootBooking", { businessId: profile?.id || "", creditBalance: balance })}
+          >
+            <Feather name="camera" size={16} color="#000" />
+            <Text style={styles.bookShootBtnText}>Book a Shoot</Text>
+          </Pressable>
+        </View>
+
+        {/* History */}
+        <Text style={[styles.historyTitle, { color: theme.text }]}>Recent Redemptions</Text>
+        {history.length === 0 ? (
+          <View style={[styles.emptyState, { marginTop: 8 }]}>
+            <Feather name="clock" size={24} color={theme.textSecondary} />
+            <Text style={[styles.emptyTitle, { marginTop: 10 }]}>No shoot history yet</Text>
+            <Text style={styles.emptySubtitle}>Book your first shoot to get started.</Text>
+          </View>
+        ) : (
+          history.slice(0, 5).map((item: ProductionCreditHistory, idx: number) => (
+            <View
+              key={item.id}
+              style={[styles.historyRow, { backgroundColor: theme.card, borderColor: theme.border }]}
+            >
+              <View style={[styles.historyIcon, { backgroundColor: theme.primary + "14" }]}>
+                <Feather name="camera" size={16} color={theme.primary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.historyShootType, { color: theme.text }]}>{shootTypeLabel(item.shootType)}</Text>
+                <Text style={[styles.historyDate, { color: theme.textSecondary }]}>{formatDate(item.date)}</Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[styles.historyPrice, { color: theme.text }]}>{formatPrice(item.pricePaidCents)}</Text>
+                {item.creditsUsed > 0 ? (
+                  <View style={[styles.creditsUsedBadge, { backgroundColor: item.creditsUsed >= 3 ? "#22c55e20" : theme.primary + "14" }]}>
+                    <Text style={[styles.creditsUsedText, { color: item.creditsUsed >= 3 ? "#22c55e" : theme.primary }]}>
+                      {item.creditsUsed >= 3 ? "Free" : `-${item.creditsUsed} credit${item.creditsUsed > 1 ? "s" : ""}`}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case "orders":
@@ -1474,6 +1739,8 @@ export default function BusinessDashboardScreen() {
             </Pressable>
           </View>
         );
+      case "credits":
+        return renderCreditsTab();
       case "profile":
         return renderProfileTab();
       default:

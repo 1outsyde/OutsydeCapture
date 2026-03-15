@@ -3225,6 +3225,40 @@ class ApiService {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
+
+  // ==========================================
+  // Production Shoot Credits
+  // ==========================================
+
+  async getBusinessProductionCredits(
+    authToken: string,
+    businessId: string
+  ): Promise<ProductionCreditData> {
+    return this.request<ProductionCreditData>(
+      `/api/business/${businessId}/production-credits`,
+      { headers: { Authorization: `Bearer ${authToken}` } }
+    );
+  }
+
+  async bookProductionShoot(
+    authToken: string,
+    payload: {
+      businessId: string;
+      shootType: string;
+      location: string;
+      creditsToUse: number;
+      pricingOption: "full" | "1credit" | "2credits" | "free";
+    }
+  ): Promise<{ success: boolean; newBalance: number; booking: any }> {
+    return this.request<{ success: boolean; newBalance: number; booking: any }>(
+      "/api/production/book",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { Authorization: `Bearer ${authToken}` },
+      }
+    );
+  }
 }
 
 // Availability Calendar types
@@ -3324,6 +3358,24 @@ export interface InfluencerStats {
 
 export const api = new ApiService();
 export default api;
+
+// ==========================================
+// Production Shoot Credits
+// ==========================================
+
+export interface ProductionCreditHistory {
+  id: string;
+  date: string;
+  shootType: string;
+  location?: string;
+  creditsUsed: number;
+  pricePaidCents: number;
+}
+
+export interface ProductionCreditData {
+  balance: number;
+  history: ProductionCreditHistory[];
+}
 
 // ==========================================
 // Vendor Eligibility + Subscription Tiers
