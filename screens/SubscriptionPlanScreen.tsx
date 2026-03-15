@@ -74,7 +74,13 @@ export default function SubscriptionPlanScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  const isMonetizationError = (err: any): boolean =>
+    err?.body?.error === "Monetization not enabled" ||
+    (typeof err?.message === "string" &&
+      err.message.toLowerCase().includes("monetization"));
 
   const isActive = eligibility
     ? eligibility.canPublishProducts || eligibility.canPublishServices
@@ -150,6 +156,7 @@ export default function SubscriptionPlanScreen() {
     }
     const token = await getToken();
     if (!token) return;
+    setSubscribeError(null);
     setActionLoading(true);
     try {
       const { checkoutUrl } = await api.createTierSubscriptionCheckout(token, selectedTierId, STRIPE_RETURN_URL);
@@ -157,7 +164,11 @@ export default function SubscriptionPlanScreen() {
         await Linking.openURL(checkoutUrl);
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to start checkout. Please try again.");
+      if (isMonetizationError(err)) {
+        setSubscribeError("monetization");
+      } else {
+        setSubscribeError(err.message || "Failed to start checkout. Please try again.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -259,6 +270,45 @@ export default function SubscriptionPlanScreen() {
     );
   };
 
+  const renderSubscribeError = () => {
+    if (!subscribeError) return null;
+
+    if (subscribeError === "monetization") {
+      return (
+        <View style={[styles.errorBanner, { backgroundColor: "#7c3aed18", borderColor: "#7c3aed50" }]}>
+          <Feather name="alert-circle" size={18} color="#7c3aed" />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={[styles.errorBannerTitle, { color: "#7c3aed" }]}>
+              Monetization Not Yet Enabled
+            </Text>
+            <Text style={[styles.errorBannerBody, { color: theme.textSecondary }]}>
+              Your account has been approved but monetization has not been activated yet. This is typically enabled by the Outsyde team after your storefront is reviewed.
+            </Text>
+            <Text style={[styles.errorBannerBody, { color: theme.textSecondary, marginTop: 6 }]}>
+              Please contact support at{" "}
+              <Text
+                style={{ color: "#7c3aed", textDecorationLine: "underline" }}
+                onPress={() => Linking.openURL("mailto:support@outsyde.com")}
+              >
+                support@outsyde.com
+              </Text>{" "}
+              to enable monetization for your account.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.errorBanner, { backgroundColor: `${theme.error}18`, borderColor: `${theme.error}40` }]}>
+        <Feather name="alert-circle" size={18} color={theme.error} />
+        <Text style={[styles.errorBannerBody, { color: theme.error, marginLeft: 10, flex: 1 }]}>
+          {subscribeError}
+        </Text>
+      </View>
+    );
+  };
+
   const renderTierCard = (tier: SubscriptionTier) => {
     const isSelected = selectedTierId === tier.id;
     const isPopular = tier.badge === "Most Popular";
@@ -271,7 +321,12 @@ export default function SubscriptionPlanScreen() {
           { borderColor: isSelected ? theme.primary : theme.border, backgroundColor: theme.card },
           isSelected && { backgroundColor: theme.primary + "10" },
         ]}
-        onPress={() => !isActive && setSelectedTierId(tier.id)}
+        onPress={() => {
+          if (!isActive) {
+            setSelectedTierId(tier.id);
+            setSubscribeError(null);
+          }
+        }}
         disabled={isActive}
       >
         {tier.badge ? (
@@ -330,6 +385,8 @@ export default function SubscriptionPlanScreen() {
             tiers.map(renderTierCard)
           )}
         </View>
+
+        {renderSubscribeError()}
 
         {!isActive && !tiersLoading ? (
           <Pressable
@@ -460,6 +517,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "500",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 16,
+  },
+  errorBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  errorBannerBody: {
+    fontSize: 13,
+    lineHeight: 19,
   },
   tiersContainer: {
     gap: 14,

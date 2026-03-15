@@ -64,7 +64,13 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
   const [selectedTierId, setSelectedTierId] = useState<string>("");
   const [actionLoading, setActionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  const isMonetizationError = (err: any): boolean =>
+    err?.body?.error === "Monetization not enabled" ||
+    (typeof err?.message === "string" &&
+      err.message.toLowerCase().includes("monetization"));
 
   const isVisible = Boolean(
     eligibility &&
@@ -155,6 +161,7 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
     }
     const token = await getToken();
     if (!token) return;
+    setCheckoutError(null);
     setActionLoading(true);
     try {
       const { checkoutUrl } = await api.createTierSubscriptionCheckout(token, selectedTierId, STRIPE_RETURN_URL);
@@ -162,7 +169,11 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
         await Linking.openURL(checkoutUrl);
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to start subscription. Please try again.");
+      if (isMonetizationError(err)) {
+        setCheckoutError("monetization");
+      } else {
+        setCheckoutError(err.message || "Failed to start subscription. Please try again.");
+      }
     } finally {
       setActionLoading(false);
     }
@@ -345,6 +356,23 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
       fontSize: 14,
       color: theme.textSecondary,
     },
+    monetizationErrorBox: {
+      backgroundColor: "#7c3aed18",
+      borderWidth: 1,
+      borderColor: "#7c3aed40",
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 16,
+    },
+    monetizationErrorTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: "#7c3aed",
+    },
+    monetizationErrorBody: {
+      fontSize: 13,
+      lineHeight: 19,
+    },
   });
 
   const renderStepBar = () => (
@@ -512,7 +540,7 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
               <Pressable
                 key={tier.id}
                 style={[s.tierCard, selectedTierId === tier.id && s.tierCardSelected]}
-                onPress={() => setSelectedTierId(tier.id)}
+                onPress={() => { setSelectedTierId(tier.id); setCheckoutError(null); }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={s.tierName}>{tier.name}</Text>
@@ -526,6 +554,32 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
           )}
         </>
       ) : null}
+      {checkoutError === "monetization" ? (
+        <View style={s.monetizationErrorBox}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <Feather name="alert-circle" size={18} color="#7c3aed" />
+            <Text style={s.monetizationErrorTitle}>Monetization Not Yet Enabled</Text>
+          </View>
+          <Text style={[s.monetizationErrorBody, { color: theme.textSecondary }]}>
+            Your account has been approved but monetization has not been activated yet. This is typically enabled by the Outsyde team after your storefront is reviewed.
+          </Text>
+          <Text style={[s.monetizationErrorBody, { color: theme.textSecondary, marginTop: 6 }]}>
+            Please contact support at{" "}
+            <Text
+              style={{ color: "#7c3aed", textDecorationLine: "underline" }}
+              onPress={() => Linking.openURL("mailto:support@outsyde.com")}
+            >
+              support@outsyde.com
+            </Text>{" "}
+            to have monetization enabled for your account, then come back here.
+          </Text>
+        </View>
+      ) : checkoutError ? (
+        <View style={s.monetizationErrorBox}>
+          <Text style={[s.monetizationErrorBody, { color: theme.error }]}>{checkoutError}</Text>
+        </View>
+      ) : null}
+
       <Pressable
         style={[s.primaryBtn, !selectedTierId && { opacity: 0.5 }]}
         onPress={handleStartSubscriptionCheckout}
