@@ -95,6 +95,7 @@ export default function StorefrontEditorScreen() {
 
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
+  const [priceInput, setPriceInput] = useState("");
   const [productForm, setProductForm] = useState<VendorProductInput>({
     name: "",
     description: "",
@@ -297,6 +298,7 @@ export default function StorefrontEditorScreen() {
   const openProductForm = (product?: VendorProduct) => {
     if (product) {
       setEditingProduct(product);
+      setPriceInput(product.priceCents ? (product.priceCents / 100).toString() : "");
       setProductForm({
         name: product.name,
         description: product.description || "",
@@ -307,6 +309,7 @@ export default function StorefrontEditorScreen() {
       });
     } else {
       setEditingProduct(null);
+      setPriceInput("");
       setProductForm({
         name: "",
         description: "",
@@ -327,6 +330,18 @@ export default function StorefrontEditorScreen() {
       Alert.alert("Error", "Product name is required");
       return;
     }
+
+    const trimmedPrice = priceInput.trim();
+    if (!trimmedPrice || !productForm.priceCents || !Number.isFinite(productForm.priceCents) || productForm.priceCents <= 0) {
+      Alert.alert("Error", "Please enter a valid price greater than zero.");
+      return;
+    }
+
+    const { priceCents: formPriceCents, ...formRest } = productForm;
+    const debugPayload = { ...formRest, price: formPriceCents };
+    console.log("[handleSaveProduct] raw productForm:", JSON.stringify(productForm));
+    console.log("[handleSaveProduct] final payload:", JSON.stringify(debugPayload));
+    console.log("[handleSaveProduct] typeof payload.price:", typeof debugPayload.price);
 
     try {
       setSaving(true);
@@ -1281,8 +1296,18 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.inputLabel}>Price (in dollars)</Text>
           <TextInput
             style={styles.input}
-            value={productForm.priceCents ? (productForm.priceCents / 100).toString() : ""}
-            onChangeText={(v) => setProductForm({ ...productForm, priceCents: Math.round(parseFloat(v || "0") * 100) })}
+            value={priceInput}
+            onChangeText={(v) => {
+              const stripped = v.replace(/[^0-9.]/g, "");
+              setPriceInput(stripped);
+              if (stripped === "" || stripped === ".") {
+                return;
+              }
+              const parsed = parseFloat(stripped);
+              if (Number.isFinite(parsed)) {
+                setProductForm((prev) => ({ ...prev, priceCents: Math.round(parsed * 100) }));
+              }
+            }}
             placeholder="0.00"
             placeholderTextColor={theme.textSecondary}
             keyboardType="decimal-pad"

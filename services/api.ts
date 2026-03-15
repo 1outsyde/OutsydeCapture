@@ -2153,18 +2153,29 @@ class ApiService {
 
   // POST /api/vendor/products - Create a new product
   async createVendorProduct(authToken: string, data: VendorProductInput): Promise<{ product: VendorProduct }> {
+    const { priceCents, ...rest } = data;
+    const payload = { ...rest, price: priceCents };
+    console.log("[createVendorProduct] raw form data:", JSON.stringify(data));
+    console.log("[createVendorProduct] final payload:", JSON.stringify(payload));
+    console.log("[createVendorProduct] typeof payload.price:", typeof payload.price);
     return this.request<{ product: VendorProduct }>("/api/vendor/products", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
   // PATCH /api/vendor/products/:id - Update a product
   async updateVendorProduct(authToken: string, productId: string, data: Partial<VendorProductInput>): Promise<{ product: VendorProduct }> {
+    const { priceCents, ...rest } = data;
+    const priceField: { price: number } | Record<string, never> = priceCents !== undefined ? { price: priceCents } : {};
+    const payload = { ...rest, ...priceField };
+    console.log("[updateVendorProduct] raw form data:", JSON.stringify(data));
+    console.log("[updateVendorProduct] final payload:", JSON.stringify(payload));
+    console.log("[updateVendorProduct] typeof payload.price:", priceCents !== undefined ? typeof priceCents : "undefined");
     return this.request<{ product: VendorProduct }>(`/api/vendor/products/${productId}`, {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
