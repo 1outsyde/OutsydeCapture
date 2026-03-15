@@ -361,6 +361,7 @@ export default function StorefrontEditorScreen() {
     if (productForm.status === "live" && !canPublish) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
       setProductForm({ ...productForm, status: editingProduct?.status || "draft" });
+      fetchData();
       return;
     }
 
@@ -450,6 +451,7 @@ export default function StorefrontEditorScreen() {
     if (serviceForm.status === "live" && !canPublish) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
       setServiceForm({ ...serviceForm, status: editingService?.status || "draft" });
+      fetchData();
       return;
     }
 
