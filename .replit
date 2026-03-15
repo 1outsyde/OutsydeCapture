@@ -89,3 +89,7 @@ value = "1"
 path = "/*"
 name = "expo-sfv-version"
 value = "0"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
