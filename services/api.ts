@@ -9,6 +9,8 @@ export interface HealthCheckResponse {
 export interface ApiError {
   message: string;
   status?: number;
+  validationErrors?: string[];
+  body?: Record<string, any>;
 }
 
 export interface ApiBusiness {
@@ -1059,19 +1061,17 @@ class ApiService {
       }
 
       if (!response.ok) {
-        // Try to parse error response body for validation messages
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         let validationErrors: string[] = [];
+        let errorBody: Record<string, any> | undefined;
         try {
-          const errorBody = await response.json();
-          // Check for various error message formats
-          if (errorBody.message) {
+          errorBody = await response.json();
+          if (errorBody?.message) {
             errorMessage = errorBody.message;
-          } else if (errorBody.error) {
-            // Some endpoints return { error: "message" } instead of { message: "..." }
+          } else if (errorBody?.error) {
             errorMessage = errorBody.error;
           }
-          if (errorBody.errors && Array.isArray(errorBody.errors)) {
+          if (errorBody?.errors && Array.isArray(errorBody.errors)) {
             validationErrors = errorBody.errors;
             errorMessage = validationErrors.join(", ");
           }
@@ -1083,6 +1083,7 @@ class ApiService {
           message: errorMessage,
           status: response.status,
           validationErrors,
+          body: errorBody,
         } as ApiError;
       }
 

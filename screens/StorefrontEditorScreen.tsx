@@ -93,6 +93,27 @@ export default function StorefrontEditorScreen() {
     approvalStatus === "approved"
   );
 
+  const getPublishBlockerMessage = (errorBody?: Record<string, any>): string => {
+    const reasons: string[] = [];
+    const reqApproval = errorBody?.requiresApproval ?? (approvalStatus !== "approved");
+    const reqSubscription = errorBody?.requiresSubscription ?? !business?.subscriptionActive;
+    const reqOnboarding = errorBody?.requiresOnboarding ?? !business?.stripeOnboardingComplete;
+
+    if (reqApproval) {
+      reasons.push(`Storefront approval (currently ${approvalStatus})`);
+    }
+    if (reqOnboarding) {
+      reasons.push("Stripe payment setup (not complete)");
+    }
+    if (reqSubscription) {
+      reasons.push("Active subscription (not active)");
+    }
+    if (reasons.length === 0) {
+      reasons.push("Your account does not meet the requirements to publish.");
+    }
+    return "To go live, you still need:\n\n" + reasons.map(r => `- ${r}`).join("\n");
+  };
+
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
   const [priceInput, setPriceInput] = useState("");
@@ -337,6 +358,12 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
+    if (productForm.status === "live" && !canPublish) {
+      Alert.alert("Cannot Publish", getPublishBlockerMessage());
+      setProductForm({ ...productForm, status: editingProduct?.status || "draft" });
+      return;
+    }
+
     const { priceCents: formPriceCents, ...formRest } = productForm;
     const debugPayload = { ...formRest, price: formPriceCents };
     console.log("[handleSaveProduct] raw productForm:", JSON.stringify(productForm));
@@ -354,7 +381,13 @@ export default function StorefrontEditorScreen() {
       fetchData();
       Alert.alert("Success", editingProduct ? "Product updated" : "Product created");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to save product");
+      if (error.status === 403) {
+        Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
+      } else {
+        Alert.alert("Error", error.message || "Failed to save product");
+      }
+      setProductForm({ ...productForm, status: editingProduct?.status || "draft" });
+      fetchData();
     } finally {
       setSaving(false);
     }
@@ -414,6 +447,12 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
+    if (serviceForm.status === "live" && !canPublish) {
+      Alert.alert("Cannot Publish", getPublishBlockerMessage());
+      setServiceForm({ ...serviceForm, status: editingService?.status || "draft" });
+      return;
+    }
+
     try {
       setSaving(true);
       if (editingService) {
@@ -425,7 +464,13 @@ export default function StorefrontEditorScreen() {
       fetchData();
       Alert.alert("Success", editingService ? "Service updated" : "Service created");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to save service");
+      if (error.status === 403) {
+        Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
+      } else {
+        Alert.alert("Error", error.message || "Failed to save service");
+      }
+      setServiceForm({ ...serviceForm, status: editingService?.status || "draft" });
+      fetchData();
     } finally {
       setSaving(false);
     }
