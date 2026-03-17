@@ -188,7 +188,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const handleNext = async () => {
     if (!isLastSlide) {
       const next = currentIndex + 1;
-      flatListRef.current?.scrollToIndex({ index: next, animated: true });
+      flatListRef.current?.scrollToOffset({ offset: next * SCREEN_WIDTH, animated: true });
       setCurrentIndex(next);
       return;
     }
@@ -202,7 +202,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   };
 
   const handleSkip = () => {
-    flatListRef.current?.scrollToIndex({ index: 3, animated: true });
+    flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
     setCurrentIndex(3);
   };
 
@@ -280,7 +280,7 @@ export default function OnboardingScreen({ navigation }: Props) {
               justifyContent: "center",
             }}
           >
-            <Feather name="star" size={40} color={OB.gold} />
+            <Feather name="camera" size={40} color={OB.gold} />
           </View>
         </View>
 
@@ -621,7 +621,17 @@ export default function OnboardingScreen({ navigation }: Props) {
         bounces={false}
         scrollEnabled={false}
         style={{ flex: 1 }}
-        contentContainerStyle={{ alignItems: "stretch" }}
+        getItemLayout={(_, index) => ({
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
+          index,
+        })}
+        onScrollToIndexFailed={(info) => {
+          flatListRef.current?.scrollToOffset({
+            offset: info.index * SCREEN_WIDTH,
+            animated: true,
+          });
+        }}
       />
 
       {/* Footer */}
