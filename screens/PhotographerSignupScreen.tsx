@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
@@ -63,6 +63,13 @@ export default function PhotographerSignupScreen() {
 
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
+
+  useEffect(() => {
+    AsyncStorage.multiGet(["@outsyde_onboarding_city", "@outsyde_onboarding_state"]).then(([cityPair, statePair]) => {
+      if (cityPair[1] && !city) setCity(cityPair[1]);
+      if (statePair[1] && !state) setState(statePair[1]);
+    }).catch(() => {});
+  }, []);
 
   const [hourlyRate, setHourlyRate] = useState("");
   const [portfolioUrl, setPortfolioUrl] = useState("");

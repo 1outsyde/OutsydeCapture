@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import * as Location from "expo-location";
 
 import { RootStackParamList } from "@/navigation/types";
 import { UserRole } from "@/context/AuthContext";
@@ -37,6 +38,8 @@ const OB = {
 // ─── Async Storage Keys ───────────────────────────────────────────────────────
 export const ONBOARDING_COMPLETE_KEY = "@outsyde_onboarding_complete";
 export const ONBOARDING_USER_TYPE_KEY = "@outsyde_user_type";
+export const ONBOARDING_CITY_KEY = "@outsyde_onboarding_city";
+export const ONBOARDING_STATE_KEY = "@outsyde_onboarding_state";
 
 // ─── March 2026 static calendar data ─────────────────────────────────────────
 const CAL_WEEKS = [
@@ -88,6 +91,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedRoles, setSelectedRoles] = useState<UserRole[]>([]);
+  const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   // Pulse animation for Screen 1
@@ -152,6 +156,31 @@ export default function OnboardingScreen({ navigation }: Props) {
       pillLoops.forEach((l) => l.stop());
     };
   }, []);
+
+  // Location permission + city detection when slide 2 (Discover) mounts
+  useEffect(() => {
+    if (currentIndex !== 1) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted" || cancelled) return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (cancelled) return;
+        const [geo] = await Location.reverseGeocodeAsync({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        if (cancelled || !geo?.city) return;
+        const city = geo.city;
+        const region = geo.region ?? "";
+        setDetectedCity(city);
+        await AsyncStorage.setItem(ONBOARDING_CITY_KEY, city);
+        await AsyncStorage.setItem(ONBOARDING_STATE_KEY, region);
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [currentIndex]);
 
   const isLastSlide = currentIndex === 3;
   const canProceed = !isLastSlide || selectedRoles.length > 0;
@@ -353,7 +382,9 @@ export default function OnboardingScreen({ navigation }: Props) {
       {/* Fake search bar */}
       <View style={styles.searchBar}>
         <Feather name="search" size={16} color={OB.creamDim} style={{ marginRight: 8 }} />
-        <Text style={[styles.searchPlaceholder, { flex: 1 }]}>Photographers near Atlanta...</Text>
+        <Text style={[styles.searchPlaceholder, { flex: 1 }]}>
+          {detectedCity ? `Photographers near ${detectedCity}...` : "Photographers near Atlanta..."}
+        </Text>
         <View style={styles.nearMeBadge}>
           <Text style={styles.nearMeText}>Near Me</Text>
         </View>
