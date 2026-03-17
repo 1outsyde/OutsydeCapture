@@ -90,7 +90,6 @@ type Props = NativeStackScreenProps<RootStackParamList, "Onboarding">;
 export default function OnboardingScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedRoles, setSelectedRoles] = useState<UserRole[]>([]);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
@@ -183,22 +182,10 @@ export default function OnboardingScreen({ navigation }: Props) {
   }, [currentIndex]);
 
   const isLastSlide = currentIndex === 3;
-  const canProceed = !isLastSlide || selectedRoles.length > 0;
-
-  const handleNext = async () => {
-    if (!isLastSlide) {
-      const next = currentIndex + 1;
-      flatListRef.current?.scrollToOffset({ offset: next * SCREEN_WIDTH, animated: true });
-      setCurrentIndex(next);
-      return;
-    }
-    if (selectedRoles.length === 0) return;
-    const primaryRole: UserRole = selectedRoles.includes("photographer")
-      ? "photographer"
-      : selectedRoles.includes("business")
-      ? "business"
-      : "consumer";
-    await completeOnboarding(primaryRole);
+  const handleNext = () => {
+    const next = currentIndex + 1;
+    flatListRef.current?.scrollToOffset({ offset: next * SCREEN_WIDTH, animated: true });
+    setCurrentIndex(next);
   };
 
   const handleSkip = () => {
@@ -229,10 +216,8 @@ export default function OnboardingScreen({ navigation }: Props) {
     });
   };
 
-  const toggleRole = (role: UserRole) => {
-    setSelectedRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
+  const handleRoleSelect = async (role: UserRole) => {
+    await completeOnboarding(role);
   };
 
   // ─── Slide Renders ──────────────────────────────────────────────────────────
@@ -493,88 +478,32 @@ export default function OnboardingScreen({ navigation }: Props) {
 
       {/* Subtext */}
       <Text style={[styles.subtext, { marginBottom: 24 }]}>
-        Choose your path — you can always add more roles later.
+        Choose your path — you can always change it later.
       </Text>
 
-      {/* Role cards */}
+      {/* Role cards — tap navigates immediately */}
       <View style={{ width: "100%", gap: 12 }}>
-        {ROLE_OPTIONS.map((opt) => {
-          const selected = selectedRoles.includes(opt.role);
-          return (
-            <Pressable
-              key={opt.role}
-              onPress={() => toggleRole(opt.role)}
-              style={({ pressed }) => [
-                styles.roleCard,
-                selected && { borderColor: opt.accent + "80", backgroundColor: opt.accent + "12" },
-                { opacity: pressed ? 0.85 : 1 },
-              ]}
-            >
-              {selected ? (
-                <View
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 4,
-                    borderTopLeftRadius: 16,
-                    borderBottomLeftRadius: 16,
-                    backgroundColor: opt.accent,
-                  }}
-                />
-              ) : null}
-              <View
-                style={[
-                  styles.roleIconWrap,
-                  { backgroundColor: selected ? opt.accent + "25" : OB.greenDeep },
-                ]}
-              >
-                <Feather
-                  name={opt.icon}
-                  size={22}
-                  color={selected ? opt.accent : OB.creamDim}
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 14 }}>
-                <Text
-                  style={[
-                    styles.roleLabel,
-                    { color: selected ? OB.cream : OB.creamDim },
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.roleDesc,
-                    { color: selected ? OB.creamDim : OB.creamDim + "90" },
-                  ]}
-                >
-                  {opt.description}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.roleCheck,
-                  selected
-                    ? { backgroundColor: opt.accent, borderColor: opt.accent }
-                    : { backgroundColor: "transparent", borderColor: OB.greenMid },
-                ]}
-              >
-                {selected ? (
-                  <Feather name="check" size={14} color={OB.bg} />
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        })}
+        {ROLE_OPTIONS.map((opt) => (
+          <Pressable
+            key={opt.role}
+            onPress={() => handleRoleSelect(opt.role)}
+            style={({ pressed }) => [
+              styles.roleCard,
+              pressed && { borderColor: opt.accent + "80", backgroundColor: opt.accent + "12" },
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <View style={[styles.roleIconWrap, { backgroundColor: opt.accent + "20" }]}>
+              <Feather name={opt.icon} size={22} color={opt.accent} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={[styles.roleLabel, { color: OB.cream }]}>{opt.label}</Text>
+              <Text style={[styles.roleDesc, { color: OB.creamDim }]}>{opt.description}</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={OB.greenMid} />
+          </Pressable>
+        ))}
       </View>
-
-      {/* Hint text */}
-      <Text style={{ color: OB.creamDim + "70", fontSize: 13, marginTop: 16, textAlign: "center" }}>
-        Select all that apply
-      </Text>
     </View>
   );
 
@@ -590,15 +519,13 @@ export default function OnboardingScreen({ navigation }: Props) {
     }
   };
 
-  const isLastOrFirst = currentIndex === 3;
-
   return (
     <View style={[styles.container, { backgroundColor: OB.bg }]}>
       <StatusBar barStyle="light-content" backgroundColor={OB.bg} />
 
-      {/* Skip button */}
+      {/* Skip button — visible only on slides 2 & 3 */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        {!isLastOrFirst && currentIndex !== 0 ? (
+        {currentIndex > 0 && currentIndex < 3 ? (
           <Pressable
             onPress={handleSkip}
             style={({ pressed }) => [styles.skipBtn, { opacity: pressed ? 0.6 : 1 }]}
@@ -651,44 +578,23 @@ export default function OnboardingScreen({ navigation }: Props) {
           ))}
         </View>
 
-        {/* CTA Button */}
-        <Pressable
-          onPress={handleNext}
-          disabled={!canProceed}
-          style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
-        >
-          <LinearGradient
-            colors={
-              isLastOrFirst
-                ? [OB.gold, OB.goldLight]
-                : [OB.greenBright, OB.greenAccent]
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.ctaButton, !canProceed && { opacity: 0.4 }]}
+        {/* CTA Button — hidden on slide 4 (role picker navigates directly) */}
+        {currentIndex < 3 ? (
+          <Pressable
+            onPress={handleNext}
+            style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
           >
-            <Text
-              style={[
-                styles.ctaText,
-                { color: isLastOrFirst ? OB.bg : OB.cream },
-              ]}
+            <LinearGradient
+              colors={[OB.greenBright, OB.greenAccent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.ctaButton}
             >
-              {currentIndex === 0
-                ? "Get Started — It's Free  →"
-                : isLastOrFirst
-                ? "Get Started →"
-                : "Next  →"}
-            </Text>
-          </LinearGradient>
-        </Pressable>
-
-        {/* Role counter / hint */}
-        {isLastOrFirst ? (
-          <Text style={styles.roleCounter}>
-            {selectedRoles.length === 0
-              ? "Select at least one to continue"
-              : `${selectedRoles.length} role${selectedRoles.length > 1 ? "s" : ""} selected`}
-          </Text>
+              <Text style={[styles.ctaText, { color: OB.cream }]}>
+                {currentIndex === 0 ? "Get Started — It's Free  →" : "Next  →"}
+              </Text>
+            </LinearGradient>
+          </Pressable>
         ) : null}
       </View>
     </View>
