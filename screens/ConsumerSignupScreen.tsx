@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
@@ -169,19 +169,25 @@ const STEPS = [
   { id: 6, name: "Finish" },
 ];
 
+type ConsumerSignupRouteProp = RouteProp<RootStackParamList, "ConsumerSignup">;
+
 export default function ConsumerSignupScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<ConsumerSignupRouteProp>();
   const { signup, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
+
+  const prefillName = route.params?.prefillName ?? "";
+  const prefillEmail = route.params?.prefillEmail ?? "";
 
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(prefillEmail);
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(prefillName);
   const [phone, setPhone] = useState("");
 
   const [city, setCity] = useState("");

@@ -9,6 +9,10 @@ import {
   Animated,
   Text,
   StatusBar,
+  Alert,
+  ActivityIndicator,
+  Platform,
+  Linking,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -16,9 +20,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
+import * as WebBrowser from "expo-web-browser";
+import * as AppleAuthentication from "expo-apple-authentication";
 
 import { RootStackParamList } from "@/navigation/types";
-import { UserRole } from "@/context/AuthContext";
+import { UserRole, GoogleAuthUserData, useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/services/api";
+
+WebBrowser.maybeCompleteAuthSession();
+
+const BACKEND_GOOGLE_PREFLIGHT = `${API_BASE_URL}/api/auth/mobile/google/preflight`;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -89,8 +100,11 @@ type Props = NativeStackScreenProps<RootStackParamList, "Onboarding">;
 
 export default function OnboardingScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { loginWithTokens, isAuthenticated } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // Pulse animation for Screen 1
@@ -180,6 +194,210 @@ export default function OnboardingScreen({ navigation }: Props) {
     })();
     return () => { cancelled = true; };
   }, [currentIndex]);
+
+  // Auto-complete onboarding and navigate to Main when user becomes authenticated
+  // (fires after Google/Apple/Email sign-in from Slide 4)
+  useEffect(() => {
+    if (isAuthenticated) {
+      AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true").finally(() => {
+        navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+      });
+    }
+  }, [isAuthenticated]);
+
+  // Deep link listener — backup for Google OAuth redirect when WebBrowser doesn't intercept
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      if (event.url.startsWith("outsyde://auth/success")) {
+        setIsGoogleLoading(true);
+        try {
+          const urlParams = new URL(event.url.replace("outsyde://", "https://outsyde.app/"));
+          const accessToken = urlParams.searchParams.get("accessToken");
+          const refreshToken = urlParams.searchParams.get("refreshToken");
+          const userId = urlParams.searchParams.get("userId");
+          const email = urlParams.searchParams.get("email");
+
+          if (!accessToken || !refreshToken || !userId || !email) {
+            Alert.alert("Error", "Authentication failed. Missing required data.");
+            setIsGoogleLoading(false);
+            return;
+          }
+
+          const isNewUser = urlParams.searchParams.get("isNewUser") === "true";
+
+          if (isNewUser) {
+            const prefillName = (urlParams.searchParams.get("name") ||
+              `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim()) || undefined;
+            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
+            navigation.reset({
+              index: 1,
+              routes: [
+                { name: "Main" },
+                { name: "ConsumerSignup", params: { prefillName, prefillEmail: email, socialProvider: "google" } },
+              ],
+            });
+          } else {
+            const userData: GoogleAuthUserData = {
+              userId,
+              email,
+              firstName: urlParams.searchParams.get("firstName") || undefined,
+              lastName: urlParams.searchParams.get("lastName") || undefined,
+              name: urlParams.searchParams.get("name") || undefined,
+              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
+              isVendor: urlParams.searchParams.get("isVendor") === "true",
+              isPhotographer: urlParams.searchParams.get("isPhotographer") === "true",
+              isAdmin: urlParams.searchParams.get("isAdmin") === "true",
+              businessId: urlParams.searchParams.get("businessId") || undefined,
+              photographerId: urlParams.searchParams.get("photographerId") || undefined,
+            };
+            await loginWithTokens(accessToken, refreshToken, userData);
+            // isAuthenticated useEffect will handle navigation
+          }
+        } catch {
+          Alert.alert("Error", "Failed to complete sign-in. Please try again.");
+        } finally {
+          setIsGoogleLoading(false);
+        }
+      } else if (event.url.startsWith("outsyde://auth/error")) {
+        const urlParams = new URL(event.url.replace("outsyde://", "https://outsyde.app/"));
+        Alert.alert("Sign-In Error", urlParams.searchParams.get("error") || "Google sign-in failed");
+        setIsGoogleLoading(false);
+      }
+    };
+
+    const subscription = Linking.addEventListener("url", handleDeepLink);
+    Linking.getInitialURL().then((url) => { if (url) handleDeepLink({ url }); });
+    return () => subscription.remove();
+  }, [loginWithTokens, navigation]);
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      const preflightRes = await fetch(BACKEND_GOOGLE_PREFLIGHT, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!preflightRes.ok) throw new Error("Failed to initialize Google Sign-In");
+
+      const { authUrl } = await preflightRes.json();
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, "outsyde://auth");
+
+      if (result.type === "success" && result.url) {
+        if (result.url.startsWith("outsyde://auth/success")) {
+          const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
+          const accessToken = urlParams.searchParams.get("accessToken");
+          const refreshToken = urlParams.searchParams.get("refreshToken");
+          const userId = urlParams.searchParams.get("userId");
+          const email = urlParams.searchParams.get("email");
+
+          if (!accessToken || !refreshToken || !userId || !email) {
+            Alert.alert("Error", "Authentication failed. Missing required data.");
+            setIsGoogleLoading(false);
+            return;
+          }
+
+          const isNewUser = urlParams.searchParams.get("isNewUser") === "true";
+
+          if (isNewUser) {
+            const prefillName = (urlParams.searchParams.get("name") ||
+              `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim()) || undefined;
+            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
+            navigation.reset({
+              index: 1,
+              routes: [
+                { name: "Main" },
+                { name: "ConsumerSignup", params: { prefillName, prefillEmail: email, socialProvider: "google" } },
+              ],
+            });
+          } else {
+            const userData: GoogleAuthUserData = {
+              userId,
+              email,
+              firstName: urlParams.searchParams.get("firstName") || undefined,
+              lastName: urlParams.searchParams.get("lastName") || undefined,
+              name: urlParams.searchParams.get("name") || undefined,
+              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
+              isVendor: urlParams.searchParams.get("isVendor") === "true",
+              isPhotographer: urlParams.searchParams.get("isPhotographer") === "true",
+              isAdmin: urlParams.searchParams.get("isAdmin") === "true",
+              businessId: urlParams.searchParams.get("businessId") || undefined,
+              photographerId: urlParams.searchParams.get("photographerId") || undefined,
+            };
+            const sessionResult = await loginWithTokens(accessToken, refreshToken, userData);
+            if (sessionResult.success) {
+              if (sessionResult.isPending) {
+                Alert.alert("Pending Approval", "Your business application is under review. We'll notify you when it's approved.");
+              }
+              // isAuthenticated useEffect handles navigation to Main
+            } else if (sessionResult.isRejected) {
+              Alert.alert("Account Rejected", "Your business application was not approved. Please contact support.");
+            } else {
+              Alert.alert("Error", "Failed to complete sign-in. Please try again.");
+            }
+          }
+        } else if (result.url.startsWith("outsyde://auth/error")) {
+          const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
+          Alert.alert("Sign-In Error", urlParams.searchParams.get("error") || "Google sign-in failed");
+        }
+      } else if (result.type !== "cancel" && result.type !== "dismiss") {
+        // handled by deep link listener
+      }
+    } catch {
+      Alert.alert("Error", "Failed to start Google Sign-In. Please try again.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    if (Platform.OS !== "ios") {
+      Alert.alert("Apple Sign In", "Apple Sign In is only available on iOS devices.");
+      return;
+    }
+    setIsAppleLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // Apple provides email and fullName only on the FIRST authorization
+      if (credential.email) {
+        // New Apple user — route to ConsumerSignup with pre-filled data
+        const givenName = credential.fullName?.givenName || "";
+        const familyName = credential.fullName?.familyName || "";
+        const prefillName = `${givenName} ${familyName}`.trim() || undefined;
+        await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
+        navigation.reset({
+          index: 1,
+          routes: [
+            { name: "Main" },
+            { name: "ConsumerSignup", params: { prefillName, prefillEmail: credential.email, socialProvider: "apple" } },
+          ],
+        });
+      } else {
+        // Returning Apple user — no email returned by Apple; direct to email sign-in
+        // TODO: Backend needs /api/auth/mobile/apple endpoint for returning users
+        Alert.alert(
+          "Sign In",
+          "To sign into your existing Outsyde account, please use your email and password.",
+          [
+            { text: "Sign In with Email", onPress: () => navigation.navigate("Auth", {}) },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+      }
+    } catch (error: any) {
+      if (error.code !== "ERR_REQUEST_CANCELED") {
+        Alert.alert("Error", "Apple sign-in failed. Please try again.");
+      }
+    } finally {
+      setIsAppleLoading(false);
+    }
+  };
 
   const isLastSlide = currentIndex === 3;
   const handleNext = () => {
@@ -466,7 +684,12 @@ export default function OnboardingScreen({ navigation }: Props) {
   );
 
   const renderSlide4 = () => (
-    <View style={[styles.slide, { justifyContent: "flex-start", paddingTop: 8 }]}>
+    <ScrollView
+      style={{ width: SCREEN_WIDTH, flex: 1 }}
+      contentContainerStyle={{ paddingHorizontal: 28, paddingTop: 8, paddingBottom: 24 }}
+      showsVerticalScrollIndicator={false}
+      bounces={false}
+    >
       {/* Eyebrow */}
       <Text style={[styles.eyebrow, { marginBottom: 12, color: OB.gold }]}>STEP 4 OF 4</Text>
 
@@ -476,13 +699,13 @@ export default function OnboardingScreen({ navigation }: Props) {
         <Text style={{ color: OB.gold }}>Outsyde?</Text>
       </Text>
 
-      {/* Subtext */}
-      <Text style={[styles.subtext, { marginBottom: 24 }]}>
-        Choose your path — you can always change it later.
+      {/* Subtext — updated */}
+      <Text style={[styles.subtext, { marginBottom: 20 }]}>
+        New to Outsyde? Choose your path to get started.
       </Text>
 
-      {/* Role cards — tap navigates immediately */}
-      <View style={{ width: "100%", gap: 12 }}>
+      {/* Role cards — tap navigates immediately, behavior unchanged */}
+      <View style={{ gap: 12 }}>
         {ROLE_OPTIONS.map((opt) => (
           <Pressable
             key={opt.role}
@@ -504,7 +727,58 @@ export default function OnboardingScreen({ navigation }: Props) {
           </Pressable>
         ))}
       </View>
-    </View>
+
+      {/* "or" divider */}
+      <View style={styles.orDivider}>
+        <View style={[styles.orLine, { backgroundColor: OB.greenMid }]} />
+        <Text style={styles.orText}>or</Text>
+        <View style={[styles.orLine, { backgroundColor: OB.greenMid }]} />
+      </View>
+
+      {/* Returning user sign-in section */}
+      <Text style={styles.signInLabel}>Already have an account? Sign in</Text>
+
+      {/* Google sign-in button */}
+      <Pressable
+        onPress={handleGoogleSignIn}
+        disabled={isGoogleLoading}
+        style={[styles.socialBtn, { backgroundColor: OB.greenDeep, borderColor: OB.greenMid, borderWidth: 1, opacity: isGoogleLoading ? 0.6 : 1 }]}
+      >
+        {isGoogleLoading ? (
+          <ActivityIndicator size="small" color={OB.cream} />
+        ) : (
+          <>
+            <Feather name="mail" size={20} color={OB.cream} />
+            <Text style={[styles.socialBtnText, { color: OB.cream }]}>Continue with Google</Text>
+          </>
+        )}
+      </Pressable>
+
+      {/* Apple sign-in button */}
+      <Pressable
+        onPress={handleAppleSignIn}
+        disabled={isAppleLoading}
+        style={[styles.socialBtn, { backgroundColor: "#000000", opacity: isAppleLoading ? 0.6 : 1 }]}
+      >
+        {isAppleLoading ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <>
+            <Feather name="smartphone" size={20} color="#FFFFFF" />
+            <Text style={[styles.socialBtnText, { color: "#FFFFFF" }]}>Continue with Apple</Text>
+          </>
+        )}
+      </Pressable>
+
+      {/* Email sign-in button */}
+      <Pressable
+        onPress={() => navigation.navigate("Auth", {})}
+        style={[styles.socialBtn, { backgroundColor: OB.greenDeep, borderColor: OB.greenMid, borderWidth: 1 }]}
+      >
+        <Feather name="lock" size={20} color={OB.cream} />
+        <Text style={[styles.socialBtnText, { color: OB.cream }]}>Sign in with Email</Text>
+      </Pressable>
+    </ScrollView>
   );
 
   const SLIDES = [0, 1, 2, 3];
@@ -907,5 +1181,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
     marginTop: 12,
+  },
+
+  // ── Slide 4 sign-in section ───────────────────────────────────────────────
+  orDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 24,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+  },
+  orText: {
+    color: "#C8BFA8",
+    fontSize: 13,
+    marginHorizontal: 12,
+    fontWeight: "500",
+  },
+  signInLabel: {
+    color: "#C8BFA8",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  socialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 52,
+    borderRadius: 14,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  socialBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 10,
   },
 });

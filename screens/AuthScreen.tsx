@@ -1,32 +1,26 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView, Linking } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as WebBrowser from "expo-web-browser";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
-import { useAuth, UserRole, GoogleAuthUserData } from "@/context/AuthContext";
+import { useAuth, UserRole } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import { API_BASE_URL } from "@/services/api";
-
-WebBrowser.maybeCompleteAuthSession();
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type AuthMode = "login" | "signup";
 
-const BACKEND_GOOGLE_PREFLIGHT = `${API_BASE_URL}/api/auth/mobile/google/preflight`;
-
 export default function AuthScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { login, loginWithGoogle, loginWithTokens, loginAsGuest, isLoading, refreshSession } = useAuth();
+  const { login, loginAsGuest, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [mode, setMode] = useState<AuthMode>("login");
@@ -38,166 +32,6 @@ export default function AuthScreen() {
   
   const [showPendingMessage, setShowPendingMessage] = useState(false);
   const [pendingUserInfo, setPendingUserInfo] = useState<{ businessName: string; businessCategory: string; email: string } | null>(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-
-  useEffect(() => {
-    const handleDeepLink = async (event: { url: string }) => {
-      console.log("[GoogleAuth] Deep link received:", event.url);
-      
-      if (event.url.startsWith("outsyde://auth/success")) {
-        setIsGoogleLoading(true);
-        try {
-          const result = await refreshSession();
-          if (result.success) {
-            if (result.isPending && result.user) {
-              setPendingUserInfo({
-                businessName: result.user.businessName || "",
-                businessCategory: result.user.businessCategory || "",
-                email: result.user.email,
-              });
-              setShowPendingMessage(true);
-            } else {
-              navigation.goBack();
-            }
-          } else if (result.isRejected) {
-            Alert.alert("Account Rejected", "Your business application was not approved. Please contact support for more information.");
-          } else {
-            Alert.alert("Error", "Google sign-in completed but session fetch failed. Please try again.");
-          }
-        } catch (error) {
-          console.error("[GoogleAuth] Session refresh error:", error);
-          Alert.alert("Error", "Failed to complete sign-in. Please try again.");
-        } finally {
-          setIsGoogleLoading(false);
-        }
-      } else if (event.url.startsWith("outsyde://auth/error")) {
-        const urlParams = new URL(event.url.replace("outsyde://", "https://outsyde.app/"));
-        const errorMessage = urlParams.searchParams.get("error") || "Google sign-in failed";
-        console.error("[GoogleAuth] Auth error:", errorMessage);
-        Alert.alert("Sign-In Error", errorMessage);
-        setIsGoogleLoading(false);
-      }
-    };
-
-    const subscription = Linking.addEventListener("url", handleDeepLink);
-
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        handleDeepLink({ url });
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [navigation, refreshSession]);
-
-  const handleGoogleSignIn = async () => {
-    console.log("[GoogleSignIn] Starting backend OAuth flow...");
-    setIsGoogleLoading(true);
-    
-    try {
-      const preflightRes = await fetch(BACKEND_GOOGLE_PREFLIGHT, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      
-      if (!preflightRes.ok) {
-        const errorText = await preflightRes.text();
-        console.error("[GoogleSignIn] Preflight failed:", preflightRes.status, errorText);
-        throw new Error("Failed to initialize Google Sign-In");
-      }
-      
-      const { state, authUrl } = await preflightRes.json();
-      console.log("[GoogleSignIn] Got state token:", state?.substring(0, 10) + "...");
-      console.log("[GoogleSignIn] Got authUrl from backend");
-      
-      console.log("[GoogleSignIn] Opening Google OAuth URL...");
-      
-      const result = await WebBrowser.openAuthSessionAsync(
-        authUrl,
-        "outsyde://auth"
-      );
-      
-      console.log("[GoogleSignIn] WebBrowser result:", result.type);
-      
-      if (result.type === "success" && result.url) {
-        console.log("[GoogleSignIn] Redirect URL:", result.url);
-        
-        if (result.url.startsWith("outsyde://auth/success")) {
-          console.log("[GoogleSignIn] Auth success, extracting tokens...");
-          try {
-            const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
-            const accessToken = urlParams.searchParams.get("accessToken");
-            const refreshToken = urlParams.searchParams.get("refreshToken");
-            const userId = urlParams.searchParams.get("userId");
-            const email = urlParams.searchParams.get("email");
-            
-            console.log("[GoogleSignIn] Tokens extracted - userId:", userId, "email:", email);
-            
-            if (!accessToken || !refreshToken || !userId || !email) {
-              console.error("[GoogleSignIn] Missing required params in URL");
-              Alert.alert("Error", "Authentication failed. Missing required data.");
-              setIsGoogleLoading(false);
-              return;
-            }
-            
-            const userData: GoogleAuthUserData = {
-              userId,
-              email,
-              firstName: urlParams.searchParams.get("firstName") || undefined,
-              lastName: urlParams.searchParams.get("lastName") || undefined,
-              name: urlParams.searchParams.get("name") || undefined,
-              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
-              isVendor: urlParams.searchParams.get("isVendor") === "true",
-              isPhotographer: urlParams.searchParams.get("isPhotographer") === "true",
-              isAdmin: urlParams.searchParams.get("isAdmin") === "true",
-              businessId: urlParams.searchParams.get("businessId") || undefined,
-              photographerId: urlParams.searchParams.get("photographerId") || undefined,
-            };
-            
-            const sessionResult = await loginWithTokens(accessToken, refreshToken, userData);
-            if (sessionResult.success) {
-              if (sessionResult.isPending && sessionResult.user) {
-                setPendingUserInfo({
-                  businessName: sessionResult.user.businessName || "",
-                  businessCategory: sessionResult.user.businessCategory || "",
-                  email: sessionResult.user.email,
-                });
-                setShowPendingMessage(true);
-              } else {
-                console.log("[GoogleSignIn] Login successful, navigating...");
-                navigation.goBack();
-              }
-            } else if (sessionResult.isRejected) {
-              Alert.alert("Account Rejected", "Your business application was not approved.");
-            } else {
-              Alert.alert("Error", "Failed to complete sign-in. Please try again.");
-            }
-          } catch (error) {
-            console.error("[GoogleSignIn] Token extraction error:", error);
-            Alert.alert("Error", "Failed to complete sign-in. Please try again.");
-          }
-        } else if (result.url.startsWith("outsyde://auth/error")) {
-          const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
-          const errorMessage = urlParams.searchParams.get("error") || "Google sign-in failed";
-          console.error("[GoogleSignIn] Auth error:", errorMessage);
-          Alert.alert("Sign-In Error", errorMessage);
-        }
-        setIsGoogleLoading(false);
-      } else if (result.type === "cancel" || result.type === "dismiss") {
-        console.log("[GoogleSignIn] User cancelled or dismissed");
-        setIsGoogleLoading(false);
-      }
-    } catch (error) {
-      console.error("[GoogleSignIn] Error:", error);
-      Alert.alert("Error", "Failed to start Google Sign-In. Please try again.");
-      setIsGoogleLoading(false);
-    }
-  };
 
   const validateForm = () => {
     if (!email.trim() || !password.trim()) {
@@ -591,40 +425,6 @@ export default function AuthScreen() {
             </ThemedText>
           </Pressable>
 
-          <View style={styles.socialButtons}>
-            <Pressable
-              style={[styles.socialButton, { backgroundColor: "#000000" }]}
-            >
-              <Feather name="smartphone" size={20} color="#FFFFFF" />
-              <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
-                Continue with Apple
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={handleGoogleSignIn}
-              disabled={isGoogleLoading}
-              style={[
-                styles.socialButton, 
-                { 
-                  backgroundColor: theme.backgroundDefault, 
-                  borderColor: theme.border, 
-                  borderWidth: 1,
-                  opacity: isGoogleLoading ? 0.6 : 1,
-                }
-              ]}
-            >
-              {isGoogleLoading ? (
-                <ActivityIndicator size="small" color={theme.text} />
-              ) : (
-                <>
-                  <Feather name="mail" size={20} color={theme.text} />
-                  <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                    Continue with Google
-                  </ThemedText>
-                </>
-              )}
-            </Pressable>
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>
