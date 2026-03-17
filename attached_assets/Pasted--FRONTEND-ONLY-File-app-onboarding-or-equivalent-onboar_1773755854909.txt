@@ -1,0 +1,91 @@
+
+FRONTEND-ONLY | File: app/(onboarding)/ or equivalent onboarding screen files
+
+OBJECTIVE
+Replace the existing onboarding/welcome flow for first-time users with a fully redesigned 4-screen sequence. This is a visual and UX overhaul only — do NOT touch any backend logic, auth flows, API calls, or navigation routing beyond what already exists for onboarding completion.
+
+TRIGGER CONDITION
+This flow should only appear for users who have never completed onboarding. The existing condition that controls this (e.g. hasCompletedOnboarding, onboardingComplete, or equivalent flag in session/storage) must remain untouched. Only replace the visual screens, not the logic that decides when to show them.
+
+SCREENS TO REPLACE (4 total)
+Replace the content of each existing onboarding screen with the following. Keep the existing screen file names and navigation order.
+Screen 1 — Welcome / Splash
+	∙	Headline: "Go Outside. Find Your Crew."
+	∙	Subtext: "Photographers, vendors & creatives — all in one place, right in your neighborhood."
+	∙	Trust stat bar: 2.4K+ Creatives · 180+ Cities · 98% Rated 5★
+	∙	Animated icon with pulsing ring (gold border, dark green fill)
+	∙	Small tag above headline: "Now Live in Your City" — pill style, gold border
+	∙	CTA button: "Get Started — It's Free" with arrow icon
+	∙	Dot indicator: 4 dots, position 1 active
+Screen 2 — Discover / Find Local Talent
+	∙	Headline: "Your City's Best Talent, Right Here."
+	∙	Subtext: "Browse creatives in your area. Filter by city, vibe, and category to find exactly who you need."
+	∙	Visual: 4 floating animated category pills — Photographers, Food Vendors, Cinematographers, Fashion Stores — with subtle staggered float animation
+	∙	Fake search bar preview: placeholder text "Photographers near Atlanta..." + "Near Me" badge on the right
+	∙	Skip button top right
+	∙	CTA: "Next" with arrow
+	∙	Dot indicator: position 2 active
+Screen 3 — Book with Ease
+	∙	Headline: "Book & Manage Everything Here."
+	∙	Subtext: "Sessions, products, services — scheduled and tracked in one clean view."
+	∙	Visual: a rendered mini calendar (current month, static) with a few dates highlighted in green (booked) and one in gold (selected)
+	∙	Below calendar: a booking preview card showing a fake photographer name, date, location, and a green “Confirmed” badge
+	∙	Skip button top right
+	∙	CTA: "Next" with arrow
+	∙	Dot indicator: position 3 active
+Screen 4 — Role Picker
+	∙	Headline: "What brings you to Outsyde?"
+	∙	Subtext: "Choose your path — you can always add more roles later."
+	∙	Eyebrow text above headline: "Step 4 of 4"
+	∙	3 selectable role cards (multi-select enabled):
+	∙	Consumer — green accent — icon: shopping bag — desc: "Browse, book sessions & shop local talent"
+	∙	Business — gold accent — icon: briefcase with plus — desc: "Sell products & services to your community"
+	∙	Photographer — muted/unselected default — icon: camera — desc: "Offer photography & creative services"
+	∙	Selected cards show a left accent bar + filled checkmark circle
+	∙	Small hint text below cards: "Select all that apply"
+	∙	Counter below CTA: "X roles selected" — updates dynamically
+	∙	CTA button: "Get Started →" — DISABLED until at least 1 role is selected, then activates
+	∙	CTA button on this screen should be GOLD (not green) to signal completion
+	∙	Dot indicator: position 4 active
+	∙	On completion, pass the selected role(s) into the existing role-assignment handler — do NOT create a new one
+
+DESIGN SYSTEM — apply to all 4 screens
+
+Colors:
+  --black:        #080C08
+  --green-deep:   #0D2B0D
+  --green-mid:    #1A4A1A
+  --green-bright: #2D7A2D
+  --green-accent: #3A9E3A
+  --gold:         #C9933A
+  --gold-light:   #E8B86D
+  --cream:        #F0EAD6
+  --cream-dim:    #C8BFA8
+
+Fonts:
+  Display/Headlines: Syne, weight 700–800 (Google Fonts)
+  Body/UI:           DM Sans, weight 300–500 (Google Fonts)
+
+Backgrounds: #080C08 (near-black with green tint, not pure black)
+All screens: dark mode only
+Cards/panels: rgba(255,255,255,0.03–0.05) with rgba border, rounded corners 20px
+Buttons: 60px tall, 18px border-radius, full width
+Primary action: linear-gradient green (#2D7A2D → #3A9E3A), cream text
+Completion action (Screen 4): linear-gradient gold (#C9933A → #E8B86D), near-black text
+Dot indicators: gold (#C9933A) active dot, 24px wide pill; inactive dots grey, 6px circle
+
+
+CONSTRAINTS
+	∙	Frontend changes ONLY — no backend, no API, no auth
+	∙	Do NOT modify the navigation logic that fires after onboarding completes
+	∙	Do NOT remove or rename existing screen files — update their contents only
+	∙	Do NOT break the existing hasCompletedOnboarding flag or equivalent
+	∙	Keep the existing Skip button behavior exactly as-is
+	∙	All new components should be inline in the screen files — do not create new shared component files unless they already exist in the onboarding folder
+	∙	Test checklist before submitting:
+	∙	All 4 screens render without errors
+	∙	Dot indicators advance correctly with Next
+	∙	Skip navigates to the correct post-onboarding destination
+	∙	Role Picker CTA is disabled with 0 selections, enabled with 1+
+	∙	Selected roles are passed correctly to the existing role handler
+	∙	No existing auth or session logic is affected​​​​​​​​​​​​​​​​
