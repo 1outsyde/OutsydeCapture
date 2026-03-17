@@ -1,0 +1,17 @@
+When the user lands on Screen 2 (the Discover / Find Local Talent screen), trigger the native device location permission request. If the user grants location, use it to pre-fill their city in their profile/session so it auto-populates during signup and anywhere else city is required.
+Exact behavior:
+	1.	When Screen 2 mounts (use useEffect on mount), call Location.requestForegroundPermissionsAsync() using expo-location
+	2.	If permission is granted: silently get the user’s current city using Location.reverseGeocodeAsync() and store city + region in the existing user session/context/state where location is normally saved — do NOT create a new store or context
+	3.	If permission is granted: update the fake search bar placeholder on this screen from "Photographers near Atlanta..." to "Photographers near [City]..." using the detected city name dynamically
+	4.	If permission is denied: leave the placeholder as-is ("Photographers near Atlanta...") — do not show an error, do not block the user, continue onboarding silently
+	5.	Do NOT show a custom pre-prompt modal before the native permission dialog — trigger it directly on mount
+	6.	Do NOT block the Next button or onboarding flow based on location permission outcome — it is always optional
+Why this screen: The “Your City’s Best Talent, Right Here.” headline is the natural moment where location value is obvious to the user — they understand exactly why you’re asking.
+Packages: expo-location is likely already installed. If not, add it. Do not use any other location library.
+Test checklist:
+	∙	Native location permission dialog fires when Screen 2 mounts
+	∙	If granted: city name appears in the search bar placeholder dynamically
+	∙	If denied: placeholder stays as "Photographers near Atlanta...", no errors
+	∙	Next button works regardless of permission outcome
+	∙	No crashes if location takes a moment to resolve (handle async properly with loading state)
+	∙	Detected city is stored in existing session/context — confirm the value persists to Screen 4 and post-onboarding​​​​​​​​​​​​​​​​

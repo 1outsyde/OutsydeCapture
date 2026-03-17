@@ -5,6 +5,7 @@ import {
   Pressable,
   Dimensions,
   FlatList,
+  ScrollView,
   Animated,
   Text,
   StatusBar,
@@ -361,83 +362,90 @@ export default function OnboardingScreen({ navigation }: Props) {
   );
 
   const renderSlide3 = () => (
-    <View style={[styles.slide, { justifyContent: "flex-start", paddingTop: 16 }]}>
-      {/* Mini Calendar */}
-      <View style={styles.calendarCard}>
-        {/* Calendar header */}
-        <View style={styles.calendarHeader}>
-          <Text style={styles.calendarMonth}>March 2026</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable style={styles.calNavBtn}>
-              <Feather name="chevron-left" size={14} color={OB.creamDim} />
-            </Pressable>
-            <Pressable style={styles.calNavBtn}>
-              <Feather name="chevron-right" size={14} color={OB.creamDim} />
-            </Pressable>
+    <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 28, paddingTop: 8, paddingBottom: 8 }}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Mini Calendar */}
+        <View style={styles.calendarCard}>
+          {/* Calendar header */}
+          <View style={styles.calendarHeader}>
+            <Text style={styles.calendarMonth}>March 2026</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable style={styles.calNavBtn}>
+                <Feather name="chevron-left" size={14} color={OB.creamDim} />
+              </Pressable>
+              <Pressable style={styles.calNavBtn}>
+                <Feather name="chevron-right" size={14} color={OB.creamDim} />
+              </Pressable>
+            </View>
           </View>
-        </View>
-        {/* Day labels */}
-        <View style={styles.calRow}>
-          {CAL_DAYS.map((d) => (
-            <View key={d} style={styles.calCell}>
-              <Text style={styles.calDayLabel}>{d}</Text>
+          {/* Day labels */}
+          <View style={styles.calRow}>
+            {CAL_DAYS.map((d) => (
+              <View key={d} style={styles.calCell}>
+                <Text style={styles.calDayLabel}>{d}</Text>
+              </View>
+            ))}
+          </View>
+          {/* Weeks */}
+          {CAL_WEEKS.map((week, wi) => (
+            <View key={wi} style={styles.calRow}>
+              {week.map((day, di) => {
+                const isBooked = day != null && CAL_BOOKED.has(day);
+                const isSelected = day === CAL_SELECTED;
+                return (
+                  <View key={di} style={styles.calCell}>
+                    {day != null ? (
+                      <View
+                        style={[
+                          styles.calDay,
+                          isSelected && { backgroundColor: OB.gold },
+                          isBooked && !isSelected && { backgroundColor: OB.greenAccent },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.calDayText,
+                            (isBooked || isSelected) && { color: isSelected ? OB.bg : "#fff", fontWeight: "700" },
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.calDay} />
+                    )}
+                  </View>
+                );
+              })}
             </View>
           ))}
         </View>
-        {/* Weeks */}
-        {CAL_WEEKS.map((week, wi) => (
-          <View key={wi} style={styles.calRow}>
-            {week.map((day, di) => {
-              const isBooked = day != null && CAL_BOOKED.has(day);
-              const isSelected = day === CAL_SELECTED;
-              return (
-                <View key={di} style={styles.calCell}>
-                  {day != null ? (
-                    <View
-                      style={[
-                        styles.calDay,
-                        isSelected && { backgroundColor: OB.gold },
-                        isBooked && !isSelected && { backgroundColor: OB.greenAccent },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.calDayText,
-                          (isBooked || isSelected) && { color: isSelected ? OB.bg : "#fff", fontWeight: "700" },
-                        ]}
-                      >
-                        {day}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.calDay} />
-                  )}
-                </View>
-              );
-            })}
+
+        {/* Booking preview card */}
+        <View style={styles.bookingCard}>
+          <View style={styles.bookingAvatar}>
+            <Text style={{ color: OB.cream, fontWeight: "700", fontSize: 14 }}>JR</Text>
           </View>
-        ))}
-      </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bookingName}>Jordan Rivera · Photographer</Text>
+            <Text style={styles.bookingMeta}>March 17 · 2:00 PM · Downtown ATL</Text>
+          </View>
+          <View style={styles.confirmedBadge}>
+            <Text style={styles.confirmedText}>Confirmed</Text>
+          </View>
+        </View>
 
-      {/* Booking preview card */}
-      <View style={styles.bookingCard}>
-        <View style={styles.bookingAvatar}>
-          <Text style={{ color: OB.cream, fontWeight: "700", fontSize: 14 }}>JR</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bookingName}>Jordan Rivera · Photographer</Text>
-          <Text style={styles.bookingMeta}>March 17 · 2:00 PM · Downtown ATL</Text>
-        </View>
-        <View style={styles.confirmedBadge}>
-          <Text style={styles.confirmedText}>Confirmed</Text>
-        </View>
-      </View>
-
-      {/* Headline below */}
-      <Text style={[styles.headline, { textAlign: "center", marginTop: 20 }]}>
-        <Text style={{ color: OB.cream }}>Book &{"\n"}Manage{"\n"}Everything{"\n"}</Text>
-        <Text style={{ color: OB.gold }}>Here.</Text>
-      </Text>
+        {/* Headline below */}
+        <Text style={[styles.headline, { textAlign: "center", marginTop: 12 }]}>
+          <Text style={{ color: OB.cream }}>Book &{"\n"}Manage{"\n"}Everything{"\n"}</Text>
+          <Text style={{ color: OB.gold }}>Here.</Text>
+        </Text>
+      </ScrollView>
     </View>
   );
 
@@ -785,14 +793,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#1A4A1A",
-    padding: 16,
-    marginBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
   },
   calendarHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   calendarMonth: {
     color: "#F0EAD6",
@@ -814,7 +824,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 2,
+    paddingVertical: 1,
   },
   calDayLabel: {
     color: "#C8BFA870",
@@ -824,9 +834,9 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   calDay: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
