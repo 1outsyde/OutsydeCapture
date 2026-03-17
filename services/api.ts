@@ -1836,6 +1836,13 @@ class ApiService {
     });
   }
 
+  // GET /api/users/check-username - Check if a username is available
+  async checkUsernameAvailable(username: string): Promise<{ available: boolean }> {
+    return this.request<{ available: boolean }>(
+      `/api/users/check-username?username=${encodeURIComponent(username)}`
+    );
+  }
+
   // GET /api/photographers/me/stripe-status - Get Stripe onboarding status
   async getPhotographerStripeStatus(authToken: string): Promise<StripeOnboardingStatus> {
     return this.request<StripeOnboardingStatus>("/api/photographers/me/stripe-status", {
@@ -3426,4 +3433,11 @@ export interface SubscriptionTier {
   features?: string[];
   interval?: string;
   badge?: string;
+}
+
+export function canChangeUsername(user: { username_updated_at?: string | null }): boolean {
+  if (!user.username_updated_at) return true;
+  const daysSinceUpdate =
+    (Date.now() - new Date(user.username_updated_at).getTime()) / (1000 * 60 * 60 * 24);
+  return daysSinceUpdate >= 14;
 }

@@ -1,0 +1,125 @@
+I can see the exact screen — Step 1 of 6, with Full Name, Email, Phone, and Password fields. The username field needs to slot in right after Full Name. Here’s your complete prompt:
+
+FRONTEND + BACKEND | Add username field to “Create Account” Step 1 — all 3 role signup flows
+
+CONTEXT — what I’m looking at
+The current “Create Account” screen (Step 1 of 6) has these fields in this order:
+	1.	Full Name
+	2.	Email
+	3.	Phone
+	4.	Password
+The Continue button is blue and pinned to the bottom. The progress bar shows Step 1 of 6. This same Step 1 screen exists for all 3 account types: Consumer, Business, and Photographer. The username field is missing from this screen entirely and needs to be added now.
+
+STEP 1 — Read these files before writing any code
+	1.	Read the Step 1 form component for ConsumerSignupScreen (or wherever this “Create Account” step lives for Consumer)
+	2.	Read the same Step 1 for BusinessSignupScreen
+	3.	Read the same Step 1 for PhotographerSignupScreen
+	4.	Read the user creation backend function — confirm username column exists on the users table with a UNIQUE constraint
+	5.	Confirm whether a checkUsernameAvailable function already exists — if yes, use it. If no, create one: query users table for case-insensitive exact match on username, return { available: true/false }
+
+STEP 2 — Insert the username field into Step 1
+Add the username input field between Full Name and Email so the new field order is:
+	1.	Full Name
+	2.	Username ← new
+	3.	Email
+	4.	Phone
+	5.	Password
+Apply this to the Step 1 screen in all 3 signup flows — Consumer, Business, and Photographer. The field must be identical across all three.
+
+STEP 3 — Username field spec
+Label: Username * (same bold label style as Full Name, Email, Phone, Password labels above)
+Input appearance — match the existing fields exactly:
+
+Height:           same as existing inputs on this screen
+Border radius:    same as existing inputs
+Background:       same dark grey as existing inputs
+Text color:       same cream/white as existing inputs
+Font:             same as existing inputs
+
+
+@ prefix:
+	∙	Show @ as a non-editable prefix inside the left side of the input, colored #C9933A (gold)
+	∙	The stored/submitted value does NOT include @ — only the raw string
+Input rules enforced on every keystroke:
+	∙	Auto-lowercase immediately
+	∙	Strip spaces immediately
+	∙	Strip any character that is not a-z, 0-9, or _
+	∙	Max 20 characters
+	∙	Min 3 characters
+Real-time availability check:
+	∙	Trigger 600ms after the user stops typing (debounce)
+	∙	Show inline feedback directly below the username input:
+
+
+
+|State         |Display                                                          |
+|--------------|-----------------------------------------------------------------|
+|Typing / empty|Nothing shown                                                    |
+|Checking      |Small grey text: `"Checking availability..."`                    |
+|Available     |Green checkmark + `"@username is available"` in green (`#3A9E3A`)|
+|Taken         |Red × + `"@username is already taken"` in red (`#E05252`)        |
+
+Input border color changes:
+	∙	Default: same as other inputs on screen
+	∙	Focused: #C9933A (gold) — match the focused state to the existing field focus style if one exists, otherwise add gold border on focus
+	∙	Available: #3A9E3A (green border)
+	∙	Taken: #E05252 (red border)
+
+STEP 4 — Continue button behavior
+The Continue button must remain disabled until ALL of these are true:
+	∙	Full Name is filled
+	∙	Username is at least 3 characters, passes character rules, and availability check returned available: true
+	∙	Email is filled and valid format
+	∙	Phone is filled
+	∙	Password is at least 6 characters
+This is additive — do not remove any existing Continue button validation, only add the username validation on top of it.
+The Continue button is currently blue — do not change its color or style.
+
+STEP 5 — Pass username into account creation payload
+When the form submits and calls the existing account creation function, add username to the payload being sent. Do not change any other fields — just include username alongside what’s already there.
+Race condition handling: If the username is taken at the exact moment of submission, catch the unique constraint error and surface it as an inline error on the username field: "That username was just taken — please choose another". Return focus to the username field. Never silently fail or create the account without a username.
+
+STEP 6 — Remove any auto-generated username logic
+Search the codebase for anywhere a username is auto-generated or randomly assigned after account creation (e.g. user_${uid}, random string generators, any fallback username logic). Remove all of it. After this change, every account will have a username the user chose during signup — there is no fallback.
+
+STEP 7 — 14-day username lock
+When the account is created, write the current timestamp to username_updated_at on the user record. This already exists in the backend per our previous session.
+Confirm the canChangeUsername(user) utility function exists (created in the previous session). If it doesn’t exist yet, create it now:
+
+// Returns true if user is allowed to change their username
+function canChangeUsername(user) {
+  if (!user.username_updated_at) return true;
+  const daysSinceUpdate = (Date.now() - new Date(user.username_updated_at)) / (1000 * 60 * 60 * 24);
+  return daysSinceUpdate >= 14;
+}
+
+
+Export it. Do not implement the profile UI gate now — just ensure this function exists and is correct.
+
+STEP 8 — Update the step counter if needed
+If adding the username field causes Step 1 to feel too long, do NOT split it into a new step or change the step count. Keep everything on Step 1 of 6. The screen already has Full Name, Email, Phone, and Password — username fits naturally between Full Name and Email. The screen is scrollable if needed.
+
+Constraints:
+	∙	Apply changes to all 3 signup flows: Consumer, Business, Photographer — the username field must be identical in all three
+	∙	Do not touch Slides 1–4 of the onboarding flow
+	∙	Do not change the step count (still Step 1 of 6)
+	∙	Do not change the Continue button color (stays blue)
+	∙	Do not reorder any existing fields — only insert username between Full Name and Email
+	∙	Do not modify any steps beyond Step 1
+	∙	Username uniqueness enforced at both UI (availability check) and database (UNIQUE constraint) levels
+Test checklist:
+	∙	Username field appears on Step 1 in ConsumerSignup, BusinessSignup, and PhotographerSignup
+	∙	Field is positioned between Full Name and Email
+	∙	@ prefix is visible in gold but not stored in database
+	∙	Auto-lowercase and character stripping work on every keystroke
+	∙	Availability check triggers 600ms after typing stops
+	∙	Available = green border + green text confirmation
+	∙	Taken = red border + red text rejection
+	∙	Continue button disabled if username is invalid or unavailable
+	∙	Continue button disabled if any other required field is empty (existing behavior preserved)
+	∙	Username included in account creation payload
+	∙	Race condition surfaces inline error, does not create account without username
+	∙	No auto-generated username appears anywhere post-signup
+	∙	username_updated_at written at account creation
+	∙	canChangeUsername() function exists and is exported
+	∙	All 3 role signup flows behave identically for the username field​​​​​​​​​​​​​​​​

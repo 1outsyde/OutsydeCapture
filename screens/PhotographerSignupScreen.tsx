@@ -13,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import UsernameField from "@/components/UsernameField";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -57,6 +58,9 @@ export default function PhotographerSignupScreen() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
@@ -102,6 +106,10 @@ export default function PhotographerSignupScreen() {
       case 1:
         if (!email.trim() || !password.trim() || !name.trim() || !phone.trim()) {
           Alert.alert("Error", "Please fill in all required fields");
+          return false;
+        }
+        if (username.length < 3 || usernameAvailable !== true) {
+          Alert.alert("Error", "Please choose a valid, available username (min 3 characters)");
           return false;
         }
         if (password.length < 6) {
@@ -181,6 +189,7 @@ export default function PhotographerSignupScreen() {
       phone: phone.replace(/\D/g, ""),
       dateOfBirth: "",
       password,
+      username,
       role: storedRole as "consumer" | "business" | "photographer",
       displayName,
       bio,
@@ -194,7 +203,14 @@ export default function PhotographerSignupScreen() {
     if (result.success) {
       navigation.goBack();
     } else {
-      Alert.alert("Error", result.errorMessage || "Registration failed. Please try again.");
+      const msg = result.errorMessage || "";
+      if (msg.toLowerCase().includes("username")) {
+        setUsernameError("That username was just taken — please choose another");
+        setUsernameAvailable(null);
+        setCurrentStep(1);
+      } else {
+        Alert.alert("Error", msg || "Registration failed. Please try again.");
+      }
     }
   };
 
@@ -224,6 +240,18 @@ export default function PhotographerSignupScreen() {
                 placeholder="Your full name"
                 placeholderTextColor={theme.textSecondary}
                 autoCapitalize="words"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <ThemedText type="small" style={styles.label}>Username *</ThemedText>
+              <UsernameField
+                value={username}
+                onChange={(v) => { setUsername(v); setUsernameError(null); }}
+                onAvailabilityChange={setUsernameAvailable}
+                externalError={usernameError}
+                inputBaseStyle={[styles.input, { backgroundColor: theme.backgroundDefault }]}
+                theme={theme}
               />
             </View>
 
@@ -507,7 +535,19 @@ export default function PhotographerSignupScreen() {
             {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Create Account"}
           </Button>
         ) : (
-          <Button onPress={handleNext} style={styles.nextButton}>
+          <Button
+            onPress={handleNext}
+            style={styles.nextButton}
+            disabled={currentStep === 1 && (
+              !name.trim() ||
+              username.length < 3 ||
+              usernameAvailable !== true ||
+              !email.trim() ||
+              !/\S+@\S+\.\S+/.test(email) ||
+              !phone.trim() ||
+              password.length < 6
+            )}
+          >
             Continue
           </Button>
         )}
