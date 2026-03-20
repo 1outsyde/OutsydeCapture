@@ -5,7 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-
+import { StripeProvider } from "@stripe/stripe-react-native";
 import RootNavigator from "@/navigation/RootNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
@@ -19,6 +19,10 @@ import { FavoritesProvider } from "@/context/FavoritesContext";
 import { HealthCheckProvider } from "@/context/HealthCheckContext";
 import { CalendarProvider } from "@/context/CalendarContext";
 import { ThemeProvider, useThemeContext } from "@/context/ThemeContext";
+
+// Publishable key is safe to expose in client code (not the secret key).
+// Set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment variables.
+const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 
 function AppContent() {
   const { theme, isDark } = useThemeContext();
@@ -60,7 +64,12 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <ErrorBoundary>
-          <AppContent />
+          <StripeProvider
+            publishableKey={STRIPE_PUBLISHABLE_KEY}
+            merchantIdentifier="merchant.com.outsyde"
+          >
+            <AppContent />
+          </StripeProvider>
         </ErrorBoundary>
       </ThemeProvider>
     </SafeAreaProvider>

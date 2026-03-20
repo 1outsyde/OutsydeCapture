@@ -3277,8 +3277,18 @@ class ApiService {
     authToken: string,
     tierId: string,
     returnUrl?: string
-  ): Promise<{ url: string }> {
-    return this.request<{ url: string }>("/api/stripe/checkout/tier-subscription", {
+  ): Promise<{
+    url?: string;
+    clientSecret?: string;
+    customerId?: string;
+    ephemeralKey?: string;
+  }> {
+    return this.request<{
+      url?: string;
+      clientSecret?: string;
+      customerId?: string;
+      ephemeralKey?: string;
+    }>("/api/stripe/checkout/tier-subscription", {
       method: "POST",
       body: JSON.stringify({ tierId, ...(returnUrl ? { returnUrl } : {}) }),
       headers: { "Authorization": `Bearer ${authToken}` },
