@@ -274,6 +274,11 @@ export default function PhotographerDashboardScreen() {
           sessionType: b.serviceName || b.sessionType || "Session",
           status: b.status,
           amount: b.totalAmount ? b.totalAmount / 100 : (b.amount || 0),
+          subtotalAmount: b.subtotalAmount ?? undefined,
+          bookingFeeAmount: b.bookingFeeAmount ?? undefined,
+          vendorNetAmount: b.vendorNetAmount ?? undefined,
+          influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
+          isInfluencerAttributed: b.isInfluencerAttributed ?? false,
         })));
       } catch {
         setBookings([]);
@@ -2198,7 +2203,30 @@ export default function PhotographerDashboardScreen() {
                         <Text style={styles.bookingClient}>{booking.clientName}</Text>
                         <Text style={styles.bookingService}>{booking.sessionType}</Text>
                       </View>
-                      <Text style={styles.bookingAmount}>${booking.amount}</Text>
+                      <View style={{ alignItems: "flex-end" }}>
+                        {booking.subtotalAmount != null ? (
+                          <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                            Subtotal: ${booking.subtotalAmount.toFixed(2)}
+                          </Text>
+                        ) : null}
+                        {booking.bookingFeeAmount != null ? (
+                          <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                            Booking Fee: -${booking.bookingFeeAmount.toFixed(2)}
+                          </Text>
+                        ) : null}
+                        {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null ? (
+                          <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                            Influencer: -${booking.influencerCommissionAmount.toFixed(2)}
+                          </Text>
+                        ) : null}
+                        {booking.vendorNetAmount != null ? (
+                          <Text style={[styles.bookingAmount, { fontWeight: "700" }]}>
+                            You Earn: ${booking.vendorNetAmount.toFixed(2)}
+                          </Text>
+                        ) : (
+                          <Text style={styles.bookingAmount}>${booking.amount.toFixed(2)}</Text>
+                        )}
+                      </View>
                     </View>
                     <View style={styles.bookingDetails}>
                       <View style={styles.bookingDate}>

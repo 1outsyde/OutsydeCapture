@@ -630,6 +630,12 @@ export interface PhotographerBooking {
   location?: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   amount: number;
+  // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
+  subtotalAmount?: number;
+  bookingFeeAmount?: number;
+  influencerCommissionAmount?: number;
+  vendorNetAmount?: number;
+  isInfluencerAttributed?: boolean;
 }
 
 export interface AvailableSlot {
