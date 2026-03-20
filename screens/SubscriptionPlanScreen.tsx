@@ -179,14 +179,25 @@ export default function SubscriptionPlanScreen() {
     };
   }, [handleRefresh]);
 
+  const toErrorString = (err: any): string => {
+    if (!err) return "An error occurred. Please try again.";
+    if (typeof err === "string") return err;
+    const msg = err?.message;
+    if (typeof msg === "string") return msg;
+    if (typeof msg === "object" && msg !== null) {
+      return msg.message || msg.error || msg.detail || JSON.stringify(msg);
+    }
+    return err?.error || "An error occurred. Please try again.";
+  };
+
   const handleSubscribe = async () => {
     if (!selectedTierId) {
       Alert.alert("Select a Plan", "Please select a subscription plan to continue.");
       return;
     }
     const selectedTier = tiers.find(t => t.id === selectedTierId);
-    if (!selectedTier?.stripePriceId) {
-      setSubscribeError("Pricing data could not be loaded. Please refresh and try again.");
+    if (!selectedTier) {
+      setSubscribeError("Selected plan not found. Please refresh and try again.");
       return;
     }
     const token = await getToken();
@@ -194,7 +205,7 @@ export default function SubscriptionPlanScreen() {
     setSubscribeError(null);
     setActionLoading(true);
     try {
-      const session = await api.createTierSubscriptionCheckout(token, selectedTier.stripePriceId, STRIPE_RETURN_URL);
+      const session = await api.createTierSubscriptionCheckout(token, selectedTier.id, STRIPE_RETURN_URL);
       if (session.url) {
         await Linking.openURL(session.url);
       }
@@ -202,7 +213,7 @@ export default function SubscriptionPlanScreen() {
       if (isMonetizationError(err)) {
         setSubscribeError("monetization");
       } else {
-        setSubscribeError(err.message || "Failed to start checkout. Please try again.");
+        setSubscribeError(toErrorString(err));
       }
     } finally {
       setActionLoading(false);
@@ -227,10 +238,19 @@ export default function SubscriptionPlanScreen() {
 
   const formatTierPrice = (tier: SubscriptionTier) => {
     if (tier.priceLabel) return tier.priceLabel;
-    if (typeof tier.price === "number") {
-      return `$${(tier.price / 100).toFixed(0)}/${tier.interval || "mo"}`;
+    if (typeof tier.priceInCents === "number") {
+      return `$${(tier.priceInCents / 100).toFixed(2)}/${tier.interval || "mo"}`;
     }
-    return String(tier.price);
+    if (typeof tier.price === "number") {
+      return `$${(tier.price / 100).toFixed(2)}/${tier.interval || "mo"}`;
+    }
+    return "";
+  };
+
+  const formatTierName = (tier: SubscriptionTier) => {
+    if (tier.displayName) return tier.displayName;
+    const n = tier.name || "";
+    return n.charAt(0).toUpperCase() + n.slice(1);
   };
 
   const statusColor = () => {
@@ -334,11 +354,14 @@ export default function SubscriptionPlanScreen() {
       );
     }
 
+    const errText = typeof subscribeError === "string"
+      ? subscribeError
+      : (subscribeError as any)?.message || JSON.stringify(subscribeError);
     return (
       <View style={[styles.errorBanner, { backgroundColor: `${theme.error}18`, borderColor: `${theme.error}40` }]}>
         <Feather name="alert-circle" size={18} color={theme.error} />
         <Text style={[styles.errorBannerBody, { color: theme.error, marginLeft: 10, flex: 1 }]}>
-          {subscribeError}
+          {errText}
         </Text>
       </View>
     );
@@ -374,7 +397,7 @@ export default function SubscriptionPlanScreen() {
         ) : null}
         <View style={styles.tierHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.tierName, { color: theme.text }]}>{tier.name}</Text>
+            <Text style={[styles.tierName, { color: theme.text }]}>{formatTierName(tier)}</Text>
             <Text style={[styles.tierPrice, { color: theme.primary }]}>{formatTierPrice(tier)}</Text>
           </View>
           {isSelected ? (

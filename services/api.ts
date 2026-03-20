@@ -3275,12 +3275,12 @@ class ApiService {
 
   async createTierSubscriptionCheckout(
     authToken: string,
-    priceId: string,
+    tierId: string,
     returnUrl?: string
   ): Promise<{ url: string }> {
     return this.request<{ url: string }>("/api/stripe/checkout/tier-subscription", {
       method: "POST",
-      body: JSON.stringify({ priceId, ...(returnUrl ? { returnUrl } : {}) }),
+      body: JSON.stringify({ tierId, ...(returnUrl ? { returnUrl } : {}) }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -3469,7 +3469,9 @@ export interface VendorEligibility {
 export interface SubscriptionTier {
   id: string;
   name: string;
-  price: number;
+  displayName?: string;
+  price?: number;
+  priceInCents?: number;
   priceLabel?: string;
   description?: string;
   features?: string[];
