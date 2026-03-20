@@ -24,8 +24,8 @@ const FALLBACK_TIERS: SubscriptionTier[] = [
   {
     id: "starter",
     name: "Starter",
-    price: 2000,
-    priceLabel: "$20/mo",
+    price: 2999,
+    priceLabel: "$29.99/mo",
     description: "Perfect for new businesses ready to start selling.",
     features: [
       "Product & service listings",
@@ -84,6 +84,7 @@ export default function SubscriptionPlanScreen() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
+  const [tiersFetchError, setTiersFetchError] = useState<string | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const isMonetizationError = (err: any): boolean =>
@@ -96,8 +97,14 @@ export default function SubscriptionPlanScreen() {
     : subscriptionStatus === "active";
 
   const fetchData = useCallback(async () => {
+    setTiersFetchError(null);
     const token = await getToken();
-    if (!token) return;
+    if (!token) {
+      console.warn("[SubscriptionPlan] No auth token — cannot fetch subscription data");
+      setTiers(FALLBACK_TIERS);
+      setTiersLoading(false);
+      return;
+    }
     try {
       const [tiersRes, eligibilityRes, bizRes] = await Promise.allSettled([
         api.getSubscriptionTiers(token),
@@ -105,9 +112,22 @@ export default function SubscriptionPlanScreen() {
         api.getVendorMyBusiness(token),
       ]);
 
-      if (tiersRes.status === "fulfilled" && tiersRes.value.tiers?.length > 0) {
-        setTiers(tiersRes.value.tiers);
+      if (tiersRes.status === "fulfilled") {
+        const fetchedTiers = tiersRes.value.tiers;
+        if (fetchedTiers?.length > 0) {
+          console.log("[SubscriptionPlan] Tiers loaded from backend:", fetchedTiers.length, "tiers");
+          setTiers(fetchedTiers);
+        } else {
+          console.warn("[SubscriptionPlan] Backend returned empty tiers array — using fallback");
+          setTiers(FALLBACK_TIERS);
+        }
       } else {
+        const err = tiersRes.reason as any;
+        const status = err?.status ?? "network/timeout";
+        const msg = err?.message ?? String(err);
+        console.error(`[SubscriptionPlan] GET /api/subscription-tiers FAILED — status: ${status} — ${msg}`);
+        setTiersFetchError(`${status}: ${msg}`);
+        // If 401/403, the endpoint may require valid session — fall back gracefully
         setTiers(FALLBACK_TIERS);
       }
 
@@ -121,6 +141,7 @@ export default function SubscriptionPlanScreen() {
         setCurrentTierName(biz?.subscriptionTier || null);
       }
     } catch (err) {
+      console.error("[SubscriptionPlan] Unexpected error in fetchData:", err);
       setTiers(FALLBACK_TIERS);
     } finally {
       setTiersLoading(false);
@@ -399,6 +420,15 @@ export default function SubscriptionPlanScreen() {
             tiers.map(renderTierCard)
           )}
         </View>
+
+        {__DEV__ && tiersFetchError ? (
+          <View style={[styles.errorBanner, { backgroundColor: "#3a1a00", borderColor: "#c0391b" }]}>
+            <Feather name="alert-circle" size={14} color="#e74c3c" />
+            <Text style={[styles.errorBannerBody, { color: "#e74c3c", fontSize: 11, marginLeft: 6 }]}>
+              [DEV] GET /api/subscription-tiers failed: {tiersFetchError}
+            </Text>
+          </View>
+        ) : null}
 
         {renderSubscribeError()}
 

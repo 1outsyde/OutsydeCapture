@@ -3228,9 +3228,38 @@ class ApiService {
   }
 
   async getSubscriptionTiers(authToken: string): Promise<{ tiers: SubscriptionTier[] }> {
-    return this.request<{ tiers: SubscriptionTier[] }>("/api/subscription-tiers", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    // Subscription tiers are often a public endpoint. We try three strategies in order:
+    // 1. With Bearer token (works for JWT-based auth)
+    // 2. Cookie-only (works for session-based auth — credentials: include is always set)
+    // 3. Completely public (no auth, no cookies)
+    // This handles the case where the stored token is "session_userId" (not a real JWT).
+    const isLikelyJwt = authToken && authToken.startsWith("ey");
+    
+    try {
+      // Strategy 1: with Bearer token (only if it looks like a real JWT)
+      if (isLikelyJwt) {
+        const res = await this.request<any>("/api/subscription-tiers", {
+          headers: { "Authorization": `Bearer ${authToken}` },
+        });
+        const tiers = res?.tiers ?? res?.data ?? [];
+        console.log(`[API] getSubscriptionTiers (JWT strategy) → ${tiers.length} tiers`);
+        return { tiers };
+      }
+    } catch (e: any) {
+      console.warn(`[API] getSubscriptionTiers JWT strategy failed (${e?.status ?? "?"}): ${e?.message ?? e}`);
+    }
+    
+    try {
+      // Strategy 2: session cookies only (no Authorization header)
+      const res = await this.request<any>("/api/subscription-tiers");
+      const tiers = res?.tiers ?? res?.data ?? [];
+      console.log(`[API] getSubscriptionTiers (cookie strategy) → ${tiers.length} tiers`);
+      return { tiers };
+    } catch (e: any) {
+      console.warn(`[API] getSubscriptionTiers cookie strategy failed (${e?.status ?? "?"}): ${e?.message ?? e}`);
+      // Re-throw so the caller can show the actual error
+      throw e;
+    }
   }
 
   async createBillingPortalSession(
