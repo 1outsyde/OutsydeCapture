@@ -1,5 +1,6 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
+import { GoogleProfile } from "@/context/AuthContext";
 
 export interface BusinessProfileData {
   id: string;
@@ -55,12 +56,12 @@ export interface PhotographerProfileData {
 }
 
 export type RootStackParamList = {
-  Onboarding: undefined;
+  Onboarding: { startAtSlide?: number; googleProfile?: GoogleProfile } | undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
   Auth: { returnTo?: string };
-  ConsumerSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string } | undefined;
-  BusinessSignup: undefined;
-  PhotographerSignup: undefined;
+  ConsumerSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
+  BusinessSignup: { prefillName?: string; prefillEmail?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
+  PhotographerSignup: { prefillName?: string; prefillEmail?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
   BusinessOnboarding: undefined;
   PhotographerOnboarding: undefined;
   SelectPhotographer: undefined;

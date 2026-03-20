@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Switch } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,7 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api from "@/services/api";
+import api, { API_BASE_URL } from "@/services/api";
 import UsernameField from "@/components/UsernameField";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -77,15 +77,21 @@ const STEPS = [
 export default function BusinessSignupScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { signup, isLoading } = useAuth();
+  const route = useRoute<RouteProp<RootStackParamList, "BusinessSignup">>();
+  const { signup, loginWithTokens, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
+
+  const prefillName = route.params?.prefillName ?? "";
+  const prefillEmail = route.params?.prefillEmail ?? "";
+  const isGoogleSignup = route.params?.isGoogleSignup ?? false;
+  const googleProfile = route.params?.googleProfile ?? null;
 
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(prefillEmail);
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(prefillName);
   const [phone, setPhone] = useState("");
   const [username, setUsername] = useState("");
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
@@ -190,6 +196,41 @@ export default function BusinessSignupScreen() {
   };
 
   const handleSubmit = async () => {
+    const nameParts = name.trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    if (isGoogleSignup && googleProfile) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/oauth/complete-signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            email,
+            firstName,
+            lastName,
+            role: "business",
+            password,
+            googleProfile,
+            businessName,
+            businessCategory,
+          }),
+        });
+        const data = await response.json();
+        if (response.ok) {
+          await AsyncStorage.removeItem("@outsyde_google_profile");
+          await loginWithTokens(data.accessToken, data.refreshToken, data as any);
+          navigation.navigate("Main");
+        } else {
+          Alert.alert("Error", data.error ?? "Something went wrong. Please try again.");
+        }
+      } catch {
+        Alert.alert("Error", "Something went wrong. Please try again.");
+      }
+      return;
+    }
+
     const storedRole = await AsyncStorage.getItem("@outsyde_user_type");
     if (!storedRole) {
       console.error("[BusinessSignup] No role found in AsyncStorage — aborting signup");
@@ -197,10 +238,6 @@ export default function BusinessSignupScreen() {
       return;
     }
     console.log("[BusinessSignup] Role read from AsyncStorage:", storedRole);
-
-    const nameParts = name.trim().split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
 
     const result = await signup({
       firstName,

@@ -109,6 +109,14 @@ export interface GoogleAuthUserData {
   photographerId?: string;
 }
 
+export interface GoogleProfile {
+  email: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  profileImageUrl?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -149,6 +157,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadStoredAuth = async () => {
     try {
       const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+      // CHANGE 4: clean up any abandoned Google OAuth profile from an incomplete signup
+      try {
+        const abandonedProfile = await AsyncStorage.getItem('@outsyde_google_profile');
+        if (abandonedProfile && !storedUser) {
+          await AsyncStorage.removeItem('@outsyde_google_profile');
+        }
+      } catch (_) {}
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
         if (parsed.role === "business" && parsed.approvalStatus === "pending") {
@@ -708,7 +723,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(newUser);
       
       console.log("[AuthContext] User logged in successfully:", newUser.email, "role:", derivedRole, "isAdmin:", newUser.isAdmin);
-      
+      // Remove any abandoned Google profile stored during OAuth signup flow
+      await AsyncStorage.removeItem('@outsyde_google_profile');
       return { success: true, isPending: false, isRejected: false, user: newUser };
     } catch (error) {
       console.error("Failed to login with tokens:", error);

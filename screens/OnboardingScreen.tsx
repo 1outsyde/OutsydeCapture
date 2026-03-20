@@ -24,7 +24,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as AppleAuthentication from "expo-apple-authentication";
 
 import { RootStackParamList } from "@/navigation/types";
-import { UserRole, GoogleAuthUserData, useAuth } from "@/context/AuthContext";
+import { UserRole, GoogleAuthUserData, GoogleProfile, useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/services/api";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -98,7 +98,7 @@ const ROLE_OPTIONS: {
 
 type Props = NativeStackScreenProps<RootStackParamList, "Onboarding">;
 
-export default function OnboardingScreen({ navigation }: Props) {
+export default function OnboardingScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { loginWithTokens, isAuthenticated } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -106,6 +106,11 @@ export default function OnboardingScreen({ navigation }: Props) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  // Google OAuth new-user profile — set when backend signals isNewUser=true
+  const [googleProfileForSignup, setGoogleProfileForSignup] = useState<GoogleProfile | null>(
+    route.params?.googleProfile ?? null
+  );
 
   // Pulse animation for Screen 1
   const pulseScale1 = useRef(new Animated.Value(1)).current;
@@ -195,6 +200,18 @@ export default function OnboardingScreen({ navigation }: Props) {
     return () => { cancelled = true; };
   }, [currentIndex]);
 
+  // Scroll to startAtSlide on mount (used when navigating back to pick a role after Google OAuth)
+  useEffect(() => {
+    const startAt = route.params?.startAtSlide ?? 0;
+    if (startAt > 0) {
+      const timer = setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: startAt * SCREEN_WIDTH, animated: false });
+        setCurrentIndex(startAt);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Auto-complete onboarding and navigate to Main when user becomes authenticated
   // (fires after Google/Apple/Email sign-in from Slide 4)
   useEffect(() => {
@@ -212,31 +229,35 @@ export default function OnboardingScreen({ navigation }: Props) {
         setIsGoogleLoading(true);
         try {
           const urlParams = new URL(event.url.replace("outsyde://", "https://outsyde.app/"));
-          const accessToken = urlParams.searchParams.get("accessToken");
-          const refreshToken = urlParams.searchParams.get("refreshToken");
-          const userId = urlParams.searchParams.get("userId");
-          const email = urlParams.searchParams.get("email");
-
-          if (!accessToken || !refreshToken || !userId || !email) {
-            Alert.alert("Error", "Authentication failed. Missing required data.");
-            setIsGoogleLoading(false);
-            return;
-          }
-
           const isNewUser = urlParams.searchParams.get("isNewUser") === "true";
 
           if (isNewUser) {
-            const prefillName = (urlParams.searchParams.get("name") ||
-              `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim()) || undefined;
-            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
-            navigation.reset({
-              index: 1,
-              routes: [
-                { name: "Main" },
-                { name: "ConsumerSignup", params: { prefillName, prefillEmail: email, socialProvider: "google" } },
-              ],
-            });
+            // New Google user — store profile, let user pick role on Slide 4
+            const gProfile: GoogleProfile = {
+              email: urlParams.searchParams.get("email") || "",
+              firstName: urlParams.searchParams.get("firstName") || "",
+              lastName: urlParams.searchParams.get("lastName") || "",
+              name: urlParams.searchParams.get("name") ||
+                `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim() ||
+                urlParams.searchParams.get("email") || "",
+              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
+            };
+            await AsyncStorage.setItem('@outsyde_google_profile', JSON.stringify(gProfile));
+            setGoogleProfileForSignup(gProfile);
+            flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
+            setCurrentIndex(3);
           } else {
+            const accessToken = urlParams.searchParams.get("accessToken");
+            const refreshToken = urlParams.searchParams.get("refreshToken");
+            const userId = urlParams.searchParams.get("userId");
+            const email = urlParams.searchParams.get("email");
+
+            if (!accessToken || !refreshToken || !userId || !email) {
+              Alert.alert("Error", "Authentication failed. Missing required data.");
+              setIsGoogleLoading(false);
+              return;
+            }
+
             const userData: GoogleAuthUserData = {
               userId,
               email,
@@ -286,31 +307,35 @@ export default function OnboardingScreen({ navigation }: Props) {
       if (result.type === "success" && result.url) {
         if (result.url.startsWith("outsyde://auth/success")) {
           const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
-          const accessToken = urlParams.searchParams.get("accessToken");
-          const refreshToken = urlParams.searchParams.get("refreshToken");
-          const userId = urlParams.searchParams.get("userId");
-          const email = urlParams.searchParams.get("email");
-
-          if (!accessToken || !refreshToken || !userId || !email) {
-            Alert.alert("Error", "Authentication failed. Missing required data.");
-            setIsGoogleLoading(false);
-            return;
-          }
-
           const isNewUser = urlParams.searchParams.get("isNewUser") === "true";
 
           if (isNewUser) {
-            const prefillName = (urlParams.searchParams.get("name") ||
-              `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim()) || undefined;
-            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
-            navigation.reset({
-              index: 1,
-              routes: [
-                { name: "Main" },
-                { name: "ConsumerSignup", params: { prefillName, prefillEmail: email, socialProvider: "google" } },
-              ],
-            });
+            // New Google user — store profile, scroll to Slide 4 for role selection
+            const gProfile: GoogleProfile = {
+              email: urlParams.searchParams.get("email") || "",
+              firstName: urlParams.searchParams.get("firstName") || "",
+              lastName: urlParams.searchParams.get("lastName") || "",
+              name: urlParams.searchParams.get("name") ||
+                `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim() ||
+                urlParams.searchParams.get("email") || "",
+              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
+            };
+            await AsyncStorage.setItem('@outsyde_google_profile', JSON.stringify(gProfile));
+            setGoogleProfileForSignup(gProfile);
+            flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
+            setCurrentIndex(3);
           } else {
+            const accessToken = urlParams.searchParams.get("accessToken");
+            const refreshToken = urlParams.searchParams.get("refreshToken");
+            const userId = urlParams.searchParams.get("userId");
+            const email = urlParams.searchParams.get("email");
+
+            if (!accessToken || !refreshToken || !userId || !email) {
+              Alert.alert("Error", "Authentication failed. Missing required data.");
+              setIsGoogleLoading(false);
+              return;
+            }
+
             const userData: GoogleAuthUserData = {
               userId,
               email,
@@ -421,17 +446,33 @@ export default function OnboardingScreen({ navigation }: Props) {
       console.error("[Onboarding] Failed to save onboarding state:", err);
     }
 
-    const signupScreen =
-      role === "business"
-        ? "BusinessSignup"
-        : role === "photographer"
-        ? "PhotographerSignup"
-        : "ConsumerSignup";
+    const gp = googleProfileForSignup;
+    const googleParams = gp
+      ? {
+          prefillName: gp.name ?? "",
+          prefillEmail: gp.email ?? "",
+          prefillAvatar: gp.profileImageUrl ?? "",
+          isGoogleSignup: true as const,
+          googleProfile: gp,
+        }
+      : undefined;
 
-    navigation.reset({
-      index: 1,
-      routes: [{ name: "Main" }, { name: signupScreen }],
-    });
+    if (role === "business") {
+      navigation.reset({
+        index: 1,
+        routes: [{ name: "Main" }, { name: "BusinessSignup", params: googleParams }],
+      });
+    } else if (role === "photographer") {
+      navigation.reset({
+        index: 1,
+        routes: [{ name: "Main" }, { name: "PhotographerSignup", params: googleParams }],
+      });
+    } else {
+      navigation.reset({
+        index: 1,
+        routes: [{ name: "Main" }, { name: "ConsumerSignup", params: googleParams }],
+      });
+    }
   };
 
   const handleRoleSelect = async (role: UserRole) => {

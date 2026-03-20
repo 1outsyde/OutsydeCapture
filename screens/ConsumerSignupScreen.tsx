@@ -15,6 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import UsernameField from "@/components/UsernameField";
+import { API_BASE_URL } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -175,11 +176,13 @@ export default function ConsumerSignupScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ConsumerSignupRouteProp>();
-  const { signup, isLoading } = useAuth();
+  const { signup, loginWithTokens, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
 
   const prefillName = route.params?.prefillName ?? "";
   const prefillEmail = route.params?.prefillEmail ?? "";
+  const isGoogleSignup = route.params?.isGoogleSignup ?? false;
+  const googleProfile = route.params?.googleProfile ?? null;
 
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -374,6 +377,39 @@ export default function ConsumerSignupScreen() {
   };
 
   const handleSubmit = async () => {
+    const nameParts = name.trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    if (isGoogleSignup && googleProfile) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/oauth/complete-signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            email,
+            firstName,
+            lastName,
+            role: "consumer",
+            password,
+            googleProfile,
+          }),
+        });
+        const data = await response.json();
+        if (response.ok) {
+          await AsyncStorage.removeItem("@outsyde_google_profile");
+          await loginWithTokens(data.accessToken, data.refreshToken, data as any);
+          navigation.navigate("Main");
+        } else {
+          Alert.alert("Error", data.error ?? "Something went wrong. Please try again.");
+        }
+      } catch {
+        Alert.alert("Error", "Something went wrong. Please try again.");
+      }
+      return;
+    }
+
     const storedRole = await AsyncStorage.getItem("@outsyde_user_type");
     if (!storedRole) {
       console.error("[ConsumerSignup] No role found in AsyncStorage — aborting signup");
@@ -381,10 +417,6 @@ export default function ConsumerSignupScreen() {
       return;
     }
     console.log("[ConsumerSignup] Role read from AsyncStorage:", storedRole);
-
-    const nameParts = name.trim().split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
 
     const result = await signup({
       firstName,

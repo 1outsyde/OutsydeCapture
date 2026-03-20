@@ -1,0 +1,140 @@
+FRONTEND | Wire Google OAuth new user flow to POST /api/auth/oauth/complete-signup
+
+READ FIRST before touching anything:
+
+AuthContext.tsx — find loginWithTokens and the Google sign-in handler
+OnboardingScreen — find Slide 4 and the Google sign-in handler
+ConsumerSignupScreen, BusinessSignupScreen, PhotographerSignupScreen — confirm prefillName and prefillEmail route params are already implemented from the previous session
+
+
+CONTEXT — what the backend now returns
+The backend was just updated. For a new Google user it no longer creates an account immediately. Instead it returns this:
+javascript// New Google user — no account created yet
+{
+  isNewUser: true,
+  requiresUsername: true,
+  googleProfile: {
+    email: "user@gmail.com",
+    firstName: "Jordan",
+    lastName: "Rivera",
+    name: "Jordan Rivera",
+    profileImageUrl: "https://..."
+  }
+}
+
+// Returning Google user — unchanged, works as before
+{
+  accessToken: "...",
+  refreshToken: "...",
+  userId: "...",
+  email: "...",
+  // ...all existing fields
+}
+```
+
+A new endpoint was also added to finalize Google signups once the user has chosen a username:
+```
+POST /api/auth/oauth/complete-signup
+
+CHANGE 1 — Branch on isNewUser after Google OAuth completes
+In the Google sign-in handler (wherever loginWithTokens is called after Google auth), add this branch:
+javascriptif (result.isNewUser && result.requiresUsername) {
+  // Store Google profile temporarily
+  await AsyncStorage.setItem(
+    '@outsyde_google_profile',
+    JSON.stringify(result.googleProfile)
+  );
+  
+  // Route to role picker — do NOT log user in yet
+  navigation.navigate('Onboarding', {
+    startAtSlide: 4,
+    googleProfile: result.googleProfile
+  });
+
+} else {
+  // Returning user — existing flow completely unchanged
+  loginWithTokens(result.accessToken, result.refreshToken, result);
+  navigation.goBack();
+}
+
+CHANGE 2 — Role picker (Slide 4) passes Google profile to signup screens
+When Slide 4 receives a googleProfile param and the user taps a role card, pass that data forward:
+javascript// On role card tap — apply to all 3 roles
+const googleProfile = route.params?.googleProfile ?? null;
+
+navigation.navigate('ConsumerSignup', {
+  prefillName: googleProfile?.name ?? '',
+  prefillEmail: googleProfile?.email ?? '',
+  prefillAvatar: googleProfile?.profileImageUrl ?? '',
+  isGoogleSignup: !!googleProfile,
+  googleProfile: googleProfile
+});
+
+// Same pattern for BusinessSignup and PhotographerSignup
+
+CHANGE 3 — Signup screens call complete-signup for Google users
+In ConsumerSignupScreen, BusinessSignupScreen, and PhotographerSignupScreen — read isGoogleSignup from route params and branch on form submission:
+javascriptconst isGoogleSignup = route.params?.isGoogleSignup ?? false;
+const googleProfile = route.params?.googleProfile ?? null;
+
+// On form submit:
+if (isGoogleSignup) {
+  const response = await fetch(`${API_URL}/api/auth/oauth/complete-signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: formData.username,
+      email: formData.email,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      role: selectedRole,        // consumer / business / photographer
+      password: formData.password,
+      googleProfile: googleProfile
+    })
+  });
+
+  const data = await response.json();
+
+  if (response.ok) {
+    await AsyncStorage.removeItem('@outsyde_google_profile');
+    loginWithTokens(data.accessToken, data.refreshToken, data);
+    navigation.navigate('Home');
+  } else {
+    setError(data.error ?? 'Something went wrong. Please try again.');
+  }
+
+} else {
+  // Regular email signup — existing logic completely unchanged
+}
+
+CHANGE 4 — Clean up abandoned Google profile on app startup
+In AuthContext initialization (wherever the app checks for an existing session on launch), add:
+javascript// If a google profile was stored but the user never completed signup
+// clean it up on next launch so it doesn't linger
+const abandonedProfile = await AsyncStorage.getItem('@outsyde_google_profile');
+if (abandonedProfile && !currentUser) {
+  await AsyncStorage.removeItem('@outsyde_google_profile');
+}
+
+What stays completely unchanged:
+
+Returning Google user flow — loginWithTokens + navigation.goBack() — do not touch
+Email/password signup and login — do not touch
+Slides 1, 2, and 3 — do not touch
+Username availability check and field behavior — do not touch
+Password field stays visible and required for Google signups
+
+
+Test checklist:
+
+ New Google account → Slide 4 role picker → correct signup screen with name and email pre-filled
+ Name and email fields are editable (not locked)
+ Password field is visible and required
+ Username field required — availability check still works
+ Form submits to POST /api/auth/oauth/complete-signup not the regular signup endpoint
+ Successful response logs user in and navigates to Home
+ @outsyde_google_profile AsyncStorage key is removed after successful signup
+ Returning Google account → home screen directly, no onboarding shown
+ All 3 signup screens (Consumer, Business, Photographer) handle isGoogleSignup correctly
+ Abandoned Google profile cleaned up on next app launch
+ npx tsc --noEmit 0 errors
