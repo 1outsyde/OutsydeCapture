@@ -163,14 +163,19 @@ export default function SubscriptionPlanScreen() {
       Alert.alert("Select a Plan", "Please select a subscription plan to continue.");
       return;
     }
+    const selectedTier = tiers.find(t => t.id === selectedTierId);
+    if (!selectedTier?.stripePriceId) {
+      setSubscribeError("Pricing data could not be loaded. Please refresh and try again.");
+      return;
+    }
     const token = await getToken();
     if (!token) return;
     setSubscribeError(null);
     setActionLoading(true);
     try {
-      const { checkoutUrl } = await api.createTierSubscriptionCheckout(token, selectedTierId, STRIPE_RETURN_URL);
-      if (checkoutUrl) {
-        await Linking.openURL(checkoutUrl);
+      const session = await api.createTierSubscriptionCheckout(token, selectedTier.stripePriceId, STRIPE_RETURN_URL);
+      if (session.url) {
+        await Linking.openURL(session.url);
       }
     } catch (err: any) {
       if (isMonetizationError(err)) {

@@ -3246,12 +3246,12 @@ class ApiService {
 
   async createTierSubscriptionCheckout(
     authToken: string,
-    tierId: string,
+    priceId: string,
     returnUrl?: string
-  ): Promise<{ checkoutUrl: string }> {
-    return this.request<{ checkoutUrl: string }>("/api/stripe/checkout/tier-subscription", {
+  ): Promise<{ url: string }> {
+    return this.request<{ url: string }>("/api/stripe/checkout/tier-subscription", {
       method: "POST",
-      body: JSON.stringify({ tierId, ...(returnUrl ? { returnUrl } : {}) }),
+      body: JSON.stringify({ priceId, ...(returnUrl ? { returnUrl } : {}) }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -3446,6 +3446,7 @@ export interface SubscriptionTier {
   features?: string[];
   interval?: string;
   badge?: string;
+  stripePriceId?: string | null;
 }
 
 export function canChangeUsername(user: { username_updated_at?: string | null }): boolean {
