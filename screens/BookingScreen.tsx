@@ -422,7 +422,8 @@ export default function BookingScreen() {
         endTime: response.slot.endTime,
         status: "held",
         expiresAt: response.expiresAt,
-        totalAmount: response.pricing.totalCents / 100,
+        totalAmount: response.feeBreakdown?.grossChargeAmount ?? response.pricing.totalCents / 100,
+        feeBreakdown: response.feeBreakdown,
       };
       setBookingDraft(draft);
       setSelectedSlot({
@@ -1204,12 +1205,33 @@ export default function BookingScreen() {
 
           <View style={styles.reviewDivider} />
 
+          {bookingDraft.feeBreakdown ? (
+            <>
+              <View style={styles.reviewFeeRow}>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
+                <ThemedText type="small">${bookingDraft.feeBreakdown.subtotalAmount.toFixed(2)}</ThemedText>
+              </View>
+              {bookingDraft.feeBreakdown.consumerServiceFeeAmount > 0 ? (
+                <View style={styles.reviewFeeRow}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Outsyde Service Fee</ThemedText>
+                  <ThemedText type="small">${bookingDraft.feeBreakdown.consumerServiceFeeAmount.toFixed(2)}</ThemedText>
+                </View>
+              ) : null}
+              {bookingDraft.feeBreakdown.taxAmount > 0 ? (
+                <View style={styles.reviewFeeRow}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Sales Tax</ThemedText>
+                  <ThemedText type="small">${bookingDraft.feeBreakdown.taxAmount.toFixed(2)}</ThemedText>
+                </View>
+              ) : null}
+            </>
+          ) : null}
+
           <View style={styles.reviewTotal}>
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
               Total
             </ThemedText>
             <ThemedText type="h3" style={{ color: theme.primary }}>
-              ${bookingDraft.totalAmount || selectedService.price}
+              ${bookingDraft.totalAmount.toFixed(2)}
             </ThemedText>
           </View>
         </View>
@@ -1308,7 +1330,7 @@ export default function BookingScreen() {
                 Total
               </ThemedText>
               <ThemedText type="h3" style={{ color: theme.primary }}>
-                ${bookingDraft?.totalAmount || selectedService?.price || 0}
+                ${(bookingDraft?.totalAmount || selectedService?.price || 0).toFixed(2)}
               </ThemedText>
             </View>
             <Pressable
@@ -1632,10 +1654,17 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.md,
     flex: 1,
   },
+  reviewFeeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
   reviewTotal: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: Spacing.sm,
   },
   footer: {
     paddingHorizontal: Spacing.xl,

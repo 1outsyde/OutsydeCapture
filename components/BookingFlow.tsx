@@ -49,6 +49,10 @@ const formatPrice = (cents: number): string => {
   return `$${(cents / 100).toFixed(2)}`;
 };
 
+const formatAmount = (dollars: number): string => {
+  return `$${dollars.toFixed(2)}`;
+};
+
 const formatDuration = (minutes: number): string => {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
@@ -707,25 +711,29 @@ export default function BookingFlow({
             <View style={[styles.confirmRow, { borderTopColor: theme.border, borderTopWidth: 1, marginTop: Spacing.xs }]}>
               <ThemedText style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
               <ThemedText>
-                {formatPrice(hold?.subtotalCents ?? hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
+                {hold?.feeBreakdown
+                  ? formatAmount(hold.feeBreakdown.subtotalAmount)
+                  : formatPrice(hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
               </ThemedText>
             </View>
-            {hold?.consumerServiceFeeCents != null ? (
+            {hold?.feeBreakdown?.consumerServiceFeeAmount != null ? (
               <View style={styles.confirmRow}>
                 <ThemedText style={{ color: theme.textSecondary }}>Outsyde Service Fee</ThemedText>
-                <ThemedText>{formatPrice(hold.consumerServiceFeeCents)}</ThemedText>
+                <ThemedText>{formatAmount(hold.feeBreakdown.consumerServiceFeeAmount)}</ThemedText>
               </View>
             ) : null}
-            {hold?.taxAmountCents != null ? (
+            {hold?.feeBreakdown?.taxAmount != null ? (
               <View style={styles.confirmRow}>
                 <ThemedText style={{ color: theme.textSecondary }}>Sales Tax</ThemedText>
-                <ThemedText>{formatPrice(hold.taxAmountCents)}</ThemedText>
+                <ThemedText>{formatAmount(hold.feeBreakdown.taxAmount)}</ThemedText>
               </View>
             ) : null}
             <View style={[styles.confirmRow, styles.totalRow, { borderTopColor: theme.border }]}>
               <ThemedText type="body" style={{ fontWeight: "600" }}>Total</ThemedText>
               <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary, fontSize: 18 }}>
-                {formatPrice(hold?.totalAmountCents ?? hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
+                {hold?.feeBreakdown
+                  ? formatAmount(hold.feeBreakdown.grossChargeAmount)
+                  : formatPrice(hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
               </ThemedText>
             </View>
           </View>

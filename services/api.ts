@@ -648,6 +648,7 @@ export interface BookingDraft {
   status: "held" | "expired" | "confirmed";
   expiresAt: string;
   totalAmount: number;
+  feeBreakdown?: FeeBreakdown;
 }
 
 export interface PhotographerService {
@@ -3023,6 +3024,7 @@ class ApiService {
       platformFeeCents: number;
       vendorNetCents: number;
     };
+    feeBreakdown?: FeeBreakdown;
   }> {
     return this.request<{
       success: boolean;
@@ -3045,6 +3047,7 @@ class ApiService {
         platformFeeCents: number;
         vendorNetCents: number;
       };
+      feeBreakdown?: FeeBreakdown;
     }>("/api/bookings/photographer/draft", {
       method: "POST",
       body: JSON.stringify(data),
@@ -3324,6 +3327,17 @@ export interface BookingValidationResponse {
   endTime?: string;
 }
 
+export interface FeeBreakdown {
+  subtotalAmount: number;
+  consumerServiceFeeAmount: number;
+  bookingFeeAmount: number;
+  vendorNetAmount: number;
+  grossChargeAmount: number;
+  taxAmount: number;
+  outsydeGrossRevenueAmount: number;
+  feeModelVersion: string;
+}
+
 export interface BookingHoldResponse {
   success: boolean;
   holdId: string;
@@ -3339,14 +3353,7 @@ export interface BookingHoldResponse {
     startTime: string;
     endTime: string;
   };
-  // Customer-facing fee breakdown (backend-calculated; optional until backend exposes them)
-  subtotalCents?: number;
-  consumerServiceFeeCents?: number;
-  taxAmountCents?: number;
-  totalAmountCents?: number;
-  // Vendor-facing breakdown
-  bookingFeeCents?: number;
-  vendorNetCents?: number;
+  feeBreakdown?: FeeBreakdown;
 }
 
 export interface BookingConfirmResponse {
