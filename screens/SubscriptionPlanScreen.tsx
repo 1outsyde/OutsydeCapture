@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import api, { SubscriptionTier, VendorEligibility } from "@/services/api";
+import api, { CurrentSubscription, SubscriptionTier, VendorEligibility } from "@/services/api";
 
 const STRIPE_RETURN_URL = "outsyde://stripe-return";
 
@@ -85,7 +85,11 @@ export default function SubscriptionPlanScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
   const [tiersFetchError, setTiersFetchError] = useState<string | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
+  const [subscribeSuccess, setSubscribeSuccess] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const wasSubscribingRef = useRef(false);
+  const prevSubscriptionRef = useRef<CurrentSubscription | null>(null);
 
   const isMonetizationError = (err: any): boolean =>
     err?.body?.error === "Monetization not enabled" ||
@@ -106,10 +110,11 @@ export default function SubscriptionPlanScreen() {
       return;
     }
     try {
-      const [tiersRes, eligibilityRes, bizRes] = await Promise.allSettled([
+      const [tiersRes, eligibilityRes, bizRes, currentSubRes] = await Promise.allSettled([
         api.getSubscriptionTiers(token),
         api.getVendorEligibility(token),
         api.getVendorMyBusiness(token),
+        api.getCurrentSubscription(token),
       ]);
 
       if (tiersRes.status === "fulfilled") {
@@ -127,7 +132,6 @@ export default function SubscriptionPlanScreen() {
         const msg = err?.message ?? String(err);
         console.error(`[SubscriptionPlan] GET /api/subscription-tiers FAILED — status: ${status} — ${msg}`);
         setTiersFetchError(`${status}: ${msg}`);
-        // If 401/403, the endpoint may require valid session — fall back gracefully
         setTiers(FALLBACK_TIERS);
       }
 
@@ -139,6 +143,23 @@ export default function SubscriptionPlanScreen() {
         const biz = bizRes.value.business as any;
         setSubscriptionStatus(biz?.subscriptionStatus || null);
         setCurrentTierName(biz?.subscriptionTier || null);
+      }
+
+      // Subscription success detection: if we were in a subscribe flow and the
+      // subscription tier changed (or appeared for the first time), show success.
+      if (currentSubRes.status === "fulfilled") {
+        const newSub = currentSubRes.value.subscription;
+        const prev = prevSubscriptionRef.current;
+        if (wasSubscribingRef.current && newSub) {
+          if (!prev || prev.tierId !== newSub.tierId) {
+            setSubscribeSuccess(true);
+          }
+        }
+        prevSubscriptionRef.current = newSub;
+        setCurrentSubscription(newSub);
+        wasSubscribingRef.current = false;
+      } else {
+        console.warn("[SubscriptionPlan] GET /api/subscription/current failed:", currentSubRes.reason);
       }
     } catch (err) {
       console.error("[SubscriptionPlan] Unexpected error in fetchData:", err);
@@ -204,6 +225,7 @@ export default function SubscriptionPlanScreen() {
     if (!token) return;
     setSubscribeError(null);
     setActionLoading(true);
+    wasSubscribingRef.current = true;
     try {
       const response = await api.createTierSubscriptionCheckout(token, selectedTier.id, STRIPE_RETURN_URL);
       if (response.url) {
@@ -212,6 +234,7 @@ export default function SubscriptionPlanScreen() {
         setSubscribeError("Payment setup failed. Please try again.");
       }
     } catch (err: any) {
+      wasSubscribingRef.current = false;
       if (isMonetizationError(err)) {
         setSubscribeError("monetization");
       } else {
@@ -371,6 +394,7 @@ export default function SubscriptionPlanScreen() {
 
   const renderTierCard = (tier: SubscriptionTier) => {
     const isSelected = selectedTierId === tier.id;
+    const isCurrentPlan = currentSubscription?.tierId === tier.id;
     const isPopular = tier.badge === "Most Popular";
     const isBestValue = tier.badge === "Best Value";
     return (
@@ -378,18 +402,23 @@ export default function SubscriptionPlanScreen() {
         key={tier.id}
         style={[
           styles.tierCard,
-          { borderColor: isSelected ? theme.primary : theme.border, backgroundColor: theme.card },
-          isSelected && { backgroundColor: theme.primary + "10" },
+          { borderColor: isCurrentPlan ? "#22c55e" : (isSelected ? theme.primary : theme.border), backgroundColor: theme.card },
+          isSelected && !isCurrentPlan && { backgroundColor: theme.primary + "10" },
+          isCurrentPlan && { borderWidth: 2, borderColor: "#22c55e" },
         ]}
         onPress={() => {
-          if (!isActive) {
+          if (!isCurrentPlan) {
             setSelectedTierId(tier.id);
             setSubscribeError(null);
           }
         }}
-        disabled={isActive}
+        disabled={isCurrentPlan}
       >
-        {tier.badge ? (
+        {isCurrentPlan ? (
+          <View style={styles.currentPlanBadge}>
+            <Text style={styles.currentPlanBadgeText}>Current Plan</Text>
+          </View>
+        ) : tier.badge ? (
           <View style={[
             styles.tierBadge,
             { backgroundColor: isPopular ? theme.primary : (isBestValue ? "#7c3aed" : theme.primary) },
@@ -400,14 +429,12 @@ export default function SubscriptionPlanScreen() {
         <View style={styles.tierHeader}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.tierName, { color: theme.text }]}>{formatTierName(tier)}</Text>
-            <Text style={[styles.tierPrice, { color: theme.primary }]}>{formatTierPrice(tier)}</Text>
+            <Text style={[styles.tierPrice, { color: isCurrentPlan ? "#22c55e" : theme.primary }]}>{formatTierPrice(tier)}</Text>
           </View>
-          {isSelected ? (
+          {isCurrentPlan ? (
+            <Feather name="check-circle" size={22} color="#22c55e" />
+          ) : isSelected ? (
             <Feather name="check-circle" size={22} color={theme.primary} />
-          ) : isActive && currentTierName?.toLowerCase() === tier.name.toLowerCase() ? (
-            <View style={[styles.currentBadge, { backgroundColor: "#22c55e20" }]}>
-              <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "600" }}>Current</Text>
-            </View>
           ) : null}
         </View>
         {tier.description ? (
@@ -422,6 +449,33 @@ export default function SubscriptionPlanScreen() {
       </Pressable>
     );
   };
+
+  if (subscribeSuccess && currentSubscription) {
+    const displayName = currentSubscription.tierDisplayName || currentSubscription.tierName;
+    return (
+      <View style={[styles.container, styles.successContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <View style={[styles.successCard, { backgroundColor: theme.card, borderColor: "#22c55e40" }]}>
+          <Feather name="check-circle" size={72} color="#22c55e" />
+          <Text style={[styles.successTitle, { color: theme.text }]}>You're All Set!</Text>
+          <Text style={[styles.successSubtitle, { color: theme.primary }]}>
+            {displayName} subscription is now active.
+          </Text>
+          <Text style={[styles.successDescription, { color: theme.textSecondary }]}>
+            You can now publish products and services on Outsyde.
+          </Text>
+          <Pressable
+            style={[styles.successBtn, { backgroundColor: theme.primary }]}
+            onPress={() => {
+              setSubscribeSuccess(false);
+              navigation.goBack();
+            }}
+          >
+            <Text style={styles.successBtnText}>Go to Dashboard</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -457,27 +511,42 @@ export default function SubscriptionPlanScreen() {
 
         {renderSubscribeError()}
 
-        {!isActive && !tiersLoading ? (
-          <Pressable
-            style={[
-              styles.subscribeBtn,
-              { backgroundColor: selectedTierId ? theme.primary : theme.border },
-            ]}
-            onPress={handleSubscribe}
-            disabled={!selectedTierId || actionLoading}
-          >
-            {actionLoading ? (
-              <ActivityIndicator color="#000" />
-            ) : (
-              <>
-                <Feather name="zap" size={18} color={selectedTierId ? "#000" : theme.textSecondary} />
-                <Text style={[styles.subscribeBtnText, { color: selectedTierId ? "#000" : theme.textSecondary }]}>
-                  {selectedTierId ? "Subscribe Now" : "Select a Plan"}
+        {!tiersLoading ? (() => {
+          const isSwitching = !!currentSubscription && !!selectedTierId && currentSubscription.tierId !== selectedTierId;
+          const isCurrentSelected = !!currentSubscription && currentSubscription.tierId === selectedTierId;
+          const canSubmit = !!selectedTierId && !isCurrentSelected;
+          const btnLabel = isSwitching
+            ? "Switch Plan"
+            : selectedTierId ? "Subscribe Now" : "Select a Plan";
+          return (
+            <View>
+              {isSwitching ? (
+                <Text style={[styles.switchWarning, { color: "#f59e0b" }]}>
+                  This will cancel your current {currentSubscription!.tierDisplayName || currentSubscription!.tierName} plan
                 </Text>
-              </>
-            )}
-          </Pressable>
-        ) : null}
+              ) : null}
+              <Pressable
+                style={[
+                  styles.subscribeBtn,
+                  { backgroundColor: canSubmit ? theme.primary : theme.border },
+                ]}
+                onPress={handleSubscribe}
+                disabled={!canSubmit || actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <>
+                    <Feather name="zap" size={18} color={canSubmit ? "#000" : theme.textSecondary} />
+                    <Text style={[styles.subscribeBtnText, { color: canSubmit ? "#000" : theme.textSecondary }]}>
+                      {btnLabel}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          );
+        })() : null}
 
         {isActive ? (
           <View style={styles.manageSection}>
@@ -642,11 +711,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 2,
   },
-  currentBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
   tierDesc: {
     fontSize: 13,
     lineHeight: 18,
@@ -709,5 +773,67 @@ const styles = StyleSheet.create({
   },
   refreshText: {
     fontSize: 13,
+  },
+  currentPlanBadge: {
+    position: "absolute",
+    top: -12,
+    right: 16,
+    backgroundColor: "#22c55e",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  currentPlanBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  switchWarning: {
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 8,
+    fontWeight: "500",
+  },
+  successContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  successCard: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: 32,
+    alignItems: "center",
+  },
+  successTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    marginTop: 20,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  successSubtitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  successDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginBottom: 28,
+  },
+  successBtn: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+  },
+  successBtnText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#000",
   },
 });

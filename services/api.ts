@@ -3262,6 +3262,16 @@ class ApiService {
     }
   }
 
+  async getCurrentSubscription(authToken: string): Promise<{
+    hasSubscription: boolean;
+    subscription: CurrentSubscription | null;
+  }> {
+    return this.request<{ hasSubscription: boolean; subscription: CurrentSubscription | null }>(
+      "/api/subscription/current",
+      { headers: { Authorization: `Bearer ${authToken}` } }
+    );
+  }
+
   async createBillingPortalSession(
     authToken: string,
     returnUrl: string
@@ -3488,6 +3498,15 @@ export interface SubscriptionTier {
   interval?: string;
   badge?: string;
   stripePriceId?: string | null;
+}
+
+export interface CurrentSubscription {
+  id: string;
+  tierId: string;
+  tierName: string;
+  tierDisplayName: string;
+  priceInCents: number;
+  status: string;
 }
 
 export function canChangeUsername(user: { username_updated_at?: string | null }): boolean {

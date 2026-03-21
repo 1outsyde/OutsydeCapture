@@ -1,0 +1,215 @@
+Frontend — Detect subscription success after web redirect + show current plan
+Since we're using web redirect for Stripe checkout, we need to detect success when the user returns to the app.
+Task 1: Add API call for current subscription
+In services/api.ts, add:
+typescriptexport async function getCurrentSubscription(): Promise<{
+  hasSubscription: boolean;
+  subscription: {
+    id: string;
+    tierId: string;
+    tierName: string;
+    tierDisplayName: string;
+    priceInCents: number;
+    status: string;
+  } | null;
+}> {
+  const response = await request('/api/subscription/current', { method: 'GET' });
+  return response;
+}
+Task 2: Update SubscriptionPlanScreen with success detection
+tsximport { useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
+import { getCurrentSubscription } from '../services/api';
+
+// Add state
+const [currentSubscription, setCurrentSubscription] = useState<any>(null);
+const [subscribeSuccess, setSubscribeSuccess] = useState(false);
+const [checkingSubscription, setCheckingSubscription] = useState(true);
+const wasSubscribing = useRef(false);
+
+// Fetch subscription on mount and when app returns to foreground
+useEffect(() => {
+  const fetchSubscription = async () => {
+    try {
+      const response = await getCurrentSubscription();
+      const newSubscription = response.subscription;
+      
+      // Detect if user just subscribed (had no subscription before, has one now)
+      // OR switched plans (different tier than before)
+      if (wasSubscribing.current && newSubscription) {
+        if (!currentSubscription || currentSubscription.tierId !== newSubscription.tierId) {
+          setSubscribeSuccess(true);
+        }
+      }
+      
+      setCurrentSubscription(newSubscription);
+      wasSubscribing.current = false;
+    } catch (err) {
+      console.error('Failed to fetch subscription:', err);
+    } finally {
+      setCheckingSubscription(false);
+    }
+  };
+
+  fetchSubscription();
+
+  // Listen for app coming back to foreground (after Stripe redirect)
+  const handleAppStateChange = (nextAppState: AppStateStatus) => {
+    if (nextAppState === 'active') {
+      fetchSubscription();
+    }
+  };
+
+  const subscription = AppState.addEventListener('change', handleAppStateChange);
+  return () => subscription.remove();
+}, []);
+
+// Track when user taps subscribe
+const handleSubscribe = async () => {
+  if (!selectedTier) return;
+  
+  setSubscribing(true);
+  setSubscribeError(null);
+  wasSubscribing.current = true; // Mark that we're in subscribe flow
+  
+  try {
+    const response = await createTierSubscriptionCheckout(selectedTier.id);
+    if (response.url) {
+      await Linking.openURL(response.url);
+    }
+  } catch (err) {
+    setSubscribeError(toErrorString(err));
+    wasSubscribing.current = false;
+  } finally {
+    setSubscribing(false);
+  }
+};
+Task 3: Add success screen UI
+tsx// Render success screen when subscribeSuccess is true
+if (subscribeSuccess && currentSubscription) {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.successContainer}>
+        <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+        <Text style={styles.successTitle}>You're All Set!</Text>
+        <Text style={styles.successSubtitle}>
+          Your {currentSubscription.tierDisplayName || currentSubscription.tierName} subscription is now active.
+        </Text>
+        <Text style={styles.successDescription}>
+          You can now publish products and services on Outsyde.
+        </Text>
+        <TouchableOpacity 
+          style={styles.successButton}
+          onPress={() => {
+            setSubscribeSuccess(false);
+            navigation.goBack();
+          }}
+        >
+          <Text style={styles.successButtonText}>Go to Dashboard</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+Task 4: Highlight current plan in tier cards
+tsxconst renderTierCard = (tier: SubscriptionTier) => {
+  const isCurrentPlan = currentSubscription?.tierId === tier.id;
+  
+  return (
+    <TouchableOpacity
+      key={tier.id}
+      style={[
+        styles.tierCard,
+        selectedTier?.id === tier.id && styles.selectedTierCard,
+        isCurrentPlan && styles.currentPlanCard
+      ]}
+      onPress={() => !isCurrentPlan && setSelectedTier(tier)}
+      disabled={isCurrentPlan}
+    >
+      {isCurrentPlan && (
+        <View style={styles.currentPlanBadge}>
+          <Text style={styles.currentPlanBadgeText}>Current Plan</Text>
+        </View>
+      )}
+      
+      {/* ... rest of tier card content ... */}
+      
+    </TouchableOpacity>
+  );
+};
+
+// Update subscribe button text
+<Text style={styles.subscribeButtonText}>
+  {currentSubscription && selectedTier && currentSubscription.tierId !== selectedTier.id 
+    ? 'Switch Plan' 
+    : 'Subscribe Now'}
+</Text>
+
+// Show warning when switching plans
+{currentSubscription && selectedTier && currentSubscription.tierId !== selectedTier.id && (
+  <Text style={styles.switchWarning}>
+    This will cancel your current {currentSubscription.tierDisplayName} plan
+  </Text>
+)}
+Task 5: Add styles
+typescriptsuccessContainer: {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: 24,
+},
+successTitle: {
+  fontSize: 28,
+  fontWeight: 'bold',
+  color: '#fff',
+  marginTop: 24,
+  marginBottom: 12,
+},
+successSubtitle: {
+  fontSize: 18,
+  color: '#D4AF37',
+  marginBottom: 16,
+  textAlign: 'center',
+},
+successDescription: {
+  fontSize: 16,
+  color: '#aaa',
+  textAlign: 'center',
+  marginBottom: 32,
+},
+successButton: {
+  backgroundColor: '#D4AF37',
+  paddingVertical: 16,
+  paddingHorizontal: 48,
+  borderRadius: 12,
+},
+successButtonText: {
+  color: '#1a1a1a',
+  fontSize: 18,
+  fontWeight: '600',
+},
+currentPlanCard: {
+  borderColor: '#4CAF50',
+  borderWidth: 2,
+},
+currentPlanBadge: {
+  position: 'absolute',
+  top: -12,
+  right: 16,
+  backgroundColor: '#4CAF50',
+  paddingHorizontal: 12,
+  paddingVertical: 4,
+  borderRadius: 12,
+  zIndex: 1,
+},
+currentPlanBadgeText: {
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: '600',
+},
+switchWarning: {
+  color: '#f59e0b',
+  fontSize: 12,
+  textAlign: 'center',
+  marginTop: 8,
+},
