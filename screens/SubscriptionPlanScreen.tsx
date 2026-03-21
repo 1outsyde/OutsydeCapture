@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { useStripe } from "@stripe/stripe-react-native";
 import api, { SubscriptionTier, VendorEligibility } from "@/services/api";
 
 const STRIPE_RETURN_URL = "outsyde://stripe-return";
@@ -74,7 +73,6 @@ export default function SubscriptionPlanScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { getToken } = useAuth();
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [tiersLoading, setTiersLoading] = useState(true);
@@ -87,7 +85,6 @@ export default function SubscriptionPlanScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
   const [tiersFetchError, setTiersFetchError] = useState<string | null>(null);
-  const [subscribeSuccess, setSubscribeSuccess] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const isMonetizationError = (err: any): boolean =>
@@ -209,35 +206,7 @@ export default function SubscriptionPlanScreen() {
     setActionLoading(true);
     try {
       const response = await api.createTierSubscriptionCheckout(token, selectedTier.id, STRIPE_RETURN_URL);
-
-      if (response.clientSecret) {
-        // Native Payment Sheet flow
-        const { error: initError } = await initPaymentSheet({
-          merchantDisplayName: "Outsyde",
-          paymentIntentClientSecret: response.clientSecret,
-          ...(response.customerId ? { customerId: response.customerId } : {}),
-          ...(response.ephemeralKey ? { customerEphemeralKeySecret: response.ephemeralKey } : {}),
-          returnURL: STRIPE_RETURN_URL,
-          allowsDelayedPaymentMethods: false,
-        });
-
-        if (initError) {
-          setSubscribeError(initError.message || "Could not initialize payment. Please try again.");
-          return;
-        }
-
-        const { error: presentError } = await presentPaymentSheet();
-
-        if (!presentError) {
-          // Payment succeeded
-          setSubscribeSuccess(true);
-          handleRefresh();
-        } else if (presentError.code !== "Canceled") {
-          // Canceled means the user dismissed — don't show an error
-          setSubscribeError(presentError.message || "Payment failed. Please try again.");
-        }
-      } else if (response.url) {
-        // Fallback: backend returned a Stripe Checkout URL instead of a clientSecret
+      if (response.url) {
         await Linking.openURL(response.url);
       } else {
         setSubscribeError("Payment setup failed. Please try again.");
@@ -453,28 +422,6 @@ export default function SubscriptionPlanScreen() {
       </Pressable>
     );
   };
-
-  if (subscribeSuccess) {
-    return (
-      <View style={[styles.container, styles.successContainer, { backgroundColor: theme.backgroundRoot }]}>
-        <View style={[styles.successCard, { backgroundColor: theme.card, borderColor: "#22c55e40" }]}>
-          <View style={styles.successIconRing}>
-            <Feather name="check-circle" size={52} color="#22c55e" />
-          </View>
-          <Text style={[styles.successTitle, { color: theme.text }]}>Subscription Activated</Text>
-          <Text style={[styles.successBody, { color: theme.textSecondary }]}>
-            Your plan is now active. You can publish products and services on Outsyde.
-          </Text>
-          <Pressable
-            style={[styles.successBtn, { backgroundColor: theme.primary }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.successBtnText}>Done</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -762,42 +709,5 @@ const styles = StyleSheet.create({
   },
   refreshText: {
     fontSize: 13,
-  },
-  successContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  successCard: {
-    width: "100%",
-    borderRadius: 20,
-    borderWidth: 1.5,
-    padding: 32,
-    alignItems: "center",
-  },
-  successIconRing: {
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    textAlign: "center",
-    marginBottom: 12,
-  },
-  successBody: {
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: "center",
-    marginBottom: 28,
-  },
-  successBtn: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-  },
-  successBtnText: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#000",
   },
 });
