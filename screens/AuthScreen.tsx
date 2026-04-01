@@ -244,7 +244,12 @@ export default function AuthScreen() {
             <ThemedText style={styles.wordmark}>Outsyde</ThemedText>
           </View>
 
-          <ThemedText style={styles.headline}>
+          <ThemedText
+            style={[
+              styles.headline,
+              mode === "signup" ? { fontSize: 28, lineHeight: 34 } : {},
+            ]}
+          >
             {mode === "login" ? "Welcome back" : "Join Outsyde"}
           </ThemedText>
           <ThemedText style={styles.subheadline}>
@@ -448,7 +453,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    marginBottom: 8,
   },
   wordmark: {
     marginLeft: 10,
@@ -457,7 +462,8 @@ const styles = StyleSheet.create({
     color: "#F0EAD6",
   },
   headline: {
-    fontSize: 36,
+    fontSize: 32,
+    lineHeight: 38,
     fontWeight: "700",
     color: "#F0EAD6",
     textAlign: "center",

@@ -1,0 +1,43 @@
+FRONTEND | Fix header clipping on Sign In and Join Outsyde screens — typography and spacing only
+
+READ FIRST:
+Read AuthScreen.tsx — find the header section of both screen modes (Sign In and Join Outsyde) and their stylesheet values for fontSize, paddingTop, marginTop, and container spacing.
+
+THE PROBLEM:
+Both screens have their headline text clipped at the top — "Welcome back" and "Join Outsyde" are partially hidden under the navigation bar. This is a font size and top spacing issue only. Do not touch any logic, buttons, or layout structure.
+
+TWO FIXES ONLY:
+Fix 1 — Reduce headline font sizes
+Both headlines are too large for the available space on a modal screen that has a navigation bar at the top.
+javascript// Sign In screen — "Welcome back"
+// Change from whatever it currently is to:
+fontSize: 32  // was likely 42-48, reduce to 32
+lineHeight: 38
+
+// Join Outsyde screen — "Join Outsyde"  
+// Change from whatever it currently is to:
+fontSize: 28  // reduce to 28
+lineHeight: 34
+Fix 2 — Add sufficient top padding to the scroll content
+The content starts too close to the navigation bar. Add top padding to the scroll container so the icon + wordmark + headline all appear fully below the nav bar:
+javascript// ScrollView or content container — both screens
+paddingTop: 24  // add or increase to at least 24px
+Also reduce the bottom margin on the camera icon + wordmark row so it doesn't push the headline too far down:
+javascript// Icon + wordmark row margin bottom
+marginBottom: 8  // reduce if currently larger than 8
+
+Constraints:
+
+Typography and spacing changes ONLY
+Do not touch any buttons, inputs, logic, navigation, or auth flows
+Do not change font family — keep Syne for headlines
+Do not change colors
+Both screens must show their full headline without any clipping on iPhone 14/15 size
+
+Test checklist:
+
+ "Welcome back" fully visible below nav bar — not clipped
+ "Join Outsyde" fully visible below nav bar — not clipped
+ Icon + wordmark row fully visible on both screens
+ No content cut off at top or bottom
+ npx tsc --noEmit 0 errors
