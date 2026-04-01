@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -107,24 +108,37 @@ export default function OnboardingScreen({ navigation, route }: Props) {
     route.params?.googleProfile ?? null
   );
 
+  // Role picker modal state — shown when a new social user has no pre-selected role
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [pendingSocialProfile, setPendingSocialProfile] = useState<{
+    prefillName: string;
+    prefillEmail: string;
+    socialProvider: "google" | "apple";
+    googleProfile?: GoogleProfile | null;
+  } | null>(null);
+
   const { signIn: handleGoogleSignIn, isLoading: googleHookLoading } = useGoogleSignIn(
     (gProfile) => {
-      setGoogleProfileForSignup(gProfile);
-      flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
-      setCurrentIndex(3);
+      // New Google user: show role picker modal instead of silently scrolling to Slide 4
+      setPendingSocialProfile({
+        prefillName: gProfile.name ?? "",
+        prefillEmail: gProfile.email ?? "",
+        socialProvider: "google",
+        googleProfile: gProfile,
+      });
+      setShowRoleModal(true);
     }
   );
 
   const { signIn: handleAppleSignIn, isLoading: isAppleLoading } = useAppleSignIn(
     async ({ prefillName, prefillEmail }) => {
-      await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
-      navigation.reset({
-        index: 1,
-        routes: [
-          { name: "Main" },
-          { name: "ConsumerSignup", params: { prefillName, prefillEmail, socialProvider: "apple" } },
-        ],
+      // New Apple user: show role picker modal instead of defaulting to ConsumerSignup
+      setPendingSocialProfile({
+        prefillName: prefillName ?? "",
+        prefillEmail,
+        socialProvider: "apple",
       });
+      setShowRoleModal(true);
     }
   );
 
@@ -332,6 +346,38 @@ export default function OnboardingScreen({ navigation, route }: Props) {
 
   const handleRoleSelect = async (role: UserRole) => {
     await completeOnboarding(role);
+  };
+
+  const handleModalRoleSelect = async (role: UserRole) => {
+    setShowRoleModal(false);
+    if (!pendingSocialProfile) return;
+
+    await AsyncStorage.multiSet([
+      [ONBOARDING_COMPLETE_KEY, "true"],
+      [ONBOARDING_USER_TYPE_KEY, role],
+    ]);
+
+    const { prefillName, prefillEmail, socialProvider, googleProfile } = pendingSocialProfile;
+
+    const params =
+      socialProvider === "google"
+        ? {
+            prefillName,
+            prefillEmail,
+            isGoogleSignup: true as const,
+            googleProfile: googleProfile ?? undefined,
+          }
+        : { prefillName, prefillEmail, socialProvider: "apple" as const };
+
+    setPendingSocialProfile(null);
+
+    if (role === "business") {
+      navigation.reset({ index: 1, routes: [{ name: "Main" }, { name: "BusinessSignup", params }] });
+    } else if (role === "photographer") {
+      navigation.reset({ index: 1, routes: [{ name: "Main" }, { name: "PhotographerSignup", params }] });
+    } else {
+      navigation.reset({ index: 1, routes: [{ name: "Main" }, { name: "ConsumerSignup", params }] });
+    }
   };
 
   // ─── Slide Renders ──────────────────────────────────────────────────────────
@@ -767,6 +813,44 @@ export default function OnboardingScreen({ navigation, route }: Props) {
           </Pressable>
         ) : null}
       </View>
+
+      {/* Role Picker Modal — slides up after Google/Apple auth for new users */}
+      <Modal
+        visible={showRoleModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRoleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
+            <Text style={styles.modalTitle}>One more step</Text>
+            <Text style={styles.modalSubtext}>Choose how you'll use Outsyde</Text>
+
+            <View style={{ gap: 12 }}>
+              {ROLE_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.role}
+                  onPress={() => handleModalRoleSelect(opt.role)}
+                  style={({ pressed }) => [
+                    styles.roleCard,
+                    pressed && { borderColor: opt.accent + "80", backgroundColor: opt.accent + "12" },
+                    { opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <View style={[styles.roleIconWrap, { backgroundColor: opt.accent + "20" }]}>
+                    <Feather name={opt.icon} size={22} color={opt.accent} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 14 }}>
+                    <Text style={[styles.roleLabel, { color: OB.cream }]}>{opt.label}</Text>
+                    <Text style={[styles.roleDesc, { color: OB.creamDim }]}>{opt.description}</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={OB.greenMid} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1114,5 +1198,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     marginLeft: 10,
+  },
+
+  // ── Role Picker Modal ─────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#0D2B0D",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 28,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(201,147,58,0.3)",
+  },
+  modalTitle: {
+    fontWeight: "700",
+    fontSize: 24,
+    color: "#F0EAD6",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  modalSubtext: {
+    fontSize: 14,
+    color: "rgba(200,191,168,0.6)",
+    textAlign: "center",
+    marginBottom: 24,
   },
 });

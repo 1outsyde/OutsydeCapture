@@ -315,11 +315,6 @@ export default function PhotographerSignupScreen() {
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Phone *</ThemedText>
-              {(isGoogleSignup || isAppleSignup) ? (
-                <ThemedText style={{ fontSize: 11, color: "rgba(200,191,168,0.5)", marginBottom: 4 }}>
-                  Google and Apple don't share phone numbers — fill this in manually
-                </ThemedText>
-              ) : null}
               <TextInput
                 style={inputStyle}
                 value={phone}

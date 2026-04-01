@@ -1,0 +1,125 @@
+FRONTEND | Two targeted fixes — role modal for Google/Apple new users + remove phone helper text
+
+READ FIRST:
+
+OnboardingScreen.tsx — Slide 4 and the Google/Apple button handlers
+hooks/useOAuthSignIn.ts — the onNewUser callback
+All 3 signup screens — find the phone helper text added in the last session
+
+
+FIX 1 — Show a role selection modal after Google/Apple auth for new users
+The problem: When a new user taps "Continue with Google" on Slide 4 before tapping a role card, Google auth completes but nothing happens — they're stuck on Slide 4 with no feedback.
+The fix: After Google or Apple auth succeeds and isNewUser: true is detected, if no role has been selected yet, show a bottom sheet modal asking them to pick a role. Once they pick, navigate to the correct signup screen with the Google/Apple profile pre-filled.
+Create a RolePickerModal component inline in OnboardingScreen.tsx:
+javascript// Modal appears after successful Google/Apple auth for new users
+// Only shows when no role was pre-selected (i.e. user tapped Google 
+// before tapping a role card)
+
+<Modal
+  visible={showRoleModal}
+  transparent
+  animationType="slide"
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalSheet}>
+      
+      <Text style={styles.modalTitle}>One more step</Text>
+      <Text style={styles.modalSubtext}>
+        Choose how you'll use Outsyde
+      </Text>
+
+      {/* Same 3 role cards as Slide 4 */}
+      <TouchableOpacity onPress={() => handleModalRoleSelect('consumer')}>
+        {/* Consumer card */}
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => handleModalRoleSelect('business')}>
+        {/* Business card */}
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => handleModalRoleSelect('photographer')}>
+        {/* Photographer card */}
+      </TouchableOpacity>
+
+    </View>
+  </View>
+</Modal>
+Modal styles:
+javascriptmodalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.7)',
+  justifyContent: 'flex-end'
+},
+modalSheet: {
+  backgroundColor: '#0D2B0D',
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 28,
+  padding: 28,
+  paddingBottom: 48,
+  borderTopWidth: 1,
+  borderTopColor: 'rgba(201,147,58,0.3)'
+},
+modalTitle: {
+  fontFamily: 'Syne_700Bold',
+  fontSize: 24,
+  color: '#F0EAD6',
+  textAlign: 'center',
+  marginBottom: 6
+},
+modalSubtext: {
+  fontSize: 14,
+  color: 'rgba(200,191,168,0.6)',
+  textAlign: 'center',
+  marginBottom: 24
+}
+State and logic:
+javascriptconst [showRoleModal, setShowRoleModal] = useState(false);
+const [pendingGoogleProfile, setPendingGoogleProfile] = useState(null);
+
+// In onNewUser callback from useGoogleSignIn / useAppleSignIn:
+const handleNewSocialUser = (googleProfile) => {
+  setPendingGoogleProfile(googleProfile);
+  setShowRoleModal(true); // show modal instead of navigating
+};
+
+// When user picks role in modal:
+const handleModalRoleSelect = (role) => {
+  setShowRoleModal(false);
+  const params = {
+    prefillName: pendingGoogleProfile?.name ?? '',
+    prefillEmail: pendingGoogleProfile?.email ?? '',
+    prefillAvatar: pendingGoogleProfile?.profileImageUrl ?? '',
+    isGoogleSignup: true,
+    googleProfile: pendingGoogleProfile
+  };
+  if (role === 'consumer') navigation.navigate('ConsumerSignup', params);
+  if (role === 'business') navigation.navigate('BusinessSignup', params);
+  if (role === 'photographer') navigation.navigate('PhotographerSignup', params);
+  setPendingGoogleProfile(null);
+};
+When the modal does NOT show:
+
+If user already tapped a role card THEN tapped Google — role is already known, navigate directly without showing modal. This is the existing flow and must remain unchanged.
+
+
+FIX 2 — Remove phone helper text from all 3 signup screens
+In the last session a helper text was added below the Phone field for Google and Apple signups:
+
+"Google and Apple don't share phone numbers — fill this in manually"
+
+Remove this text entirely from ConsumerSignupScreen, BusinessSignupScreen, and PhotographerSignupScreen. Just show the plain Phone field with its placeholder — no helper text, no explanation needed.
+
+Constraints:
+
+Do not change any other part of the signup form
+Do not change the role cards on Slide 4
+Do not change the returning user flow
+The modal only appears when Google/Apple auth completes for a new user who hasn't selected a role yet
+
+Test checklist:
+
+ Tap Google on Slide 4 WITHOUT selecting a role first → Google auth completes → role picker modal slides up
+ Tap Consumer in modal → ConsumerSignup opens with name and email pre-filled
+ Tap Business in modal → BusinessSignup opens with name and email pre-filled
+ Tap Photographer in modal → PhotographerSignup opens with name and email pre-filled
+ Tap a role card first THEN tap Google → modal does NOT appear, goes straight to signup screen
+ Phone field shows no helper text on any signup screen
+ npx tsc --noEmit 0 errors
