@@ -1,0 +1,180 @@
+FRONTEND | Redesign Sign In screen and Join Outsyde screen — match Outsyde brand, fix all layout issues
+
+READ FIRST before touching anything:
+
+The Sign In / "Welcome back" screen file — read the full component and stylesheet
+The "Join Outsyde" screen — read the full component and stylesheet
+The existing design tokens already used throughout the app — confirm the color variables in use
+
+
+DESIGN SYSTEM — apply to both screens
+Colors:
+  Background:     #080C08
+  Card/panel:     rgba(255,255,255,0.04)
+  Card border:    rgba(255,255,255,0.08)
+  Green bright:   #2D7A2D
+  Green accent:   #3A9E3A
+  Gold:           #C9933A
+  Gold light:     #E8B86D
+  Cream:          #F0EAD6
+  Cream dim:      rgba(200,191,168,0.6)
+
+Typography:
+  Headlines:      Syne_700Bold or Syne_800ExtraBold
+  Body/labels:    DM Sans or existing body font in the app
+
+Buttons:
+  Primary action:    green gradient (#2D7A2D → #3A9E3A), cream text, 60px height, 18px border radius
+  Gold action:       #C9933A background, dark text, same dimensions
+  Social buttons:    60px height, 18px border radius, full width
+  Google button:     background #1A4A1A, border 1px rgba(45,122,45,0.4), cream text
+  Apple button:      background #000000, border 1px rgba(255,255,255,0.15), white text
+
+Input fields:
+  Height:         56px
+  Border radius:  14px
+  Background:     rgba(255,255,255,0.05)
+  Border:         rgba(255,255,255,0.08)
+  Focused border: #C9933A
+  Text:           #F0EAD6
+  Placeholder:    rgba(200,191,168,0.4)
+
+SCREEN 1 — Redesign the "Welcome back" Sign In screen
+Layout top to bottom:
+[Outsyde camera icon — gold, 36px]
+[Outsyde wordmark — Syne Bold, 28px, cream]
+
+"Welcome back"          ← Syne Bold, 36px, cream
+"Sign in to continue"   ← DM Sans, 15px, cream-dim
+
+──────────────────────────────
+Email or Username *
+[your@email.com or @username]    ← input field
+
+Password *
+[Enter password          👁]     ← input field
+
+[        Sign In         ]       ← green gradient button
+
+Don't have an account?  Sign up  ← 14px, "Sign up" in gold
+──────────────────────────────
+              or
+──────────────────────────────
+
+[✉  Continue with Google ]       ← dark green button
+[🍎  Continue with Apple  ]       ← black button
+
+──────────────────────────────
+              or
+──────────────────────────────
+
+[👤  Continue as Guest    ]       ← muted dark button
+Specific fixes:
+
+Remove the floating X button inside content — keep only the navigation header X
+Ensure the full screen is scrollable so Google, Apple, and Guest buttons are never cut off
+Wrap in KeyboardAvoidingView so the keyboard doesn't hide the Sign In button
+Icon above "Outsyde" wordmark: use the existing camera icon already in the app, gold color
+All buttons full width with consistent height and border radius
+"Sign up" text in gold #C9933A — not default link blue
+
+
+SCREEN 2 — Redesign the "Join Outsyde" role picker screen
+The critical bug: Role card text is wrapping mid-word ("Consum er") because the cards are too narrow with flex: 1 in a row layout. Fix this completely.
+New layout — vertical stack, not horizontal row:
+Replace the 3 horizontal cards with 3 full-width vertical cards stacked on top of each other. This is the same layout as the onboarding Slide 4 role picker and eliminates all text wrapping issues.
+[Outsyde camera icon — gold, 36px]
+[Outsyde wordmark — Syne Bold, 28px, cream]
+
+"Join Outsyde"                   ← Syne Bold, 32px, cream
+"Choose your path to get started" ← DM Sans, 15px, cream-dim
+
+[🛍  Consumer                  →]   ← full-width card
+    Browse, book sessions & shop
+
+[💼  Business                  →]   ← full-width card
+    Sell products & services
+
+[📷  Photographer               →]   ← full-width card
+    Offer photography & creative services
+
+[        Continue               ]    ← green button, disabled until role selected
+                                        OR remove Continue button — tapping card navigates directly
+
+Already have an account?  Sign in    ← "Sign in" in gold
+──── or ────
+[👤  Continue as Guest           ]   ← muted button
+Card styles:
+javascriptroleCard: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 16,
+  padding: 18,
+  backgroundColor: 'rgba(255,255,255,0.03)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.07)',
+  borderRadius: 20,
+  marginBottom: 10,
+  width: '100%'
+}
+
+// Selected state:
+roleCardSelected: {
+  backgroundColor: 'rgba(45,122,45,0.12)',
+  borderColor: 'rgba(45,122,45,0.4)'
+}
+
+roleIconWrap: {
+  width: 48,
+  height: 48,
+  borderRadius: 14,
+  backgroundColor: 'rgba(45,122,45,0.25)',
+  alignItems: 'center',
+  justifyContent: 'center'
+}
+
+roleTitle: {
+  fontFamily: 'Syne_700Bold',
+  fontSize: 16,
+  color: '#F0EAD6'
+}
+
+roleDesc: {
+  fontSize: 12,
+  color: 'rgba(200,191,168,0.6)',
+  marginTop: 2
+}
+Icons per role:
+
+Consumer: Ionicons "bag-outline" or "storefront-outline"
+Business: Ionicons "briefcase-outline"
+Photographer: Ionicons "camera-outline"
+
+Remove the Continue button — tapping a card should navigate directly, same as Slide 4 behavior. This is cleaner and avoids the two-tap flow.
+"Sign in" text: gold #C9933A
+
+CONSTRAINTS:
+
+Do not touch OnboardingScreen Slides 1–4
+Do not touch any signup screens (Consumer, Business, Photographer)
+Do not change sign-in logic or auth flows — visual redesign only
+Both screens must be fully visible without scrolling on iPhone 14/15 size
+Use SafeAreaView as the outer wrapper on both screens
+KeyboardAvoidingView on the Sign In screen
+All text must fit within its container — no word-break mid-word anywhere
+
+Test checklist:
+
+ Sign In screen: all buttons visible without scrolling
+ Sign In screen: keyboard doesn't cover Sign In button
+ Sign In screen: only one X button (nav header only)
+ Sign In screen: Google and Apple buttons styled correctly
+ Sign In screen: "Sign up" text is gold
+ Sign In screen: colors match design system above
+ Join Outsyde screen: role cards are full-width vertical stack
+ Join Outsyde screen: zero text wrapping mid-word on any card
+ Join Outsyde screen: tapping a card navigates directly — no separate Continue button
+ Join Outsyde screen: "Sign in" text is gold
+ Join Outsyde screen: colors match design system above
+ Both screens use Syne for headlines and DM Sans for body
+ npx tsc --noEmit 0 errors

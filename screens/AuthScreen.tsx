@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,29 +18,67 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Button } from "@/components/Button";
-import { useTheme } from "@/hooks/useTheme";
 import { useAuth, UserRole, GoogleProfile } from "@/context/AuthContext";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useGoogleSignIn, useAppleSignIn } from "@/hooks/useOAuthSignIn";
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const DS = {
+  bg:          "#080C08",
+  card:        "rgba(255,255,255,0.04)",
+  cardBorder:  "rgba(255,255,255,0.08)",
+  greenDeep:   "#1A4A1A",
+  greenBright: "#2D7A2D",
+  greenAccent: "#3A9E3A",
+  gold:        "#C9933A",
+  cream:       "#F0EAD6",
+  creamDim:    "rgba(200,191,168,0.6)",
+};
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type AuthMode = "login" | "signup";
 
+const ROLE_OPTIONS: {
+  role: UserRole;
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  description: string;
+  accent: string;
+}[] = [
+  {
+    role: "consumer",
+    icon: "shopping-bag",
+    label: "Consumer",
+    description: "Browse, book sessions & shop local talent",
+    accent: DS.greenAccent,
+  },
+  {
+    role: "business",
+    icon: "briefcase",
+    label: "Business",
+    description: "Sell products & services to your community",
+    accent: DS.gold,
+  },
+  {
+    role: "photographer",
+    icon: "camera",
+    label: "Photographer",
+    description: "Offer photography & creative services",
+    accent: "#C8BFA8",
+  },
+];
+
 export default function AuthScreen() {
-  const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { login, loginAsGuest, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState<AuthMode>("login");
-  const [role, setRole] = useState<UserRole>("consumer");
-
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   const [pendingGoogleProfile, setPendingGoogleProfile] = useState<GoogleProfile | null>(null);
 
@@ -77,11 +116,9 @@ export default function AuthScreen() {
 
   const handleLogin = async () => {
     if (!validateForm()) return;
-
     const raw = identifier.trim();
     const isEmail = raw.includes("@") && raw.includes(".");
     const loginIdentifier = isEmail ? raw.toLowerCase() : raw.replace(/^@/, "").toLowerCase();
-
     const result = await login(loginIdentifier, password, isEmail ? "email" : "username");
     if (result.success) {
       if (result.isPending && result.user) {
@@ -104,21 +141,13 @@ export default function AuthScreen() {
     }
   };
 
-  const handleSignupNavigation = () => {
+  const navigateToSignup = (role: UserRole) => {
     const googleParams = pendingGoogleProfile
-      ? { googleProfile: pendingGoogleProfile, isGoogleSignup: true }
+      ? { googleProfile: pendingGoogleProfile, isGoogleSignup: true as const }
       : undefined;
-    switch (role) {
-      case "consumer":
-        navigation.navigate("ConsumerSignup", googleParams);
-        break;
-      case "business":
-        navigation.navigate("BusinessSignup", googleParams);
-        break;
-      case "photographer":
-        navigation.navigate("PhotographerSignup", googleParams);
-        break;
-    }
+    if (role === "consumer") navigation.navigate("ConsumerSignup", googleParams);
+    else if (role === "business") navigation.navigate("BusinessSignup", googleParams);
+    else navigation.navigate("PhotographerSignup", googleParams);
   };
 
   const handleGuestLogin = async () => {
@@ -126,403 +155,282 @@ export default function AuthScreen() {
     navigation.goBack();
   };
 
-  const inputStyle = [
-    styles.input,
-    {
-      backgroundColor: theme.backgroundDefault,
-      color: theme.text,
-      borderColor: theme.border,
-    },
-  ];
+  const switchMode = () => {
+    setMode(mode === "login" ? "signup" : "login");
+    setIdentifier("");
+    setPassword("");
+    setPendingGoogleProfile(null);
+  };
 
+  const inputBorder = (name: string) =>
+    focusedInput === name ? DS.gold : DS.cardBorder;
+
+  // ─── Pending approval screen ──────────────────────────────────────────────
   if (showPendingMessage) {
     return (
       <ThemedView style={styles.container}>
         <View style={[styles.pendingContainer, { paddingTop: insets.top + 60 }]}>
-          <View style={[styles.pendingIcon, { backgroundColor: theme.primary + "20" }]}>
-            <Feather name="clock" size={64} color={theme.primary} />
+          <View style={[styles.pendingIconWrap, { backgroundColor: DS.greenBright + "22" }]}>
+            <Feather name="clock" size={64} color={DS.greenBright} />
           </View>
           <ThemedText type="h2" style={styles.pendingTitle}>
             Account Pending Approval
           </ThemedText>
-          <ThemedText type="body" style={[styles.pendingText, { color: theme.textSecondary }]}>
+          <ThemedText type="body" style={[styles.pendingText, { color: DS.creamDim }]}>
             Your business account is still under review.
           </ThemedText>
-          <ThemedText type="body" style={[styles.pendingText, { color: theme.textSecondary }]}>
+          <ThemedText type="body" style={[styles.pendingText, { color: DS.creamDim }]}>
             Our team will review your application and get back to you within 24-48 hours. You will
             receive an email notification once your account is approved.
           </ThemedText>
           <View style={styles.pendingDetails}>
             <View style={styles.pendingDetailRow}>
-              <Feather name="briefcase" size={20} color={theme.primary} />
+              <Feather name="briefcase" size={20} color={DS.greenBright} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
                 {pendingUserInfo?.businessName}
               </ThemedText>
             </View>
             <View style={styles.pendingDetailRow}>
-              <Feather name="tag" size={20} color={theme.primary} />
+              <Feather name="tag" size={20} color={DS.greenBright} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
                 {pendingUserInfo?.businessCategory}
               </ThemedText>
             </View>
             <View style={styles.pendingDetailRow}>
-              <Feather name="mail" size={20} color={theme.primary} />
+              <Feather name="mail" size={20} color={DS.greenBright} />
               <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
                 {pendingUserInfo?.email}
               </ThemedText>
             </View>
           </View>
-          <Button
+          <Pressable
             onPress={() => {
               setPendingUserInfo(null);
               setShowPendingMessage(false);
               navigation.goBack();
             }}
-            style={styles.pendingButton}
+            style={{ width: "100%" }}
           >
-            Got it
-          </Button>
+            <LinearGradient
+              colors={[DS.greenBright, DS.greenAccent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.gradientBtn}
+            >
+              <ThemedText style={styles.gradientBtnText}>Got it</ThemedText>
+            </LinearGradient>
+          </Pressable>
         </View>
       </ThemedView>
     );
   }
 
+  // ─── Main screen ──────────────────────────────────────────────────────────
   return (
-    <ThemedView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: DS.bg }]}>
       <KeyboardAvoidingView
-        style={styles.keyboardAvoid}
+        style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={60}
       >
         <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + Spacing.xl },
-          ]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.logoContainer}>
-            <Feather name="camera" size={48} color={theme.primary} />
-            <ThemedText type="h1" style={styles.logoText}>
-              Outsyde
-            </ThemedText>
+          {/* ── Header ── */}
+          <View style={styles.logoRow}>
+            <Feather name="camera" size={36} color={DS.gold} />
+            <ThemedText style={styles.wordmark}>Outsyde</ThemedText>
           </View>
 
-          <ThemedText type="h2" style={styles.title}>
+          <ThemedText style={styles.headline}>
             {mode === "login" ? "Welcome back" : "Join Outsyde"}
           </ThemedText>
-          <ThemedText type="body" style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {mode === "login"
-              ? "Sign in to continue"
-              : "Select your account type to get started"}
+          <ThemedText style={styles.subheadline}>
+            {mode === "login" ? "Sign in to continue" : "Choose your path to get started"}
           </ThemedText>
 
-          {mode === "signup" ? (
+          {/* ── LOGIN MODE ────────────────────────────────────────────────── */}
+          {mode === "login" ? (
             <>
-              <View style={styles.accountTypeContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  I am a...
-                </ThemedText>
-                <View style={styles.roleButtons}>
-                  <Pressable
-                    onPress={() => setRole("consumer")}
-                    style={[
-                      styles.roleButton,
-                      {
-                        backgroundColor:
-                          role === "consumer" ? theme.primary : theme.backgroundDefault,
-                        borderColor: role === "consumer" ? theme.primary : theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="user"
-                      size={20}
-                      color={role === "consumer" ? "#FFFFFF" : theme.text}
-                    />
-                    <ThemedText
-                      type="body"
-                      style={{
-                        color: role === "consumer" ? "#FFFFFF" : theme.text,
-                        marginTop: Spacing.xs,
-                        fontWeight: "600",
-                        fontSize: 13,
-                      }}
-                    >
-                      Consumer
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      style={{
-                        color: role === "consumer" ? "#FFFFFF" : theme.textSecondary,
-                        textAlign: "center",
-                        fontSize: 10,
-                      }}
-                    >
-                      Browse & book
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setRole("business")}
-                    style={[
-                      styles.roleButton,
-                      {
-                        backgroundColor:
-                          role === "business" ? theme.primary : theme.backgroundDefault,
-                        borderColor: role === "business" ? theme.primary : theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="briefcase"
-                      size={20}
-                      color={role === "business" ? "#FFFFFF" : theme.text}
-                    />
-                    <ThemedText
-                      type="body"
-                      style={{
-                        color: role === "business" ? "#FFFFFF" : theme.text,
-                        marginTop: Spacing.xs,
-                        fontWeight: "600",
-                        fontSize: 13,
-                      }}
-                    >
-                      Business
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      style={{
-                        color: role === "business" ? "#FFFFFF" : theme.textSecondary,
-                        textAlign: "center",
-                        fontSize: 10,
-                      }}
-                    >
-                      Sell products
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setRole("photographer")}
-                    style={[
-                      styles.roleButton,
-                      {
-                        backgroundColor:
-                          role === "photographer" ? theme.primary : theme.backgroundDefault,
-                        borderColor: role === "photographer" ? theme.primary : theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="camera"
-                      size={20}
-                      color={role === "photographer" ? "#FFFFFF" : theme.text}
-                    />
-                    <ThemedText
-                      type="body"
-                      style={{
-                        color: role === "photographer" ? "#FFFFFF" : theme.text,
-                        marginTop: Spacing.xs,
-                        fontWeight: "600",
-                        fontSize: 13,
-                      }}
-                    >
-                      Photographer
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      style={{
-                        color: role === "photographer" ? "#FFFFFF" : theme.textSecondary,
-                        textAlign: "center",
-                        fontSize: 10,
-                      }}
-                    >
-                      Offer shoots
-                    </ThemedText>
-                  </Pressable>
-                </View>
-                {role === "business" ? (
-                  <View style={[styles.approvalNotice, { backgroundColor: theme.primary + "15" }]}>
-                    <Feather name="info" size={16} color={theme.primary} />
-                    <ThemedText
-                      type="small"
-                      style={{ color: theme.primary, marginLeft: Spacing.sm, flex: 1 }}
-                    >
-                      Business accounts require manual approval (24-48 hours)
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {role === "photographer" ? (
-                  <View style={[styles.approvalNotice, { backgroundColor: "#007AFF15" }]}>
-                    <Feather name="check-circle" size={16} color="#007AFF" />
-                    <ThemedText
-                      type="small"
-                      style={{ color: "#007AFF", marginLeft: Spacing.sm, flex: 1 }}
-                    >
-                      Photographer accounts are auto-approved
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-
-              <Button onPress={handleSignupNavigation} style={styles.submitButton}>
-                Continue
-              </Button>
-            </>
-          ) : (
-            <>
-              <View style={styles.fieldContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  Email or Username *
-                </ThemedText>
+              <View style={styles.fieldWrap}>
+                <ThemedText style={styles.fieldLabel}>Email or Username *</ThemedText>
                 <TextInput
-                  style={inputStyle}
+                  style={[styles.input, { borderColor: inputBorder("identifier") }]}
                   value={identifier}
                   onChangeText={setIdentifier}
                   placeholder="your@email.com or @username"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor="rgba(200,191,168,0.4)"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                   returnKeyType="next"
+                  onFocus={() => setFocusedInput("identifier")}
+                  onBlur={() => setFocusedInput(null)}
                 />
               </View>
 
-              <View style={styles.fieldContainer}>
-                <ThemedText type="small" style={styles.label}>
-                  Password *
-                </ThemedText>
-                <View style={styles.passwordContainer}>
+              <View style={styles.fieldWrap}>
+                <ThemedText style={styles.fieldLabel}>Password *</ThemedText>
+                <View>
                   <TextInput
-                    style={[inputStyle, styles.passwordInput]}
+                    style={[styles.input, { paddingRight: 48, borderColor: inputBorder("password") }]}
                     value={password}
                     onChangeText={setPassword}
                     placeholder="Enter password"
-                    placeholderTextColor={theme.textSecondary}
+                    placeholderTextColor="rgba(200,191,168,0.4)"
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     returnKeyType="done"
                     onSubmitEditing={handleLogin}
+                    onFocus={() => setFocusedInput("password")}
+                    onBlur={() => setFocusedInput(null)}
                   />
                   <Pressable
                     onPress={() => setShowPassword(!showPassword)}
-                    style={styles.passwordToggle}
+                    style={styles.eyeBtn}
                   >
                     <Feather
                       name={showPassword ? "eye-off" : "eye"}
                       size={20}
-                      color={theme.textSecondary}
+                      color={DS.creamDim}
                     />
                   </Pressable>
                 </View>
               </View>
 
-              <Button onPress={handleLogin} disabled={isLoading} style={styles.submitButton}>
-                {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Sign In"}
-              </Button>
-            </>
-          )}
+              <Pressable onPress={handleLogin} disabled={isLoading} style={styles.gradientBtnWrap}>
+                <LinearGradient
+                  colors={[DS.greenBright, DS.greenAccent]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.gradientBtn, isLoading ? { opacity: 0.7 } : {}]}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={DS.cream} />
+                  ) : (
+                    <ThemedText style={styles.gradientBtnText}>Sign In</ThemedText>
+                  )}
+                </LinearGradient>
+              </Pressable>
 
-          <Pressable
-            onPress={() => {
-              setMode(mode === "login" ? "signup" : "login");
-              setIdentifier("");
-              setPassword("");
-              setPendingGoogleProfile(null);
-            }}
-            style={styles.switchMode}
-          >
-            <ThemedText type="body" style={{ color: theme.textSecondary }}>
-              {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-            </ThemedText>
-            <ThemedText type="body" style={{ color: theme.primary, fontWeight: "600" }}>
-              {mode === "login" ? "Sign up" : "Sign in"}
-            </ThemedText>
-          </Pressable>
-
-          {mode === "login" ? (
-            <>
-              <View style={styles.divider}>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
-                  or
+              <Pressable onPress={switchMode} style={styles.switchRow}>
+                <ThemedText style={styles.switchText}>Don't have an account? </ThemedText>
+                <ThemedText style={[styles.switchText, { color: DS.gold, fontWeight: "600" }]}>
+                  Sign up
                 </ThemedText>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              </Pressable>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <ThemedText style={styles.dividerLabel}>or</ThemedText>
+                <View style={styles.dividerLine} />
               </View>
 
-              <View style={styles.socialButtons}>
-                <Pressable
-                  onPress={handleGoogleSignIn}
-                  disabled={isGoogleLoading}
-                  style={[
-                    styles.socialButton,
-                    { backgroundColor: "#1A4A1A", opacity: isGoogleLoading ? 0.6 : 1 },
-                  ]}
-                >
-                  {isGoogleLoading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Feather name="mail" size={20} color="#FFFFFF" />
-                  )}
-                  <ThemedText
-                    type="body"
-                    style={styles.socialButtonText}
-                  >
-                    Continue with Google
-                  </ThemedText>
-                </Pressable>
-
-                <Pressable
-                  onPress={handleAppleSignIn}
-                  disabled={isAppleLoading}
-                  style={[
-                    styles.socialButton,
-                    { backgroundColor: "#000000", opacity: isAppleLoading ? 0.6 : 1 },
-                  ]}
-                >
-                  {isAppleLoading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Feather name="smartphone" size={20} color="#FFFFFF" />
-                  )}
-                  <ThemedText
-                    type="body"
-                    style={styles.socialButtonText}
-                  >
-                    Continue with Apple
-                  </ThemedText>
-                </Pressable>
-              </View>
-
-              <View style={styles.divider}>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
-                  or
+              <Pressable
+                onPress={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+                style={[
+                  styles.socialBtn,
+                  {
+                    backgroundColor: DS.greenDeep,
+                    borderColor: "rgba(45,122,45,0.4)",
+                    opacity: isGoogleLoading ? 0.6 : 1,
+                  },
+                ]}
+              >
+                {isGoogleLoading ? (
+                  <ActivityIndicator color={DS.cream} size="small" />
+                ) : (
+                  <Feather name="mail" size={20} color={DS.cream} />
+                )}
+                <ThemedText style={[styles.socialBtnText, { color: DS.cream }]}>
+                  Continue with Google
                 </ThemedText>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              </Pressable>
+
+              <Pressable
+                onPress={handleAppleSignIn}
+                disabled={isAppleLoading}
+                style={[
+                  styles.socialBtn,
+                  {
+                    backgroundColor: "#000000",
+                    borderColor: "rgba(255,255,255,0.15)",
+                    opacity: isAppleLoading ? 0.6 : 1,
+                  },
+                ]}
+              >
+                {isAppleLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Feather name="smartphone" size={20} color="#FFFFFF" />
+                )}
+                <ThemedText style={[styles.socialBtnText, { color: "#FFFFFF" }]}>
+                  Continue with Apple
+                </ThemedText>
+              </Pressable>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <ThemedText style={styles.dividerLabel}>or</ThemedText>
+                <View style={styles.dividerLine} />
               </View>
             </>
           ) : (
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-              <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
-                or
-              </ThemedText>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-            </View>
+            /* ── SIGNUP MODE ───────────────────────────────────────────────── */
+            <>
+              <View style={{ gap: 10, marginBottom: 8 }}>
+                {ROLE_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.role}
+                    onPress={() => navigateToSignup(opt.role)}
+                    style={({ pressed }) => [
+                      styles.roleCard,
+                      pressed && styles.roleCardPressed,
+                    ]}
+                  >
+                    <View style={[styles.roleIconWrap, { backgroundColor: opt.accent + "30" }]}>
+                      <Feather name={opt.icon} size={22} color={opt.accent} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 16 }}>
+                      <ThemedText style={styles.roleTitle}>{opt.label}</ThemedText>
+                      <ThemedText style={styles.roleDesc}>{opt.description}</ThemedText>
+                    </View>
+                    <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.3)" />
+                  </Pressable>
+                ))}
+              </View>
+
+              <Pressable onPress={switchMode} style={[styles.switchRow, { marginTop: 16 }]}>
+                <ThemedText style={styles.switchText}>Already have an account? </ThemedText>
+                <ThemedText style={[styles.switchText, { color: DS.gold, fontWeight: "600" }]}>
+                  Sign in
+                </ThemedText>
+              </Pressable>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <ThemedText style={styles.dividerLabel}>or</ThemedText>
+                <View style={styles.dividerLine} />
+              </View>
+            </>
           )}
 
+          {/* ── Guest button (always visible) ─────────────────────────────── */}
           <Pressable
             onPress={handleGuestLogin}
-            style={[styles.guestButton, { borderColor: theme.border }]}
+            style={[styles.socialBtn, { backgroundColor: "rgba(255,255,255,0.04)", borderColor: DS.cardBorder }]}
           >
-            <Feather name="user" size={20} color={theme.text} />
-            <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
+            <Feather name="user" size={20} color={DS.creamDim} />
+            <ThemedText style={[styles.socialBtnText, { color: DS.creamDim }]}>
               Continue as Guest
             </ThemedText>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ThemedView>
+    </View>
   );
 }
 
@@ -530,133 +438,164 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  keyboardAvoid: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xl,
+    paddingHorizontal: 24,
+    paddingTop: 24,
   },
-  logoContainer: {
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  logoRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: 20,
   },
-  logoText: {
-    marginLeft: Spacing.md,
-    fontSize: 32,
+  wordmark: {
+    marginLeft: 10,
+    fontSize: 28,
     fontWeight: "800",
+    color: "#F0EAD6",
   },
-  title: {
+  headline: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#F0EAD6",
     textAlign: "center",
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
   },
-  subtitle: {
+  subheadline: {
+    fontSize: 15,
+    color: "rgba(200,191,168,0.6)",
     textAlign: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: 28,
   },
-  accountTypeContainer: {
-    marginBottom: Spacing.lg,
+
+  // ── Inputs ────────────────────────────────────────────────────────────────
+  fieldWrap: {
+    marginBottom: 16,
   },
-  label: {
-    marginBottom: Spacing.sm,
+  fieldLabel: {
+    fontSize: 13,
     fontWeight: "600",
-  },
-  roleButtons: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  roleButton: {
-    flex: 1,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 90,
-  },
-  approvalNotice: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginTop: Spacing.md,
-  },
-  fieldContainer: {
-    marginBottom: Spacing.lg,
+    color: "#F0EAD6",
+    marginBottom: 6,
   },
   input: {
-    height: 50,
+    height: 56,
     borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
+    borderRadius: 14,
+    paddingHorizontal: 16,
     fontSize: 16,
+    color: "#F0EAD6",
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
-  passwordContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  passwordInput: {
-    flex: 1,
-  },
-  passwordToggle: {
+  eyeBtn: {
     position: "absolute",
-    right: Spacing.md,
-    height: 50,
+    right: 16,
+    top: 0,
+    bottom: 0,
     justifyContent: "center",
   },
-  submitButton: {
-    marginBottom: Spacing.lg,
+
+  // ── Buttons ───────────────────────────────────────────────────────────────
+  gradientBtnWrap: {
+    marginBottom: 16,
   },
-  switchMode: {
-    flexDirection: "row",
+  gradientBtn: {
+    height: 60,
+    borderRadius: 18,
+    alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.xl,
   },
-  divider: {
+  gradientBtnText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#F0EAD6",
+    letterSpacing: 0.2,
+  },
+  socialBtn: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    justifyContent: "center",
+    gap: 10,
+    height: 60,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  socialBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  // ── Mode switcher ─────────────────────────────────────────────────────────
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  switchText: {
+    fontSize: 14,
+    color: "rgba(200,191,168,0.6)",
+  },
+
+  // ── Divider ───────────────────────────────────────────────────────────────
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
   },
   dividerLine: {
     flex: 1,
     height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
-  dividerText: {
-    marginHorizontal: Spacing.md,
+  dividerLabel: {
+    fontSize: 13,
+    color: "rgba(200,191,168,0.4)",
+    marginHorizontal: 12,
   },
-  socialButtons: {
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  socialButton: {
+
+  // ── Role cards (signup mode) ───────────────────────────────────────────────
+  roleCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    height: 50,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-  },
-  socialButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  guestButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 50,
-    borderRadius: BorderRadius.md,
+    padding: 18,
+    backgroundColor: "rgba(255,255,255,0.03)",
     borderWidth: 1,
-    marginBottom: Spacing.md,
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 20,
+    width: "100%",
   },
+  roleCardPressed: {
+    backgroundColor: "rgba(45,122,45,0.1)",
+    borderColor: "rgba(45,122,45,0.35)",
+  },
+  roleIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#F0EAD6",
+  },
+  roleDesc: {
+    fontSize: 12,
+    color: "rgba(200,191,168,0.6)",
+    marginTop: 2,
+  },
+
+  // ── Pending approval screen ────────────────────────────────────────────────
   pendingContainer: {
     flex: 1,
     alignItems: "center",
     padding: Spacing.xl,
   },
-  pendingIcon: {
+  pendingIconWrap: {
     width: 120,
     height: 120,
     borderRadius: 60,
@@ -680,8 +619,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: Spacing.md,
-  },
-  pendingButton: {
-    width: "100%",
   },
 });
