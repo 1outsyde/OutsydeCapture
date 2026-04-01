@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 40,
   },
 
   // ── Header ────────────────────────────────────────────────────────────────
