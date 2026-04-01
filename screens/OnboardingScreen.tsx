@@ -11,7 +11,6 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
-  Platform,
   Linking,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,15 +20,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
 import * as WebBrowser from "expo-web-browser";
-import * as AppleAuthentication from "expo-apple-authentication";
 
 import { RootStackParamList } from "@/navigation/types";
 import { UserRole, GoogleAuthUserData, GoogleProfile, useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/services/api";
+import { useGoogleSignIn, useAppleSignIn, parseGoogleAuthUrl } from "@/hooks/useOAuthSignIn";
 
 WebBrowser.maybeCompleteAuthSession();
-
-const BACKEND_GOOGLE_PREFLIGHT = `${API_BASE_URL}/api/auth/mobile/google/preflight`;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -103,14 +99,36 @@ export default function OnboardingScreen({ navigation, route }: Props) {
   const { loginWithTokens, isAuthenticated } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [deepLinkLoading, setDeepLinkLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // Google OAuth new-user profile — set when backend signals isNewUser=true
   const [googleProfileForSignup, setGoogleProfileForSignup] = useState<GoogleProfile | null>(
     route.params?.googleProfile ?? null
   );
+
+  const { signIn: handleGoogleSignIn, isLoading: googleHookLoading } = useGoogleSignIn(
+    (gProfile) => {
+      setGoogleProfileForSignup(gProfile);
+      flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
+      setCurrentIndex(3);
+    }
+  );
+
+  const { signIn: handleAppleSignIn, isLoading: isAppleLoading } = useAppleSignIn(
+    async ({ prefillName, prefillEmail }) => {
+      await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
+      navigation.reset({
+        index: 1,
+        routes: [
+          { name: "Main" },
+          { name: "ConsumerSignup", params: { prefillName, prefillEmail, socialProvider: "apple" } },
+        ],
+      });
+    }
+  );
+
+  const isGoogleLoading = googleHookLoading || deepLinkLoading;
 
   // Pulse animation for Screen 1
   const pulseScale1 = useRef(new Animated.Value(1)).current;
@@ -226,63 +244,32 @@ export default function OnboardingScreen({ navigation, route }: Props) {
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       if (event.url.startsWith("outsyde://auth/success")) {
-        setIsGoogleLoading(true);
+        setDeepLinkLoading(true);
         try {
-          const urlParams = new URL(event.url.replace("outsyde://", "https://outsyde.app/"));
-          const isNewUser = urlParams.searchParams.get("isNewUser") === "true";
+          const parsed = parseGoogleAuthUrl(event.url);
+          if (!parsed) throw new Error("Failed to parse auth URL");
 
-          if (isNewUser) {
-            // New Google user — store profile, let user pick role on Slide 4
-            const gProfile: GoogleProfile = {
-              email: urlParams.searchParams.get("email") || "",
-              firstName: urlParams.searchParams.get("firstName") || "",
-              lastName: urlParams.searchParams.get("lastName") || "",
-              name: urlParams.searchParams.get("name") ||
-                `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim() ||
-                urlParams.searchParams.get("email") || "",
-              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
-            };
-            await AsyncStorage.setItem('@outsyde_google_profile', JSON.stringify(gProfile));
-            setGoogleProfileForSignup(gProfile);
+          if (parsed.isNewUser && parsed.profile) {
+            await AsyncStorage.setItem("@outsyde_google_profile", JSON.stringify(parsed.profile));
+            setGoogleProfileForSignup(parsed.profile);
             flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
             setCurrentIndex(3);
-          } else {
-            const accessToken = urlParams.searchParams.get("accessToken");
-            const refreshToken = urlParams.searchParams.get("refreshToken");
-            const userId = urlParams.searchParams.get("userId");
-            const email = urlParams.searchParams.get("email");
-
+          } else if (!parsed.isNewUser) {
+            const { accessToken, refreshToken, userId, email, userData } = parsed;
             if (!accessToken || !refreshToken || !userId || !email) {
               Alert.alert("Error", "Authentication failed. Missing required data.");
-              setIsGoogleLoading(false);
               return;
             }
-
-            const userData: GoogleAuthUserData = {
-              userId,
-              email,
-              firstName: urlParams.searchParams.get("firstName") || undefined,
-              lastName: urlParams.searchParams.get("lastName") || undefined,
-              name: urlParams.searchParams.get("name") || undefined,
-              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
-              isVendor: urlParams.searchParams.get("isVendor") === "true",
-              isPhotographer: urlParams.searchParams.get("isPhotographer") === "true",
-              isAdmin: urlParams.searchParams.get("isAdmin") === "true",
-              businessId: urlParams.searchParams.get("businessId") || undefined,
-              photographerId: urlParams.searchParams.get("photographerId") || undefined,
-            };
-            await loginWithTokens(accessToken, refreshToken, userData);
-            // isAuthenticated useEffect will handle navigation
+            await loginWithTokens(accessToken, refreshToken, { userId, email, ...userData } as GoogleAuthUserData);
           }
         } catch {
           Alert.alert("Error", "Failed to complete sign-in. Please try again.");
         } finally {
-          setIsGoogleLoading(false);
+          setDeepLinkLoading(false);
         }
       } else if (event.url.startsWith("outsyde://auth/error")) {
-        const urlParams = new URL(event.url.replace("outsyde://", "https://outsyde.app/"));
-        Alert.alert("Sign-In Error", urlParams.searchParams.get("error") || "Google sign-in failed");
-        setIsGoogleLoading(false);
+        Alert.alert("Sign-In Error", parseGoogleAuthUrl(event.url)?.error || "Google sign-in failed");
+        setDeepLinkLoading(false);
       }
     };
 
@@ -291,138 +278,6 @@ export default function OnboardingScreen({ navigation, route }: Props) {
     return () => subscription.remove();
   }, [loginWithTokens, navigation]);
 
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    try {
-      const preflightRes = await fetch(BACKEND_GOOGLE_PREFLIGHT, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!preflightRes.ok) throw new Error("Failed to initialize Google Sign-In");
-
-      const { authUrl } = await preflightRes.json();
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, "outsyde://auth");
-
-      if (result.type === "success" && result.url) {
-        if (result.url.startsWith("outsyde://auth/success")) {
-          const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
-          const isNewUser = urlParams.searchParams.get("isNewUser") === "true";
-
-          if (isNewUser) {
-            // New Google user — store profile, scroll to Slide 4 for role selection
-            const gProfile: GoogleProfile = {
-              email: urlParams.searchParams.get("email") || "",
-              firstName: urlParams.searchParams.get("firstName") || "",
-              lastName: urlParams.searchParams.get("lastName") || "",
-              name: urlParams.searchParams.get("name") ||
-                `${urlParams.searchParams.get("firstName") || ""} ${urlParams.searchParams.get("lastName") || ""}`.trim() ||
-                urlParams.searchParams.get("email") || "",
-              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
-            };
-            await AsyncStorage.setItem('@outsyde_google_profile', JSON.stringify(gProfile));
-            setGoogleProfileForSignup(gProfile);
-            flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
-            setCurrentIndex(3);
-          } else {
-            const accessToken = urlParams.searchParams.get("accessToken");
-            const refreshToken = urlParams.searchParams.get("refreshToken");
-            const userId = urlParams.searchParams.get("userId");
-            const email = urlParams.searchParams.get("email");
-
-            if (!accessToken || !refreshToken || !userId || !email) {
-              Alert.alert("Error", "Authentication failed. Missing required data.");
-              setIsGoogleLoading(false);
-              return;
-            }
-
-            const userData: GoogleAuthUserData = {
-              userId,
-              email,
-              firstName: urlParams.searchParams.get("firstName") || undefined,
-              lastName: urlParams.searchParams.get("lastName") || undefined,
-              name: urlParams.searchParams.get("name") || undefined,
-              profileImageUrl: urlParams.searchParams.get("profileImageUrl") || undefined,
-              isVendor: urlParams.searchParams.get("isVendor") === "true",
-              isPhotographer: urlParams.searchParams.get("isPhotographer") === "true",
-              isAdmin: urlParams.searchParams.get("isAdmin") === "true",
-              businessId: urlParams.searchParams.get("businessId") || undefined,
-              photographerId: urlParams.searchParams.get("photographerId") || undefined,
-            };
-            const sessionResult = await loginWithTokens(accessToken, refreshToken, userData);
-            if (sessionResult.success) {
-              if (sessionResult.isPending) {
-                Alert.alert("Pending Approval", "Your business application is under review. We'll notify you when it's approved.");
-              }
-              // isAuthenticated useEffect handles navigation to Main
-            } else if (sessionResult.isRejected) {
-              Alert.alert("Account Rejected", "Your business application was not approved. Please contact support.");
-            } else {
-              Alert.alert("Error", "Failed to complete sign-in. Please try again.");
-            }
-          }
-        } else if (result.url.startsWith("outsyde://auth/error")) {
-          const urlParams = new URL(result.url.replace("outsyde://", "https://outsyde.app/"));
-          Alert.alert("Sign-In Error", urlParams.searchParams.get("error") || "Google sign-in failed");
-        }
-      } else if (result.type !== "cancel" && result.type !== "dismiss") {
-        // handled by deep link listener
-      }
-    } catch {
-      Alert.alert("Error", "Failed to start Google Sign-In. Please try again.");
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-  const handleAppleSignIn = async () => {
-    if (Platform.OS !== "ios") {
-      Alert.alert("Apple Sign In", "Apple Sign In is only available on iOS devices.");
-      return;
-    }
-    setIsAppleLoading(true);
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      // Apple provides email and fullName only on the FIRST authorization
-      if (credential.email) {
-        // New Apple user — route to ConsumerSignup with pre-filled data
-        const givenName = credential.fullName?.givenName || "";
-        const familyName = credential.fullName?.familyName || "";
-        const prefillName = `${givenName} ${familyName}`.trim() || undefined;
-        await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
-        navigation.reset({
-          index: 1,
-          routes: [
-            { name: "Main" },
-            { name: "ConsumerSignup", params: { prefillName, prefillEmail: credential.email, socialProvider: "apple" } },
-          ],
-        });
-      } else {
-        // Returning Apple user — no email returned by Apple; direct to email sign-in
-        // TODO: Backend needs /api/auth/mobile/apple endpoint for returning users
-        Alert.alert(
-          "Sign In",
-          "To sign into your existing Outsyde account, please use your email and password.",
-          [
-            { text: "Sign In with Email", onPress: () => navigation.navigate("Auth", {}) },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
-      }
-    } catch (error: any) {
-      if (error.code !== "ERR_REQUEST_CANCELED") {
-        Alert.alert("Error", "Apple sign-in failed. Please try again.");
-      }
-    } finally {
-      setIsAppleLoading(false);
-    }
-  };
 
   const isLastSlide = currentIndex === 3;
   const handleNext = () => {

@@ -867,7 +867,8 @@ export interface UnifiedSearchResponse {
 export type SearchResultType = "business" | "photographer" | "product" | "service" | "consumer";
 
 export interface MobileLoginRequest {
-  email: string;
+  email?: string;
+  username?: string;
   password: string;
 }
 

@@ -1,0 +1,74 @@
+FRONTEND | Add Google and Apple sign-in buttons to the "Welcome back" Sign In screen
+
+READ FIRST before touching anything:
+
+The Sign In screen file — find the "Welcome back" screen that shows Email, Password, Sign In button, and Continue as Guest
+OnboardingScreen.tsx — find handleGoogleSignIn and handleAppleSignIn — these are the exact functions that need to be reused here
+Confirm whether these handler functions are defined locally in OnboardingScreen or imported from a shared location
+
+
+THE PROBLEM:
+Google and Apple sign-in buttons exist on Slide 4 of onboarding but are completely absent from the Sign In screen. A returning user who originally signed up with Google has no way to sign back in. Both screens need these buttons — they serve different users:
+
+Slide 4 → new users choosing how to sign UP
+Sign In screen → returning users signing back IN
+
+
+THE FIX:
+Step 1 — Move handleGoogleSignIn and handleAppleSignIn to a shared location
+If these functions are currently defined inside OnboardingScreen, move them to AuthContext or a shared useGoogleSignIn / useAppleSignIn hook so both screens can call them without duplicating code. If they're already in AuthContext, simply import and use them on both screens.
+Do not copy-paste the handler logic into two places — one source of truth only.
+Step 2 — Add the buttons to the Sign In screen
+On the "Welcome back" Sign In screen, add Google and Apple buttons in this exact layout:
+[ Sign In ]                    ← existing blue button, unchanged
+
+Don't have an account? Sign up ← existing, unchanged
+
+──────── or ────────           ← existing divider, unchanged
+
+[ G  Continue with Google ]    ← ADD THIS
+[ 🍎 Continue with Apple  ]    ← ADD THIS
+
+──────── or ────────
+
+[ Continue as Guest ]          ← existing, unchanged
+Button styles must match the buttons on Slide 4 exactly — same height, same border radius, same font, same colors:
+
+Google button: dark green background (#1A4A1A), white text, envelope or Google icon on left
+Apple button: black background (#000000), white text, Apple/phone icon on left
+
+Step 3 — Update the Email field to accept username too
+While on this screen, update the identifier field:
+
+Label: "Email or Username *"
+Placeholder: "your@email.com or @username"
+Detection logic on submit:
+
+javascriptconst isEmail = identifier.includes('@') && identifier.includes('.');
+const payload = isEmail
+  ? { email: identifier.trim().toLowerCase(), password }
+  : { username: identifier.trim().toLowerCase().replace('@', ''), password };
+Step 4 — Remove the duplicate X button
+There are currently two X/close buttons on the Sign In screen — one in the navigation header and one floating inside the screen content. Remove the floating one inside the content area. Keep only the navigation header X.
+
+Constraints:
+
+Do not change Slide 4 of onboarding — it already works correctly
+Do not duplicate handler logic — share functions via AuthContext or a hook
+Do not change the password field
+Do not change "Continue as Guest"
+Do not change the blue Sign In button style
+
+Test checklist:
+
+ Google button visible on "Welcome back" Sign In screen
+ Apple button visible on "Welcome back" Sign In screen
+ Tapping Google on Sign In screen triggers Google auth — returning user lands on Home
+ Tapping Google on Sign In screen with new account routes to role picker
+ Tapping Apple on Sign In screen triggers Apple auth
+ Email + password sign in still works
+ Username + password sign in works
+ @username with @ prefix works — strips @ correctly
+ Only one X button visible on Sign In screen
+ Google and Apple buttons still work on Slide 4 — nothing broken there
+ npx tsc --noEmit 0 errors

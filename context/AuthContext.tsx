@@ -121,7 +121,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (identifier: string, password: string, type?: "email" | "username") => Promise<LoginResult>;
   loginWithGoogle: (idToken: string) => Promise<LoginResult>;
   loginWithTokens: (accessToken: string, refreshToken: string, userData: GoogleAuthUserData) => Promise<LoginResult>;
   signup: (data: SignupData) => Promise<SignupResult>;
@@ -239,10 +239,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string): Promise<LoginResult> => {
+  const login = async (identifier: string, password: string, type: "email" | "username" = "email"): Promise<LoginResult> => {
     setIsLoading(true);
     try {
-      const response = await api.mobileLogin({ email, password });
+      const loginPayload = type === "username"
+        ? { username: identifier, password }
+        : { email: identifier, password };
+      const response = await api.mobileLogin(loginPayload);
       console.log("[Auth] Login response received, user:", response.user?.id);
       
       const backendUser = response.user;
@@ -260,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const newUser: User = {
         id: backendUser.id,
-        firstName: backendUser.firstName || backendUser.name?.split(" ")[0] || email.split("@")[0],
+        firstName: backendUser.firstName || backendUser.name?.split(" ")[0] || backendUser.email?.split("@")[0] || identifier,
         lastName: backendUser.lastName || backendUser.name?.split(" ").slice(1).join(" ") || "",
         email: backendUser.email,
         phone: backendUser.phone || "",
@@ -268,7 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
         approvalStatus: backendUser.approvalStatus || "approved",
         isProfileComplete: backendUser.isProfileComplete,
-        avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || email.split("@")[0])}&background=D4A84B&color=fff`,
+        avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || backendUser.email?.split("@")[0] || identifier)}&background=D4A84B&color=fff`,
         profileImageUrl: backendUser.profileImageUrl,
         coverMediaUrl: (backendUser as any).coverMediaUrl,
         coverMediaType: (backendUser as any).coverMediaType,

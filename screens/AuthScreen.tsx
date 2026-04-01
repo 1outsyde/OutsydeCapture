@@ -1,5 +1,15 @@
 import React, { useState } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, KeyboardAvoidingView } from "react-native";
+import {
+  StyleSheet,
+  View,
+  TextInput,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  Platform,
+  KeyboardAvoidingView,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -9,9 +19,10 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
-import { useAuth, UserRole } from "@/context/AuthContext";
+import { useAuth, UserRole, GoogleProfile } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { useGoogleSignIn, useAppleSignIn } from "@/hooks/useOAuthSignIn";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -22,19 +33,42 @@ export default function AuthScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { login, loginAsGuest, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
-  
+
   const [mode, setMode] = useState<AuthMode>("login");
   const [role, setRole] = useState<UserRole>("consumer");
-  
-  const [email, setEmail] = useState("");
+
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  
+
+  const [pendingGoogleProfile, setPendingGoogleProfile] = useState<GoogleProfile | null>(null);
+
   const [showPendingMessage, setShowPendingMessage] = useState(false);
-  const [pendingUserInfo, setPendingUserInfo] = useState<{ businessName: string; businessCategory: string; email: string } | null>(null);
+  const [pendingUserInfo, setPendingUserInfo] = useState<{
+    businessName: string;
+    businessCategory: string;
+    email: string;
+  } | null>(null);
+
+  const { signIn: handleGoogleSignIn, isLoading: isGoogleLoading } = useGoogleSignIn(
+    (gProfile) => {
+      setPendingGoogleProfile(gProfile);
+      setMode("signup");
+    }
+  );
+
+  const { signIn: handleAppleSignIn, isLoading: isAppleLoading } = useAppleSignIn(
+    ({ prefillName, prefillEmail }) => {
+      navigation.navigate("ConsumerSignup", {
+        prefillName,
+        prefillEmail,
+        socialProvider: "apple",
+      });
+    }
+  );
 
   const validateForm = () => {
-    if (!email.trim() || !password.trim()) {
+    if (!identifier.trim() || !password.trim()) {
       Alert.alert("Error", "Please fill in all required fields");
       return false;
     }
@@ -44,7 +78,11 @@ export default function AuthScreen() {
   const handleLogin = async () => {
     if (!validateForm()) return;
 
-    const result = await login(email, password);
+    const raw = identifier.trim();
+    const isEmail = raw.includes("@") && raw.includes(".");
+    const loginIdentifier = isEmail ? raw.toLowerCase() : raw.replace(/^@/, "").toLowerCase();
+
+    const result = await login(loginIdentifier, password, isEmail ? "email" : "username");
     if (result.success) {
       if (result.isPending && result.user) {
         setPendingUserInfo({
@@ -57,22 +95,28 @@ export default function AuthScreen() {
         navigation.goBack();
       }
     } else if (result.isRejected) {
-      Alert.alert("Account Rejected", "Your business application was not approved. Please contact support for more information.");
+      Alert.alert(
+        "Account Rejected",
+        "Your business application was not approved. Please contact support for more information."
+      );
     } else {
       Alert.alert("Error", "Login failed. Please check your credentials.");
     }
   };
 
   const handleSignupNavigation = () => {
+    const googleParams = pendingGoogleProfile
+      ? { googleProfile: pendingGoogleProfile, isGoogleSignup: true }
+      : undefined;
     switch (role) {
       case "consumer":
-        navigation.navigate("ConsumerSignup");
+        navigation.navigate("ConsumerSignup", googleParams);
         break;
       case "business":
-        navigation.navigate("BusinessSignup");
+        navigation.navigate("BusinessSignup", googleParams);
         break;
       case "photographer":
-        navigation.navigate("PhotographerSignup");
+        navigation.navigate("PhotographerSignup", googleParams);
         break;
     }
   };
@@ -105,7 +149,8 @@ export default function AuthScreen() {
             Your business account is still under review.
           </ThemedText>
           <ThemedText type="body" style={[styles.pendingText, { color: theme.textSecondary }]}>
-            Our team will review your application and get back to you within 24-48 hours. You will receive an email notification once your account is approved.
+            Our team will review your application and get back to you within 24-48 hours. You will
+            receive an email notification once your account is approved.
           </ThemedText>
           <View style={styles.pendingDetails}>
             <View style={styles.pendingDetailRow}>
@@ -144,19 +189,7 @@ export default function AuthScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={({ pressed }) => [
-            styles.closeButton,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Feather name="x" size={24} color={theme.text} />
-        </Pressable>
-      </View>
-
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
@@ -164,7 +197,7 @@ export default function AuthScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: insets.bottom + Spacing.xl }
+            { paddingBottom: insets.bottom + Spacing.xl },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -197,7 +230,8 @@ export default function AuthScreen() {
                     style={[
                       styles.roleButton,
                       {
-                        backgroundColor: role === "consumer" ? theme.primary : theme.backgroundDefault,
+                        backgroundColor:
+                          role === "consumer" ? theme.primary : theme.backgroundDefault,
                         borderColor: role === "consumer" ? theme.primary : theme.border,
                       },
                     ]}
@@ -234,7 +268,8 @@ export default function AuthScreen() {
                     style={[
                       styles.roleButton,
                       {
-                        backgroundColor: role === "business" ? theme.primary : theme.backgroundDefault,
+                        backgroundColor:
+                          role === "business" ? theme.primary : theme.backgroundDefault,
                         borderColor: role === "business" ? theme.primary : theme.border,
                       },
                     ]}
@@ -271,7 +306,8 @@ export default function AuthScreen() {
                     style={[
                       styles.roleButton,
                       {
-                        backgroundColor: role === "photographer" ? theme.primary : theme.backgroundDefault,
+                        backgroundColor:
+                          role === "photographer" ? theme.primary : theme.backgroundDefault,
                         borderColor: role === "photographer" ? theme.primary : theme.border,
                       },
                     ]}
@@ -307,7 +343,10 @@ export default function AuthScreen() {
                 {role === "business" ? (
                   <View style={[styles.approvalNotice, { backgroundColor: theme.primary + "15" }]}>
                     <Feather name="info" size={16} color={theme.primary} />
-                    <ThemedText type="small" style={{ color: theme.primary, marginLeft: Spacing.sm, flex: 1 }}>
+                    <ThemedText
+                      type="small"
+                      style={{ color: theme.primary, marginLeft: Spacing.sm, flex: 1 }}
+                    >
                       Business accounts require manual approval (24-48 hours)
                     </ThemedText>
                   </View>
@@ -315,17 +354,17 @@ export default function AuthScreen() {
                 {role === "photographer" ? (
                   <View style={[styles.approvalNotice, { backgroundColor: "#007AFF15" }]}>
                     <Feather name="check-circle" size={16} color="#007AFF" />
-                    <ThemedText type="small" style={{ color: "#007AFF", marginLeft: Spacing.sm, flex: 1 }}>
+                    <ThemedText
+                      type="small"
+                      style={{ color: "#007AFF", marginLeft: Spacing.sm, flex: 1 }}
+                    >
                       Photographer accounts are auto-approved
                     </ThemedText>
                   </View>
                 ) : null}
               </View>
 
-              <Button
-                onPress={handleSignupNavigation}
-                style={styles.submitButton}
-              >
+              <Button onPress={handleSignupNavigation} style={styles.submitButton}>
                 Continue
               </Button>
             </>
@@ -333,13 +372,13 @@ export default function AuthScreen() {
             <>
               <View style={styles.fieldContainer}>
                 <ThemedText type="small" style={styles.label}>
-                  Email *
+                  Email or Username *
                 </ThemedText>
                 <TextInput
                   style={inputStyle}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="your@email.com"
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                  placeholder="your@email.com or @username"
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -377,16 +416,8 @@ export default function AuthScreen() {
                 </View>
               </View>
 
-              <Button
-                onPress={handleLogin}
-                disabled={isLoading}
-                style={styles.submitButton}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  "Sign In"
-                )}
+              <Button onPress={handleLogin} disabled={isLoading} style={styles.submitButton}>
+                {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Sign In"}
               </Button>
             </>
           )}
@@ -394,8 +425,9 @@ export default function AuthScreen() {
           <Pressable
             onPress={() => {
               setMode(mode === "login" ? "signup" : "login");
-              setEmail("");
+              setIdentifier("");
               setPassword("");
+              setPendingGoogleProfile(null);
             }}
             style={styles.switchMode}
           >
@@ -407,13 +439,77 @@ export default function AuthScreen() {
             </ThemedText>
           </Pressable>
 
-          <View style={styles.divider}>
-            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-            <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
-              or
-            </ThemedText>
-            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-          </View>
+          {mode === "login" ? (
+            <>
+              <View style={styles.divider}>
+                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
+                  or
+                </ThemedText>
+                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              </View>
+
+              <View style={styles.socialButtons}>
+                <Pressable
+                  onPress={handleGoogleSignIn}
+                  disabled={isGoogleLoading}
+                  style={[
+                    styles.socialButton,
+                    { backgroundColor: "#1A4A1A", opacity: isGoogleLoading ? 0.6 : 1 },
+                  ]}
+                >
+                  {isGoogleLoading ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Feather name="mail" size={20} color="#FFFFFF" />
+                  )}
+                  <ThemedText
+                    type="body"
+                    style={styles.socialButtonText}
+                  >
+                    Continue with Google
+                  </ThemedText>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleAppleSignIn}
+                  disabled={isAppleLoading}
+                  style={[
+                    styles.socialButton,
+                    { backgroundColor: "#000000", opacity: isAppleLoading ? 0.6 : 1 },
+                  ]}
+                >
+                  {isAppleLoading ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Feather name="smartphone" size={20} color="#FFFFFF" />
+                  )}
+                  <ThemedText
+                    type="body"
+                    style={styles.socialButtonText}
+                  >
+                    Continue with Apple
+                  </ThemedText>
+                </Pressable>
+              </View>
+
+              <View style={styles.divider}>
+                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
+                  or
+                </ThemedText>
+                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              </View>
+            </>
+          ) : (
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <ThemedText type="small" style={[styles.dividerText, { color: theme.textSecondary }]}>
+                or
+              </ThemedText>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
+          )}
 
           <Pressable
             onPress={handleGuestLogin}
@@ -424,7 +520,6 @@ export default function AuthScreen() {
               Continue as Guest
             </ThemedText>
           </Pressable>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </ThemedView>
@@ -435,23 +530,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   keyboardAvoid: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
   },
   logoContainer: {
     flexDirection: "row",
@@ -533,7 +617,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   dividerLine: {
     flex: 1,
@@ -541,6 +625,22 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     marginHorizontal: Spacing.md,
+  },
+  socialButtons: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  socialButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 50,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  socialButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   guestButton: {
     flexDirection: "row",
@@ -550,16 +650,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     marginBottom: Spacing.md,
-  },
-  socialButtons: {
-    gap: Spacing.sm,
-  },
-  socialButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 50,
-    borderRadius: BorderRadius.md,
   },
   pendingContainer: {
     flex: 1,
