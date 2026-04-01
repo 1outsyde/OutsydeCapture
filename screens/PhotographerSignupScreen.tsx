@@ -64,11 +64,22 @@ export default function PhotographerSignupScreen() {
 
   const [email, setEmail] = useState(prefillEmail);
   const [password, setPassword] = useState("");
-  const [name, setName] = useState(prefillName);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [username, setUsername] = useState("");
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [showFormError, setShowFormError] = useState(false);
+
+  useEffect(() => {
+    if (prefillName) {
+      const parts = prefillName.trim().split(" ");
+      setFirstName(parts[0] ?? "");
+      setLastName(parts.slice(1).join(" ") ?? "");
+    }
+  }, [prefillName]);
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
@@ -112,11 +123,11 @@ export default function PhotographerSignupScreen() {
   const validateStep = () => {
     switch (currentStep) {
       case 1:
-        if (!email.trim() || !password.trim() || !name.trim() || !phone.trim()) {
+        if (!email.trim() || !password.trim() || !firstName.trim() || !lastName.trim() || !phone.trim()) {
           Alert.alert("Error", "Please fill in all required fields");
           return false;
         }
-        if (username.length < 3 || usernameAvailable !== true) {
+        if (username.length < 3 || usernameAvailable === false) {
           Alert.alert("Error", "Please choose a valid, available username (min 3 characters)");
           return false;
         }
@@ -154,7 +165,39 @@ export default function PhotographerSignupScreen() {
     }
   };
 
+  const getFieldError = (field: string): string | null => {
+    if (!touched[field]) return null;
+    switch (field) {
+      case "firstName": return !firstName.trim() ? "This field is required" : null;
+      case "lastName": return !lastName.trim() ? "This field is required" : null;
+      case "email": return !email.trim() ? "This field is required" : !/\S+@\S+\.\S+/.test(email) ? "Please enter a valid email address" : null;
+      case "phone": return !phone.trim() ? "This field is required" : null;
+      case "password": return password.length === 0 ? "This field is required" : password.length < 6 ? "Password must be at least 6 characters" : null;
+      default: return null;
+    }
+  };
+
   const handleNext = () => {
+    if (currentStep === 1) {
+      const allTouched = { firstName: true, lastName: true, username: true, email: true, phone: true, password: true };
+      setTouched(allTouched);
+      const step1Valid =
+        firstName.trim() !== "" &&
+        lastName.trim() !== "" &&
+        username.length >= 3 &&
+        usernameAvailable !== false &&
+        email.trim() !== "" &&
+        /\S+@\S+\.\S+/.test(email) &&
+        phone.trim() !== "" &&
+        password.length >= 6;
+      if (!step1Valid) {
+        setShowFormError(true);
+        return;
+      }
+      setShowFormError(false);
+      setCurrentStep(prev => prev + 1);
+      return;
+    }
     if (!validateStep()) return;
     setCurrentStep(prev => prev + 1);
   };
@@ -174,10 +217,6 @@ export default function PhotographerSignupScreen() {
       Alert.alert("Error", "Please enter a valid hourly rate");
       return;
     }
-
-    const nameParts = name.trim().split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
 
     // Convert hourlyRate to cents (multiply by 100)
     const hourlyRateInCents = Math.round(parsedRate * 100);
@@ -276,23 +315,44 @@ export default function PhotographerSignupScreen() {
               Just a few details and you're in
             </ThemedText>
 
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Full Name *</ThemedText>
-              <TextInput
-                style={inputStyle}
-                value={name}
-                onChangeText={setName}
-                placeholder="Your full name"
-                placeholderTextColor={theme.textSecondary}
-                autoCapitalize="words"
-              />
+            <View style={styles.nameRow}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="small" style={styles.label}>First Name *</ThemedText>
+                <TextInput
+                  style={[inputStyle, touched.firstName && getFieldError("firstName") ? { borderColor: "#E05252" } : {}]}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="First name"
+                  placeholderTextColor={theme.textSecondary}
+                  autoCapitalize="words"
+                  onBlur={() => setTouched(t => ({ ...t, firstName: true }))}
+                />
+                {touched.firstName && getFieldError("firstName") ? (
+                  <ThemedText style={styles.fieldError}>{getFieldError("firstName")}</ThemedText>
+                ) : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="small" style={styles.label}>Last Name *</ThemedText>
+                <TextInput
+                  style={[inputStyle, touched.lastName && getFieldError("lastName") ? { borderColor: "#E05252" } : {}]}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  placeholder="Last name"
+                  placeholderTextColor={theme.textSecondary}
+                  autoCapitalize="words"
+                  onBlur={() => setTouched(t => ({ ...t, lastName: true }))}
+                />
+                {touched.lastName && getFieldError("lastName") ? (
+                  <ThemedText style={styles.fieldError}>{getFieldError("lastName")}</ThemedText>
+                ) : null}
+              </View>
             </View>
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Username *</ThemedText>
               <UsernameField
                 value={username}
-                onChange={(v) => { setUsername(v); setUsernameError(null); }}
+                onChange={(v) => { setUsername(v); setUsernameError(null); setTouched(t => ({ ...t, username: true })); }}
                 onAvailabilityChange={setUsernameAvailable}
                 externalError={usernameError}
                 inputBaseStyle={[styles.input, { backgroundColor: theme.backgroundDefault }]}
@@ -303,44 +363,56 @@ export default function PhotographerSignupScreen() {
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Email *</ThemedText>
               <TextInput
-                style={inputStyle}
+                style={[inputStyle, touched.email && getFieldError("email") ? { borderColor: "#E05252" } : {}]}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="your@email.com"
                 placeholderTextColor={theme.textSecondary}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                onBlur={() => setTouched(t => ({ ...t, email: true }))}
               />
+              {touched.email && getFieldError("email") ? (
+                <ThemedText style={styles.fieldError}>{getFieldError("email")}</ThemedText>
+              ) : null}
             </View>
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Phone *</ThemedText>
               <TextInput
-                style={inputStyle}
+                style={[inputStyle, touched.phone && getFieldError("phone") ? { borderColor: "#E05252" } : {}]}
                 value={phone}
                 onChangeText={(text) => setPhone(formatPhone(text))}
                 placeholder="(555) 123-4567"
                 placeholderTextColor={theme.textSecondary}
                 keyboardType="phone-pad"
                 maxLength={14}
+                onBlur={() => setTouched(t => ({ ...t, phone: true }))}
               />
+              {touched.phone && getFieldError("phone") ? (
+                <ThemedText style={styles.fieldError}>{getFieldError("phone")}</ThemedText>
+              ) : null}
             </View>
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Password *</ThemedText>
               <View style={styles.passwordContainer}>
                 <TextInput
-                  style={[inputStyle, { flex: 1, marginBottom: 0 }]}
+                  style={[inputStyle, { flex: 1, marginBottom: 0 }, touched.password && getFieldError("password") ? { borderColor: "#E05252" } : {}]}
                   value={password}
                   onChangeText={setPassword}
                   placeholder="At least 6 characters"
                   placeholderTextColor={theme.textSecondary}
                   secureTextEntry={!showPassword}
+                  onBlur={() => setTouched(t => ({ ...t, password: true }))}
                 />
                 <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
                   <Feather name={showPassword ? "eye-off" : "eye"} size={20} color={theme.textSecondary} />
                 </Pressable>
               </View>
+              {touched.password && getFieldError("password") ? (
+                <ThemedText style={styles.fieldError}>{getFieldError("password")}</ThemedText>
+              ) : null}
             </View>
           </View>
         );
@@ -580,21 +652,19 @@ export default function PhotographerSignupScreen() {
             {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Create Account"}
           </Button>
         ) : (
-          <Button
-            onPress={handleNext}
-            style={styles.nextButton}
-            disabled={currentStep === 1 && (
-              !name.trim() ||
-              username.length < 3 ||
-              usernameAvailable !== true ||
-              !email.trim() ||
-              !/\S+@\S+\.\S+/.test(email) ||
-              !phone.trim() ||
-              password.length < 6
-            )}
-          >
-            Continue
-          </Button>
+          <>
+            {showFormError && currentStep === 1 ? (
+              <ThemedText style={styles.formError}>
+                Please complete all required fields to continue
+              </ThemedText>
+            ) : null}
+            <Button
+              onPress={handleNext}
+              style={styles.nextButton}
+            >
+              Continue
+            </Button>
+          </>
         )}
       </View>
     </ThemedView>
@@ -618,6 +688,11 @@ const styles = StyleSheet.create({
   stepTitle: { marginBottom: Spacing.xs },
   stepSubtitle: { marginBottom: Spacing.xl },
   field: { marginBottom: Spacing.lg },
+  nameRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: Spacing.lg,
+  },
   label: { marginBottom: Spacing.xs, fontWeight: "600" },
   input: {
     height: 50,
@@ -625,6 +700,17 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     fontSize: 16,
+  },
+  fieldError: {
+    fontSize: 12,
+    color: "#E05252",
+    marginTop: 4,
+  },
+  formError: {
+    fontSize: 12,
+    color: "#E05252",
+    textAlign: "center",
+    marginBottom: 8,
   },
   passwordContainer: { flexDirection: "row", alignItems: "center" },
   eyeButton: { position: "absolute", right: Spacing.md },
