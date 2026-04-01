@@ -63,9 +63,18 @@ export interface SignupData {
   businessType?: string;
   hasPhysicalLocation?: boolean;
   address?: string;
+  streetAddress?: string;
+  aptUnit?: string | null;
   city?: string;
   state?: string;
   zipCode?: string;
+  country?: string;
+  billingSameAsHome?: boolean;
+  billingStreet?: string;
+  billingAptUnit?: string | null;
+  billingCity?: string;
+  billingState?: string;
+  billingZip?: string;
   websiteUrl?: string;
   socialMedia?: string;
   username?: string;

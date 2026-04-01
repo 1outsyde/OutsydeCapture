@@ -205,15 +205,38 @@ export default function ConsumerSignupScreen() {
     }
   }, [prefillName]);
 
+  // Address fields — used for shipping and billing on orders ONLY, not for location-based discovery
+  const [streetAddress, setStreetAddress] = useState("");
+  const [aptUnit, setAptUnit] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
+  const [country, setCountry] = useState("United States");
+  const [locationPreFilled, setLocationPreFilled] = useState(false);
+  const [billingSameAsHome, setBillingSameAsHome] = useState(true);
+  const [billingStreet, setBillingStreet] = useState("");
+  const [billingAptUnit, setBillingAptUnit] = useState("");
+  const [billingCity, setBillingCity] = useState("");
+  const [billingState, setBillingState] = useState("");
+  const [billingZip, setBillingZip] = useState("");
 
   useEffect(() => {
-    AsyncStorage.multiGet(["@outsyde_onboarding_city", "@outsyde_onboarding_state"]).then(([cityPair, statePair]) => {
-      if (cityPair[1] && !city) setCity(cityPair[1]);
-      if (statePair[1] && !state) setState(statePair[1]);
-    }).catch(() => {});
+    const checkExistingLocation = async () => {
+      try {
+        const onboardingCity = await AsyncStorage.getItem("@outsyde_onboarding_city");
+        const onboardingState = await AsyncStorage.getItem("@outsyde_onboarding_state");
+        const { status } = await Location.getForegroundPermissionsAsync();
+        const alreadyGranted = status === "granted";
+        if (alreadyGranted && onboardingCity) {
+          setCity(onboardingCity);
+          setState(onboardingState ?? "");
+          setLocationPreFilled(true);
+        }
+      } catch (e) {
+        // Silent fail — user can fill manually
+      }
+    };
+    checkExistingLocation();
   }, []);
 
   const handleUseMyLocation = async () => {
@@ -234,15 +257,12 @@ export default function ConsumerSignupScreen() {
         setDetectingLocation(false);
         return;
       }
-      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const [geocode] = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-      if (geocode) {
-        if (geocode.city) setCity(geocode.city);
-        if (geocode.region) setState(geocode.region.length === 2 ? geocode.region : geocode.region.substring(0, 2).toUpperCase());
-        if (geocode.postalCode) setZipCode(geocode.postalCode);
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [result] = await Location.reverseGeocodeAsync(loc.coords);
+      if (result) {
+        setCity(result.city ?? "");
+        setState(result.region ?? "");
+        // Do NOT fill street address — GPS cannot provide that
       }
     } catch (error) {
       Alert.alert("Location Error", "Could not detect your location. Please enter manually.");
@@ -337,12 +357,24 @@ export default function ConsumerSignupScreen() {
           return false;
         }
         return true;
-      case 2:
-        if (!city.trim() || !state.trim()) {
-          Alert.alert("Error", "Please enter your city and state");
+      case 2: {
+        const step2Valid =
+          streetAddress.trim().length > 0 &&
+          city.trim().length > 0 &&
+          state.trim().length > 0 &&
+          zipCode.trim().length > 0 &&
+          (billingSameAsHome || (
+            billingStreet.trim().length > 0 &&
+            billingCity.trim().length > 0 &&
+            billingState.trim().length > 0 &&
+            billingZip.trim().length > 0
+          ));
+        if (!step2Valid) {
+          Alert.alert("Error", "Please fill in all required address fields");
           return false;
         }
         return true;
+      }
       case 3:
         return true;
       case 4:
@@ -436,6 +468,20 @@ export default function ConsumerSignupScreen() {
             password,
             googleProfile,
             profileImageUrl: googleProfile?.profileImageUrl ?? null,
+            streetAddress: streetAddress.trim(),
+            aptUnit: aptUnit.trim() || null,
+            city: city.trim(),
+            state: state.trim(),
+            zipCode: zipCode.trim(),
+            country: country.trim() || "United States",
+            billingSameAsHome,
+            ...(billingSameAsHome ? {} : {
+              billingStreet: billingStreet.trim(),
+              billingAptUnit: billingAptUnit.trim() || null,
+              billingCity: billingCity.trim(),
+              billingState: billingState.trim(),
+              billingZip: billingZip.trim(),
+            }),
           }),
         });
         const data = await response.json();
@@ -478,6 +524,17 @@ export default function ConsumerSignupScreen() {
       selectedIndustries,
       industryNiches,
       industryValues,
+      streetAddress: streetAddress.trim(),
+      aptUnit: aptUnit.trim() || null,
+      country: country.trim() || "United States",
+      billingSameAsHome,
+      ...(billingSameAsHome ? {} : {
+        billingStreet: billingStreet.trim(),
+        billingAptUnit: billingAptUnit.trim() || null,
+        billingCity: billingCity.trim(),
+        billingState: billingState.trim(),
+        billingZip: billingZip.trim(),
+      }),
     });
 
     if (result.success) {
@@ -554,6 +611,11 @@ export default function ConsumerSignupScreen() {
                 inputBaseStyle={[styles.input, { backgroundColor: theme.backgroundDefault }]}
                 theme={theme}
               />
+              {usernameAvailable === true ? (
+                <ThemedText style={styles.usernameHint}>
+                  You can change your username once every 14 days
+                </ThemedText>
+              ) : null}
             </View>
 
             <View style={styles.field}>
@@ -619,47 +681,65 @@ export default function ConsumerSignupScreen() {
       case 2:
         return (
           <View style={styles.stepContent}>
-            <ThemedText type="h2" style={styles.stepTitle}>Your Location</ThemedText>
+            <ThemedText type="h2" style={styles.stepTitle}>Your Address</ThemedText>
             <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-              Help us find local businesses for you
+              Used for shipping and billing on your orders
             </ThemedText>
 
-            <Pressable
-              onPress={handleUseMyLocation}
-              disabled={detectingLocation}
-              style={({ pressed }) => [
-                {
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: theme.primary,
-                  paddingVertical: 14,
-                  borderRadius: BorderRadius.md,
-                  marginBottom: Spacing.lg,
-                  opacity: pressed || detectingLocation ? 0.7 : 1,
-                },
-              ]}
-            >
-              {detectingLocation ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <>
-                  <Feather name="map-pin" size={18} color="#000" />
-                  <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
-                    Use My Location
-                  </ThemedText>
-                </>
-              )}
-            </Pressable>
+            {locationPreFilled ? null : (
+              <Pressable
+                onPress={handleUseMyLocation}
+                disabled={detectingLocation}
+                style={({ pressed }) => [
+                  styles.locationButton,
+                  { opacity: pressed || detectingLocation ? 0.7 : 1 },
+                ]}
+              >
+                {detectingLocation ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <>
+                    <Feather name="map-pin" size={18} color="#000" />
+                    <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
+                      Use My Location
+                    </ThemedText>
+                  </>
+                )}
+              </Pressable>
+            )}
+
+            <View style={styles.field}>
+              <ThemedText type="small" style={styles.label}>Street Address *</ThemedText>
+              <TextInput
+                style={styles.addressInput}
+                value={streetAddress}
+                onChangeText={setStreetAddress}
+                placeholder="123 Main Street"
+                placeholderTextColor="rgba(200,191,168,0.4)"
+                autoCapitalize="words"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <ThemedText type="small" style={styles.label}>Apt / Suite (optional)</ThemedText>
+              <TextInput
+                style={styles.addressInput}
+                value={aptUnit}
+                onChangeText={setAptUnit}
+                placeholder="Apt 4B"
+                placeholderTextColor="rgba(200,191,168,0.4)"
+                autoCapitalize="words"
+              />
+            </View>
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>City *</ThemedText>
               <TextInput
-                style={inputStyle}
+                style={styles.addressInput}
                 value={city}
                 onChangeText={setCity}
-                placeholder="Your city"
-                placeholderTextColor={theme.textSecondary}
+                placeholder="New York"
+                placeholderTextColor="rgba(200,191,168,0.4)"
                 autoCapitalize="words"
               />
             </View>
@@ -667,28 +747,124 @@ export default function ConsumerSignupScreen() {
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>State *</ThemedText>
               <TextInput
-                style={inputStyle}
+                style={styles.addressInput}
                 value={state}
                 onChangeText={setState}
-                placeholder="Your state"
-                placeholderTextColor={theme.textSecondary}
+                placeholder="NY"
+                placeholderTextColor="rgba(200,191,168,0.4)"
                 autoCapitalize="characters"
                 maxLength={2}
               />
             </View>
 
             <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Zip Code</ThemedText>
+              <ThemedText type="small" style={styles.label}>Zip Code *</ThemedText>
               <TextInput
-                style={inputStyle}
+                style={styles.addressInput}
                 value={zipCode}
                 onChangeText={setZipCode}
-                placeholder="12345"
-                placeholderTextColor={theme.textSecondary}
+                placeholder="10001"
+                placeholderTextColor="rgba(200,191,168,0.4)"
                 keyboardType="number-pad"
-                maxLength={5}
+                maxLength={10}
               />
             </View>
+
+            <View style={styles.field}>
+              <ThemedText type="small" style={styles.label}>Country</ThemedText>
+              <TextInput
+                style={styles.addressInput}
+                value={country}
+                onChangeText={setCountry}
+                placeholder="United States"
+                placeholderTextColor="rgba(200,191,168,0.4)"
+                autoCapitalize="words"
+              />
+            </View>
+
+            <View style={styles.sectionDivider} />
+
+            <Pressable
+              style={styles.checkboxRow}
+              onPress={() => setBillingSameAsHome(v => !v)}
+            >
+              <Feather
+                name={billingSameAsHome ? "check-square" : "square"}
+                size={20}
+                color="#C9933A"
+              />
+              <ThemedText style={styles.checkboxLabel}>
+                Billing address same as above
+              </ThemedText>
+            </Pressable>
+
+            {billingSameAsHome ? null : (
+              <View style={{ marginTop: 16 }}>
+                <ThemedText type="h3" style={[styles.stepTitle, { marginBottom: 12 }]}>Billing Address</ThemedText>
+
+                <View style={styles.field}>
+                  <ThemedText type="small" style={styles.label}>Billing Street *</ThemedText>
+                  <TextInput
+                    style={styles.addressInput}
+                    value={billingStreet}
+                    onChangeText={setBillingStreet}
+                    placeholder="123 Main Street"
+                    placeholderTextColor="rgba(200,191,168,0.4)"
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <ThemedText type="small" style={styles.label}>Billing Apt / Suite (optional)</ThemedText>
+                  <TextInput
+                    style={styles.addressInput}
+                    value={billingAptUnit}
+                    onChangeText={setBillingAptUnit}
+                    placeholder="Apt 4B"
+                    placeholderTextColor="rgba(200,191,168,0.4)"
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <ThemedText type="small" style={styles.label}>Billing City *</ThemedText>
+                  <TextInput
+                    style={styles.addressInput}
+                    value={billingCity}
+                    onChangeText={setBillingCity}
+                    placeholder="New York"
+                    placeholderTextColor="rgba(200,191,168,0.4)"
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <ThemedText type="small" style={styles.label}>Billing State *</ThemedText>
+                  <TextInput
+                    style={styles.addressInput}
+                    value={billingState}
+                    onChangeText={setBillingState}
+                    placeholder="NY"
+                    placeholderTextColor="rgba(200,191,168,0.4)"
+                    autoCapitalize="characters"
+                    maxLength={2}
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <ThemedText type="small" style={styles.label}>Billing Zip *</ThemedText>
+                  <TextInput
+                    style={styles.addressInput}
+                    value={billingZip}
+                    onChangeText={setBillingZip}
+                    placeholder="10001"
+                    placeholderTextColor="rgba(200,191,168,0.4)"
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+            )}
           </View>
         );
 
@@ -699,18 +875,6 @@ export default function ConsumerSignupScreen() {
             <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
               Help us personalize your experience
             </ThemedText>
-
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Username</ThemedText>
-              <TextInput
-                style={inputStyle}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="@username"
-                placeholderTextColor={theme.textSecondary}
-                autoCapitalize="none"
-              />
-            </View>
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Date of Birth</ThemedText>
@@ -1030,6 +1194,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     fontSize: 16,
   },
+  usernameHint: {
+    fontSize: 11,
+    color: "rgba(200,191,168,0.5)",
+    marginTop: 4,
+    marginLeft: 2,
+  },
   fieldError: {
     fontSize: 12,
     color: "#E05252",
@@ -1040,6 +1210,42 @@ const styles = StyleSheet.create({
     color: "#E05252",
     textAlign: "center",
     marginBottom: 8,
+  },
+  locationButton: {
+    backgroundColor: "#C9933A",
+    height: 52,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 20,
+  },
+  addressInput: {
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    color: "#F0EAD6",
+    paddingHorizontal: Spacing.md,
+    fontSize: 16,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    marginVertical: 16,
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 0,
+    marginBottom: 8,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "rgba(200,191,168,0.8)",
   },
   passwordContainer: {
     flexDirection: "row",

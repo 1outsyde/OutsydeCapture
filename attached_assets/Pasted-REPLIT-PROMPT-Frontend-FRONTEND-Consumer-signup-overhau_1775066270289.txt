@@ -1,0 +1,225 @@
+REPLIT PROMPT (Frontend)
+FRONTEND | Consumer signup overhaul — remove duplicate username, replace location step with full address form
+
+READ FIRST before touching anything:
+
+ConsumerSignupScreen — read every step in full (Steps 1 through 6)
+OnboardingScreen — confirm the AsyncStorage keys used to store onboarding location: @outsyde_onboarding_city and @outsyde_onboarding_state
+services/api.ts — find the consumer signup function and what fields it currently sends
+Confirm expo-location is already installed and imported
+
+
+CHANGE 1 — Remove username from Step 3 entirely
+Step 3 "About You" currently shows a Username field at the top. This is a duplicate — username is already captured and validated on Step 1.
+Remove the username input field, its label, and its state reference from Step 3 completely. Step 3 should only contain:
+
+Date of Birth
+Gender selection
+Shopping frequency
+
+Do not move the username field — it stays on Step 1 only. Do not change Step 1 in any other way.
+
+CHANGE 2 — Add "14 days" subtext below username field on Step 1
+Directly below the username input on Step 1, add this subtext. It should only appear when the username availability state is green (available):
+javascript{usernameAvailable === true && (
+  <Text style={styles.usernameHint}>
+    You can change your username once every 14 days
+  </Text>
+)}
+Style:
+javascriptusernameHint: {
+  fontSize: 11,
+  color: 'rgba(200,191,168,0.5)',
+  marginTop: 4,
+  marginLeft: 2,
+}
+
+CHANGE 3 — Replace Step 2 "Your Location" with "Your Address"
+Step 2 currently shows "Your Location" with a "Use My Location" button, City, State, and Zip Code. Replace the entire Step 2 content with a full address form.
+On mount of Step 2, check if location was already granted during onboarding:
+javascriptuseEffect(() => {
+  const checkExistingLocation = async () => {
+    try {
+      // Check onboarding location data
+      const onboardingCity = await AsyncStorage.getItem('@outsyde_onboarding_city');
+      const onboardingState = await AsyncStorage.getItem('@outsyde_onboarding_state');
+      
+      // Check current permission status
+      const { status } = await Location.getForegroundPermissionsAsync();
+      const alreadyGranted = status === 'granted';
+      
+      if (alreadyGranted && onboardingCity) {
+        // Pre-fill silently — no need to ask again
+        setCity(onboardingCity);
+        setState(onboardingState ?? '');
+        setLocationPreFilled(true);
+      }
+    } catch (e) {
+      // Silent fail — user can fill manually
+    }
+  };
+  checkExistingLocation();
+}, []);
+New Step 2 state variables:
+javascriptconst [streetAddress, setStreetAddress] = useState('');
+const [aptUnit, setAptUnit] = useState('');
+const [city, setCity] = useState('');
+const [state, setState] = useState('');
+const [zipCode, setZipCode] = useState('');
+const [country, setCountry] = useState('United States');
+const [locationPreFilled, setLocationPreFilled] = useState(false);
+const [billingSameAsHome, setBillingSameAsHome] = useState(true);
+const [billingStreet, setBillingStreet] = useState('');
+const [billingAptUnit, setBillingAptUnit] = useState('');
+const [billingCity, setBillingCity] = useState('');
+const [billingState, setBillingState] = useState('');
+const [billingZip, setBillingZip] = useState('');
+```
+
+**New Step 2 UI layout:**
+```
+Headline: "Your Address"
+Subtext: "Used for shipping and billing on your orders"
+
+[Only show if locationPreFilled === false]:
+  [ 📍 Use My Location ]   ← gold/amber button, fills city + state only
+
+Street Address *
+[123 Main Street          ]
+
+Apt / Suite  (optional)
+[Apt 4B                   ]
+
+City *
+[New York                 ]   ← pre-filled if location granted
+
+State *
+[NY                       ]   ← pre-filled if location granted
+
+Zip Code *
+[10001                    ]
+
+Country
+[United States            ]   ← default value, editable
+
+────────────────────────────────
+
+[ ☑ ] Billing address same as above   ← checkbox, default checked
+
+[If unchecked, show identical block below labeled "Billing Address"]:
+  Billing Street *
+  [                        ]
+  Billing Apt / Suite
+  [                        ]
+  Billing City *
+  [                        ]
+  Billing State *
+  [                        ]
+  Billing Zip *
+  [                        ]
+"Use My Location" button behavior:
+javascriptconst handleUseMyLocation = async () => {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status === 'granted') {
+    const loc = await Location.getCurrentPositionAsync({ 
+      accuracy: Location.Accuracy.Balanced 
+    });
+    const [result] = await Location.reverseGeocodeAsync(loc.coords);
+    if (result) {
+      setCity(result.city ?? '');
+      setState(result.region ?? '');
+      // Do NOT fill street address — GPS cannot provide that
+    }
+  }
+};
+Step 2 validation for Continue:
+javascriptconst step2Valid = 
+  streetAddress.trim().length > 0 &&
+  city.trim().length > 0 &&
+  state.trim().length > 0 &&
+  zipCode.trim().length > 0 &&
+  (billingSameAsHome || (
+    billingStreet.trim().length > 0 &&
+    billingCity.trim().length > 0 &&
+    billingState.trim().length > 0 &&
+    billingZip.trim().length > 0
+  ));
+
+CHANGE 4 — Include address fields in signup payload
+In the signup submission function (wherever the final API call is made), add all address fields to the payload:
+javascript// Add to existing signup payload:
+streetAddress: streetAddress.trim(),
+aptUnit: aptUnit.trim() || null,
+city: city.trim(),
+state: state.trim(),
+zipCode: zipCode.trim(),
+country: country.trim() || 'United States',
+billingSameAsHome: billingSameAsHome,
+// Only include billing fields if different from home:
+...(billingSameAsHome ? {} : {
+  billingStreet: billingStreet.trim(),
+  billingAptUnit: billingAptUnit.trim() || null,
+  billingCity: billingCity.trim(),
+  billingState: billingState.trim(),
+  billingZip: billingZip.trim(),
+}),
+Also include in POST /api/auth/oauth/complete-signup payload for Google/Apple signups.
+
+CHANGE 5 — Button and input styling on Step 2
+Match Step 2 inputs to the existing Step 1 input style exactly:
+javascript// All inputs:
+height: 56,
+borderRadius: 14,
+backgroundColor: 'rgba(255,255,255,0.05)',
+borderWidth: 1,
+borderColor: 'rgba(255,255,255,0.08)',
+color: '#F0EAD6',
+
+// Focused border:
+borderColor: '#C9933A'
+
+// "Use My Location" button:
+backgroundColor: '#C9933A',
+height: 52,
+borderRadius: 14,
+flexDirection: 'row',
+alignItems: 'center',
+justifyContent: 'center',
+gap: 8,
+marginBottom: 20,
+
+// Checkbox row:
+flexDirection: 'row',
+alignItems: 'center',
+gap: 10,
+marginTop: 16,
+marginBottom: 8,
+
+// Checkbox label:
+fontSize: 14,
+color: 'rgba(200,191,168,0.8)',
+
+Constraints:
+
+Only touch ConsumerSignupScreen — do not change Business or Photographer screens
+Do not change Steps 3–6 except removing the username field from Step 3
+Do not change OnboardingScreen
+Do not change any auth logic or navigation
+The stored address is for shipping/billing ONLY — add a code comment making this clear
+
+Test checklist:
+
+ Username field gone from Step 3 completely
+ "14 days" subtext appears below username on Step 1 only when username is available (green)
+ Step 2 headline reads "Your Address"
+ Step 2 subtext reads "Used for shipping and billing on your orders"
+ If onboarding location was granted: city and state pre-filled, "Use My Location" button hidden
+ If location was NOT granted: "Use My Location" button visible, tapping it requests permission and fills city + state only
+ Street address, city, state, zip are required — Continue blocked if any are empty
+ Apt/Unit is optional
+ Billing checkbox defaults to checked
+ Unchecking checkbox reveals billing address block
+ Billing fields required when checkbox is unchecked
+ All address fields included in final signup payload
+ All inputs styled consistently with Step 1 inputs
+ npx tsc --noEmit 0 errors
