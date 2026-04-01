@@ -60,8 +60,8 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList>;
   Auth: { returnTo?: string };
   ConsumerSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
-  BusinessSignup: { prefillName?: string; prefillEmail?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
-  PhotographerSignup: { prefillName?: string; prefillEmail?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
+  BusinessSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
+  PhotographerSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
   BusinessOnboarding: undefined;
   PhotographerOnboarding: undefined;
   SelectPhotographer: undefined;

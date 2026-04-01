@@ -81,10 +81,11 @@ export default function BusinessSignupScreen() {
   const { signup, loginWithTokens, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const prefillName = route.params?.prefillName ?? "";
-  const prefillEmail = route.params?.prefillEmail ?? "";
-  const isGoogleSignup = route.params?.isGoogleSignup ?? false;
   const googleProfile = route.params?.googleProfile ?? null;
+  const isGoogleSignup = route.params?.isGoogleSignup ?? false;
+  const isAppleSignup = route.params?.socialProvider === "apple";
+  const prefillName = route.params?.prefillName ?? googleProfile?.name ?? "";
+  const prefillEmail = route.params?.prefillEmail ?? googleProfile?.email ?? "";
 
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -213,6 +214,7 @@ export default function BusinessSignupScreen() {
             role: "business",
             password,
             googleProfile,
+            profileImageUrl: googleProfile?.profileImageUrl ?? null,
             businessName,
             businessCategory,
           }),
@@ -333,7 +335,7 @@ export default function BusinessSignupScreen() {
           <View style={styles.stepContent}>
             <ThemedText type="h2" style={styles.stepTitle}>Create Account</ThemedText>
             <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-              Enter your personal details
+              Just a few details and you're in
             </ThemedText>
 
             <View style={styles.field}>
@@ -375,6 +377,11 @@ export default function BusinessSignupScreen() {
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Phone *</ThemedText>
+              {(isGoogleSignup || isAppleSignup) ? (
+                <ThemedText style={{ fontSize: 11, color: "rgba(200,191,168,0.5)", marginBottom: 4 }}>
+                  Google and Apple don't share phone numbers — fill this in manually
+                </ThemedText>
+              ) : null}
               <TextInput
                 style={inputStyle}
                 value={phone}

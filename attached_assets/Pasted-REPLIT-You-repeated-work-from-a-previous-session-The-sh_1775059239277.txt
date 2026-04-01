@@ -1,0 +1,42 @@
+REPLIT — You repeated work from a previous session. The shared hook, OnboardingScreen cleanup, and AuthScreen updates were already done. Do not redo them.
+What actually needs to be implemented now is different. Read these files fresh before doing anything:
+
+screens/RoleAuthScreen.tsx — the new screen created last session
+ConsumerSignupScreen.tsx, BusinessSignupScreen.tsx, PhotographerSignupScreen.tsx — current Step 1 fields
+hooks/useOAuthSignIn.ts — specifically the Apple credential handling
+
+Then implement only these 5 changes:
+CHANGE 1 — Google signup: pre-fill Full Name and Email only
+When isGoogleSignup: true and prefillName + prefillEmail are in route params, apply them to the Full Name and Email fields on mount. Both fields stay editable. Username, phone, and password stay empty and required.
+CHANGE 2 — Apple signup: pre-fill Full Name and Email, persist name across logins
+In useOAuthSignIn.ts, update the Apple handler:
+
+On first Apple login: store name and email immediately to AsyncStorage keys @outsyde_apple_name and @outsyde_apple_email
+On subsequent logins where credential.fullName is null: read from AsyncStorage as fallback
+Pass name and email as prefill params to the signup screen exactly like Google does
+
+CHANGE 3 — Email signup subtext update only
+On Step 1 of all 3 signup screens, change subtext from "Enter your details to get started" to "Just a few details and you're in". Nothing else changes for email signup.
+CHANGE 4 — Helper text on phone field for social signups
+On all 3 signup screens, when isGoogleSignup or isAppleSignup is true, show this text directly below the Phone field label:
+
+Text: "Google and Apple don't share phone numbers — fill this in manually"
+Style: 11px, rgba(200,191,168,0.5), no bold
+Only visible for social signups — hidden for email signup
+
+CHANGE 5 — Pass avatar silently in signup payload
+For Google and Apple signups, include profileImageUrl in the complete-signup POST body:
+javascriptprofileImageUrl: googleProfile?.profileImageUrl ?? null
+No visible field needed — just pass it through so the backend can store the profile photo.
+
+Test checklist:
+
+ Google signup: Full Name and Email pre-filled and editable
+ Google signup: Username, phone, password empty and required
+ Apple first login: name and email pre-filled
+ Apple second login with same account: name still pre-filled from AsyncStorage
+ Phone helper text visible for Google and Apple users only
+ Phone helper text hidden for email signup
+ Step 1 subtext updated on all 3 signup screens
+ profileImageUrl included in complete-signup payload
+ npx tsc --noEmit 0 errors

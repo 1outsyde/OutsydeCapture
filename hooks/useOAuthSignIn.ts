@@ -129,6 +129,9 @@ export interface AppleNewUserParams {
   prefillEmail: string;
 }
 
+const APPLE_NAME_KEY = "@outsyde_apple_name";
+const APPLE_EMAIL_KEY = "@outsyde_apple_email";
+
 export function useAppleSignIn(onNewUser: (params: AppleNewUserParams) => void) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -147,16 +150,29 @@ export function useAppleSignIn(onNewUser: (params: AppleNewUserParams) => void) 
       });
 
       if (credential.email) {
+        // First-time Apple login: Apple provides email and fullName
         const givenName = credential.fullName?.givenName || "";
         const familyName = credential.fullName?.familyName || "";
         const prefillName = `${givenName} ${familyName}`.trim() || undefined;
+        // Persist name + email so subsequent logins can still pre-fill
+        if (prefillName) await AsyncStorage.setItem(APPLE_NAME_KEY, prefillName);
+        await AsyncStorage.setItem(APPLE_EMAIL_KEY, credential.email);
         onNewUser({ prefillName, prefillEmail: credential.email });
       } else {
-        Alert.alert(
-          "Sign In",
-          "To sign into your existing Outsyde account, please use your email and password.",
-          [{ text: "OK", style: "cancel" }]
-        );
+        // Subsequent Apple logins: Apple returns neither email nor fullName
+        // Restore from AsyncStorage so the signup form can still be pre-filled
+        const results = await AsyncStorage.multiGet([APPLE_NAME_KEY, APPLE_EMAIL_KEY]);
+        const restoredName = results[0][1] || undefined;
+        const restoredEmail = results[1][1];
+        if (restoredEmail) {
+          onNewUser({ prefillName: restoredName, prefillEmail: restoredEmail });
+        } else {
+          Alert.alert(
+            "Sign In",
+            "To sign into your existing Outsyde account, please use your email and password.",
+            [{ text: "OK", style: "cancel" }]
+          );
+        }
       }
     } catch (error: any) {
       if (error.code !== "ERR_REQUEST_CANCELED") {
