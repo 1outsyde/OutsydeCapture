@@ -595,6 +595,10 @@ export default function PhotographerSignupScreen() {
                 <ThemedText type="body">{displayName}</ThemedText>
               </View>
               <View style={styles.reviewRow}>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>Username</ThemedText>
+                <ThemedText type="body">@{username}</ThemedText>
+              </View>
+              <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Location</ThemedText>
                 <ThemedText type="body">{city}, {state}</ThemedText>
               </View>
@@ -608,9 +612,9 @@ export default function PhotographerSignupScreen() {
               </View>
             </View>
 
-            <View style={[styles.noticeBox, { backgroundColor: "#007AFF15" }]}>
-              <Feather name="check-circle" size={20} color="#007AFF" />
-              <ThemedText type="small" style={{ color: "#007AFF", marginLeft: Spacing.sm, flex: 1 }}>
+            <View style={[styles.noticeBox, { backgroundColor: "rgba(45,122,45,0.12)", borderColor: "rgba(45,122,45,0.4)", borderWidth: 1 }]}>
+              <Feather name="check-circle" size={20} color="#3A9E3A" />
+              <ThemedText type="small" style={{ color: "#3A9E3A", marginLeft: Spacing.sm, flex: 1 }}>
                 Photographer accounts are auto-approved! You can start accepting bookings immediately.
               </ThemedText>
             </View>
@@ -648,7 +652,7 @@ export default function PhotographerSignupScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md, backgroundColor: theme.background }]}>
         {currentStep === 6 ? (
-          <Button onPress={handleSubmit} style={styles.nextButton} disabled={isLoading}>
+          <Button onPress={handleSubmit} style={[styles.nextButton, { backgroundColor: "#C9933A" }]} disabled={isLoading}>
             {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Create Account"}
           </Button>
         ) : (
@@ -660,7 +664,7 @@ export default function PhotographerSignupScreen() {
             ) : null}
             <Button
               onPress={handleNext}
-              style={styles.nextButton}
+              style={[styles.nextButton, { backgroundColor: "#2D7A2D" }]}
             >
               Continue
             </Button>
@@ -730,6 +734,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
+    marginTop: 16,
     marginBottom: Spacing.xl,
   },
   reviewCard: {
