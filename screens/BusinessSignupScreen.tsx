@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Switch } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -127,10 +128,20 @@ export default function BusinessSignupScreen() {
   const [zipCode, setZipCode] = useState("");
 
   useEffect(() => {
-    AsyncStorage.multiGet(["@outsyde_onboarding_city", "@outsyde_onboarding_state"]).then(([cityPair, statePair]) => {
-      if (cityPair[1] && !city) setCity(cityPair[1]);
-      if (statePair[1] && !state) setState(statePair[1]);
-    }).catch(() => {});
+    const prefillLocation = async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === "granted") {
+          const savedCity = await AsyncStorage.getItem("@outsyde_onboarding_city");
+          const savedState = await AsyncStorage.getItem("@outsyde_onboarding_state");
+          if (savedCity) setCity(savedCity);
+          if (savedState) setState(savedState);
+        }
+      } catch (e) {
+        // Silent fail — user can fill manually
+      }
+    };
+    prefillLocation();
   }, []);
 
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -805,6 +816,10 @@ export default function BusinessSignupScreen() {
                 <ThemedText type="body">{businessName}</ThemedText>
               </View>
               <View style={styles.reviewRow}>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>Username</ThemedText>
+                <ThemedText type="body">@{username}</ThemedText>
+              </View>
+              <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Category</ThemedText>
                 <ThemedText type="body">{businessCategory}</ThemedText>
               </View>
@@ -862,7 +877,7 @@ export default function BusinessSignupScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md, backgroundColor: theme.background }]}>
         {currentStep === 7 ? (
-          <Button onPress={handleSubmit} style={styles.nextButton} disabled={isLoading}>
+          <Button onPress={handleSubmit} style={[styles.nextButton, { backgroundColor: "#C9933A" }]} disabled={isLoading}>
             {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Submit Application"}
           </Button>
         ) : (
@@ -874,7 +889,7 @@ export default function BusinessSignupScreen() {
             ) : null}
             <Button
               onPress={handleNext}
-              style={styles.nextButton}
+              style={[styles.nextButton, { backgroundColor: "#2D7A2D" }]}
             >
               Continue
             </Button>

@@ -1,0 +1,58 @@
+FRONTEND | Business Signup — 4 fixes
+READ FIRST: Read BusinessSignupScreen.tsx in full before touching anything.
+
+FIX 1 — All Continue buttons must be green not blue
+Every Continue and Submit button across all 7 steps is currently blue. Change all of them to match the brand:
+javascript// Replace all instances of the blue button style with:
+backgroundColor: '#2D7A2D',  // or use LinearGradient from #2D7A2D to #3A9E3A
+// "Submit Application" button on Step 7: use gold #C9933A to signal completion
+Apply to all 7 steps. The "Submit Application" button on Step 7 should be gold #C9933A — not green — to visually signal this is the final action.
+
+FIX 2 — Step 2 headline missing
+One screenshot of Step 2 shows no headline — just "Tell us about your business" subtext with no bold title above it. Confirm the headline "Business Info" is always rendered above the subtext on Step 2. It appears to be conditionally missing. Make it always visible.
+
+FIX 3 — Step 5 Business Location: pre-fill city and state from onboarding location
+The business location step already has the right structure. Add the same pre-fill logic used in Consumer Step 2 — on mount check @outsyde_onboarding_city and @outsyde_onboarding_state from AsyncStorage and pre-fill city and state if available:
+javascriptuseEffect(() => {
+  const prefillLocation = async () => {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status === 'granted') {
+      const city = await AsyncStorage.getItem('@outsyde_onboarding_city');
+      const state = await AsyncStorage.getItem('@outsyde_onboarding_state');
+      if (city) setCity(city);
+      if (state) setState(state);
+    }
+  };
+  prefillLocation();
+}, []);
+```
+
+The business address is separate from the user's home address — this is the storefront/office location. Keep the Physical Location toggle exactly as is — just add the pre-fill.
+
+---
+
+**FIX 4 — Step 7 Review screen: add username to the summary**
+
+The Review & Submit screen shows Business Name, Category, Offer Type, Location, and Contact. Add Username to the summary so the business owner can confirm their handle before submitting:
+```
+Business Name    Test1
+Username         @testbiz1        ← ADD THIS
+Category         Beauty & Hair
+Offer Type       Products & Services
+Location         North Baldwin, NY
+Contact          Testbiz1@gmail.com
+
+Constraints:
+
+Do not change any step logic, validation, or navigation
+Do not change step order or content
+Button color change applies to ALL steps
+
+Test checklist:
+
+ All Continue buttons are green across Steps 1–6
+ Submit Application button on Step 7 is gold
+ Step 2 headline "Business Info" always visible
+ Step 5 city and state pre-filled if onboarding location was granted
+ Step 7 review summary shows username
+ npx tsc --noEmit 0 errors
