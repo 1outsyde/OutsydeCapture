@@ -1,0 +1,106 @@
+FRONTEND | Add profile photo upload to signup — all 3 account types
+
+READ FIRST:
+
+ConsumerSignupScreen, BusinessSignupScreen, PhotographerSignupScreen — find Step 1 for Consumer, Step 2 for Business and Photographer
+Confirm expo-image-picker is already installed — if not flag it
+
+
+CHANGE 1 — Photographer Step 2 "Your Profile": add profile photo upload
+At the top of Step 2, above Display Name, add a circular photo upload area:
+javascript// Centered at top of step 2
+// Default state: circle with camera icon inside, gold border
+// After selection: shows the chosen image cropped to circle
+
+<TouchableOpacity onPress={handlePickProfilePhoto}>
+  {profilePhotoUri ? (
+    <Image 
+      source={{ uri: profilePhotoUri }} 
+      style={styles.profilePhotoCircle} 
+    />
+  ) : (
+    <View style={styles.profilePhotoPlaceholder}>
+      <Ionicons name="camera" size={28} color="#C9933A" />
+      <Text style={styles.profilePhotoHint}>Add Photo</Text>
+    </View>
+  )}
+</TouchableOpacity>
+Photo picker function:
+javascriptconst handlePickProfilePhoto = async () => {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') return;
+  
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],  // force square crop
+    quality: 0.8,
+  });
+  
+  if (!result.canceled) {
+    setProfilePhotoUri(result.assets[0].uri);
+  }
+};
+Photo is optional — do not block Continue if no photo selected. Include a small "Optional" label below the circle.
+Include profilePhotoUri in the signup payload as profileImageUrl.
+
+CHANGE 2 — Business Step 2 "Business Info": add logo/profile photo upload
+Same circular upload component at the top of Step 2, above Business Name. Label it "Business Logo" with "Optional" below. Same picker function and payload inclusion.
+
+CHANGE 3 — Consumer Step 1: add profile photo with clear skip option
+For consumers, add the photo upload below the Password field on Step 1. Make it visually lighter — smaller circle, more subdued:
+Label: "Profile Photo" with "Optional — you can add this later" below it in muted text.
+If the user signed up via Google/Apple and prefillAvatar is already set, show their Google/Apple photo pre-populated in the circle. They can tap to replace it.
+
+Styles for the photo circle:
+javascriptprofilePhotoCircle: {
+  width: 96,
+  height: 96,
+  borderRadius: 48,
+  alignSelf: 'center',
+  marginBottom: 8,
+},
+profilePhotoPlaceholder: {
+  width: 96,
+  height: 96,
+  borderRadius: 48,
+  backgroundColor: 'rgba(255,255,255,0.04)',
+  borderWidth: 2,
+  borderColor: '#C9933A',
+  borderStyle: 'dashed',
+  alignItems: 'center',
+  justifyContent: 'center',
+  alignSelf: 'center',
+  marginBottom: 8,
+  gap: 4,
+},
+profilePhotoHint: {
+  fontSize: 11,
+  color: '#C9933A',
+  fontWeight: '500',
+},
+profilePhotoOptional: {
+  fontSize: 11,
+  color: 'rgba(200,191,168,0.4)',
+  textAlign: 'center',
+  marginBottom: 16,
+}
+
+Constraints:
+
+Profile photo is always optional for all 3 account types — never block Continue
+Google/Apple avatar pre-populates for social signups if available
+Cover/banner photo is NOT part of this prompt — deferred to post-signup profile completion
+Do not change any other fields or steps
+
+Test checklist:
+
+ Photographer Step 2 shows circular photo upload above Display Name
+ Business Step 2 shows circular logo upload above Business Name
+ Consumer Step 1 shows smaller optional photo below Password
+ Tapping circle opens image picker with square crop
+ Selected photo appears in the circle
+ Google/Apple avatar pre-populates for social signups
+ Continue is never blocked by missing photo
+ profileImageUrl included in signup payload
+ npx tsc --noEmit 0 errors

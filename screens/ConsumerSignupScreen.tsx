@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, Linking } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Platform, Linking, Image } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -196,6 +197,21 @@ export default function ConsumerSignupScreen() {
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [showFormError, setShowFormError] = useState(false);
+  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(googleProfile?.profileImageUrl ?? null);
+
+  const handlePickProfilePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setProfilePhotoUri(result.assets[0].uri);
+    }
+  };
 
   useEffect(() => {
     if (prefillName) {
@@ -467,7 +483,7 @@ export default function ConsumerSignupScreen() {
             role: "consumer",
             password,
             googleProfile,
-            profileImageUrl: googleProfile?.profileImageUrl ?? null,
+            profileImageUrl: profilePhotoUri || googleProfile?.profileImageUrl || null,
             address: streetAddress.trim(),
             aptUnit: aptUnit.trim() || null,
             city: city.trim(),
@@ -535,6 +551,7 @@ export default function ConsumerSignupScreen() {
         billingState: billingState.trim(),
         billingZip: billingZip.trim(),
       }),
+      profileImageUrl: profilePhotoUri || undefined,
     });
 
     if (result.success) {
@@ -675,6 +692,18 @@ export default function ConsumerSignupScreen() {
                 <ThemedText style={styles.fieldError}>{getFieldError("password")}</ThemedText>
               ) : null}
             </View>
+
+            <Pressable onPress={handlePickProfilePhoto} style={{ alignSelf: "center", marginBottom: 4 }}>
+              {profilePhotoUri ? (
+                <Image source={{ uri: profilePhotoUri }} style={styles.profilePhotoCircle} />
+              ) : (
+                <View style={styles.profilePhotoPlaceholder}>
+                  <Feather name="camera" size={24} color="#C9933A" />
+                  <ThemedText style={styles.profilePhotoHint}>Profile Photo</ThemedText>
+                </View>
+              )}
+            </Pressable>
+            <ThemedText style={styles.profilePhotoOptional}>Optional — you can add this later</ThemedText>
           </View>
         );
 
@@ -1199,6 +1228,38 @@ const styles = StyleSheet.create({
     color: "rgba(200,191,168,0.5)",
     marginTop: 4,
     marginLeft: 2,
+  },
+  profilePhotoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  profilePhotoPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 2,
+    borderColor: "#C9933A",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 8,
+    gap: 4,
+  },
+  profilePhotoHint: {
+    fontSize: 11,
+    color: "#C9933A",
+    fontWeight: "500",
+  },
+  profilePhotoOptional: {
+    fontSize: 11,
+    color: "rgba(200,191,168,0.4)",
+    textAlign: "center",
+    marginBottom: 16,
   },
   fieldError: {
     fontSize: 12,

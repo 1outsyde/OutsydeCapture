@@ -89,6 +89,7 @@ export interface SignupData {
   hourlyRate?: number;
   portfolioUrl?: string;
   specialties?: string[];
+  profileImageUrl?: string;
 }
 
 export interface LoginResult {

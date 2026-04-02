@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Switch } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Switch, Image } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -109,6 +110,22 @@ export default function BusinessSignupScreen() {
       setLastName(parts.slice(1).join(" ") ?? "");
     }
   }, [prefillName]);
+
+  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(googleProfile?.profileImageUrl ?? null);
+
+  const handlePickProfilePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setProfilePhotoUri(result.assets[0].uri);
+    }
+  };
 
   const [businessName, setBusinessName] = useState("");
   const [businessCategory, setBusinessCategory] = useState("");
@@ -264,7 +281,7 @@ export default function BusinessSignupScreen() {
             role: "business",
             password,
             googleProfile,
-            profileImageUrl: googleProfile?.profileImageUrl ?? null,
+            profileImageUrl: profilePhotoUri || googleProfile?.profileImageUrl || null,
             businessName,
             businessCategory,
           }),
@@ -315,6 +332,7 @@ export default function BusinessSignupScreen() {
       zipCode,
       websiteUrl,
       socialMedia,
+      profileImageUrl: profilePhotoUri || undefined,
     });
 
     if (result.success) {
@@ -497,6 +515,18 @@ export default function BusinessSignupScreen() {
             <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
               Tell us about your business
             </ThemedText>
+
+            <Pressable onPress={handlePickProfilePhoto} style={{ alignSelf: "center", marginBottom: 4 }}>
+              {profilePhotoUri ? (
+                <Image source={{ uri: profilePhotoUri }} style={styles.profilePhotoCircle} />
+              ) : (
+                <View style={styles.profilePhotoPlaceholder}>
+                  <Feather name="camera" size={28} color="#C9933A" />
+                  <ThemedText style={styles.profilePhotoHint}>Business Logo</ThemedText>
+                </View>
+              )}
+            </Pressable>
+            <ThemedText style={styles.profilePhotoOptional}>Optional</ThemedText>
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Business Name *</ThemedText>
@@ -971,6 +1001,38 @@ const styles = StyleSheet.create({
     margin: 4,
   },
   row: { flexDirection: "row" },
+  profilePhotoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  profilePhotoPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 2,
+    borderColor: "#C9933A",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 8,
+    gap: 4,
+  },
+  profilePhotoHint: {
+    fontSize: 11,
+    color: "#C9933A",
+    fontWeight: "500",
+  },
+  profilePhotoOptional: {
+    fontSize: 11,
+    color: "rgba(200,191,168,0.4)",
+    textAlign: "center",
+    marginBottom: 16,
+  },
   reviewIcon: {
     width: 100,
     height: 100,
