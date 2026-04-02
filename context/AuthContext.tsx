@@ -90,6 +90,18 @@ export interface SignupData {
   portfolioUrl?: string;
   specialties?: string[];
   profileImageUrl?: string;
+  shootLocation?: string[];
+  studioName?: string | null;
+  studioAddress?: string | null;
+  usesSharedStudio?: boolean;
+  travelRadius?: string;
+  pricingType?: string;
+  startingPrice?: number | null;
+  minimumBooking?: string | null;
+  additionalServices?: string[];
+  experienceLevel?: string;
+  equipmentLevel?: string | null;
+  deliveryTime?: string;
 }
 
 export interface LoginResult {

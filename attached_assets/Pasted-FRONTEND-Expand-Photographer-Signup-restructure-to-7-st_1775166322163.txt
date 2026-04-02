@@ -1,0 +1,185 @@
+FRONTEND | Expand Photographer Signup — restructure to 7 steps with pricing flexibility, studio, travel radius, additional services, and experience
+
+READ FIRST: Read PhotographerSignupScreen.tsx in full before touching anything. Note every existing state variable and every existing step's content so nothing gets lost.
+
+NEW STEP STRUCTURE — 7 steps total
+Step 1 — Create Account     (existing — unchanged)
+Step 2 — Your Profile       (existing — unchanged)
+Step 3 — Location & Studio  (replaces current Step 3)
+Step 4 — Pricing            (replaces current Step 4)
+Step 5 — Services           (expands current Step 5)
+Step 6 — Details            (new step)
+Step 7 — Review & Submit    (was Step 6, updated)
+Update the step counter from 6 to 7 everywhere it appears.
+
+STEP 3 — Location & Studio (replaces current city/state only)
+Keep existing city and state fields. Add below them:
+Where do you shoot?  (multi-select chips)
+[ I come to you ]  [ I have a studio ]  [ Both ]
+
+// If "I have a studio" OR "Both" is selected, show:
+Studio Name  (optional)
+[________________________]
+
+Studio Address  (optional)
+[________________________]
+
+  — OR —
+
+[ ☐ ] I use rented/shared studio spaces
+
+──────────────────────────────
+How far will you travel?
+○ Within my city only
+○ Up to 25 miles
+○ Up to 50 miles
+○ Up to 100 miles
+○ Willing to travel anywhere
+New state variables:
+javascriptconst [shootLocation, setShootLocation] = useState<string[]>([]); 
+// array: ['on-location', 'studio', 'both']
+const [studioName, setStudioName] = useState('');
+const [studioAddress, setStudioAddress] = useState('');
+const [usesSharedStudio, setUsesSharedStudio] = useState(false);
+const [travelRadius, setTravelRadius] = useState('');
+```
+
+---
+
+**STEP 4 — Pricing** *(replaces hourly-rate-only)*
+
+Replace the single hourly rate input with a pricing type selector first, then show the relevant input:
+```
+How do you price your work?
+○ Hourly Rate          → show: $ [___] /hour
+○ Per Session          → show: Starting at $ [___]
+○ Per Project          → show: Starting at $ [___]  
+○ Custom Packages      → show: "You can add packages on your profile after signup"
+○ Contact for Pricing  → show: nothing — price hidden publicly
+
+// Below the price input (when applicable):
+Minimum booking duration  (optional)
+○ 30 min  ○ 1 hour  ○ 2 hours  ○ Half day  ○ Full day
+
+Portfolio URL  (existing field, keep unchanged)
+New state variables:
+javascriptconst [pricingType, setPricingType] = useState('');
+// 'hourly' | 'per_session' | 'per_project' | 'packages' | 'contact'
+const [startingPrice, setStartingPrice] = useState('');
+const [minimumBooking, setMinimumBooking] = useState('');
+```
+
+Remove the existing `hourlyRate` state — replace with `pricingType` and `startingPrice`.
+
+---
+
+**STEP 5 — Services & Specialties** *(expands current specialties)*
+
+Keep all existing specialty chips unchanged. Add a second section below:
+```
+── existing specialty chips unchanged ──
+
+Additional Services  (select all that apply)
+[ Photo editing & retouching  ]
+[ Same-day previews           ]
+[ Prints & albums             ]
+[ Videography / Reels         ]
+[ Drone photography           ]
+[ Makeup artist coordination  ]
+[ Model sourcing              ]
+[ Wardrobe styling assistance ]
+[ Rush delivery               ]
+New state variable:
+javascriptconst [additionalServices, setAdditionalServices] = useState<string[]>([]);
+```
+
+---
+
+**STEP 6 — Details** *(new step)*
+```
+Headline: "A Few More Details"
+Subtext: "Help clients understand your experience"
+
+Years of Experience
+○ Just starting out
+○ 1–2 years
+○ 3–5 years
+○ 5–10 years
+○ 10+ years
+
+Equipment Level
+○ Professional camera + studio lighting
+○ Professional camera, natural light
+○ Building my kit
+
+Typical Photo Delivery Time
+○ Same day
+○ 24–48 hours
+○ 3–5 business days
+○ 1–2 weeks
+○ Varies by project
+New state variables:
+javascriptconst [experienceLevel, setExperienceLevel] = useState('');
+const [equipmentLevel, setEquipmentLevel] = useState('');
+const [deliveryTime, setDeliveryTime] = useState('');
+```
+
+---
+
+**STEP 7 — Review & Submit** *(was Step 6, update the summary)*
+
+Update the review card to show the new fields:
+```
+Display Name      [value]
+Username          @[value]
+Location          [city], [state]
+Travel Range      [value]
+Pricing           [pricingType] — $[startingPrice] (or "Contact for pricing")
+Specialties       [comma-separated list]
+Experience        [value]
+Delivery Time     [value]
+The "Create Account" gold button and auto-approval notice stay exactly as they are.
+
+UPDATE SIGNUP PAYLOAD
+Add all new fields to the signup submission:
+javascript// Add to existing payload:
+shootLocation: shootLocation,
+studioName: studioName || null,
+studioAddress: studioAddress || null,
+usesSharedStudio: usesSharedStudio,
+travelRadius: travelRadius,
+pricingType: pricingType,
+startingPrice: startingPrice ? parseFloat(startingPrice) : null,
+minimumBooking: minimumBooking || null,
+additionalServices: additionalServices,
+experienceLevel: experienceLevel,
+equipmentLevel: equipmentLevel,
+deliveryTime: deliveryTime,
+
+VALIDATION RULES
+
+Step 3: shootLocation must have at least one selection. travelRadius required. Studio fields only required if studio option selected.
+Step 4: pricingType required. startingPrice required unless pricingType is 'packages' or 'contact'
+Step 5: At least 1 specialty required (existing rule unchanged)
+Step 6: experienceLevel and deliveryTime required. equipmentLevel optional.
+
+
+Constraints:
+
+Steps 1 and 2 completely unchanged
+All existing state variables preserved — only additions, no removals except hourlyRate replaced by pricingType + startingPrice
+Do not change button colors — they were just fixed
+Do not change the auto-approval notice — just fixed
+
+Test checklist:
+
+ Step counter shows X of 7 on all steps
+ Step 3 shows shoot location chips + studio fields + travel radius
+ Studio name/address only appears when studio option selected
+ Step 4 shows pricing type selector — correct input appears per selection
+ "Custom Packages" and "Contact for Pricing" show no price input
+ Step 5 shows both specialty chips AND additional services chips
+ Step 6 shows experience, equipment, and delivery time selectors
+ Step 7 review summary shows all new fields
+ Signup payload includes all new fields
+ npx tsc --noEmit 0 errors
