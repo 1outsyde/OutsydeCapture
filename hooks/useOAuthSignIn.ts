@@ -5,7 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as AppleAuthentication from "expo-apple-authentication";
 
 import { useAuth, GoogleAuthUserData, GoogleProfile } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/services/api";
+import { api, API_BASE_URL } from "@/services/api";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -127,6 +127,7 @@ export function useGoogleSignIn(onNewUser: (profile: GoogleProfile) => void) {
 export interface AppleNewUserParams {
   prefillName?: string;
   prefillEmail: string;
+  appleId?: string;
 }
 
 const APPLE_NAME_KEY = "@outsyde_apple_name";
@@ -134,6 +135,7 @@ const APPLE_EMAIL_KEY = "@outsyde_apple_email";
 
 export function useAppleSignIn(onNewUser: (params: AppleNewUserParams) => void) {
   const [isLoading, setIsLoading] = useState(false);
+  const { loginWithTokens } = useAuth();
 
   const signIn = async () => {
     if (Platform.OS !== "ios") {
@@ -149,23 +151,67 @@ export function useAppleSignIn(onNewUser: (params: AppleNewUserParams) => void) 
         ],
       });
 
+      const givenName = credential.fullName?.givenName || "";
+      const familyName = credential.fullName?.familyName || "";
+      const fullName = `${givenName} ${familyName}`.trim() || null;
+
+      // Persist name + email on first login (Apple only provides them once)
       if (credential.email) {
-        // First-time Apple login: Apple provides email and fullName
-        const givenName = credential.fullName?.givenName || "";
-        const familyName = credential.fullName?.familyName || "";
-        const prefillName = `${givenName} ${familyName}`.trim() || undefined;
-        // Persist name + email so subsequent logins can still pre-fill
-        if (prefillName) await AsyncStorage.setItem(APPLE_NAME_KEY, prefillName);
+        if (fullName) await AsyncStorage.setItem(APPLE_NAME_KEY, fullName);
         await AsyncStorage.setItem(APPLE_EMAIL_KEY, credential.email);
-        onNewUser({ prefillName, prefillEmail: credential.email });
-      } else {
-        // Subsequent Apple logins: Apple returns neither email nor fullName
-        // Restore from AsyncStorage so the signup form can still be pre-filled
-        const results = await AsyncStorage.multiGet([APPLE_NAME_KEY, APPLE_EMAIL_KEY]);
-        const restoredName = results[0][1] || undefined;
-        const restoredEmail = results[1][1];
-        if (restoredEmail) {
-          onNewUser({ prefillName: restoredName, prefillEmail: restoredEmail });
+      }
+
+      // Restore from storage if Apple didn't provide email this time
+      const storedName = await AsyncStorage.getItem(APPLE_NAME_KEY);
+      const storedEmail = await AsyncStorage.getItem(APPLE_EMAIL_KEY);
+      const resolvedEmail = credential.email || storedEmail;
+      const resolvedName = fullName || storedName || undefined;
+
+      if (!credential.identityToken) {
+        Alert.alert("Sign-In Failed", "Apple Sign-In returned no identity token. Please try again.");
+        return;
+      }
+
+      // Call backend to verify the credential
+      try {
+        const response = await api.appleSignIn({
+          identityToken: credential.identityToken,
+          fullName: resolvedName ?? null,
+          email: resolvedEmail ?? null,
+        });
+
+        if ("isNewUser" in response && response.isNewUser) {
+          // New user — route to signup screen
+          onNewUser({
+            prefillName: response.fullName || resolvedName,
+            prefillEmail: response.email || resolvedEmail || "",
+            appleId: response.appleId,
+          });
+        } else if ("accessToken" in response) {
+          // Existing user — log them in
+          const backendUser = response.user as any;
+          const sessionResult = await loginWithTokens(response.accessToken, response.refreshToken, {
+            userId: backendUser.id,
+            email: backendUser.email,
+            firstName: backendUser.firstName,
+            lastName: backendUser.lastName,
+            name: backendUser.name,
+            profileImageUrl: backendUser.profileImageUrl,
+            isVendor: backendUser.isVendor,
+            isPhotographer: backendUser.isPhotographer,
+            isAdmin: backendUser.isAdmin,
+            businessId: backendUser.businessId,
+            photographerId: backendUser.photographerId,
+          } as GoogleAuthUserData);
+          if (!sessionResult.success) {
+            Alert.alert("Sign-In Failed", "Failed to complete Apple Sign-In. Please try again.");
+          }
+        }
+      } catch {
+        // Backend not yet live or Apple OAuth endpoint not ready —
+        // fall back to routing as new user using local Apple credential data
+        if (resolvedEmail) {
+          onNewUser({ prefillName: resolvedName, prefillEmail: resolvedEmail });
         } else {
           Alert.alert(
             "Sign In",

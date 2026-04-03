@@ -1,4 +1,32 @@
+import {
+  getAccessToken,
+  getRefreshToken,
+  storeTokens,
+  clearAuthStorage,
+} from "@/utils/tokenStorage";
+
 export const API_BASE_URL = "https://outsyde-backend.onrender.com";
+
+// ─── Token refresh queue ─────────────────────────────────────────────────────
+let _isRefreshing = false;
+let _refreshQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
+
+async function runRefresh(): Promise<string> {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) throw new Error("No refresh token");
+  const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
+  if (!res.ok) {
+    await clearAuthStorage();
+    throw new Error("Refresh failed");
+  }
+  const data = await res.json();
+  await storeTokens(data.accessToken, data.refreshToken);
+  return data.accessToken as string;
+}
 
 export interface HealthCheckResponse {
   status: string;
@@ -1101,6 +1129,43 @@ class ApiService {
         } catch (parseError) {
           // Could not parse error body, use default message
         }
+
+        // ── TOKEN_EXPIRED interceptor ──────────────────────────────────────
+        const isExpired =
+          response.status === 401 &&
+          errorBody?.error === "TOKEN_EXPIRED" &&
+          !endpoint.includes("/api/auth/refresh");
+
+        if (isExpired) {
+          if (_isRefreshing) {
+            // Another refresh is in-flight — queue and wait for it
+            const newToken = await new Promise<string>((resolve, reject) => {
+              _refreshQueue.push({ resolve, reject });
+            });
+            const retryHeaders: HeadersInit = { ...mergedHeaders, Authorization: `Bearer ${newToken}` };
+            const retryRes = await fetch(url, { ...options, credentials: "include", headers: retryHeaders });
+            if (!retryRes.ok) throw { message: "Retry after refresh failed", status: retryRes.status } as ApiError;
+            return retryRes.json() as T;
+          }
+
+          _isRefreshing = true;
+          try {
+            const newToken = await runRefresh();
+            _refreshQueue.forEach((p) => p.resolve(newToken));
+            _refreshQueue = [];
+            const retryHeaders: HeadersInit = { ...mergedHeaders, Authorization: `Bearer ${newToken}` };
+            const retryRes = await fetch(url, { ...options, credentials: "include", headers: retryHeaders });
+            if (!retryRes.ok) throw { message: "Retry after refresh failed", status: retryRes.status } as ApiError;
+            return retryRes.json() as T;
+          } catch (refreshErr) {
+            _refreshQueue.forEach((p) => p.reject(refreshErr));
+            _refreshQueue = [];
+            throw refreshErr;
+          } finally {
+            _isRefreshing = false;
+          }
+        }
+
         throw {
           message: errorMessage,
           status: response.status,
@@ -1204,6 +1269,65 @@ class ApiService {
     return this.request<SessionSignupResponse>("/api/auth/photographer/signup", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    await this.request<unknown>("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, email: string, newPassword: string): Promise<void> {
+    await this.request<unknown>("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, email, newPassword }),
+    });
+  }
+
+  async refreshTokens(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+    return this.request<{ accessToken: string; refreshToken: string }>("/api/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
+    });
+  }
+
+  async logoutWithToken(refreshToken: string): Promise<void> {
+    await this.request<unknown>("/api/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
+    }).catch(() => {
+      // Non-critical: fire-and-forget
+    });
+  }
+
+  async appleSignIn(params: {
+    identityToken: string;
+    fullName?: string | null;
+    email?: string | null;
+    nonce?: string;
+  }): Promise<
+    | { isNewUser: true; requiresUsername: boolean; appleId: string; email: string; fullName?: string }
+    | { isNewUser: false; user: Record<string, any>; accessToken: string; refreshToken: string }
+  > {
+    return this.request("/api/auth/oauth/apple", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
+  async appleCompleteSignup(params: {
+    appleId: string;
+    email: string;
+    fullName?: string;
+    username: string;
+    password: string;
+    role?: string;
+  }): Promise<{ user: Record<string, any>; accessToken: string; refreshToken: string }> {
+    return this.request("/api/auth/oauth/apple/complete-signup", {
+      method: "POST",
+      body: JSON.stringify(params),
     });
   }
 

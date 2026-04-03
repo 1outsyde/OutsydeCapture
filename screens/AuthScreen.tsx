@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -71,8 +71,16 @@ const ROLE_OPTIONS: {
 
 export default function AuthScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { login, loginAsGuest, isLoading } = useAuth();
+  const { login, loginAsGuest, isLoading, pendingResetParams, clearPendingResetParams } = useAuth();
   const insets = useSafeAreaInsets();
+
+  // Handle password reset deep link for unauthenticated users
+  useEffect(() => {
+    if (pendingResetParams) {
+      clearPendingResetParams();
+      navigation.navigate("ResetPassword", pendingResetParams);
+    }
+  }, [pendingResetParams]);
 
   const [mode, setMode] = useState<AuthMode>("login");
   const [identifier, setIdentifier] = useState("");
@@ -318,6 +326,15 @@ export default function AuthScreen() {
                     <ThemedText style={styles.gradientBtnText}>Sign In</ThemedText>
                   )}
                 </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                onPress={() => navigation.navigate("ForgotPassword")}
+                style={[styles.switchRow, { marginBottom: 20 }]}
+              >
+                <ThemedText style={[styles.switchText, { color: DS.gold }]}>
+                  Forgot password?
+                </ThemedText>
               </Pressable>
 
               <Pressable onPress={switchMode} style={styles.switchRow}>

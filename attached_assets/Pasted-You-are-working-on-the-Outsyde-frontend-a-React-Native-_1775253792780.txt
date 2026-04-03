@@ -1,0 +1,366 @@
+You are working on the Outsyde frontend — a React Native / Expo app targeting iOS and Android. The backend is a Node.js/Express API deployed on Render with PostgreSQL (Neon). Auth uses JWT with access + refresh token pairs. Payments use Stripe.
+Design System Reference
+
+Colors: Forest green (#0D2B0D → #3A9E3A), warm cream (#F0EAD6), burnished gold (#C9933A), near-black (#080C08) dark background
+Fonts: Syne (display/headlines), DM Sans (body)
+
+What Has Already Been Completed
+
+4-screen onboarding is built and polished: Welcome splash (topographic background, trust stats), Discover (animated category pills, native location permission), Booking (interactive calendar visual), Role Picker (new-user role selection + returning-user sign-in hub).
+Google OAuth is fully working. Routes through the backend's POST /api/auth/oauth/complete-signup. No user record is created until username is confirmed.
+Sign-in accepts email, username (with or without @), and Google OAuth.
+Username system is mandatory, validated on the backend.
+Name and email fields remain editable even when pre-filled from Google. Password is required even for OAuth signups.
+
+What the Backend is Building in Parallel
+The backend team (Cursor) is simultaneously building these endpoints — you should code against them now so both sides are ready to connect:
+
+POST /api/auth/refresh — accepts { refreshToken }, returns { accessToken, refreshToken }
+POST /api/auth/logout — accepts { refreshToken }, returns 200
+POST /api/auth/forgot-password — accepts { email }, returns 200 always
+POST /api/auth/reset-password — accepts { token, email, newPassword }, returns 200 or 400
+POST /api/auth/oauth/apple — accepts { identityToken, fullName, email, nonce }, returns user or { isNewUser: true, requiresUsername: true, appleId, email, fullName }
+POST /api/auth/oauth/apple/complete-signup — accepts { appleId, email, fullName, username, password }, returns { accessToken, refreshToken, user }
+All existing login/signup/OAuth endpoints now return both accessToken and refreshToken
+Auth middleware returns { error: 'TOKEN_EXPIRED' } when the access token is expired (distinct from missing or invalid)
+
+
+Your Tasks
+You have four deliverables. Complete them in this order.
+
+Task 1: Secure Token Storage & Session Persistence
+This solves Item #4 on the launch roadmap — users are getting logged out every time the app relaunches. The root cause is that tokens are only stored in memory (state/context) and are not persisted to secure storage.
+Requirements
+
+Install expo-secure-store if not already present:
+
+bash   npx expo install expo-secure-store
+
+Create a token storage utility at utils/tokenStorage.js:
+
+javascriptimport * as SecureStore from 'expo-secure-store';
+
+const ACCESS_TOKEN_KEY = 'outsyde_access_token';
+const REFRESH_TOKEN_KEY = 'outsyde_refresh_token';
+const USER_DATA_KEY = 'outsyde_user_data';
+
+// Store both tokens after any successful auth action (login, signup, refresh)
+export async function storeTokens(accessToken, refreshToken) {
+  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+// Retrieve tokens on app launch to restore session
+export async function getAccessToken() {
+  return await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+}
+
+export async function getRefreshToken() {
+  return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+}
+
+// Store minimal user data for instant UI hydration before network call
+export async function storeUserData(user) {
+  await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(user));
+}
+
+export async function getUserData() {
+  const data = await SecureStore.getItemAsync(USER_DATA_KEY);
+  return data ? JSON.parse(data) : null;
+}
+
+// Clear everything on logout
+export async function clearAuthStorage() {
+  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await SecureStore.deleteItemAsync(USER_DATA_KEY);
+}
+
+Update the auth context / Zustand store (wherever global auth state lives):
+
+On app launch, check getAccessToken() and getUserData() from secure storage
+If tokens exist, hydrate state immediately (user sees logged-in UI instantly)
+Then silently call POST /api/auth/refresh with the stored refresh token to get a fresh access token pair
+If refresh succeeds: update stored tokens, user is fully authenticated
+If refresh fails (401): clear storage, redirect to sign-in — session has genuinely expired
+Add an isLoading state that is true during this bootstrap check and false once resolved — show a splash/loading screen during this phase, never a flash of the login screen
+
+
+On every successful login, signup, and OAuth completion, call storeTokens(accessToken, refreshToken) and storeUserData(user).
+On logout, call clearAuthStorage() AND hit POST /api/auth/logout with the stored refresh token to revoke it server-side.
+
+
+Task 2: Automatic Token Refresh (API Interceptor)
+This solves Item #1 on the launch roadmap — login crashes and silent failures caused by expired tokens. The app needs to transparently refresh tokens when a 401 TOKEN_EXPIRED response is received.
+Requirements
+
+Create or update the API client (utils/api.js or services/apiClient.js). If you're using axios, set up an interceptor. If you're using fetch, create a wrapper.
+
+Axios approach (recommended):
+javascriptimport axios from 'axios';
+import { getAccessToken, getRefreshToken, storeTokens, clearAuthStorage } from './tokenStorage';
+
+const api = axios.create({
+  baseURL: process.env.EXPO_PUBLIC_API_URL,
+});
+
+// Attach access token to every request
+api.interceptors.request.use(async (config) => {
+  const token = await getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle 401 TOKEN_EXPIRED responses
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Only attempt refresh for TOKEN_EXPIRED, not TOKEN_INVALID or TOKEN_MISSING
+    if (error.response?.status === 401 
+        && error.response?.data?.error === 'TOKEN_EXPIRED' 
+        && !originalRequest._retry) {
+      
+      if (isRefreshing) {
+        // Queue this request — another refresh is already in flight
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const refreshToken = await getRefreshToken();
+        const { data } = await axios.post(
+          `${process.env.EXPO_PUBLIC_API_URL}/api/auth/refresh`,
+          { refreshToken }
+        );
+
+        await storeTokens(data.accessToken, data.refreshToken);
+        processQueue(null, data.accessToken);
+
+        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        // Refresh failed — session is dead, force logout
+        await clearAuthStorage();
+        // Navigate to sign-in screen — use your navigation ref or event emitter
+        // Example: navigationRef.current?.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+
+Replace all direct fetch or axios calls throughout the app with this shared api client. Every authenticated request must go through it so the interceptor can handle token refresh transparently.
+Critical edge case: The interceptor uses a queue (failedQueue) so that if multiple requests fail simultaneously due to an expired token, only one refresh call is made and all queued requests retry with the new token. Do not skip this — without it, you'll fire multiple refresh calls that race and invalidate each other.
+
+
+Task 3: Password Reset Flow
+This solves Item #5 on the launch roadmap. The user needs to be able to request a password reset and complete it via deep link.
+Requirements
+3A: Forgot Password Screen
+Create a new screen at screens/ForgotPasswordScreen.js (or wherever your auth screens live):
+
+Input: Email address field
+Button: "Send Reset Link"
+On submit: Call POST /api/auth/forgot-password with { email }
+On success (always 200): Show a confirmation message: "If an account exists with that email, you'll receive a reset link shortly. Check your inbox and spam folder." Navigate to a confirmation screen or show this inline.
+Validation: Basic email format validation before sending
+Loading state: Disable button and show spinner during request
+Link from sign-in screen: Add a "Forgot password?" tap target on the sign-in screen that navigates here
+
+3B: Deep Link Handling for Reset
+When the user taps the link in their email (outsyde://reset-password?token=<token>&email=<email>), the app must open and route to the reset screen.
+
+Register the deep link in your Expo linking configuration (likely in app.json or your navigation config):
+
+javascript// In your linking config (e.g., navigation container)
+const linking = {
+  prefixes: ['outsyde://'],
+  config: {
+    screens: {
+      ResetPassword: 'reset-password', // matches outsyde://reset-password?token=...&email=...
+      // ... your other deep link routes
+    },
+  },
+};
+
+Create a Reset Password Screen at screens/ResetPasswordScreen.js:
+
+Extract token and email from route params / URL query params
+Show two fields: "New Password" and "Confirm Password"
+Validation: Minimum 8 characters, passwords must match
+On submit: Call POST /api/auth/reset-password with { token, email, newPassword }
+On success: Show confirmation message ("Password updated successfully"), then navigate to the sign-in screen after a short delay
+On failure (400): Show error — "This reset link has expired or already been used. Please request a new one." with a button to navigate to Forgot Password screen
+Password visibility toggle: Eye icon to show/hide password input
+
+
+
+3C: Styling
+Match the existing auth screen design language — near-black (#080C08) background, warm cream (#F0EAD6) text, forest green (#3A9E3A) for primary buttons, Syne for headings, DM Sans for body text. Keep it clean, minimal, and consistent with the onboarding flow you've already built.
+
+Task 4: Apple Sign-In
+Apple Sign-In is mandatory for App Store approval since the app offers Google Sign-In. This must work end-to-end before submission.
+Requirements
+
+Install the required package:
+
+bash   npx expo install expo-apple-authentication
+
+Add Apple Sign-In button to Slide 4 (Role Picker / Sign-In Hub) alongside the existing Google Sign-In button. Use Apple's official button style:
+
+javascriptimport * as AppleAuthentication from 'expo-apple-authentication';
+
+// Check availability (only iOS 13+, not available on Android)
+const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
+
+useEffect(() => {
+  AppleAuthentication.isAvailableAsync().then(setAppleAuthAvailable);
+}, []);
+
+// Render conditionally — only show on iOS where Apple auth is available
+{appleAuthAvailable && (
+  <AppleAuthentication.AppleAuthenticationButton
+    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+    cornerRadius={12}
+    style={{ width: '100%', height: 50 }}
+    onPress={handleAppleSignIn}
+  />
+)}
+
+Implement handleAppleSignIn:
+
+javascriptasync function handleAppleSignIn() {
+  try {
+    // Generate a nonce for security (optional but recommended)
+    const nonce = Math.random().toString(36).substring(2, 15);
+    
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    // CRITICAL: Apple only provides fullName and email on FIRST authorization
+    // Capture them immediately and send to backend
+    const fullName = credential.fullName
+      ? `${credential.fullName.givenName || ''} ${credential.fullName.familyName || ''}`.trim()
+      : null;
+
+    // Send identity token to backend for verification
+    const response = await api.post('/api/auth/oauth/apple', {
+      identityToken: credential.identityToken,
+      fullName: fullName,
+      email: credential.email, // may be null on subsequent logins
+      nonce: nonce,
+    });
+
+    if (response.data.isNewUser && response.data.requiresUsername) {
+      // Navigate to username selection screen, passing Apple data forward
+      // This mirrors the Google OAuth flow you already built
+      navigation.navigate('UsernameSelection', {
+        authProvider: 'apple',
+        appleId: response.data.appleId,
+        email: response.data.email,
+        fullName: response.data.fullName,
+      });
+    } else {
+      // Existing user — store tokens and navigate to main app
+      await storeTokens(response.data.accessToken, response.data.refreshToken);
+      await storeUserData(response.data.user);
+      navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
+    }
+  } catch (error) {
+    if (error.code === 'ERR_REQUEST_CANCELED') {
+      // User cancelled — do nothing, this is normal
+      return;
+    }
+    // Show error toast/alert for actual failures
+    console.error('Apple Sign-In error:', error);
+    Alert.alert('Sign-In Failed', 'Something went wrong with Apple Sign-In. Please try again.');
+  }
+}
+
+Update the username selection / complete-signup screen to handle the Apple provider:
+
+When authProvider === 'apple', the completion call goes to POST /api/auth/oauth/apple/complete-signup with { appleId, email, fullName, username, password }
+This should follow the exact same UX as the Google OAuth completion — name and email pre-filled but editable, username required, password required
+On success: store tokens, store user data, navigate to main app
+
+
+Android handling: Apple Sign-In is iOS-only. On Android, the Apple button should not render at all (the appleAuthAvailable check handles this). Do not show a disabled or greyed-out Apple button on Android.
+
+
+Navigation & Screen Summary
+After completing all four tasks, the auth-related screen structure should look like this:
+Onboarding (4 slides)
+  └── Slide 4: Role Picker + Sign-In Hub
+        ├── Google Sign-In → OAuth flow → Username Selection (if new) → Main App
+        ├── Apple Sign-In  → OAuth flow → Username Selection (if new) → Main App
+        ├── Email Sign-Up  → Signup form (with username) → Main App
+        └── Email Sign-In  → Sign-In form → Main App
+              └── "Forgot password?" → Forgot Password Screen
+                                          └── (email deep link) → Reset Password Screen → Sign-In
+
+App Launch (cold start)
+  └── Check SecureStore for tokens
+        ├── Tokens found → Splash screen → Silent refresh → Main App
+        └── No tokens / refresh fails → Onboarding Slide 1
+
+Testing Checklist
+Before marking Phase 1.1 frontend as complete, verify all of the following on a real device or EAS Development Build (not Expo Go):
+
+ App relaunch after full close restores the logged-in session (no re-login required)
+ If you wait 15+ minutes (access token expiry), the next API call transparently refreshes and succeeds without user-visible interruption
+ Logout clears all stored data — relaunching the app shows onboarding, not the main app
+ Forgot Password screen sends the request and shows the confirmation message
+ Tapping the deep link in the reset email opens the app to the Reset Password screen with token pre-populated
+ Successfully resetting password navigates to sign-in, and the new password works
+ Expired/used reset tokens show a clear error with a link to request a new one
+ Apple Sign-In button appears only on iOS
+ Apple Sign-In for a new user routes to username selection, then creates account successfully
+ Apple Sign-In for a returning user logs in directly
+ Apple Sign-In cancellation (user dismisses the sheet) does nothing — no error, no crash
+ Google Sign-In still works exactly as before (regression check)
+ Email + password sign-in still works exactly as before (regression check)
+ No flash of the login screen on app launch for authenticated users (splash screen covers the check)
+
+
+Important Expo Notes
+
+expo-secure-store works in Expo Go for development, but expo-apple-authentication does not — you need an EAS Development Build to test Apple Sign-In.
+The deep link scheme outsyde:// must be configured in app.json under expo.scheme: "outsyde".
+For EAS builds, ensure expo-apple-authentication plugin is added to app.json plugins array.

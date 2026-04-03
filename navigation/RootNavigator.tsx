@@ -41,6 +41,8 @@ import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
+import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
+import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -668,6 +670,18 @@ export default function RootNavigator() {
           presentation: "card",
           headerShown: false,
         }}
+      />
+
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+      />
+
+      <Stack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
       />
     </Stack.Navigator>
   );

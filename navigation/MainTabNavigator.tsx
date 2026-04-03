@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { StyleSheet, View, Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
@@ -24,9 +24,17 @@ export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { totalUnreadCount } = useMessaging();
-  const { user } = useAuth();
-  const navigation = useNavigation();
+  const { user, pendingResetParams, clearPendingResetParams } = useAuth();
+  const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
+
+  // Handle password reset deep link for authenticated users
+  useEffect(() => {
+    if (pendingResetParams) {
+      clearPendingResetParams();
+      navigation.navigate("ResetPassword", pendingResetParams);
+    }
+  }, [pendingResetParams]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>

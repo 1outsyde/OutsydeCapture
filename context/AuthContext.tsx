@@ -3,6 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Linking } from "react-native";
 import { api } from "../services/api";
 import { captureReferralFromURL, captureReferralFromInitialURL } from "../services/referral";
+import {
+  storeTokens,
+  storeUserData,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUserData,
+  clearAuthStorage,
+} from "../utils/tokenStorage";
 
 export type UserRole = "consumer" | "business" | "photographer";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
@@ -153,6 +161,8 @@ interface AuthContextType {
   getToken: () => Promise<string | null>;
   refreshSession: () => Promise<LoginResult>;
   refreshUser: () => Promise<void>;
+  pendingResetParams: { token: string; email: string } | null;
+  clearPendingResetParams: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -163,95 +173,158 @@ const STORAGE_KEYS = {
   PENDING_BUSINESSES: "@outsyde_pending_businesses",
 };
 
+function parseResetPasswordURL(url: string): { token: string; email: string } | null {
+  try {
+    const normalized = url.replace("outsyde://", "https://outsyde.app/");
+    const parsed = new URL(normalized);
+    const token = parsed.searchParams.get("token");
+    const email = parsed.searchParams.get("email");
+    if (token && email) return { token, email };
+  } catch (_) {}
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingResetParams, setPendingResetParams] = useState<{ token: string; email: string } | null>(null);
+
+  const clearPendingResetParams = () => setPendingResetParams(null);
 
   useEffect(() => {
     loadStoredAuth();
     captureReferralFromInitialURL();
+    // Handle cold-start deep links
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        captureReferralFromURL(url);
+        if (url.includes("reset-password")) {
+          const params = parseResetPasswordURL(url);
+          if (params) setPendingResetParams(params);
+        }
+      }
+    }).catch(() => {});
     const sub = Linking.addEventListener("url", ({ url }) => {
       captureReferralFromURL(url);
+      if (url.includes("reset-password")) {
+        const params = parseResetPasswordURL(url);
+        if (params) setPendingResetParams(params);
+      }
     });
     return () => sub.remove();
   }, []);
 
+  const _clearAllAuth = async () => {
+    await clearAuthStorage();
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.USER,
+      STORAGE_KEYS.TOKEN,
+      "@outsyde_refresh_token",
+    ]);
+  };
+
   const loadStoredAuth = async () => {
     try {
-      const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      // CHANGE 4: clean up any abandoned Google OAuth profile from an incomplete signup
-      try {
-        const abandonedProfile = await AsyncStorage.getItem('@outsyde_google_profile');
-        if (abandonedProfile && !storedUser) {
-          await AsyncStorage.removeItem('@outsyde_google_profile');
-        }
-      } catch (_) {}
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        if (parsed.role === "business" && parsed.approvalStatus === "pending") {
+      // ── 1. Instant hydration from SecureStore (no network call) ─────────────
+      const secureUser = await getStoredUserData<User>();
+      if (secureUser) {
+        // Skip pending/rejected users
+        if (secureUser.role === "business" && secureUser.approvalStatus === "pending") {
+          setIsLoading(false);
           return;
         }
-        if (parsed.approvalStatus === "rejected") {
+        if (secureUser.approvalStatus === "rejected") {
+          setIsLoading(false);
           return;
         }
-        
-        // SESSION VERIFICATION: Check if backend session matches stored user
-        // This prevents frontend/backend session desync
+        // Show UI immediately while we verify in the background
+        setUser(secureUser);
+      }
+
+      // ── 2. Migration: also try AsyncStorage if SecureStore is empty ──────────
+      const storedUserJson = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+      const parsed: User | null = secureUser || (storedUserJson ? JSON.parse(storedUserJson) : null);
+      if (!parsed) {
+        // Clean up any abandoned Google OAuth profile
         try {
-          const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
-            method: "GET",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          });
-          
-          if (response.ok) {
-            const backendData = await response.json();
-            const backendUser = backendData.user || backendData;
-            const backendUserId = backendUser?.id;
-            
-            // If backend session has different userId, force logout
-            if (backendUserId && backendUserId !== parsed.id) {
-              console.warn("[Auth] Session mismatch - stored:", parsed.id, "backend:", backendUserId);
-              await AsyncStorage.multiRemove([
-                STORAGE_KEYS.USER, 
-                STORAGE_KEYS.TOKEN, 
-                "@outsyde_refresh_token",
-              ]);
-              setUser(null);
-              return;
-            }
-            
-            // Hydrate user with fresh data from backend (especially username)
-            if (backendUser) {
-              parsed.username = backendUser.username || parsed.username;
-              parsed.displayName = backendUser.displayName || parsed.displayName;
-              parsed.avatar = backendUser.avatar || backendUser.profileImageUrl || parsed.avatar;
-              parsed.profileImageUrl = backendUser.profileImageUrl || parsed.profileImageUrl;
-              parsed.coverMediaUrl = backendUser.coverMediaUrl || parsed.coverMediaUrl;
-              parsed.coverMediaType = backendUser.coverMediaType || parsed.coverMediaType;
-              console.log("[Auth] Session verified - userId:", parsed.id, "username:", parsed.username);
-              
-              // Save updated user to storage
-              await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(parsed));
-            } else {
-              console.log("[Auth] Session verified - userId:", parsed.id);
-            }
-          } else if (response.status === 401) {
-            // Backend session expired - clear stored auth
-            console.log("[Auth] Session expired - clearing stored auth");
-            await AsyncStorage.multiRemove([
-              STORAGE_KEYS.USER, 
-              STORAGE_KEYS.TOKEN, 
-              "@outsyde_refresh_token",
-            ]);
+          const abandoned = await AsyncStorage.getItem("@outsyde_google_profile");
+          if (abandoned) await AsyncStorage.removeItem("@outsyde_google_profile");
+        } catch (_) {}
+        setIsLoading(false);
+        return;
+      }
+
+      // ── 3. Verify session with backend ─────────────────────────────────────
+      try {
+        const accessToken = await getAccessToken();
+        const headers: HeadersInit = { "Content-Type": "application/json" };
+        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+        const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+          method: "GET",
+          credentials: "include",
+          headers,
+        });
+
+        if (response.ok) {
+          const backendData = await response.json();
+          const backendUser = backendData.user || backendData;
+          if (backendUser?.id && backendUser.id !== parsed.id) {
+            console.warn("[Auth] Session mismatch — clearing auth");
+            await _clearAllAuth();
             setUser(null);
             return;
           }
-          // Other errors (network, 500) - allow using stored auth
-        } catch (verifyError) {
-          console.warn("[Auth] Session verification failed (using cached auth):", verifyError);
+          if (backendUser) {
+            const updated: User = {
+              ...parsed,
+              username: backendUser.username || parsed.username,
+              displayName: backendUser.displayName || parsed.displayName,
+              avatar: backendUser.avatar || backendUser.profileImageUrl || parsed.avatar,
+              profileImageUrl: backendUser.profileImageUrl || parsed.profileImageUrl,
+              coverMediaUrl: backendUser.coverMediaUrl || parsed.coverMediaUrl,
+              coverMediaType: backendUser.coverMediaType || parsed.coverMediaType,
+            };
+            await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
+            await storeUserData(updated);
+            setUser(updated);
+          } else {
+            setUser(parsed);
+          }
+          console.log("[Auth] Session verified — userId:", parsed.id);
+          return;
         }
-        
+
+        if (response.status === 401) {
+          // ── 4. Cookie session expired — try JWT refresh token ───────────────
+          const refreshToken = await getRefreshToken();
+          if (refreshToken) {
+            try {
+              const refreshRes = await fetch("https://outsyde-backend.onrender.com/api/auth/refresh", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refreshToken }),
+              });
+              if (refreshRes.ok) {
+                const { accessToken: newAccess, refreshToken: newRefresh } = await refreshRes.json();
+                await storeTokens(newAccess, newRefresh);
+                await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, newAccess);
+                setUser(parsed);
+                console.log("[Auth] Session restored via refresh token");
+                return;
+              }
+            } catch (_) {}
+          }
+          // Both cookie and refresh failed — session truly expired
+          console.log("[Auth] Session expired — clearing stored auth");
+          await _clearAllAuth();
+          setUser(null);
+          return;
+        }
+        // Other errors (network, 500) — use cached auth (offline-first)
+        setUser(parsed);
+      } catch (verifyError) {
+        console.warn("[Auth] Verification failed (using cached auth):", verifyError);
         setUser(parsed);
       }
     } catch (error) {
@@ -324,6 +397,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
       }
       
+      // Persist to both SecureStore and AsyncStorage
+      if (response.accessToken && response.refreshToken) {
+        await storeTokens(response.accessToken, response.refreshToken);
+      }
+      await storeUserData(newUser);
+
       if (newUser.role === "business" && newUser.approvalStatus === "pending") {
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
         await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
@@ -400,10 +479,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
-      if (response.refreshToken) {
+      if (response.accessToken && response.refreshToken) {
+        await storeTokens(response.accessToken, response.refreshToken);
+      } else if (response.refreshToken) {
         await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
       }
-      
+      await storeUserData(newUser);
+
       if (newUser.role === "business" && newUser.approvalStatus === "pending") {
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
         await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
@@ -525,18 +607,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // Call backend logout to invalidate session cookie
+      // Send refresh token to backend to revoke server-side
       try {
+        const refreshToken = await getRefreshToken();
         await fetch("https://outsyde-backend.onrender.com/api/auth/logout", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
+          body: refreshToken ? JSON.stringify({ refreshToken }) : undefined,
         });
       } catch (e) {
         console.warn("[Auth] Backend logout failed (non-critical):", e);
       }
       
-      // Clear all auth-related storage
+      // Clear SecureStore + AsyncStorage
+      await clearAuthStorage();
       await AsyncStorage.multiRemove([
         STORAGE_KEYS.USER, 
         STORAGE_KEYS.TOKEN, 
@@ -546,12 +631,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         "@outsyde_cart",
       ]);
       
-      // Reset user state
       setUser(null);
       console.log("[Auth] Logout complete - all state cleared");
     } catch (error) {
       console.error("Failed to logout:", error);
-      // Force reset user even if storage fails
       setUser(null);
     }
   };
@@ -565,6 +648,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getToken = async (): Promise<string | null> => {
     try {
+      // Prefer SecureStore; fall back to AsyncStorage for migration
+      const secureToken = await getAccessToken();
+      if (secureToken) return secureToken;
       return await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
     } catch (error) {
       console.error("Failed to get token:", error);
@@ -715,9 +801,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[AuthContext] loginWithTokens called with userId:", userData.userId);
       console.log("[AuthContext] User data from URL:", JSON.stringify(userData, null, 2));
       
+      await storeTokens(accessToken, refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
       await AsyncStorage.setItem("@outsyde_refresh_token", refreshToken);
-      
+
       let derivedRole: UserRole = "consumer";
       if (userData.isPhotographer) {
         derivedRole = "photographer";
@@ -744,6 +831,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         photographerId: userData.photographerId,
       };
       
+      await storeUserData(newUser);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       setUser(newUser);
       
@@ -775,6 +863,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getToken,
         refreshSession,
         refreshUser,
+        pendingResetParams,
+        clearPendingResetParams,
       }}
     >
       {children}
