@@ -2790,12 +2790,16 @@ class ApiService {
     limit?: number;
     latitude?: number;
     longitude?: number;
+    city?: string;
+    state?: string;
   }, authToken?: string): Promise<{ posts: ApiPost[] }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
     if (params?.latitude) queryParams.append("latitude", params.latitude.toString());
     if (params?.longitude) queryParams.append("longitude", params.longitude.toString());
+    if (params?.city) queryParams.append("city", params.city);
+    if (params?.state) queryParams.append("state", params.state);
     const queryString = queryParams.toString();
     const url = queryString ? `/api/feed?${queryString}` : "/api/feed";
     

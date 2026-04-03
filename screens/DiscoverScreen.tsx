@@ -19,6 +19,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 
@@ -57,7 +58,6 @@ export default function DiscoverScreen() {
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Comments modal (Pro feed)
@@ -133,17 +133,37 @@ export default function DiscoverScreen() {
     };
   }, []);
 
+  // ─── Silent location helper ────────────────────────────────────────────────
+  const getLocationParams = useCallback(async (): Promise<{
+    latitude?: number;
+    longitude?: number;
+    city?: string;
+    state?: string;
+  }> => {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      }
+      const city = await AsyncStorage.getItem("@outsyde_onboarding_city");
+      const state = await AsyncStorage.getItem("@outsyde_onboarding_state");
+      if (city) {
+        return { city, state: state ?? undefined };
+      }
+    } catch {}
+    return {};
+  }, []);
+
   // ─── Pro feed fetch ───────────────────────────────────────────────────────
   const fetchProFeed = useCallback(async () => {
     try {
       setFeedLoading(true);
-      const token = await getToken();
+      const [token, locationParams] = await Promise.all([getToken(), getLocationParams()]);
       const response = await api.getFeed(
-        {
-          limit: 50,
-          latitude: userLocation?.latitude,
-          longitude: userLocation?.longitude,
-        },
+        { limit: 50, ...locationParams },
         token || undefined
       );
       if (response.posts && Array.isArray(response.posts)) {
@@ -154,28 +174,12 @@ export default function DiscoverScreen() {
     } finally {
       setFeedLoading(false);
     }
-  }, [getToken, userLocation, convertApiPostToPost]);
+  }, [getToken, getLocationParams, convertApiPostToPost]);
 
-  // Location
-  useEffect(() => {
-    const req = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === "granted") {
-          const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-        }
-      } catch {}
-    };
-    req();
-  }, []);
-
-  // Fetch Pro feed when location available
+  // Fetch Pro feed on mount
   useEffect(() => {
     fetchProFeed();
-  }, [userLocation]);
+  }, [fetchProFeed]);
 
   // Feed refresh events (Pro only — Pulse is handled inside PulseFeedScreenV2)
   useEffect(() => {
