@@ -3,7 +3,7 @@ import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Scrol
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
@@ -504,7 +504,7 @@ export default function ConsumerSignupScreen() {
         if (response.ok) {
           await AsyncStorage.removeItem("@outsyde_google_profile");
           await loginWithTokens(data.accessToken, data.refreshToken, data as any);
-          navigation.navigate("Main");
+          navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
         } else {
           Alert.alert("Error", data.error ?? "Something went wrong. Please try again.");
         }
