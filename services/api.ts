@@ -1279,10 +1279,24 @@ class ApiService {
     });
   }
 
+  async sendPasswordResetCode(email: string): Promise<{ success: boolean; message: string }> {
+    return this.request("/api/auth/forgot-password/send-code", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async verifyPasswordResetCode(email: string, code: string): Promise<{ success: boolean; resetToken: string }> {
+    return this.request("/api/auth/forgot-password/verify-code", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    });
+  }
+
   async resetPassword(token: string, email: string, newPassword: string): Promise<void> {
     await this.request<unknown>("/api/auth/reset-password", {
       method: "POST",
-      body: JSON.stringify({ token, email, newPassword }),
+      body: JSON.stringify({ resetToken: token, email, newPassword }),
     });
   }
 
