@@ -329,8 +329,12 @@ export default function AuthScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() => navigation.navigate("ForgotPassword")}
+                onPress={() => {
+                  console.log("FORGOT PASSWORD TAPPED");
+                  navigation.push("ForgotPassword");
+                }}
                 style={[styles.switchRow, { marginBottom: 20 }]}
+                hitSlop={12}
               >
                 <ThemedText style={[styles.switchText, { color: DS.gold }]}>
                   Forgot password?

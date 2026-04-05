@@ -675,7 +675,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ForgotPassword"
         component={ForgotPasswordScreen}
-        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
       />
 
       <Stack.Screen
