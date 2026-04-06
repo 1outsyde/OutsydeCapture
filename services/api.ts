@@ -1294,10 +1294,24 @@ class ApiService {
   }
 
   async resetPassword(token: string, email: string, newPassword: string): Promise<void> {
-    await this.request<unknown>("/api/auth/reset-password", {
+    const payload = { resetToken: token, email, newPassword };
+    console.error("[api.resetPassword] token:", token ? `${token.slice(0, 8)}... (len=${token.length})` : "EMPTY");
+    console.error("[api.resetPassword] email:", email || "EMPTY");
+    console.error("[api.resetPassword] body JSON:", JSON.stringify({ resetToken: token || "(EMPTY)", email: email || "(EMPTY)", newPassword: "***" }));
+    const bodyStr = JSON.stringify(payload);
+    console.error("[api.resetPassword] sending bodyStr:", bodyStr.replace(newPassword, "***"));
+    const res = await fetch(`${this.baseUrl}/api/auth/reset-password`, {
       method: "POST",
-      body: JSON.stringify({ resetToken: token, email, newPassword }),
+      headers: { "Content-Type": "application/json" },
+      body: bodyStr,
     });
+    console.error("[api.resetPassword] response status:", res.status);
+    if (!res.ok) {
+      let body: any = {};
+      try { body = await res.json(); } catch {}
+      console.error("[api.resetPassword] error body:", JSON.stringify(body));
+      throw { message: body?.message || `HTTP ${res.status}`, status: res.status, body };
+    }
   }
 
   async refreshTokens(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
