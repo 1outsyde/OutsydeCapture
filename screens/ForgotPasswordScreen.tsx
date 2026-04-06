@@ -311,8 +311,12 @@ export default function ForgotPasswordScreen() {
     if (!step3Enabled) return;
     setStep3Loading(true);
     setStep3Error(null);
+    const resolvedEmail = email.trim().toLowerCase();
+    console.log("[ForgotPw] Step3 resetToken:", resetToken ? `${resetToken.slice(0, 8)}...` : "(EMPTY)");
+    console.log("[ForgotPw] Step3 email:", resolvedEmail || "(EMPTY)");
+    console.log("[ForgotPw] Step3 newPassword length:", newPassword.length);
     try {
-      await api.resetPassword(resetToken, email.trim().toLowerCase(), newPassword);
+      await api.resetPassword(resetToken, resolvedEmail, newPassword);
       setStep("success");
       successTimer.current = setTimeout(() => {
         navigation.navigate("Auth");

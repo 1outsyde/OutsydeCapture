@@ -68,7 +68,7 @@ export default function ResetPasswordScreen() {
       const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, email, newPassword }),
+        body: JSON.stringify({ resetToken: token, email, newPassword }),
       });
       if (res.ok) {
         setDone(true);
