@@ -526,10 +526,11 @@ export interface AdminBusinessDetail {
 
 export interface AdminPhotographer {
   id: string;
-  name: string;
-  specialty: string;
-  city: string;
-  state: string;
+  name?: string;
+  displayName?: string;
+  specialty?: string;
+  city?: string;
+  state?: string;
   email?: string;
   phone?: string;
   createdAt: string;

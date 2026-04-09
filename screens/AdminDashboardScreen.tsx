@@ -118,6 +118,9 @@ export default function AdminDashboardScreen() {
           break;
         case "photographers":
           const photographersData = await api.getAdminPhotographers(token, searchQuery || undefined);
+          if (photographersData && photographersData.length > 0) {
+            console.log("[AdminDashboard] First photographer item:", JSON.stringify(photographersData[0]));
+          }
           setPhotographers(photographersData || []);
           break;
         case "influencers":
@@ -900,17 +903,21 @@ export default function AdminDashboardScreen() {
     </View>
   ), [styles, theme]);
 
-  const renderPhotographerItem = ({ item }: { item: AdminPhotographer }) => (
-    <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
-      <Text style={styles.listItemName}>{item.name}</Text>
-      <Text style={styles.listItemInfo}>{item.specialty}</Text>
-      <Text style={styles.listItemInfo}>{item.city}, {item.state}</Text>
-      {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
-      {item.earnings !== undefined ? (
-        <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
-      ) : null}
-    </Pressable>
-  );
+  const renderPhotographerItem = ({ item }: { item: AdminPhotographer }) => {
+    const displayName = item.displayName || item.name || "(No Name)";
+    const location = item.city && item.state ? `${item.city}, ${item.state}` : item.city || item.state || null;
+    return (
+      <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+        <Text style={styles.listItemName}>{displayName}</Text>
+        {item.specialty ? <Text style={styles.listItemInfo}>{item.specialty}</Text> : null}
+        {location ? <Text style={styles.listItemInfo}>{location}</Text> : null}
+        {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
+        {item.earnings !== undefined ? (
+          <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
+        ) : null}
+      </Pressable>
+    );
+  };
 
   const renderInfluencerItem = ({ item }: { item: AdminInfluencer }) => (
     <View style={styles.listItem}>
