@@ -514,14 +514,6 @@ export default function ConsumerSignupScreen() {
       return;
     }
 
-    const storedRole = await AsyncStorage.getItem("@outsyde_user_type");
-    if (!storedRole) {
-      console.error("[ConsumerSignup] No role found in AsyncStorage — aborting signup");
-      Alert.alert("Error", "Something went wrong. Please restart the app and try again.");
-      return;
-    }
-    console.log("[ConsumerSignup] Role read from AsyncStorage:", storedRole);
-
     const result = await signup({
       firstName,
       lastName,
@@ -529,7 +521,7 @@ export default function ConsumerSignupScreen() {
       phone: phone.replace(/\D/g, ""),
       dateOfBirth,
       password,
-      role: storedRole as "consumer" | "business" | "photographer",
+      role: "consumer",
       city,
       state,
       zipCode,

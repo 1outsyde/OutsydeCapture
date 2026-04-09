@@ -389,14 +389,6 @@ export default function PhotographerSignupScreen() {
       return;
     }
 
-    const storedRole = await AsyncStorage.getItem("@outsyde_user_type");
-    if (!storedRole) {
-      console.error("[PhotographerSignup] No role found in AsyncStorage — aborting signup");
-      Alert.alert("Error", "Something went wrong. Please restart the app and try again.");
-      return;
-    }
-    console.log("[PhotographerSignup] Role read from AsyncStorage:", storedRole);
-
     const result = await signup({
       firstName,
       lastName,
@@ -405,7 +397,7 @@ export default function PhotographerSignupScreen() {
       dateOfBirth: "",
       password,
       username,
-      role: storedRole as "consumer" | "business" | "photographer",
+      role: "photographer",
       displayName,
       bio,
       city,
