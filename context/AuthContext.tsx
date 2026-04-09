@@ -163,6 +163,8 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   pendingResetParams: { token: string; email: string } | null;
   clearPendingResetParams: () => void;
+  pendingStripeReturn: { status: string; type: string } | null;
+  clearPendingStripeReturn: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -188,8 +190,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingResetParams, setPendingResetParams] = useState<{ token: string; email: string } | null>(null);
+  const [pendingStripeReturn, setPendingStripeReturn] = useState<{ status: string; type: string } | null>(null);
 
   const clearPendingResetParams = () => setPendingResetParams(null);
+  const clearPendingStripeReturn = () => setPendingStripeReturn(null);
+
+  function parseStripeReturnURL(url: string): { status: string; type: string } | null {
+    try {
+      if (!url.includes("stripe-return")) return null;
+      const normalized = url.replace("outsyde://", "https://outsyde.app/");
+      const parsed = new URL(normalized);
+      const status = parsed.searchParams.get("status");
+      const type = parsed.searchParams.get("type");
+      if (status && type) return { status, type };
+    } catch (_) {}
+    return null;
+  }
 
   useEffect(() => {
     loadStoredAuth();
@@ -197,18 +213,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Handle cold-start deep links
     Linking.getInitialURL().then((url) => {
       if (url) {
+        console.log("[DeepLink] Initial URL:", url);
         captureReferralFromURL(url);
         if (url.includes("reset-password")) {
           const params = parseResetPasswordURL(url);
           if (params) setPendingResetParams(params);
         }
+        if (url.includes("stripe-return")) {
+          const params = parseStripeReturnURL(url);
+          if (params) {
+            console.log("[DeepLink] Stripe return on cold start:", params);
+            setPendingStripeReturn(params);
+          }
+        }
       }
     }).catch(() => {});
     const sub = Linking.addEventListener("url", ({ url }) => {
+      console.log("[DeepLink] Received URL:", url);
       captureReferralFromURL(url);
       if (url.includes("reset-password")) {
         const params = parseResetPasswordURL(url);
         if (params) setPendingResetParams(params);
+      }
+      if (url.includes("stripe-return")) {
+        const params = parseStripeReturnURL(url);
+        if (params) {
+          console.log("[DeepLink] Stripe return while running:", params);
+          setPendingStripeReturn(params);
+        }
       }
     });
     return () => sub.remove();
@@ -873,6 +905,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshUser,
         pendingResetParams,
         clearPendingResetParams,
+        pendingStripeReturn,
+        clearPendingStripeReturn,
       }}
     >
       {children}

@@ -1,0 +1,45 @@
+Replit Prompt — Stripe Connect deep link return handler for outsyde:// URLs
+The backend has been updated to return users to outsyde://stripe-return?status=<success|refresh>&type=<photographer|vendor|influencer> after Stripe Connect onboarding completes. Currently the app has no handler for this deep link, so users returning from Stripe are stranded on the home or auth screen instead of being routed to their role-specific dashboard.
+Please do the following:
+1. Verify expo-linking is installed and the scheme is registered
+Check package.json for expo-linking. If it's not installed, install it (expo install expo-linking).
+Check app.json (or app.config.js) for the expo.scheme config. It should be set to "outsyde". If it's not set, add it:
+json{
+  "expo": {
+    "scheme": "outsyde"
+  }
+}
+Note that in Expo Go, the scheme for local dev will be exp:// by default, but outsyde:// will work for production-style testing. Flag if there's any additional configuration needed for Expo Go to handle the custom scheme.
+2. Add a top-level deep link handler in the app root
+In the root navigator or app entry point (likely App.tsx, AppNavigator.tsx, or wherever NavigationContainer is configured), add a deep link handler using expo-linking that listens for incoming URLs. When the app receives a URL matching outsyde://stripe-return, parse the status and type query parameters and route accordingly.
+3. Routing logic based on query params
+
+status=success&type=photographer → navigate to the photographer dashboard (or post-onboarding success screen if one exists)
+status=success&type=vendor → navigate to the vendor dashboard
+status=success&type=influencer → navigate to the influencer dashboard
+status=refresh&type=<any> → navigate back to the Stripe onboarding entry screen for that role, so the user can retry the onboarding flow
+Any unexpected params → navigate to the home screen and log a warning
+
+Use CommonActions.reset or equivalent to prevent back-navigation into the Stripe browser session, matching the pattern already used for post-signup navigation (per the established project convention).
+4. Handle two deep link scenarios
+
+App is already running (foregrounded or backgrounded): use Linking.addEventListener('url', handler) to catch the incoming URL while the app is alive
+App is launched fresh from the deep link: use Linking.getInitialURL() on app mount to catch the URL that started the app
+
+Both cases need to route correctly.
+5. Add diagnostic logging
+Add a console log when a deep link is received:
+console.log('[DeepLink] Received URL:', url);
+console.log('[DeepLink] Parsed params:', { status, type });
+console.log('[DeepLink] Routing to:', targetScreen);
+These help confirm the handler is firing correctly during end-to-end testing.
+6. Ensure authentication state is respected
+If a user hits the deep link but is not authenticated (rare, but possible if the session expired during Stripe onboarding), route them to the auth screen instead of the dashboard. Check the AuthContext or equivalent auth state before routing.
+7. Do not touch backend code. The backend is already returning the correct URLs. This is a frontend-only handler addition.
+After the fix, the end-to-end flow should be:
+
+Photographer completes Stripe Connect onboarding in the browser using Jenny Rosen's test data
+Stripe redirects the browser to outsyde://stripe-return?status=success&type=photographer
+Browser prompts to open the Outsyde app (or Expo Go during dev)
+App receives the deep link, parses params, routes to photographer dashboard
+User lands on their authenticated dashboard — no more "Cannot GET" error, no more being stranded in the browser

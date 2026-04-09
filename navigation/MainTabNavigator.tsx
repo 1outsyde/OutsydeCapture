@@ -24,7 +24,7 @@ export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { totalUnreadCount } = useMessaging();
-  const { user, pendingResetParams, clearPendingResetParams } = useAuth();
+  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn } = useAuth();
   const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
 
@@ -35,6 +35,47 @@ export default function MainTabNavigator() {
       navigation.navigate("ResetPassword", pendingResetParams);
     }
   }, [pendingResetParams]);
+
+  // Handle Stripe Connect return deep links (outsyde://stripe-return?status=...&type=...)
+  useEffect(() => {
+    if (!pendingStripeReturn) return;
+    const { status, type } = pendingStripeReturn;
+    clearPendingStripeReturn();
+
+    console.log("[DeepLink] Parsed params:", { status, type });
+
+    // Guard: require authentication before routing to dashboards
+    if (!user || user.isGuest) {
+      console.log("[DeepLink] Not authenticated — routing to Auth");
+      navigation.navigate("Auth");
+      return;
+    }
+
+    const dashboardMap: Record<string, string> = {
+      photographer: "PhotographerDashboard",
+      vendor: "BusinessDashboard",
+      business: "BusinessDashboard",
+      influencer: "InfluencerDashboard",
+    };
+
+    const targetScreen = dashboardMap[type];
+
+    if (!targetScreen) {
+      console.warn("[DeepLink] Unexpected type param:", type, "— routing to Main");
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
+      return;
+    }
+
+    console.log("[DeepLink] Routing to:", targetScreen, "(status:", status, ")");
+
+    // Reset stack so back-button doesn't return to Stripe browser session
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 1,
+        routes: [{ name: "Main" }, { name: targetScreen }],
+      })
+    );
+  }, [pendingStripeReturn]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
