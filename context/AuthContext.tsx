@@ -517,6 +517,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: data.role,
         phone: data.phone,
         dateOfBirth: data.dateOfBirth,
+        username: data.username,
         businessName: data.businessName,
         businessCategory: data.businessCategory,
         businessDescription: data.businessDescription,
@@ -528,6 +529,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         portfolioUrl: data.portfolioUrl,
         // Business-specific fields
         offerType: data.offerType,
+        // Consumer-specific fields
+        gender: data.gender,
+        ethnicity: data.ethnicity,
+        shoppingFrequency: data.shoppingFrequency,
+        selectedIndustries: data.selectedIndustries,
+        industryNiches: data.industryNiches,
+        industryValues: data.industryValues,
       });
       
       const backendUser = response.user;

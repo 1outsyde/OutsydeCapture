@@ -1,0 +1,55 @@
+Replit Prompt — Photographer signup "Username is required" 400 error + misleading error message
+Photographer signup (and likely consumer + business signup too) is failing at Step 1 with the backend returning:
+json{ "success": false, "message": "Username is required", "status": 400, "validationErrors": [] }
+The user enters a valid username in the form, but the backend reports it as missing from the request body entirely. Additionally, the frontend is masking this error with a misleading field-level message: "That username was just taken — please choose another." The real backend message is being swallowed.
+There are two distinct bugs to fix:
+Bug 1: Username field not reaching the backend (root cause)
+The username value is captured in form state and displayed correctly in the input, but it's not being included in the signup POST request body sent to /api/auth/signup (or equivalent). This is most likely a field name mismatch — the frontend is sending userName, user_name, nesting it under a sub-object, or omitting it entirely.
+Please do the following:
+
+Open PhotographerSignupScreen.tsx and find handleSubmit. Locate the object being passed into the signup API call (likely signup(...) from AuthContext, or a direct call to an API service method). Report the exact shape of that object.
+Open AuthContext.tsx and find the signup function (around line 576 based on the error stack). Trace how the payload is constructed before being sent to the backend. Report the exact request body shape being POSTed, including every field name.
+Open the admin API client (likely services/api.ts) and find the signup method. Confirm what field names are being sent in the final fetch/axios call body.
+Add a temporary diagnostic log immediately before the fetch call fires:
+
+   console.log('[Signup] Request body being sent:', JSON.stringify(requestBody, null, 2));
+This will show the exact payload in the Metro console so we can confirm the mismatch.
+
+Check the backend schema for the signup endpoint. The backend expects username at the top level. Confirm the frontend is sending exactly username — not userName, not user_name, not profile.username, not nested under any wrapper object.
+Fix the mismatch wherever it exists. The request body should include:
+
+   {
+     username: string,        // the username entered by the user
+     email: string,
+     password: string,
+     firstName: string,
+     lastName: string,
+     phone: string,
+     role: "photographer"     // already hardcoded from the previous fix
+   }
+Adjust to whatever the backend contract actually requires — check routes.ts on the backend if the API client has access, or inspect any shared types.
+
+Apply the same audit to ConsumerSignupScreen.tsx and BusinessSignupScreen.tsx. If the same field name mismatch exists there, fix it in all three places. Since all three screens share the same signup function in AuthContext, the fix may be a single change in one place.
+
+Bug 2: Error handler is masking real backend error messages
+In the signup error handling path, the frontend is translating any 400 error on the username field to a hardcoded "That username was just taken — please choose another" message. This hid the real "Username is required" error for this entire debug session and will hide any future backend validation error on that field.
+Please do the following:
+
+Find the error handling code that surfaces the "That username was just taken" message. It's likely in the signup screen, in AuthContext.signup, or in a shared error translation utility.
+Update the logic so that:
+
+If the backend returns message: "Username already taken" (or the exact taken-username message — confirm the string from backend routes.ts), show "That username was just taken — please choose another."
+If the backend returns any other message (like "Username is required", "Username must be at least 3 characters", etc.), surface the exact backend message to the user.
+Never hardcode a single fallback that masks the real error.
+
+
+Apply this pattern to all signup validation errors, not just username — every field should surface the real backend message when validation fails. This prevents future debug sessions from getting stuck on masked errors.
+
+Verification after both fixes:
+
+The diagnostic log from step 4 should confirm username is present in the request body with the user's entered value.
+A fresh photographer signup with a unique username should complete Step 1 successfully and progress to Step 2.
+Deliberately submitting with a truly taken username should show "That username was just taken."
+Deliberately submitting with an empty username should show a frontend-side validation error before the API call fires (add this if it doesn't exist — the form should validate required fields before submission).
+
+Do not touch backend code. The backend is correctly returning a 400 with an accurate error message. This is a frontend payload construction bug plus a frontend error handling bug.

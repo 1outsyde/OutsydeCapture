@@ -551,7 +551,8 @@ export default function ConsumerSignupScreen() {
     } else {
       const msg = result.errorMessage || "";
       if (msg.toLowerCase().includes("username")) {
-        setUsernameError("That username was just taken — please choose another");
+        const isTaken = msg.toLowerCase().includes("taken") || msg.toLowerCase().includes("already");
+        setUsernameError(isTaken ? "That username was just taken — please choose another" : msg);
         setUsernameAvailable(null);
         setCurrentStep(1);
       } else {

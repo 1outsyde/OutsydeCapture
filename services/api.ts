@@ -1014,6 +1014,7 @@ export interface VendorSignupRequest {
   businessCategory: string;
   offerType: "products" | "services" | "both";
   acceptedSubscription: boolean;
+  username?: string;
 }
 
 export interface PhotographerSignupRequest {
@@ -1025,6 +1026,7 @@ export interface PhotographerSignupRequest {
   state: string;
   hourlyRate: number;
   portfolioUrl: string;
+  username?: string;
 }
 
 // Session signup response (just confirms account created, no JWT yet)
@@ -1397,6 +1399,7 @@ class ApiService {
         businessCategory: data.businessCategory || "General",
         offerType: data.offerType || "both",
         acceptedSubscription: true,
+        username: data.username,
       };
       console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
       await this.vendorSignup(vendorPayload);
@@ -1441,6 +1444,7 @@ class ApiService {
         state: data.state || "NA",
         hourlyRate,
         portfolioUrl,
+        username: data.username,
       };
       console.log("[Signup] Photographer payload:", JSON.stringify(photographerPayload, null, 2));
       await this.photographerSignup(photographerPayload);
