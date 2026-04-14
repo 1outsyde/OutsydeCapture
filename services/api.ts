@@ -1897,6 +1897,15 @@ class ApiService {
     });
   }
 
+  // POST /api/stripe/connect/complete - Verify Stripe Connect account and flip stripe_onboarding_complete
+  async completeStripeConnect(authToken: string): Promise<{ complete: boolean; message?: string }> {
+    console.log("[DeepLink] Calling /api/stripe/connect/complete");
+    return this.request<{ complete: boolean; message?: string }>("/api/stripe/connect/complete", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // ==========================================
   // VendorBooker Photographer Endpoints
   // ==========================================

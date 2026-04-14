@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { StyleSheet, View, Platform } from "react-native";
+import { StyleSheet, View, Platform, Alert } from "react-native";
+import { api } from "@/services/api";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -24,7 +25,7 @@ export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { totalUnreadCount } = useMessaging();
-  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn } = useAuth();
+  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
   const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
 
@@ -58,23 +59,69 @@ export default function MainTabNavigator() {
       influencer: "InfluencerDashboard",
     };
 
-    const targetScreen = dashboardMap[type];
+    const targetScreen = dashboardMap[type] ?? "Main";
 
-    if (!targetScreen) {
+    if (!dashboardMap[type]) {
       console.warn("[DeepLink] Unexpected type param:", type, "— routing to Main");
-      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
-      return;
     }
 
-    console.log("[DeepLink] Routing to:", targetScreen, "(status:", status, ")");
+    const resetToTarget = () => {
+      console.log("[DeepLink] Routing to:", targetScreen, "(status:", status, ")");
+      if (targetScreen === "Main") {
+        navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
+      } else {
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 1,
+            routes: [{ name: "Main" }, { name: targetScreen }],
+          })
+        );
+      }
+    };
 
-    // Reset stack so back-button doesn't return to Stripe browser session
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 1,
-        routes: [{ name: "Main" }, { name: targetScreen }],
-      })
-    );
+    if (status === "success") {
+      // Call backend to flip stripe_onboarding_complete flag
+      const handleSuccess = async () => {
+        try {
+          const token = await getToken();
+          if (token) {
+            const result = await api.completeStripeConnect(token);
+            console.log("[DeepLink] Completion result:", result);
+          }
+        } catch (err) {
+          console.warn("[DeepLink] stripe/connect/complete call failed (non-critical):", err);
+        }
+        resetToTarget();
+        Alert.alert(
+          "Stripe Setup Complete",
+          "Your Stripe account is ready! You can now accept bookings.",
+          [{ text: "Got it" }]
+        );
+      };
+      handleSuccess();
+    } else if (status === "refresh") {
+      // Stripe link expired — route to dashboard so user can retry from the Stripe CTA
+      console.log("[DeepLink] Stripe link expired — routing to dashboard to retry");
+      resetToTarget();
+      Alert.alert(
+        "Stripe Setup Incomplete",
+        "Your Stripe onboarding link expired. Tap 'Complete Stripe Setup' on your dashboard to get a fresh link.",
+        [{ text: "OK" }]
+      );
+    } else if (status === "cancel") {
+      // User cancelled — their account still exists, just payout setup is pending
+      console.log("[DeepLink] Stripe setup cancelled — routing to dashboard");
+      resetToTarget();
+      Alert.alert(
+        "Stripe Setup Skipped",
+        "You can complete Stripe setup later from your dashboard. Your account has been created.",
+        [{ text: "OK" }]
+      );
+    } else {
+      // Unexpected status — route to dashboard silently
+      console.warn("[DeepLink] Unexpected status param:", status);
+      resetToTarget();
+    }
   }, [pendingStripeReturn]);
 
   return (

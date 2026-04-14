@@ -1,0 +1,67 @@
+Replit Prompt — Add outsyde://stripe-return deep link handler for Stripe Connect returns
+The backend now has a POST /api/stripe/connect/complete endpoint that checks a Stripe Connect account's status and flips stripe_onboarding_complete = true if the account is fully onboarded. The backend also correctly sets Stripe Checkout success_url to outsyde://stripe-return?status=success&type=photographer and refresh_url to outsyde://stripe-return?status=refresh&type=photographer.
+We need the frontend to handle this deep link return properly. Currently, when a photographer completes Stripe onboarding, Stripe redirects to outsyde://stripe-return?status=success&type=photographer, but the app doesn't handle this URL, resulting in either a Cannot GET /photographer/dashboard error in the browser or the app failing to navigate back to the dashboard.
+Please do the following:
+
+Locate the app's deep link handler. It likely lives in App.tsx, AppNavigator.tsx, MainTabNavigator.tsx, or a shared deep link utility file. Expo apps typically use Linking.addEventListener('url', ...) or expo-linking's useURL() hook to handle incoming deep links.
+Add a handler for the outsyde://stripe-return scheme. When the app receives a URL matching this pattern, parse the query parameters:
+
+status can be success, refresh, or cancel
+type can be photographer, business, influencer, or vendor
+
+
+On status=success:
+
+Import the API client (likely services/api.ts)
+Call POST /api/stripe/connect/complete with the current user's authenticated session — the endpoint should automatically resolve the account ID from the user's photographer/business record server-side, so no body parameters are needed unless the endpoint contract requires an accountId
+If the completion endpoint returns { complete: true }, navigate the user to their role-appropriate dashboard using CommonActions.reset (not navigation.navigate) so they can't back-navigate into the signup flow
+
+type=photographer → navigate to PhotographerDashboard / MainTabs as appropriate
+type=business → navigate to BusinessDashboard / MainTabs
+
+
+Show a brief success toast or alert: "Your Stripe account is ready! You can now accept bookings."
+
+
+On status=refresh:
+
+The user's Stripe link expired or they need to restart onboarding
+Call an existing endpoint to regenerate a fresh Stripe onboarding link, or direct them to their dashboard with a prompt to complete Stripe setup later
+
+
+On status=cancel:
+
+Show a friendly alert: "You can complete Stripe setup later from your profile. Your account has been created."
+Navigate the user to their role-appropriate dashboard anyway — their account exists, they just haven't finished the payout setup
+
+
+Also handle app cold-start via deep link. If the user taps the Stripe return link when the app is fully closed, the app needs to open, initialize auth, and THEN process the deep link. Use Linking.getInitialURL() in the app's top-level useEffect to catch this case.
+Register the deep link scheme in app.json if it isn't already. Check for:
+
+json   "expo": {
+     "scheme": "outsyde",
+     ...
+   }
+If not present, add it. Without this, outsyde:// URLs won't route to the app.
+
+Add diagnostic logging throughout:
+
+   console.log('[DeepLink] Received URL:', url);
+   console.log('[DeepLink] Parsed params:', { status, type });
+   console.log('[DeepLink] Calling /api/stripe/connect/complete');
+   console.log('[DeepLink] Completion result:', result);
+
+Do NOT touch backend code. The backend is confirmed working with the new /api/stripe/connect/complete endpoint and the correct deep link URLs in Stripe Checkout sessions.
+After implementing, confirm the flow handles these three scenarios:
+
+Hot app (Expo Go already open) receives deep link → handler fires immediately
+Cold app (fully closed) is opened via deep link → getInitialURL catches it after auth initializes
+User cancels Stripe in the browser and returns to the app → graceful recovery with alert
+
+
+
+Report back with:
+
+Every file modified
+The exact deep link scheme registered in app.json
+The console.log output from a test deep link (you can simulate with Linking.openURL('outsyde://stripe-return?status=success&type=photographer') in a dev tool or test butt
