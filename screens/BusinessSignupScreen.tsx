@@ -268,6 +268,27 @@ export default function BusinessSignupScreen() {
   };
 
   const handleSubmit = async () => {
+    const logoImage =
+      profilePhotoUri && /^https?:\/\//i.test(profilePhotoUri) ? profilePhotoUri : null;
+    // TODO: Upload local device URIs and send the hosted URL instead of null.
+
+    const businessDetailsPayload = {
+      phone: phone.replace(/\D/g, ""),
+      businessDescription,
+      logoImage,
+      isStartup,
+      yearsInBusiness,
+      employeeCount,
+      businessType,
+      hasPhysicalLocation,
+      address,
+      city,
+      state,
+      zipCode,
+      websiteUrl,
+      socialMedia,
+    };
+
     if (isGoogleSignup && googleProfile) {
       try {
         const response = await fetch(`${API_BASE_URL}/api/auth/oauth/complete-signup`, {
@@ -281,9 +302,10 @@ export default function BusinessSignupScreen() {
             role: "business",
             password,
             googleProfile,
-            profileImageUrl: profilePhotoUri || googleProfile?.profileImageUrl || null,
             businessName,
             businessCategory,
+            ...businessDetailsPayload,
+            profileImageUrl: logoImage,
           }),
         });
         const data = await response.json();
@@ -304,27 +326,28 @@ export default function BusinessSignupScreen() {
       firstName,
       lastName,
       email,
-      phone: phone.replace(/\D/g, ""),
+      phone: businessDetailsPayload.phone,
       dateOfBirth: "",
       password,
       username,
       role: "business",
       businessName,
       businessCategory,
-      businessDescription,
+      businessDescription: businessDetailsPayload.businessDescription,
       offerType: offerType as "products" | "services" | "both",
-      isStartup,
-      yearsInBusiness,
-      employeeCount,
-      businessType,
-      hasPhysicalLocation,
-      address,
-      city,
-      state,
-      zipCode,
-      websiteUrl,
-      socialMedia,
-      profileImageUrl: profilePhotoUri || undefined,
+      logoImage: businessDetailsPayload.logoImage,
+      profileImageUrl: businessDetailsPayload.logoImage || undefined,
+      isStartup: businessDetailsPayload.isStartup,
+      yearsInBusiness: businessDetailsPayload.yearsInBusiness,
+      employeeCount: businessDetailsPayload.employeeCount,
+      businessType: businessDetailsPayload.businessType,
+      hasPhysicalLocation: businessDetailsPayload.hasPhysicalLocation,
+      address: businessDetailsPayload.address,
+      city: businessDetailsPayload.city,
+      state: businessDetailsPayload.state,
+      zipCode: businessDetailsPayload.zipCode,
+      websiteUrl: businessDetailsPayload.websiteUrl,
+      socialMedia: businessDetailsPayload.socialMedia,
     });
 
     if (result.success) {

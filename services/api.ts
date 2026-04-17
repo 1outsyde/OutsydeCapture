@@ -970,8 +970,18 @@ export interface MobileSignupRequest {
   businessName?: string;
   businessCategory?: string;
   businessDescription?: string;
+  logoImage?: string | null;
   city?: string;
   state?: string;
+  address?: string;
+  zipCode?: string;
+  isStartup?: boolean;
+  yearsInBusiness?: string;
+  employeeCount?: string;
+  businessType?: string;
+  hasPhysicalLocation?: boolean;
+  websiteUrl?: string;
+  socialMedia?: string;
   username?: string;
   gender?: string;
   ethnicity?: string;
@@ -1010,9 +1020,23 @@ export interface VendorSignupRequest {
   email: string;
   password: string;
   name: string;
+  phone?: string;
   businessName: string;
   businessCategory: string;
+  businessDescription?: string;
   offerType: "products" | "services" | "both";
+  isStartup?: boolean;
+  yearsInBusiness?: string;
+  employeeCount?: string;
+  businessType?: string;
+  hasPhysicalLocation?: boolean;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  websiteUrl?: string;
+  socialMedia?: string;
+  logoImage?: string | null;
   acceptedSubscription: boolean;
   username?: string;
 }
@@ -1395,9 +1419,23 @@ class ApiService {
         email: data.email,
         password: data.password,
         name: fullName,
+        phone: data.phone,
         businessName: data.businessName || fullName,
         businessCategory: data.businessCategory || "General",
+        businessDescription: data.businessDescription,
         offerType: data.offerType || "both",
+        logoImage: data.logoImage ?? null,
+        isStartup: data.isStartup,
+        yearsInBusiness: data.yearsInBusiness,
+        employeeCount: data.employeeCount,
+        businessType: data.businessType,
+        hasPhysicalLocation: data.hasPhysicalLocation,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+        websiteUrl: data.websiteUrl,
+        socialMedia: data.socialMedia,
         acceptedSubscription: true,
         username: data.username,
       };

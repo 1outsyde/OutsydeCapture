@@ -98,6 +98,7 @@ export interface SignupData {
   portfolioUrl?: string;
   specialties?: string[];
   profileImageUrl?: string;
+  logoImage?: string | null;
   shootLocation?: string[];
   studioName?: string | null;
   studioAddress?: string | null;
@@ -553,6 +554,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         businessName: data.businessName,
         businessCategory: data.businessCategory,
         businessDescription: data.businessDescription,
+        logoImage: data.logoImage,
         city: data.city,
         state: data.state,
         // Photographer-specific fields
@@ -561,6 +563,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         portfolioUrl: data.portfolioUrl,
         // Business-specific fields
         offerType: data.offerType,
+        isStartup: data.isStartup,
+        yearsInBusiness: data.yearsInBusiness,
+        employeeCount: data.employeeCount,
+        businessType: data.businessType,
+        hasPhysicalLocation: data.hasPhysicalLocation,
+        address: data.address,
+        zipCode: data.zipCode,
+        websiteUrl: data.websiteUrl,
+        socialMedia: data.socialMedia,
         // Consumer-specific fields
         gender: data.gender,
         ethnicity: data.ethnicity,
