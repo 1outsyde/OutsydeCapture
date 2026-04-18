@@ -164,9 +164,14 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
     setCheckoutError(null);
     setActionLoading(true);
     try {
-      const { checkoutUrl } = await api.createTierSubscriptionCheckout(token, selectedTierId, STRIPE_RETURN_URL);
-      if (checkoutUrl) {
-        await Linking.openURL(checkoutUrl);
+      const response = await api.createTierSubscriptionCheckout(token, selectedTierId, STRIPE_RETURN_URL);
+      if (response.url) {
+        await Linking.openURL(response.url);
+      } else if (response.clientSecret) {
+        // TODO(subscription-native): Wire this to the native subscription checkout flow that consumes clientSecret.
+        setCheckoutError("Native subscription checkout is not yet available in this flow. Please try again.");
+      } else {
+        setCheckoutError("Unable to start subscription checkout. Please try again.");
       }
     } catch (err: any) {
       if (isMonetizationError(err)) {
