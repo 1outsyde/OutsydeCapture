@@ -1,0 +1,81 @@
+Unify the pending-state banners across the app. Currently four different banners describe overlapping business states with inconsistent copy and inconsistent styling. We need a single shared component and unified language to prepare for the pay-first signup model launching next week.
+
+PART 1 — Audit current state (READ-ONLY, do this first, do NOT modify any files yet)
+
+1. Locate every pending/approval banner in the app. For each, paste:
+   - File path and line range
+   - Exact rendered copy
+   - Visual style (color, icon, layout)
+   - The condition or data field that triggers it (e.g., business.approvalStatus === "pending")
+
+The four known banners to find (there may be others):
+   a) "Pending Review — Your storefront is under review (24-48 hours). You can still edit your profile." — appears in storefront/edit screens
+   b) "Account Setup Incomplete — Complete your account setup to start publishing products and services." — appears on Business Dashboard
+   c) "Approval pending" — small subtitle in the PersonalSettingsMenu under Business Dashboard menu item
+   d) "Monetization Not Yet Enabled — Your account has been approved but monetization has not been activated yet." — purple banner on SubscriptionPlanScreen
+
+2. Confirm whether banners (a), (b), (c) all represent the SAME state or distinct states. They likely all represent "business has signed up and is awaiting admin approval."
+
+3. Confirm whether banner (d) is a distinct state ("approved but no active subscription") that's different from the others.
+
+Pause here. Show me your findings before making any changes.
+
+PART 2 — Refactor (only after I review and approve Part 1)
+
+4. Create a new shared component: components/AccountStatusBanner.tsx
+
+   Props:
+   - status: "pending_approval" | "rejected"  (we are NOT including approved_no_subscription in the banner — see note 7 below)
+   - tier?: "starter" | "growth" | "pro"  (used for SLA copy in pending_approval state)
+   - rejectionReason?: string  (optional — shown in rejected state if provided)
+
+   Status copy (use this exact wording):
+
+   pending_approval (with tier="starter"):
+     Title: "Pending Review"
+     Body: "Approval is completed within a 48-hour review window from submission. You can build your storefront while you wait."
+
+   pending_approval (with tier="growth"):
+     Title: "Pending Review"
+     Body: "Approval is completed within a 24-hour review window from submission. You can build your storefront while you wait."
+
+   pending_approval (with tier="pro"):
+     Title: "Priority Review"
+     Body: "Approval is prioritized and completed within a 1-hour review window, between 9:00 AM – 9:00 PM (ET). You can build your storefront while you wait."
+
+   pending_approval (no tier specified — fallback for users who haven't selected a tier yet):
+     Title: "Pending Review"
+     Body: "Your application is under review. You can build your storefront while you wait."
+
+   rejected:
+     Title: "Application Not Approved"
+     Body: "Your application was not approved. A full refund has been issued."
+     If rejectionReason is provided, append: "Reason: {rejectionReason}"
+
+   Visual style: match the existing orange-clock-circle banner style from the EditStorefrontScreen pending banner (orange circle icon, dark gray card background, white title, muted gray body). Match the app's existing design language exactly. Use the same icon library and color tokens already used elsewhere.
+
+5. Replace the existing banners (a) and (b) with <AccountStatusBanner status="pending_approval" tier={...} /> usage. The tier prop should come from the user's selected subscription tier where available.
+
+6. The PersonalSettingsMenu "Approval pending" subtitle (banner c) is NOT a full banner — it's just a small text label. Update the string to "Pending review" for copy consistency. Keep it as plain text in its current location, do NOT replace it with the AccountStatusBanner component (it would look wrong inside a settings menu row).
+
+7. The "Monetization Not Yet Enabled" purple banner on SubscriptionPlanScreen (banner d) — DO NOT REMOVE OR MODIFY THIS YET. Under the new pay-first signup flow being built next week, this banner becomes dead code because users will always have an active subscription before reaching the dashboard. But we cannot remove it until the pay-first flow is live. Leave it exactly as-is, untouched. Add a TODO comment above the banner's render block: "TODO(pay-first): Remove this banner once pay-first signup is live — every user will have an active subscription by the time they see this screen."
+
+8. The BusinessDashboardScreen "Account Setup Incomplete" copy/orange-warning style (banner b's exact text and colors) — replace the entire banner including its specific styling with the new AccountStatusBanner. The "Account Setup Incomplete" language is misleading and goes away.
+
+PART 3 — Verify
+
+9. Run ./node_modules/.bin/tsc --noEmit and report:
+    - Total error count (must be 69 or fewer — current baseline)
+    - Any NEW errors introduced (must be zero)
+
+10. Describe how to verify in the running app:
+    - Which screens render the new banner now
+    - What it looks like in each (you can run the Expo dev server and paste a brief observation)
+
+DO NOT auto-commit. DO NOT auto-push. Stop and show me:
+- The Part 1 findings
+- The Part 2 diff (after my approval)
+- The Part 3 TS report
+- Confirmation of how it looks visually
+
+I will explicitly approve before you commit or push.
