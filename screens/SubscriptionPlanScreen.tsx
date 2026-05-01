@@ -25,8 +25,8 @@ const FALLBACK_TIERS: SubscriptionTier[] = [
   {
     id: "starter",
     name: "Starter",
-    price: 2999,
-    priceLabel: "$29.99/mo",
+    price: 2900,
+    priceLabel: "$29/mo",
     description: "Perfect for new businesses ready to start selling.",
     features: [
       "Product & service listings",
@@ -40,8 +40,8 @@ const FALLBACK_TIERS: SubscriptionTier[] = [
   {
     id: "growth",
     name: "Growth",
-    price: 5999,
-    priceLabel: "$59.99/mo",
+    price: 5900,
+    priceLabel: "$59/mo",
     description: "For businesses ready to grow with real tools.",
     features: [
       "Everything in Starter",
@@ -55,8 +55,8 @@ const FALLBACK_TIERS: SubscriptionTier[] = [
   {
     id: "pro",
     name: "Pro",
-    price: 9999,
-    priceLabel: "$99.99/mo",
+    price: 9900,
+    priceLabel: "$99/mo",
     description: "For established businesses that want maximum impact.",
     features: [
       "Everything in Growth",
@@ -122,7 +122,16 @@ export default function SubscriptionPlanScreen() {
         const fetchedTiers = tiersRes.value.tiers;
         if (fetchedTiers?.length > 0) {
           console.log("[SubscriptionPlan] Tiers loaded from backend:", fetchedTiers.length, "tiers");
-          setTiers(fetchedTiers);
+          const enriched = fetchedTiers.map((t: SubscriptionTier) => {
+            const fallback = FALLBACK_TIERS.find(
+              (f) => f.id === t.id || f.name.toLowerCase() === (t.name || "").toLowerCase()
+            );
+            return {
+              ...t,
+              badge: t.badge ?? fallback?.badge ?? "",
+            };
+          });
+          setTiers(enriched);
         } else {
           console.warn("[SubscriptionPlan] Backend returned empty tiers array — using fallback");
           setTiers(FALLBACK_TIERS);

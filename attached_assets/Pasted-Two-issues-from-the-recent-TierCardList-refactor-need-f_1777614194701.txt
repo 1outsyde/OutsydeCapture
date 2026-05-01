@@ -1,0 +1,43 @@
+Two issues from the recent TierCardList refactor need fixing.
+
+ISSUE 1 — Missing badges on Growth and Pro tier cards
+
+In the screenshots before the refactor, the Growth tier card displayed a gold "Most Popular" badge in the top-right corner, and the Pro tier card displayed a purple "Best Value" badge. After the refactor (commit on origin/main now), both badges are no longer rendering.
+
+The badges are driven by the `tier.badge` field on the SubscriptionTier type. Verify:
+
+1. Is the badge prop/field still being read inside components/TierCardList.tsx? Paste the relevant block.
+2. Are the badge styles (badge container, badge text color logic for "Most Popular" vs "Best Value") fully present in TierCardList.tsx? They should match what was in SubscriptionPlanScreen.tsx before the refactor.
+3. Is the data layer (the FALLBACK_TIERS array and/or the backend response shape) still including a `badge` field on Growth and Pro? If FALLBACK_TIERS no longer has badges set, that's the bug.
+
+Restore the badges so Growth shows "Most Popular" and Pro shows "Best Value" exactly as before. Match the original visual styling — gold pill for "Most Popular", purple pill for "Best Value". Use the original colors from before the refactor.
+
+ISSUE 2 — Hardcoded fallback prices are wrong
+
+In screens/SubscriptionPlanScreen.tsx (or wherever FALLBACK_TIERS lives now), the fallback array uses outdated prices:
+  Starter $29.99/mo
+  Growth $59.99/mo
+  Pro $99.99/mo
+
+The correct flat prices are:
+  Starter $29/mo
+  Growth $59/mo
+  Pro $99/mo
+
+Update the fallback array values:
+  - Starter price → 2900 cents (display "$29/mo")
+  - Growth price → 5900 cents (display "$59/mo")
+  - Pro price → 9900 cents (display "$99/mo")
+
+Also update the formatTierPrice helper if it currently strips "/mo" or formats with cents in any way that affects display. Goal: display reads "$29/mo", "$59/mo", "$99/mo" exactly.
+
+Verification:
+
+1. Run ./node_modules/.bin/tsc --noEmit and confirm no NEW errors introduced (count should match the recent baseline).
+
+2. Run the app and open Settings → Subscription Plan. Confirm:
+   - Starter card shows $29/mo (no .99)
+   - Growth card shows $59/mo with "Most Popular" badge
+   - Pro card shows $99/mo with "Best Value" badge
+
+3. Show me the diff before committing or pushing. Do NOT auto-commit, do NOT auto-push, even if you think it's safe. I will explicitly approve the commit.

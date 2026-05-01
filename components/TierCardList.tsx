@@ -6,13 +6,18 @@ import { SubscriptionTier } from "@/services/api";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function formatDollars(cents: number): string {
+  const dollars = cents / 100;
+  return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
 export function formatTierPrice(tier: SubscriptionTier): string {
   if (tier.priceLabel) return tier.priceLabel;
   if (typeof tier.priceInCents === "number") {
-    return `$${(tier.priceInCents / 100).toFixed(2)}/${tier.interval || "mo"}`;
+    return `${formatDollars(tier.priceInCents)}/${tier.interval || "mo"}`;
   }
   if (typeof tier.price === "number") {
-    return `$${(tier.price / 100).toFixed(2)}/${tier.interval || "mo"}`;
+    return `${formatDollars(tier.price)}/${tier.interval || "mo"}`;
   }
   return "";
 }
