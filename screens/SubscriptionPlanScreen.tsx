@@ -17,6 +17,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api, { CurrentSubscription, SubscriptionTier, VendorEligibility } from "@/services/api";
+import TierCardList from "@/components/TierCardList";
 
 const STRIPE_RETURN_URL = "outsyde://stripe-return";
 
@@ -261,23 +262,6 @@ export default function SubscriptionPlanScreen() {
     }
   };
 
-  const formatTierPrice = (tier: SubscriptionTier) => {
-    if (tier.priceLabel) return tier.priceLabel;
-    if (typeof tier.priceInCents === "number") {
-      return `$${(tier.priceInCents / 100).toFixed(2)}/${tier.interval || "mo"}`;
-    }
-    if (typeof tier.price === "number") {
-      return `$${(tier.price / 100).toFixed(2)}/${tier.interval || "mo"}`;
-    }
-    return "";
-  };
-
-  const formatTierName = (tier: SubscriptionTier) => {
-    if (tier.displayName) return tier.displayName;
-    const n = tier.name || "";
-    return n.charAt(0).toUpperCase() + n.slice(1);
-  };
-
   const statusColor = () => {
     if (!subscriptionStatus || subscriptionStatus === "none" || subscriptionStatus === "canceled") return theme.error;
     if (subscriptionStatus === "past_due") return "#FF9500";
@@ -392,64 +376,6 @@ export default function SubscriptionPlanScreen() {
     );
   };
 
-  const renderTierCard = (tier: SubscriptionTier) => {
-    const isSelected = selectedTierId === tier.id;
-    const isCurrentPlan = currentSubscription?.tierId === tier.id;
-    const isPopular = tier.badge === "Most Popular";
-    const isBestValue = tier.badge === "Best Value";
-    return (
-      <Pressable
-        key={tier.id}
-        style={[
-          styles.tierCard,
-          { borderColor: isCurrentPlan ? "#22c55e" : (isSelected ? theme.primary : theme.border), backgroundColor: theme.card },
-          isSelected && !isCurrentPlan && { backgroundColor: theme.primary + "10" },
-          isCurrentPlan && { borderWidth: 2, borderColor: "#22c55e" },
-        ]}
-        onPress={() => {
-          if (!isCurrentPlan) {
-            setSelectedTierId(tier.id);
-            setSubscribeError(null);
-          }
-        }}
-        disabled={isCurrentPlan}
-      >
-        {isCurrentPlan ? (
-          <View style={styles.currentPlanBadge}>
-            <Text style={styles.currentPlanBadgeText}>Current Plan</Text>
-          </View>
-        ) : tier.badge ? (
-          <View style={[
-            styles.tierBadge,
-            { backgroundColor: isPopular ? theme.primary : (isBestValue ? "#7c3aed" : theme.primary) },
-          ]}>
-            <Text style={styles.tierBadgeText}>{tier.badge}</Text>
-          </View>
-        ) : null}
-        <View style={styles.tierHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.tierName, { color: theme.text }]}>{formatTierName(tier)}</Text>
-            <Text style={[styles.tierPrice, { color: isCurrentPlan ? "#22c55e" : theme.primary }]}>{formatTierPrice(tier)}</Text>
-          </View>
-          {isCurrentPlan ? (
-            <Feather name="check-circle" size={22} color="#22c55e" />
-          ) : isSelected ? (
-            <Feather name="check-circle" size={22} color={theme.primary} />
-          ) : null}
-        </View>
-        {tier.description ? (
-          <Text style={[styles.tierDesc, { color: theme.textSecondary }]}>{tier.description}</Text>
-        ) : null}
-        {(tier.features || []).map((f, i) => (
-          <View key={i} style={styles.tierFeatureRow}>
-            <Feather name="check" size={13} color="#22c55e" />
-            <Text style={[styles.tierFeatureText, { color: theme.textSecondary }]}>{f}</Text>
-          </View>
-        ))}
-      </Pressable>
-    );
-  };
-
   if (subscribeSuccess && currentSubscription) {
     const displayName = currentSubscription.tierDisplayName || currentSubscription.tierName;
     return (
@@ -492,13 +418,19 @@ export default function SubscriptionPlanScreen() {
         {renderPastDueBanner()}
         {renderNoSubscriptionBanner()}
 
-        <View style={styles.tiersContainer}>
-          {tiersLoading ? (
-            <ActivityIndicator color={theme.primary} style={{ marginVertical: 32 }} />
-          ) : (
-            tiers.map(renderTierCard)
-          )}
-        </View>
+        {tiersLoading ? (
+          <ActivityIndicator color={theme.primary} style={{ marginVertical: 32 }} />
+        ) : (
+          <TierCardList
+            tiers={tiers}
+            selectedTierId={selectedTierId}
+            onSelectTier={(tierId) => {
+              setSelectedTierId(tierId);
+              setSubscribeError(null);
+            }}
+            currentSubscriptionTierId={currentSubscription?.tierId}
+          />
+        )}
 
         {__DEV__ && tiersFetchError ? (
           <View style={[styles.errorBanner, { backgroundColor: "#3a1a00", borderColor: "#c0391b" }]}>
@@ -673,59 +605,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
-  tiersContainer: {
-    gap: 14,
-    marginBottom: 20,
-  },
-  tierCard: {
-    borderRadius: 16,
-    borderWidth: 2,
-    padding: 18,
-    position: "relative",
-    overflow: "hidden",
-  },
-  tierBadge: {
-    position: "absolute",
-    top: 14,
-    right: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  tierBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#000",
-  },
-  tierHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  tierName: {
-    fontSize: 19,
-    fontWeight: "800",
-  },
-  tierPrice: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  tierDesc: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  tierFeatureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 6,
-  },
-  tierFeatureText: {
-    fontSize: 13,
-    flex: 1,
-  },
   subscribeBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -773,21 +652,6 @@ const styles = StyleSheet.create({
   },
   refreshText: {
     fontSize: 13,
-  },
-  currentPlanBadge: {
-    position: "absolute",
-    top: -12,
-    right: 16,
-    backgroundColor: "#22c55e",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    zIndex: 1,
-  },
-  currentPlanBadgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
   },
   switchWarning: {
     fontSize: 12,

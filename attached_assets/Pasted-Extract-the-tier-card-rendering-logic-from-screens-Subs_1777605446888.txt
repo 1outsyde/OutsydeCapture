@@ -1,0 +1,38 @@
+Extract the tier-card rendering logic from screens/SubscriptionPlanScreen.tsx into a new reusable component. This is preparation for reusing it inside the business signup wizard later. Do NOT modify behavior — this is a pure refactor.
+
+Context:
+- The existing SubscriptionPlanScreen.tsx renders three pricing cards (Starter, Growth, Pro) using an inline render helper called `renderTierCard` (around lines 395-451) and a `tiers.map(renderTierCard)` call (around lines 495-500).
+- The tier cards are NOT currently extracted as a standalone component.
+- We need them as a standalone component so they can be embedded in another screen (BusinessSignupScreen) later.
+
+Required changes:
+
+1. Create a new file: components/TierCardList.tsx
+
+2. Move the tier-card rendering UI into this new component. Component should accept these props:
+
+   - tiers: SubscriptionTier[]              // the list of tiers to render
+   - selectedTierId: string | null          // which tier is currently selected
+   - onSelectTier: (tierId: string) => void // callback when a tier is tapped
+   - currentSubscriptionTierId?: string     // optional - shows "current plan" indicator
+   - disabled?: boolean                     // optional - dims all cards when true (e.g. while loading)
+
+3. The component must render the three cards exactly as they appear today, including:
+   - "Most Popular" and "Best Value" badges (from tier.badge)
+   - Selected/unselected visual states (gold outline + check icon when selected)
+   - "Current Plan" indicator if currentSubscriptionTierId matches a card
+   - Pricing display via the existing formatTierName and formatTierPrice helpers
+   - Bullet list of features with check icons
+   - Tap-to-select behavior
+
+4. Update screens/SubscriptionPlanScreen.tsx to import and use the new TierCardList component instead of the inline renderTierCard helper. The screen's overall layout (the page chrome, "Subscribe Now" button, error banners, etc.) stays exactly as-is. Only the three-card section gets replaced with <TierCardList ... /> usage.
+
+5. Move any small helper functions used only by the tier cards (formatTierName, formatTierPrice, badge color logic, etc.) into the new component file if they're not used anywhere else. If they ARE used elsewhere, leave them where they are and import them into TierCardList.
+
+6. Run `./node_modules/.bin/tsc --noEmit` after the refactor and report:
+   - Total error count (should be the same as baseline 69, or fewer)
+   - Any NEW errors introduced (must be zero)
+
+7. Visually verify by running the app: the existing Subscription Plan screen accessed via Settings → Subscription Plan must render identically to before. No layout changes, no color changes, no behavior changes.
+
+Show me the diff and the TS error count before committing. Do NOT commit or push yet.
