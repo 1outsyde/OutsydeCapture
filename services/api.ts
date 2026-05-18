@@ -1435,7 +1435,7 @@ class ApiService {
         zipCode: data.zipCode,
         websiteUrl: data.websiteUrl,
         socialMedia: data.socialMedia,
-        logoImage: data.logoImage ?? null,
+        logoImage: data.logoImage || undefined,
         acceptedSubscription: true,
         username: data.username,
       };
