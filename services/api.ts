@@ -1415,7 +1415,7 @@ class ApiService {
       console.log("[Signup] Customer payload:", JSON.stringify(customerPayload, null, 2));
       await this.customerSignup(customerPayload);
     } else if (data.role === "business") {
-      const vendorPayload = {
+      const vendorPayload: VendorSignupRequest = {
         email: data.email,
         password: data.password,
         name: fullName,
@@ -1424,7 +1424,6 @@ class ApiService {
         businessCategory: data.businessCategory || "General",
         businessDescription: data.businessDescription,
         offerType: data.offerType || "both",
-        logoImage: data.logoImage ?? null,
         isStartup: data.isStartup,
         yearsInBusiness: data.yearsInBusiness,
         employeeCount: data.employeeCount,
@@ -1436,6 +1435,7 @@ class ApiService {
         zipCode: data.zipCode,
         websiteUrl: data.websiteUrl,
         socialMedia: data.socialMedia,
+        logoImage: data.logoImage ?? null,
         acceptedSubscription: true,
         username: data.username,
       };
