@@ -452,7 +452,7 @@ export interface AdminUser {
   email: string;
   username?: string;
   avatar?: string;
-  accountType: "consumer" | "business";
+  accountType: "consumer" | "business" | "photographer";
   createdAt: string;
   status: "active" | "suspended";
 }
@@ -1746,9 +1746,28 @@ class ApiService {
 
   async getAdminUsers(authToken: string, search?: string): Promise<AdminUser[]> {
     const query = search ? `?search=${encodeURIComponent(search)}` : "";
-    return this.request<AdminUser[]>(`/api/admin/users${query}`, {
+    const response = await this.request<AdminUser[] | { users?: any[] }>(`/api/admin/users${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    const users = Array.isArray(response) ? response : response?.users || [];
+    return users.map((user: any) => ({
+      id: user.id,
+      name:
+        user.name ||
+        `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+        user.email ||
+        "Unknown User",
+      email: user.email || "",
+      username: user.username,
+      avatar: user.avatar || user.profileImageUrl,
+      accountType: user.isPhotographer
+        ? "photographer"
+        : user.isVendor
+          ? "business"
+          : "consumer",
+      createdAt: user.createdAt || new Date().toISOString(),
+      status: user.status === "suspended" ? "suspended" : "active",
+    }));
   }
 
   async getAdminBusinesses(authToken: string, status?: string, search?: string): Promise<AdminBusiness[]> {
