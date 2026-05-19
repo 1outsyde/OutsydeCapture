@@ -33,7 +33,7 @@ export default function AdminDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { getToken } = useAuth();
+  const { getToken, isLoading: authLoading } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>("users");
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,6 +56,16 @@ export default function AdminDashboardScreen() {
   const [paymentSubTab, setPaymentSubTab] = useState<PaymentSubTab>("orders");
   const [selectedConversation, setSelectedConversation] = useState<AdminConversation | null>(null);
   const [pendingBusinessCount, setPendingBusinessCount] = useState(0);
+
+  const filteredUsers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) =>
+      (u.name || "").toLowerCase().includes(q) ||
+      (u.email || "").toLowerCase().includes(q) ||
+      (u.username || "").toLowerCase().includes(q)
+    );
+  }, [users, searchQuery]);
 
   const fetchData = useCallback(async () => {
     const token = await getToken();
@@ -96,7 +106,7 @@ export default function AdminDashboardScreen() {
     try {
       switch (activeTab) {
         case "users":
-          const usersData = await api.getAdminUsers(token, searchQuery || undefined);
+          const usersData = await api.getAdminUsers(token);
           setUsers(usersData || []);
           break;
         case "businesses":
@@ -151,12 +161,14 @@ export default function AdminDashboardScreen() {
   }, [getToken, activeTab, searchQuery, businessFilter, influencerFilter]);
 
   useEffect(() => {
+    if (authLoading) return;
     fetchData();
-  }, [fetchData]);
+  }, [authLoading, fetchData]);
 
   useEffect(() => {
+    if (authLoading) return;
     fetchTabData();
-  }, [fetchTabData]);
+  }, [authLoading, fetchTabData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -1151,20 +1163,32 @@ export default function AdminDashboardScreen() {
     switch (activeTab) {
       case "users":
         return (
-          <FlatList
-            data={users}
-            renderItem={renderUserItem}
-            keyExtractor={(item) => item.id}
-            style={{ flex: 1 }}
-            contentContainerStyle={styles.content}
-            nestedScrollEnabled={true}
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
-            ListHeaderComponent={() => (
-              <Text style={styles.countBadge}>{users.length} users</Text>
-            )}
-            ListEmptyComponent={() => renderEmptyState("No Users", "No users found matching your search", "users")}
-          />
+          >
+            <Text style={styles.countBadge}>{filteredUsers.length} users</Text>
+            {filteredUsers.length === 0
+              ? renderEmptyState("No Users", "No users found matching your search", "users")
+              : filteredUsers.map((item) => (
+                  <Pressable key={item.id} style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+                    <View style={styles.listItemHeader}>
+                      <Text style={styles.listItemName}>{item.name}</Text>
+                      <View style={[styles.statusBadge, item.status === "active" ? styles.approvedBadge : styles.rejectedBadge]}>
+                        <Text style={[styles.statusText, item.status === "active" ? styles.approvedText : styles.rejectedText]}>
+                          {item.status}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.listItemInfo}>{item.email}</Text>
+                    {item.username ? <Text style={styles.listItemInfo}>@{item.username}</Text> : null}
+                    <Text style={styles.listItemInfo}>Account: {item.accountType}</Text>
+                  </Pressable>
+                ))}
+          </ScrollView>
         );
       case "businesses":
         return (

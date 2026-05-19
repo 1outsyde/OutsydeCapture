@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   FlatList,
+  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,6 +40,7 @@ export default function AdminUserDetailScreen() {
   const [data, setData] = useState<UserDetailData | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState<"orders" | "bookings" | "conversations">("orders");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     const token = await getToken();
@@ -63,6 +65,43 @@ export default function AdminUserDetailScreen() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleToggleAccountStatus = useCallback(async () => {
+    if (!data) return;
+    const token = await getToken();
+    if (!token) return;
+    const isDisabled = data.user.status === "suspended";
+    const identity = data.user.username ? `@${data.user.username}` : data.user.email;
+    Alert.alert(
+      isDisabled ? "Re-enable Account" : "Disable Account",
+      isDisabled
+        ? `Are you sure you want to re-enable ${identity}? They will be able to log in again.`
+        : `Are you sure you want to disable ${identity}? They will be unable to log in. This can be reversed.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isDisabled ? "Re-enable" : "Disable",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setActionLoading(true);
+              if (isDisabled) {
+                await api.enableAdminUser(token, userId);
+              } else {
+                await api.disableAdminUser(token, userId);
+              }
+              Alert.alert("Success", isDisabled ? "Account re-enabled" : "Account disabled");
+              await fetchData();
+            } catch (err: any) {
+              Alert.alert("Error", err?.message || "Failed to update account status");
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [data, getToken, userId, fetchData]);
 
   const styles = StyleSheet.create({
     container: {
@@ -286,6 +325,33 @@ export default function AdminUserDetailScreen() {
       fontWeight: "700",
       color: theme.primary,
     },
+    accountActionSection: {
+      paddingHorizontal: 12,
+      paddingBottom: 24,
+    },
+    accountActionButton: {
+      borderRadius: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+    },
+    disableButton: {
+      backgroundColor: "#FF3B3020",
+      borderWidth: 1,
+      borderColor: "#FF3B30",
+    },
+    enableButton: {
+      backgroundColor: "#34C75920",
+      borderWidth: 1,
+      borderColor: "#34C759",
+    },
+    accountActionText: {
+      fontSize: 15,
+      fontWeight: "700",
+    },
   });
 
   const renderEmptyState = (title: string, subtitle: string, icon: keyof typeof Feather.glyphMap) => (
@@ -408,6 +474,11 @@ export default function AdminUserDetailScreen() {
     );
   }
 
+  const status = data.user.status === "suspended" ? "suspended" : "active";
+  const statusLabel = status === "suspended" ? "DISABLED" : "ACTIVE";
+  const displayName = data.user.name || data.user.username || data.user.email || "Unknown User";
+  const isDisabled = status === "suspended";
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -425,17 +496,17 @@ export default function AdminUserDetailScreen() {
           <View style={styles.avatar}>
             <Feather name="user" size={36} color={theme.primary} />
           </View>
-          <Text style={styles.userName}>{data.user.name}</Text>
+          <Text style={styles.userName}>{displayName}</Text>
           <Text style={styles.userEmail}>{data.user.email}</Text>
           <View style={[
             styles.statusBadge,
-            data.user.status === "active" ? styles.activeBadge : styles.suspendedBadge
+            status === "active" ? styles.activeBadge : styles.suspendedBadge
           ]}>
             <Text style={[
               styles.statusText,
-              data.user.status === "active" ? styles.activeText : styles.suspendedText
+              status === "active" ? styles.activeText : styles.suspendedText
             ]}>
-              {data.user.status.toUpperCase()}
+              {(statusLabel ?? "UNKNOWN").toUpperCase()}
             </Text>
           </View>
         </View>
@@ -459,7 +530,7 @@ export default function AdminUserDetailScreen() {
 
         <View style={styles.earningsCard}>
           <Text style={styles.earningsLabel}>Total Earnings</Text>
-          <Text style={styles.earningsValue}>${data.earnings.toFixed(2)}</Text>
+          <Text style={styles.earningsValue}>${(Number(data.earnings) || 0).toFixed(2)}</Text>
         </View>
 
         <View style={styles.tabsRow}>
@@ -470,7 +541,7 @@ export default function AdminUserDetailScreen() {
               onPress={() => setActiveTab(tab)}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {(tab || "").charAt(0).toUpperCase() + (tab || "").slice(1)}
               </Text>
             </Pressable>
           ))}
@@ -478,6 +549,32 @@ export default function AdminUserDetailScreen() {
 
         <View style={styles.content}>
           {renderContent()}
+        </View>
+        <View style={styles.accountActionSection}>
+          <Pressable
+            style={[
+              styles.accountActionButton,
+              isDisabled ? styles.enableButton : styles.disableButton,
+            ]}
+            onPress={handleToggleAccountStatus}
+            disabled={actionLoading}
+          >
+            {actionLoading ? (
+              <ActivityIndicator color={isDisabled ? "#34C759" : "#FF3B30"} />
+            ) : (
+              <>
+                <Feather name={isDisabled ? "check-circle" : "slash"} size={18} color={isDisabled ? "#34C759" : "#FF3B30"} />
+                <Text
+                  style={[
+                    styles.accountActionText,
+                    { color: isDisabled ? "#34C759" : "#FF3B30" },
+                  ]}
+                >
+                  {isDisabled ? "Re-enable Account" : "Disable Account"}
+                </Text>
+              </>
+            )}
+          </Pressable>
         </View>
       </ScrollView>
     </View>

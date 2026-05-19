@@ -1866,7 +1866,54 @@ class ApiService {
     conversations: AdminConversation[];
     earnings: number;
   }> {
-    return this.request(`/api/admin/users/${userId}`, {
+    const response = await this.request<any>(`/api/admin/users/${userId}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+    const user = response?.user || {};
+    const accountType: AdminUser["accountType"] = user.isPhotographer
+      ? "photographer"
+      : user.isVendor
+        ? "business"
+        : "consumer";
+    const status: AdminUser["status"] =
+      user.status === "suspended" ||
+      user.status === "disabled" ||
+      user.isActive === false ||
+      user.is_active === false
+        ? "suspended"
+        : "active";
+    return {
+      user: {
+        id: user.id,
+        name:
+          user.name ||
+          `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+          user.email ||
+          "Unknown User",
+        email: user.email || "",
+        username: user.username,
+        avatar: user.avatar || user.profileImageUrl,
+        accountType,
+        createdAt: user.createdAt || new Date().toISOString(),
+        status,
+      },
+      orders: response?.orders || [],
+      bookings: response?.bookings || [],
+      conversations: response?.conversations || [],
+      earnings: typeof response?.earnings === "number" ? response.earnings : 0,
+    };
+  }
+
+  async disableAdminUser(authToken: string, userId: string): Promise<{ success: boolean; user?: unknown }> {
+    return this.request<{ success: boolean; user?: unknown }>(`/api/admin/users/${userId}/disable`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async enableAdminUser(authToken: string, userId: string): Promise<{ success: boolean; user?: unknown }> {
+    return this.request<{ success: boolean; user?: unknown }>(`/api/admin/users/${userId}/enable`, {
+      method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
