@@ -464,7 +464,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="AdminUserDetail"
         component={AdminUserDetailScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
@@ -472,14 +472,19 @@ export default function RootNavigator() {
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16} style={{ paddingHorizontal: 8 }}>
+              <Feather name="arrow-left" size={24} color={theme.text} />
+            </Pressable>
+          ),
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="AdminBusinessReview"
         component={AdminBusinessReviewScreen}
-        options={{
+        options={({ navigation }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
@@ -487,8 +492,13 @@ export default function RootNavigator() {
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16} style={{ paddingHorizontal: 8 }}>
+              <Feather name="arrow-left" size={24} color={theme.text} />
+            </Pressable>
+          ),
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
