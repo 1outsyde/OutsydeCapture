@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { StripeProvider } from "@stripe/stripe-react-native";
 import RootNavigator from "@/navigation/RootNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
@@ -35,9 +36,11 @@ function AppContent() {
                       <MessagingProvider>
                         <HealthCheckProvider>
                           <CalendarProvider>
-                            <NavigationContainer>
-                              <RootNavigator />
-                            </NavigationContainer>
+                            <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}>
+                              <NavigationContainer>
+                                <RootNavigator />
+                              </NavigationContainer>
+                            </StripeProvider>
                           </CalendarProvider>
                         </HealthCheckProvider>
                       </MessagingProvider>
