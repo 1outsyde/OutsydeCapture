@@ -12,7 +12,6 @@ import SessionDetailScreen from "@/screens/SessionDetailScreen";
 import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
 import ChatScreen from "@/screens/ChatScreen";
-import PaymentScreen from "@/screens/PaymentScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
 import BusinessProfileScreen from "@/screens/BusinessProfileScreen";
 import PhotographerProfileScreen from "@/screens/PhotographerProfileScreen";
@@ -339,26 +338,6 @@ export default function RootNavigator() {
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
         }}
-      />
-
-      <Stack.Screen
-        name="Payment"
-        component={PaymentScreen}
-        options={({ navigation }) => ({
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          headerShown: true,
-          headerTitle: "Payment",
-          headerTitleAlign: "center",
-          headerTintColor: theme.text,
-          headerStyle: { backgroundColor: theme.backgroundRoot },
-          headerLeft: () => null,
-          headerRight: () => (
-            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
-              <Feather name="x" size={24} color={theme.text} />
-            </Pressable>
-          ),
-        })}
       />
 
       <Stack.Screen
