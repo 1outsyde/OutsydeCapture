@@ -14,7 +14,9 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { useStripePayment } from "@/hooks/useStripePayment";
 import api from "@/services/api";
+import { apiPost } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
 
 type RouteType = RouteProp<RootStackParamList, "ShootBooking">;
@@ -96,6 +98,7 @@ export default function ShootBookingScreen() {
   const route = useRoute<RouteType>();
   const { businessId, creditBalance } = route.params;
   const { getToken } = useAuth();
+  const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [shootType, setShootType] = useState<string>("");
@@ -132,6 +135,63 @@ export default function ShootBookingScreen() {
     if (!token) return;
     setBooking(true);
     try {
+      if (selectedPricing.finalCents > 0) {
+        let clientSecret: string | undefined;
+        try {
+          const paymentIntentResponse = await apiPost(
+            "/api/cart/payment-intent",
+            {
+              items: [
+                {
+                  productId: "shoot_booking",
+                  vendorId: businessId,
+                  vendorStripeAccountId: "platform",
+                  priceCents: selectedPricing.finalCents,
+                  quantity: 1,
+                  name: "Production Shoot Booking",
+                },
+              ],
+              shippingAddress: {
+                line1: "N/A",
+                city: "N/A",
+                state: "N/A",
+                postalCode: "00000",
+                country: "US",
+              },
+            },
+            token
+          );
+          clientSecret = paymentIntentResponse?.clientSecret;
+        } catch {
+          Alert.alert("Payment setup failed. Please try again.");
+          return;
+        }
+
+        if (!clientSecret) {
+          Alert.alert("Payment setup failed. Please try again.");
+          return;
+        }
+
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: clientSecret,
+          merchantDisplayName: "Outsyde",
+        });
+        if (initError) {
+          Alert.alert("Payment setup failed. Please try again.");
+          return;
+        }
+
+        const { error: presentError } = await presentPaymentSheet();
+        if (presentError) {
+          if ((presentError as any)?.code === "Canceled") {
+            Alert.alert("Payment cancelled.");
+            return;
+          }
+          Alert.alert("Payment failed. Please try again.");
+          return;
+        }
+      }
+
       const res = await api.bookProductionShoot(token, {
         businessId,
         shootType,
