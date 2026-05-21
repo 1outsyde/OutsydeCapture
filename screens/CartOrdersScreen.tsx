@@ -1,170 +1,408 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Pressable, RefreshControl, ScrollView } from "react-native";
-import { Image } from "expo-image";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { useAuth } from "@/context/AuthContext";
+import { useStripePayment } from "@/hooks/useStripePayment";
+import { BorderRadius, Spacing } from "@/constants/theme";
+import api from "@/services/api";
+import { apiGet, apiPost } from "@/api/client";
 
 interface CartItem {
   id: string;
   name: string;
-  vendor: string;
   price: number;
   quantity: number;
-  image: string;
+  vendorId: string;
+  vendorStripeAccountId: string;
+}
+
+interface ShippingAddress {
+  line1: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
+interface FeeBreakdown {
+  basePriceCents: number;
+  consumerUpchargeCents: number;
+  vendorPayoutCents: number;
+  platformFeeCents: number;
+  totalChargedToConsumerCents: number;
+  outsydePointsEarned: number;
+}
+
+interface OrderItem {
+  name: string;
+  quantity: number;
 }
 
 interface Order {
   id: string;
   date: string;
-  status: "processing" | "shipped" | "delivered" | "cancelled";
+  status: string;
   total: number;
-  items: { name: string; quantity: number }[];
-  vendorName: string;
-  // Customer-facing fee breakdown (backend-calculated; optional until backend exposes them)
-  subtotalAmount?: number;
-  consumerServiceFeeAmount?: number;
-  taxAmount?: number;
+  vendorName?: string;
+  items: OrderItem[];
 }
-
-const MOCK_CART: CartItem[] = [
-  {
-    id: "cart1",
-    name: "Gallery Canvas Print 24x36",
-    vendor: "PrintMaster Studio",
-    price: 149.99,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1513519245088-0e12902e35a6?w=200",
-  },
-  {
-    id: "cart2",
-    name: "Leather Photo Album - 50 Pages",
-    vendor: "MemoryBook Co",
-    price: 89.99,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200",
-  },
-  {
-    id: "cart3",
-    name: "Pro Camera Strap - Leather",
-    vendor: "LensCraft Gear",
-    price: 45.00,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1606986628253-e0f5f7e6c1fa?w=200",
-  },
-  {
-    id: "cart4",
-    name: "Portable LED Ring Light 18\"",
-    vendor: "PhotoGear Pro",
-    price: 79.99,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1617005082133-548c4dd27f35?w=200",
-  },
-];
-
-const MOCK_ORDERS: Order[] = [
-  {
-    id: "order1",
-    date: "2025-01-08",
-    status: "shipped",
-    total: 134.99,
-    items: [{ name: "Canvas Print 24x36", quantity: 1 }, { name: "Oak Wood Frame", quantity: 2 }],
-    vendorName: "FrameArt Gallery",
-  },
-  {
-    id: "order2",
-    date: "2025-01-05",
-    status: "processing",
-    total: 79.99,
-    items: [{ name: "LED Ring Light 18\"", quantity: 1 }],
-    vendorName: "PhotoGear Pro",
-  },
-  {
-    id: "order3",
-    date: "2025-01-03",
-    status: "delivered",
-    total: 67.50,
-    items: [{ name: "Portrait Session Photos - Digital", quantity: 1 }],
-    vendorName: "Sarah Mitchell Photography",
-  },
-  {
-    id: "order4",
-    date: "2024-12-28",
-    status: "delivered",
-    total: 225.00,
-    items: [{ name: "Wedding Album Deluxe", quantity: 1 }],
-    vendorName: "James Chen Photography",
-  },
-  {
-    id: "order5",
-    date: "2024-12-20",
-    status: "delivered",
-    total: 45.00,
-    items: [{ name: "Pro Camera Strap", quantity: 1 }],
-    vendorName: "LensCraft Gear",
-  },
-];
 
 export default function CartOrdersScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
+  const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
+
+  const routeCartItems = ((route.params as { cartItems?: CartItem[] } | undefined)?.cartItems ?? []);
+
+  const [cart, setCart] = useState<CartItem[]>(routeCartItems.length > 0 ? routeCartItems : []);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [cart, setCart] = useState<CartItem[]>(MOCK_CART);
-  const [orders] = useState<Order[]>(MOCK_ORDERS);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [backendFeeBreakdown, setBackendFeeBreakdown] = useState<FeeBreakdown | null>(null);
+  const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
+    line1: "",
+    city: "",
+    state: "",
+    zipCode: "",
+  });
+
+  const hasShippingAddress =
+    shippingAddress.line1.trim().length > 0 &&
+    shippingAddress.city.trim().length > 0 &&
+    shippingAddress.state.trim().length > 0 &&
+    shippingAddress.zipCode.trim().length > 0;
+
+  const subtotal = useMemo(
+    () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    [cart]
+  );
+  const clientServiceFee = useMemo(() => subtotal * 0.04, [subtotal]);
+  const clientTotal = useMemo(() => subtotal * 1.04, [subtotal]);
+  const clientPoints = useMemo(() => Math.round(clientServiceFee * 100), [clientServiceFee]);
+
+  const displayedSubtotal = backendFeeBreakdown
+    ? backendFeeBreakdown.basePriceCents / 100
+    : subtotal;
+  const displayedServiceFee = backendFeeBreakdown
+    ? backendFeeBreakdown.consumerUpchargeCents / 100
+    : clientServiceFee;
+  const displayedTotal = backendFeeBreakdown
+    ? backendFeeBreakdown.totalChargedToConsumerCents / 100
+    : clientTotal;
+  const displayedPoints = backendFeeBreakdown
+    ? backendFeeBreakdown.outsydePointsEarned
+    : clientPoints;
+
+  const updateShippingAddress = (key: keyof ShippingAddress, value: string) => {
+    setShippingAddress((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const fetchOrders = useCallback(async () => {
+    const token = await getToken();
+    if (!token) {
+      setOrders([]);
+      return;
+    }
+    setOrdersLoading(true);
+    try {
+      let response: any;
+      if (typeof (api as any).getOrders === "function") {
+        response = await (api as any).getOrders(token);
+      } else {
+        response = await apiGet("/api/orders", token);
+      }
+      const ordersPayload = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.orders)
+          ? response.orders
+          : [];
+      const normalizedOrders: Order[] = ordersPayload.map((order: any) => ({
+        id: order.id,
+        date: order.date || order.createdAt || new Date().toISOString(),
+        status: order.status || "processing",
+        total:
+          typeof order.total === "number"
+            ? order.total
+            : typeof order.totalAmount === "number"
+              ? order.totalAmount
+              : 0,
+        vendorName: order.vendorName || order.vendor?.name || order.businessName,
+        items: Array.isArray(order.items)
+          ? order.items.map((item: any) => ({
+              name: item.name || "Item",
+              quantity: Number(item.quantity) || 1,
+            }))
+          : [],
+      }));
+      setOrders(normalizedOrders);
+    } catch (error: any) {
+      // Endpoint may not exist yet; required fallback is empty state.
+      console.warn("Unable to fetch orders, showing empty state:", error?.message || error);
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await fetchOrders();
     setRefreshing(false);
   };
-
-  const getStatusColor = (status: Order["status"]) => {
-    switch (status) {
-      case "processing":
-        return "#FF9500";
-      case "shipped":
-        return "#007AFF";
-      case "delivered":
-        return "#34C759";
-      case "cancelled":
-        return "#FF3B30";
-      default:
-        return theme.textSecondary;
-    }
-  };
-
-  const getStatusIcon = (status: Order["status"]) => {
-    switch (status) {
-      case "processing":
-        return "clock";
-      case "shipped":
-        return "truck";
-      case "delivered":
-        return "check-circle";
-      case "cancelled":
-        return "x-circle";
-      default:
-        return "package";
-    }
-  };
-
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const updateQuantity = (itemId: string, delta: number) => {
     setCart((prev) =>
       prev
         .map((item) =>
-          item.id === itemId ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
+          item.id === itemId
+            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
+            : item
         )
         .filter((item) => item.quantity > 0)
     );
   };
+
+  const checkoutDisabled =
+    cart.length === 0 || !hasShippingAddress || checkoutLoading;
+
+  const handleCheckout = async () => {
+    if (checkoutDisabled) return;
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Checkout failed. Please try again.");
+      return;
+    }
+
+    setCheckoutLoading(true);
+    try {
+      const paymentIntentResponse = await apiPost(
+        "/api/cart/payment-intent",
+        {
+          items: cart.map((item) => ({
+            productId: item.id,
+            vendorId: item.vendorId,
+            vendorStripeAccountId: item.vendorStripeAccountId,
+            priceCents: Math.round(item.price * 100),
+            quantity: item.quantity,
+            name: item.name,
+          })),
+          shippingAddress: {
+            line1: shippingAddress.line1.trim(),
+            city: shippingAddress.city.trim(),
+            state: shippingAddress.state.trim(),
+            zipCode: shippingAddress.zipCode.trim(),
+          },
+        },
+        token
+      ) as { clientSecret?: string; feeBreakdown?: FeeBreakdown };
+
+      const clientSecret = paymentIntentResponse?.clientSecret;
+      const feeBreakdown = paymentIntentResponse?.feeBreakdown || null;
+      setBackendFeeBreakdown(feeBreakdown);
+
+      if (!clientSecret) {
+        throw new Error("Missing clientSecret");
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: "Outsyde",
+      });
+
+      if (initError) {
+        if ((initError as any)?.code === "Canceled") {
+          Alert.alert("Payment cancelled.");
+          return;
+        }
+        throw initError;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+      if (presentError) {
+        if ((presentError as any)?.code === "Canceled") {
+          Alert.alert("Payment cancelled.");
+          return;
+        }
+        throw presentError;
+      }
+
+      Alert.alert(
+        `Order placed successfully! You earned ${feeBreakdown?.outsydePointsEarned ?? 0} Outsyde Points.`
+      );
+      setCart([]);
+      setBackendFeeBreakdown(null);
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      const code = String(error?.code || "");
+      if (
+        code === "MULTI_VENDOR_NOT_SUPPORTED" ||
+        message.includes("MULTI_VENDOR_NOT_SUPPORTED")
+      ) {
+        Alert.alert("Please checkout one vendor at a time.");
+      } else {
+        Alert.alert("Checkout failed. Please try again.");
+      }
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    const normalized = status.toLowerCase();
+    if (normalized.includes("processing") || normalized.includes("pending")) return "#FF9500";
+    if (normalized.includes("shipped")) return "#007AFF";
+    if (normalized.includes("delivered") || normalized.includes("completed")) return "#34C759";
+    if (normalized.includes("cancelled") || normalized.includes("failed")) return "#FF3B30";
+    return theme.textSecondary;
+  };
+
+  const styles = StyleSheet.create({
+    section: {
+      marginBottom: Spacing.xl,
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: Spacing.md,
+    },
+    sectionTitle: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    emptyCard: {
+      padding: Spacing.xl,
+      borderRadius: BorderRadius.lg,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: Spacing.sm,
+    },
+    browseButton: {
+      marginTop: Spacing.md,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.lg,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.primary,
+    },
+    cartItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: Spacing.md,
+      borderRadius: BorderRadius.lg,
+      marginBottom: Spacing.sm,
+      gap: Spacing.md,
+    },
+    cartIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primary + "1A",
+    },
+    cartInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    quantityControls: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.xs,
+    },
+    quantityBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.backgroundSecondary,
+    },
+    quantityText: {
+      minWidth: 20,
+      textAlign: "center",
+    },
+    shippingCard: {
+      padding: Spacing.md,
+      borderRadius: BorderRadius.lg,
+      backgroundColor: theme.card,
+      gap: Spacing.sm,
+      marginTop: Spacing.sm,
+    },
+    input: {
+      height: 44,
+      borderRadius: BorderRadius.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.backgroundSecondary,
+      color: theme.text,
+      paddingHorizontal: Spacing.md,
+      fontSize: 15,
+    },
+    row: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: Spacing.xs,
+    },
+    checkoutButton: {
+      marginTop: Spacing.md,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: Spacing.md,
+      borderRadius: BorderRadius.full,
+      gap: Spacing.sm,
+    },
+    ordersEmpty: {
+      padding: Spacing.lg,
+      borderRadius: BorderRadius.lg,
+      backgroundColor: theme.backgroundSecondary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    orderCard: {
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.md,
+      marginBottom: Spacing.md,
+      backgroundColor: theme.card,
+    },
+    orderHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: Spacing.sm,
+    },
+    statusBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.full,
+      gap: 4,
+    },
+  });
 
   return (
     <ScrollView
@@ -175,175 +413,190 @@ export default function CartOrdersScreen() {
       }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Cart Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Feather name="shopping-cart" size={20} color={theme.primary} />
-          <ThemedText type="h3" style={{ marginLeft: Spacing.sm }}>
-            Cart
-          </ThemedText>
-          {cart.length > 0 ? (
-            <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-              <ThemedText type="small" style={{ color: "#FFFFFF" }}>
-                {cart.length}
-              </ThemedText>
-            </View>
-          ) : null}
+          <View style={styles.sectionTitle}>
+            <Feather name="shopping-cart" size={20} color={theme.primary} />
+            <ThemedText type="h3" style={{ marginLeft: Spacing.sm }}>
+              Cart
+            </ThemedText>
+          </View>
         </View>
 
         {cart.length === 0 ? (
-          <ThemedView style={[styles.emptyCard, { backgroundColor: theme.backgroundSecondary }]}>
+          <ThemedView style={styles.emptyCard}>
             <Feather name="shopping-bag" size={40} color={theme.textSecondary} />
-            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+            <ThemedText type="body" style={{ color: theme.textSecondary }}>
               Your cart is empty
             </ThemedText>
+            <Pressable style={styles.browseButton} onPress={() => navigation.goBack()}>
+              <ThemedText type="body" style={{ color: "#FFFFFF" }}>
+                Browse Vendors
+              </ThemedText>
+            </Pressable>
           </ThemedView>
         ) : (
           <>
             {cart.map((item) => (
-              <View key={item.id} style={[styles.cartItem, { backgroundColor: theme.card }]}>
-                <Image source={{ uri: item.image }} style={styles.cartImage} contentFit="cover" />
+              <View key={item.id} style={styles.cartItem}>
+                <View style={styles.cartIcon}>
+                  <Feather name="package" size={20} color={theme.primary} />
+                </View>
                 <View style={styles.cartInfo}>
                   <ThemedText type="h4" numberOfLines={1}>
                     {item.name}
                   </ThemedText>
                   <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    {item.vendor}
-                  </ThemedText>
-                  <ThemedText type="body" style={{ color: theme.primary, marginTop: Spacing.xs }}>
-                    ${item.price.toFixed(2)}
+                    ${item.price.toFixed(2)} each
                   </ThemedText>
                 </View>
                 <View style={styles.quantityControls}>
                   <Pressable
                     onPress={() => updateQuantity(item.id, -1)}
-                    style={[styles.quantityBtn, { backgroundColor: theme.backgroundSecondary }]}
+                    style={styles.quantityBtn}
                   >
-                    <Feather name="minus" size={16} color={theme.text} />
+                    <Feather name="minus" size={14} color={theme.text} />
                   </Pressable>
                   <ThemedText type="body" style={styles.quantityText}>
                     {item.quantity}
                   </ThemedText>
                   <Pressable
                     onPress={() => updateQuantity(item.id, 1)}
-                    style={[styles.quantityBtn, { backgroundColor: theme.backgroundSecondary }]}
+                    style={styles.quantityBtn}
                   >
-                    <Feather name="plus" size={16} color={theme.text} />
+                    <Feather name="plus" size={14} color={theme.text} />
                   </Pressable>
                 </View>
               </View>
             ))}
 
-            {/* Cart Summary */}
-            <View style={[styles.cartTotal, { borderTopColor: theme.border }]}>
-              <View style={{ flex: 1, gap: Spacing.xs }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <ThemedText type="body" style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
-                  <ThemedText type="body">${cartTotal.toFixed(2)}</ThemedText>
-                </View>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    Service fees & taxes calculated at checkout
-                  </ThemedText>
-                </View>
+            <View style={styles.shippingCard}>
+              <ThemedText type="body">Shipping Address</ThemedText>
+              <TextInput
+                style={styles.input}
+                placeholder="Address Line 1"
+                placeholderTextColor={theme.textSecondary}
+                value={shippingAddress.line1}
+                onChangeText={(v) => updateShippingAddress("line1", v)}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="City"
+                placeholderTextColor={theme.textSecondary}
+                value={shippingAddress.city}
+                onChangeText={(v) => updateShippingAddress("city", v)}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="State"
+                placeholderTextColor={theme.textSecondary}
+                value={shippingAddress.state}
+                onChangeText={(v) => updateShippingAddress("state", v)}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Zip Code"
+                placeholderTextColor={theme.textSecondary}
+                value={shippingAddress.zipCode}
+                onChangeText={(v) => updateShippingAddress("zipCode", v)}
+              />
+            </View>
+
+            <View style={[styles.shippingCard, { marginTop: Spacing.md }]}>
+              <View style={styles.row}>
+                <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                  Subtotal
+                </ThemedText>
+                <ThemedText type="body">${displayedSubtotal.toFixed(2)}</ThemedText>
               </View>
+              <View style={styles.row}>
+                <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                  Outsyde Service Fee (+4%)
+                </ThemedText>
+                <ThemedText type="body">${displayedServiceFee.toFixed(2)}</ThemedText>
+              </View>
+              <View style={[styles.row, { marginBottom: 0 }]}>
+                <ThemedText type="h4">Total</ThemedText>
+                <ThemedText type="h4" style={{ color: theme.primary }}>
+                  ${displayedTotal.toFixed(2)}
+                </ThemedText>
+              </View>
+              <ThemedText type="body" style={{ color: "#22c55e", marginTop: Spacing.xs }}>
+                You'll earn {displayedPoints} Outsyde Points
+              </ThemedText>
             </View>
 
             <Pressable
+              onPress={handleCheckout}
+              disabled={checkoutDisabled}
               style={({ pressed }) => [
                 styles.checkoutButton,
-                { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+                {
+                  backgroundColor: checkoutDisabled ? theme.border : theme.primary,
+                  opacity: pressed ? 0.85 : 1,
+                },
               ]}
             >
-              <Feather name="credit-card" size={18} color="#FFFFFF" />
-              <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
-                Proceed to Checkout
-              </ThemedText>
+              {checkoutLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather name="credit-card" size={18} color="#FFFFFF" />
+                  <ThemedText type="body" style={{ color: "#FFFFFF" }}>
+                    Proceed to Checkout
+                  </ThemedText>
+                </>
+              )}
             </Pressable>
           </>
         )}
       </View>
 
-      {/* Orders Section */}
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitle}>
           <Feather name="package" size={20} color={theme.primary} />
           <ThemedText type="h3" style={{ marginLeft: Spacing.sm }}>
             Recent Orders
           </ThemedText>
         </View>
 
-        {orders.length === 0 ? (
-          <ThemedView style={[styles.emptyCard, { backgroundColor: theme.backgroundSecondary }]}>
-            <Feather name="inbox" size={40} color={theme.textSecondary} />
-            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+        {ordersLoading ? (
+          <View style={styles.ordersEmpty}>
+            <ActivityIndicator size="small" color={theme.primary} />
+          </View>
+        ) : orders.length === 0 ? (
+          <View style={styles.ordersEmpty}>
+            <ThemedText type="body" style={{ color: theme.textSecondary }}>
               No orders yet
             </ThemedText>
-          </ThemedView>
+          </View>
         ) : (
           orders.map((order) => (
-            <Pressable
-              key={order.id}
-              style={({ pressed }) => [
-                styles.orderCard,
-                { backgroundColor: theme.card, opacity: pressed ? 0.9 : 1 },
-              ]}
-            >
+            <Pressable key={order.id} style={styles.orderCard}>
               <View style={styles.orderHeader}>
-                <View>
-                  <ThemedText type="h4">{order.vendorName}</ThemedText>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="h4">{order.vendorName || "Order"}</ThemedText>
                   <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    {new Date(order.date).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
+                    {new Date(order.date).toLocaleDateString()}
                   </ThemedText>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + "20" }]}>
-                  <Feather name={getStatusIcon(order.status) as any} size={14} color={getStatusColor(order.status)} />
-                  <ThemedText
-                    type="small"
-                    style={{ color: getStatusColor(order.status), marginLeft: Spacing.xs, textTransform: "capitalize" }}
-                  >
+                  <Feather name="circle" size={10} color={getStatusColor(order.status)} />
+                  <ThemedText type="small" style={{ color: getStatusColor(order.status), textTransform: "capitalize" }}>
                     {order.status}
                   </ThemedText>
                 </View>
               </View>
-
-              <View style={styles.orderItems}>
-                {order.items.map((item, idx) => (
-                  <ThemedText key={idx} type="caption" style={{ color: theme.textSecondary }}>
-                    {item.quantity}x {item.name}
-                  </ThemedText>
-                ))}
-              </View>
-
-              <View style={[styles.orderFooter, { borderTopColor: theme.border, flexDirection: "column", gap: Spacing.xs }]}>
-                {order.subtotalAmount != null ? (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
-                    <ThemedText type="caption">${order.subtotalAmount.toFixed(2)}</ThemedText>
-                  </View>
-                ) : null}
-                {order.consumerServiceFeeAmount != null ? (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>Outsyde Service Fee</ThemedText>
-                    <ThemedText type="caption">${order.consumerServiceFeeAmount.toFixed(2)}</ThemedText>
-                  </View>
-                ) : null}
-                {order.taxAmount != null ? (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>Sales Tax</ThemedText>
-                    <ThemedText type="caption">${order.taxAmount.toFixed(2)}</ThemedText>
-                  </View>
-                ) : null}
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <ThemedText type="body">Order Total</ThemedText>
-                  <ThemedText type="h4" style={{ color: theme.primary }}>
-                    ${order.total.toFixed(2)}
-                  </ThemedText>
-                </View>
+              {order.items.map((item, idx) => (
+                <ThemedText key={`${order.id}-${idx}`} type="caption" style={{ color: theme.textSecondary }}>
+                  {item.quantity}x {item.name}
+                </ThemedText>
+              ))}
+              <View style={[styles.row, { marginTop: Spacing.sm, marginBottom: 0 }]}>
+                <ThemedText type="body">Order Total</ThemedText>
+                <ThemedText type="h4" style={{ color: theme.primary }}>
+                  ${order.total.toFixed(2)}
+                </ThemedText>
               </View>
             </Pressable>
           ))
@@ -352,104 +605,3 @@ export default function CartOrdersScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  section: {
-    marginBottom: Spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  badge: {
-    marginLeft: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-    minWidth: 20,
-    alignItems: "center",
-  },
-  emptyCard: {
-    padding: Spacing.xl,
-    borderRadius: BorderRadius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cartItem: {
-    flexDirection: "row",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.sm,
-    alignItems: "center",
-  },
-  cartImage: {
-    width: 60,
-    height: 60,
-    borderRadius: BorderRadius.md,
-  },
-  cartInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  quantityControls: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  quantityBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quantityText: {
-    marginHorizontal: Spacing.sm,
-    minWidth: 20,
-    textAlign: "center",
-  },
-  cartTotal: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: Spacing.md,
-    marginTop: Spacing.sm,
-    borderTopWidth: 1,
-  },
-  checkoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.full,
-    marginTop: Spacing.md,
-  },
-  orderCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  orderHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
-  orderItems: {
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  orderFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-  },
-});
