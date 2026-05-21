@@ -5,7 +5,6 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as WebBrowser from "expo-web-browser";
 import { useStripePayment } from "@/hooks/useStripePayment";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -48,7 +47,7 @@ export default function BookingScreen() {
   const { addSession } = useData();
   const { addNotification, sendBookingConfirmation, scheduleBookingReminders } = useNotifications();
   const insets = useSafeAreaInsets();
-  const { initPaymentSheet, presentPaymentSheet, isNative } = useStripePayment();
+  const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
 
   // State for photographer data (may need to be fetched)
   const [photographer, setPhotographer] = useState<PhotographerData | null>(
@@ -501,22 +500,6 @@ export default function BookingScreen() {
         }
         // Skip Stripe, confirm the draft booking directly
         confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
-      } else if (!isNative) {
-        // Web: Use WebBrowser to open Stripe Checkout
-        const checkoutUrl = `https://checkout.stripe.com/pay/${paymentResponse.clientSecret}`;
-        const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
-          dismissButtonStyle: "close",
-          showTitle: true,
-        });
-        
-        if (result.type === "cancel") {
-          setIsConfirming(false);
-          Alert.alert("Payment Cancelled", "Payment was cancelled. Please try again.");
-          return;
-        }
-        
-        // Confirm the draft booking with backend
-        confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
       } else {
         // Native: Use Stripe PaymentSheet (in-app)
         // Initialize PaymentSheet with clientSecret
@@ -668,18 +651,6 @@ export default function BookingScreen() {
   const handlePayLater = () => {
     setShowSuccessModal(false);
     navigation.goBack();
-  };
-
-  const handlePayNow = () => {
-    const sessionPrice = selectedService?.price || bookingDraft?.totalAmount || 0;
-    setShowSuccessModal(false);
-    navigation.goBack();
-    navigation.navigate("Payment", {
-      sessionId: bookedSessionId,
-      amount: sessionPrice,
-      photographerName: photographer?.name || "Photographer",
-      sessionDate: formatDate(selectedDate),
-    });
   };
 
   const formatDate = (dateString: string) => {
@@ -1209,20 +1180,18 @@ export default function BookingScreen() {
             <>
               <View style={styles.reviewFeeRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
-                <ThemedText type="small">${bookingDraft.feeBreakdown.subtotalAmount.toFixed(2)}</ThemedText>
+                <ThemedText type="small">${(((bookingDraft.feeBreakdown as any).basePriceCents || 0) / 100).toFixed(2)}</ThemedText>
               </View>
-              {bookingDraft.feeBreakdown.consumerServiceFeeAmount > 0 ? (
-                <View style={styles.reviewFeeRow}>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Outsyde Service Fee</ThemedText>
-                  <ThemedText type="small">${bookingDraft.feeBreakdown.consumerServiceFeeAmount.toFixed(2)}</ThemedText>
-                </View>
-              ) : null}
-              {bookingDraft.feeBreakdown.taxAmount > 0 ? (
-                <View style={styles.reviewFeeRow}>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Sales Tax</ThemedText>
-                  <ThemedText type="small">${bookingDraft.feeBreakdown.taxAmount.toFixed(2)}</ThemedText>
-                </View>
-              ) : null}
+              <View style={styles.reviewFeeRow}>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>Outsyde Service Fee (+5%)</ThemedText>
+                <ThemedText type="small">${(((bookingDraft.feeBreakdown as any).consumerUpchargeCents || 0) / 100).toFixed(2)}</ThemedText>
+              </View>
+              <View style={styles.reviewFeeRow}>
+                <ThemedText type="small" style={{ color: "#22c55e" }}>Points you'll earn</ThemedText>
+                <ThemedText type="small" style={{ color: "#22c55e" }}>
+                  {((bookingDraft.feeBreakdown as any).outsydePointsEarned || 0)} Outsyde Points
+                </ThemedText>
+              </View>
             </>
           ) : null}
 
@@ -1231,7 +1200,9 @@ export default function BookingScreen() {
               Total
             </ThemedText>
             <ThemedText type="h3" style={{ color: theme.primary }}>
-              ${bookingDraft.totalAmount.toFixed(2)}
+              ${bookingDraft.feeBreakdown
+                ? (((bookingDraft.feeBreakdown as any).totalChargedToConsumerCents || 0) / 100).toFixed(2)
+                : bookingDraft.totalAmount.toFixed(2)}
             </ThemedText>
           </View>
         </View>
@@ -1435,23 +1406,9 @@ export default function BookingScreen() {
                 ]}
               >
                 <ThemedText type="button" style={{ color: bookingPending ? "#FFFFFF" : theme.text }}>
-                  {bookingPending ? "Got It" : "Pay Later"}
+                  {bookingPending ? "Got It" : "Done"}
                 </ThemedText>
               </Pressable>
-              {!bookingPending && (
-                <Pressable
-                  onPress={handlePayNow}
-                  style={[
-                    styles.modalButton,
-                    styles.modalButtonPrimary,
-                    { backgroundColor: theme.primary },
-                  ]}
-                >
-                  <ThemedText type="button" style={{ color: "#FFFFFF" }}>
-                    Pay Now
-                  </ThemedText>
-                </Pressable>
-              )}
             </View>
           </View>
         </View>
