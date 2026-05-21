@@ -238,9 +238,14 @@ export default function AdminDashboardScreen() {
     );
   };
 
-  const navigateToUserDetail = (userId: string) => {
+  const navigateToUserDetail = useCallback((userId: string) => {
+    if (!userId) {
+      console.warn("[Admin] navigateToUserDetail called without userId");
+      return;
+    }
+    console.log("[Admin] Navigating to user detail:", userId);
     navigation.navigate("AdminUserDetail", { userId });
-  };
+  }, [navigation]);
 
   const styles = StyleSheet.create({
     container: {
@@ -782,7 +787,14 @@ export default function AdminDashboardScreen() {
   );
 
   const renderUserItem = ({ item }: { item: AdminUser }) => (
-    <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+    <TouchableOpacity
+      style={styles.listItem}
+      activeOpacity={0.7}
+      onPress={() => {
+        console.log("[Admin] Tapped user:", item.id, item.name);
+        navigateToUserDetail(item.id);
+      }}
+    >
       <View style={styles.listItemHeader}>
         <Text style={styles.listItemName}>{item.name}</Text>
         <View style={[styles.statusBadge, item.status === "active" ? styles.approvedBadge : styles.rejectedBadge]}>
@@ -794,7 +806,7 @@ export default function AdminDashboardScreen() {
       <Text style={styles.listItemInfo}>{item.email}</Text>
       {item.username ? <Text style={styles.listItemInfo}>@{item.username}</Text> : null}
       <Text style={styles.listItemInfo}>Account: {item.accountType}</Text>
-    </Pressable>
+    </TouchableOpacity>
   );
 
   const renderBusinessItem = useCallback(({ item }: { item: AdminBusiness }) => {
@@ -1174,7 +1186,15 @@ export default function AdminDashboardScreen() {
             {filteredUsers.length === 0
               ? renderEmptyState("No Users", "No users found matching your search", "users")
               : filteredUsers.map((item) => (
-                  <Pressable key={item.id} style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.listItem}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      console.log("[Admin] Tapped user:", item.id, item.name);
+                      navigateToUserDetail(item.id);
+                    }}
+                  >
                     <View style={styles.listItemHeader}>
                       <Text style={styles.listItemName}>{item.name}</Text>
                       <View style={[styles.statusBadge, item.status === "active" ? styles.approvedBadge : styles.rejectedBadge]}>
@@ -1186,7 +1206,7 @@ export default function AdminDashboardScreen() {
                     <Text style={styles.listItemInfo}>{item.email}</Text>
                     {item.username ? <Text style={styles.listItemInfo}>@{item.username}</Text> : null}
                     <Text style={styles.listItemInfo}>Account: {item.accountType}</Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 ))}
           </ScrollView>
         );

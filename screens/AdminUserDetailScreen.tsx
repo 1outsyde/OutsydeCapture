@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  ActivityIndicator,
-  FlatList,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -38,24 +29,29 @@ export default function AdminUserDetailScreen() {
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<UserDetailData | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [activeTab, setActiveTab] = useState<"orders" | "bookings" | "conversations">("orders");
   const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchUser = useCallback(async () => {
+    console.log("[AdminUserDetail] Fetching user detail");
     const token = await getToken();
-    if (!token) return;
-    
+    if (!token) {
+      console.warn("[AdminUserDetail] Missing auth token, cannot fetch user detail");
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
     try {
-      setLoading(true);
-      setNotFound(false);
       const result = await api.getAdminUserDetail(token, userId);
+      console.log("[AdminUserDetail] User data received:", {
+        userId: result?.user?.id,
+        email: result?.user?.email,
+        status: result?.user?.status,
+      });
       setData(result);
     } catch (error: any) {
-      const statusCode = error?.status || error?.message?.includes("404") ? 404 : 0;
-      if (statusCode === 404 || error?.message?.includes("User not found")) {
-        setNotFound(true);
-      }
+      console.error("[AdminUserDetail] Fetch error:", error?.message || error);
+      Alert.alert("Error", "Could not load user details");
       setData(null);
     } finally {
       setLoading(false);
@@ -63,8 +59,10 @@ export default function AdminUserDetailScreen() {
   }, [getToken, userId]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    console.log("[AdminUserDetail] Screen mounted with userId:", userId);
+    setLoading(true);
+    fetchUser();
+  }, [userId, fetchUser]);
 
   const handleToggleAccountStatus = useCallback(async () => {
     if (!data) return;
@@ -91,7 +89,7 @@ export default function AdminUserDetailScreen() {
                 await api.disableAdminUser(token, userId);
               }
               Alert.alert("Success", isDisabled ? "Account re-enabled" : "Account disabled");
-              await fetchData();
+              await fetchUser();
             } catch (err: any) {
               Alert.alert("Error", err?.message || "Failed to update account status");
             } finally {
@@ -101,73 +99,85 @@ export default function AdminUserDetailScreen() {
         },
       ]
     );
-  }, [data, getToken, userId, fetchData]);
+  }, [data, getToken, userId, fetchUser]);
 
   const styles = StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.backgroundRoot,
     },
-    header: {
-      flexDirection: "row",
+    stateContainer: {
+      flex: 1,
+      justifyContent: "center",
       alignItems: "center",
-      paddingHorizontal: 16,
-      paddingTop: insets.top + 12,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      paddingHorizontal: 24,
+    },
+    stateTitle: {
+      marginTop: 12,
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme.text,
+    },
+    stateSubtitle: {
+      marginTop: 6,
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: "center",
     },
     backButton: {
-      padding: 8,
+      marginTop: 16,
+      backgroundColor: theme.primary,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    backButtonText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: "#FFFFFF",
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: Math.max(32, insets.bottom + 16),
+    },
+    section: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    identityRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    avatar: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
       marginRight: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primary + "20",
     },
-    headerTitle: {
-      flex: 1,
-    },
-    title: {
+    name: {
       fontSize: 20,
       fontWeight: "700",
       color: theme.text,
     },
-    subtitle: {
+    email: {
+      marginTop: 2,
       fontSize: 13,
       color: theme.textSecondary,
-      marginTop: 2,
-    },
-    loadingContainer: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    profileSection: {
-      padding: 20,
-      alignItems: "center",
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    avatar: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: theme.primary + "20",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 12,
-    },
-    userName: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: theme.text,
-      marginBottom: 4,
-    },
-    userEmail: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      marginBottom: 8,
     },
     statusBadge: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
+      alignSelf: "flex-start",
+      paddingHorizontal: 10,
+      paddingVertical: 5,
       borderRadius: 16,
     },
     activeBadge: {
@@ -186,166 +196,48 @@ export default function AdminUserDetailScreen() {
     suspendedText: {
       color: "#FF3B30",
     },
-    statsRow: {
+    row: {
       flexDirection: "row",
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    statCard: {
-      flex: 1,
+      justifyContent: "space-between",
       alignItems: "center",
-      paddingVertical: 12,
-    },
-    statValue: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: theme.text,
-    },
-    statLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginTop: 4,
-    },
-    statDivider: {
-      width: 1,
-      backgroundColor: theme.border,
-      marginVertical: 8,
-    },
-    tabsRow: {
-      flexDirection: "row",
-      padding: 12,
-      gap: 8,
-    },
-    tab: {
-      flex: 1,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-      backgroundColor: theme.backgroundDefault,
-      alignItems: "center",
-    },
-    activeTab: {
-      backgroundColor: theme.primary + "20",
-    },
-    tabText: {
-      fontSize: 13,
-      fontWeight: "500",
-      color: theme.textSecondary,
-    },
-    activeTabText: {
-      color: theme.primary,
-      fontWeight: "600",
-    },
-    content: {
-      flex: 1,
-      paddingHorizontal: 12,
-    },
-    listItem: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
-      padding: 14,
       marginBottom: 10,
     },
-    listItemHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 6,
-    },
-    listItemName: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    itemStatusBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
-    },
-    pendingBadge: {
-      backgroundColor: "#FFA50030",
-    },
-    completedBadge: {
-      backgroundColor: "#34C75930",
-    },
-    cancelledBadge: {
-      backgroundColor: "#FF3B3030",
-    },
-    itemStatusText: {
-      fontSize: 11,
-      fontWeight: "600",
-    },
-    pendingText: {
-      color: "#FFA500",
-    },
-    completedText: {
-      color: "#34C759",
-    },
-    cancelledText: {
-      color: "#FF3B30",
-    },
-    listItemInfo: {
+    rowLabel: {
       fontSize: 13,
       color: theme.textSecondary,
-      marginBottom: 2,
     },
-    emptyState: {
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 60,
-    },
-    emptyTitle: {
-      fontSize: 16,
+    rowValue: {
+      flex: 1,
+      textAlign: "right",
+      marginLeft: 12,
+      fontSize: 14,
       fontWeight: "600",
       color: theme.text,
-      marginTop: 12,
-      marginBottom: 4,
     },
-    emptySubtitle: {
-      fontSize: 14,
+    sectionTitle: {
+      fontSize: 12,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
       color: theme.textSecondary,
-      textAlign: "center",
-    },
-    earningsCard: {
-      backgroundColor: theme.primary + "15",
-      borderRadius: 12,
-      padding: 16,
-      margin: 12,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    earningsLabel: {
-      fontSize: 14,
-      color: theme.text,
-    },
-    earningsValue: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: theme.primary,
-    },
-    accountActionSection: {
-      paddingHorizontal: 12,
-      paddingBottom: 24,
+      marginBottom: 12,
     },
     accountActionButton: {
+      marginTop: 4,
       borderRadius: 12,
       paddingVertical: 14,
-      paddingHorizontal: 16,
       alignItems: "center",
       justifyContent: "center",
       flexDirection: "row",
       gap: 8,
+      borderWidth: 1,
     },
     disableButton: {
       backgroundColor: "#FF3B3020",
-      borderWidth: 1,
       borderColor: "#FF3B30",
     },
     enableButton: {
       backgroundColor: "#34C75920",
-      borderWidth: 1,
       borderColor: "#34C759",
     },
     accountActionText: {
@@ -354,150 +246,54 @@ export default function AdminUserDetailScreen() {
     },
   });
 
-  const renderEmptyState = (title: string, subtitle: string, icon: keyof typeof Feather.glyphMap) => (
-    <View style={styles.emptyState}>
-      <Feather name={icon} size={40} color={theme.textSecondary} />
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptySubtitle}>{subtitle}</Text>
-    </View>
-  );
-
-  const getOrderStatusStyle = (status: string) => {
-    switch (status) {
-      case "completed":
-        return { badge: styles.completedBadge, text: styles.completedText };
-      case "pending":
-        return { badge: styles.pendingBadge, text: styles.pendingText };
-      default:
-        return { badge: styles.cancelledBadge, text: styles.cancelledText };
-    }
-  };
-
-  const renderOrderItem = ({ item }: { item: AdminOrder }) => {
-    const statusStyle = getOrderStatusStyle(item.status);
-    return (
-      <View style={styles.listItem}>
-        <View style={styles.listItemHeader}>
-          <Text style={styles.listItemName}>Order #{item.id.slice(0, 8)}</Text>
-          <View style={[styles.itemStatusBadge, statusStyle.badge]}>
-            <Text style={[styles.itemStatusText, statusStyle.text]}>{item.status}</Text>
-          </View>
-        </View>
-        <Text style={styles.listItemInfo}>Business: {item.businessName}</Text>
-        <Text style={styles.listItemInfo}>Amount: ${item.amount.toFixed(2)}</Text>
-        <Text style={styles.listItemInfo}>Date: {new Date(item.createdAt).toLocaleDateString()}</Text>
-      </View>
-    );
-  };
-
-  const renderBookingItem = ({ item }: { item: AdminBooking }) => {
-    const statusStyle = getOrderStatusStyle(item.status === "confirmed" || item.status === "completed" ? "completed" : item.status);
-    return (
-      <View style={styles.listItem}>
-        <View style={styles.listItemHeader}>
-          <Text style={styles.listItemName}>Booking #{item.id.slice(0, 8)}</Text>
-          <View style={[styles.itemStatusBadge, statusStyle.badge]}>
-            <Text style={[styles.itemStatusText, statusStyle.text]}>{item.status}</Text>
-          </View>
-        </View>
-        <Text style={styles.listItemInfo}>Photographer: {item.photographerName}</Text>
-        <Text style={styles.listItemInfo}>Date: {new Date(item.date).toLocaleDateString()}</Text>
-        <Text style={styles.listItemInfo}>Amount: ${item.amount.toFixed(2)}</Text>
-      </View>
-    );
-  };
-
-  const renderConversationItem = ({ item }: { item: AdminConversation }) => (
-    <View style={styles.listItem}>
-      <Text style={styles.listItemName}>
-        {item.participants.map(p => p.name).join(" & ")}
-      </Text>
-      <Text style={styles.listItemInfo}>{item.messageCount} messages</Text>
-      {item.lastMessage ? (
-        <Text style={styles.listItemInfo} numberOfLines={1}>
-          Last: {item.lastMessage}
-        </Text>
-      ) : null}
-    </View>
-  );
-
-  const renderContent = () => {
-    if (!data) return null;
-
-    switch (activeTab) {
-      case "orders":
-        return data.orders.length === 0
-          ? renderEmptyState("No Orders", "This user has no orders", "shopping-bag")
-          : <FlatList data={data.orders} renderItem={renderOrderItem} keyExtractor={(item) => item.id} contentContainerStyle={{ paddingBottom: 20 }} />;
-      case "bookings":
-        return data.bookings.length === 0
-          ? renderEmptyState("No Bookings", "This user has no bookings", "calendar")
-          : <FlatList data={data.bookings} renderItem={renderBookingItem} keyExtractor={(item) => item.id} contentContainerStyle={{ paddingBottom: 20 }} />;
-      case "conversations":
-        return data.conversations.length === 0
-          ? renderEmptyState("No Conversations", "This user has no conversations", "message-square")
-          : <FlatList data={data.conversations} renderItem={renderConversationItem} keyExtractor={(item) => item.id} contentContainerStyle={{ paddingBottom: 20 }} />;
-    }
-  };
-
   if (loading) {
+    console.log("[AdminUserDetail] Rendering: loading state");
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Feather name="arrow-left" size={24} color={theme.text} />
-          </Pressable>
-          <View style={styles.headerTitle}>
-            <Text style={styles.title}>User Details</Text>
-          </View>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
+      <View style={[styles.container, styles.stateContainer]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={styles.stateTitle}>Loading user details...</Text>
       </View>
     );
   }
 
-  if (!data) {
+  if (!data?.user) {
+    console.log("[AdminUserDetail] Rendering: empty user state");
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Feather name="arrow-left" size={24} color={theme.text} />
-          </Pressable>
-          <View style={styles.headerTitle}>
-            <Text style={styles.title}>User Not Found</Text>
-          </View>
-        </View>
-        {renderEmptyState("User Not Found", "Could not load user details", "user-x")}
+      <View style={[styles.container, styles.stateContainer]}>
+        <Feather name="user-x" size={42} color={theme.textSecondary} />
+        <Text style={styles.stateTitle}>User not found</Text>
+        <Text style={styles.stateSubtitle}>Could not load user details for this account.</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Feather name="arrow-left" size={16} color="#FFFFFF" />
+          <Text style={styles.backButtonText}>Go back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  const status = data.user.status === "suspended" ? "suspended" : "active";
+  console.log("[AdminUserDetail] Rendering: full user detail");
+  const user = data.user;
+  const status = user.status === "suspended" ? "suspended" : "active";
   const statusLabel = status === "suspended" ? "DISABLED" : "ACTIVE";
-  const displayName = data.user.name || data.user.username || data.user.email || "Unknown User";
+  const displayName = user.name || user.username || user.email || "Unknown User";
   const isDisabled = status === "suspended";
+  const accountTypeLabel = user.accountType ? user.accountType.toUpperCase() : "UNKNOWN";
+  const createdAtLabel = user.createdAt ? new Date(user.createdAt).toLocaleString() : "Unknown";
+  const phoneLabel = (user as AdminUser & { phone?: string }).phone || "Not provided";
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Feather name="arrow-left" size={24} color={theme.text} />
-        </Pressable>
-        <View style={styles.headerTitle}>
-          <Text style={styles.title}>User Details</Text>
-          <Text style={styles.subtitle}>{data.user.email}</Text>
-        </View>
-      </View>
-
-      <ScrollView>
-        <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <Feather name="user" size={36} color={theme.primary} />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.section}>
+          <View style={styles.identityRow}>
+            <View style={styles.avatar}>
+              <Feather name="user" size={24} color={theme.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.name}>{displayName}</Text>
+              <Text style={styles.email}>{user.email}</Text>
+            </View>
           </View>
-          <Text style={styles.userName}>{displayName}</Text>
-          <Text style={styles.userEmail}>{data.user.email}</Text>
           <View style={[
             styles.statusBadge,
             status === "active" ? styles.activeBadge : styles.suspendedBadge
@@ -506,52 +302,57 @@ export default function AdminUserDetailScreen() {
               styles.statusText,
               status === "active" ? styles.activeText : styles.suspendedText
             ]}>
-              {(statusLabel ?? "UNKNOWN").toUpperCase()}
+              {statusLabel}
             </Text>
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{data.orders.length}</Text>
-            <Text style={styles.statLabel}>Orders</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>User info</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Email</Text>
+            <Text style={styles.rowValue}>{user.email}</Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{data.bookings.length}</Text>
-            <Text style={styles.statLabel}>Bookings</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Username</Text>
+            <Text style={styles.rowValue}>{user.username ? `@${user.username}` : "Not set"}</Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{data.conversations.length}</Text>
-            <Text style={styles.statLabel}>Chats</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Account type</Text>
+            <Text style={styles.rowValue}>{accountTypeLabel}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Phone</Text>
+            <Text style={styles.rowValue}>{phoneLabel}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Created</Text>
+            <Text style={styles.rowValue}>{createdAtLabel}</Text>
           </View>
         </View>
 
-        <View style={styles.earningsCard}>
-          <Text style={styles.earningsLabel}>Total Earnings</Text>
-          <Text style={styles.earningsValue}>${(Number(data.earnings) || 0).toFixed(2)}</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Activity summary</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Orders</Text>
+            <Text style={styles.rowValue}>{data.orders.length}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Bookings</Text>
+            <Text style={styles.rowValue}>{data.bookings.length}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Conversations</Text>
+            <Text style={styles.rowValue}>{data.conversations.length}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Earnings</Text>
+            <Text style={styles.rowValue}>${(Number(data.earnings) || 0).toFixed(2)}</Text>
+          </View>
         </View>
 
-        <View style={styles.tabsRow}>
-          {(["orders", "bookings", "conversations"] as const).map((tab) => (
-            <Pressable
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.activeTab]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                {(tab || "").charAt(0).toUpperCase() + (tab || "").slice(1)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.content}>
-          {renderContent()}
-        </View>
-        <View style={styles.accountActionSection}>
-          <Pressable
+        <View style={styles.section}>
+          <TouchableOpacity
             style={[
               styles.accountActionButton,
               isDisabled ? styles.enableButton : styles.disableButton,
@@ -574,7 +375,7 @@ export default function AdminUserDetailScreen() {
                 </Text>
               </>
             )}
-          </Pressable>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>

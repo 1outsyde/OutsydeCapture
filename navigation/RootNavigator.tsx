@@ -465,8 +465,8 @@ export default function RootNavigator() {
         name="AdminUserDetail"
         component={AdminUserDetailScreen}
         options={{
-          presentation: "card",
-          animation: "slide_from_right",
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "User Details",
           headerTitleAlign: "center",
