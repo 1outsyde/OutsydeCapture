@@ -42,7 +42,13 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
-      "@stripe/stripe-react-native"
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.outsyde.app",
+          "enableGooglePay": false
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true
