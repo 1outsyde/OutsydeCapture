@@ -553,14 +553,16 @@ export default function BusinessDashboardScreen() {
     const token = await getToken();
     if (!token) return;
 
+    const prev = autoAcceptBookings;
+    setAutoAcceptBookings(value);
     setAutoAcceptLoading(true);
     try {
       await api.updateProviderSettings(token, "business", { autoAcceptBookings: value });
-      setAutoAcceptBookings(value);
       setProfile(prev => prev ? { ...prev, autoAcceptBookings: value } : prev);
     } catch (error) {
       console.error("Failed to update auto-accept setting:", error);
-      Alert.alert("Error", "Failed to update booking settings. Please try again.");
+      setAutoAcceptBookings(prev);
+      Alert.alert("Error", "Failed to update booking settings.");
     } finally {
       setAutoAcceptLoading(false);
     }
@@ -692,7 +694,7 @@ export default function BusinessDashboardScreen() {
     },
     statCard: {
       flex: 1,
-      backgroundColor: DASHBOARD_COLORS.surface,
+      backgroundColor: "rgba(255,255,255,0.07)",
       borderColor: DASHBOARD_COLORS.cardBorder,
       borderWidth: 1,
       borderRadius: 16,
