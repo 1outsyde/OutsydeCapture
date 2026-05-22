@@ -2535,22 +2535,22 @@ class ApiService {
     });
   }
 
-  async getBusinessOrders(authToken: string, status?: string): Promise<BusinessOrder[]> {
+  async getBusinessOrders(authToken: string, status?: string): Promise<{ orders: BusinessOrder[] }> {
     const query = status ? `?status=${status}` : "";
-    return this.request<BusinessOrder[]>(`/api/business/orders${query}`, {
+    return this.request<{ orders: BusinessOrder[] }>(`/api/business/orders${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
-  async getBusinessBookings(authToken: string, status?: string): Promise<BusinessBooking[]> {
+  async getBusinessBookings(authToken: string, status?: string): Promise<{ bookings: BusinessBooking[] }> {
     const query = status ? `?status=${status}` : "";
-    return this.request<BusinessBooking[]>(`/api/business/bookings${query}`, {
+    return this.request<{ bookings: BusinessBooking[] }>(`/api/business/bookings${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
-  async getBusinessProducts(authToken: string): Promise<BusinessProduct[]> {
-    return this.request<BusinessProduct[]>("/api/business/products", {
+  async getBusinessProducts(authToken: string): Promise<{ products: BusinessProduct[] }> {
+    return this.request<{ products: BusinessProduct[] }>("/api/business/products", {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -2571,8 +2571,8 @@ class ApiService {
     });
   }
 
-  async getBusinessServices(authToken: string): Promise<BusinessService[]> {
-    return this.request<BusinessService[]>("/api/business/services", {
+  async getBusinessServices(authToken: string): Promise<{ services: BusinessService[] }> {
+    return this.request<{ services: BusinessService[] }>("/api/business/services", {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
