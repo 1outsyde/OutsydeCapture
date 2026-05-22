@@ -12,6 +12,7 @@ import {
   Linking,
   AppState,
   AppStateStatus,
+  Switch,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,7 +34,6 @@ import api, {
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, convertTo24Hour } from "@/components/HoursEditor";
-import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import { availabilityEvents } from "@/services/availabilityEvents";
@@ -43,6 +43,17 @@ type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile" | "credits";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DASHBOARD_COLORS = {
+  background: "#080C08",
+  surface: "rgba(255,255,255,0.04)",
+  cardBorder: "rgba(255,255,255,0.08)",
+  greenBright: "#2D7A2D",
+  greenAccent: "#3A9E3A",
+  gold: "#C9933A",
+  goldLight: "#E8B86D",
+  cream: "#F0EAD6",
+  creamDim: "rgba(200,191,168,0.6)",
+};
 
 export default function BusinessDashboardScreen() {
   const { theme } = useTheme();
@@ -585,7 +596,7 @@ export default function BusinessDashboardScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: DASHBOARD_COLORS.background,
     },
     header: {
       flexDirection: "row",
@@ -599,45 +610,48 @@ export default function BusinessDashboardScreen() {
       flex: 1,
     },
     headerTitle: {
-      fontSize: 18,
+      fontSize: 22,
       fontWeight: "700",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
     },
     headerSubtitle: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
     backButton: {
       padding: 8,
       marginRight: 8,
     },
-    logoutButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 8,
+    tierBadge: {
+      backgroundColor: DASHBOARD_COLORS.gold,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      marginLeft: 10,
+      alignSelf: "flex-start",
     },
-    logoutText: {
-      fontSize: 14,
-      color: theme.text,
+    tierBadgeText: {
+      color: DASHBOARD_COLORS.background,
+      fontSize: 12,
+      fontWeight: "700",
     },
     stripeCard: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: "rgba(201,147,58,0.08)",
       marginHorizontal: 16,
       marginBottom: 16,
       padding: 16,
       borderRadius: 12,
-      borderLeftWidth: 4,
-      borderLeftColor: "#FF9500",
+      borderLeftWidth: 3,
+      borderLeftColor: DASHBOARD_COLORS.gold,
     },
     stripeIcon: {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: "#FF950020",
+      backgroundColor: "rgba(201,147,58,0.2)",
       alignItems: "center",
       justifyContent: "center",
       marginRight: 12,
@@ -646,61 +660,64 @@ export default function BusinessDashboardScreen() {
       flex: 1,
     },
     stripeTitle: {
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: "600",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
     },
     stripeDescription: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
-    stripeButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.primary,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      borderRadius: 8,
-      marginTop: 12,
-    },
-    stripeButtonText: {
+    setupLink: {
       fontSize: 13,
       fontWeight: "600",
-      color: "#FFFFFF",
-      marginLeft: 6,
+      color: DASHBOARD_COLORS.gold,
+      alignSelf: "flex-end",
+      marginTop: 12,
     },
     statsRow: {
-      flexDirection: "row",
-      paddingHorizontal: 12,
+      paddingHorizontal: 16,
       paddingBottom: 16,
-      gap: 8,
+      gap: 10,
+    },
+    statsRowTop: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 10,
+    },
+    statsRowBottom: {
+      flexDirection: "row",
+      gap: 10,
     },
     statCard: {
       flex: 1,
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
-      padding: 12,
-      alignItems: "center",
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 16,
+      alignItems: "flex-start",
     },
     statValue: {
-      fontSize: 20,
+      fontSize: 24,
       fontWeight: "700",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
     },
     statLabel: {
       fontSize: 11,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
-      textAlign: "center",
+      textAlign: "left",
     },
     statIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 4,
+      marginBottom: 6,
+      backgroundColor: "rgba(201,147,58,0.15)",
     },
     contentRow: {
       flexDirection: "row",
@@ -827,14 +844,14 @@ export default function BusinessDashboardScreen() {
       flex: 1,
     },
     tabsContainer: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255,255,255,0.06)",
       overflow: "hidden",
     },
     tabBar: {
       flexDirection: "row",
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      borderBottomWidth: 0,
     },
     tab: {
       paddingVertical: 12,
@@ -843,14 +860,14 @@ export default function BusinessDashboardScreen() {
     },
     activeTab: {
       borderBottomWidth: 2,
-      borderBottomColor: theme.primary,
+      borderBottomColor: DASHBOARD_COLORS.gold,
     },
     tabText: {
       fontSize: 12,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
     },
     activeTabText: {
-      color: theme.primary,
+      color: DASHBOARD_COLORS.gold,
       fontWeight: "600",
     },
     tabContent: {
@@ -865,8 +882,8 @@ export default function BusinessDashboardScreen() {
     emptyIcon: {
       width: 48,
       height: 48,
-      borderRadius: 24,
-      backgroundColor: theme.backgroundSecondary,
+      borderRadius: 20,
+      backgroundColor: "rgba(201,147,58,0.08)",
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 12,
@@ -874,16 +891,18 @@ export default function BusinessDashboardScreen() {
     emptyTitle: {
       fontSize: 15,
       fontWeight: "600",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
       marginBottom: 4,
     },
     emptySubtitle: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       textAlign: "center",
     },
     orderCard: {
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
       borderRadius: 10,
       padding: 12,
       marginBottom: 8,
@@ -956,7 +975,9 @@ export default function BusinessDashboardScreen() {
       fontWeight: "600",
     },
     bookingCard: {
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
       borderRadius: 10,
       padding: 12,
       marginBottom: 8,
@@ -1018,7 +1039,9 @@ export default function BusinessDashboardScreen() {
       marginTop: 8,
     },
     productCard: {
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
       borderRadius: 10,
       padding: 12,
       marginBottom: 8,
@@ -1049,7 +1072,9 @@ export default function BusinessDashboardScreen() {
       marginTop: 4,
     },
     serviceCard: {
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
       borderRadius: 10,
       padding: 12,
       marginBottom: 8,
@@ -1078,6 +1103,58 @@ export default function BusinessDashboardScreen() {
       fontSize: 12,
       color: theme.textSecondary,
       marginTop: 4,
+    },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+      gap: 8,
+    },
+    sectionHeaderAccent: {
+      width: 4,
+      height: 14,
+      borderRadius: 2,
+      backgroundColor: DASHBOARD_COLORS.gold,
+    },
+    sectionHeaderText: {
+      fontSize: 14,
+      letterSpacing: 1.5,
+      fontWeight: "700",
+      color: DASHBOARD_COLORS.cream,
+    },
+    autoAcceptCard: {
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 14,
+    },
+    autoAcceptRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    autoAcceptIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: "rgba(201,147,58,0.15)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    autoAcceptTextWrap: {
+      flex: 1,
+    },
+    autoAcceptTitle: {
+      color: DASHBOARD_COLORS.cream,
+      fontSize: 15,
+      fontWeight: "600",
+      marginBottom: 2,
+    },
+    autoAcceptDescription: {
+      color: DASHBOARD_COLORS.creamDim,
+      fontSize: 12,
+      lineHeight: 17,
     },
     profileForm: {
       gap: 12,
@@ -1253,7 +1330,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="shopping-bag" size={24} color={theme.textSecondary} />
+            <Feather name="shopping-bag" size={24} color={DASHBOARD_COLORS.gold} />
           </View>
           <Text style={styles.emptyTitle}>No orders yet</Text>
           <Text style={styles.emptySubtitle}>Orders will appear here once customers make purchases</Text>
@@ -1347,7 +1424,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="calendar" size={24} color={theme.textSecondary} />
+            <Feather name="calendar" size={24} color={DASHBOARD_COLORS.gold} />
           </View>
           <Text style={styles.emptyTitle}>No bookings yet</Text>
           <Text style={styles.emptySubtitle}>Bookings will appear here once customers book your services</Text>
@@ -1438,7 +1515,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="box" size={24} color={theme.textSecondary} />
+            <Feather name="box" size={24} color={DASHBOARD_COLORS.gold} />
           </View>
           <Text style={styles.emptyTitle}>No products yet</Text>
           <Text style={styles.emptySubtitle}>Add products for customers to purchase</Text>
@@ -1463,7 +1540,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="package" size={24} color={theme.textSecondary} />
+            <Feather name="package" size={24} color={DASHBOARD_COLORS.gold} />
           </View>
           <Text style={styles.emptyTitle}>No services yet</Text>
           <Text style={styles.emptySubtitle}>Add services that customers can book</Text>
@@ -1772,7 +1849,7 @@ export default function BusinessDashboardScreen() {
         return (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Feather name="shopping-bag" size={24} color={theme.primary} />
+              <Feather name="shopping-bag" size={24} color={DASHBOARD_COLORS.gold} />
             </View>
             <Text style={styles.emptyTitle}>Customize Your Storefront</Text>
             <Text style={styles.emptySubtitle}>Edit branding, hours, products, and services</Text>
@@ -1812,96 +1889,134 @@ export default function BusinessDashboardScreen() {
     }
   };
 
+  const locationDisplay =
+    [profile?.city, profile?.state].filter(Boolean).join(", ") || "Location not set";
+  const rawTier = String(
+    (user as any)?.subscriptionTier || (profile as any)?.subscriptionTier || ""
+  ).toLowerCase();
+  const tierLabel = rawTier.includes("pro")
+    ? "Pro"
+    : rawTier.includes("growth") || rawTier.includes("premium")
+      ? "Growth"
+      : "Starter";
+
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
     >
       <View style={styles.header}>
         <Pressable onPress={handleGoBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color={theme.text} />
+          <Feather name="arrow-left" size={24} color={DASHBOARD_COLORS.cream} />
         </Pressable>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>{profile?.name || "Business"}</Text>
-          <Text style={styles.headerSubtitle}>{profile?.city}, {profile?.state}</Text>
+          <Text style={styles.headerSubtitle}>{locationDisplay}</Text>
         </View>
-        <Pressable onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Log Out</Text>
-        </Pressable>
+        <View style={styles.tierBadge}>
+          <Text style={styles.tierBadgeText}>{tierLabel}</Text>
+        </View>
       </View>
 
       {eligibility && !eligibility.canPublishProducts && !eligibility.canPublishServices && !eligibility.requiresApproval && (
         <View style={styles.stripeCard}>
           <View style={styles.stripeIcon}>
-            <Feather name="alert-circle" size={20} color="#FF9500" />
+            <Feather name="alert-circle" size={20} color={DASHBOARD_COLORS.gold} />
           </View>
           <View style={styles.stripeContent}>
-            <Text style={styles.stripeTitle}>Account Setup Incomplete</Text>
+            <Text style={styles.stripeTitle}>Complete Your Setup</Text>
             <Text style={styles.stripeDescription}>
-              Complete your account setup to start publishing products and services.
+              Add your first product or service to go live
             </Text>
+            <Text style={styles.setupLink}>Get Started →</Text>
           </View>
         </View>
       )}
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: theme.primary + "20" }]}>
-            <Feather name="dollar-sign" size={14} color={theme.primary} />
-          </View>
-          <Text style={styles.statValue}>${stats.earnings}</Text>
-          <Text style={styles.statLabel}>This month</Text>
-        </View>
-        {(businessType === "product" || businessType === "both") && (
+        <View style={styles.statsRowTop}>
           <View style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: "#34C75920" }]}>
-              <Feather name="shopping-bag" size={14} color="#34C759" />
+            <View style={styles.statIcon}>
+              <Feather name="dollar-sign" size={14} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <Text style={styles.statValue}>${stats.earnings}</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Revenue</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={styles.statIcon}>
+              <Feather name="shopping-bag" size={14} color={DASHBOARD_COLORS.gold} />
             </View>
             <Text style={styles.statValue}>{stats.upcomingOrders}</Text>
-            <Text style={styles.statLabel}>Orders</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Orders</Text>
           </View>
-        )}
-        {(businessType === "service" || businessType === "both") && (
           <View style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: "#5856D620" }]}>
-              <Feather name="calendar" size={14} color="#5856D6" />
+            <View style={styles.statIcon}>
+              <Feather name="calendar" size={14} color={DASHBOARD_COLORS.gold} />
             </View>
             <Text style={styles.statValue}>{stats.upcomingBookings}</Text>
-            <Text style={styles.statLabel}>Bookings</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Bookings</Text>
           </View>
-        )}
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: "#007AFF20" }]}>
-            <Feather name="message-circle" size={14} color="#007AFF" />
-          </View>
-          <Text style={styles.statValue}>{stats.unreadMessages}</Text>
-          <Text style={styles.statLabel}>Unread</Text>
         </View>
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: "#FF950020" }]}>
-            <Feather name="star" size={14} color="#FF9500" />
+        <View style={styles.statsRowBottom}>
+          <View style={styles.statCard}>
+            <View style={styles.statIcon}>
+              <Feather name="message-circle" size={14} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <Text style={styles.statValue}>{stats.unreadMessages}</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Unread</Text>
           </View>
-          <Text style={styles.statValue}>{stats.rating > 0 ? stats.rating.toFixed(1) : "N/A"}</Text>
-          <Text style={styles.statLabel}>{stats.reviewCount} reviews</Text>
+          <View style={styles.statCard}>
+            <View style={styles.statIcon}>
+              <Feather name="star" size={14} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <Text style={styles.statValue}>{stats.reviewCount > 0 ? stats.rating.toFixed(1) : "—"}</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
+          </View>
         </View>
       </View>
 
       {/* Booking Settings - Only show for service-based businesses */}
       {(businessType === "service" || businessType === "both") && (
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, marginBottom: 12 }}>Booking Settings</Text>
-          <AutoAcceptToggle
-            value={autoAcceptBookings}
-            onChange={handleAutoAcceptChange}
-            loading={autoAcceptLoading}
-          />
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>BOOKING SETTINGS</Text>
+          </View>
+          <View style={styles.autoAcceptCard}>
+            <View style={styles.autoAcceptRow}>
+              <View style={styles.autoAcceptIcon}>
+                <Feather name={autoAcceptBookings ? "check-circle" : "clock"} size={20} color={DASHBOARD_COLORS.gold} />
+              </View>
+              <View style={styles.autoAcceptTextWrap}>
+                <Text style={styles.autoAcceptTitle}>Auto-Accept Bookings</Text>
+                <Text style={styles.autoAcceptDescription}>
+                  {autoAcceptBookings
+                    ? "New bookings are confirmed immediately after payment"
+                    : "New bookings require your approval within 24 hours"}
+                </Text>
+              </View>
+              {autoAcceptLoading ? (
+                <ActivityIndicator size="small" color={DASHBOARD_COLORS.gold} />
+              ) : (
+                <Switch
+                  value={autoAcceptBookings}
+                  onValueChange={handleAutoAcceptChange}
+                  trackColor={{ false: "rgba(255,255,255,0.2)", true: "rgba(201,147,58,0.55)" }}
+                  thumbColor={autoAcceptBookings ? DASHBOARD_COLORS.gold : DASHBOARD_COLORS.creamDim}
+                />
+              )}
+            </View>
+          </View>
         </View>
       )}
 
       {/* Calendar Overview - Only for service-based businesses */}
       {(businessType === "service" || businessType === "both") && (
         <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, marginBottom: 12 }}>Calendar</Text>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>CALENDAR</Text>
+          </View>
           <ProviderCalendar
             bookings={bookings.map(b => ({
               id: b.id,
