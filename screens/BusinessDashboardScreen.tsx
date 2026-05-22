@@ -78,10 +78,10 @@ export default function BusinessDashboardScreen() {
     state: "",
     zipCode: "",
   });
-  const [orders, setOrders] = useState<BusinessOrder[]>([]);
-  const [bookings, setBookings] = useState<BusinessBooking[]>([]);
-  const [products, setProducts] = useState<BusinessProduct[]>([]);
-  const [services, setServices] = useState<BusinessService[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
   
   const [autoAcceptBookings, setAutoAcceptBookings] = useState(false);
@@ -1282,7 +1282,7 @@ export default function BusinessDashboardScreen() {
             </View>
           </View>
           <View style={styles.orderItems}>
-            {order.items.slice(0, 2).map((item, i) => (
+            {order.items.slice(0, 2).map((item: any, i: number) => (
               <Text key={i} style={styles.orderItem}>
                 {item.quantity}x {item.name} - ${item.price}
               </Text>
