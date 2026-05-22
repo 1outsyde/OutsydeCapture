@@ -241,20 +241,20 @@ export default function BusinessDashboardScreen() {
     try {
       switch (activeTab) {
         case "orders":
-          const ordersData = await api.getBusinessOrders(token);
-          setOrders(ordersData || []);
+          const ordersResponse = await api.getBusinessOrders(token) as any;
+          setOrders(Array.isArray(ordersResponse) ? ordersResponse : ordersResponse?.orders || []);
           break;
         case "bookings":
-          const bookingsData = await api.getBusinessBookings(token);
-          setBookings(bookingsData || []);
+          const bookingsResponse = await api.getBusinessBookings(token) as any;
+          setBookings(Array.isArray(bookingsResponse) ? bookingsResponse : bookingsResponse?.bookings || []);
           break;
         case "products":
-          const productsData = await api.getBusinessProducts(token);
-          setProducts(productsData || []);
+          const productsResponse = await api.getBusinessProducts(token) as any;
+          setProducts(Array.isArray(productsResponse) ? productsResponse : productsResponse?.products || []);
           break;
         case "services":
-          const servicesData = await api.getBusinessServices(token);
-          setServices(servicesData || []);
+          const servicesResponse = await api.getBusinessServices(token) as any;
+          setServices(Array.isArray(servicesResponse) ? servicesResponse : servicesResponse?.services || []);
           break;
         case "credits":
           if (!profile?.id) break;
