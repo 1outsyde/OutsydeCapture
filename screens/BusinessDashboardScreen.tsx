@@ -557,7 +557,7 @@ export default function BusinessDashboardScreen() {
     setAutoAcceptBookings(value);
     setAutoAcceptLoading(true);
     try {
-      await api.updateProviderSettings(token, "business", { autoAcceptBookings: value });
+      await api.updateBusinessSettings(token, { autoAcceptBookings: value });
       setProfile(prev => prev ? { ...prev, autoAcceptBookings: value } : prev);
     } catch (error) {
       console.error("Failed to update auto-accept setting:", error);
@@ -694,7 +694,7 @@ export default function BusinessDashboardScreen() {
     },
     statCard: {
       flex: 1,
-      backgroundColor: "rgba(255,255,255,0.07)",
+      backgroundColor: "#111411",
       borderColor: DASHBOARD_COLORS.cardBorder,
       borderWidth: 1,
       borderRadius: 16,
