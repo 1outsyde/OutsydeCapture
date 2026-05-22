@@ -866,16 +866,19 @@ export default function AccountScreen() {
           coverVideo: isVideo ? user?.coverMediaUrl : undefined,
         });
       }
-      // Fetch user's posts from the backend feed
+      // Fetch user's posts from a user-specific endpoint
       try {
-        const postsResponse = await api.getFeed({ limit: 50 });
-        const allPosts = postsResponse.posts || [];
-        // Filter to only show posts by the current user (check both userId and authorId)
-        const userPosts = allPosts.filter((p: ApiPost) => 
-          p.userId === user?.id || p.authorId === user?.id
-        );
-        console.log("[AccountScreen] Loaded posts from backend:", userPosts.length, "User ID:", user?.id);
-        console.log("[AccountScreen] All posts authorIds:", allPosts.map((p: ApiPost) => p.authorId));
+        const profileId = user?.id;
+        if (!profileId) {
+          console.warn("[AccountScreen] Could not fetch posts: missing user id");
+          setFeaturedPosts([]);
+          return;
+        }
+
+        const postsResponse = await api.getProfilePosts(profileId, { limit: 50 });
+        const userPosts = postsResponse.posts || [];
+        console.log("[AccountScreen] My posts loaded:", userPosts.length);
+        console.log("[AccountScreen] My posts authorIds:", userPosts.map((p: ApiPost) => p.authorId));
         // Debug: Log ALL posts with their layout/surface data
         userPosts.forEach((p: ApiPost, i: number) => {
           console.log(`[AccountScreen] Post ${i}: id=${p.id}, displayLayout=${p.displayLayout}, feedSurface=${p.feedSurface}, videoUrl=${p.videoUrl?.substring(0, 50)}, mediaUrl=${p.mediaUrl?.substring(0, 50)}`);
@@ -900,6 +903,7 @@ export default function AccountScreen() {
         setFeaturedPosts(userPosts.map(mapApiPostToFeaturedPost));
       } catch (postsError) {
         console.warn("[AccountScreen] Could not fetch posts:", postsError);
+        setFeaturedPosts([]);
       }
     } catch (error) {
       console.error("Failed to fetch profile:", error);

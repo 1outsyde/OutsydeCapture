@@ -25,7 +25,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
@@ -93,6 +93,23 @@ export default function VendorDetailScreen({ route }: Props) {
 
   const [bookingSheetIndex, setBookingSheetIndex] = useState(-1);
   const [reviewSheetIndex, setReviewSheetIndex] = useState(-1);
+
+  const rawCoverMediaUrl =
+    typeof vendor?.coverMediaUrl === "string"
+      ? vendor.coverMediaUrl
+      : typeof vendor?.coverImage === "string"
+        ? vendor.coverImage
+        : "";
+  const rawCoverMediaType =
+    vendor?.coverMediaType ||
+    (rawCoverMediaUrl && /\.(mp4|mov|m4v|webm)$/i.test(rawCoverMediaUrl) ? "video" : "image");
+  const coverVideoSource = rawCoverMediaType === "video" ? rawCoverMediaUrl : "";
+  const coverVideoPlayer = useVideoPlayer(coverVideoSource, (player) => {
+    if (!coverVideoSource) return;
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const bookingSnapPoints = useMemo(() => ["50%"], []);
@@ -332,21 +349,21 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderCoverMediaHero = () => {
-    const showVideo =
-      normalizedVendor.coverMediaUrl && normalizedVendor.coverMediaType === "video";
-    const showImage =
-      normalizedVendor.coverMediaUrl && normalizedVendor.coverMediaType === "image";
+    const showVideo = Boolean(
+      normalizedVendor.coverMediaUrl && normalizedVendor.coverMediaType === "video"
+    );
+    const showImage = Boolean(
+      normalizedVendor.coverMediaUrl && normalizedVendor.coverMediaType === "image"
+    );
 
     return (
       <View style={styles.coverHero}>
         {showVideo ? (
-          <Video
-            source={{ uri: normalizedVendor.coverMediaUrl as string }}
-            shouldPlay
-            isLooping
-            isMuted
-            resizeMode={ResizeMode.COVER}
+          <VideoView
+            player={coverVideoPlayer}
             style={styles.coverMedia}
+            contentFit="cover"
+            nativeControls={false}
           />
         ) : showImage ? (
           <Animated.Image
