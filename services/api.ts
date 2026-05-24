@@ -975,6 +975,10 @@ export interface MobileSignupRequest {
   state?: string;
   address?: string;
   zipCode?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingState?: string;
+  billingZipCode?: string;
   isStartup?: boolean;
   yearsInBusiness?: string;
   employeeCount?: string;
@@ -1034,6 +1038,10 @@ export interface VendorSignupRequest {
   city?: string;
   state?: string;
   zipCode?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingState?: string;
+  billingZipCode?: string;
   websiteUrl?: string;
   socialMedia?: string;
   logoImage?: string | null;
@@ -1433,6 +1441,10 @@ class ApiService {
         city: data.city,
         state: data.state,
         zipCode: data.zipCode,
+        billingAddress: data.billingAddress,
+        billingCity: data.billingCity,
+        billingState: data.billingState,
+        billingZipCode: data.billingZipCode,
         websiteUrl: data.websiteUrl,
         socialMedia: data.socialMedia,
         logoImage: data.logoImage || undefined,

@@ -143,6 +143,10 @@ export default function BusinessSignupScreen() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [billingCity, setBillingCity] = useState("");
+  const [billingState, setBillingState] = useState("");
+  const [billingZipCode, setBillingZipCode] = useState("");
 
   useEffect(() => {
     const prefillLocation = async () => {
@@ -285,6 +289,10 @@ export default function BusinessSignupScreen() {
       city,
       state,
       zipCode,
+      billingAddress: !hasPhysicalLocation ? billingAddress : address,
+      billingCity: !hasPhysicalLocation ? billingCity : city,
+      billingState: !hasPhysicalLocation ? billingState : state,
+      billingZipCode: !hasPhysicalLocation ? billingZipCode : zipCode,
       websiteUrl,
       socialMedia,
     };
@@ -346,6 +354,10 @@ export default function BusinessSignupScreen() {
       city: businessDetailsPayload.city,
       state: businessDetailsPayload.state,
       zipCode: businessDetailsPayload.zipCode,
+      billingAddress: !hasPhysicalLocation ? billingAddress : address,
+      billingCity: !hasPhysicalLocation ? billingCity : city,
+      billingState: !hasPhysicalLocation ? billingState : state,
+      billingZipCode: !hasPhysicalLocation ? billingZipCode : zipCode,
       websiteUrl: businessDetailsPayload.websiteUrl,
       socialMedia: businessDetailsPayload.socialMedia,
     });
@@ -756,6 +768,67 @@ export default function BusinessSignupScreen() {
               />
             </View>
 
+            {!hasPhysicalLocation ? (
+              <>
+                <View style={styles.field}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>Billing Address</ThemedText>
+                  <ThemedText type="small" style={styles.billingHelperText}>
+                    Used for Stripe payout verification only. Not shown publicly.
+                  </ThemedText>
+                </View>
+
+                <View style={styles.field}>
+                  <ThemedText type="small" style={styles.label}>Street Address</ThemedText>
+                  <TextInput
+                    style={inputStyle}
+                    value={billingAddress}
+                    onChangeText={setBillingAddress}
+                    placeholder="Street Address"
+                    placeholderTextColor={theme.textSecondary}
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <ThemedText type="small" style={styles.label}>City</ThemedText>
+                  <TextInput
+                    style={inputStyle}
+                    value={billingCity}
+                    onChangeText={setBillingCity}
+                    placeholder="City"
+                    placeholderTextColor={theme.textSecondary}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.row}>
+                  <View style={[styles.field, { flex: 1, marginRight: Spacing.sm }]}>
+                    <ThemedText type="small" style={styles.label}>State</ThemedText>
+                    <TextInput
+                      style={inputStyle}
+                      value={billingState}
+                      onChangeText={setBillingState}
+                      placeholder="State"
+                      placeholderTextColor={theme.textSecondary}
+                      autoCapitalize="characters"
+                      maxLength={2}
+                    />
+                  </View>
+                  <View style={[styles.field, { flex: 1 }]}>
+                    <ThemedText type="small" style={styles.label}>ZIP Code</ThemedText>
+                    <TextInput
+                      style={inputStyle}
+                      value={billingZipCode}
+                      onChangeText={setBillingZipCode}
+                      placeholder="ZIP Code"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="number-pad"
+                      maxLength={5}
+                    />
+                  </View>
+                </View>
+              </>
+            ) : null}
+
             {hasPhysicalLocation ? (
               <View style={styles.field}>
                 <ThemedText type="small" style={styles.label}>Street Address</ThemedText>
@@ -1017,6 +1090,10 @@ const styles = StyleSheet.create({
     margin: 4,
   },
   row: { flexDirection: "row" },
+  billingHelperText: {
+    color: "rgba(200,191,168,0.6)",
+    marginTop: Spacing.xs,
+  },
   profilePhotoCircle: {
     width: 96,
     height: 96,

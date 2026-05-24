@@ -78,10 +78,12 @@ export interface SignupData {
   zipCode?: string;
   country?: string;
   billingSameAsHome?: boolean;
+  billingAddress?: string;
   billingStreet?: string;
   billingAptUnit?: string | null;
   billingCity?: string;
   billingState?: string;
+  billingZipCode?: string;
   billingZip?: string;
   websiteUrl?: string;
   socialMedia?: string;
@@ -570,6 +572,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPhysicalLocation: data.hasPhysicalLocation,
         address: data.address,
         zipCode: data.zipCode,
+        billingAddress: data.billingAddress ?? data.billingStreet,
+        billingCity: data.billingCity,
+        billingState: data.billingState,
+        billingZipCode: data.billingZipCode ?? data.billingZip,
         websiteUrl: data.websiteUrl,
         socialMedia: data.socialMedia,
         // Consumer-specific fields
