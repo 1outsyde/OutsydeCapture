@@ -10,6 +10,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
+import { apiGet } from "@/api/client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
@@ -27,25 +28,77 @@ interface Order {
   expectedDate?: string;
 }
 
-const MOCK_ACTIVE_ORDERS: Order[] = [
-  { id: "o1", vendorName: "FrameArt Gallery", status: "shipped", itemCount: 3, expectedDate: "Jan 15" },
-  { id: "o2", vendorName: "PhotoGear Pro", status: "processing", itemCount: 1 },
-  { id: "o3", vendorName: "PrintMaster Studio", status: "shipped", itemCount: 1, expectedDate: "Jan 18" },
-];
-
 export default function SessionsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { getUpcomingSessions, getPastSessions, refreshSessions, isLoading } = useData();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, getToken } = useAuth();
   const [filter, setFilter] = useState<FilterType>("upcoming");
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
   const upcomingSessions = getUpcomingSessions();
   const pastSessions = getPastSessions();
   const displayedSessions = filter === "upcoming" ? upcomingSessions : pastSessions;
   const nextSession = upcomingSessions[0];
+
+  const fetchActiveOrders = useCallback(async () => {
+    if (!isAuthenticated) {
+      setActiveOrders([]);
+      return;
+    }
+
+    setOrdersLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) {
+        setActiveOrders([]);
+        return;
+      }
+
+      const response: any = await apiGet("/api/my-orders", token);
+      const ordersPayload = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.orders)
+          ? response.orders
+          : [];
+
+      const normalized = ordersPayload
+        .map((order: any, index: number): Order => {
+          const normalizedStatus =
+            order?.status === "shipped"
+              ? "shipped"
+              : order?.status === "delivered"
+                ? "delivered"
+                : "processing";
+
+          const itemCount = Array.isArray(order?.items)
+            ? order.items.reduce(
+                (sum: number, item: any) => sum + (Number(item?.quantity) || 1),
+                0
+              )
+            : Number(order?.itemCount) || 0;
+
+          return {
+            id: String(order?.id ?? `order-${index}`),
+            vendorName: order?.vendorName || order?.vendor?.name || order?.businessName || "Order",
+            status: normalizedStatus,
+            itemCount,
+            expectedDate: order?.expectedDate || order?.estimatedDeliveryDate,
+          };
+        })
+        .filter((order: Order) => order.status === "processing" || order.status === "shipped");
+
+      setActiveOrders(normalized);
+    } catch (error) {
+      console.warn("Failed to fetch active orders:", error);
+      setActiveOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [getToken, isAuthenticated]);
 
   useEffect(() => {
     if (!nextSession) {
@@ -81,11 +134,15 @@ export default function SessionsScreen() {
     return () => clearInterval(interval);
   }, [nextSession]);
 
+  useEffect(() => {
+    fetchActiveOrders();
+  }, [fetchActiveOrders]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshSessions();
+    await Promise.all([refreshSessions(), fetchActiveOrders()]);
     setRefreshing(false);
-  }, [refreshSessions]);
+  }, [refreshSessions, fetchActiveOrders]);
 
   const handleSessionPress = (session: Session) => {
     navigation.navigate("SessionDetail", { sessionId: session.id });
@@ -235,7 +292,7 @@ export default function SessionsScreen() {
       ) : null}
 
       {/* Active Orders Section */}
-      {filter === "upcoming" && MOCK_ACTIVE_ORDERS.length > 0 ? (
+      {filter === "upcoming" ? (
         <View style={styles.ordersSection}>
           <View style={styles.sectionHeader}>
             <Feather name="package" size={18} color={theme.primary} />
@@ -243,33 +300,43 @@ export default function SessionsScreen() {
               Orders In Progress
             </ThemedText>
           </View>
-          {MOCK_ACTIVE_ORDERS.map((order) => (
-            <Pressable
-              key={order.id}
-              onPress={() => navigation.navigate("CartOrders")}
-              style={({ pressed }) => [
-                styles.orderCard,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <View style={[styles.orderIcon, { backgroundColor: order.status === "shipped" ? "#007AFF20" : "#FF950020" }]}>
-                <Feather
-                  name={order.status === "shipped" ? "truck" : "clock"}
-                  size={18}
-                  color={order.status === "shipped" ? "#007AFF" : "#FF9500"}
-                />
-              </View>
-              <View style={styles.orderInfo}>
-                <ThemedText type="body" numberOfLines={1}>
-                  {order.vendorName}
-                </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  {order.itemCount} item{order.itemCount > 1 ? "s" : ""} - {order.status === "shipped" ? `Arrives ${order.expectedDate}` : "Processing"}
-                </ThemedText>
-              </View>
-              <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-            </Pressable>
-          ))}
+          {ordersLoading ? (
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              Loading orders...
+            </ThemedText>
+          ) : activeOrders.length === 0 ? (
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              No orders yet
+            </ThemedText>
+          ) : (
+            activeOrders.map((order) => (
+              <Pressable
+                key={order.id}
+                onPress={() => navigation.navigate("CartOrders")}
+                style={({ pressed }) => [
+                  styles.orderCard,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View style={[styles.orderIcon, { backgroundColor: order.status === "shipped" ? "#007AFF20" : "#FF950020" }]}>
+                  <Feather
+                    name={order.status === "shipped" ? "truck" : "clock"}
+                    size={18}
+                    color={order.status === "shipped" ? "#007AFF" : "#FF9500"}
+                  />
+                </View>
+                <View style={styles.orderInfo}>
+                  <ThemedText type="body" numberOfLines={1}>
+                    {order.vendorName}
+                  </ThemedText>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    {order.itemCount} item{order.itemCount > 1 ? "s" : ""} - {order.status === "shipped" ? `Arrives ${order.expectedDate || "soon"}` : "Processing"}
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+              </Pressable>
+            ))
+          )}
         </View>
       ) : null}
 

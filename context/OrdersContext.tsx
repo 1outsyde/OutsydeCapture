@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
+import { apiGet } from "@/api/client";
 
 export interface OrderItem {
   name: string;
@@ -29,74 +30,8 @@ const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
 
 const getOrdersKey = (userId: string) => `@outsyde_orders_${userId}`;
 
-const MOCK_ORDERS: Order[] = [
-  {
-    id: "order1",
-    vendorId: "v4",
-    vendorName: "FrameArt Gallery",
-    date: "2025-01-08",
-    status: "shipped",
-    total: 134.99,
-    items: [{ name: "Canvas Print 24x36", quantity: 1 }, { name: "Oak Wood Frame", quantity: 2 }],
-  },
-  {
-    id: "order2",
-    vendorId: "v5",
-    vendorName: "PhotoGear Pro",
-    date: "2025-01-05",
-    status: "processing",
-    total: 79.99,
-    items: [{ name: "LED Ring Light 18\"", quantity: 1 }],
-  },
-  {
-    id: "order3",
-    vendorId: "p1",
-    vendorName: "Sarah Mitchell Photography",
-    date: "2025-01-03",
-    status: "delivered",
-    total: 67.50,
-    items: [{ name: "Portrait Session Photos - Digital", quantity: 1 }],
-  },
-  {
-    id: "order4",
-    vendorId: "p2",
-    vendorName: "James Chen Photography",
-    date: "2024-12-28",
-    status: "delivered",
-    total: 225.00,
-    items: [{ name: "Wedding Album Deluxe", quantity: 1 }],
-  },
-  {
-    id: "order5",
-    vendorId: "v3",
-    vendorName: "LensCraft Gear",
-    date: "2024-12-20",
-    status: "delivered",
-    total: 45.00,
-    items: [{ name: "Pro Camera Strap", quantity: 1 }],
-  },
-  {
-    id: "order6",
-    vendorId: "v1",
-    vendorName: "PrintMaster Studio",
-    date: "2024-12-15",
-    status: "delivered",
-    total: 149.99,
-    items: [{ name: "Gallery Canvas Print 24x36", quantity: 1 }],
-  },
-  {
-    id: "order7",
-    vendorId: "v2",
-    vendorName: "MemoryBook Co",
-    date: "2024-12-10",
-    status: "delivered",
-    total: 89.99,
-    items: [{ name: "Leather Photo Album - 50 Pages", quantity: 1 }],
-  },
-];
-
 export function OrdersProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, getToken } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -109,20 +44,53 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true);
     try {
-      const stored = await AsyncStorage.getItem(getOrdersKey(user.id));
-      if (stored) {
-        setOrders(JSON.parse(stored));
-      } else {
-        setOrders(MOCK_ORDERS);
-        await AsyncStorage.setItem(getOrdersKey(user.id), JSON.stringify(MOCK_ORDERS));
+      const token = await getToken();
+      if (!token) {
+        setOrders([]);
+        return;
       }
+
+      const response: any = await apiGet("/api/my-orders", token);
+      const payload = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.orders)
+          ? response.orders
+          : [];
+
+      const normalizedOrders: Order[] = payload.map((order: any) => ({
+        id: String(order?.id ?? ""),
+        vendorId: String(order?.vendorId ?? order?.vendor?.id ?? order?.businessId ?? ""),
+        vendorName: order?.vendorName ?? order?.vendor?.name ?? order?.businessName ?? "Order",
+        date: order?.date ?? order?.createdAt ?? new Date().toISOString(),
+        status:
+          order?.status === "shipped" ||
+          order?.status === "delivered" ||
+          order?.status === "cancelled"
+            ? order.status
+            : "processing",
+        total:
+          typeof order?.total === "number"
+            ? order.total
+            : typeof order?.totalAmount === "number"
+              ? order.totalAmount
+              : 0,
+        items: Array.isArray(order?.items)
+          ? order.items.map((item: any) => ({
+              name: item?.name ?? "Item",
+              quantity: Number(item?.quantity) || 1,
+            }))
+          : [],
+      }));
+
+      setOrders(normalizedOrders);
+      await AsyncStorage.setItem(getOrdersKey(user.id), JSON.stringify(normalizedOrders));
     } catch (err) {
       console.error("Failed to load orders:", err);
-      setOrders(MOCK_ORDERS);
+      setOrders([]);
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user]);
+  }, [getToken, isAuthenticated, user]);
 
   useEffect(() => {
     loadOrders();
