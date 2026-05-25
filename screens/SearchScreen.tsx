@@ -272,8 +272,8 @@ export default function SearchScreen() {
         style={({ pressed }) => [
           styles.tab,
           {
-            backgroundColor: isActive ? theme.primary : theme.backgroundDefault,
-            borderColor: isActive ? theme.primary : theme.border,
+            backgroundColor: isActive ? "#E8B930" : "#111111",
+            borderColor: isActive ? "#E8B930" : "#1E1E1E",
             opacity: pressed ? 0.8 : 1,
           },
         ]}
@@ -281,12 +281,12 @@ export default function SearchScreen() {
         <Feather
           name={tab.icon as keyof typeof Feather.glyphMap}
           size={16}
-          color={isActive ? "#FFFFFF" : theme.text}
+          color={isActive ? "#0A0A0A" : "#888888"}
         />
         <ThemedText
           type="body"
           style={{
-            color: isActive ? "#FFFFFF" : theme.text,
+            color: isActive ? "#0A0A0A" : "#888888",
             marginLeft: Spacing.xs,
             fontWeight: isActive ? "600" : "400",
           }}
@@ -296,12 +296,12 @@ export default function SearchScreen() {
         <View
           style={[
             styles.countBadge,
-            { backgroundColor: isActive ? "rgba(255,255,255,0.3)" : theme.backgroundSecondary },
+            { backgroundColor: isActive ? "rgba(10,10,10,0.12)" : "#1A1A1A" },
           ]}
         >
           <ThemedText
             type="small"
-            style={{ color: isActive ? "#FFFFFF" : theme.textSecondary, fontWeight: "600" }}
+            style={{ color: isActive ? "#0A0A0A" : "#888888", fontWeight: "600" }}
           >
             {count}
           </ThemedText>
@@ -315,13 +315,20 @@ export default function SearchScreen() {
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
     const hasValidAvatar = isValidImageUrl(item.avatar);
-    
-    // Resolve display label with priority: displayName > @username > Unknown
-    // Do NOT use item.name as it may already be "Unknown" from normalization
+
     const displayLabel =
       item.displayName ||
       (item.username ? `@${item.username}` : null) ||
       "Unknown";
+
+    const typeColors: Record<string, string> = {
+      photographer: "#E8B930",
+      business: "#4ADE80",
+      consumer: "#94A3B8",
+      product: "#E8B930",
+      service: "#E8B930",
+    };
+    const accentColor = typeColors[item.resultType] || "#E8B930";
 
     return (
       <Pressable
@@ -329,7 +336,9 @@ export default function SearchScreen() {
         style={({ pressed }) => [
           styles.resultCard,
           {
-            backgroundColor: theme.backgroundDefault,
+            backgroundColor: "#111111",
+            borderWidth: 1,
+            borderColor: pressed ? "#E8B930" : "#1E1E1E",
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
@@ -342,8 +351,17 @@ export default function SearchScreen() {
             transition={200}
           />
         ) : (
-          <View style={[styles.resultImage, { backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }]}>
-            <ThemedText type="h2" style={{ color: "#000000", fontWeight: "700" }}>
+          <View
+            style={[
+              styles.resultImage,
+              {
+                backgroundColor: "#1A3C34",
+                alignItems: "center",
+                justifyContent: "center",
+              },
+            ]}
+          >
+            <ThemedText type="h2" style={{ color: "#E8B930", fontWeight: "700" }}>
               {getInitials(displayLabel)}
             </ThemedText>
           </View>
@@ -351,77 +369,85 @@ export default function SearchScreen() {
         <View style={styles.resultInfo}>
           <View style={styles.resultHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText type="h4" numberOfLines={1} style={styles.resultName}>
+              <ThemedText type="h4" numberOfLines={1} style={[styles.resultName, { color: "#F5F0E6" }]}>
                 {displayLabel}
               </ThemedText>
               {item.username && !displayLabel.startsWith("@") && (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                <ThemedText type="small" style={{ color: "#666666" }}>
                   @{item.username}
                 </ThemedText>
               )}
             </View>
-            <View style={styles.headerRight}>
-              {tierConfig ? (
-                <View style={[styles.tierBadge, { backgroundColor: tierConfig.color }]}>
-                  <Feather name="award" size={10} color="#000000" />
-                </View>
-              ) : null}
-              <Pressable
-                onPress={() => handleSaveResult(item)}
-                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}
+            <Pressable
+              onPress={() => handleSaveResult(item)}
+              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}
+            >
+              <Feather
+                name="bookmark"
+                size={16}
+                color={isSaved ? "#E8B930" : "#444444"}
+              />
+            </Pressable>
+          </View>
+
+          <View style={[styles.typeRow, { marginTop: 4 }]}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: accentColor + "18",
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 20,
+                alignSelf: "flex-start",
+              }}
+            >
+              <Feather name={typeIcon} size={11} color={accentColor} />
+              <ThemedText
+                type="small"
+                style={{ color: accentColor, marginLeft: 4, fontSize: 11, fontWeight: "600" }}
               >
-                <Feather
-                  name="bookmark"
-                  size={18}
-                  color={isSaved ? theme.primary : theme.textSecondary}
-                />
-              </Pressable>
+                {RESULT_TYPE_LABELS[item.resultType]}
+              </ThemedText>
+              {item.category && item.category !== item.resultType && (
+                <ThemedText
+                  type="small"
+                  style={{ color: accentColor + "AA", marginLeft: 4, fontSize: 11 }}
+                >
+                  · {item.category}
+                </ThemedText>
+              )}
             </View>
           </View>
 
-          <View style={styles.typeRow}>
-            <Feather name={typeIcon} size={12} color={theme.primary} />
-            <ThemedText type="small" style={{ color: theme.primary, marginLeft: 4 }}>
-              {RESULT_TYPE_LABELS[item.resultType]}
-            </ThemedText>
-            {item.category && item.category !== item.resultType && (
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
-                - {item.category}
-              </ThemedText>
-            )}
-          </View>
-
-          <View style={styles.resultMeta}>
+          <View style={[styles.resultMeta, { marginTop: 6 }]}>
             {item.rating > 0 && (
               <View style={styles.ratingContainer}>
-                <Feather name="star" size={14} color="#FFD700" />
-                <ThemedText type="small"> {item.rating.toFixed(1)}</ThemedText>
+                <Feather name="star" size={12} color="#E8B930" />
+                <ThemedText type="small" style={{ color: "#E8B930", marginLeft: 3, fontSize: 12 }}>
+                  {item.rating.toFixed(1)}
+                </ThemedText>
               </View>
             )}
-            {(item.city && item.city !== "Unknown") && (
+            {item.city && item.city !== "Unknown" && (
               <View style={styles.locationContainer}>
-                <Feather name="map-pin" size={14} color={theme.textSecondary} />
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  {" "}
-                  {item.city}
-                  {item.state ? `, ${item.state}` : ""}
+                <Feather name="map-pin" size={12} color="#555555" />
+                <ThemedText type="caption" style={{ color: "#666666", marginLeft: 3, fontSize: 12 }}>
+                  {item.city}{item.state ? `, ${item.state}` : ""}
                 </ThemedText>
               </View>
             )}
           </View>
 
-          {item.priceRange ? (
-            <ThemedText type="caption" style={{ color: theme.secondary }}>
-              {item.priceRange}
-            </ThemedText>
-          ) : null}
-
           <Pressable
             onPress={() => handleCardPress(item)}
-            style={[styles.viewProfileButton, { backgroundColor: theme.primary }]}
+            style={[
+              styles.viewProfileButton,
+              { backgroundColor: "#E8B930", marginTop: 8 },
+            ]}
           >
-            <Feather name="user" size={14} color="#000000" />
-            <ThemedText type="small" style={styles.viewProfileText}>
+            <Feather name="user" size={12} color="#0A0A0A" />
+            <ThemedText type="small" style={[styles.viewProfileText, { color: "#0A0A0A", fontSize: 12 }]}>
               View Profile
             </ThemedText>
           </Pressable>
@@ -431,9 +457,8 @@ export default function SearchScreen() {
   };
 
   const renderServiceCard = (item: UnifiedSearchResult) => {
-    const priceDisplay = item.price 
-      ? `$${item.price}` 
-      : item.priceRange || "";
+    const priceDisplay = item.priceFormatted || item.priceRange ||
+      (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
 
     return (
       <Pressable
@@ -441,41 +466,50 @@ export default function SearchScreen() {
         style={({ pressed }) => [
           styles.serviceCard,
           {
-            backgroundColor: theme.backgroundDefault,
-            borderColor: theme.border,
+            backgroundColor: "#111111",
+            borderColor: pressed ? "#E8B930" : "#1E1E1E",
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
       >
         <View style={styles.serviceIconContainer}>
-          <View style={[styles.serviceIcon, { backgroundColor: theme.primary + "20" }]}>
-            <Feather name="scissors" size={24} color={theme.primary} />
+          <View
+            style={[
+              styles.serviceIcon,
+              { backgroundColor: "#1A3C34" },
+            ]}
+          >
+            <Feather name="scissors" size={22} color="#E8B930" />
           </View>
         </View>
         <View style={styles.serviceInfo}>
-          <ThemedText type="h4" numberOfLines={1} style={styles.serviceName}>
+          <ThemedText type="h4" numberOfLines={1} style={[styles.serviceName, { color: "#F5F0E6" }]}>
             {item.name || "Unnamed Service"}
           </ThemedText>
           {item.providerName && (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+            <ThemedText type="small" style={{ color: "#666666" }}>
               by {item.providerName}
             </ThemedText>
           )}
           {item.description && (
-            <ThemedText type="caption" numberOfLines={2} style={{ color: theme.textSecondary, marginTop: 4 }}>
+            <ThemedText
+              type="caption"
+              numberOfLines={2}
+              style={{ color: "#555555", marginTop: 4, fontSize: 12 }}
+            >
               {item.description}
             </ThemedText>
           )}
         </View>
         <View style={styles.serviceRight}>
           {priceDisplay ? (
-            <ThemedText type="h4" style={{ color: theme.primary, fontWeight: "700" }}>
+            <ThemedText type="h4" style={{ color: "#E8B930", fontWeight: "700" }}>
               {priceDisplay}
             </ThemedText>
           ) : null}
-          <View style={[styles.bookButton, { backgroundColor: theme.primary }]}>
-            <Feather name="calendar" size={14} color="#000" />
-            <ThemedText type="small" style={{ color: "#000", fontWeight: "600", marginLeft: 4 }}>
+          <View style={[styles.bookButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
+            <Feather name="calendar" size={13} color="#0A0A0A" />
+            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>
               Book
             </ThemedText>
           </View>
@@ -487,9 +521,8 @@ export default function SearchScreen() {
   const renderProductCard = (item: UnifiedSearchResult) => {
     const hasProductImage = isValidImageUrl(item.productImage || item.avatar);
     const imageUrl = item.productImage || item.avatar;
-    const priceDisplay = item.price 
-      ? `$${item.price}` 
-      : item.priceRange || "";
+    const priceDisplay = item.priceFormatted || item.priceRange ||
+      (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
 
     return (
       <Pressable
@@ -497,8 +530,8 @@ export default function SearchScreen() {
         style={({ pressed }) => [
           styles.productCard,
           {
-            backgroundColor: theme.backgroundDefault,
-            borderColor: theme.border,
+            backgroundColor: "#111111",
+            borderColor: pressed ? "#E8B930" : "#1E1E1E",
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
@@ -511,27 +544,35 @@ export default function SearchScreen() {
             transition={200}
           />
         ) : (
-          <View style={[styles.productImage, { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }]}>
-            <Feather name="shopping-bag" size={32} color={theme.textSecondary} />
+          <View
+            style={[
+              styles.productImage,
+              { backgroundColor: "#1A3C34", alignItems: "center", justifyContent: "center" },
+            ]}
+          >
+            <Feather name="shopping-bag" size={28} color="#E8B930" />
           </View>
         )}
         <View style={styles.productInfo}>
-          <ThemedText type="h4" numberOfLines={2} style={styles.productName}>
+          <ThemedText type="h4" numberOfLines={2} style={[styles.productName, { color: "#F5F0E6" }]}>
             {item.name || "Unnamed Product"}
           </ThemedText>
           {item.businessName && (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+            <ThemedText type="small" style={{ color: "#666666" }}>
               by {item.businessName}
             </ThemedText>
           )}
           {priceDisplay ? (
-            <ThemedText type="h4" style={{ color: theme.primary, fontWeight: "700", marginTop: 4 }}>
+            <ThemedText
+              type="h4"
+              style={{ color: "#E8B930", fontWeight: "700", marginTop: 4 }}
+            >
               {priceDisplay}
             </ThemedText>
           ) : null}
-          <View style={[styles.buyButton, { backgroundColor: theme.primary }]}>
-            <Feather name="shopping-bag" size={14} color="#000" />
-            <ThemedText type="small" style={{ color: "#000", fontWeight: "600", marginLeft: 4 }}>
+          <View style={[styles.buyButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
+            <Feather name="shopping-bag" size={13} color="#0A0A0A" />
+            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>
               View
             </ThemedText>
           </View>
@@ -727,7 +768,7 @@ export default function SearchScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.searchContainer, { paddingTop: insets.top + Spacing.sm }]}>
-        <View style={[styles.searchInputContainer, { backgroundColor: theme.backgroundDefault }]}>
+        <View style={styles.searchInputContainer}>
           <Feather name="search" size={20} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
@@ -775,6 +816,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     height: 48,
     borderRadius: BorderRadius.full,
+    backgroundColor: "#111111",
+    borderWidth: 1,
+    borderColor: "#1E1E1E",
   },
   searchInput: {
     flex: 1,

@@ -1096,6 +1096,7 @@ export interface UnifiedSearchResult {
   businessId?: string;
   businessName?: string;
   price?: number;
+  priceFormatted?: string;
   productImage?: string;
 }
 
@@ -1640,7 +1641,9 @@ class ApiService {
         city: resolvedCity || "Unknown",
         state: resolvedState || "",
         rating: item.rating || item.ratingAvg || 0,
-        priceRange: item.priceRange || (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : "") || (item.price ? `$${item.price}` : ""),
+        priceRange: item.priceRange ||
+          (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : "") ||
+          (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : ""),
         category: item.category || item.type,
         description: item.description || "",
         subscriptionTier: item.subscriptionTier,
@@ -1654,6 +1657,9 @@ class ApiService {
         businessId: item.businessId,
         businessName: item.businessName,
         price: item.price,
+        priceFormatted: item.price
+          ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}`
+          : undefined,
         productImage: isValidImageUrl(item.productImage) || undefined,
       };
     });
