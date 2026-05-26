@@ -65,6 +65,7 @@ export default function BusinessDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [routingFromEligibility, setRoutingFromEligibility] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
   const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
@@ -1891,6 +1892,38 @@ export default function BusinessDashboardScreen() {
     }
   };
 
+  const handleGetStartedPress = useCallback(async () => {
+    const token = await getToken();
+    if (!token) {
+      setAuthError("Please sign in to continue setup");
+      return;
+    }
+
+    try {
+      setRoutingFromEligibility(true);
+      const latestEligibility = await api.getVendorEligibility(token);
+      setEligibility(latestEligibility);
+
+      if (latestEligibility.requiresPlanSelection) {
+        navigation.navigate("SubscriptionPlan");
+        return;
+      }
+
+      if (latestEligibility.requiresOnboarding) {
+        (navigation as any).navigate("StripeOnboarding");
+        return;
+      }
+
+      if (latestEligibility.canPublishProducts) {
+        (navigation as any).navigate("Products");
+      }
+    } catch (error) {
+      console.warn("[Dashboard] Failed to route from eligibility:", error);
+    } finally {
+      setRoutingFromEligibility(false);
+    }
+  }, [getToken, navigation]);
+
   const locationDisplay =
     [profile?.city, profile?.state].filter(Boolean).join(", ") || "Location not set";
   const rawTier = String(
@@ -1930,7 +1963,9 @@ export default function BusinessDashboardScreen() {
             <Text style={styles.stripeDescription}>
               Add your first product or service to go live
             </Text>
-            <Text style={styles.setupLink}>Get Started →</Text>
+            <Text style={styles.setupLink} onPress={routingFromEligibility ? undefined : handleGetStartedPress}>
+              {routingFromEligibility ? "Checking setup..." : "Get Started →"}
+            </Text>
           </View>
         </View>
       )}
