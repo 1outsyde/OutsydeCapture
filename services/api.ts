@@ -3571,7 +3571,7 @@ class ApiService {
     subscription: CurrentSubscription | null;
   }> {
     return this.request<{ hasSubscription: boolean; subscription: CurrentSubscription | null }>(
-      "/api/subscription/current",
+      "/api/vendor/subscription",
       { headers: { Authorization: `Bearer ${authToken}` } }
     );
   }
