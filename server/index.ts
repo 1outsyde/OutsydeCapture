@@ -4,9 +4,45 @@ import { googleCalendarService } from './calendarService';
 
 const app = express();
 const PORT = process.env.CALENDAR_API_PORT || 3001;
+const STRIPE_RETURN_DEEPLINK = 'outsyde://stripe-return';
 
 app.use(cors());
 app.use(express.json());
+
+function getApiBaseUrl(): string {
+  const configuredApiBaseUrl = process.env.API_BASE_URL?.replace(/\/+$/, '');
+  if (configuredApiBaseUrl) {
+    return configuredApiBaseUrl;
+  }
+
+  const replDomain = process.env.REPLIT_DOMAINS?.split(',')[0]?.trim();
+  if (replDomain) {
+    return `https://${replDomain}`;
+  }
+
+  throw new Error('API_BASE_URL is required to build Stripe Checkout callback URLs');
+}
+
+export function getStripeTierCheckoutCallbackUrls() {
+  const apiBaseUrl = getApiBaseUrl();
+  return {
+    success_url: `${apiBaseUrl}/api/stripe/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${apiBaseUrl}/api/stripe/subscription-cancel`,
+  };
+}
+
+app.get('/api/stripe/subscription-success', (req, res) => {
+  const params = new URLSearchParams({ success: 'true' });
+  const sessionId = typeof req.query.session_id === 'string' ? req.query.session_id : undefined;
+  if (sessionId) {
+    params.set('session_id', sessionId);
+  }
+  res.redirect(`${STRIPE_RETURN_DEEPLINK}?${params.toString()}`);
+});
+
+app.get('/api/stripe/subscription-cancel', (_req, res) => {
+  res.redirect(`${STRIPE_RETURN_DEEPLINK}?cancelled=true`);
+});
 
 app.get('/api/calendar/status', async (req, res) => {
   try {
