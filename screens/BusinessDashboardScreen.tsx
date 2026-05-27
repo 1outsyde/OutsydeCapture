@@ -43,17 +43,6 @@ type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile" | "credits";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const DASHBOARD_COLORS = {
-  background: "#080C08",
-  surface: "rgba(255,255,255,0.04)",
-  cardBorder: "rgba(255,255,255,0.08)",
-  greenBright: "#2D7A2D",
-  greenAccent: "#3A9E3A",
-  gold: "#C9933A",
-  goldLight: "#E8B86D",
-  cream: "#F0EAD6",
-  creamDim: "rgba(200,191,168,0.6)",
-};
 
 export default function BusinessDashboardScreen() {
   const { theme } = useTheme();
@@ -659,7 +648,7 @@ export default function BusinessDashboardScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: DASHBOARD_COLORS.background,
+      backgroundColor: theme.backgroundRoot,
     },
     header: {
       flexDirection: "row",
@@ -675,11 +664,11 @@ export default function BusinessDashboardScreen() {
     headerTitle: {
       fontSize: 22,
       fontWeight: "700",
-      color: DASHBOARD_COLORS.cream,
+      color: theme.text,
     },
     headerSubtitle: {
       fontSize: 13,
-      color: DASHBOARD_COLORS.creamDim,
+      color: theme.textSecondary,
       marginTop: 2,
     },
     tierBadge: {
@@ -690,7 +679,7 @@ export default function BusinessDashboardScreen() {
       alignSelf: "flex-start",
     },
     tierBadgeText: {
-      color: DASHBOARD_COLORS.background,
+      color: theme.backgroundRoot,
       fontSize: 12,
       fontWeight: "700",
     },
@@ -703,7 +692,7 @@ export default function BusinessDashboardScreen() {
       padding: 16,
       borderRadius: 12,
       borderLeftWidth: 3,
-      borderLeftColor: DASHBOARD_COLORS.gold,
+      borderLeftColor: theme.primary,
     },
     stripeIcon: {
       width: 40,
@@ -720,15 +709,15 @@ export default function BusinessDashboardScreen() {
     stripeTitle: {
       fontSize: 16,
       fontWeight: "600",
-      color: DASHBOARD_COLORS.cream,
+      color: theme.text,
     },
     stripeDescription: {
       fontSize: 13,
-      color: DASHBOARD_COLORS.creamDim,
+      color: theme.textSecondary,
       marginTop: 2,
     },
     setupButton: {
-      backgroundColor: DASHBOARD_COLORS.gold,
+      backgroundColor: theme.primary,
       borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 8,
@@ -738,7 +727,7 @@ export default function BusinessDashboardScreen() {
     setupButtonText: {
       fontSize: 13,
       fontWeight: "600",
-      color: DASHBOARD_COLORS.background,
+      color: theme.backgroundRoot,
     },
     statsRow: {
       paddingHorizontal: 16,
@@ -756,8 +745,8 @@ export default function BusinessDashboardScreen() {
     },
     statCard: {
       flex: 1,
-      backgroundColor: "#111411",
-      borderColor: DASHBOARD_COLORS.cardBorder,
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
       borderWidth: 1,
       borderRadius: 16,
       padding: 16,
@@ -766,11 +755,11 @@ export default function BusinessDashboardScreen() {
     statValue: {
       fontSize: 24,
       fontWeight: "700",
-      color: DASHBOARD_COLORS.cream,
+      color: theme.text,
     },
     statLabel: {
       fontSize: 11,
-      color: DASHBOARD_COLORS.creamDim,
+      color: theme.textSecondary,
       marginTop: 2,
       textAlign: "left",
     },
@@ -908,9 +897,9 @@ export default function BusinessDashboardScreen() {
       flex: 1,
     },
     tabsContainer: {
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: theme.backgroundDefault,
       borderTopWidth: 1,
-      borderTopColor: "rgba(255,255,255,0.06)",
+      borderTopColor: theme.border,
       overflow: "hidden",
     },
     tabBar: {
@@ -924,14 +913,14 @@ export default function BusinessDashboardScreen() {
     },
     activeTab: {
       borderBottomWidth: 2,
-      borderBottomColor: DASHBOARD_COLORS.gold,
+      borderBottomColor: theme.primary,
     },
     tabText: {
       fontSize: 12,
-      color: DASHBOARD_COLORS.creamDim,
+      color: theme.textSecondary,
     },
     activeTabText: {
-      color: DASHBOARD_COLORS.gold,
+      color: theme.primary,
       fontWeight: "600",
     },
     tabContent: {
@@ -955,17 +944,17 @@ export default function BusinessDashboardScreen() {
     emptyTitle: {
       fontSize: 15,
       fontWeight: "600",
-      color: DASHBOARD_COLORS.cream,
+      color: theme.text,
       marginBottom: 4,
     },
     emptySubtitle: {
       fontSize: 13,
-      color: DASHBOARD_COLORS.creamDim,
+      color: theme.textSecondary,
       textAlign: "center",
     },
     orderCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
       borderWidth: 1,
       borderRadius: 10,
       padding: 12,
@@ -1039,8 +1028,8 @@ export default function BusinessDashboardScreen() {
       fontWeight: "600",
     },
     bookingCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
       borderWidth: 1,
       borderRadius: 10,
       padding: 12,
@@ -1103,8 +1092,8 @@ export default function BusinessDashboardScreen() {
       marginTop: 8,
     },
     productCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
       borderWidth: 1,
       borderRadius: 10,
       padding: 12,
@@ -1136,8 +1125,8 @@ export default function BusinessDashboardScreen() {
       marginTop: 4,
     },
     serviceCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
       borderWidth: 1,
       borderRadius: 10,
       padding: 12,
@@ -1178,17 +1167,17 @@ export default function BusinessDashboardScreen() {
       width: 4,
       height: 14,
       borderRadius: 2,
-      backgroundColor: DASHBOARD_COLORS.gold,
+      backgroundColor: theme.primary,
     },
     sectionHeaderText: {
       fontSize: 14,
       letterSpacing: 1.5,
       fontWeight: "700",
-      color: DASHBOARD_COLORS.cream,
+      color: theme.text,
     },
     autoAcceptCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
       borderWidth: 1,
       borderRadius: 16,
       padding: 14,
@@ -1210,13 +1199,13 @@ export default function BusinessDashboardScreen() {
       flex: 1,
     },
     autoAcceptTitle: {
-      color: DASHBOARD_COLORS.cream,
+      color: theme.text,
       fontSize: 15,
       fontWeight: "600",
       marginBottom: 2,
     },
     autoAcceptDescription: {
-      color: DASHBOARD_COLORS.creamDim,
+      color: theme.textSecondary,
       fontSize: 12,
       lineHeight: 17,
     },
@@ -1402,7 +1391,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="shopping-bag" size={24} color={DASHBOARD_COLORS.gold} />
+            <Feather name="shopping-bag" size={24} color={theme.primary} />
           </View>
           <Text style={styles.emptyTitle}>No orders yet</Text>
           <Text style={styles.emptySubtitle}>Orders will appear here once customers make purchases</Text>
@@ -1496,7 +1485,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="calendar" size={24} color={DASHBOARD_COLORS.gold} />
+            <Feather name="calendar" size={24} color={theme.primary} />
           </View>
           <Text style={styles.emptyTitle}>No bookings yet</Text>
           <Text style={styles.emptySubtitle}>Bookings will appear here once customers book your services</Text>
@@ -1587,7 +1576,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="box" size={24} color={DASHBOARD_COLORS.gold} />
+            <Feather name="box" size={24} color={theme.primary} />
           </View>
           <Text style={styles.emptyTitle}>No products yet</Text>
           <Text style={styles.emptySubtitle}>Add products for customers to purchase</Text>
@@ -1612,7 +1601,7 @@ export default function BusinessDashboardScreen() {
       return (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
-            <Feather name="package" size={24} color={DASHBOARD_COLORS.gold} />
+            <Feather name="package" size={24} color={theme.primary} />
           </View>
           <Text style={styles.emptyTitle}>No services yet</Text>
           <Text style={styles.emptySubtitle}>Add services that customers can book</Text>
@@ -1921,7 +1910,7 @@ export default function BusinessDashboardScreen() {
         return (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Feather name="shopping-bag" size={24} color={DASHBOARD_COLORS.gold} />
+              <Feather name="shopping-bag" size={24} color={theme.primary} />
             </View>
             <Text style={styles.emptyTitle}>Customize Your Storefront</Text>
             <Text style={styles.emptySubtitle}>Edit branding, hours, products, and services</Text>
@@ -1953,7 +1942,7 @@ export default function BusinessDashboardScreen() {
 
   const availableTabs = getAvailableTabs();
 
-  const accentColor = profile?.brandColor || DASHBOARD_COLORS.gold;
+  const accentColor = profile?.brandColor || theme.primary;
   const locationDisplay =
     [profile?.city, profile?.state].filter(Boolean).join(", ") || "Location not set";
   const rawTier = String(
@@ -1988,7 +1977,7 @@ export default function BusinessDashboardScreen() {
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
     >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -2003,7 +1992,7 @@ export default function BusinessDashboardScreen() {
       {shouldShowSetupCard && (
         <View style={[styles.stripeCard, { borderLeftColor: accentColor }]}>
           <View style={styles.stripeIcon}>
-            <Feather name="alert-circle" size={20} color={DASHBOARD_COLORS.gold} />
+            <Feather name="alert-circle" size={20} color={theme.primary} />
           </View>
           <View style={styles.stripeContent}>
             <Text style={styles.stripeTitle}>Complete Your Setup</Text>
@@ -2026,21 +2015,21 @@ export default function BusinessDashboardScreen() {
         <View style={styles.statsRowTop}>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Feather name="dollar-sign" size={14} color={DASHBOARD_COLORS.gold} />
+              <Feather name="dollar-sign" size={14} color={theme.primary} />
             </View>
             <Text style={styles.statValue}>${stats.earnings}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Revenue</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Feather name="shopping-bag" size={14} color={DASHBOARD_COLORS.gold} />
+              <Feather name="shopping-bag" size={14} color={theme.primary} />
             </View>
             <Text style={styles.statValue}>{stats.upcomingOrders}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Orders</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Feather name="calendar" size={14} color={DASHBOARD_COLORS.gold} />
+              <Feather name="calendar" size={14} color={theme.primary} />
             </View>
             <Text style={styles.statValue}>{stats.upcomingBookings}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Bookings</Text>
@@ -2049,14 +2038,14 @@ export default function BusinessDashboardScreen() {
         <View style={styles.statsRowBottom}>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Feather name="message-circle" size={14} color={DASHBOARD_COLORS.gold} />
+              <Feather name="message-circle" size={14} color={theme.primary} />
             </View>
             <Text style={styles.statValue}>{stats.unreadMessages}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Unread</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
-              <Feather name="star" size={14} color={DASHBOARD_COLORS.gold} />
+              <Feather name="star" size={14} color={theme.primary} />
             </View>
             <Text style={styles.statValue}>{stats.reviewCount > 0 ? stats.rating.toFixed(1) : "—"}</Text>
             <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
@@ -2074,7 +2063,7 @@ export default function BusinessDashboardScreen() {
           <View style={styles.autoAcceptCard}>
             <View style={styles.autoAcceptRow}>
               <View style={styles.autoAcceptIcon}>
-                <Feather name={autoAcceptBookings ? "check-circle" : "clock"} size={20} color={DASHBOARD_COLORS.gold} />
+                <Feather name={autoAcceptBookings ? "check-circle" : "clock"} size={20} color={theme.primary} />
               </View>
               <View style={styles.autoAcceptTextWrap}>
                 <Text style={styles.autoAcceptTitle}>Auto-Accept Bookings</Text>
@@ -2085,13 +2074,13 @@ export default function BusinessDashboardScreen() {
                 </Text>
               </View>
               {autoAcceptLoading ? (
-                <ActivityIndicator size="small" color={DASHBOARD_COLORS.gold} />
+                <ActivityIndicator size="small" color={theme.primary} />
               ) : (
                 <Switch
                   value={autoAcceptBookings}
                   onValueChange={handleAutoAcceptChange}
-                  trackColor={{ false: "rgba(255,255,255,0.2)", true: "rgba(201,147,58,0.55)" }}
-                  thumbColor={autoAcceptBookings ? DASHBOARD_COLORS.gold : DASHBOARD_COLORS.creamDim}
+                  trackColor={{ false: theme.border, true: `${theme.primary}80` }}
+                  thumbColor={autoAcceptBookings ? theme.primary : theme.textSecondary}
                 />
               )}
             </View>
@@ -2106,29 +2095,31 @@ export default function BusinessDashboardScreen() {
             <View style={[styles.sectionHeaderAccent, { backgroundColor: accentColor }]} />
             <Text style={styles.sectionHeaderText}>CALENDAR</Text>
           </View>
-          <ProviderCalendar
-            bookings={bookings.map(b => ({
-              id: b.id,
-              date: b.date,
-              startTime: b.time || "9:00 AM",
-              clientName: b.customerName,
-              serviceName: b.serviceName,
-              status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined",
-              amount: b.amount,
-            }))}
-            blockedDates={[]}
-            weeklyAvailability={hours.map((h, idx) => ({
-              dayOfWeek: idx,
-              isAvailable: h.isAvailable,
-              windows: h.isAvailable ? [{ startTime: h.startTime, endTime: h.endTime }] : [],
-            }))}
-            onBlockDate={() => {}}
-            onUnblockDate={() => {}}
-            onBookingPress={(booking) => {
-              setActiveTab("bookings");
-            }}
-            monthsAhead={3}
-          />
+          <View style={{ backgroundColor: theme.backgroundDefault, borderRadius: 12, padding: 8 }}>
+            <ProviderCalendar
+              bookings={bookings.map(b => ({
+                id: b.id,
+                date: b.date,
+                startTime: b.time || "9:00 AM",
+                clientName: b.customerName,
+                serviceName: b.serviceName,
+                status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined",
+                amount: b.amount,
+              }))}
+              blockedDates={[]}
+              weeklyAvailability={hours.map((h, idx) => ({
+                dayOfWeek: idx,
+                isAvailable: h.isAvailable,
+                windows: h.isAvailable ? [{ startTime: h.startTime, endTime: h.endTime }] : [],
+              }))}
+              onBlockDate={() => {}}
+              onUnblockDate={() => {}}
+              onBookingPress={(booking) => {
+                setActiveTab("bookings");
+              }}
+              monthsAhead={3}
+            />
+          </View>
         </View>
       )}
 
