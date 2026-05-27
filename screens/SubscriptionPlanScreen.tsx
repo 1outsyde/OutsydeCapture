@@ -101,6 +101,21 @@ export default function SubscriptionPlanScreen() {
   const subStatus = String(
     businessData?.subscriptionStatus || eligibility?.subscriptionStatus || ""
   ).toLowerCase();
+  const eligibilityCurrentTier = (eligibility as any)?.currentTier;
+  const activeTierName =
+    currentSubscription?.tierDisplayName ||
+    currentSubscription?.tierName ||
+    eligibilityCurrentTier?.displayName ||
+    (eligibilityCurrentTier?.name === "starter"
+      ? "Starter"
+      : eligibilityCurrentTier?.name === "growth"
+        ? "Growth"
+        : eligibilityCurrentTier?.name === "pro"
+          ? "Pro"
+          : null) ||
+    businessData?.subscriptionTier ||
+    currentTierName ||
+    null;
   const hasActiveSubscription =
     subStatus === "active" ||
     subStatus === "trialing" ||
@@ -285,56 +300,28 @@ export default function SubscriptionPlanScreen() {
     }
   };
 
-  const statusColor = () => {
-    if (!subscriptionStatus || subscriptionStatus === "none" || subscriptionStatus === "canceled") return theme.error;
-    if (subscriptionStatus === "past_due") return "#FF9500";
-    if (subscriptionStatus === "active") return "#22c55e";
-    return theme.textSecondary;
-  };
-
-  const statusLabel = () => {
-    if (!subscriptionStatus || subscriptionStatus === "none") return "No active plan";
-    if (subscriptionStatus === "canceled") return "Canceled";
-    if (subscriptionStatus === "past_due") return "Payment past due";
-    if (subscriptionStatus === "active") return "Active";
-    return subscriptionStatus;
-  };
-
   const renderCurrentPlanBanner = () => {
     if (!isActive) return null;
+    const planSummary = activeTierName ? `${activeTierName} Plan` : "Plan Active";
     return (
       <View style={[styles.currentPlanBanner, { backgroundColor: "#22c55e18", borderColor: "#22c55e40" }]}>
         <View style={styles.currentPlanRow}>
           <Feather name="check-circle" size={20} color="#22c55e" />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={[styles.currentPlanTitle, { color: theme.text }]}>
-              {currentTierName ? `${currentTierName} Plan` : "Subscription Active"}
+              Subscription Active
             </Text>
             <Text style={[styles.currentPlanStatus, { color: "#22c55e" }]}>
-              {statusLabel()}
+              {planSummary}
             </Text>
           </View>
         </View>
-        <Pressable
-          style={[styles.manageBtn, { borderColor: theme.border }]}
-          onPress={handleManageBilling}
-          disabled={portalLoading}
-        >
-          {portalLoading ? (
-            <ActivityIndicator size="small" color={theme.primary} />
-          ) : (
-            <>
-              <Feather name="external-link" size={14} color={theme.primary} />
-              <Text style={[styles.manageBtnText, { color: theme.primary }]}>Manage Billing</Text>
-            </>
-          )}
-        </Pressable>
       </View>
     );
   };
 
   const renderPastDueBanner = () => {
-    if (subscriptionStatus !== "past_due") return null;
+    if (String(subscriptionStatus || subStatus || "").toLowerCase() !== "past_due") return null;
     return (
       <View style={[styles.warningBanner, { backgroundColor: "#FF950018", borderColor: "#FF950040" }]}>
         <Feather name="alert-triangle" size={18} color="#FF9500" />
@@ -347,6 +334,7 @@ export default function SubscriptionPlanScreen() {
 
   const renderNoSubscriptionBanner = () => {
     if (hasActiveSubscription) return null;
+    if (eligibility?.canPublishProducts || eligibility?.canPublishServices) return null;
     return (
       <View
         style={{
@@ -514,7 +502,7 @@ export default function SubscriptionPlanScreen() {
         {isActive ? (
           <View style={styles.manageSection}>
             <Pressable
-              style={[styles.manageBillingBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+              style={styles.manageBillingBtn}
               onPress={handleManageBilling}
               disabled={portalLoading}
             >
@@ -522,15 +510,15 @@ export default function SubscriptionPlanScreen() {
                 <ActivityIndicator color={theme.primary} />
               ) : (
                 <>
-                  <Feather name="credit-card" size={18} color={theme.primary} />
-                  <Text style={[styles.manageBillingBtnText, { color: theme.primary }]}>
-                    Manage Billing
-                  </Text>
-                  <Feather name="external-link" size={14} color={theme.primary} />
+                  <View style={styles.manageBillingBtnLeft}>
+                    <Feather name="credit-card" size={18} color="#C9933A" />
+                    <Text style={styles.manageBillingBtnText}>Manage Billing</Text>
+                  </View>
+                  <Feather name="external-link" size={16} color="#F0EAD6" />
                 </>
               )}
             </Pressable>
-            <Text style={[styles.manageHint, { color: theme.textSecondary }]}>
+            <Text style={styles.manageHint}>
               Update payment method, download invoices, or cancel your plan.
             </Text>
           </View>
@@ -590,20 +578,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: "600",
   },
-  manageBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignSelf: "flex-start",
-  },
-  manageBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
   warningBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -651,28 +625,35 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   manageSection: {
-    alignItems: "center",
+    alignItems: "stretch",
     marginBottom: 16,
   },
   manageBillingBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 14,
+    justifyContent: "space-between",
+    backgroundColor: "#1A1A1A",
+    borderColor: "#2A2A2A",
     borderWidth: 1,
-    marginBottom: 8,
+    borderRadius: 12,
+    padding: 16,
+  },
+  manageBillingBtnLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   manageBillingBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#C9933A",
   },
   manageHint: {
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
+    color: "rgba(240, 234, 214, 0.5)",
+    marginTop: 8,
   },
   refreshRow: {
     flexDirection: "row",

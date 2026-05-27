@@ -153,7 +153,9 @@ const styles = StyleSheet.create({
   tierCard: {
     borderRadius: 16,
     borderWidth: 2,
-    padding: 18,
+    paddingTop: 32,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
     position: "relative",
     overflow: "hidden",
   },
@@ -201,13 +203,15 @@ const styles = StyleSheet.create({
   },
   currentPlanBadge: {
     position: "absolute",
-    top: -12,
+    top: 8,
     right: 16,
     backgroundColor: "#22c55e",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    zIndex: 1,
+    minWidth: 100,
+    alignItems: "center",
+    zIndex: 10,
   },
   currentPlanBadgeText: {
     color: "#fff",
