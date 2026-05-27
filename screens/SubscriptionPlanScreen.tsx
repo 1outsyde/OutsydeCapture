@@ -98,10 +98,17 @@ export default function SubscriptionPlanScreen() {
     (typeof err?.message === "string" &&
       err.message.toLowerCase().includes("monetization"));
 
+  const subStatus = String(
+    businessData?.subscriptionStatus || eligibility?.subscriptionStatus || ""
+  ).toLowerCase();
   const hasActiveSubscription =
-    String(businessData?.subscriptionStatus || "").toLowerCase() === "active" ||
-    businessData?.hasActiveSubscription === true ||
-    businessData?.subscriptionTier != null;
+    subStatus === "active" ||
+    subStatus === "trialing" ||
+    (businessData?.subscriptionTier != null &&
+      subStatus !== "canceled" &&
+      subStatus !== "incomplete_expired" &&
+      subStatus !== "unpaid") ||
+    businessData?.hasActiveSubscription === true;
 
   const isActive =
     hasActiveSubscription ||

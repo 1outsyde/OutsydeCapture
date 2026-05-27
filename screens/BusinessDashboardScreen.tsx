@@ -180,13 +180,19 @@ export default function BusinessDashboardScreen() {
           (() => {
             if (!business.brandColors) return undefined;
             try {
-              const parsedBrandColors = JSON.parse(business.brandColors);
+              const parsedBrandColors =
+                typeof business.brandColors === "string"
+                  ? JSON.parse(business.brandColors)
+                  : business.brandColors;
               return typeof parsedBrandColors?.primary === "string" ? parsedBrandColors.primary : undefined;
             } catch {
               return undefined;
             }
           })(),
         autoAcceptBookings: (business as any).autoAcceptBookings ?? false,
+        subscriptionStatus: (business as any).subscriptionStatus ?? undefined,
+        subscriptionTier: (business as any).subscriptionTier ?? undefined,
+        hasActiveSubscription: (business as any).hasActiveSubscription === true,
       });
       setAutoAcceptBookings((business as any).autoAcceptBookings ?? false);
       
@@ -251,6 +257,12 @@ export default function BusinessDashboardScreen() {
     const token = await getToken();
     if (!token) return;
     try {
+      try {
+        await api.syncVendorSubscription(token);
+        console.log("[Subscription] Sync complete");
+      } catch (syncError) {
+        console.warn("[Subscription] Sync failed (non-blocking):", syncError);
+      }
       const e = await api.getVendorEligibility(token);
       setEligibility(e);
     } catch (err) {
@@ -1939,6 +1951,26 @@ export default function BusinessDashboardScreen() {
   const rawTier = String(
     (user as any)?.subscriptionTier || (profile as any)?.subscriptionTier || ""
   ).toLowerCase();
+  const subStatus = String(
+    (profile as any)?.subscriptionStatus || eligibility?.subscriptionStatus || ""
+  ).toLowerCase();
+  const hasActiveSubscription =
+    subStatus === "active" ||
+    subStatus === "trialing" ||
+    ((profile as any)?.subscriptionTier != null &&
+      subStatus !== "canceled" &&
+      subStatus !== "incomplete_expired" &&
+      subStatus !== "unpaid") ||
+    (profile as any)?.hasActiveSubscription === true;
+  const shouldShowSetupCard = Boolean(
+    eligibility &&
+      !eligibility.requiresApproval &&
+      (eligibility.requiresPlanSelection ||
+        eligibility.requiresOnboarding ||
+        eligibility.requiresSubscription ||
+        !hasActiveSubscription ||
+        (!eligibility.canPublishProducts && !eligibility.canPublishServices))
+  );
   const tierLabel = rawTier.includes("pro")
     ? "Pro"
     : rawTier.includes("growth") || rawTier.includes("premium")
@@ -1960,7 +1992,7 @@ export default function BusinessDashboardScreen() {
         </View>
       </View>
 
-      {eligibility && !eligibility.canPublishProducts && !eligibility.canPublishServices && !eligibility.requiresApproval && (
+      {shouldShowSetupCard && (
         <View style={[styles.stripeCard, { borderLeftColor: accentColor }]}>
           <View style={styles.stripeIcon}>
             <Feather name="alert-circle" size={20} color={DASHBOARD_COLORS.gold} />

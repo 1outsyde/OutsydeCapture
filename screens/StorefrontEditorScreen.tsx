@@ -92,15 +92,22 @@ export default function StorefrontEditorScreen() {
   const normalizedApprovalStatus = String(approvalStatus || "").toLowerCase();
   const isApproved = normalizedApprovalStatus === "approved";
   const stripeConnected = Boolean(business?.stripeOnboardingComplete || business?.stripeAccountId);
-  const hasActiveSubscription = Boolean(
-    business?.subscriptionActive === true ||
-    String(business?.subscriptionStatus || "").toLowerCase() === "active" ||
-    (business as any)?.subscriptionTier != null
-  );
+  const subStatus = String(
+    business?.subscriptionStatus || eligibility?.subscriptionStatus || ""
+  ).toLowerCase();
+  const hasActiveSubscription =
+    subStatus === "active" ||
+    subStatus === "trialing" ||
+    ((business as any)?.subscriptionTier != null &&
+      subStatus !== "canceled" &&
+      subStatus !== "incomplete_expired" &&
+      subStatus !== "unpaid") ||
+    business?.hasActiveSubscription === true;
   const canPublishFromRequirements = isApproved && stripeConnected && hasActiveSubscription;
   const canPublishFromEligibility = eligibility
     ? (Boolean(eligibility.canPublishProducts || eligibility.canPublishServices) ||
-      (!eligibility.requiresApproval && !eligibility.requiresOnboarding && !eligibility.requiresSubscription))
+      (!eligibility.requiresApproval && !eligibility.requiresOnboarding && !eligibility.requiresSubscription)) &&
+      hasActiveSubscription
     : false;
 
   const canPublishProducts = eligibility ? canPublishFromEligibility : canPublishFromRequirements;
@@ -112,8 +119,9 @@ export default function StorefrontEditorScreen() {
 
   const getPublishBlockerMessage = (errorBody?: Record<string, any>): string => {
     const reasons: string[] = [];
-    const reqApproval = errorBody?.requiresApproval ?? eligibility?.requiresApproval ?? (approvalStatus !== "approved");
-    const reqSubscription = errorBody?.requiresSubscription ?? eligibility?.requiresSubscription ?? !business?.subscriptionActive;
+    const reqApproval =
+      errorBody?.requiresApproval ?? eligibility?.requiresApproval ?? (normalizedApprovalStatus !== "approved");
+    const reqSubscription = errorBody?.requiresSubscription ?? eligibility?.requiresSubscription ?? !hasActiveSubscription;
     const reqOnboarding = errorBody?.requiresOnboarding ?? eligibility?.requiresOnboarding ?? !business?.stripeOnboardingComplete;
 
     if (reqApproval) {
@@ -156,6 +164,7 @@ export default function StorefrontEditorScreen() {
   const fetchData = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
+    let biz: VendorBookerBusiness | null = null;
 
     try {
       setLoading(true);
@@ -168,7 +177,7 @@ export default function StorefrontEditorScreen() {
 
       if (eligibilityRes) setEligibility(eligibilityRes);
 
-      const biz = businessRes.business;
+      biz = businessRes.business;
       setBusiness(biz);
 
       const normalizeProduct = (p: any): VendorProduct => ({
@@ -205,6 +214,11 @@ export default function StorefrontEditorScreen() {
         : {};
       setPrimaryColor(brandColors.primary || "#eab308");
 
+      const knownFor = biz.knownFor
+        ? (typeof biz.knownFor === "string" ? JSON.parse(biz.knownFor) : biz.knownFor)
+        : [];
+      setProfileSpecialties(Array.isArray(knownFor) ? knownFor.filter((item) => typeof item === "string") : []);
+
       setProfileName(biz.name || "");
       setProfileTagline(biz.tagline || "");
       setProfileDescription(biz.description || "");
@@ -224,8 +238,17 @@ export default function StorefrontEditorScreen() {
           setHours(getDefaultHours());
         }
       }
-    } catch (error) {
-      console.error("Failed to fetch storefront data:", error);
+    } catch (error: any) {
+      console.error("[StorefrontEditor] fetchData error:", error?.message);
+      console.error("[StorefrontEditor] fetchData stack:", error?.stack);
+      console.error(
+        "[StorefrontEditor] biz data at time of error:",
+        JSON.stringify({
+          brandColors: typeof biz?.brandColors,
+          hoursOfOperation: typeof biz?.hoursOfOperation,
+          knownFor: typeof biz?.knownFor,
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -1651,7 +1674,7 @@ export default function StorefrontEditorScreen() {
     
     const isDark = theme.backgroundRoot === "#000000" || theme.backgroundRoot === "#000";
     const missingStripe = eligibility ? eligibility.requiresOnboarding : !business?.stripeOnboardingComplete;
-    const missingSub = eligibility ? eligibility.requiresSubscription : !business?.subscriptionActive;
+    const missingSub = eligibility ? eligibility.requiresSubscription : !hasActiveSubscription;
     const missingApproval = eligibility ? eligibility.requiresApproval : approvalStatus !== "approved";
     
     return (

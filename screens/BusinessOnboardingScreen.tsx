@@ -22,7 +22,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api, { VendorBookerBusiness, BusinessOnboardingData } from "@/services/api";
+import api, { VendorBookerBusiness, BusinessOnboardingData, VendorEligibility } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -67,6 +67,7 @@ export default function BusinessOnboardingScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [existingBusiness, setExistingBusiness] = useState<VendorBookerBusiness | null>(null);
+  const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
@@ -84,6 +85,17 @@ export default function BusinessOnboardingScreen() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const subStatus = String(
+    existingBusiness?.subscriptionStatus || eligibility?.subscriptionStatus || ""
+  ).toLowerCase();
+  const hasActiveSubscription =
+    subStatus === "active" ||
+    subStatus === "trialing" ||
+    (existingBusiness?.subscriptionTier != null &&
+      subStatus !== "canceled" &&
+      subStatus !== "incomplete_expired" &&
+      subStatus !== "unpaid") ||
+    existingBusiness?.hasActiveSubscription === true;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -101,7 +113,27 @@ export default function BusinessOnboardingScreen() {
     }
 
     try {
-      const { business } = await api.getVendorMyBusiness(authToken);
+      try {
+        await api.syncVendorSubscription(authToken);
+        console.log("[Subscription] Sync complete");
+      } catch (syncError) {
+        console.warn("[Subscription] Sync failed (non-blocking):", syncError);
+      }
+
+      const [businessResult, eligibilityResult] = await Promise.allSettled([
+        api.getVendorMyBusiness(authToken),
+        api.getVendorEligibility(authToken),
+      ]);
+
+      if (eligibilityResult.status === "fulfilled") {
+        setEligibility(eligibilityResult.value);
+      }
+
+      if (businessResult.status !== "fulfilled") {
+        throw businessResult.reason;
+      }
+
+      const { business } = businessResult.value;
       setExistingBusiness(business);
       
       if (business.name) setName(business.name);
@@ -119,6 +151,24 @@ export default function BusinessOnboardingScreen() {
       console.log("No existing business found, starting fresh");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCheckSubscriptionStatus = async () => {
+    const authToken = await getToken();
+    if (!authToken) return;
+
+    try {
+      setSaving(true);
+      await api.syncVendorSubscription(authToken);
+      console.log("[Subscription] Sync complete");
+      await loadExistingBusiness();
+      Alert.alert("Status Updated", "Subscription status has been refreshed.");
+    } catch (syncError) {
+      console.warn("[Subscription] Sync failed (non-blocking):", syncError);
+      Alert.alert("Sync Failed", "Couldn't refresh subscription status right now. Please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -658,6 +708,19 @@ export default function BusinessOnboardingScreen() {
               Your application is pending approval. While you wait, you can connect Stripe to prepare for receiving payments.
             </ThemedText>
 
+            <View style={[styles.noteCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <Feather
+                name={hasActiveSubscription ? "check-circle" : "clock"}
+                size={18}
+                color={hasActiveSubscription ? SUCCESS_COLOR : theme.primary}
+              />
+              <ThemedText type="caption" style={{ flex: 1, marginLeft: Spacing.sm, color: theme.textSecondary }}>
+                {hasActiveSubscription
+                  ? "Subscription is active."
+                  : "Subscription status is still pending. If you already paid, refresh status."}
+              </ThemedText>
+            </View>
+
             <View style={[styles.stripeCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
               <Feather name="credit-card" size={24} color={theme.primary} />
               <ThemedText type="body" style={[styles.stripeText, { color: theme.text }]}>
@@ -728,6 +791,16 @@ export default function BusinessOnboardingScreen() {
                 I'll do this later
               </ThemedText>
             </Pressable>
+            {!hasActiveSubscription && (
+              <Pressable
+                onPress={handleCheckSubscriptionStatus}
+                style={({ pressed }) => [styles.skipButton, { opacity: pressed ? 0.7 : 1 }]}
+              >
+                <ThemedText type="body" style={{ color: theme.primary }}>
+                  {saving ? "Checking status..." : "I already paid — check status"}
+                </ThemedText>
+              </Pressable>
+            )}
           </>
         )}
       </View>

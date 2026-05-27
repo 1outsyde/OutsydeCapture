@@ -244,6 +244,8 @@ export interface VendorBookerBusiness {
   approvalNotes?: string | null;
   subscriptionActive?: boolean | null;
   subscriptionStatus?: string | null;
+  subscriptionTier?: string | null;
+  hasActiveSubscription?: boolean | null;
   rating?: number | null;
   reviewCount?: number | null;
   createdAt?: string;
@@ -739,6 +741,9 @@ export interface BusinessDashboardProfile {
   businessType: "service" | "product" | "both";
   brandColor?: string;
   autoAcceptBookings?: boolean; // Auto-accept new bookings without manual approval
+  subscriptionStatus?: string;
+  subscriptionTier?: string;
+  hasActiveSubscription?: boolean;
 }
 
 export interface BusinessOrder {
@@ -3541,6 +3546,11 @@ class ApiService {
       canPublishProducts: Boolean(payload?.canPublishProducts),
       canPublishServices: Boolean(payload?.canPublishServices),
       ...(typeof payload?.currentStep === "string" ? { currentStep: payload.currentStep } : {}),
+      ...(typeof payload?.subscriptionStatus === "string" ? { subscriptionStatus: payload.subscriptionStatus } : {}),
+      ...(typeof payload?.hasActiveSubscription === "boolean"
+        ? { hasActiveSubscription: payload.hasActiveSubscription }
+        : {}),
+      ...(payload?.subscriptionTier !== undefined ? { subscriptionTier: payload.subscriptionTier } : {}),
     };
   }
 
@@ -3596,6 +3606,17 @@ class ApiService {
       "/api/vendor/subscription",
       { headers: { Authorization: `Bearer ${authToken}` } }
     );
+  }
+
+  async syncVendorSubscription(authToken: string): Promise<{
+    synced: boolean;
+    previousStatus?: string;
+    currentStatus?: string;
+    error?: string;
+  }> {
+    return this.request("/api/vendor/subscription/sync", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
   }
 
   async createBillingPortalSession(
@@ -3810,6 +3831,9 @@ export interface VendorEligibility {
   canPublishProducts: boolean;
   canPublishServices: boolean;
   currentStep?: string;
+  subscriptionStatus?: string;
+  hasActiveSubscription?: boolean;
+  subscriptionTier?: string | null;
 }
 
 export interface SubscriptionTier {
