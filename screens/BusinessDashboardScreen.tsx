@@ -1389,6 +1389,14 @@ export default function BusinessDashboardScreen() {
     }
   };
 
+  const formatPriceFromCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const getPriceInCents = (item: any): number => {
+    const rawPrice = item?.priceCents ?? item?.price ?? item?.amount ?? 0;
+    const numericPrice = Number(rawPrice);
+    return Number.isFinite(numericPrice) ? numericPrice : 0;
+  };
+
   const renderOrdersTab = () => {
     if (orders.length === 0) {
       return (
@@ -1425,7 +1433,7 @@ export default function BusinessDashboardScreen() {
           <View style={styles.orderItems}>
             {order.items.slice(0, 2).map((item: any, i: number) => (
               <Text key={i} style={styles.orderItem}>
-                {item.quantity}x {item.name} - ${item.price}
+                {item.quantity}x {item.name} - {formatPriceFromCents(getPriceInCents(item))}
               </Text>
             ))}
             {order.items.length > 2 && (
@@ -1591,7 +1599,7 @@ export default function BusinessDashboardScreen() {
       <View key={product.id} style={styles.productCard}>
         <View style={styles.productHeader}>
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.productPrice}>${product.price}</Text>
+          <Text style={styles.productPrice}>{formatPriceFromCents(getPriceInCents(product))}</Text>
         </View>
         <Text style={styles.productDescription}>{product.description}</Text>
         <Text style={styles.productInventory}>In stock: {product.inventory}</Text>
@@ -1616,7 +1624,7 @@ export default function BusinessDashboardScreen() {
       <View key={service.id} style={styles.serviceCard}>
         <View style={styles.serviceHeader}>
           <Text style={styles.serviceName}>{service.name}</Text>
-          <Text style={styles.servicePrice}>${service.price}</Text>
+          <Text style={styles.servicePrice}>{formatPriceFromCents(getPriceInCents(service))}</Text>
         </View>
         <Text style={styles.serviceDescription}>{service.description}</Text>
         <Text style={styles.serviceDuration}>{service.duration} minutes</Text>
