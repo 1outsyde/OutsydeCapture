@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -198,7 +198,11 @@ export default function StorefrontEditorScreen() {
         setCoverMediaType(biz.coverImage ? "image" : null);
       }
       setLogoImage(biz.logoImage || "");
-      const brandColors = biz.brandColors ? JSON.parse(biz.brandColors) : {};
+      const brandColors = biz.brandColors
+        ? (typeof biz.brandColors === "string"
+            ? JSON.parse(biz.brandColors)
+            : biz.brandColors)
+        : {};
       setPrimaryColor(brandColors.primary || "#eab308");
 
       setProfileName(biz.name || "");
@@ -226,10 +230,6 @@ export default function StorefrontEditorScreen() {
       setLoading(false);
     }
   }, [getToken]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -595,7 +595,7 @@ export default function StorefrontEditorScreen() {
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: 16,
-      paddingTop: insets.top + 8,
+      paddingTop: insets.top + 4,
       paddingBottom: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
@@ -908,7 +908,7 @@ export default function StorefrontEditorScreen() {
     },
     approvalBanner: {
       paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingVertical: 8,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
@@ -999,9 +999,8 @@ export default function StorefrontEditorScreen() {
   }
 
   const renderBrandingTab = () => (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.section}>
-        <View style={styles.card}>
+    <View style={styles.section}>
+      <View style={styles.card}>
           <Text style={styles.cardTitle}>Cover Media</Text>
           <Text style={styles.cardDesc}>Upload an image or video banner for your storefront</Text>
           <MediaUploader
@@ -1029,9 +1028,9 @@ export default function StorefrontEditorScreen() {
             maxVideoDuration={15}
             placeholder="Upload cover image"
           />
-        </View>
+      </View>
 
-        <View style={styles.card}>
+      <View style={styles.card}>
           <Text style={styles.cardTitle}>Logo</Text>
           <Text style={styles.cardDesc}>Your business logo appears on cards and your storefront</Text>
           <View style={{ alignItems: "center" }}>
@@ -1043,9 +1042,9 @@ export default function StorefrontEditorScreen() {
               placeholder="Upload Logo"
             />
           </View>
-        </View>
+      </View>
 
-        <View style={styles.card}>
+      <View style={styles.card}>
           <Text style={styles.cardTitle}>Brand Color</Text>
           <Text style={styles.cardDesc}>Choose a color that represents your brand</Text>
           <View style={styles.colorGrid}>
@@ -1063,27 +1062,25 @@ export default function StorefrontEditorScreen() {
           </View>
           <Text style={styles.inputLabel}>Preview</Text>
           <View style={[styles.colorPreview, { backgroundColor: primaryColor }]} />
-        </View>
-
-        <Pressable
-          style={[styles.saveButton, saving && { opacity: 0.6 }]}
-          onPress={handleSaveBranding}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Branding</Text>
-          )}
-        </Pressable>
       </View>
-    </ScrollView>
+
+      <Pressable
+        style={[styles.saveButton, saving && { opacity: 0.6 }]}
+        onPress={handleSaveBranding}
+        disabled={saving}
+      >
+        {saving ? (
+          <ActivityIndicator color="#000" />
+        ) : (
+          <Text style={styles.saveButtonText}>Save Branding</Text>
+        )}
+      </Pressable>
+    </View>
   );
 
   const renderProfileTab = () => (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.section}>
-        <View style={styles.card}>
+    <View style={styles.section}>
+      <View style={styles.card}>
           <Text style={styles.cardTitle}>Business Info</Text>
           <Text style={styles.inputLabel}>Business Name</Text>
           <TextInput
@@ -1110,9 +1107,9 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.textSecondary}
             multiline
           />
-        </View>
+      </View>
 
-        <View style={styles.card}>
+      <View style={styles.card}>
           <Text style={styles.cardTitle}>Known For</Text>
           <Text style={styles.cardDesc}>Select what your business is known for</Text>
           <View style={styles.specialtyGrid}>
@@ -1137,9 +1134,9 @@ export default function StorefrontEditorScreen() {
               );
             })}
           </View>
-        </View>
+      </View>
 
-        <View style={styles.card}>
+      <View style={styles.card}>
           <Text style={styles.cardTitle}>Contact Info</Text>
           <Text style={styles.inputLabel}>Email</Text>
           <TextInput
@@ -1169,9 +1166,9 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
           />
-        </View>
+      </View>
 
-        <View style={styles.card}>
+      <View style={styles.card}>
           <Text style={styles.cardTitle}>Location</Text>
           <Text style={styles.inputLabel}>Address</Text>
           <TextInput
@@ -1212,150 +1209,143 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.textSecondary}
             keyboardType="number-pad"
           />
-        </View>
-
-        <Pressable
-          style={[styles.saveButton, saving && { opacity: 0.6 }]}
-          onPress={handleSaveProfile}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Profile</Text>
-          )}
-        </Pressable>
       </View>
-    </ScrollView>
+
+      <Pressable
+        style={[styles.saveButton, saving && { opacity: 0.6 }]}
+        onPress={handleSaveProfile}
+        disabled={saving}
+      >
+        {saving ? (
+          <ActivityIndicator color="#000" />
+        ) : (
+          <Text style={styles.saveButtonText}>Save Profile</Text>
+        )}
+      </Pressable>
+    </View>
   );
 
   const renderHoursTab = () => (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.section}>
-        <HoursEditor
-          title="Business Hours"
-          hours={hours}
-          onChange={setHours}
-          onSave={handleSaveHours}
-          isSaving={saving}
-        />
-      </View>
-    </ScrollView>
+    <View style={styles.section}>
+      <HoursEditor
+        title="Business Hours"
+        hours={hours}
+        onChange={setHours}
+        onSave={handleSaveHours}
+        isSaving={saving}
+      />
+    </View>
   );
 
   const renderProductsTab = () => (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.section}>
-        <Pressable style={styles.addButton} onPress={() => openProductForm()}>
-          <Feather name="plus" size={20} color="#000" />
-          <Text style={styles.addButtonText}>Add Product</Text>
-        </Pressable>
+    <View style={styles.section}>
+      <Pressable style={styles.addButton} onPress={() => openProductForm()}>
+        <Feather name="plus" size={20} color="#000" />
+        <Text style={styles.addButtonText}>Add Product</Text>
+      </Pressable>
 
-        {products.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Feather name="package" size={48} color={theme.textSecondary} />
-            <Text style={styles.emptyText}>No products yet</Text>
-          </View>
-        ) : (
-          products.map((product) => (
-            <View key={product.id} style={styles.productCard}>
-              {product.imageUrl ? (
-                <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
-              ) : (
-                <View style={[styles.productImage, { justifyContent: "center", alignItems: "center" }]}>
-                  <Feather name="image" size={24} color={theme.textSecondary} />
-                </View>
-              )}
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{product.name}</Text>
-                <Text style={styles.productPrice}>{formatPrice(product.priceCents)}</Text>
-                <View style={styles.productMeta}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(product.status) + "20" }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(product.status) }]}>
-                      {getStatusLabel(product.status)}
-                    </Text>
-                  </View>
-                  {product.inventory !== null && (
-                    <Text style={styles.serviceDetailText}>Stock: {product.inventory}</Text>
-                  )}
-                </View>
-                {getStatusExplanation(product.status) && (
-                  <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
-                    {getStatusExplanation(product.status)}
+      {products.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="package" size={48} color={theme.textSecondary} />
+          <Text style={styles.emptyText}>No products yet</Text>
+        </View>
+      ) : (
+        products.map((product) => (
+          <View key={product.id} style={styles.productCard}>
+            {product.imageUrl ? (
+              <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
+            ) : (
+              <View style={[styles.productImage, { justifyContent: "center", alignItems: "center" }]}>
+                <Feather name="image" size={24} color={theme.textSecondary} />
+              </View>
+            )}
+            <View style={styles.productInfo}>
+              <Text style={styles.productName}>{product.name}</Text>
+              <Text style={styles.productPrice}>{formatPrice(product.priceCents)}</Text>
+              <View style={styles.productMeta}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(product.status) + "20" }]}>
+                  <Text style={[styles.statusText, { color: getStatusColor(product.status) }]}>
+                    {getStatusLabel(product.status)}
                   </Text>
+                </View>
+                {product.inventory !== null && (
+                  <Text style={styles.serviceDetailText}>Stock: {product.inventory}</Text>
                 )}
-                <View style={styles.productActions}>
-                  <Pressable style={styles.actionButton} onPress={() => openProductForm(product)}>
-                    <Feather name="edit-2" size={16} color={theme.text} />
-                  </Pressable>
-                  <Pressable style={styles.actionButton} onPress={() => handleDeleteProduct(product.id)}>
-                    <Feather name="trash-2" size={16} color="#ef4444" />
-                  </Pressable>
-                </View>
               </View>
-            </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
-  );
-
-  const renderServicesTab = () => (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.section}>
-        <Pressable style={styles.addButton} onPress={() => openServiceForm()}>
-          <Feather name="plus" size={20} color="#000" />
-          <Text style={styles.addButtonText}>Add Service</Text>
-        </Pressable>
-
-        {services.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Feather name="clock" size={48} color={theme.textSecondary} />
-            <Text style={styles.emptyText}>No services yet</Text>
-          </View>
-        ) : (
-          services.map((service) => (
-            <View key={service.id} style={styles.serviceCard}>
-              <View style={styles.serviceHeader}>
-                <Text style={styles.serviceName}>{service.name}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(service.status) + "20" }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(service.status) }]}>
-                    {getStatusLabel(service.status)}
-                  </Text>
-                </View>
-              </View>
-              {getStatusExplanation(service.status) && (
-                <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4, marginBottom: 4 }}>
-                  {getStatusExplanation(service.status)}
+              {getStatusExplanation(product.status) && (
+                <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                  {getStatusExplanation(product.status)}
                 </Text>
               )}
-              <View style={styles.serviceDetails}>
-                <View style={styles.serviceDetail}>
-                  <Feather name="dollar-sign" size={14} color={theme.primary} />
-                  <Text style={[styles.serviceDetailText, { color: theme.primary }]}>
-                    {formatPrice(service.priceCents)}
-                  </Text>
-                </View>
-                {service.durationMinutes && (
-                  <View style={styles.serviceDetail}>
-                    <Feather name="clock" size={14} color={theme.textSecondary} />
-                    <Text style={styles.serviceDetailText}>{service.durationMinutes} min</Text>
-                  </View>
-                )}
-              </View>
               <View style={styles.productActions}>
-                <Pressable style={styles.actionButton} onPress={() => openServiceForm(service)}>
+                <Pressable style={styles.actionButton} onPress={() => openProductForm(product)}>
                   <Feather name="edit-2" size={16} color={theme.text} />
                 </Pressable>
-                <Pressable style={styles.actionButton} onPress={() => handleDeleteService(service.id)}>
+                <Pressable style={styles.actionButton} onPress={() => handleDeleteProduct(product.id)}>
                   <Feather name="trash-2" size={16} color="#ef4444" />
                 </Pressable>
               </View>
             </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
+          </View>
+        ))
+      )}
+    </View>
+  );
+
+  const renderServicesTab = () => (
+    <View style={styles.section}>
+      <Pressable style={styles.addButton} onPress={() => openServiceForm()}>
+        <Feather name="plus" size={20} color="#000" />
+        <Text style={styles.addButtonText}>Add Service</Text>
+      </Pressable>
+
+      {services.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="clock" size={48} color={theme.textSecondary} />
+          <Text style={styles.emptyText}>No services yet</Text>
+        </View>
+      ) : (
+        services.map((service) => (
+          <View key={service.id} style={styles.serviceCard}>
+            <View style={styles.serviceHeader}>
+              <Text style={styles.serviceName}>{service.name}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(service.status) + "20" }]}>
+                <Text style={[styles.statusText, { color: getStatusColor(service.status) }]}>
+                  {getStatusLabel(service.status)}
+                </Text>
+              </View>
+            </View>
+            {getStatusExplanation(service.status) && (
+              <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4, marginBottom: 4 }}>
+                {getStatusExplanation(service.status)}
+              </Text>
+            )}
+            <View style={styles.serviceDetails}>
+              <View style={styles.serviceDetail}>
+                <Feather name="dollar-sign" size={14} color={theme.primary} />
+                <Text style={[styles.serviceDetailText, { color: theme.primary }]}>
+                  {formatPrice(service.priceCents)}
+                </Text>
+              </View>
+              {service.durationMinutes && (
+                <View style={styles.serviceDetail}>
+                  <Feather name="clock" size={14} color={theme.textSecondary} />
+                  <Text style={styles.serviceDetailText}>{service.durationMinutes} min</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.productActions}>
+              <Pressable style={styles.actionButton} onPress={() => openServiceForm(service)}>
+                <Feather name="edit-2" size={16} color={theme.text} />
+              </Pressable>
+              <Pressable style={styles.actionButton} onPress={() => handleDeleteService(service.id)}>
+                <Feather name="trash-2" size={16} color="#ef4444" />
+              </Pressable>
+            </View>
+          </View>
+        ))
+      )}
+    </View>
   );
 
   const renderProductModal = () => {
@@ -1717,30 +1707,36 @@ export default function StorefrontEditorScreen() {
 
       {renderApprovalBanner()}
 
-      <View style={styles.tabContainer}>
-        {tabs.map((tab) => (
-          <Pressable
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-          >
-            <Feather
-              name={tab.icon}
-              size={18}
-              color={activeTab === tab.key ? "#000" : theme.textSecondary}
-            />
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.tabContainer}>
+          {tabs.map((tab) => (
+            <Pressable
+              key={tab.key}
+              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Feather
+                name={tab.icon}
+                size={18}
+                color={activeTab === tab.key ? "#000" : theme.textSecondary}
+              />
+              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
-      {activeTab === "branding" && renderBrandingTab()}
-      {activeTab === "profile" && renderProfileTab()}
-      {activeTab === "hours" && renderHoursTab()}
-      {activeTab === "products" && renderProductsTab()}
-      {activeTab === "services" && renderServicesTab()}
+        {activeTab === "branding" && renderBrandingTab()}
+        {activeTab === "profile" && renderProfileTab()}
+        {activeTab === "hours" && renderHoursTab()}
+        {activeTab === "products" && renderProductsTab()}
+        {activeTab === "services" && renderServicesTab()}
+      </ScrollView>
 
       {renderProductModal()}
       {renderServiceModal()}
