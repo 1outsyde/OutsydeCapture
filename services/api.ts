@@ -1117,7 +1117,7 @@ class ApiService {
     };
     
     // Log the final request for debugging
-    console.log(`[API] ${options?.method || 'GET'} ${endpoint}`, options?.body ? `Body: ${options.body}` : '');
+    console.log(`[API] ${options?.method || 'GET'} ${url}`, options?.body ? `Body: ${options.body}` : '');
     
     // Set up timeout with AbortController (default 30s, longer for signup/auth)
     const timeoutMs = options?.timeout || 30000;
@@ -1138,7 +1138,7 @@ class ApiService {
           'access-control-allow-credentials': response.headers.get('access-control-allow-credentials'),
           'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
         };
-        console.log(`[API] Response ${response.status} ${endpoint}`, corsHeaders);
+        console.log(`[API] Response ${response.status} ${url}`, corsHeaders);
         
         // Extra logging for 401 errors
         if (response.status === 401) {
@@ -3525,10 +3525,31 @@ class ApiService {
     });
   }
 
+  private normalizeVendorEligibility(response: any): VendorEligibility {
+    const payload =
+      response?.eligibility ??
+      response?.data?.eligibility ??
+      response?.data ??
+      response;
+
+    return {
+      requiresApproval: Boolean(payload?.requiresApproval),
+      requiresPlanSelection: Boolean(payload?.requiresPlanSelection),
+      requiresOnboarding: Boolean(payload?.requiresOnboarding),
+      requiresSubscription: Boolean(payload?.requiresSubscription),
+      canPublishProducts: Boolean(payload?.canPublishProducts),
+      canPublishServices: Boolean(payload?.canPublishServices),
+      ...(typeof payload?.currentStep === "string" ? { currentStep: payload.currentStep } : {}),
+    };
+  }
+
   async getVendorEligibility(authToken: string): Promise<VendorEligibility> {
-    return this.request<VendorEligibility>("/api/vendor/eligibility", {
+    const endpoint = "/api/vendor/eligibility";
+    const response = await this.request<any>(endpoint, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    console.log("ELIGIBILITY RESPONSE:", JSON.stringify(response, null, 2));
+    return this.normalizeVendorEligibility(response);
   }
 
   async getSubscriptionTiers(authToken: string): Promise<{ tiers: SubscriptionTier[] }> {

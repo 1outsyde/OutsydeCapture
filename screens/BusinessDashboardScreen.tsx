@@ -297,23 +297,27 @@ export default function BusinessDashboardScreen() {
     try {
       setRoutingFromEligibility(true);
       const latestEligibility = await api.getVendorEligibility(token);
+      console.log("ELIGIBILITY RESPONSE:", JSON.stringify(latestEligibility, null, 2));
       setEligibility(latestEligibility);
 
-      if (latestEligibility.requiresPlanSelection) {
+      if (latestEligibility.requiresPlanSelection || latestEligibility.requiresSubscription) {
         navigation.navigate("SubscriptionPlan");
         return;
       }
 
       if (latestEligibility.requiresOnboarding) {
-        (navigation as any).navigate("StripeOnboarding");
+        navigation.navigate("BusinessOnboarding");
         return;
       }
 
-      if (latestEligibility.canPublishProducts) {
-        (navigation as any).navigate("Products");
+      if (latestEligibility.canPublishProducts || latestEligibility.canPublishServices) {
+        navigation.navigate("StorefrontEditor");
+        return;
       }
+
+      navigation.navigate("StorefrontEditor");
     } catch (error) {
-      console.warn("[Dashboard] Failed to route from eligibility:", error);
+      console.error("ELIGIBILITY ERROR:", error);
     } finally {
       setRoutingFromEligibility(false);
     }
