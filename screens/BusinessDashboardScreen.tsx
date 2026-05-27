@@ -287,6 +287,38 @@ export default function BusinessDashboardScreen() {
     }
   }, [getToken, activeTab, profile?.id]);
 
+  const handleGetStartedPress = useCallback(async () => {
+    const token = await getToken();
+    if (!token) {
+      setAuthError("Please sign in to continue setup");
+      return;
+    }
+
+    try {
+      setRoutingFromEligibility(true);
+      const latestEligibility = await api.getVendorEligibility(token);
+      setEligibility(latestEligibility);
+
+      if (latestEligibility.requiresPlanSelection) {
+        navigation.navigate("SubscriptionPlan");
+        return;
+      }
+
+      if (latestEligibility.requiresOnboarding) {
+        (navigation as any).navigate("StripeOnboarding");
+        return;
+      }
+
+      if (latestEligibility.canPublishProducts) {
+        (navigation as any).navigate("Products");
+      }
+    } catch (error) {
+      console.warn("[Dashboard] Failed to route from eligibility:", error);
+    } finally {
+      setRoutingFromEligibility(false);
+    }
+  }, [getToken, navigation]);
+
   useEffect(() => {
     if (authLoading) return;
     
@@ -1891,38 +1923,6 @@ export default function BusinessDashboardScreen() {
       navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
     }
   };
-
-  const handleGetStartedPress = useCallback(async () => {
-    const token = await getToken();
-    if (!token) {
-      setAuthError("Please sign in to continue setup");
-      return;
-    }
-
-    try {
-      setRoutingFromEligibility(true);
-      const latestEligibility = await api.getVendorEligibility(token);
-      setEligibility(latestEligibility);
-
-      if (latestEligibility.requiresPlanSelection) {
-        navigation.navigate("SubscriptionPlan");
-        return;
-      }
-
-      if (latestEligibility.requiresOnboarding) {
-        (navigation as any).navigate("StripeOnboarding");
-        return;
-      }
-
-      if (latestEligibility.canPublishProducts) {
-        (navigation as any).navigate("Products");
-      }
-    } catch (error) {
-      console.warn("[Dashboard] Failed to route from eligibility:", error);
-    } finally {
-      setRoutingFromEligibility(false);
-    }
-  }, [getToken, navigation]);
 
   const locationDisplay =
     [profile?.city, profile?.state].filter(Boolean).join(", ") || "Location not set";
