@@ -737,6 +737,7 @@ export interface BusinessDashboardProfile {
   website?: string;
   stripeConnected: boolean;
   businessType: "service" | "product" | "both";
+  brandColor?: string;
   autoAcceptBookings?: boolean; // Auto-accept new bookings without manual approval
 }
 

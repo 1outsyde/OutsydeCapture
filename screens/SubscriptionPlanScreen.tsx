@@ -88,6 +88,7 @@ export default function SubscriptionPlanScreen() {
   const [tiersFetchError, setTiersFetchError] = useState<string | null>(null);
   const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
   const [subscribeSuccess, setSubscribeSuccess] = useState(false);
+  const [businessData, setBusinessData] = useState<any | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const wasSubscribingRef = useRef(false);
   const prevSubscriptionRef = useRef<CurrentSubscription | null>(null);
@@ -97,9 +98,14 @@ export default function SubscriptionPlanScreen() {
     (typeof err?.message === "string" &&
       err.message.toLowerCase().includes("monetization"));
 
-  const isActive = eligibility
-    ? eligibility.canPublishProducts || eligibility.canPublishServices
-    : subscriptionStatus === "active";
+  const hasActiveSubscription =
+    String(businessData?.subscriptionStatus || "").toLowerCase() === "active" ||
+    businessData?.hasActiveSubscription === true ||
+    businessData?.subscriptionTier != null;
+
+  const isActive =
+    hasActiveSubscription ||
+    Boolean(eligibility?.canPublishProducts || eligibility?.canPublishServices);
 
   const fetchData = useCallback(async () => {
     setTiersFetchError(null);
@@ -151,6 +157,7 @@ export default function SubscriptionPlanScreen() {
 
       if (bizRes.status === "fulfilled") {
         const biz = bizRes.value.business as any;
+        setBusinessData(biz || null);
         setSubscriptionStatus(biz?.subscriptionStatus || null);
         setCurrentTierName(biz?.subscriptionTier || null);
       }
@@ -332,12 +339,20 @@ export default function SubscriptionPlanScreen() {
   };
 
   const renderNoSubscriptionBanner = () => {
-    if (isActive) return null;
+    if (hasActiveSubscription) return null;
     return (
-      <View style={[styles.warningBanner, { backgroundColor: `${theme.error}18`, borderColor: `${theme.error}40` }]}>
-        <Feather name="lock" size={18} color={theme.error} />
-        <Text style={[styles.warningText, { color: theme.error }]}>
-          Publishing products and services requires an active subscription. Choose a plan below.
+      <View
+        style={{
+          backgroundColor: "#2A1F00",
+          borderLeftWidth: 3,
+          borderLeftColor: "#C9933A",
+          borderRadius: 10,
+          padding: 14,
+          marginBottom: 16,
+        }}
+      >
+        <Text style={{ color: "#F0EAD6", fontSize: 14, lineHeight: 20 }}>
+          ⚡ Pick a plan below to publish your listings and go live on Outsyde.
         </Text>
       </View>
     );

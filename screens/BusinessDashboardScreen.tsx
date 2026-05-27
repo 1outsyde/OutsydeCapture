@@ -174,6 +174,18 @@ export default function BusinessDashboardScreen() {
         website: business.websiteUrl || undefined,
         stripeConnected: business.stripeOnboardingComplete || false,
         businessType: businessTypeValue,
+        brandColor:
+          ((business as any).brandColor as string | undefined) ||
+          ((business as any).primaryColor as string | undefined) ||
+          (() => {
+            if (!business.brandColors) return undefined;
+            try {
+              const parsedBrandColors = JSON.parse(business.brandColors);
+              return typeof parsedBrandColors?.primary === "string" ? parsedBrandColors.primary : undefined;
+            } catch {
+              return undefined;
+            }
+          })(),
         autoAcceptBookings: (business as any).autoAcceptBookings ?? false,
       });
       setAutoAcceptBookings((business as any).autoAcceptBookings ?? false);
@@ -658,12 +670,7 @@ export default function BusinessDashboardScreen() {
       color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
-    backButton: {
-      padding: 8,
-      marginRight: 8,
-    },
     tierBadge: {
-      backgroundColor: DASHBOARD_COLORS.gold,
       borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 6,
@@ -708,12 +715,18 @@ export default function BusinessDashboardScreen() {
       color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
-    setupLink: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: DASHBOARD_COLORS.gold,
+    setupButton: {
+      backgroundColor: DASHBOARD_COLORS.gold,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       alignSelf: "flex-end",
       marginTop: 12,
+    },
+    setupButtonText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: DASHBOARD_COLORS.background,
     },
     statsRow: {
       paddingHorizontal: 16,
@@ -1920,14 +1933,7 @@ export default function BusinessDashboardScreen() {
 
   const availableTabs = getAvailableTabs();
 
-  const handleGoBack = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
-    }
-  };
-
+  const accentColor = profile?.brandColor || DASHBOARD_COLORS.gold;
   const locationDisplay =
     [profile?.city, profile?.state].filter(Boolean).join(", ") || "Location not set";
   const rawTier = String(
@@ -1945,20 +1951,17 @@ export default function BusinessDashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
     >
       <View style={styles.header}>
-        <Pressable onPress={handleGoBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color={DASHBOARD_COLORS.cream} />
-        </Pressable>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>{profile?.name || "Business"}</Text>
           <Text style={styles.headerSubtitle}>{locationDisplay}</Text>
         </View>
-        <View style={styles.tierBadge}>
+        <View style={[styles.tierBadge, { backgroundColor: accentColor }]}>
           <Text style={styles.tierBadgeText}>{tierLabel}</Text>
         </View>
       </View>
 
       {eligibility && !eligibility.canPublishProducts && !eligibility.canPublishServices && !eligibility.requiresApproval && (
-        <View style={styles.stripeCard}>
+        <View style={[styles.stripeCard, { borderLeftColor: accentColor }]}>
           <View style={styles.stripeIcon}>
             <Feather name="alert-circle" size={20} color={DASHBOARD_COLORS.gold} />
           </View>
@@ -1967,9 +1970,14 @@ export default function BusinessDashboardScreen() {
             <Text style={styles.stripeDescription}>
               Add your first product or service to go live
             </Text>
-            <Text style={styles.setupLink} onPress={routingFromEligibility ? undefined : handleGetStartedPress}>
-              {routingFromEligibility ? "Checking setup..." : "Get Started →"}
-            </Text>
+            <Pressable
+              style={[styles.setupButton, { backgroundColor: accentColor }]}
+              onPress={routingFromEligibility ? undefined : handleGetStartedPress}
+            >
+              <Text style={styles.setupButtonText}>
+                {routingFromEligibility ? "Checking setup..." : "Get Started →"}
+              </Text>
+            </Pressable>
           </View>
         </View>
       )}
@@ -2020,7 +2028,7 @@ export default function BusinessDashboardScreen() {
       {(businessType === "service" || businessType === "both") && (
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
           <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderAccent} />
+            <View style={[styles.sectionHeaderAccent, { backgroundColor: accentColor }]} />
             <Text style={styles.sectionHeaderText}>BOOKING SETTINGS</Text>
           </View>
           <View style={styles.autoAcceptCard}>
@@ -2055,7 +2063,7 @@ export default function BusinessDashboardScreen() {
       {(businessType === "service" || businessType === "both") && (
         <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
           <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderAccent} />
+            <View style={[styles.sectionHeaderAccent, { backgroundColor: accentColor }]} />
             <Text style={styles.sectionHeaderText}>CALENDAR</Text>
           </View>
           <ProviderCalendar

@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -89,24 +89,26 @@ export default function StorefrontEditorScreen() {
   const [profileZip, setProfileZip] = useState("");
 
   const approvalStatus = business?.approvalStatus || "pending";
+  const normalizedApprovalStatus = String(approvalStatus || "").toLowerCase();
+  const isApproved = normalizedApprovalStatus === "approved";
+  const stripeConnected = Boolean(business?.stripeOnboardingComplete || business?.stripeAccountId);
+  const hasActiveSubscription = Boolean(
+    business?.subscriptionActive === true ||
+    String(business?.subscriptionStatus || "").toLowerCase() === "active" ||
+    (business as any)?.subscriptionTier != null
+  );
+  const canPublishFromRequirements = isApproved && stripeConnected && hasActiveSubscription;
+  const canPublishFromEligibility = eligibility
+    ? (Boolean(eligibility.canPublishProducts || eligibility.canPublishServices) ||
+      (!eligibility.requiresApproval && !eligibility.requiresOnboarding && !eligibility.requiresSubscription))
+    : false;
 
-  const canPublishProducts = eligibility
-    ? Boolean(eligibility.canPublishProducts)
-    : Boolean(
-        business?.stripeOnboardingComplete &&
-        business?.subscriptionActive &&
-        approvalStatus === "approved"
-      );
+  const canPublishProducts = eligibility ? canPublishFromEligibility : canPublishFromRequirements;
 
-  const canPublishServices = eligibility
-    ? Boolean(eligibility.canPublishServices)
-    : Boolean(
-        business?.stripeOnboardingComplete &&
-        business?.subscriptionActive &&
-        approvalStatus === "approved"
-      );
+  const canPublishServices = eligibility ? canPublishFromEligibility : canPublishFromRequirements;
 
   const canPublish = canPublishProducts || canPublishServices;
+  const accentColor = primaryColor || "#C9933A";
 
   const getPublishBlockerMessage = (errorBody?: Record<string, any>): string => {
     const reasons: string[] = [];
@@ -228,6 +230,12 @@ export default function StorefrontEditorScreen() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -585,31 +593,29 @@ export default function StorefrontEditorScreen() {
     header: {
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "space-between",
       paddingHorizontal: 16,
       paddingTop: insets.top + 8,
       paddingBottom: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
-    backButton: {
-      padding: 8,
-      marginRight: 8,
-    },
     headerTitle: {
       flex: 1,
-      fontSize: 20,
+      fontSize: 18,
       fontWeight: "700",
-      color: theme.text,
+      color: "#FFFFFF",
     },
     categoryBadge: {
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: "#2A2A2A",
       paddingHorizontal: 12,
       paddingVertical: 4,
       borderRadius: 12,
+      marginLeft: 8,
     },
     categoryText: {
       fontSize: 12,
-      color: theme.textSecondary,
+      color: "#F0EAD6",
     },
     tabContainer: {
       flexDirection: "row",
@@ -626,7 +632,7 @@ export default function StorefrontEditorScreen() {
       marginHorizontal: 2,
     },
     tabActive: {
-      backgroundColor: theme.primary,
+      backgroundColor: accentColor,
     },
     tabText: {
       fontSize: 11,
@@ -753,7 +759,7 @@ export default function StorefrontEditorScreen() {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.primary,
+      backgroundColor: accentColor,
       paddingVertical: 12,
       borderRadius: 10,
       gap: 8,
@@ -906,6 +912,8 @@ export default function StorefrontEditorScreen() {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
+      borderLeftWidth: 3,
+      borderLeftColor: accentColor,
     },
     approvalBannerIcon: {
       width: 36,
@@ -1350,7 +1358,16 @@ export default function StorefrontEditorScreen() {
     </ScrollView>
   );
 
-  const renderProductModal = () => (
+  const renderProductModal = () => {
+    if (productModalVisible) {
+      console.log("PUBLISH CHECK:", {
+        isApproved,
+        stripeConnected,
+        hasActiveSubscription,
+      });
+    }
+
+    return (
     <Modal visible={productModalVisible} animationType="slide">
       <View style={styles.modal}>
         <View style={styles.modalHeader}>
@@ -1472,7 +1489,8 @@ export default function StorefrontEditorScreen() {
         </ScrollView>
       </View>
     </Modal>
-  );
+    );
+  };
 
   const renderServiceModal = () => (
     <Modal visible={serviceModalVisible} animationType="slide">
@@ -1691,10 +1709,7 @@ export default function StorefrontEditorScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Feather name="arrow-left" size={24} color={theme.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Customize Storefront</Text>
+        <Text style={styles.headerTitle}>{business.name || "Business"}</Text>
         <View style={styles.categoryBadge}>
           <Text style={styles.categoryText}>{business.category || "Business"}</Text>
         </View>
