@@ -1,4065 +1,1934 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+// ─── OUTSYDE — PROFILE SCREEN (REDESIGNED) ───────────────────
+// Role-aware: Business | Photographer | Consumer
+// View-aware: Own profile (AccountScreen) | External (VendorDetail)
+// Brand colors: Business uses brandColors.primary override
+// TODO: Wire follow/unfollow to API
+// TODO: Wire review submit to POST /reviews endpoint
+// TODO: Wire booking modal to existing booking flow screen
+// ─────────────────────────────────────────────────────────────
+
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
-  StyleSheet,
-  View,
-  ScrollView,
-  Pressable,
-  Dimensions,
-  ActivityIndicator,
-  Modal,
-  TextInput,
   Alert,
+  Animated,
+  Dimensions,
+  Pressable,
   Share,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import * as Clipboard from "expo-clipboard";
-import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
-import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { useVideoPlayer, VideoView } from "expo-video";
 
-import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import { Button } from "@/components/Button";
+import { RootStackParamList } from "@/navigation/types";
+import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
-import BookingFlow from "@/components/BookingFlow";
+import apiClient, {
+  ApiPost,
+  VendorProduct,
+  VendorService,
+  VendorBookerPhotographerService,
+  WeeklyAvailabilitySlot,
+} from "@/services/api";
 
-interface PhotographerService {
+const COLORS = {
+  black: "#0A0A0A",
+  gold: "#E8B930",
+  goldDim: "#C9A84C",
+  cream: "#F5F0E6",
+  emerald: "#1A3C34",
+  gray: "#2A2A2A",
+  grayMid: "#555555",
+  grayLight: "#999999",
+  white: "#FFFFFF",
+};
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const HERO_HEIGHT = 300;
+const HORIZONTAL_PADDING = 20;
+
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
+type ProfileRole = "business" | "photographer" | "consumer";
+type ProfileTab =
+  | "posts"
+  | "shop"
+  | "booking"
+  | "availability"
+  | "saved"
+  | "reviews"
+  | "about";
+
+type ProfileData = {
+  id: string;
+  userId?: string;
+  role: ProfileRole;
+  name: string;
+  handle: string;
+  avatarUrl?: string;
+  coverMediaUrl?: string;
+  coverMediaType?: "image" | "video";
+  city?: string;
+  state?: string;
+  location?: string;
+  bio?: string;
+  tagline?: string;
+  rating: number;
+  reviewCount: number;
+  followerCount: number;
+  followingCount: number;
+  bookingsCount: number;
+  shootsCount: number;
+  postsCount: number;
+  isVerified: boolean;
+  subscriptionTier?: string;
+  brandColors?: { primary?: string; accent?: string } | null;
+  hasProducts: boolean;
+  hasServices: boolean;
+  specialties: string[];
+  hourlyRate?: number;
+  minPrice?: number;
+  responseTime?: string;
+  availabilitySummary?: string;
+  address?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  websiteUrl?: string;
+  hoursOfOperation?: string;
+};
+
+type PostCard = {
+  id: string;
+  label: string;
+  likes: number;
+  mediaUrl?: string;
+  mediaType: "image" | "video";
+  aspect: "portrait" | "square";
+};
+
+type ReviewCard = {
+  id: string;
+  userName: string;
+  rating: number;
+  text: string;
+  createdAt: string;
+};
+
+type ServiceCard = {
   id: string;
   name: string;
   description?: string;
-  price: number;
-  durationMinutes: number;
-  category?: string;
-  isPromo?: boolean;
-  promoPrice?: number;
-  promoEndDate?: string;
-  rating?: number | null;
-  reviewCount?: number | null;
-}
-
-interface PhotographerProfile {
-  id: string;
-  name: string;
-  avatar?: string;
+  priceCents: number;
+  durationMinutes?: number;
   rating?: number;
-  reviewCount?: number;
-  hourlyRate?: number;
-  brandColors?: string | { primary?: string };
-}
-import { useTheme } from "@/hooks/useTheme";
-import { useAuth } from "@/context/AuthContext";
-import { useNotifications } from "@/context/NotificationContext";
-import { Spacing, BorderRadius } from "@/constants/theme";
-import { RootStackParamList } from "@/navigation/types";
-import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
-import { uploadImageToCloudinary, uploadVideoToCloudinary, uploadVideoWithMetadata, getVideoThumbnailUrl } from "@/services/cloudinary";
-import { availabilityEvents } from "@/services/availabilityEvents";
-import { feedEvents } from "@/services/feedEvents";
+};
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const HERO_HEIGHT = 340;
-const AVATAR_SIZE = 100;
-const TAB_HEIGHT = 56;
-const PORTFOLIO_CARD_WIDTH = 160;
-const PORTFOLIO_CARD_HEIGHT = 200;
-
-const FALLBACK_COVER =
-  "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=800";
-
-interface ProfileData {
-  id: string;
-  name: string;
-  avatar?: string;
-  coverImage?: string;
-  coverVideo?: string;
-  city?: string;
-  state?: string;
-  bio?: string;
-  tagline?: string;
-  rating?: number;
-  reviewCount?: number;
-  specialties?: string[];
-  portfolio?: string[];
-  brandColors?: string;
-  subscriptionTier?: string;
-  hourlyRate?: number;
-  stripeOnboardingComplete?: boolean;
-  availability?: { start: string; end: string } | null;
-  address?: string;
-  hoursOfOperation?: any;
-  contactPhone?: string;
-  contactEmail?: string;
-  websiteUrl?: string;
-}
-
-interface PortfolioCategory {
-  name: string;
-  count: number;
-  image: string;
-  rating?: number;
-  reviewCount?: number;
-}
-
-interface FeaturedPost {
-  id: string;
-  imageUri: string;
-  videoUri?: string;
-  caption: string;
-  likes: number;
-  comments: number;
-  createdAt: Date;
-  displayLayout?: "pro" | "pulse";
-  mediaType?: "image" | "video";
-}
-
-const mapApiPostToFeaturedPost = (post: ApiPost): FeaturedPost => ({
-  id: post.id,
-  imageUri: post.imageUrl || (post.images && post.images[0]) || "",
-  // Use videoUrl, fallback to mediaUrl (backend may use either field name)
-  videoUri: post.videoUrl || post.mediaUrl,
-  caption: post.content || "",
-  likes: post.likesCount || 0,
-  comments: post.commentsCount || 0,
-  createdAt: new Date(post.createdAt),
-  // Use displayLayout, fallback to feedSurface (backend may return either)
-  displayLayout: post.displayLayout || post.feedSurface,
-  mediaType: post.mediaType,
-});
-
-// Helper to get thumbnail URI for a post (handles both image and video posts)
-const getPostThumbnailUri = (post: FeaturedPost): string => {
-  const isVideo = post.mediaType === "video" || (post.videoUri && !post.imageUri);
-  
-  if (isVideo && post.videoUri) {
-    // Convert Cloudinary video URL to thumbnail by getting first frame
-    if (post.videoUri.includes("/video/upload/")) {
-      let thumbnailUri = post.videoUri.replace("/video/upload/", "/video/upload/so_0,f_jpg,w_400/");
-      thumbnailUri = thumbnailUri.replace(/\.(mp4|mov|webm)$/i, ".jpg");
-      return thumbnailUri;
+const parseBrandColors = (
+  raw: unknown,
+): { primary?: string; accent?: string } | null => {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as { primary?: unknown; accent?: unknown };
+      return {
+        primary:
+          typeof parsed.primary === "string" ? parsed.primary : undefined,
+        accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
+      };
+    } catch {
+      return null;
     }
-    return post.videoUri;
   }
-  
-  return post.imageUri;
+  if (typeof raw === "object") {
+    const casted = raw as { primary?: unknown; accent?: unknown };
+    return {
+      primary: typeof casted.primary === "string" ? casted.primary : undefined,
+      accent: typeof casted.accent === "string" ? casted.accent : undefined,
+    };
+  }
+  return null;
 };
 
-// Helper to check if a post is a video
-const isVideoPost = (post: FeaturedPost): boolean => {
-  return post.mediaType === "video" || !!(post.videoUri && !post.imageUri);
+const getInitials = (name?: string): string => {
+  if (!name) return "O";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
 };
 
-type ProfileTab = "featured" | "book" | "availability" | "reviews" | "products" | "services";
+const formatMoney = (amount?: number | null): string => {
+  if (amount == null || Number.isNaN(amount)) return "";
+  return `$${Number(amount).toFixed(2).replace(/\.00$/, "")}`;
+};
 
-const PHOTOGRAPHER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
-  { key: "featured", label: "Featured", icon: "star" },
-  { key: "book", label: "Book", icon: "calendar" },
-  { key: "availability", label: "Availability", icon: "clock" },
-  { key: "reviews", label: "Reviews", icon: "message-square" },
-];
+const formatCents = (cents?: number | null): string => {
+  if (cents == null || Number.isNaN(cents)) return "";
+  return formatMoney(cents / 100);
+};
 
-// Business tabs are now computed dynamically based on products/services
+const toPosts = (items: ApiPost[]): PostCard[] =>
+  items.map((item, index) => {
+    const mediaType =
+      item.mediaType === "video" || (!!item.videoUrl && !item.imageUrl)
+        ? "video"
+        : "image";
+    return {
+      id: String(item.id),
+      label: item.content?.trim() || "Outsyde Post",
+      likes: Number(item.likesCount ?? 0),
+      mediaUrl:
+        item.imageUrl ||
+        item.thumbnailUrl ||
+        item.videoUrl ||
+        item.mediaUrl ||
+        item.images?.[0],
+      mediaType,
+      aspect: index % 3 === 0 ? "portrait" : "square",
+    };
+  });
 
-const CONSUMER_TABS: { key: ProfileTab; label: string; icon: string }[] = [
-  { key: "featured", label: "Featured", icon: "star" },
-  { key: "reviews", label: "Reviews", icon: "message-square" },
-];
+const tabsForRole = (profile: ProfileData): ProfileTab[] => {
+  if (profile.role === "business") {
+    if (profile.hasProducts && profile.hasServices)
+      return ["posts", "shop", "booking", "reviews", "about"];
+    if (profile.hasProducts) return ["posts", "shop", "reviews", "about"];
+    if (profile.hasServices) return ["posts", "booking", "reviews", "about"];
+    return ["posts", "reviews", "about"];
+  }
+  if (profile.role === "photographer")
+    return ["posts", "availability", "reviews", "about"];
+  return ["posts", "saved", "reviews"];
+};
 
-// Star Rating Display Component
-const StarRating = ({ rating, reviewCount, size = 12, showCount = true, color = "#FFD700" }: {
-  rating?: number | null;
-  reviewCount?: number | null;
+const scoreToStars = (rating: number): number => {
+  if (!Number.isFinite(rating) || rating <= 0) return 0;
+  return rating > 5 ? Math.round(rating / 10) : Math.round(rating);
+};
+
+const StarRating = ({
+  rating,
+  color,
+  size = 13,
+}: {
+  rating: number;
+  color: string;
   size?: number;
-  showCount?: boolean;
-  color?: string;
 }) => {
-  const { theme } = useTheme();
-  if (rating === undefined || rating === null || rating === 0) return null;
-  
-  const fullStars = Math.floor(rating / 10); // rating is 0-50, so divide by 10 for 0-5 stars
-  const hasHalfStar = (rating % 10) >= 5;
-  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-  const displayRating = (rating / 10).toFixed(1);
-  
+  const stars = scoreToStars(rating);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
-      {[...Array(fullStars)].map((_, i) => (
-        <Feather key={`full-${i}`} name="star" size={size} color={color} style={{ marginRight: 1 }} />
+    <View style={styles.starRow}>
+      {Array.from({ length: 5 }).map((_, idx) => (
+        <Feather
+          key={`star-${idx}`}
+          name="star"
+          size={size}
+          color={idx < stars ? color : COLORS.grayMid}
+        />
       ))}
-      {hasHalfStar && (
-        <View style={{ position: "relative", marginRight: 1 }}>
-          <Feather name="star" size={size} color={theme.textSecondary} />
-          <View style={{ position: "absolute", overflow: "hidden", width: size / 2 }}>
-            <Feather name="star" size={size} color={color} />
-          </View>
-        </View>
-      )}
-      {[...Array(emptyStars)].map((_, i) => (
-        <Feather key={`empty-${i}`} name="star" size={size} color={theme.textSecondary} style={{ marginRight: 1 }} />
-      ))}
-      <ThemedText type="small" style={{ marginLeft: 4, color: theme.textSecondary, fontSize: size }}>
-        {displayRating}
-      </ThemedText>
-      {showCount && reviewCount && reviewCount > 0 && (
-        <ThemedText type="small" style={{ marginLeft: 2, color: theme.textSecondary, fontSize: size }}>
-          ({reviewCount})
-        </ThemedText>
-      )}
     </View>
   );
 };
 
-// Edit Profile Modal Component
-interface EditProfileModalProps {
-  visible: boolean;
-  onClose: () => void;
-  profile: ProfileData | null;
-  user: any;
-  userRole: "consumer" | "photographer" | "business";
-  profileTheme: string;
-  theme: any;
-  isDark: boolean;
-  insets: { top: number; bottom: number };
-  setProfile: React.Dispatch<React.SetStateAction<ProfileData | null>>;
-  refreshUser: () => Promise<void>;
-  updateProfile: (data: any) => Promise<void>;
-  fetchProfile: () => Promise<void>;
-  getToken: () => Promise<string | null>;
-}
+const AvatarWithInitials = ({
+  name,
+  imageUrl,
+  accentColor,
+}: {
+  name: string;
+  imageUrl?: string;
+  accentColor: string;
+}) => (
+  <View style={styles.avatarOuterRing}>
+    <View style={[styles.avatarInnerRing, { borderColor: accentColor }]}>
+      {imageUrl ? (
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.avatarImage}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={[styles.avatarFallback, { backgroundColor: accentColor }]}>
+          <Text style={styles.avatarInitials}>{getInitials(name)}</Text>
+        </View>
+      )}
+    </View>
+    <View style={styles.onlineDot} />
+  </View>
+);
 
-function EditProfileModal({
-  visible,
-  onClose,
+const CoverMediaHero = ({
   profile,
-  user,
-  userRole,
-  profileTheme,
-  theme,
-  isDark,
-  insets,
-  setProfile,
-  refreshUser,
-  updateProfile,
-  fetchProfile,
-  getToken,
-}: EditProfileModalProps) {
-  const [editDisplayName, setEditDisplayName] = useState(user?.displayName || user?.firstName || "");
-  const [editUsername, setEditUsername] = useState(user?.username || "");
-  const [pendingAvatarUri, setPendingAvatarUri] = useState<string | null>(null);
-  const [pendingBannerUri, setPendingBannerUri] = useState<string | null>(null);
-  const [pendingBannerType, setPendingBannerType] = useState<"image" | "video">("image");
-  const [saving, setSaving] = useState(false);
-  const [usernameError, setUsernameError] = useState<string | null>(null);
+  primaryColor,
+  accentColor,
+}: {
+  profile: ProfileData;
+  primaryColor: string;
+  accentColor: string;
+}) => {
+  const isVideo = profile.coverMediaType === "video" && !!profile.coverMediaUrl;
+  const isImage = profile.coverMediaType === "image" && !!profile.coverMediaUrl;
 
-  // Reset form when modal opens
-  useEffect(() => {
-    if (visible) {
-      setEditDisplayName(user?.displayName || user?.firstName || "");
-      setEditUsername(user?.username || "");
-      setPendingAvatarUri(null);
-      setPendingBannerUri(null);
-      setPendingBannerType("image");
-      setUsernameError(null);
-    }
-  }, [visible, user]);
+  const videoPlayer = useVideoPlayer(
+    isVideo ? profile.coverMediaUrl || "" : "",
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    },
+  );
 
-  const originalDisplayName = user?.displayName || user?.firstName || "";
-  const originalUsername = user?.username || "";
-
-  const hasChanges = 
-    editDisplayName !== originalDisplayName ||
-    editUsername !== originalUsername ||
-    pendingAvatarUri !== null ||
-    pendingBannerUri !== null;
-
-  const handlePickAvatar = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Please allow access to your photo library.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPendingAvatarUri(result.assets[0].uri);
-    }
-  };
-
-  const handlePickBannerPhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Please allow access to your photo library.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPendingBannerUri(result.assets[0].uri);
-      setPendingBannerType("image");
-    }
-  };
-
-  const handlePickBannerVideo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Please grant media library access to select videos.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["videos"],
-      allowsEditing: true,
-      quality: 0.5, // Lower quality for smaller file size
-      videoMaxDuration: 30,
-      videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium, // Medium quality for compression
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPendingBannerUri(result.assets[0].uri);
-      setPendingBannerType("video");
-    }
-  };
-
-  const handleSaveChanges = async () => {
-    if (!hasChanges) return;
-    
-    setSaving(true);
-    setUsernameError(null);
-    
-    try {
-      const token = await getToken();
-      if (!token) {
-        Alert.alert("Error", "You must be logged in to save changes.");
-        setSaving(false);
-        return;
-      }
-
-      const updates: any = {};
-
-      // Upload avatar if changed
-      if (pendingAvatarUri) {
-        const cloudinaryUrl = await uploadImageToCloudinary(pendingAvatarUri, "avatars");
-        if (userRole === "photographer") {
-          await api.updatePhotographerMe(token, { logoImage: cloudinaryUrl });
-        } else if (userRole === "business") {
-          await api.updateVendorMyBusiness(token, { logoImage: cloudinaryUrl });
-        } else {
-          updates.profileImageUrl = cloudinaryUrl;
-        }
-        setProfile(prev => prev ? { ...prev, avatar: cloudinaryUrl } : prev);
-        await updateProfile({ avatar: cloudinaryUrl, profileImageUrl: cloudinaryUrl });
-      }
-
-      // Upload banner if changed
-      if (pendingBannerUri) {
-        let cloudinaryUrl: string;
-        if (pendingBannerType === "video") {
-          cloudinaryUrl = await uploadVideoToCloudinary(pendingBannerUri, "banners");
-        } else {
-          cloudinaryUrl = await uploadImageToCloudinary(pendingBannerUri, "banners");
-        }
-        
-        if (userRole === "photographer") {
-          await api.updatePhotographerMe(token, { coverImage: cloudinaryUrl, coverMediaType: pendingBannerType });
-        } else if (userRole === "business") {
-          await api.updateVendorMyBusiness(token, { coverImage: cloudinaryUrl, coverMediaType: pendingBannerType });
-        } else {
-          updates.coverMediaUrl = cloudinaryUrl;
-          updates.coverMediaType = pendingBannerType;
-        }
-        
-        if (pendingBannerType === "video") {
-          setProfile(prev => prev ? { ...prev, coverVideo: cloudinaryUrl, coverImage: undefined } : prev);
-        } else {
-          setProfile(prev => prev ? { ...prev, coverImage: cloudinaryUrl, coverVideo: undefined } : prev);
-        }
-        await updateProfile({ coverMediaUrl: cloudinaryUrl, coverMediaType: pendingBannerType });
-      }
-
-      // Save media updates (profileImageUrl, coverMediaUrl) to /api/users/me
-      if (Object.keys(updates).length > 0) {
-        await api.updateUserMe(token, updates);
-        await updateProfile(updates);
-      }
-
-      // Update username and/or display name via /api/users/identity
-      const identityChanges: { username?: string; displayName?: string } = {};
-      if (editDisplayName !== originalDisplayName) {
-        identityChanges.displayName = editDisplayName;
-      }
-      if (editUsername !== originalUsername) {
-        identityChanges.username = editUsername;
-      }
-
-      if (Object.keys(identityChanges).length > 0) {
-        try {
-          await api.updateUserIdentity(token, identityChanges);
-          await updateProfile(identityChanges);
-          // Refresh user from backend to get fresh username
-          await refreshUser();
-          console.log("[EditProfile] Username/displayName updated, refreshed user from backend");
-          setProfile(prev => prev ? { ...prev, name: editDisplayName || prev.name } : prev);
-        } catch (error: any) {
-          if (error?.message?.toLowerCase().includes("username") || error?.status === 409) {
-            setUsernameError("This username is already taken. Please choose another.");
-            setSaving(false);
-            return;
-          }
-          if (error?.message?.toLowerCase().includes("cooldown")) {
-            Alert.alert("Please Wait", error.message || "You can only change your username/display name once every 14 days.");
-            setSaving(false);
-            return;
-          }
-          throw error;
-        }
-      }
-
-      await fetchProfile();
-      Alert.alert("Success", "Profile updated successfully!");
-      onClose();
-    } catch (error: any) {
-      console.error("Failed to save profile:", error);
-      Alert.alert("Error", error?.message || "Failed to save changes. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const displayAvatar = pendingAvatarUri || profile?.avatar;
-  const displayBanner = pendingBannerUri || (pendingBannerType === "video" ? profile?.coverVideo : profile?.coverImage);
+  const gradientColors: [string, string, string] =
+    profile.role === "business" && profile.brandColors
+      ? [primaryColor, accentColor, COLORS.black]
+      : ["#1a1a1a", "#2d2410", "#0a0a0a"];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-        <View style={{
-          backgroundColor: theme.card,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          padding: Spacing.lg,
-          paddingBottom: insets.bottom + Spacing.lg,
-          maxHeight: "90%",
-        }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg }}>
-            <ThemedText type="h3">Edit Profile</ThemedText>
-            <Pressable onPress={onClose}>
-              <Feather name="x" size={24} color={theme.text} />
-            </Pressable>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Profile Photo Section */}
-            <View style={{ alignItems: "center", marginBottom: Spacing.lg }}>
-              <Pressable onPress={handlePickAvatar} style={{ position: "relative" }}>
-                {displayAvatar ? (
-                  <Image
-                    source={{ uri: displayAvatar }}
-                    style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: profileTheme }}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: profileTheme }}>
-                    <Feather name="user" size={40} color={theme.textSecondary} />
-                  </View>
-                )}
-                <View style={{ position: "absolute", bottom: 0, right: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: profileTheme, alignItems: "center", justifyContent: "center" }}>
-                  <Feather name="camera" size={16} color="#000" />
-                </View>
-              </Pressable>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                Tap to change profile photo
-              </ThemedText>
-            </View>
-
-            {/* Banner Section */}
-            <View style={{ marginBottom: Spacing.lg }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                Cover Media
-              </ThemedText>
-              <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-                <Pressable
-                  onPress={handlePickBannerPhoto}
-                  style={{
-                    flex: 1,
-                    height: 80,
-                    backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
-                    borderRadius: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: pendingBannerUri && pendingBannerType === "image" ? 2 : 0,
-                    borderColor: profileTheme,
-                  }}
-                >
-                  <Feather name="image" size={24} color={theme.textSecondary} />
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                    Photo
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={handlePickBannerVideo}
-                  style={{
-                    flex: 1,
-                    height: 80,
-                    backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
-                    borderRadius: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: pendingBannerUri && pendingBannerType === "video" ? 2 : 0,
-                    borderColor: profileTheme,
-                  }}
-                >
-                  <Feather name="video" size={24} color={theme.textSecondary} />
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                    Video
-                  </ThemedText>
-                </Pressable>
-              </View>
-              {pendingBannerUri && (
-                <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
-                  <Feather name="check-circle" size={14} color="#4CAF50" />
-                  <ThemedText type="small" style={{ color: "#4CAF50", marginLeft: Spacing.xs }}>
-                    New {pendingBannerType} selected
-                  </ThemedText>
-                </View>
-              )}
-            </View>
-
-            {/* Display Name Field */}
-            <View style={{ marginBottom: Spacing.lg }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                Display Name
-              </ThemedText>
-              <TextInput
-                value={editDisplayName}
-                onChangeText={setEditDisplayName}
-                placeholder="Your public name"
-                placeholderTextColor={theme.textSecondary}
-                style={{
-                  backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
-                  borderRadius: 12,
-                  padding: Spacing.md,
-                  color: theme.text,
-                  fontSize: 16,
-                }}
-              />
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                This is how others will see you
-              </ThemedText>
-            </View>
-
-            {/* Username Field */}
-            <View style={{ marginBottom: Spacing.lg }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                Username
-              </ThemedText>
-              <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", borderRadius: 12, borderWidth: usernameError ? 1 : 0, borderColor: theme.error }}>
-                <ThemedText type="body" style={{ paddingLeft: Spacing.md, color: theme.textSecondary }}>@</ThemedText>
-                <TextInput
-                  value={editUsername}
-                  onChangeText={(text) => {
-                    setEditUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ""));
-                    setUsernameError(null);
-                  }}
-                  placeholder="username"
-                  placeholderTextColor={theme.textSecondary}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={{
-                    flex: 1,
-                    padding: Spacing.md,
-                    paddingLeft: 0,
-                    color: theme.text,
-                    fontSize: 16,
-                  }}
-                />
-              </View>
-              {usernameError ? (
-                <ThemedText type="small" style={{ color: theme.error, marginTop: Spacing.xs }}>
-                  {usernameError}
-                </ThemedText>
-              ) : (
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                  Used for your profile URL and mentions
-                </ThemedText>
-              )}
-            </View>
-          </ScrollView>
-
-          {/* Save Button */}
-          <Pressable
-            onPress={handleSaveChanges}
-            disabled={!hasChanges || saving}
-            style={{
-              backgroundColor: hasChanges && !saving ? profileTheme : theme.backgroundSecondary,
-              paddingVertical: Spacing.md,
-              borderRadius: BorderRadius.lg,
-              alignItems: "center",
-              marginTop: Spacing.md,
-              opacity: hasChanges && !saving ? 1 : 0.5,
-            }}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color={hasChanges ? "#000" : theme.textSecondary} />
-            ) : (
-              <ThemedText type="button" style={{ color: hasChanges ? "#000" : theme.textSecondary }}>
-                Save Changes
-              </ThemedText>
-            )}
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
+    <View style={styles.coverHero}>
+      {isVideo ? (
+        <VideoView
+          player={videoPlayer}
+          style={styles.coverMedia}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      ) : null}
+      {!isVideo && isImage ? (
+        <Image
+          source={{ uri: profile.coverMediaUrl }}
+          style={styles.coverMedia}
+          contentFit="cover"
+        />
+      ) : null}
+      {!isVideo && !isImage ? (
+        <LinearGradient
+          colors={gradientColors}
+          style={styles.coverMedia}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      ) : null}
+      <LinearGradient
+        colors={["transparent", COLORS.black]}
+        style={styles.coverFade}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      />
+    </View>
   );
-}
+};
 
 export default function AccountScreen() {
-  const { theme, isDark } = useTheme();
+  const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NavigationProp>();
-  const { user, isAuthenticated, getToken, updateProfile, refreshUser } = useAuth();
+  const { user, isAuthenticated, getToken } = useAuth();
   const { unreadCount } = useNotifications();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [products, setProducts] = useState<VendorProduct[]>([]);
+  const [services, setServices] = useState<ServiceCard[]>([]);
+  const [posts, setPosts] = useState<PostCard[]>([]);
+  const [savedItems, setSavedItems] = useState<PostCard[]>([]);
+  const [availability, setAvailability] = useState<WeeklyAvailabilitySlot[]>(
+    [],
+  );
+  const [reviews, setReviews] = useState<ReviewCard[]>([]);
+  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<ProfileTab>("featured");
-  const [portfolioCategories, setPortfolioCategories] = useState<PortfolioCategory[]>([]);
-  const [availabilitySlots, setAvailabilitySlots] = useState<VendorBookerAvailabilitySlot[]>([]);
-  const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailabilitySlot[]>([]);
-  const [todayAvailabilityHours, setTodayAvailabilityHours] = useState<{ start: string; end: string } | null>(null);
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
-  const [photographerServices, setPhotographerServices] = useState<PhotographerService[]>([]);
-  const [bookedSlots, setBookedSlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
-  const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([]);
-  const [showCreatePost, setShowCreatePost] = useState(false);
-  const [postIntent, setPostIntent] = useState<"social" | "review" | "promote" | null>(null);
-  const [displayLayout, setDisplayLayout] = useState<"pro" | "pulse" | null>(null);
-  const [newPostMedia, setNewPostMedia] = useState<string>("");
-  const [newPostMediaType, setNewPostMediaType] = useState<"image" | "video">("image");
-  const [newPostCaption, setNewPostCaption] = useState("");
-  const [linkedServiceId, setLinkedServiceId] = useState<string>("");
-  const [linkedProductId, setLinkedProductId] = useState<string>("");
-  const [taggedProfileId, setTaggedProfileId] = useState<string>("");
-  const [taggedProfileName, setTaggedProfileName] = useState<string>("");
-  const [businessHasProducts, setBusinessHasProducts] = useState(false);
-  const [businessHasServices, setBusinessHasServices] = useState(false);
-  const [businessProducts, setBusinessProducts] = useState<VendorProduct[]>([]);
-  const [businessServices, setBusinessServices] = useState<VendorService[]>([]);
-  const [showStateVisibility, setShowStateVisibility] = useState(true);
-  const [showEditPhotoModal, setShowEditPhotoModal] = useState(false);
-  const [consumerReviews, setConsumerReviews] = useState<{ id: string; businessName: string; rating: number; comment: string; date: string }[]>([]);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
-  const [showVideoFullscreen, setShowVideoFullscreen] = useState(false);
-  const [postSaving, setPostSaving] = useState(false);
-  const [tabBarLayoutY, setTabBarLayoutY] = useState(0);
-  const [showShareProfile, setShowShareProfile] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
 
-  const userRole: "consumer" | "photographer" | "business" = user?.role || "consumer";
-  const isOwner = true;
-  const isGuest = user?.isGuest || false;
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  const fetchProfile = useCallback(async () => {
-    const token = await getToken();
-    if (!token) {
+  const role = (user?.role || "consumer") as ProfileRole;
+
+  const loadProfile = useCallback(async () => {
+    if (!isAuthenticated) {
       setLoading(false);
       return;
     }
-
+    setLoading(true);
     try {
-      setLoading(true);
+      const token = await getToken();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-      if (userRole === "photographer") {
-        const photographer = (await api.getPhotographerMe(token)) as any;
-        console.log("[AccountScreen] Photographer data from API:", JSON.stringify({
-          coverImage: photographer.coverImage,
-          coverMediaType: photographer.coverMediaType,
-          logoImage: photographer.logoImage,
-        }));
-        const isVideo = photographer.coverMediaType === "video";
-        setProfile({
-          id: photographer.id,
-          name: photographer.displayName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
-          avatar: photographer.logoImage,
-          coverImage: isVideo ? undefined : photographer.coverImage,
-          coverVideo: isVideo ? photographer.coverImage : undefined,
-          city: photographer.city,
-          state: photographer.state,
-          bio: photographer.bio,
-          rating: photographer.rating,
-          reviewCount: photographer.reviewCount,
-          specialties: photographer.specialties,
-          portfolio: photographer.portfolio,
-          brandColors: photographer.brandColors,
-          subscriptionTier: photographer.subscriptionTier,
-          hourlyRate: photographer.hourlyRate,
-          stripeOnboardingComplete: photographer.stripeOnboardingComplete,
-          availability: photographer.todayAvailability || null,
-        });
+      let profileData: ProfileData | null = null;
+      let resolvedProducts: VendorProduct[] = [];
+      let resolvedServices: ServiceCard[] = [];
+      let resolvedPosts: PostCard[] = [];
+      let resolvedSaved: PostCard[] = [];
+      let resolvedAvailability: WeeklyAvailabilitySlot[] = [];
+      let resolvedReviews: ReviewCard[] = [];
 
-        if (photographer.portfolio && photographer.portfolio.length > 0) {
-          const categories: PortfolioCategory[] = [];
-          const specialties = photographer.specialties || ["Weddings", "Portraits", "Travel"];
-          specialties.forEach((spec: string, index: number) => {
-            if (photographer.portfolio[index]) {
-              categories.push({
-                name: spec,
-                count: Math.floor(Math.random() * 500) + 100,
-                image: photographer.portfolio[index],
-                rating: 4.5 + Math.random() * 0.5,
-                reviewCount: Math.floor(Math.random() * 300) + 50,
-              });
-            }
-          });
-          setPortfolioCategories(categories);
-        }
-
-        // Fetch weekly availability from weekly_availability table (primary source of truth)
-        try {
-          const [weeklySlots, blockedRes] = await Promise.all([
-            api.getWeeklyAvailability(token, "photographer"),
-            api.getPhotographerBlockedDates(token),
-          ]);
-          console.log("[AccountScreen] Weekly availability fetched:", weeklySlots);
-          setWeeklyAvailability(weeklySlots);
-          
-          // Convert to VendorBookerAvailabilitySlot format for Availability tab display
-          const slots: VendorBookerAvailabilitySlot[] = weeklySlots
-            .filter((s) => s.isActive)
-            .map((s) => ({
-              id: `weekly-${s.dayOfWeek}`,
-              photographerId: photographer.id,
-              dayOfWeek: s.dayOfWeek,
-              startTime: s.startTime,
-              endTime: s.endTime,
-              isRecurring: true,
-            }));
-          setAvailabilitySlots(slots);
-          
-          // Calculate today's availability for banner
-          const today = new Date().getDay();
-          const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
-          if (todaySlot) {
-            setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
-          } else {
-            setTodayAvailabilityHours(null);
-          }
-          
-          setBlockedDates(blockedRes.blockedDates || []);
-        } catch (availError) {
-          console.warn("[AccountScreen] Could not fetch availability:", availError);
-        }
-
-        // Fetch PUBLIC services using photographer ID (only returns active/live services)
-        try {
-          const publicServicesResponse = await api.getPhotographerPublicServices(photographer.id);
-          // Handle both array response and wrapped { services: [...] } response
-          let servicesList: any[] = [];
-          if (Array.isArray(publicServicesResponse)) {
-            servicesList = publicServicesResponse;
-          } else if (publicServicesResponse && typeof publicServicesResponse === "object") {
-            servicesList = (publicServicesResponse as any).services || [];
-          }
-          console.log("[AccountScreen] Raw public services response:", JSON.stringify(publicServicesResponse).slice(0, 200));
-          console.log("[AccountScreen] Services list length:", servicesList.length);
-          // Filter for live services (status can be "live" or "active")
-          const activeServices = servicesList.filter((svc: any) => 
-            svc.status === "live" || svc.status === "active"
-          );
-          console.log("[AccountScreen] Live services:", activeServices.length, "Statuses:", servicesList.map((s: any) => s.status));
-          const mappedServices: PhotographerService[] = activeServices.map((svc: any) => ({
-            id: svc.id,
-            name: svc.name,
-            description: svc.description,
-            price: svc.priceCents ? svc.priceCents / 100 : (svc.price || 0),
-            durationMinutes: svc.estimatedDurationMinutes || svc.durationMinutes || 60,
-            category: svc.category,
-            isPromo: svc.isPromo,
-            promoPrice: svc.promoPrice,
-            promoEndDate: svc.promoEndDate,
-            rating: svc.rating || null,
-            reviewCount: svc.reviewCount || null,
-          }));
-          setPhotographerServices(mappedServices);
-        } catch (servicesError) {
-          console.warn("[AccountScreen] Could not fetch public services:", servicesError);
-        }
-      } else if (userRole === "business") {
-        const [businessRes, productsRes, servicesRes] = await Promise.all([
-          api.getVendorMyBusiness(token),
-          api.getVendorProducts(token).catch(() => ({ products: [] })),
-          api.getVendorServices(token).catch(() => ({ services: [] })),
+      if (role === "business") {
+        const [
+          businessResponse,
+          productsResponse,
+          servicesResponse,
+          weeklyResponse,
+        ] = await Promise.all([
+          apiClient.getVendorMyBusiness(token),
+          apiClient.getVendorProducts(token).catch(() => ({ products: [] })),
+          apiClient.getVendorServices(token).catch(() => ({ services: [] })),
+          apiClient.getWeeklyAvailability(token, "business").catch(() => []),
         ]);
-        const vendor = businessRes.business;
-        const isVideo = vendor.coverMediaType === "video";
-        setProfile({
-          id: vendor.id,
-          name: vendor.name,
-          avatar: vendor.logoImage || undefined,
-          coverImage: isVideo ? undefined : (vendor.coverImage || undefined),
-          coverVideo: isVideo ? (vendor.coverImage || undefined) : undefined,
-          city: vendor.city || undefined,
-          state: vendor.state || undefined,
-          bio: vendor.description || undefined,
-          tagline: vendor.tagline || undefined,
-          rating: vendor.rating || undefined,
-          reviewCount: vendor.reviewCount || undefined,
-          specialties: vendor.category ? [vendor.category] : [],
-          brandColors: vendor.brandColors || undefined,
-          stripeOnboardingComplete: vendor.stripeOnboardingComplete ?? false,
-          address: vendor.address || undefined,
-          hoursOfOperation: vendor.hoursOfOperation || undefined,
-          contactPhone: vendor.contactPhone || undefined,
-          contactEmail: vendor.contactEmail || undefined,
-          websiteUrl: vendor.websiteUrl || undefined,
-        });
-        
-        const allProducts = productsRes.products || [];
-        const allServices = servicesRes.services || [];
-        setBusinessProducts(allProducts);
-        setBusinessServices(allServices);
-        
-        const hasLiveProducts = allProducts.some(p => p.status === "live");
-        const hasLiveServices = allServices.some(s => s.status === "live");
-        setBusinessHasProducts(hasLiveProducts);
-        setBusinessHasServices(hasLiveServices);
-        
-        // Fetch weekly availability for business from weekly_availability table
-        try {
-          const weeklySlots = await api.getWeeklyAvailability(token, "business");
-          console.log("[AccountScreen] Business weekly availability fetched:", weeklySlots);
-          setWeeklyAvailability(weeklySlots);
-          
-          // Calculate today's availability for banner
-          const today = new Date().getDay();
-          const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
-          if (todaySlot) {
-            setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
-          } else {
-            setTodayAvailabilityHours(null);
-          }
-        } catch (e) {
-          console.warn("[AccountScreen] Could not fetch business weekly availability:", e);
-        }
-      } else {
-        // Consumer profile - use coverMediaType from user context
-        const isVideo = user?.coverMediaType === "video";
-        setProfile({
-          id: user?.id || "",
-          name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
-          avatar: user?.avatar || user?.profileImageUrl,
-          city: user?.city,
-          state: user?.state,
-          coverImage: isVideo ? undefined : user?.coverMediaUrl,
-          coverVideo: isVideo ? user?.coverMediaUrl : undefined,
-        });
-      }
-      // Fetch user's posts from the backend feed
-      try {
-        const postsResponse = await api.getFeed({ limit: 50 });
-        const allPosts = postsResponse.posts || [];
-        // Filter to only show posts by the current user (check both userId and authorId)
-        const userPosts = allPosts.filter((p: ApiPost) => 
-          p.userId === user?.id || p.authorId === user?.id
+
+        const business = businessResponse.business;
+        const liveProducts = (productsResponse.products || []).filter(
+          (item) => item.status === "live",
         );
-        console.log("[AccountScreen] Loaded posts from backend:", userPosts.length, "User ID:", user?.id);
-        console.log("[AccountScreen] All posts authorIds:", allPosts.map((p: ApiPost) => p.authorId));
-        // Debug: Log ALL posts with their layout/surface data
-        userPosts.forEach((p: ApiPost, i: number) => {
-          console.log(`[AccountScreen] Post ${i}: id=${p.id}, displayLayout=${p.displayLayout}, feedSurface=${p.feedSurface}, videoUrl=${p.videoUrl?.substring(0, 50)}, mediaUrl=${p.mediaUrl?.substring(0, 50)}`);
-        });
-        // Debug: Log pulse posts with their media data (check both displayLayout and feedSurface)
-        const pulsePosts = userPosts.filter((p: ApiPost) => p.displayLayout === "pulse" || p.feedSurface === "pulse");
-        if (pulsePosts.length > 0) {
-          console.log("[AccountScreen] Pulse posts count:", pulsePosts.length);
-          console.log("[AccountScreen] Pulse posts media data:", pulsePosts.map((p: ApiPost) => ({
-            id: p.id,
-            displayLayout: p.displayLayout,
-            feedSurface: p.feedSurface,
-            mediaType: p.mediaType,
-            videoUrl: p.videoUrl,
-            mediaUrl: p.mediaUrl,
-            imageUrl: p.imageUrl,
-            hasVideoUrl: !!(p.videoUrl || p.mediaUrl),
-          })));
-        } else {
-          console.log("[AccountScreen] No pulse posts found");
-        }
-        setFeaturedPosts(userPosts.map(mapApiPostToFeaturedPost));
-      } catch (postsError) {
-        console.warn("[AccountScreen] Could not fetch posts:", postsError);
+        const liveServices = (servicesResponse.services || [])
+          .filter((item) => item.status === "live")
+          .map((item: VendorService) => ({
+            id: String(item.id),
+            name: item.name,
+            description: item.description || undefined,
+            priceCents: Number(item.priceCents ?? 0),
+            durationMinutes:
+              item.durationMinutes ||
+              (item as any).estimatedDurationMinutes ||
+              undefined,
+            rating: Number(item.rating ?? 0),
+          }));
+
+        const profilePosts = await apiClient
+          .getProfilePosts(
+            String(business.ownerId || user?.id || business.id),
+            { limit: 60 },
+          )
+          .catch(() => ({ posts: [] }));
+        resolvedPosts = toPosts(profilePosts.posts || []);
+        resolvedSaved = [];
+        resolvedAvailability = weeklyResponse;
+        resolvedProducts = liveProducts;
+        resolvedServices = liveServices;
+        resolvedReviews = Array.isArray((business as any).reviews)
+          ? (business as any).reviews.map((entry: any, idx: number) => ({
+              id: String(entry.id ?? `review-${idx}`),
+              userName: entry.userName || entry.authorName || "Outsyde User",
+              rating: Number(entry.rating ?? 5),
+              text: entry.text || entry.comment || "",
+              createdAt: entry.createdAt || new Date().toISOString(),
+            }))
+          : [];
+
+        const productFloor = liveProducts.length
+          ? Math.min(
+              ...liveProducts.map((item) => Number(item.priceCents ?? 0) / 100),
+            )
+          : undefined;
+        const serviceFloor = liveServices.length
+          ? Math.min(
+              ...liveServices.map((item) => Number(item.priceCents ?? 0) / 100),
+            )
+          : undefined;
+
+        profileData = {
+          id: String(business.id),
+          userId: String(business.ownerId || user?.id || ""),
+          role: "business",
+          name: business.name || "Business",
+          handle: `@${user?.username || business.name.replace(/\s+/g, "").toLowerCase()}`,
+          avatarUrl: business.logoImage || undefined,
+          coverMediaUrl: business.coverImage || undefined,
+          coverMediaType:
+            business.coverMediaType === "video" ? "video" : "image",
+          city: business.city || undefined,
+          state: business.state || undefined,
+          location:
+            [business.city, business.state].filter(Boolean).join(", ") ||
+            undefined,
+          bio: business.description || undefined,
+          tagline: business.tagline || undefined,
+          rating: Number(business.rating ?? 0),
+          reviewCount: Number(business.reviewCount ?? 0),
+          followerCount: Number((business as any).followerCount ?? 0),
+          followingCount: Number((business as any).followingCount ?? 0),
+          bookingsCount: Number((business as any).bookingCount ?? 0),
+          shootsCount: 0,
+          postsCount: resolvedPosts.length,
+          isVerified: Boolean((business as any).isVerified),
+          subscriptionTier: String(
+            (business as any).subscriptionTier || "Starter",
+          ),
+          brandColors: parseBrandColors(business.brandColors),
+          hasProducts: Boolean(business.hasProducts) || liveProducts.length > 0,
+          hasServices: Boolean(business.hasServices) || liveServices.length > 0,
+          specialties: business.category ? [business.category] : [],
+          minPrice: serviceFloor || productFloor,
+          responseTime:
+            (business as any).responseTime || "Usually responds in 2h",
+          availabilitySummary: (business as any).availability || undefined,
+          address: business.address || undefined,
+          contactEmail: business.contactEmail || undefined,
+          contactPhone: business.contactPhone || undefined,
+          websiteUrl: business.websiteUrl || undefined,
+          hoursOfOperation:
+            typeof business.hoursOfOperation === "string"
+              ? business.hoursOfOperation
+              : undefined,
+        };
+      } else if (role === "photographer") {
+        const [photographer, photographerServices, weeklyResponse] =
+          await Promise.all([
+            apiClient.getPhotographerMe(token),
+            apiClient
+              .getPhotographerMeServices(token)
+              .catch(() => ({ services: [] })),
+            apiClient
+              .getWeeklyAvailability(token, "photographer")
+              .catch(() => []),
+          ]);
+
+        const mappedServices = (photographerServices.services || [])
+          .filter((item) => item.status === "live" || item.status === "active")
+          .map((item: VendorBookerPhotographerService) => ({
+            id: String(item.id),
+            name: item.name,
+            description: item.description || undefined,
+            priceCents: Number(item.priceCents ?? 0),
+            durationMinutes: (item as any).durationMinutes || undefined,
+            rating: Number((item as any).rating ?? 0),
+          }));
+
+        const profilePosts = await apiClient
+          .getProfilePosts(
+            String(photographer.userId || user?.id || photographer.id),
+            { limit: 60 },
+          )
+          .catch(() => ({ posts: [] }));
+        resolvedPosts = toPosts(profilePosts.posts || []);
+        resolvedSaved = [];
+        resolvedServices = mappedServices;
+        resolvedAvailability = weeklyResponse;
+        resolvedReviews = Array.isArray((photographer as any).reviews)
+          ? (photographer as any).reviews.map((entry: any, idx: number) => ({
+              id: String(entry.id ?? `review-${idx}`),
+              userName: entry.userName || entry.authorName || "Outsyde User",
+              rating: Number(entry.rating ?? 5),
+              text: entry.text || entry.comment || "",
+              createdAt: entry.createdAt || new Date().toISOString(),
+            }))
+          : [];
+
+        profileData = {
+          id: String(photographer.id),
+          userId: String(photographer.userId || user?.id || ""),
+          role: "photographer",
+          name:
+            photographer.displayName ||
+            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+            "Photographer",
+          handle: `@${user?.username || "photographer"}`,
+          avatarUrl: photographer.logoImage || undefined,
+          coverMediaUrl: photographer.coverImage || undefined,
+          coverMediaType: ((photographer as any).coverMediaType === "video"
+            ? "video"
+            : "image") as "image" | "video",
+          city: photographer.city || undefined,
+          state: photographer.state || undefined,
+          location:
+            [photographer.city, photographer.state]
+              .filter(Boolean)
+              .join(", ") || undefined,
+          bio: photographer.bio || undefined,
+          tagline: (photographer as any).tagline || undefined,
+          rating: Number((photographer as any).rating ?? 0),
+          reviewCount: Number((photographer as any).reviewCount ?? 0),
+          followerCount: Number((photographer as any).followerCount ?? 0),
+          followingCount: Number((photographer as any).followingCount ?? 0),
+          bookingsCount: 0,
+          shootsCount: Number((photographer as any).shootCount ?? 0),
+          postsCount: resolvedPosts.length,
+          isVerified: Boolean((photographer as any).isVerified),
+          subscriptionTier: "",
+          brandColors: null,
+          hasProducts: false,
+          hasServices: mappedServices.length > 0,
+          specialties: photographer.specialties || [],
+          hourlyRate: Number(photographer.hourlyRate ?? 0) || undefined,
+          minPrice:
+            mappedServices.length > 0
+              ? Math.min(
+                  ...mappedServices.map(
+                    (item) => Number(item.priceCents ?? 0) / 100,
+                  ),
+                )
+              : undefined,
+          responseTime:
+            (photographer as any).responseTime || "Usually responds in 3h",
+          availabilitySummary: undefined,
+          contactEmail: undefined,
+          contactPhone: undefined,
+          websiteUrl: undefined,
+        };
+      } else {
+        const profilePosts = await apiClient
+          .getProfilePosts(String(user?.id || ""), { limit: 60 })
+          .catch(() => ({ posts: [] }));
+        resolvedPosts = toPosts(profilePosts.posts || []);
+        resolvedSaved = [];
+        resolvedReviews = [];
+        profileData = {
+          id: String(user?.id || "me"),
+          userId: String(user?.id || ""),
+          role: "consumer",
+          name:
+            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+            "Outsyde User",
+          handle: `@${user?.username || "outsyde"}`,
+          avatarUrl: user?.avatar || user?.profileImageUrl || undefined,
+          coverMediaUrl: user?.coverMediaUrl || undefined,
+          coverMediaType: user?.coverMediaType === "video" ? "video" : "image",
+          city: user?.city || undefined,
+          state: user?.state || undefined,
+          location:
+            [user?.city, user?.state].filter(Boolean).join(", ") || undefined,
+          bio: user?.bio || undefined,
+          tagline: (user as any)?.tagline || undefined,
+          rating: 0,
+          reviewCount: 0,
+          followerCount: Number((user as any)?.followerCount ?? 0),
+          followingCount: Number((user as any)?.followingCount ?? 0),
+          bookingsCount: 0,
+          shootsCount: 0,
+          postsCount: resolvedPosts.length,
+          isVerified: Boolean((user as any)?.isVerified),
+          subscriptionTier: "",
+          brandColors: null,
+          hasProducts: false,
+          hasServices: false,
+          specialties: Array.isArray((user as any)?.niches)
+            ? (user as any).niches
+            : [],
+          responseTime: undefined,
+        };
       }
+
+      setProfile(profileData);
+      setProducts(resolvedProducts);
+      setServices(resolvedServices);
+      setPosts(resolvedPosts);
+      setSavedItems(resolvedSaved);
+      setAvailability(resolvedAvailability);
+      setReviews(resolvedReviews);
     } catch (error) {
-      console.error("Failed to fetch profile:", error);
-      setProfile({
-        id: user?.id || "",
-        name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim(),
-        avatar: user?.avatar || user?.profileImageUrl,
-        coverImage: user?.coverMediaUrl,
-      });
+      console.error("Failed to load own profile:", error);
+      Alert.alert("Unable to load profile", "Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [userRole, getToken, user]);
+  }, [getToken, isAuthenticated, role, user]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchProfile();
-    } else {
-      setLoading(false);
-    }
-  }, [isAuthenticated, fetchProfile]);
+    loadProfile();
+  }, [loadProfile]);
 
-  // Set default active tab based on user role
+  const tabList = useMemo<ProfileTab[]>(
+    () => (profile ? tabsForRole(profile) : ["posts"]),
+    [profile],
+  );
+
   useEffect(() => {
-    if (userRole === "business") {
-      // Business: default to first available tab (products or services)
-      if (businessHasProducts) {
-        setActiveTab("products");
-      } else if (businessHasServices) {
-        setActiveTab("services");
-      } else {
-        setActiveTab("availability");
-      }
-    } else if (userRole === "photographer") {
-      setActiveTab("featured");
-    } else {
-      // Consumer
-      setActiveTab("featured");
+    if (!tabList.includes(activeTab)) {
+      setActiveTab(tabList[0]);
     }
-  }, [userRole, businessHasProducts, businessHasServices]);
+  }, [activeTab, tabList]);
 
-  // Refresh availability function for event subscription
-  const refreshAvailability = useCallback(async () => {
-    if (!profile?.id || userRole === "consumer") return;
-    const token = await getToken();
-    if (!token) return;
-    
+  const accentColor =
+    profile?.role === "business"
+      ? profile.brandColors?.primary || COLORS.gold
+      : COLORS.gold;
+  const accentDimColor =
+    profile?.role === "business"
+      ? profile.brandColors?.accent || COLORS.goldDim
+      : COLORS.goldDim;
+
+  const headerBgOpacity = scrollY.interpolate({
+    inputRange: [120, 220],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+  const titleOpacity = scrollY.interpolate({
+    inputRange: [170, 260],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+
+  const shareProfile = useCallback(async () => {
+    if (!profile) return;
     try {
-      const providerType = userRole === "photographer" ? "photographer" : "business";
-      const weeklySlots = await api.getWeeklyAvailability(token, providerType);
-      console.log("[AccountScreen] Refreshed weekly availability:", weeklySlots);
-      setWeeklyAvailability(weeklySlots);
-      
-      // Calculate today's availability for banner
-      const today = new Date().getDay();
-      const todaySlot = weeklySlots.find((s) => s.dayOfWeek === today && s.isActive);
-      if (todaySlot) {
-        setTodayAvailabilityHours({ start: todaySlot.startTime, end: todaySlot.endTime });
-      } else {
-        setTodayAvailabilityHours(null);
-      }
-    } catch (e) {
-      console.warn("[AccountScreen] Could not refresh availability:", e);
+      await Share.share({
+        message: `Check out my Outsyde profile: ${profile.handle}`,
+      });
+    } catch (error) {
+      console.warn("Share failed:", error);
     }
-  }, [profile?.id, userRole, getToken]);
+  }, [profile]);
 
-  // Subscribe to availability change events (e.g., when user saves availability in Dashboard)
-  useEffect(() => {
-    if (!profile?.id || userRole === "consumer") {
+  const onEditProfilePress = useCallback(() => {
+    if (!profile) return;
+    if (profile.role === "business") {
+      navigation.navigate("BusinessDashboard");
       return;
     }
-    
-    const unsubscribe = availabilityEvents.subscribe(() => {
-      console.log("[AccountScreen] Availability event received - refreshing...");
-      refreshAvailability();
-    });
-    
-    return unsubscribe;
-  }, [profile?.id, userRole, refreshAvailability]);
-
-  // Handle follow/unfollow toggle
-  const handleFollowToggle = async () => {
-    if (!profile?.id || followLoading) return;
-    
-    setFollowLoading(true);
-    try {
-      if (isFollowing) {
-        await api.unfollowUser(profile.id);
-        setIsFollowing(false);
-      } else {
-        const targetType = userRole === "photographer" ? "photographer" : 
-                          userRole === "business" ? "business" : "user";
-        await api.followUser(profile.id, targetType);
-        setIsFollowing(true);
-      }
-    } catch (error) {
-      console.error("Follow toggle failed:", error);
-    } finally {
-      setFollowLoading(false);
+    if (profile.role === "photographer") {
+      navigation.navigate("PhotographerDashboard");
+      return;
     }
+    setSettingsVisible(true);
+  }, [navigation, profile]);
+
+  const postCellWidth = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 8) / 3;
+
+  const renderFloatingHeader = () => (
+    <Animated.View
+      style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]}
+    >
+      <Animated.View
+        style={[StyleSheet.absoluteFillObject, { opacity: headerBgOpacity }]}
+      >
+        <BlurView
+          intensity={22}
+          tint="dark"
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={styles.headerOverlay} />
+      </Animated.View>
+      <View style={styles.headerRow}>
+        <Pressable
+          style={styles.headerButton}
+          onPress={() => setSettingsVisible(true)}
+        >
+          <Feather name="menu" size={18} color={COLORS.white} />
+        </Pressable>
+        <Animated.Text
+          numberOfLines={1}
+          style={[styles.headerTitle, { opacity: titleOpacity }]}
+        >
+          {profile?.name || "Profile"}
+        </Animated.Text>
+        <View style={styles.headerRight}>
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => navigation.navigate("Notifications")}
+          >
+            <Feather name="bell" size={18} color={COLORS.white} />
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable style={styles.headerButton} onPress={shareProfile}>
+            <Feather name="share-2" size={18} color={COLORS.white} />
+          </Pressable>
+        </View>
+      </View>
+    </Animated.View>
+  );
+
+  const renderIdentityBlock = () => {
+    if (!profile) return null;
+    const middleLabel =
+      profile.role === "business"
+        ? "Bookings"
+        : profile.role === "photographer"
+          ? "Shoots"
+          : "Posts";
+    const middleValue =
+      profile.role === "business"
+        ? profile.bookingsCount
+        : profile.role === "photographer"
+          ? profile.shootsCount
+          : profile.postsCount;
+
+    return (
+      <View style={styles.identityBlock}>
+        <View style={styles.avatarActionRow}>
+          <AvatarWithInitials
+            name={profile.name}
+            imageUrl={profile.avatarUrl}
+            accentColor={accentColor}
+          />
+          <Pressable
+            style={[styles.editProfileButton, { backgroundColor: accentColor }]}
+            onPress={onEditProfilePress}
+          >
+            <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.nameRow}>
+          <Text style={styles.nameText}>{profile.name}</Text>
+          {profile.isVerified ? (
+            <View
+              style={[styles.verifiedBadge, { backgroundColor: accentColor }]}
+            >
+              <Feather name="check" size={12} color={COLORS.black} />
+            </View>
+          ) : null}
+          {profile.role === "business" && profile.subscriptionTier ? (
+            <View
+              style={[
+                styles.tierBadge,
+                profile.subscriptionTier.toLowerCase().includes("pro")
+                  ? { backgroundColor: COLORS.gold }
+                  : profile.subscriptionTier.toLowerCase().includes("growth")
+                    ? { backgroundColor: COLORS.emerald }
+                    : { backgroundColor: COLORS.gray },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tierBadgeText,
+                  profile.subscriptionTier.toLowerCase().includes("pro")
+                    ? { color: COLORS.black }
+                    : { color: COLORS.white },
+                ]}
+              >
+                {profile.subscriptionTier}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={styles.metaLine}>
+          {profile.handle}
+          {profile.location ? `  •  📍 ${profile.location}` : ""}
+        </Text>
+
+        {profile.specialties.length > 0 ? (
+          <View style={styles.tagRow}>
+            {profile.specialties.slice(0, 4).map((tag) => (
+              <View key={tag} style={styles.tagPill}>
+                <Text style={styles.tagPillText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {(profile.role === "business" || profile.role === "photographer") &&
+        profile.rating > 0 ? (
+          <View style={styles.ratingInlineRow}>
+            <StarRating rating={profile.rating} color={accentColor} />
+            <Text style={styles.ratingText}>{profile.rating.toFixed(1)}</Text>
+            <Text style={styles.ratingMeta}>({profile.reviewCount})</Text>
+            {profile.responseTime ? (
+              <Text style={styles.ratingMeta}>⚡ {profile.responseTime}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        <View style={styles.statsCard}>
+          <View style={styles.statCol}>
+            <Text style={styles.statValue}>{profile.followerCount}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={styles.statValue}>{middleValue}</Text>
+            <Text style={styles.statLabel}>{middleLabel}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={styles.statValue}>{profile.followingCount}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+        </View>
+      </View>
+    );
   };
 
-  // Check follow status when viewing another user's profile
-  const checkFollowStatus = useCallback(async (targetUserId: string) => {
-    if (isOwner || !targetUserId) return;
-    try {
-      const result = await api.checkFollowStatus(targetUserId);
-      setIsFollowing(result.isFollowing);
-    } catch (error) {
-      console.error("Failed to check follow status:", error);
-    }
-  }, [isOwner]);
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {tabList.map((tab) => (
+        <Pressable
+          key={tab}
+          style={styles.tabButton}
+          onPress={() => setActiveTab(tab)}
+        >
+          <Text
+            style={[
+              styles.tabLabel,
+              activeTab === tab && { color: accentColor, fontWeight: "700" },
+            ]}
+          >
+            {tab === "shop"
+              ? "Shop"
+              : tab === "booking"
+                ? "Booking"
+                : tab === "availability"
+                  ? "Availability"
+                  : tab === "saved"
+                    ? "Saved"
+                    : tab === "reviews"
+                      ? "Reviews"
+                      : tab === "about"
+                        ? "About"
+                        : "Posts"}
+          </Text>
+          <View
+            style={[
+              styles.tabIndicator,
+              activeTab === tab && { backgroundColor: accentColor },
+            ]}
+          />
+        </Pressable>
+      ))}
+    </View>
+  );
 
-  const getProfileTheme = (): string => {
-    if (profile?.brandColors) {
-      try {
-        const colors =
-          typeof profile.brandColors === "string"
-            ? JSON.parse(profile.brandColors)
-            : profile.brandColors;
-        return colors.primary || theme.primary;
-      } catch {
-        return theme.primary;
-      }
-    }
-    return theme.primary;
+  const renderPostsTab = () => {
+    const allCells = [
+      { id: "new-post", isAdd: true },
+      ...posts.map((post) => ({ ...post, isAdd: false })),
+    ];
+    const hasPosts = posts.length > 0;
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.mediaGrid}>
+          {allCells.map((cell, index) => {
+            if (cell.isAdd) {
+              return (
+                <Pressable
+                  key="new-post"
+                  style={[
+                    styles.mediaCell,
+                    {
+                      width: postCellWidth,
+                      height: postCellWidth,
+                      borderWidth: 2,
+                      borderStyle: "dashed",
+                      borderColor: accentColor,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "rgba(255,255,255,0.03)",
+                    },
+                  ]}
+                  onPress={() =>
+                    Alert.alert(
+                      "Create Post",
+                      "Use your existing posting flow from dashboard or feed composer.",
+                    )
+                  }
+                >
+                  <Feather name="plus" size={20} color={accentColor} />
+                  <Text style={[styles.addPostLabel, { color: accentColor }]}>
+                    Post
+                  </Text>
+                </Pressable>
+              );
+            }
+
+            const typedCell = cell as PostCard & { isAdd: false };
+            const cellHeight =
+              typedCell.aspect === "portrait"
+                ? postCellWidth * 1.33
+                : postCellWidth;
+            return (
+              <Pressable
+                key={typedCell.id}
+                style={[
+                  styles.mediaCell,
+                  { width: postCellWidth, height: cellHeight },
+                ]}
+              >
+                {typedCell.mediaUrl ? (
+                  <Image
+                    source={{ uri: typedCell.mediaUrl }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={[COLORS.gray, COLORS.black]}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                )}
+                {typedCell.mediaType === "video" ? (
+                  <View style={styles.videoBadge}>
+                    <Text style={styles.videoBadgeText}>▶</Text>
+                  </View>
+                ) : null}
+                <LinearGradient
+                  colors={["transparent", "rgba(0,0,0,0.78)"]}
+                  style={styles.mediaOverlay}
+                >
+                  <Text style={styles.mediaLabel} numberOfLines={1}>
+                    {typedCell.label}
+                  </Text>
+                  <Text style={styles.mediaLikes}>♥ {typedCell.likes}</Text>
+                </LinearGradient>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {!hasPosts ? (
+          <View style={styles.emptyState}>
+            <Feather name="camera" size={26} color={COLORS.grayLight} />
+            <Text style={styles.emptyTitle}>Share your best work</Text>
+            <Pressable
+              style={[styles.emptyCta, { backgroundColor: accentColor }]}
+              onPress={() =>
+                Alert.alert(
+                  "Create Post",
+                  "Use your existing posting flow from dashboard or feed composer.",
+                )
+              }
+            >
+              <Text style={styles.emptyCtaText}>Post</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    );
   };
 
-  const profileTheme = getProfileTheme();
-  
-  const bannerVideoPlayer = useVideoPlayer(profile?.coverVideo || null, player => {
-    player.loop = true;
-    player.muted = true;
-    player.play();
-  });
+  const renderShopTab = () => (
+    <View style={styles.tabContent}>
+      {products.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="shopping-bag" size={24} color={COLORS.grayLight} />
+          <Text style={styles.emptyTitle}>No products yet</Text>
+        </View>
+      ) : (
+        <View style={styles.productGrid}>
+          {products.map((product) => (
+            <View key={String(product.id)} style={styles.productCard}>
+              <View style={styles.productImageWrap}>
+                {product.imageUrl ? (
+                  <Image
+                    source={{ uri: product.imageUrl }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={[COLORS.gray, COLORS.black]}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                )}
+              </View>
+              <View style={styles.productBody}>
+                <Text style={styles.productName} numberOfLines={1}>
+                  {product.name}
+                </Text>
+                <Text style={[styles.productPrice, { color: accentColor }]}>
+                  {formatCents(product.priceCents)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
 
-  const fullscreenVideoPlayer = useVideoPlayer(profile?.coverVideo || null, player => {
-    player.loop = false;
-    player.muted = false;
-  });
+  const renderBookingTab = () => (
+    <View style={styles.tabContent}>
+      {services.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="calendar" size={24} color={COLORS.grayLight} />
+          <Text style={styles.emptyTitle}>No services yet</Text>
+        </View>
+      ) : (
+        <>
+          {services.map((service) => (
+            <View key={service.id} style={styles.serviceCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.serviceName}>{service.name}</Text>
+                {service.description ? (
+                  <Text style={styles.serviceDescription} numberOfLines={2}>
+                    {service.description}
+                  </Text>
+                ) : null}
+                <View style={styles.serviceMetaRow}>
+                  <Text style={[styles.servicePrice, { color: accentColor }]}>
+                    {formatCents(service.priceCents)}
+                  </Text>
+                  {service.durationMinutes ? (
+                    <Text style={styles.serviceMeta}>
+                      • {service.durationMinutes} min
+                    </Text>
+                  ) : null}
+                  {service.rating ? (
+                    <Text style={styles.serviceMeta}>
+                      • ★ {service.rating.toFixed(1)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ))}
+          {profile?.availabilitySummary ? (
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryText}>
+                {profile.availabilitySummary}
+              </Text>
+              <Text style={[styles.summaryLink, { color: accentColor }]}>
+                View Full Availability →
+              </Text>
+            </View>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
 
-  useEffect(() => {
-    if (showVideoFullscreen && fullscreenVideoPlayer) {
-      fullscreenVideoPlayer.play();
-    } else if (fullscreenVideoPlayer) {
-      fullscreenVideoPlayer.pause();
-      fullscreenVideoPlayer.currentTime = 0;
-    }
-  }, [showVideoFullscreen, fullscreenVideoPlayer]);
-  
-  // Compute business tabs dynamically based on products/services
-  // Businesses show only Products/Services tabs based on what they offer
-  const getBusinessTabs = (): { key: ProfileTab; label: string; icon: string }[] => {
-    const businessTabs: { key: ProfileTab; label: string; icon: string }[] = [];
-    
-    // Add Products tab if business has products
-    if (businessHasProducts) {
-      businessTabs.push({ key: "products", label: "Products", icon: "shopping-bag" });
-    }
-    // Add Services tab if business has services
-    if (businessHasServices) {
-      businessTabs.push({ key: "services", label: "Services", icon: "briefcase" });
-    }
-    // Add Availability tab for booking
-    businessTabs.push({ key: "availability", label: "Availability", icon: "clock" });
-    
-    return businessTabs;
+  const renderAvailabilityTab = () => {
+    const slotsByDay = [0, 1, 2, 3, 4, 5, 6].map((day) =>
+      availability.find((slot) => slot.dayOfWeek === day && slot.isActive),
+    );
+    const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.calendarGrid}>
+          {labels.map((label, idx) => {
+            const slot = slotsByDay[idx];
+            return (
+              <View key={label} style={styles.calendarCard}>
+                <Text style={styles.calendarDay}>{label}</Text>
+                <Text style={styles.calendarHours}>
+                  {slot ? `${slot.startTime} - ${slot.endTime}` : "Unavailable"}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
   };
 
-  const tabs = userRole === "photographer" 
-    ? PHOTOGRAPHER_TABS 
-    : userRole === "business" 
-      ? getBusinessTabs()
-      : CONSUMER_TABS;
+  const renderSavedTab = () => (
+    <View style={styles.tabContent}>
+      {savedItems.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="bookmark" size={24} color={COLORS.grayLight} />
+          <Text style={styles.emptyTitle}>No saved items yet</Text>
+        </View>
+      ) : (
+        <View style={styles.mediaGrid}>
+          {savedItems.map((item) => (
+            <View
+              key={item.id}
+              style={[
+                styles.mediaCell,
+                { width: postCellWidth, height: postCellWidth },
+              ]}
+            >
+              {item.mediaUrl ? (
+                <Image
+                  source={{ uri: item.mediaUrl }}
+                  style={StyleSheet.absoluteFillObject}
+                  contentFit="cover"
+                />
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
 
-  const formatHourlyRate = (rate?: number): string => {
-    if (!rate) return "";
-    return `$${(rate / 100).toFixed(0)} / hour`;
-  };
+  const reviewBreakdown = useMemo(() => {
+    if (reviews.length === 0)
+      return [5, 4, 3, 2, 1].map((stars) => ({ stars, ratio: 0 }));
+    return [5, 4, 3, 2, 1].map((stars) => ({
+      stars,
+      ratio:
+        reviews.filter((row) => Math.round(row.rating) === stars).length /
+        reviews.length,
+    }));
+  }, [reviews]);
 
-  const getAvailabilityText = (): string => {
-    // Helper to convert 24h to 12h format for display
-    const formatTime = (time24: string): string => {
-      const [hours, minutes] = time24.split(":").map(Number);
-      const period = hours >= 12 ? "PM" : "AM";
-      const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-      return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")} ${period}` : `${hours12} ${period}`;
-    };
-    
-    // Primary source: todayAvailabilityHours fetched from weekly_availability table
-    if (todayAvailabilityHours) {
-      return `Available Today: ${formatTime(todayAvailabilityHours.start)} – ${formatTime(todayAvailabilityHours.end)}`;
+  const renderReviewsTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.reviewSummaryCard}>
+        <View style={styles.reviewSummaryLeft}>
+          <Text style={styles.reviewScore}>
+            {profile?.rating?.toFixed(1) || "0.0"}
+          </Text>
+          <StarRating
+            rating={profile?.rating || 0}
+            color={accentColor}
+            size={14}
+          />
+          <Text style={styles.reviewCountLabel}>
+            {profile?.reviewCount || 0} reviews
+          </Text>
+        </View>
+        <View style={styles.reviewSummaryRight}>
+          {reviewBreakdown.map((row) => (
+            <View key={row.stars} style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>{row.stars}</Text>
+              <View style={styles.breakdownTrack}>
+                <View
+                  style={[
+                    styles.breakdownFill,
+                    {
+                      width: `${row.ratio * 100}%`,
+                      backgroundColor: accentColor,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+      {reviews.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>No reviews yet</Text>
+        </View>
+      ) : (
+        reviews.map((review) => (
+          <View key={review.id} style={styles.reviewCard}>
+            <View style={styles.reviewHeader}>
+              <View style={styles.reviewAvatar}>
+                <Text style={styles.reviewAvatarInitial}>
+                  {getInitials(review.userName)}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewUser}>{review.userName}</Text>
+                <Text style={styles.reviewMeta}>
+                  {"★".repeat(
+                    Math.max(1, Math.min(5, Math.round(review.rating))),
+                  )}{" "}
+                  • {new Date(review.createdAt).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.reviewText}>{review.text}</Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
+
+  const renderAboutTab = () => (
+    <View style={styles.tabContent}>
+      {profile?.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
+      <View style={styles.aboutRow}>
+        <Feather name="map-pin" size={14} color={accentColor} />
+        <Text style={styles.aboutLabel}>Location</Text>
+        <Text style={styles.aboutValue}>
+          {profile?.location || "Not listed"}
+        </Text>
+      </View>
+      <View style={styles.aboutRow}>
+        <Feather name="mail" size={14} color={accentColor} />
+        <Text style={styles.aboutLabel}>Email</Text>
+        <Text style={styles.aboutValue}>
+          {profile?.contactEmail || "Not listed"}
+        </Text>
+      </View>
+      <View style={styles.aboutRow}>
+        <Feather name="phone" size={14} color={accentColor} />
+        <Text style={styles.aboutLabel}>Phone</Text>
+        <Text style={styles.aboutValue}>
+          {profile?.contactPhone || "Not listed"}
+        </Text>
+      </View>
+      <View style={styles.aboutRow}>
+        <Feather name="globe" size={14} color={accentColor} />
+        <Text style={styles.aboutLabel}>Website</Text>
+        <Text style={styles.aboutValue}>
+          {profile?.websiteUrl || "Not listed"}
+        </Text>
+      </View>
+      {profile?.role === "business" ? (
+        <View style={styles.aboutRow}>
+          <Feather name="clock" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Store Hours</Text>
+          <Text style={styles.aboutValue}>
+            {profile?.hoursOfOperation || "Not listed"}
+          </Text>
+        </View>
+      ) : null}
+      <View style={styles.aboutRow}>
+        <Feather name="zap" size={14} color={accentColor} />
+        <Text style={styles.aboutLabel}>Response Time</Text>
+        <Text style={styles.aboutValue}>
+          {profile?.responseTime || "Usually responds in 2h"}
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "posts":
+        return renderPostsTab();
+      case "shop":
+        return renderShopTab();
+      case "booking":
+        return renderBookingTab();
+      case "availability":
+        return renderAvailabilityTab();
+      case "saved":
+        return renderSavedTab();
+      case "reviews":
+        return renderReviewsTab();
+      case "about":
+        return renderAboutTab();
+      default:
+        return null;
     }
-    
-    // Check if weeklyAvailability has any active days (availability is set but not today)
-    if (weeklyAvailability.length > 0 && weeklyAvailability.some((s) => s.isActive)) {
-      return "Not available today";
-    }
-    
-    // No availability data at all
-    return "Availability not set";
   };
 
   if (!isAuthenticated) {
     return (
-      <ThemedView style={styles.container}>
-        <View style={[styles.authContainer, { paddingTop: insets.top }]}>
-          <Feather name="camera" size={64} color={theme.primary} />
-          <ThemedText type="h2" style={styles.authTitle}>
-            Welcome to Outsyde
-          </ThemedText>
-          <ThemedText
-            type="body"
-            style={[styles.authSubtitle, { color: theme.textSecondary }]}
-          >
-            Sign in to book photographers, manage sessions, and more
-          </ThemedText>
-          <Button
-            onPress={() => navigation.navigate("Auth", {})}
-            style={styles.authButton}
-          >
-            Sign In or Sign Up
-          </Button>
-        </View>
-      </ThemedView>
-    );
-  }
-
-  if (loading) {
-    return (
-      <ThemedView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
-      </ThemedView>
-    );
-  }
-
-  const handlePickPostMedia = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Please allow access to your photo library.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images", "videos"],
-      allowsEditing: true,
-      aspect: [9, 16],
-      quality: 0.5, // Lower quality for smaller file size
-      videoMaxDuration: 15, // Max 15 seconds for Pulse videos
-      videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium, // Medium quality for compression
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      const isVideo = asset.type === "video" || asset.uri.includes(".mp4") || asset.uri.includes(".mov") || (asset.mimeType && asset.mimeType.startsWith("video/"));
-      setNewPostMedia(asset.uri);
-      setNewPostMediaType(isVideo ? "video" : "image");
-    }
-  };
-
-  const getProfileUsername = () => {
-    if (user?.username) return user.username;
-    // Fallback to generating a display ID from the user ID
-    if (user?.id) return `user_${user.id.slice(-8)}`;
-    return null;
-  };
-
-  const getProfileShareUrl = () => {
-    const username = getProfileUsername();
-    return `outsyde.app/u/${username || user?.id || ""}`;
-  };
-
-  const handleCopyToClipboard = async (text: string, field: string) => {
-    await Clipboard.setStringAsync(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const handleShareProfile = async () => {
-    const profileUrl = getProfileShareUrl();
-    const username = getProfileUsername();
-    try {
-      await Share.share({
-        message: `Check out my profile on Outsyde! ${profileUrl}`,
-        title: "Share Profile",
-      });
-    } catch (error) {
-      console.log("Share error:", error);
-    }
-  };
-
-  const handleCreatePost = async () => {
-    if (!newPostMedia) {
-      Alert.alert("No Media", "Please select a photo or video for your post.");
-      return;
-    }
-    
-    if (!displayLayout) {
-      Alert.alert("Display Format Required", "Please select how this post should appear on your profile (Pro or Pulse).");
-      return;
-    }
-    
-    const authToken = await getToken();
-    if (!authToken) {
-      Alert.alert("Error", "You must be logged in to create a post.");
-      return;
-    }
-
-    setPostSaving(true);
-    try {
-      // Upload media directly to Cloudinary first (never goes through backend)
-      let cloudinaryUrl: string;
-      let thumbnailUrl: string | undefined;
-      let mediaDuration: number | undefined;
-      
-      if (newPostMediaType === "video") {
-        console.log("[AccountScreen] Uploading post video directly to Cloudinary...");
-        const videoResult = await uploadVideoWithMetadata(newPostMedia, "posts");
-        cloudinaryUrl = videoResult.url;
-        thumbnailUrl = videoResult.thumbnailUrl;
-        mediaDuration = videoResult.duration;
-        console.log("[AccountScreen] Video uploaded with metadata:", { 
-          url: cloudinaryUrl, 
-          thumbnailUrl, 
-          duration: mediaDuration 
-        });
-      } else {
-        console.log("[AccountScreen] Uploading post image directly to Cloudinary...");
-        cloudinaryUrl = await uploadImageToCloudinary(newPostMedia, "posts");
-      }
-      
-      // CRITICAL: Validate upload succeeded with a proper Cloudinary URL
-      if (!cloudinaryUrl || !cloudinaryUrl.includes("cloudinary.com")) {
-        throw new Error("Upload failed - no valid media URL received. Please try again with a shorter video.");
-      }
-      
-      // For video posts, validate we have the video URL properly set
-      if (newPostMediaType === "video" && !cloudinaryUrl.includes("/video/upload/")) {
-        throw new Error("Video upload failed - received invalid video URL. Please try again.");
-      }
-      
-      console.log("[AccountScreen] Media uploaded to Cloudinary:", cloudinaryUrl, "type:", newPostMediaType);
-      
-      // Create post with Cloudinary URL + metadata (backend only receives URLs, not raw files)
-      // CRITICAL: feedSurface is the source of truth for feed placement
-      const postData: {
-        imageUrl?: string;
-        videoUrl?: string;
-        content?: string;
-        mediaType?: "image" | "video";
-        thumbnailUrl?: string;
-        mediaDuration?: number;
-        photographerServiceId?: string;
-        productId?: string;
-        displayLayout: "pro" | "pulse";
-        feedSurface: "pro" | "pulse";
-      } = {
-        content: newPostCaption.trim() || " ",
-        displayLayout: displayLayout!,
-        feedSurface: displayLayout!, // CRITICAL: Explicit feed routing
-        mediaType: newPostMediaType,
-      };
-      
-      // Set image or video URL based on media type
-      if (newPostMediaType === "video") {
-        postData.videoUrl = cloudinaryUrl;
-        postData.thumbnailUrl = thumbnailUrl;
-        postData.mediaDuration = mediaDuration;
-      } else {
-        postData.imageUrl = cloudinaryUrl;
-      }
-      
-      // Only include photographerServiceId/productId if they have values
-      if (linkedServiceId) {
-        postData.photographerServiceId = linkedServiceId;
-      }
-      if (linkedProductId) {
-        postData.productId = linkedProductId;
-      }
-      
-      console.log("[AccountScreen] Creating post with feedSurface:", displayLayout, "data:", JSON.stringify(postData));
-      const response = await api.createPost(authToken, postData);
-      
-      if (response.post) {
-        const newPost = mapApiPostToFeaturedPost(response.post);
-        const createdForPulse = displayLayout === "pulse";
-        setFeaturedPosts([newPost, ...featuredPosts]);
-        setNewPostMedia("");
-        setNewPostMediaType("image");
-        setNewPostCaption("");
-        setLinkedServiceId("");
-        setLinkedProductId("");
-        setDisplayLayout(null);
-        setShowCreatePost(false);
-        console.log("[AccountScreen] Post created successfully:", response.post.id, "feedSurface:", createdForPulse ? "pulse" : "pro");
-        
-        // Show success message with feed indication
-        Alert.alert(
-          "Post Shared!",
-          createdForPulse 
-            ? "Your video is now live on the Pulse feed!" 
-            : "Your post is now live on the Pro feed!",
-          [{ text: "OK" }]
-        );
-        
-        // Trigger feed refresh so the new post appears immediately
-        feedEvents.emitRefresh(createdForPulse ? "pulse" : "pro");
-      }
-    } catch (error: any) {
-      console.error("[AccountScreen] Failed to create post:", error);
-      // Check if it's a service/product not found error
-      const errorMsg = error.message?.toLowerCase() || "";
-      if (errorMsg.includes("service not found") || errorMsg.includes("product not found") || error.status === 404) {
-        Alert.alert(
-          "Linking Not Available",
-          "Service/product linking is not yet supported. Try posting without linking a service or product.",
-          [{ text: "OK" }]
-        );
-      } else {
-        Alert.alert("Error", error.message || "Failed to create post. Please try again.");
-      }
-    } finally {
-      setPostSaving(false);
-    }
-  };
-
-  // Format business hours for display from weeklyAvailability
-  const formatBusinessHoursFromWeekly = (): string => {
-    if (weeklyAvailability.length === 0) return "";
-    
-    const formatTime = (time24: string): string => {
-      const [hours, minutes] = time24.split(":").map(Number);
-      const period = hours >= 12 ? "PM" : "AM";
-      const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-      return minutes > 0 ? `${hours12}:${String(minutes).padStart(2, "0")} ${period}` : `${hours12} ${period}`;
-    };
-    
-    const today = new Date().getDay();
-    const todaySlot = weeklyAvailability.find((s) => s.dayOfWeek === today && s.isActive);
-    
-    if (todaySlot) {
-      return `Open Today: ${formatTime(todaySlot.startTime)} – ${formatTime(todaySlot.endTime)}`;
-    }
-    
-    // If not open today, check if any days are set
-    const activeDays = weeklyAvailability.filter((s) => s.isActive);
-    if (activeDays.length > 0) {
-      return "Closed Today";
-    }
-    
-    return "Hours vary";
-  };
-
-  const renderFeaturedTab = () => {
-    // Business Featured Tab - Show featured products/services and store info
-    if (userRole === "business") {
-      const liveProducts = businessProducts.filter(p => p.status === "live");
-      const liveServices = businessServices.filter(s => s.status === "live");
-      const featuredProducts = liveProducts.slice(0, 4);
-      const featuredServices = liveServices.slice(0, 3);
-      const hasFeaturedItems = featuredProducts.length > 0 || featuredServices.length > 0;
-
-      return (
-        <View style={styles.tabContent}>
-          {/* Featured Products Section */}
-          {featuredProducts.length > 0 && (
-            <View style={{ marginBottom: Spacing.lg }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
-                <ThemedText type="h4">Featured Products</ThemedText>
-                {liveProducts.length > 4 && (
-                  <Pressable onPress={() => setActiveTab("book")}>
-                    <ThemedText type="small" style={{ color: profileTheme }}>See All</ThemedText>
-                  </Pressable>
-                )}
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.lg }}>
-                <View style={{ flexDirection: "row", paddingHorizontal: Spacing.lg }}>
-                  {featuredProducts.map((product) => (
-                    <View
-                      key={product.id}
-                      style={{
-                        width: 140,
-                        marginRight: Spacing.md,
-                        backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                        borderRadius: 12,
-                        overflow: "hidden",
-                      }}
-                    >
-                      {product.imageUrl ? (
-                        <Image
-                          source={{ uri: product.imageUrl }}
-                          style={{ width: "100%", height: 100 }}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <View style={{
-                          width: "100%",
-                          height: 100,
-                          backgroundColor: profileTheme + "20",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}>
-                          <Feather name="shopping-bag" size={28} color={profileTheme} />
-                        </View>
-                      )}
-                      <View style={{ padding: Spacing.sm }}>
-                        <ThemedText type="small" style={{ fontWeight: "600" }} numberOfLines={1}>{product.name}</ThemedText>
-                        <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600", marginTop: 2 }}>
-                          {formatPrice(product.priceCents)}
-                        </ThemedText>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Featured Services Section */}
-          {featuredServices.length > 0 && (
-            <View style={{ marginBottom: Spacing.lg }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
-                <ThemedText type="h4">Featured Services</ThemedText>
-                {liveServices.length > 3 && (
-                  <Pressable onPress={() => setActiveTab("availability")}>
-                    <ThemedText type="small" style={{ color: profileTheme }}>See All</ThemedText>
-                  </Pressable>
-                )}
-              </View>
-              {featuredServices.map((service) => (
-                <View
-                  key={service.id}
-                  style={{
-                    backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                    borderRadius: 12,
-                    padding: Spacing.md,
-                    marginBottom: Spacing.sm,
-                    flexDirection: "row",
-                    alignItems: "center",
-                  }}
-                >
-                  <View style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 10,
-                    backgroundColor: profileTheme + "20",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: Spacing.md,
-                  }}>
-                    <Feather name="briefcase" size={20} color={profileTheme} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="body" style={{ fontWeight: "600" }}>{service.name}</ThemedText>
-                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
-                      <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
-                        {formatPrice(service.priceCents)}
-                      </ThemedText>
-                      {service.durationMinutes && (
-                        <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
-                          {service.durationMinutes} min
-                        </ThemedText>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Empty state if no featured items */}
-          {!hasFeaturedItems && (
-            <View style={{ marginBottom: Spacing.lg, alignItems: "center", paddingVertical: Spacing.xl }}>
-              <Feather name="star" size={40} color={theme.textSecondary} />
-              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
-                No featured items yet
-              </ThemedText>
-              {isOwner && !isGuest && (
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs, textAlign: "center" }}>
-                  Publish products or services to feature them here
-                </ThemedText>
-              )}
-            </View>
-          )}
-
-          {/* Business Description */}
-          {profile?.bio && (
-            <View style={{ marginBottom: Spacing.lg }}>
-              <ThemedText type="h4" style={{ marginBottom: Spacing.sm }}>About</ThemedText>
-              <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 22 }}>
-                {profile.bio}
-              </ThemedText>
-            </View>
-          )}
-
-          {/* Store Hours - derived from weekly_availability */}
-          {weeklyAvailability.length > 0 && (
-            <View style={{ 
-              backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", 
-              borderRadius: 12, 
-              padding: Spacing.md, 
-              marginBottom: Spacing.md,
-              flexDirection: "row",
-              alignItems: "center",
-            }}>
-              <View style={{ 
-                width: 40, 
-                height: 40, 
-                borderRadius: 20, 
-                backgroundColor: profileTheme + "20", 
-                alignItems: "center", 
-                justifyContent: "center",
-                marginRight: Spacing.md,
-              }}>
-                <Feather name="clock" size={18} color={profileTheme} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <ThemedText type="body" style={{ fontWeight: "600" }}>Store Hours</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                  {formatBusinessHoursFromWeekly()}
-                </ThemedText>
-              </View>
-            </View>
-          )}
-
-          {/* Address */}
-          {(profile?.address || (profile?.city && profile?.state)) && (
-            <View style={{ 
-              backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", 
-              borderRadius: 12, 
-              padding: Spacing.md, 
-              marginBottom: Spacing.md,
-              flexDirection: "row",
-              alignItems: "center",
-            }}>
-              <View style={{ 
-                width: 40, 
-                height: 40, 
-                borderRadius: 20, 
-                backgroundColor: profileTheme + "20", 
-                alignItems: "center", 
-                justifyContent: "center",
-                marginRight: Spacing.md,
-              }}>
-                <Feather name="map-pin" size={18} color={profileTheme} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <ThemedText type="body" style={{ fontWeight: "600" }}>Location</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                  {profile?.address ? profile.address : `${profile?.city}, ${profile?.state}`}
-                </ThemedText>
-              </View>
-            </View>
-          )}
-
-          {/* Contact Info */}
-          {(profile?.contactPhone || profile?.contactEmail || profile?.websiteUrl) && (
-            <View style={{ 
-              backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5", 
-              borderRadius: 12, 
-              padding: Spacing.md, 
-              marginBottom: Spacing.lg,
-            }}>
-              <ThemedText type="body" style={{ fontWeight: "600", marginBottom: Spacing.sm }}>Contact</ThemedText>
-              {profile?.contactPhone && (
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.xs }}>
-                  <Feather name="phone" size={14} color={theme.textSecondary} />
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
-                    {profile.contactPhone}
-                  </ThemedText>
-                </View>
-              )}
-              {profile?.contactEmail && (
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.xs }}>
-                  <Feather name="mail" size={14} color={theme.textSecondary} />
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
-                    {profile.contactEmail}
-                  </ThemedText>
-                </View>
-              )}
-              {profile?.websiteUrl && (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Feather name="globe" size={14} color={theme.textSecondary} />
-                  <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.sm }}>
-                    {profile.websiteUrl}
-                  </ThemedText>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Bio Section */}
-          {profile?.bio && (
-            <View style={{ marginBottom: Spacing.md }}>
-              <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 20 }}>
-                {profile.bio}
-              </ThemedText>
-            </View>
-          )}
-
-          {/* Create Post Button - Compact */}
-          {isOwner && !isGuest && (
-            <Pressable
-              onPress={() => setShowCreatePost(true)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                alignSelf: "flex-end",
-                backgroundColor: profileTheme,
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 20,
-                marginBottom: Spacing.md,
-              }}
-            >
-              <Feather name="plus" size={16} color="#000" />
-              <ThemedText type="small" style={{ color: "#000", marginLeft: 4, fontWeight: "600" }}>
-                Post
-              </ThemedText>
-            </Pressable>
-          )}
-
-          {/* Posts Grid */}
-          {featuredPosts.length > 0 ? (
-            <View style={styles.mediaGrid}>
-              {featuredPosts.map((post) => (
-                <Pressable key={post.id} style={styles.mediaGridItem}>
-                  <Image
-                    source={{ uri: getPostThumbnailUri(post) }}
-                    style={styles.mediaGridImage}
-                    contentFit="cover"
-                    transition={200}
-                    placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
-                  />
-                  {/* Play overlay for video posts */}
-                  {isVideoPost(post) && (
-                    <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="play" size={16} color="#fff" />
-                    </View>
-                  )}
-                  <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-                    <Feather name="heart" size={14} color="#fff" />
-                    <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-                      {post.likes}
-                    </ThemedText>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-        </View>
-      );
-    }
-
-    // Photographer/Consumer Featured Tab - Show Pro and Pulse rows
-    const proPosts = featuredPosts.filter(post => post.displayLayout === "pro");
-    const pulsePosts = featuredPosts.filter(post => post.displayLayout === "pulse");
-    const hasProPosts = proPosts.length > 0;
-    const hasPulsePosts = pulsePosts.length > 0;
-    const hasAnyPosts = hasProPosts || hasPulsePosts || (profile?.portfolio && profile.portfolio.length > 0);
-
-    return (
-      <View style={styles.tabContent}>
-        {/* Bio Section */}
-        {profile?.bio && (
-          <View style={{ marginBottom: Spacing.md }}>
-            <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 20 }}>
-              {profile.bio}
-            </ThemedText>
-          </View>
-        )}
-
-        {/* Create Post Button - For photographers/consumers on their own profile */}
-        {isOwner && !isGuest && (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingWrap}>
+          <Feather name="user" size={46} color={COLORS.gold} />
+          <Text style={[styles.loadingText, { marginTop: 10 }]}>
+            Sign in to view your profile
+          </Text>
           <Pressable
-            onPress={() => setShowCreatePost(true)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              alignSelf: "flex-end",
-              backgroundColor: profileTheme,
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 20,
-              marginBottom: Spacing.md,
-            }}
+            style={[
+              styles.emptyCta,
+              { marginTop: 16, backgroundColor: COLORS.gold },
+            ]}
+            onPress={() => navigation.navigate("Auth", {})}
           >
-            <Feather name="plus" size={16} color="#000" />
-            <ThemedText type="small" style={{ color: "#000", marginLeft: 4, fontWeight: "600" }}>
-              Post
-            </ThemedText>
+            <Text style={styles.emptyCtaText}>Go to Sign In</Text>
           </Pressable>
-        )}
-
-        {/* Pro Row - Square cards, horizontal scroll, gold indicator */}
-        {hasProPosts && (
-          <View style={{ marginBottom: Spacing.lg }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFD700", marginRight: Spacing.xs }} />
-                <ThemedText type="h4">Pro</ThemedText>
-              </View>
-              {proPosts.length > 3 && (
-                <Pressable onPress={() => navigation.navigate("ProfileFeed", { profileId: profile?.id || "", profileName: profile?.name || "", layout: "pro" })}>
-                  <ThemedText type="small" style={{ color: profileTheme }}>View all Pro</ThemedText>
-                </Pressable>
-              )}
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.lg }}>
-              <View style={{ flexDirection: "row", paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
-                {proPosts.slice(0, 6).map((post) => (
-                  <Pressable key={post.id} style={{ width: 140, height: 140, borderRadius: 12, overflow: "hidden" }}>
-                    <Image
-                      source={{ uri: getPostThumbnailUri(post) }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                      transition={200}
-                      placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
-                    />
-                    {/* Play overlay for video posts */}
-                    {isVideoPost(post) && (
-                      <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
-                        <Feather name="play" size={16} color="#fff" />
-                      </View>
-                    )}
-                    <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-                      <Feather name="heart" size={12} color="#fff" />
-                      <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, fontSize: 11, textShadowColor: "#000", textShadowRadius: 2 }}>
-                        {post.likes}
-                      </ThemedText>
-                    </View>
-                    <View style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(255,215,0,0.9)", alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="grid" size={10} color="#000" />
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Pulse Row - Vertical cards, horizontal scroll, pink indicator */}
-        {hasPulsePosts && (
-          <View style={{ marginBottom: Spacing.lg }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#FF69B4", marginRight: Spacing.xs }} />
-                <ThemedText type="h4">Pulse</ThemedText>
-              </View>
-              {pulsePosts.length > 3 && (
-                <Pressable onPress={() => navigation.navigate("ProfileFeed", { profileId: profile?.id || "", profileName: profile?.name || "", layout: "pulse" })}>
-                  <ThemedText type="small" style={{ color: profileTheme }}>View all Pulse</ThemedText>
-                </Pressable>
-              )}
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.lg }}>
-              <View style={{ flexDirection: "row", paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
-                {pulsePosts.slice(0, 6).map((post) => (
-                  <Pressable key={post.id} style={{ width: 120, height: 180, borderRadius: 12, overflow: "hidden" }}>
-                    <Image
-                      source={{ uri: getPostThumbnailUri(post) }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                      transition={200}
-                      placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
-                    />
-                    {/* Play overlay for video posts */}
-                    {isVideoPost(post) && (
-                      <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
-                        <Feather name="play" size={16} color="#fff" />
-                      </View>
-                    )}
-                    <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-                      <Feather name="heart" size={12} color="#fff" />
-                      <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, fontSize: 11, textShadowColor: "#000", textShadowRadius: 2 }}>
-                        {post.likes}
-                      </ThemedText>
-                    </View>
-                    <View style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(255,105,180,0.9)", alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="zap" size={10} color="#fff" />
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Portfolio images (legacy support) */}
-        {profile?.portfolio && profile.portfolio.length > 0 && (
-          <View style={{ marginBottom: Spacing.lg }}>
-            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>Portfolio</ThemedText>
-            <View style={styles.mediaGrid}>
-              {profile.portfolio.map((img, index) => (
-                <Pressable key={`portfolio-${index}`} style={styles.mediaGridItem}>
-                  <Image
-                    source={{ uri: img }}
-                    style={styles.mediaGridImage}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Empty state message when no posts */}
-        {!hasAnyPosts && (
-          <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
-            <Feather name="camera" size={48} color={theme.textSecondary} />
-            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-              No posts yet
-            </ThemedText>
-            {isOwner && !isGuest && (
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-                Share your best work to attract clients
-              </ThemedText>
-            )}
-          </View>
-        )}
-
-      {/* Create Post Modal */}
-      <Modal visible={showCreatePost} animationType="slide" transparent>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-          <View style={{
-            backgroundColor: theme.card,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            padding: Spacing.lg,
-            maxHeight: "90%",
-          }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {postIntent && (
-                  <Pressable onPress={() => setPostIntent(null)} style={{ marginRight: Spacing.sm }}>
-                    <Feather name="arrow-left" size={24} color={theme.text} />
-                  </Pressable>
-                )}
-                <ThemedText type="h3">{postIntent ? "Create Post" : "What would you like to share?"}</ThemedText>
-              </View>
-              <Pressable onPress={() => { setShowCreatePost(false); setPostIntent(null); setDisplayLayout(null); setNewPostMedia(""); setNewPostMediaType("image"); setNewPostCaption(""); setLinkedServiceId(""); setLinkedProductId(""); setTaggedProfileId(""); setTaggedProfileName(""); }}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-
-            {/* Step 1: Intent Selection */}
-            {!postIntent ? (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Social / Lifestyle Option - Always visible */}
-                <Pressable
-                  onPress={() => setPostIntent("social")}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    padding: Spacing.lg,
-                    backgroundColor: theme.backgroundSecondary,
-                    borderRadius: 12,
-                    marginBottom: Spacing.md,
-                  }}
-                >
-                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: profileTheme, alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
-                    <Feather name="camera" size={24} color="#000" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="h4">Social / Lifestyle</ThemedText>
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                      Share moments, updates, or behind-the-scenes content
-                    </ThemedText>
-                  </View>
-                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-                </Pressable>
-
-                {/* Review / Experience Option - Always visible */}
-                <Pressable
-                  onPress={() => setPostIntent("review")}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    padding: Spacing.lg,
-                    backgroundColor: theme.backgroundSecondary,
-                    borderRadius: 12,
-                    marginBottom: Spacing.md,
-                  }}
-                >
-                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#4CAF50", alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
-                    <Feather name="star" size={24} color="#FFF" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="h4">Review / Experience</ThemedText>
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                      Share your experience with a business or photographer
-                    </ThemedText>
-                  </View>
-                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-                </Pressable>
-
-                {/* Promote Service/Product - Role-based visibility */}
-                {((userRole as string) === "business" || userRole === "photographer" || (userRole === "consumer" && user?.isInfluencer)) ? (
-                  <Pressable
-                    onPress={() => setPostIntent("promote")}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      padding: Spacing.lg,
-                      backgroundColor: theme.backgroundSecondary,
-                      borderRadius: 12,
-                      marginBottom: Spacing.md,
-                    }}
-                  >
-                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#9C27B0", alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
-                      <Feather name="trending-up" size={24} color="#FFF" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText type="h4">Promote Service or Product</ThemedText>
-                      <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                        Showcase what you offer with a commerce-enabled post
-                      </ThemedText>
-                    </View>
-                    <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-                  </Pressable>
-                ) : userRole === "consumer" ? (
-                  <View style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    padding: Spacing.lg,
-                    backgroundColor: theme.backgroundSecondary,
-                    borderRadius: 12,
-                    marginBottom: Spacing.md,
-                    opacity: 0.5,
-                  }}>
-                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#9C27B0", alignItems: "center", justifyContent: "center", marginRight: Spacing.md }}>
-                      <Feather name="trending-up" size={24} color="#FFF" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText type="h4">Promote Service or Product</ThemedText>
-                      <ThemedText type="small" style={{ color: theme.error, marginTop: 2 }}>
-                        Available to approved influencers and businesses
-                      </ThemedText>
-                    </View>
-                    <Feather name="lock" size={20} color={theme.textSecondary} />
-                  </View>
-                ) : null}
-              </ScrollView>
-            ) : (
-              /* Step 2: Post Content (after intent selected) */
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Intent Badge */}
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.md }}>
-                  <View style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: Spacing.md,
-                    paddingVertical: Spacing.xs,
-                    backgroundColor: postIntent === "social" ? profileTheme : postIntent === "review" ? "#4CAF50" : "#9C27B0",
-                    borderRadius: 16,
-                  }}>
-                    <Feather 
-                      name={postIntent === "social" ? "camera" : postIntent === "review" ? "star" : "trending-up"} 
-                      size={14} 
-                      color={postIntent === "social" ? "#000" : "#FFF"} 
-                    />
-                    <ThemedText type="small" style={{ color: postIntent === "social" ? "#000" : "#FFF", marginLeft: Spacing.xs, fontWeight: "600" }}>
-                      {postIntent === "social" ? "Social / Lifestyle" : postIntent === "review" ? "Review / Experience" : "Promotional"}
-                    </ThemedText>
-                  </View>
-                </View>
-
-                {/* Display Format Selector - REQUIRED - Must choose before adding media */}
-                <View style={{ marginBottom: Spacing.lg }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
-                    <Feather name="layout" size={16} color={theme.text} />
-                    <ThemedText type="body" style={{ marginLeft: Spacing.xs, fontWeight: "600" }}>
-                      How should this post appear on your profile?
-                    </ThemedText>
-                    <ThemedText type="small" style={{ color: theme.error, marginLeft: Spacing.xs }}>*</ThemedText>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-                    {/* Pro Option */}
-                    <Pressable
-                      onPress={() => setDisplayLayout("pro")}
-                      style={{
-                        flex: 1,
-                        padding: Spacing.md,
-                        borderRadius: 12,
-                        borderWidth: 2,
-                        borderColor: displayLayout === "pro" ? "#FFD700" : theme.border,
-                        backgroundColor: displayLayout === "pro" ? "rgba(255, 215, 0, 0.1)" : theme.backgroundSecondary,
-                        alignItems: "center",
-                      }}
-                    >
-                      <View style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 8,
-                        backgroundColor: displayLayout === "pro" ? "#FFD700" : theme.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: Spacing.sm,
-                      }}>
-                        <Feather name="grid" size={24} color={displayLayout === "pro" ? "#000" : theme.textSecondary} />
-                      </View>
-                      <ThemedText type="body" style={{ fontWeight: "600", color: displayLayout === "pro" ? "#FFD700" : theme.text }}>
-                        Pro
-                      </ThemedText>
-                      <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: 2 }}>
-                        Polished, storefront-style
-                      </ThemedText>
-                    </Pressable>
-
-                    {/* Pulse Option */}
-                    <Pressable
-                      onPress={() => setDisplayLayout("pulse")}
-                      style={{
-                        flex: 1,
-                        padding: Spacing.md,
-                        borderRadius: 12,
-                        borderWidth: 2,
-                        borderColor: displayLayout === "pulse" ? "#FF69B4" : theme.border,
-                        backgroundColor: displayLayout === "pulse" ? "rgba(255, 105, 180, 0.1)" : theme.backgroundSecondary,
-                        alignItems: "center",
-                      }}
-                    >
-                      <View style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 8,
-                        backgroundColor: displayLayout === "pulse" ? "#FF69B4" : theme.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: Spacing.sm,
-                      }}>
-                        <Feather name="zap" size={24} color={displayLayout === "pulse" ? "#FFF" : theme.textSecondary} />
-                      </View>
-                      <ThemedText type="body" style={{ fontWeight: "600", color: displayLayout === "pulse" ? "#FF69B4" : theme.text }}>
-                        Pulse
-                      </ThemedText>
-                      <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: 2 }}>
-                        Casual, vertical, real-time
-                      </ThemedText>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* Media Picker - Images and Videos */}
-                <Pressable
-                  onPress={handlePickPostMedia}
-                  style={{
-                    width: "100%",
-                    aspectRatio: 9 / 16,
-                    maxHeight: 300,
-                    backgroundColor: theme.backgroundSecondary,
-                    borderRadius: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: Spacing.md,
-                    overflow: "hidden",
-                  }}
-                >
-                  {newPostMedia ? (
-                    newPostMediaType === "video" ? (
-                      <View style={{ width: "100%", height: "100%", position: "relative" }}>
-                        <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
-                          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
-                            <Feather name="play" size={28} color="#FFFFFF" />
-                          </View>
-                        </View>
-                        <View style={{ position: "absolute", top: Spacing.sm, right: Spacing.sm, backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: 4 }}>
-                          <ThemedText type="small" style={{ color: "#FFFFFF" }}>VIDEO</ThemedText>
-                        </View>
-                      </View>
-                    ) : (
-                      <Image source={{ uri: newPostMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                    )
-                  ) : (
-                    <View style={{ alignItems: "center" }}>
-                      <Feather name="film" size={48} color={theme.textSecondary} />
-                      <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                        Tap to select photo or video
-                      </ThemedText>
-                      <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                        Videos up to 60 seconds
-                      </ThemedText>
-                    </View>
-                  )}
-                </Pressable>
-
-                {/* Caption Input */}
-                <TextInput
-                  value={newPostCaption}
-                  onChangeText={setNewPostCaption}
-                  placeholder="Write a caption..."
-                  placeholderTextColor={theme.textSecondary}
-                  multiline
-                  style={{
-                    backgroundColor: theme.backgroundSecondary,
-                    borderRadius: 12,
-                    padding: Spacing.md,
-                    color: theme.text,
-                    minHeight: 80,
-                    textAlignVertical: "top",
-                    marginBottom: Spacing.md,
-                  }}
-                />
-
-                {/* Review Intent: Tagging required */}
-                {postIntent === "review" && (
-                  <View style={{ marginBottom: Spacing.md }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
-                      <Feather name="at-sign" size={16} color={profileTheme} />
-                      <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs, fontWeight: "600" }}>
-                        Tag who you worked with
-                      </ThemedText>
-                    </View>
-                    <TextInput
-                      value={taggedProfileName}
-                      onChangeText={setTaggedProfileName}
-                      placeholder="Search for a business or photographer..."
-                      placeholderTextColor={theme.textSecondary}
-                      style={{
-                        backgroundColor: theme.backgroundSecondary,
-                        borderRadius: 12,
-                        padding: Spacing.md,
-                        color: theme.text,
-                      }}
-                    />
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                      Your review will be linked to their profile
-                    </ThemedText>
-                  </View>
-                )}
-
-                {/* Promote Intent: Service/Product linking for photographers */}
-                {postIntent === "promote" && userRole === "photographer" && photographerServices.length > 0 && (
-                  <View style={{ marginBottom: Spacing.md }}>
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                      Link a service (optional)
-                    </ThemedText>
-                    <ScrollView 
-                      horizontal 
-                      showsHorizontalScrollIndicator={false}
-                      style={{ marginHorizontal: -Spacing.lg }}
-                      contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
-                    >
-                      <Pressable
-                        onPress={() => setLinkedServiceId("")}
-                        style={{
-                          paddingHorizontal: Spacing.md,
-                          paddingVertical: Spacing.sm,
-                          borderRadius: 20,
-                          backgroundColor: !linkedServiceId ? profileTheme : theme.backgroundSecondary,
-                          borderWidth: 1,
-                          borderColor: !linkedServiceId ? profileTheme : theme.border,
-                        }}
-                      >
-                        <ThemedText type="small" style={{ color: !linkedServiceId ? "#000" : theme.text }}>
-                          No link
-                        </ThemedText>
-                      </Pressable>
-                      {photographerServices.map((service) => (
-                        <Pressable
-                          key={service.id}
-                          onPress={() => setLinkedServiceId(service.id)}
-                          style={{
-                            paddingHorizontal: Spacing.md,
-                            paddingVertical: Spacing.sm,
-                            borderRadius: 20,
-                            backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
-                            borderWidth: 1,
-                            borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
-                          }}
-                        >
-                          <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
-                            {service.name}
-                          </ThemedText>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                    {linkedServiceId && (
-                      <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
-                        <Feather name="tag" size={14} color={profileTheme} />
-                        <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
-                          Post will show "Book" button for this service
-                        </ThemedText>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                {/* Promote Intent: Service/Product linking for businesses */}
-                {postIntent === "promote" && (userRole as string) === "business" && (businessServices.length > 0 || businessProducts.length > 0) && (
-                  <View style={{ marginBottom: Spacing.md }}>
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
-                      Link a service or product (optional)
-                    </ThemedText>
-                    <ScrollView 
-                      horizontal 
-                      showsHorizontalScrollIndicator={false}
-                      style={{ marginHorizontal: -Spacing.lg }}
-                      contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
-                    >
-                      <Pressable
-                        onPress={() => { setLinkedServiceId(""); setLinkedProductId(""); }}
-                        style={{
-                          paddingHorizontal: Spacing.md,
-                          paddingVertical: Spacing.sm,
-                          borderRadius: 20,
-                          backgroundColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.backgroundSecondary,
-                          borderWidth: 1,
-                          borderColor: !linkedServiceId && !linkedProductId ? profileTheme : theme.border,
-                        }}
-                      >
-                        <ThemedText type="small" style={{ color: !linkedServiceId && !linkedProductId ? "#000" : theme.text }}>
-                          No link
-                        </ThemedText>
-                      </Pressable>
-                      {businessServices.filter(s => s.status === "live").map((service) => (
-                        <Pressable
-                          key={`svc-${service.id}`}
-                          onPress={() => { setLinkedServiceId(service.id); setLinkedProductId(""); }}
-                          style={{
-                            paddingHorizontal: Spacing.md,
-                            paddingVertical: Spacing.sm,
-                            borderRadius: 20,
-                            backgroundColor: linkedServiceId === service.id ? profileTheme : theme.backgroundSecondary,
-                            borderWidth: 1,
-                            borderColor: linkedServiceId === service.id ? profileTheme : theme.border,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: Spacing.xs,
-                          }}
-                        >
-                          <Feather name="briefcase" size={12} color={linkedServiceId === service.id ? "#000" : theme.textSecondary} />
-                          <ThemedText type="small" style={{ color: linkedServiceId === service.id ? "#000" : theme.text }}>
-                            {service.name}
-                          </ThemedText>
-                        </Pressable>
-                      ))}
-                      {businessProducts.filter(p => p.status === "live").map((product) => (
-                        <Pressable
-                          key={`prod-${product.id}`}
-                          onPress={() => { setLinkedProductId(product.id); setLinkedServiceId(""); }}
-                          style={{
-                            paddingHorizontal: Spacing.md,
-                            paddingVertical: Spacing.sm,
-                            borderRadius: 20,
-                            backgroundColor: linkedProductId === product.id ? profileTheme : theme.backgroundSecondary,
-                            borderWidth: 1,
-                            borderColor: linkedProductId === product.id ? profileTheme : theme.border,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: Spacing.xs,
-                          }}
-                        >
-                          <Feather name="shopping-bag" size={12} color={linkedProductId === product.id ? "#000" : theme.textSecondary} />
-                          <ThemedText type="small" style={{ color: linkedProductId === product.id ? "#000" : theme.text }}>
-                            {product.name}
-                          </ThemedText>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                    {(linkedServiceId || linkedProductId) && (
-                      <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
-                        <Feather name="tag" size={14} color={profileTheme} />
-                        <ThemedText type="small" style={{ color: profileTheme, marginLeft: Spacing.xs }}>
-                          Post will show "{linkedProductId ? "Buy Now" : "Book"}" button
-                        </ThemedText>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                {/* Promote Intent: Tagging for influencers */}
-                {postIntent === "promote" && userRole === "consumer" && user?.isInfluencer && (
-                  <View style={{ marginBottom: Spacing.md }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
-                      <Feather name="at-sign" size={16} color={theme.textSecondary} />
-                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
-                        Tag a profile (optional)
-                      </ThemedText>
-                    </View>
-                    <TextInput
-                      value={taggedProfileName}
-                      onChangeText={setTaggedProfileName}
-                      placeholder="Search for a business or photographer..."
-                      placeholderTextColor={theme.textSecondary}
-                      style={{
-                        backgroundColor: theme.backgroundSecondary,
-                        borderRadius: 12,
-                        padding: Spacing.md,
-                        color: theme.text,
-                      }}
-                    />
-                  </View>
-                )}
-
-
-                {/* Post Button */}
-                <Pressable
-                  onPress={handleCreatePost}
-                  disabled={postSaving || !displayLayout || !newPostMedia}
-                  style={{
-                    backgroundColor: (postSaving || !displayLayout || !newPostMedia) ? theme.textSecondary : profileTheme,
-                    paddingVertical: 16,
-                    borderRadius: 12,
-                    alignItems: "center",
-                    opacity: (postSaving || !displayLayout || !newPostMedia) ? 0.7 : 1,
-                  }}
-                >
-                  {postSaving ? (
-                    <ActivityIndicator size="small" color="#000" />
-                  ) : (
-                    <ThemedText type="button" style={{ color: "#000" }}>Share Post</ThemedText>
-                  )}
-                </Pressable>
-              </ScrollView>
-            )}
-          </View>
         </View>
-      </Modal>
-    </View>
-  );
-  };
-
-  const handleBookingComplete = async (booking: {
-    serviceId: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-  }) => {
-    console.log("[AccountScreen] Booking requested:", booking);
-  };
-
-  const formatPrice = (cents: number): string => {
-    return `$${(cents / 100).toFixed(2)}`;
-  };
-
-  const renderBusinessServicesProducts = () => {
-    const liveServices = businessServices.filter(s => s.status === "live");
-    const liveProducts = businessProducts.filter(p => p.status === "live");
-    const hasLiveServices = liveServices.length > 0;
-    const hasLiveProducts = liveProducts.length > 0;
-
-    if (!hasLiveServices && !hasLiveProducts) {
-      return (
-        <View style={styles.emptyTab}>
-          <Feather name="package" size={48} color={theme.textSecondary} />
-          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-            No offerings available yet
-          </ThemedText>
-          {isOwner && !isGuest && (
-            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-              Configure your products or services in your dashboard
-            </ThemedText>
-          )}
-        </View>
-      );
-    }
-
-    return (
-      <>
-        {hasLiveServices && (
-          <View style={{ marginBottom: Spacing.lg }}>
-            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Services</ThemedText>
-            {liveServices.map((service) => (
-              <View
-                key={service.id}
-                style={{
-                  backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                  borderRadius: 12,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.sm,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <View style={{
-                  width: 50,
-                  height: 50,
-                  borderRadius: 10,
-                  backgroundColor: profileTheme + "20",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: Spacing.md,
-                }}>
-                  <Feather name="briefcase" size={22} color={profileTheme} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <ThemedText type="body" style={{ fontWeight: "600" }}>{service.name}</ThemedText>
-                  {service.description && (
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={2}>
-                      {service.description}
-                    </ThemedText>
-                  )}
-                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-                    <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600" }}>
-                      {formatPrice(service.priceCents)}
-                    </ThemedText>
-                    {service.durationMinutes && (
-                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
-                        {service.durationMinutes} min
-                      </ThemedText>
-                    )}
-                  </View>
-                  <StarRating rating={service.rating} reviewCount={service.reviewCount} size={11} color={profileTheme} />
-                </View>
-                {!isOwner && (
-                  <Pressable
-                    style={{
-                      backgroundColor: profileTheme,
-                      paddingHorizontal: Spacing.md,
-                      paddingVertical: Spacing.sm,
-                      borderRadius: 8,
-                    }}
-                  >
-                    <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Book</ThemedText>
-                  </Pressable>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {hasLiveProducts && (
-          <View>
-            <ThemedText type="h3" style={{ marginBottom: Spacing.md }}>Products</ThemedText>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -Spacing.xs }}>
-              {liveProducts.map((product) => (
-                <View
-                  key={product.id}
-                  style={{
-                    width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
-                    marginHorizontal: Spacing.xs,
-                    marginBottom: Spacing.md,
-                    backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                    borderRadius: 12,
-                    overflow: "hidden",
-                  }}
-                >
-                  {product.imageUrl ? (
-                    <Image
-                      source={{ uri: product.imageUrl }}
-                      style={{ width: "100%", height: 120 }}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={{
-                      width: "100%",
-                      height: 120,
-                      backgroundColor: profileTheme + "20",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}>
-                      <Feather name="shopping-bag" size={32} color={profileTheme} />
-                    </View>
-                  )}
-                  <View style={{ padding: Spacing.sm }}>
-                    <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>{product.name}</ThemedText>
-                    <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600", marginTop: 4 }}>
-                      {formatPrice(product.priceCents)}
-                    </ThemedText>
-                    <StarRating rating={product.rating} reviewCount={product.reviewCount} size={10} color={profileTheme} />
-                    {!isOwner && (
-                      <Pressable
-                        style={{
-                          backgroundColor: profileTheme,
-                          paddingVertical: Spacing.xs,
-                          borderRadius: 6,
-                          alignItems: "center",
-                          marginTop: Spacing.sm,
-                        }}
-                      >
-                        <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Add to Cart</ThemedText>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-      </>
+      </SafeAreaView>
     );
-  };
+  }
 
-  const photographerProfile: PhotographerProfile = {
-    id: profile?.id || "",
-    name: profile?.name || "Photographer",
-    avatar: profile?.avatar,
-    rating: profile?.rating,
-    reviewCount: profile?.reviewCount,
-    hourlyRate: profile?.hourlyRate,
-    brandColors: profile?.brandColors,
-  };
-
-  const renderBookTab = () => {
-    if (userRole === "photographer") {
-      return (
-        <View style={styles.bookTabContainer}>
-          <BookingFlow
-            providerId={profile?.id || ""}
-            providerType="photographer"
-            providerName={profile?.name || "Photographer"}
-          />
-        </View>
-      );
-    }
-
-    // Business Services Tab
-    const stripeComplete = profile?.stripeOnboardingComplete ?? false;
-
+  if (loading || !profile) {
     return (
-      <View style={styles.tabContent}>
-        {/* Stripe Status Banner for Business */}
-        {isOwner && !isGuest && !stripeComplete && (
-          <View style={{
-            backgroundColor: "#7C3AED20",
-            padding: Spacing.md,
-            borderRadius: 12,
-            marginBottom: Spacing.md,
-            flexDirection: "row",
-            alignItems: "center",
-          }}>
-            <Feather name="credit-card" size={20} color="#7C3AED" />
-            <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-              <ThemedText type="body" style={{ color: "#7C3AED", fontWeight: "600" }}>
-                Complete Stripe Setup
-              </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Connect Stripe to accept payments and publish your offerings
-              </ThemedText>
-            </View>
-          </View>
-        )}
-
-        {stripeComplete && isOwner && (
-          <View style={{
-            backgroundColor: "#34C75920",
-            padding: Spacing.md,
-            borderRadius: 12,
-            marginBottom: Spacing.md,
-            flexDirection: "row",
-            alignItems: "center",
-          }}>
-            <Feather name="check-circle" size={20} color="#34C759" />
-            <ThemedText type="body" style={{ color: "#34C759", marginLeft: Spacing.sm }}>
-              Stripe connected - ready to accept payments
-            </ThemedText>
-          </View>
-        )}
-
-        {/* Services/Products content */}
-        {renderBusinessServicesProducts()}
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingWrap}>
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
     );
-  };
-
-  const getNext7Days = () => {
-    const days = [];
-    const now = new Date();
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(now);
-      date.setDate(now.getDate() + i);
-      days.push(date);
-    }
-    return days;
-  };
-
-  const isDateBlocked = (date: Date): boolean => {
-    const dateStr = date.toISOString().split("T")[0];
-    return blockedDates.some((blocked) => blocked.date === dateStr);
-  };
-
-  const getDayAvailability = (date: Date): string | null => {
-    const dayIndex = date.getDay();
-    const slot = availabilitySlots.find((s) => s.dayOfWeek === dayIndex && s.isRecurring);
-    if (!slot) return null;
-    return `${slot.startTime} - ${slot.endTime}`;
-  };
-
-  const formatDayLabel = (date: Date): string => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    if (date.toDateString() === today.toDateString()) return "Today";
-    if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-    return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  };
-
-  const renderAvailabilityTab = () => {
-    const next7Days = getNext7Days();
-    const hasAnyAvailability = availabilitySlots.length > 0;
-
-    return (
-      <View style={styles.tabContent}>
-        <View style={[styles.availabilityCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-          <View style={styles.availabilityHeader}>
-            <Feather name="calendar" size={20} color={profileTheme} />
-            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Weekly Availability</ThemedText>
-          </View>
-
-          {!hasAnyAvailability ? (
-            <View style={{ paddingVertical: Spacing.lg }}>
-              <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-                No availability set yet
-              </ThemedText>
-              {isOwner && (
-                <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.sm }}>
-                  Go to Dashboard to set your hours
-                </ThemedText>
-              )}
-            </View>
-          ) : (
-            <View style={{ marginTop: Spacing.md }}>
-              {next7Days.map((date, index) => {
-                const isBlocked = isDateBlocked(date);
-                const hours = getDayAvailability(date);
-                const dayLabel = formatDayLabel(date);
-
-                return (
-                  <View
-                    key={index}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingVertical: Spacing.sm,
-                      borderBottomWidth: index < 6 ? 1 : 0,
-                      borderBottomColor: isDark ? "#333" : "#E5E5E5",
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <ThemedText type="body" style={{ fontWeight: "600" }}>
-                        {dayLabel}
-                      </ThemedText>
-                    </View>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      {isBlocked ? (
-                        <View style={{ flexDirection: "row", alignItems: "center" }}>
-                          <Feather name="x-circle" size={14} color="#FF3B30" />
-                          <ThemedText type="small" style={{ color: "#FF3B30", marginLeft: 4 }}>
-                            Blocked
-                          </ThemedText>
-                        </View>
-                      ) : hours ? (
-                        <View style={{ flexDirection: "row", alignItems: "center" }}>
-                          <Feather name="check-circle" size={14} color="#34C759" />
-                          <ThemedText type="small" style={{ color: "#34C759", marginLeft: 4 }}>
-                            {hours}
-                          </ThemedText>
-                        </View>
-                      ) : (
-                        <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                          Unavailable
-                        </ThemedText>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        {blockedDates.length > 0 && (
-          <View style={[styles.availabilityCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF", marginTop: Spacing.md }]}>
-            <View style={styles.availabilityHeader}>
-              <Feather name="x-circle" size={18} color="#FF3B30" />
-              <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Blocked Dates</ThemedText>
-            </View>
-            <View style={{ marginTop: Spacing.sm }}>
-              {blockedDates.slice(0, 3).map((blocked, index) => (
-                <View key={index} style={{ paddingVertical: 4 }}>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                    {new Date(blocked.date).toLocaleDateString()}
-                    {blocked.isFullDay ? " (Full Day)" : ` (${blocked.startTime} - ${blocked.endTime})`}
-                    {blocked.reason ? ` - ${blocked.reason}` : ""}
-                  </ThemedText>
-                </View>
-              ))}
-              {blockedDates.length > 3 && (
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
-                  +{blockedDates.length - 3} more
-                </ThemedText>
-              )}
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const renderReviewsTab = () => {
-    if (userRole === "consumer") {
-      return (
-        <View style={styles.tabContent}>
-          <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>Reviews You've Written</ThemedText>
-          {consumerReviews.length > 0 ? (
-            consumerReviews.map((review) => (
-              <View key={review.id} style={[styles.reviewCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF", marginBottom: Spacing.md }]}>
-                <View style={styles.reviewHeader}>
-                  <ThemedText type="body" style={{ fontWeight: "600" }}>{review.businessName}</ThemedText>
-                  <View style={{ flexDirection: "row", marginLeft: "auto" }}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Feather
-                        key={star}
-                        name="star"
-                        size={14}
-                        color={star <= review.rating ? "#FFD700" : theme.textSecondary}
-                      />
-                    ))}
-                  </View>
-                </View>
-                <ThemedText type="body" style={{ marginTop: Spacing.sm, fontStyle: "italic" }}>
-                  "{review.comment}"
-                </ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
-                  {review.date}
-                </ThemedText>
-              </View>
-            ))
-          ) : (
-            <View style={styles.emptyTab}>
-              <Feather name="message-square" size={48} color={theme.textSecondary} />
-              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-                No reviews yet
-              </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-                After booking services, you can leave reviews for photographers and businesses
-              </ThemedText>
-            </View>
-          )}
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.tabContent}>
-        <View style={[styles.reviewCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-          <View style={styles.reviewHeader}>
-            <Feather name="message-square" size={18} color={profileTheme} />
-            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Reviews</ThemedText>
-          </View>
-          <ThemedText type="body" style={{ marginTop: Spacing.md, fontStyle: "italic" }}>
-            "Super professional, fast turnaround..."
-          </ThemedText>
-          <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-            - Sarah M.
-          </ThemedText>
-        </View>
-      </View>
-    );
-  };
-
-  // Render Products Tab for businesses
-  const renderProductsTab = () => {
-    const liveProducts = businessProducts.filter(p => p.status === "live");
-    
-    if (liveProducts.length === 0) {
-      return (
-        <View style={styles.tabContent}>
-          <View style={styles.emptyTab}>
-            <Feather name="shopping-bag" size={48} color={theme.textSecondary} />
-            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-              No products available yet
-            </ThemedText>
-            {isOwner && !isGuest && (
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-                Add products in your dashboard to display them here
-              </ThemedText>
-            )}
-          </View>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.tabContent}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -Spacing.xs }}>
-          {liveProducts.map((product) => (
-            <View
-              key={product.id}
-              style={{
-                width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm) / 2,
-                marginHorizontal: Spacing.xs,
-                marginBottom: Spacing.md,
-                backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                borderRadius: 12,
-                overflow: "hidden",
-              }}
-            >
-              {product.imageUrl ? (
-                <Image
-                  source={{ uri: product.imageUrl }}
-                  style={{ width: "100%", height: 120 }}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={{
-                  width: "100%",
-                  height: 120,
-                  backgroundColor: profileTheme + "20",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}>
-                  <Feather name="shopping-bag" size={32} color={profileTheme} />
-                </View>
-              )}
-              <View style={{ padding: Spacing.sm }}>
-                <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>{product.name}</ThemedText>
-                <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600", marginTop: 4 }}>
-                  {formatPrice(product.priceCents)}
-                </ThemedText>
-                <StarRating rating={product.rating} reviewCount={product.reviewCount} size={10} color={profileTheme} />
-                {!isOwner && (
-                  <Pressable
-                    style={{
-                      backgroundColor: profileTheme,
-                      paddingVertical: Spacing.xs,
-                      borderRadius: 6,
-                      alignItems: "center",
-                      marginTop: Spacing.sm,
-                    }}
-                  >
-                    <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Add to Cart</ThemedText>
-                  </Pressable>
-                )}
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  };
-
-  // Render Services Tab for businesses
-  const renderServicesTab = () => {
-    const liveServices = businessServices.filter(s => s.status === "live");
-    
-    if (liveServices.length === 0) {
-      return (
-        <View style={styles.tabContent}>
-          <View style={styles.emptyTab}>
-            <Feather name="briefcase" size={48} color={theme.textSecondary} />
-            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
-              No services available yet
-            </ThemedText>
-            {isOwner && !isGuest && (
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
-                Add services in your dashboard to display them here
-              </ThemedText>
-            )}
-          </View>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.tabContent}>
-        {liveServices.map((service) => (
-          <View
-            key={service.id}
-            style={{
-              backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-              borderRadius: 12,
-              padding: Spacing.md,
-              marginBottom: Spacing.sm,
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            <View style={{
-              width: 50,
-              height: 50,
-              borderRadius: 10,
-              backgroundColor: profileTheme + "20",
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: Spacing.md,
-            }}>
-              <Feather name="briefcase" size={22} color={profileTheme} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ThemedText type="body" style={{ fontWeight: "600" }}>{service.name}</ThemedText>
-              {service.description && (
-                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }} numberOfLines={2}>
-                  {service.description}
-                </ThemedText>
-              )}
-              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-                <ThemedText type="body" style={{ color: profileTheme, fontWeight: "600" }}>
-                  {formatPrice(service.priceCents)}
-                </ThemedText>
-                {service.durationMinutes && (
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.sm }}>
-                    {service.durationMinutes} min
-                  </ThemedText>
-                )}
-              </View>
-              <StarRating rating={service.rating} reviewCount={service.reviewCount} size={11} color={profileTheme} />
-            </View>
-            {!isOwner && (
-              <Pressable
-                style={{
-                  backgroundColor: profileTheme,
-                  paddingHorizontal: Spacing.md,
-                  paddingVertical: Spacing.sm,
-                  borderRadius: 8,
-                }}
-              >
-                <ThemedText type="small" style={{ color: "#000", fontWeight: "600" }}>Book</ThemedText>
-              </Pressable>
-            )}
-          </View>
-        ))}
-      </View>
-    );
-  };
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "featured":
-        return renderFeaturedTab();
-      case "book":
-        return renderBookTab();
-      case "availability":
-        return renderAvailabilityTab();
-      case "reviews":
-        return renderReviewsTab();
-      case "products":
-        return renderProductsTab();
-      case "services":
-        return renderServicesTab();
-      default:
-        return renderFeaturedTab();
-    }
-  };
+  }
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.safeArea}>
+      {renderFloatingHeader()}
+      <Animated.ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
+        stickyHeaderIndices={[2]}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          {
+            useNativeDriver: false,
+          },
+        )}
+        scrollEventThrottle={16}
       >
-        {/* Hero Section */}
-        <View style={styles.heroSection}>
-          {profile?.coverVideo ? (
-            <Pressable 
-              style={StyleSheet.absoluteFill}
-              onPress={() => setShowVideoFullscreen(true)}
-            >
-              <VideoView
-                player={bannerVideoPlayer}
-                style={styles.coverImage}
-                contentFit="cover"
-                nativeControls={false}
-              />
-            </Pressable>
-          ) : (
-            <Image
-              source={{ uri: profile?.coverImage || profile?.avatar || FALLBACK_COVER }}
-              style={styles.coverImage}
-              contentFit="cover"
-              transition={300}
-            />
-          )}
-          <LinearGradient
-            colors={["transparent", `${profileTheme}30`, isDark ? "#000000" : "#1C1C1E"]}
-            locations={[0, 0.5, 1]}
-            style={styles.heroGradient}
-            pointerEvents="none"
-          />
-
-          {/* Header Buttons */}
-          <View style={[styles.headerButtons, { top: insets.top + Spacing.md }]}>
-            {!isGuest && isOwner && (
-              <Pressable
-                onPress={() => setSettingsVisible(true)}
-                style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.7 : 1 }]}
-              >
-                <Feather name="menu" size={22} color="#FFFFFF" />
-              </Pressable>
-            )}
-            <View style={{ flex: 1 }} />
-            {/* Universal Notification Bell */}
-            {!isGuest && (
-              <Pressable
-                onPress={() => navigation.navigate("Notifications")}
-                style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.7 : 1, marginRight: Spacing.sm }]}
-              >
-                <Feather name="bell" size={22} color="#FFFFFF" />
-                {unreadCount > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <ThemedText style={styles.notificationBadgeText}>
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </ThemedText>
-                  </View>
-                )}
-              </Pressable>
-            )}
-            {/* Share Profile Button for Owners */}
-            {isOwner && !isGuest && (
-              <Pressable
-                onPress={() => setShowShareProfile(true)}
-                style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.7 : 1, marginRight: Spacing.sm }]}
-              >
-                <Feather name="share-2" size={20} color="#FFFFFF" />
-              </Pressable>
-            )}
-            {!isOwner && (
-              <>
-                <Pressable 
-                  style={[
-                    styles.followButton, 
-                    { 
-                      backgroundColor: isFollowing ? "transparent" : profileTheme,
-                      borderWidth: isFollowing ? 2 : 0,
-                      borderColor: profileTheme,
-                    }
-                  ]}
-                  onPress={handleFollowToggle}
-                  disabled={followLoading}
-                >
-                  <ThemedText type="button" style={{ color: isFollowing ? "#FFFFFF" : "#000000" }}>
-                    {followLoading ? "..." : isFollowing ? "Following" : "Follow"}
-                  </ThemedText>
-                </Pressable>
-                <Pressable style={[styles.headerButton, { marginLeft: Spacing.sm }]}>
-                  <Feather name="share" size={20} color="#FFFFFF" />
-                </Pressable>
-              </>
-            )}
-          </View>
-
-          {/* Profile Identity */}
-          <View style={styles.profileIdentity}>
-            <View style={styles.avatarContainer}>
-              {profile?.avatar ? (
-                <Image
-                  source={{ uri: profile.avatar }}
-                  style={styles.avatar}
-                  contentFit="cover"
-                  transition={200}
-                />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.backgroundDefault }]}>
-                  <Feather name="user" size={40} color={theme.textSecondary} />
-                </View>
-              )}
-            </View>
-
-            <ThemedText type="h2" style={styles.profileName}>
-              {profile?.name || "Your Profile"}
-            </ThemedText>
-
-            {/* Username / User ID Display */}
-            {getProfileUsername() && (
-              <Pressable 
-                onPress={() => setShowShareProfile(true)}
-                style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.xs }}
-              >
-                <ThemedText type="small" style={{ color: "rgba(255,255,255,0.7)" }}>
-                  @{getProfileUsername()}
-                </ThemedText>
-                <Feather name="copy" size={12} color="rgba(255,255,255,0.5)" style={{ marginLeft: Spacing.xs }} />
-              </Pressable>
-            )}
-
-            {/* Profile Rating */}
-            {profile?.rating != null && profile.rating > 0 ? (
-              <View style={{ marginTop: Spacing.xs }}>
-                <StarRating 
-                  rating={profile.rating} 
-                  reviewCount={profile.reviewCount} 
-                  size={14} 
-                  color={profileTheme}
-                />
-              </View>
-            ) : null}
-
-            <View style={styles.profileMeta}>
-              {(profile?.city || profile?.state) && (
-                <ThemedText type="body" style={styles.profileLocation}>
-                  {profile.city}{profile.state ? `, ${profile.state}` : ""}
-                </ThemedText>
-              )}
-              {profile?.hourlyRate != null && profile.hourlyRate > 0 ? (
-                <ThemedText type="h4" style={styles.profileRate}>
-                  {formatHourlyRate(profile.hourlyRate)}
-                </ThemedText>
-              ) : null}
-            </View>
-
-            {profile?.specialties && profile.specialties.length > 0 && (
-              <View style={styles.specialtiesRow}>
-                {profile.specialties.slice(0, 3).map((spec, index) => (
-                  <View
-                    key={index}
-                    style={[styles.specialtyPill, { backgroundColor: index === 0 ? profileTheme : "rgba(255,255,255,0.2)" }]}
-                  >
-                    <ThemedText type="small" style={styles.specialtyText}>{spec}</ThemedText>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Availability Strip */}
-        {userRole !== "consumer" && (
-          <Pressable
-            style={[styles.availabilityStrip, { backgroundColor: profileTheme }]}
-            onPress={() => setActiveTab("availability")}
-          >
-            <Feather name="clock" size={16} color="#000000" />
-            <ThemedText type="body" style={styles.availabilityText}>
-              {getAvailabilityText()}
-            </ThemedText>
-            <Feather name="chevron-right" size={18} color="#000000" />
-          </Pressable>
-        )}
-
-        {/* Bio + Posts Section for Business (like photographer layout) */}
-        {userRole === "business" && (
-          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md }}>
-            {/* Bio Section */}
-            {profile?.bio && (
-              <View style={{ marginBottom: Spacing.md }}>
-                <ThemedText type="body" style={{ color: theme.textSecondary, lineHeight: 20 }}>
-                  {profile.bio}
-                </ThemedText>
-              </View>
-            )}
-
-            {/* Posts Grid - Instagram Style with Add Button */}
-            <View style={styles.mediaGrid}>
-              {/* Add Post Button as first grid item for owners */}
-              {isOwner && !isGuest && (
-                <Pressable
-                  onPress={() => setShowCreatePost(true)}
-                  style={[styles.mediaGridItem, {
-                    backgroundColor: isDark ? "#1C1C1E" : "#F5F5F5",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: 2,
-                    borderColor: profileTheme,
-                    borderStyle: "dashed",
-                  }]}
-                >
-                  <View style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 25,
-                    backgroundColor: profileTheme,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: Spacing.xs,
-                  }}>
-                    <Feather name="plus" size={24} color="#000" />
-                  </View>
-                  <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600" }}>
-                    Post
-                  </ThemedText>
-                </Pressable>
-              )}
-              {/* Business Posts */}
-              {featuredPosts.map((post) => (
-                <Pressable key={post.id} style={styles.mediaGridItem}>
-                  <Image
-                    source={{ uri: getPostThumbnailUri(post) }}
-                    style={styles.mediaGridImage}
-                    contentFit="cover"
-                    transition={200}
-                    placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
-                  />
-                  {/* Play overlay for video posts */}
-                  {isVideoPost(post) && (
-                    <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -16 }, { translateY: -16 }], width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="play" size={16} color="#fff" />
-                    </View>
-                  )}
-                  <View style={{ position: "absolute", bottom: 6, left: 6, flexDirection: "row", alignItems: "center" }}>
-                    <Feather name="heart" size={14} color="#fff" />
-                    <ThemedText type="small" style={{ color: "#fff", marginLeft: 4, textShadowColor: "#000", textShadowRadius: 2 }}>
-                      {post.likes}
-                    </ThemedText>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-            {/* Empty state message when no posts */}
-            {featuredPosts.length === 0 && (
-              <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
-                <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center" }}>
-                  Share your best work to attract customers
-                </ThemedText>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Tab Navigation - Now for all users including consumers */}
-        <View 
-          style={[styles.tabBar, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}
-          onLayout={(e) => setTabBarLayoutY(e.nativeEvent.layout.y)}
-        >
-          {tabs.map((tab) => (
-            <Pressable
-              key={tab.key}
-              style={[
-                styles.tabItem,
-                activeTab === tab.key && { borderBottomColor: profileTheme, borderBottomWidth: 2 },
-              ]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <View
-                style={[
-                  styles.tabIconContainer,
-                  activeTab === tab.key && { backgroundColor: profileTheme },
-                ]}
-              >
-                <Feather
-                  name={tab.icon as any}
-                  size={18}
-                  color={activeTab === tab.key ? "#000000" : theme.textSecondary}
-                />
-              </View>
-              <ThemedText
-                type="small"
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === tab.key ? theme.text : theme.textSecondary },
-                ]}
-              >
-                {tab.label}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Tab Content - Now for all users */}
+        <CoverMediaHero
+          profile={profile}
+          primaryColor={accentColor}
+          accentColor={accentDimColor}
+        />
+        {renderIdentityBlock()}
+        {renderTabBar()}
         {renderTabContent()}
-
-        
-        {/* Browse Portfolio Section */}
-        {userRole !== "consumer" && portfolioCategories.length > 0 && (
-          <View style={styles.portfolioSection}>
-            <View style={styles.sectionHeader}>
-              <ThemedText type="h3">Browse Portfolio</ThemedText>
-              <Pressable>
-                <Feather name="chevron-right" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.portfolioScroll}
-              contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
-            >
-              {portfolioCategories.map((category, index) => (
-                <Pressable key={index} style={styles.portfolioCard}>
-                  <Image
-                    source={{ uri: category.image }}
-                    style={styles.portfolioCardImage}
-                    contentFit="cover"
-                  />
-                  <LinearGradient
-                    colors={["transparent", "rgba(0,0,0,0.8)"]}
-                    style={styles.portfolioCardGradient}
-                  />
-                  <Pressable style={styles.portfolioFavorite}>
-                    <Feather name="heart" size={16} color="#FFFFFF" />
-                  </Pressable>
-                  <View style={styles.portfolioCardContent}>
-                    <ThemedText type="body" style={styles.portfolioCardTitle}>
-                      {category.name}
-                    </ThemedText>
-                    <ThemedText type="small" style={styles.portfolioCardCount}>
-                      {category.count.toLocaleString()}
-                    </ThemedText>
-                    <View style={styles.portfolioCardRating}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Feather
-                          key={star}
-                          name="star"
-                          size={10}
-                          color={star <= Math.floor(category.rating || 0) ? "#FFD700" : "rgba(255,255,255,0.3)"}
-                        />
-                      ))}
-                      <ThemedText type="small" style={styles.portfolioCardReviewCount}>
-                        ({category.reviewCount})
-                      </ThemedText>
-                    </View>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* For You Section */}
-        {userRole !== "consumer" && (
-          <View style={styles.forYouSection}>
-            <ThemedText type="h3" style={styles.sectionTitle}>For You</ThemedText>
-            <View style={styles.forYouGrid}>
-              {/* First Service or Placeholder */}
-              <View style={[styles.forYouCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-                <Image
-                  source={{ uri: profile?.portfolio?.[0] || FALLBACK_COVER }}
-                  style={styles.forYouImage}
-                  contentFit="cover"
-                />
-                <Pressable style={styles.forYouFavorite}>
-                  <Feather name="heart" size={16} color={profileTheme} />
-                </Pressable>
-                <View style={styles.forYouContent}>
-                  <ThemedText type="body" style={{ fontWeight: "600" }}>
-                    {photographerServices[0]?.name || "Wedding Package"}
-                  </ThemedText>
-                  <ThemedText type="h4" style={{ color: profileTheme }}>
-                    ${photographerServices[0]?.price || "1,500"}
-                  </ThemedText>
-                  {photographerServices[0]?.durationMinutes != null && photographerServices[0].durationMinutes > 0 ? (
-                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                      {photographerServices[0].durationMinutes} min
-                    </ThemedText>
-                  ) : null}
-                </View>
-              </View>
-
-              {/* Quick Info Cards */}
-              <View style={styles.quickInfoColumn}>
-                <View style={[styles.quickInfoCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-                  <View style={styles.quickInfoHeader}>
-                    <Feather name="calendar" size={16} color={profileTheme} />
-                    <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
-                      Availability
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
-                    Today: 3:30 PM - 6:00 PM
-                  </ThemedText>
-                  <Pressable 
-                    onPress={() => {
-                      setActiveTab("availability");
-                      setTimeout(() => {
-                        scrollViewRef.current?.scrollTo({ y: tabBarLayoutY - 100, animated: true });
-                      }, 100);
-                    }} 
-                    style={styles.quickInfoLink}
-                  >
-                    <ThemedText type="small" style={{ color: profileTheme }}>
-                      View full availability
-                    </ThemedText>
-                    <Feather name="arrow-right" size={12} color={profileTheme} />
-                  </Pressable>
-                </View>
-
-                <View style={[styles.quickInfoCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }]}>
-                  <View style={styles.quickInfoHeader}>
-                    <Feather name="message-square" size={16} color={profileTheme} />
-                    <ThemedText type="body" style={{ fontWeight: "600", marginLeft: Spacing.sm }}>
-                      Reviews
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4, fontStyle: "italic" }}>
-                    "Super professional, fast turnaround..."
-                  </ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                    - Sarah M.
-                  </ThemedText>
-                </View>
-              </View>
-            </View>
-
-            {/* Additional Services Grid */}
-            {photographerServices.length > 1 && (
-              <View style={{ marginTop: Spacing.md }}>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -Spacing.xs }}>
-                  {photographerServices.slice(1, 5).map((service, index) => (
-                    <View
-                      key={service.id}
-                      style={{
-                        width: "50%",
-                        paddingHorizontal: Spacing.xs,
-                        marginBottom: Spacing.sm,
-                      }}
-                    >
-                      <View style={{
-                        backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                        borderRadius: 12,
-                        overflow: "hidden",
-                      }}>
-                        <Image
-                          source={{ uri: profile?.portfolio?.[index + 1] || FALLBACK_COVER }}
-                          style={{ width: "100%", height: 100 }}
-                          contentFit="cover"
-                        />
-                        <View style={{ padding: Spacing.sm }}>
-                          <ThemedText type="small" style={{ fontWeight: "600" }} numberOfLines={1}>
-                            {service.name}
-                          </ThemedText>
-                          <ThemedText type="small" style={{ color: profileTheme, fontWeight: "600", marginTop: 2 }}>
-                            ${service.price}
-                          </ThemedText>
-                          {service.durationMinutes && (
-                            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                              {service.durationMinutes} min
-                            </ThemedText>
-                          )}
-                          <StarRating rating={service.rating} reviewCount={service.reviewCount} size={10} color={profileTheme} showCount={false} />
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-                {photographerServices.length > 5 && (
-                  <Pressable onPress={() => setActiveTab("book")} style={{ alignItems: "center", marginTop: Spacing.xs }}>
-                    <ThemedText type="small" style={{ color: profileTheme }}>
-                      View all {photographerServices.length} services
-                    </ThemedText>
-                  </Pressable>
-                )}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Owner Actions - Edit Profile button for owners */}
-        {isOwner && !isGuest && userRole !== "consumer" && (
-          <View style={styles.ownerActions}>
-            <Pressable
-              style={[styles.editProfileButtonLarge, { backgroundColor: profileTheme }]}
-              onPress={() => {
-                if (userRole === "photographer") {
-                  navigation.navigate("PhotographerDashboard");
-                } else {
-                  navigation.navigate("BusinessDashboard");
-                }
-              }}
-            >
-              <Feather name="edit-2" size={18} color="#000000" />
-              <ThemedText type="button" style={{ color: "#000000", marginLeft: Spacing.sm }}>
-                Edit Profile
-              </ThemedText>
-            </Pressable>
-          </View>
-        )}
-      </ScrollView>
+      </Animated.ScrollView>
 
       <PersonalSettingsMenu
         visible={settingsVisible}
         onClose={() => setSettingsVisible(false)}
-        onEditPhotos={userRole === "consumer" ? () => setShowEditPhotoModal(true) : undefined}
-        showLocationVisible={showStateVisibility}
-        onToggleLocationVisibility={() => setShowStateVisibility(!showStateVisibility)}
       />
-
-      {/* Fullscreen Video Modal */}
-      <Modal visible={showVideoFullscreen} animationType="fade" transparent>
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
-          <Pressable
-            onPress={() => setShowVideoFullscreen(false)}
-            style={{ position: "absolute", top: insets.top + 16, right: 16, zIndex: 10, padding: 8 }}
-          >
-            <Feather name="x" size={28} color="#FFFFFF" />
-          </Pressable>
-          {profile?.coverVideo && (
-            <VideoView
-              player={fullscreenVideoPlayer}
-              style={{ flex: 1 }}
-              contentFit="contain"
-              nativeControls={true}
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Edit Profile Modal for Consumers */}
-      <EditProfileModal
-        visible={showEditPhotoModal}
-        onClose={() => setShowEditPhotoModal(false)}
-        profile={profile}
-        user={user}
-        userRole={userRole}
-        profileTheme={profileTheme}
-        theme={theme}
-        isDark={isDark}
-        insets={insets}
-        setProfile={setProfile}
-        refreshUser={refreshUser}
-        updateProfile={updateProfile}
-        fetchProfile={fetchProfile}
-        getToken={getToken}
-      />
-
-      {/* Share Profile Modal */}
-      <Modal
-        visible={showShareProfile}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowShareProfile(false)}
-      >
-        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <View style={{
-            backgroundColor: theme.card,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            padding: Spacing.lg,
-            paddingBottom: insets.bottom + Spacing.lg,
-          }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg }}>
-              <ThemedText type="h3">Share Profile</ThemedText>
-              <Pressable onPress={() => setShowShareProfile(false)}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-
-            {/* User ID Section */}
-            <View style={{ marginBottom: Spacing.lg }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }}>
-                Your User ID
-              </ThemedText>
-              <Pressable 
-                onPress={() => handleCopyToClipboard(getProfileUsername() || "", "username")}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  backgroundColor: theme.backgroundSecondary,
-                  padding: Spacing.md,
-                  borderRadius: 12,
-                }}
-              >
-                <ThemedText type="h4">@{getProfileUsername()}</ThemedText>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  {copiedField === "username" ? (
-                    <>
-                      <Feather name="check" size={18} color="#4CAF50" />
-                      <ThemedText type="small" style={{ color: "#4CAF50", marginLeft: Spacing.xs }}>Copied!</ThemedText>
-                    </>
-                  ) : (
-                    <>
-                      <Feather name="copy" size={18} color={theme.textSecondary} />
-                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>Tap to copy</ThemedText>
-                    </>
-                  )}
-                </View>
-              </Pressable>
-            </View>
-
-            {/* Profile Link Section */}
-            <View style={{ marginBottom: Spacing.lg }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.xs }}>
-                Profile Link
-              </ThemedText>
-              <Pressable 
-                onPress={() => handleCopyToClipboard(getProfileShareUrl(), "link")}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  backgroundColor: theme.backgroundSecondary,
-                  padding: Spacing.md,
-                  borderRadius: 12,
-                }}
-              >
-                <ThemedText type="body" style={{ flex: 1, marginRight: Spacing.sm }} numberOfLines={1}>
-                  {getProfileShareUrl()}
-                </ThemedText>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  {copiedField === "link" ? (
-                    <>
-                      <Feather name="check" size={18} color="#4CAF50" />
-                      <ThemedText type="small" style={{ color: "#4CAF50", marginLeft: Spacing.xs }}>Copied!</ThemedText>
-                    </>
-                  ) : (
-                    <>
-                      <Feather name="copy" size={18} color={theme.textSecondary} />
-                      <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>Tap to copy</ThemedText>
-                    </>
-                  )}
-                </View>
-              </Pressable>
-            </View>
-
-            {/* Share Button */}
-            <Pressable
-              onPress={handleShareProfile}
-              style={{
-                backgroundColor: profileTheme,
-                paddingVertical: 16,
-                borderRadius: 12,
-                alignItems: "center",
-                flexDirection: "row",
-                justifyContent: "center",
-              }}
-            >
-              <Feather name="share" size={18} color="#000" />
-              <ThemedText type="button" style={{ color: "#000", marginLeft: Spacing.sm }}>Share Profile</ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-    </ThemedView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
+    backgroundColor: COLORS.black,
   },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  authContainer: {
+  loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: 24,
   },
-  authTitle: {
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.md,
+  loadingText: {
+    color: COLORS.cream,
+    fontSize: 14,
+    fontWeight: "600",
     textAlign: "center",
   },
-  authSubtitle: {
-    textAlign: "center",
-    marginBottom: Spacing["2xl"],
+  floatingHeader: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: 50,
+    paddingHorizontal: 14,
   },
-  authButton: {
-    width: "100%",
+  headerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(10,10,10,0.95)",
   },
-  scrollView: {
-    flex: 1,
+  headerRow: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  scrollContent: {
-    flexGrow: 1,
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    marginHorizontal: 2,
   },
-  heroSection: {
+  headerTitle: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: "800",
+    maxWidth: "45%",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 1,
+    right: 1,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#FF3B30",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  notificationBadgeText: {
+    color: COLORS.white,
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  coverHero: {
     height: HERO_HEIGHT,
     position: "relative",
+    overflow: "hidden",
   },
-  coverImage: {
+  coverMedia: {
     ...StyleSheet.absoluteFillObject,
   },
-  videoPlayIndicator: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    marginTop: -20,
-    marginLeft: -20,
-  },
-  heroGradient: {
+  coverFade: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    height: HERO_HEIGHT * 0.7,
+    height: 160,
   },
-  headerButtons: {
+  identityBlock: {
+    marginTop: -60,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: 16,
+    zIndex: 5,
+  },
+  avatarActionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  avatarOuterRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 4,
+    borderColor: COLORS.black,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  avatarInnerRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: {
+    color: COLORS.black,
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  onlineDot: {
     position: "absolute",
-    left: Spacing.lg,
-    right: Spacing.lg,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    right: 2,
+    bottom: 2,
+    backgroundColor: "#22c55e",
+    borderWidth: 2,
+    borderColor: COLORS.black,
+  },
+  editProfileButton: {
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    marginBottom: 6,
+  },
+  editProfileText: {
+    color: COLORS.black,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  nameRow: {
+    marginTop: 14,
     flexDirection: "row",
     alignItems: "center",
-    zIndex: 10,
+    flexWrap: "wrap",
+    gap: 8,
   },
-  headerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.4)",
+  nameText: {
+    color: COLORS.white,
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  verifiedBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  notificationBadge: {
-    position: "absolute",
-    top: 2,
-    right: 2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#FF3B30",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
+  tierBadge: {
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  notificationBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
+  tierBadgeText: {
+    fontSize: 11,
     fontWeight: "700",
   },
-  followButton: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
+  metaLine: {
+    marginTop: 6,
+    color: COLORS.grayLight,
+    fontSize: 13,
+    fontWeight: "500",
   },
-  profileIdentity: {
-    position: "absolute",
-    bottom: Spacing.xl,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  avatarContainer: {
-    marginBottom: Spacing.md,
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  avatarPlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  profileName: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  profileBio: {
-    color: "rgba(255,255,255,0.9)",
-    textAlign: "center",
-    marginTop: Spacing.xs,
-    paddingHorizontal: Spacing.xl,
-  },
-  profileMeta: {
-    alignItems: "center",
-    marginTop: Spacing.sm,
-  },
-  profileLocation: {
-    color: "rgba(255,255,255,0.8)",
-  },
-  profileRate: {
-    color: "#FFFFFF",
-    marginTop: Spacing.xs,
-  },
-  specialtiesRow: {
+  tagRow: {
+    marginTop: 10,
     flexDirection: "row",
-    marginTop: Spacing.md,
-    gap: Spacing.xs,
+    flexWrap: "wrap",
+    gap: 8,
   },
-  specialtyPill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
+  tagPill: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  specialtyText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  availabilityStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  availabilityText: {
-    color: "#000000",
-    fontWeight: "600",
-    flex: 1,
-  },
-  tabBar: {
-    flexDirection: "row",
-    height: TAB_HEIGHT,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.1)",
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.sm,
-  },
-  tabIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 2,
-  },
-  tabLabel: {
+  tagPillText: {
+    color: COLORS.cream,
     fontSize: 11,
     fontWeight: "600",
   },
-  tabContent: {
-    padding: Spacing.lg,
-    minHeight: 200,
+  ratingInlineRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  bookTabContainer: {
+  starRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  ratingText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  ratingMeta: {
+    color: COLORS.grayLight,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  statsCard: {
+    marginTop: 14,
+    borderRadius: 16,
+    backgroundColor: COLORS.gray,
+    flexDirection: "row",
+    overflow: "hidden",
+  },
+  statCol: {
     flex: 1,
-    minHeight: 600,
-  },
-  emptyTab: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing["3xl"],
+    paddingVertical: 12,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  statValue: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  statLabel: {
+    marginTop: 2,
+    color: COLORS.grayLight,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    fontWeight: "700",
+  },
+  tabBar: {
+    backgroundColor: COLORS.black,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.07)",
+    flexDirection: "row",
+    paddingHorizontal: 8,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  tabLabel: {
+    color: COLORS.grayLight,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  tabIndicator: {
+    marginTop: 8,
+    height: 2,
+    alignSelf: "stretch",
+    backgroundColor: "transparent",
+  },
+  tabContent: {
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: 16,
   },
   mediaGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 2,
+    gap: 4,
   },
-  mediaGridItem: {
-    width: (SCREEN_WIDTH - Spacing.lg * 2 - 4) / 3,
-    aspectRatio: 1,
-    position: "relative",
+  mediaCell: {
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: COLORS.gray,
   },
-  mediaGridImage: {
-    width: "100%",
-    height: "100%",
+  addPostLabel: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  videoBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.56)",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  videoBadgeText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  mediaOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  mediaLabel: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  mediaLikes: {
+    marginTop: 2,
+    color: COLORS.cream,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  emptyState: {
+    marginTop: 14,
+    paddingVertical: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: COLORS.gray,
+  },
+  emptyTitle: {
+    marginTop: 8,
+    color: COLORS.grayLight,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  emptyCta: {
+    marginTop: 10,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  emptyCtaText: {
+    color: COLORS.black,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  productGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  productCard: {
+    width: (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 10) / 2,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: COLORS.gray,
+  },
+  productImageWrap: {
+    height: 132,
+    backgroundColor: "#191919",
+  },
+  productBody: {
+    padding: 10,
+  },
+  productName: {
+    color: COLORS.cream,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  productPrice: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  serviceCard: {
+    borderRadius: 14,
+    backgroundColor: COLORS.gray,
+    padding: 14,
+    marginBottom: 10,
+  },
+  serviceName: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  serviceDescription: {
+    marginTop: 4,
+    color: COLORS.grayLight,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  serviceMetaRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  servicePrice: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  serviceMeta: {
+    color: COLORS.grayLight,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  summaryCard: {
+    borderRadius: 14,
+    backgroundColor: COLORS.gray,
+    padding: 14,
+    marginTop: 4,
+  },
+  summaryText: {
+    color: COLORS.cream,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  summaryLink: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  calendarGrid: {
+    gap: 8,
+  },
+  calendarCard: {
+    borderRadius: 12,
+    backgroundColor: COLORS.gray,
+    padding: 12,
+  },
+  calendarDay: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  calendarHours: {
+    marginTop: 4,
+    color: COLORS.grayLight,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  reviewSummaryCard: {
+    borderRadius: 14,
+    backgroundColor: COLORS.gray,
+    padding: 14,
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  reviewSummaryLeft: {
+    width: "36%",
+  },
+  reviewSummaryRight: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 6,
+  },
+  reviewScore: {
+    color: COLORS.white,
+    fontSize: 42,
+    fontWeight: "900",
+    lineHeight: 44,
+  },
+  reviewCountLabel: {
+    marginTop: 4,
+    color: COLORS.grayLight,
+    fontSize: 12,
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  breakdownLabel: {
+    width: 14,
+    color: COLORS.grayLight,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  breakdownTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.09)",
+    overflow: "hidden",
+  },
+  breakdownFill: {
+    height: 4,
     borderRadius: 4,
   },
-  favoriteButton: {
-    position: "absolute",
-    top: Spacing.xs,
-    right: Spacing.xs,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bookingCard: {
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
-    flexDirection: "row",
-    padding: Spacing.md,
-  },
-  bookingCardImage: {
-    width: 100,
-    height: 120,
-    borderRadius: BorderRadius.md,
-  },
-  bookingCardContent: {
-    flex: 1,
-    marginLeft: Spacing.md,
-    justifyContent: "center",
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: Spacing.sm,
-  },
-  favoriteButtonSmall: {
-    position: "absolute",
-    top: Spacing.md,
-    right: Spacing.md,
-  },
-  availabilityCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-  },
-  availabilityHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  viewFullButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: Spacing.md,
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    alignSelf: "flex-start",
-    gap: Spacing.xs,
-  },
   reviewCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
+    borderRadius: 14,
+    backgroundColor: COLORS.gray,
+    padding: 14,
+    marginBottom: 10,
   },
   reviewHeader: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 10,
   },
-  consumerContent: {
-    padding: Spacing.xl,
-  },
-  editProfileButton: {
-    flexDirection: "row",
+  reviewAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    backgroundColor: COLORS.grayMid,
+    marginRight: 8,
   },
-  portfolioSection: {
-    marginTop: Spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  sectionTitle: {
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-  },
-  portfolioScroll: {
-    marginBottom: Spacing.lg,
-  },
-  portfolioCard: {
-    width: PORTFOLIO_CARD_WIDTH,
-    height: PORTFOLIO_CARD_HEIGHT,
-    borderRadius: BorderRadius.lg,
-    marginRight: Spacing.md,
-    overflow: "hidden",
-    position: "relative",
-  },
-  portfolioCardImage: {
-    width: "100%",
-    height: "100%",
-  },
-  portfolioCardGradient: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "60%",
-  },
-  portfolioFavorite: {
-    position: "absolute",
-    top: Spacing.sm,
-    right: Spacing.sm,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  portfolioCardContent: {
-    position: "absolute",
-    bottom: Spacing.md,
-    left: Spacing.md,
-    right: Spacing.md,
-  },
-  portfolioCardTitle: {
-    color: "#FFFFFF",
+  reviewAvatarInitial: {
+    color: COLORS.white,
+    fontSize: 12,
     fontWeight: "700",
   },
-  portfolioCardCount: {
-    color: "rgba(255,255,255,0.8)",
+  reviewUser: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: "700",
   },
-  portfolioCardRating: {
+  reviewMeta: {
+    color: COLORS.grayLight,
+    fontSize: 11,
+  },
+  reviewText: {
+    color: COLORS.cream,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  bioText: {
+    color: COLORS.cream,
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 10,
+  },
+  aboutRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
-    gap: 1,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.07)",
   },
-  portfolioCardReviewCount: {
-    color: "rgba(255,255,255,0.7)",
-    marginLeft: 4,
+  aboutLabel: {
+    marginLeft: 10,
+    width: 110,
+    color: COLORS.grayLight,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
-  forYouSection: {
-    marginTop: Spacing.xl,
-    paddingBottom: Spacing.xl,
-  },
-  forYouGrid: {
-    flexDirection: "row",
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-  },
-  forYouCard: {
-    width: (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.md) * 0.45,
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
-  },
-  forYouImage: {
-    width: "100%",
-    height: 140,
-  },
-  forYouFavorite: {
-    position: "absolute",
-    top: Spacing.sm,
-    right: Spacing.sm,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  forYouContent: {
-    padding: Spacing.md,
-  },
-  forYouRating: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: Spacing.xs,
-  },
-  quickInfoColumn: {
+  aboutValue: {
     flex: 1,
-    gap: Spacing.md,
-  },
-  quickInfoCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-  },
-  quickInfoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  quickInfoLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: Spacing.sm,
-    gap: 4,
-  },
-  ownerActions: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
-  },
-  editProfileButtonLarge: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-  },
-  consumerSettings: {
-    padding: Spacing.lg,
-    marginTop: Spacing.md,
-  },
-  settingsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.sm,
-  },
-  toggleSwitch: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: "center",
-  },
-  toggleKnob: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
+    color: COLORS.cream,
+    fontSize: 13,
+    textAlign: "right",
   },
 });

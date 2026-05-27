@@ -1,37 +1,52 @@
-// ─── OUTSYDE — VENDOR PROFILE SCREEN (REDESIGNED) ────────────────
-// Frontend only. Expo / React Native.
-// Backend: unchanged. API contract: unchanged.
-// TODO: Wire follow/unfollow to API endpoint
-// TODO: Wire subscribe to vendor subscription API endpoint
-// TODO: Wire like/save on posts to API endpoints
-// TODO: Wire "Continue to Booking" to existing booking flow screen
-// TODO: Wire review submission to POST /reviews endpoint
-// ──────────────────────────────────────────────────────────────────
+// ─── OUTSYDE — PROFILE SCREEN (REDESIGNED) ───────────────────
+// Role-aware: Business | Photographer | Consumer
+// View-aware: Own profile (AccountScreen) | External (VendorDetail)
+// Brand colors: Business uses brandColors.primary override
+// TODO: Wire follow/unfollow to API
+// TODO: Wire review submit to POST /reviews endpoint
+// TODO: Wire booking modal to existing booking flow screen
+// ─────────────────────────────────────────────────────────────
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   Animated,
   Dimensions,
   Pressable,
-  ScrollView,
   Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
-import { Video, ResizeMode } from "expo-av";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import {
+  NativeStackNavigationProp,
+  NativeStackScreenProps,
+} from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { useVideoPlayer, VideoView } from "expo-video";
+import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 
-import api, { VendorProduct, VendorService } from "@/services/api";
+import apiClient, {
+  ApiPost,
+  VendorBookerPhotographerService,
+  VendorProduct,
+  VendorService,
+} from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -47,18 +62,24 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
+const HERO_HEIGHT = 300;
+const HORIZONTAL_PADDING = 20;
+const SCREEN_WIDTH = Dimensions.get("window").width;
+
 type Props = NativeStackScreenProps<RootStackParamList, "VendorDetail">;
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-type ProfileTab = "posts" | "shop" | "reviews" | "about";
-type PostItem = {
-  id: string;
-  title: string;
-  type: "image" | "video";
-  mediaUrl?: string;
-  likes?: number;
-  comments?: number;
-  category?: string;
-};
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
+type ProfileRole = "business" | "photographer" | "consumer";
+type ProfileTab =
+  | "posts"
+  | "shop"
+  | "booking"
+  | "availability"
+  | "saved"
+  | "reviews"
+  | "about";
+
+type BrandColors = { primary?: string; accent?: string } | null;
+
 type ReviewItem = {
   id: string;
   userName: string;
@@ -68,29 +89,284 @@ type ReviewItem = {
   createdAt: string;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+type PostCard = {
+  id: string;
+  label: string;
+  likes: number;
+  mediaUrl?: string;
+  mediaType: "image" | "video";
+  aspect: "portrait" | "square";
+};
+
+type ServiceCard = {
+  id: string;
+  name: string;
+  description?: string;
+  priceCents: number;
+  durationMinutes?: number;
+  rating?: number;
+  reviewCount?: number;
+};
+
+type AvailabilitySlot = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isActive?: boolean;
+};
+
+type ProfileViewModel = {
+  id: string;
+  userId?: string;
+  role: ProfileRole;
+  name: string;
+  handle: string;
+  avatarUrl?: string;
+  logoImage?: string;
+  coverMediaUrl?: string;
+  coverMediaType?: "image" | "video";
+  city?: string;
+  state?: string;
+  location?: string;
+  bio?: string;
+  tagline?: string;
+  rating: number;
+  reviewCount: number;
+  followerCount: number;
+  followingCount: number;
+  bookingCount: number;
+  shootsCount: number;
+  postsCount: number;
+  isVerified: boolean;
+  subscriptionTier?: string;
+  brandColors: BrandColors;
+  hasProducts: boolean;
+  hasServices: boolean;
+  specialties: string[];
+  hourlyRate?: number;
+  minPrice?: number;
+  responseTime?: string;
+  availabilitySummary?: string;
+  address?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  websiteUrl?: string;
+  hoursOfOperation?: string;
+};
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const formatMoney = (amount?: number | null): string => {
+  if (amount == null || Number.isNaN(amount)) return "";
+  return `$${Number(amount).toFixed(2).replace(/\.00$/, "")}`;
+};
+
+const formatCents = (cents?: number | null): string => {
+  if (cents == null || Number.isNaN(cents)) return "";
+  return formatMoney(cents / 100);
+};
+
+const getInitials = (name?: string): string => {
+  if (!name) return "O";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "O";
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+};
+
+const safeJsonParse = (
+  value?: string | null,
+): Record<string, unknown> | null => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "object" && parsed
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const parseBrandColors = (raw: unknown): BrandColors => {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    const parsed = safeJsonParse(raw);
+    if (!parsed) return null;
+    return {
+      primary: typeof parsed.primary === "string" ? parsed.primary : undefined,
+      accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
+    };
+  }
+  if (typeof raw === "object") {
+    const casted = raw as { primary?: unknown; accent?: unknown };
+    return {
+      primary: typeof casted.primary === "string" ? casted.primary : undefined,
+      accent: typeof casted.accent === "string" ? casted.accent : undefined,
+    };
+  }
+  return null;
+};
+
+const scoreToStars = (rating: number): number => {
+  if (!Number.isFinite(rating) || rating <= 0) return 0;
+  return rating > 5 ? Math.round(rating / 10) : Math.round(rating);
+};
+
+const normalizePosts = (posts: ApiPost[]): PostCard[] =>
+  posts.map((post, index) => {
+    const mediaType =
+      post.mediaType === "video" || (!!post.videoUrl && !post.imageUrl)
+        ? "video"
+        : "image";
+    const mediaUrl =
+      post.imageUrl ||
+      post.thumbnailUrl ||
+      post.videoUrl ||
+      post.mediaUrl ||
+      post.images?.[0];
+    return {
+      id: String(post.id),
+      label: post.content?.trim() || "Outsyde Post",
+      likes: Number(post.likesCount ?? 0),
+      mediaUrl: mediaUrl || undefined,
+      mediaType,
+      aspect: index % 3 === 0 ? "portrait" : "square",
+    };
+  });
+
+const StarRating = ({
+  rating,
+  color,
+  size = 13,
+}: {
+  rating: number;
+  color: string;
+  size?: number;
+}) => {
+  const stars = scoreToStars(rating);
+  return (
+    <View style={styles.starRow}>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <Feather
+          key={`star-${index}`}
+          name="star"
+          size={size}
+          color={index < stars ? color : COLORS.grayMid}
+        />
+      ))}
+    </View>
+  );
+};
+
+const AvatarWithInitials = ({
+  name,
+  imageUrl,
+  accentColor,
+}: {
+  name: string;
+  imageUrl?: string;
+  accentColor: string;
+}) => (
+  <View style={styles.avatarOuterRing}>
+    <View style={[styles.avatarInnerRing, { borderColor: accentColor }]}>
+      {imageUrl ? (
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.avatarImage}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={[styles.avatarFallback, { backgroundColor: accentColor }]}>
+          <Text style={styles.avatarInitials}>{getInitials(name)}</Text>
+        </View>
+      )}
+    </View>
+    <View style={styles.onlineDot} />
+  </View>
+);
+
+const CoverMediaHero = ({
+  profile,
+  primaryColor,
+  accentColor,
+}: {
+  profile: ProfileViewModel;
+  primaryColor: string;
+  accentColor: string;
+}) => {
+  const isVideo = profile.coverMediaType === "video" && !!profile.coverMediaUrl;
+  const isImage = profile.coverMediaType === "image" && !!profile.coverMediaUrl;
+
+  const videoPlayer = useVideoPlayer(
+    isVideo ? profile.coverMediaUrl || "" : "",
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    },
+  );
+
+  const gradientColors: [string, string, string] =
+    profile.role === "business" && profile.brandColors
+      ? [primaryColor, accentColor, COLORS.black]
+      : ["#1a1a1a", "#2d2410", "#0a0a0a"];
+
+  return (
+    <View style={styles.coverHero}>
+      {isVideo ? (
+        <VideoView
+          player={videoPlayer}
+          style={styles.coverMedia}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      ) : null}
+      {!isVideo && isImage ? (
+        <Image
+          source={{ uri: profile.coverMediaUrl }}
+          style={styles.coverMedia}
+          contentFit="cover"
+        />
+      ) : null}
+      {!isVideo && !isImage ? (
+        <LinearGradient
+          colors={gradientColors}
+          style={styles.coverMedia}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      ) : null}
+      <LinearGradient
+        colors={["transparent", COLORS.black]}
+        style={styles.coverFade}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      />
+    </View>
+  );
+};
 
 export default function VendorDetailScreen({ route }: Props) {
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, user } = useAuth();
-  const { vendorId } = route.params;
+  const { user, isAuthenticated } = useAuth();
+  const { vendorId, initialTab } = route.params;
 
-  const [vendor, setVendor] = useState<any | null>(null);
-  const [products, setProducts] = useState<VendorProduct[]>([]);
-  const [services, setServices] = useState<VendorService[]>([]);
   const [loading, setLoading] = useState(true);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [servicesLoading, setServicesLoading] = useState(true);
-
+  const [profile, setProfile] = useState<ProfileViewModel | null>(null);
+  const [products, setProducts] = useState<VendorProduct[]>([]);
+  const [services, setServices] = useState<ServiceCard[]>([]);
+  const [posts, setPosts] = useState<PostCard[]>([]);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [isFollowing, setIsFollowing] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [likedPostIds, setLikedPostIds] = useState<Record<string, boolean>>({});
-  const [savedProductIds, setSavedProductIds] = useState<Record<string, boolean>>({});
+  const [followBusy, setFollowBusy] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
-
   const [bookingSheetIndex, setBookingSheetIndex] = useState(-1);
   const [reviewSheetIndex, setReviewSheetIndex] = useState(-1);
 
@@ -98,232 +374,532 @@ export default function VendorDetailScreen({ route }: Props) {
   const bookingSnapPoints = useMemo(() => ["50%"], []);
   const reviewSnapPoints = useMemo(() => ["45%"], []);
 
-  useEffect(() => {
-    loadVendor();
-    loadProducts();
-    loadServices();
-  }, [vendorId]);
+  const isOwnProfile = useMemo(() => {
+    if (!profile || !user?.id) return false;
+    return (
+      String(user.id) === String(profile.id) ||
+      String(user.id) === String(profile.userId ?? "")
+    );
+  }, [profile, user?.id]);
 
-  const loadVendor = async () => {
+  const accentColor =
+    profile?.role === "business"
+      ? profile.brandColors?.primary || COLORS.gold
+      : COLORS.gold;
+  const accentDimColor =
+    profile?.role === "business"
+      ? profile.brandColors?.accent || COLORS.goldDim
+      : COLORS.goldDim;
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
     try {
-      const data = await api.getBusiness(vendorId);
-      setVendor(data);
-    } catch (err) {
-      console.error("Failed to load vendor:", err);
+      let resolvedProfile: ProfileViewModel | null = null;
+      let resolvedProducts: VendorProduct[] = [];
+      let resolvedServices: ServiceCard[] = [];
+      let resolvedPosts: PostCard[] = [];
+      let resolvedReviews: ReviewItem[] = [];
+      let resolvedAvailability: AvailabilitySlot[] = [];
+
+      try {
+        const business = await apiClient.getBusiness(vendorId);
+        const [productResponse, serviceResponse] = await Promise.all([
+          apiClient
+            .getBusinessPublicProducts(vendorId)
+            .catch(() => ({ products: [] })),
+          apiClient
+            .getBusinessPublicServices(vendorId)
+            .catch(() => ({ services: [] })),
+        ]);
+
+        const liveProducts = (
+          (productResponse.products || []) as VendorProduct[]
+        ).filter((item: VendorProduct) => item.status === "live");
+        const liveServices = (
+          (serviceResponse.services || []) as VendorService[]
+        )
+          .filter((item: VendorService) => item.status === "live")
+          .map((item: VendorService) => ({
+            id: String(item.id),
+            name: item.name,
+            description: item.description || undefined,
+            priceCents: Number(item.priceCents ?? 0),
+            durationMinutes:
+              item.durationMinutes ||
+              (item as any).estimatedDurationMinutes ||
+              undefined,
+            rating: Number(item.rating ?? 0),
+            reviewCount: Number(item.reviewCount ?? 0),
+          }));
+
+        const postOwnerId = String(
+          (business as any).userId ?? business.id ?? vendorId,
+        );
+        const postResponse = await apiClient
+          .getProfilePosts(postOwnerId, { limit: 60 })
+          .catch(() => ({ posts: [] }));
+        resolvedPosts = normalizePosts(postResponse.posts || []);
+
+        const brandColors = parseBrandColors((business as any).brandColors);
+        const hasProducts =
+          Boolean((business as any).hasProducts) || liveProducts.length > 0;
+        const hasServices =
+          Boolean((business as any).hasServices) || liveServices.length > 0;
+        const productPriceFloor = liveProducts.length
+          ? Math.min(
+              ...liveProducts.map((item) => Number(item.priceCents ?? 0) / 100),
+            )
+          : undefined;
+        const servicePriceFloor = liveServices.length
+          ? Math.min(
+              ...liveServices.map((item) => Number(item.priceCents ?? 0) / 100),
+            )
+          : undefined;
+
+        resolvedProfile = {
+          id: String(business.id ?? vendorId),
+          userId: String((business as any).userId ?? ""),
+          role: "business",
+          name: business.name || "Business",
+          handle: `@${
+            (business as any).username ||
+            (business as any).handle ||
+            String(business.name || "business")
+              .replace(/\s+/g, "")
+              .toLowerCase()
+          }`,
+          avatarUrl: (business as any).avatar || undefined,
+          logoImage: (business as any).logoImage || undefined,
+          coverMediaUrl:
+            (business as any).coverMediaUrl || business.coverImage || undefined,
+          coverMediaType: ((business as any).coverMediaType === "video"
+            ? "video"
+            : "image") as "image" | "video",
+          city: business.city || undefined,
+          state: business.state || undefined,
+          location:
+            [business.city, business.state].filter(Boolean).join(", ") ||
+            (business as any).location ||
+            undefined,
+          bio: business.description || undefined,
+          tagline: (business as any).tagline || undefined,
+          rating: Number(business.rating ?? 0),
+          reviewCount: Number(business.reviewCount ?? 0),
+          followerCount: Number((business as any).followerCount ?? 0),
+          followingCount: Number((business as any).followingCount ?? 0),
+          bookingCount: Number((business as any).bookingCount ?? 0),
+          shootsCount: 0,
+          postsCount: resolvedPosts.length,
+          isVerified: Boolean((business as any).isVerified),
+          subscriptionTier: String(
+            (business as any).subscriptionTier || "Starter",
+          ),
+          brandColors,
+          hasProducts,
+          hasServices,
+          specialties: business.category ? [business.category] : [],
+          minPrice:
+            (business as any).minPrice ||
+            servicePriceFloor ||
+            productPriceFloor ||
+            undefined,
+          responseTime:
+            (business as any).responseTime || "Usually responds in 2h",
+          availabilitySummary: (business as any).availability || undefined,
+          address: business.address || undefined,
+          contactEmail:
+            (business as any).contactEmail || business.email || undefined,
+          contactPhone:
+            (business as any).contactPhone || business.phone || undefined,
+          websiteUrl:
+            (business as any).websiteUrl || business.website || undefined,
+          hoursOfOperation:
+            typeof (business as any).hoursOfOperation === "string"
+              ? (business as any).hoursOfOperation
+              : undefined,
+        };
+
+        resolvedProducts = liveProducts;
+        resolvedServices = liveServices;
+        resolvedReviews = Array.isArray((business as any).reviews)
+          ? (business as any).reviews.map((item: any, index: number) => ({
+              id: String(item.id ?? `review-${index}`),
+              userName: item.userName || item.authorName || "Outsyde User",
+              avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
+              rating: Number(item.rating ?? 5),
+              text: item.text || item.comment || "",
+              createdAt: item.createdAt || new Date().toISOString(),
+            }))
+          : [];
+      } catch {
+        try {
+          const photographer = await apiClient.getPhotographer(vendorId);
+          const [serviceResponse, availabilityResponse] = await Promise.all([
+            apiClient.getPhotographerPublicServices(vendorId).catch(() => []),
+            apiClient
+              .getPhotographerPublicAvailability(vendorId)
+              .catch(() => ({ availability: [] })),
+          ]);
+
+          const photographerServices = (
+            (serviceResponse || []) as VendorBookerPhotographerService[]
+          )
+            .filter(
+              (item: VendorBookerPhotographerService) =>
+                item.status === "live" || item.status === "active",
+            )
+            .map((item: VendorBookerPhotographerService) => ({
+              id: String(item.id),
+              name: item.name,
+              description: item.description || undefined,
+              priceCents: Number(item.priceCents ?? 0),
+              durationMinutes: (item as any).durationMinutes || undefined,
+              rating: Number((item as any).rating ?? 0),
+              reviewCount: Number((item as any).reviewCount ?? 0),
+            }));
+
+          const postOwnerId = String(
+            (photographer as any).userId ?? photographer.id ?? vendorId,
+          );
+          const postResponse = await apiClient
+            .getProfilePosts(postOwnerId, { limit: 60 })
+            .catch(() => ({ posts: [] }));
+          resolvedPosts = normalizePosts(postResponse.posts || []);
+
+          resolvedProfile = {
+            id: String(photographer.id ?? vendorId),
+            userId: String((photographer as any).userId ?? ""),
+            role: "photographer",
+            name:
+              photographer.name ||
+              (photographer as any).displayName ||
+              "Photographer",
+            handle: `@${
+              (photographer as any).username ||
+              String(photographer.name || "photographer")
+                .replace(/\s+/g, "")
+                .toLowerCase()
+            }`,
+            avatarUrl:
+              (photographer as any).avatar ||
+              (photographer as any).logoImage ||
+              undefined,
+            coverMediaUrl:
+              (photographer as any).coverMediaUrl ||
+              photographer.coverImage ||
+              undefined,
+            coverMediaType: ((photographer as any).coverMediaType === "video"
+              ? "video"
+              : "image") as "image" | "video",
+            city: photographer.city || undefined,
+            state: photographer.state || undefined,
+            location:
+              photographer.location ||
+              [photographer.city, photographer.state]
+                .filter(Boolean)
+                .join(", "),
+            bio: photographer.description || undefined,
+            tagline: (photographer as any).tagline || undefined,
+            rating: Number(photographer.rating ?? 0),
+            reviewCount: Number(photographer.reviewCount ?? 0),
+            followerCount: Number((photographer as any).followerCount ?? 0),
+            followingCount: Number((photographer as any).followingCount ?? 0),
+            bookingCount: 0,
+            shootsCount: Number(
+              (photographer as any).shootCount ??
+                (photographer as any).bookingsCount ??
+                0,
+            ),
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean((photographer as any).isVerified),
+            subscriptionTier: String(
+              (photographer as any).subscriptionTier || "",
+            ),
+            brandColors: null,
+            hasProducts: false,
+            hasServices: photographerServices.length > 0,
+            specialties:
+              photographer.specialties ||
+              (photographer.specialty ? [photographer.specialty] : []),
+            hourlyRate:
+              Number((photographer as any).hourlyRate ?? 0) || undefined,
+            minPrice:
+              photographerServices.length > 0
+                ? Math.min(
+                    ...photographerServices.map(
+                      (item) => item.priceCents / 100,
+                    ),
+                  )
+                : undefined,
+            responseTime:
+              (photographer as any).responseTime || "Usually responds in 3h",
+            availabilitySummary:
+              (photographer as any).availability || undefined,
+            contactEmail: photographer.email || undefined,
+            contactPhone: photographer.phone || undefined,
+            websiteUrl: photographer.website || undefined,
+          };
+
+          resolvedServices = photographerServices;
+          resolvedAvailability = (availabilityResponse.availability || []).map(
+            (slot: any) => ({
+              dayOfWeek: Number(slot.dayOfWeek ?? 0),
+              startTime: String(slot.startTime ?? ""),
+              endTime: String(slot.endTime ?? ""),
+              isActive: Boolean(slot.isActive ?? true),
+            }),
+          );
+          resolvedReviews = Array.isArray((photographer as any).reviews)
+            ? (photographer as any).reviews.map((item: any, index: number) => ({
+                id: String(item.id ?? `review-${index}`),
+                userName: item.userName || item.authorName || "Outsyde User",
+                avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
+                rating: Number(item.rating ?? 5),
+                text: item.text || item.comment || "",
+                createdAt: item.createdAt || new Date().toISOString(),
+              }))
+            : [];
+        } catch {
+          const postResponse = await apiClient
+            .getProfilePosts(vendorId, { limit: 60 })
+            .catch(() => ({ posts: [] }));
+          resolvedPosts = normalizePosts(postResponse.posts || []);
+          resolvedProfile = {
+            id: vendorId,
+            role: "consumer",
+            name: "Outsyde User",
+            handle: "@outsyde",
+            rating: 0,
+            reviewCount: 0,
+            followerCount: 0,
+            followingCount: 0,
+            bookingCount: 0,
+            shootsCount: 0,
+            postsCount: resolvedPosts.length,
+            isVerified: false,
+            brandColors: null,
+            hasProducts: false,
+            hasServices: false,
+            specialties: [],
+          };
+        }
+      }
+
+      setProfile(resolvedProfile);
+      setProducts(resolvedProducts);
+      setServices(resolvedServices);
+      setPosts(resolvedPosts);
+      setReviews(resolvedReviews);
+      setAvailability(resolvedAvailability);
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+      Alert.alert("Unable to load profile", "Please try again in a moment.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [vendorId]);
 
-  const loadProducts = async () => {
-    try {
-      const data = await api.getBusinessPublicProducts(vendorId);
-      const liveProducts = (data.products || []).filter((p) => p.status === "live");
-      setProducts(liveProducts);
-    } catch (err) {
-      console.error("Failed to load products:", err);
-      setProducts([]);
-    } finally {
-      setProductsLoading(false);
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  const tabOrder = useMemo<ProfileTab[]>(() => {
+    if (!profile) return ["posts", "reviews"];
+    if (profile.role === "business") {
+      if (profile.hasProducts && profile.hasServices)
+        return ["posts", "shop", "booking", "reviews", "about"];
+      if (profile.hasProducts) return ["posts", "shop", "reviews", "about"];
+      if (profile.hasServices) return ["posts", "booking", "reviews", "about"];
+      return ["posts", "reviews", "about"];
     }
-  };
+    if (profile.role === "photographer")
+      return ["posts", "availability", "reviews", "about"];
+    return ["posts", "saved", "reviews"];
+  }, [profile]);
 
-  const loadServices = async () => {
-    try {
-      const data = await api.getBusinessPublicServices(vendorId);
-      const liveServices = (data.services || []).filter((s) => s.status === "live");
-      setServices(liveServices);
-    } catch (err) {
-      console.error("Failed to load services:", err);
-      setServices([]);
-    } finally {
-      setServicesLoading(false);
+  useEffect(() => {
+    if (!profile) return;
+    if (initialTab === "products" && tabOrder.includes("shop")) {
+      setActiveTab("shop");
+      return;
     }
-  };
-
-  const normalizedVendor = useMemo(() => {
-    const coverMediaUrl = vendor?.coverMediaUrl ?? vendor?.coverImage ?? null;
-    const inferredCoverType =
-      vendor?.coverMediaType ||
-      (typeof coverMediaUrl === "string" &&
-      /\.(mp4|mov|m4v|webm)$/i.test(coverMediaUrl)
-        ? "video"
-        : coverMediaUrl
-          ? "image"
-          : null);
-    const subscriptionTierRaw = String(
-      vendor?.subscriptionTier ?? vendor?.tier ?? "Starter"
-    ).toLowerCase();
-    const subscriptionTier = subscriptionTierRaw.includes("pro")
-      ? "Pro"
-      : subscriptionTierRaw.includes("growth") || subscriptionTierRaw.includes("premium")
-        ? "Growth"
-        : "Starter";
-
-    const minServicePrice = services.length
-      ? Math.min(...services.map((s) => (typeof s.priceCents === "number" ? s.priceCents / 100 : 0)))
-      : null;
-
-    return {
-      id: String(vendor?.id ?? vendorId),
-      name: vendor?.name ?? "Vendor",
-      handle: vendor?.handle ?? vendor?.username ? `@${vendor?.username ?? vendor?.handle}` : "@vendor",
-      location:
-        [vendor?.city, vendor?.state].filter(Boolean).join(", ") || "Location not set",
-      category: vendor?.category ?? "Business",
-      tagline: vendor?.tagline ?? "Curated outdoor and lifestyle experiences.",
-      bio: vendor?.description ?? vendor?.bio ?? "",
-      avatarUrl: vendor?.avatarUrl ?? vendor?.avatar ?? null,
-      coverMediaUrl,
-      coverMediaType: inferredCoverType,
-      rating: Number(vendor?.rating ?? 0),
-      reviewCount: Number(vendor?.reviewCount ?? 0),
-      followerCount: Number(vendor?.followerCount ?? 0),
-      followingCount: Number(vendor?.followingCount ?? 0),
-      bookingCount: Number(vendor?.bookingCount ?? 0),
-      isVerified: Boolean(vendor?.isVerified),
-      subscriptionTier,
-      brandColors:
-        subscriptionTier === "Pro" && vendor?.brandColors
-          ? vendor.brandColors
-          : null,
-      availability: vendor?.availability ?? "Available Now",
-      responseTime: vendor?.responseTime ?? "Usually responds in 2h",
-      posts: Array.isArray(vendor?.posts) ? vendor.posts : [],
-      products,
-      reviews: Array.isArray(vendor?.reviews) ? vendor.reviews : [],
-      minPrice: vendor?.minPrice ?? minServicePrice,
-    };
-  }, [vendor, services, vendorId, products]);
-
-  const isOwnProfile =
-    user?.id && (String(user.id) === String(vendor?.id) || String(user.id) === String(vendor?.userId));
-  const isAdminView = String((user as any)?.role || "").toLowerCase() === "admin";
-
-  const brandPrimary = normalizedVendor.brandColors?.primary ?? COLORS.gold;
-  const brandAccent = normalizedVendor.brandColors?.accent ?? COLORS.goldDim;
-
-  const postsData: PostItem[] = useMemo(() => {
-    if (normalizedVendor.posts.length > 0) {
-      return normalizedVendor.posts.map((p: any, idx: number) => ({
-        id: String(p.id ?? `post-${idx}`),
-        title: p.title ?? p.caption ?? "Behind the scenes",
-        type: p.type === "video" ? "video" : "image",
-        mediaUrl: p.mediaUrl ?? p.imageUrl ?? normalizedVendor.coverMediaUrl ?? undefined,
-        likes: Number(p.likes ?? p.likeCount ?? 0),
-        comments: Number(p.comments ?? p.commentCount ?? 0),
-        category: p.category ?? normalizedVendor.category,
-      }));
+    if (initialTab === "services" && tabOrder.includes("booking")) {
+      setActiveTab("booking");
+      return;
     }
-    return [
-      {
-        id: "default-1",
-        title: "Signature edits from our latest outdoor campaign",
-        type: normalizedVendor.coverMediaType === "video" ? "video" : "image",
-        mediaUrl: normalizedVendor.coverMediaUrl ?? undefined,
-        likes: 112,
-        comments: 24,
-        category: normalizedVendor.category,
-      },
-    ];
-  }, [normalizedVendor]);
-
-  const reviewsData: ReviewItem[] = useMemo(() => {
-    if (normalizedVendor.reviews.length > 0) {
-      return normalizedVendor.reviews.map((r: any, idx: number) => ({
-        id: String(r.id ?? `review-${idx}`),
-        userName: r.userName ?? r.authorName ?? "Outsyde User",
-        avatarUrl: r.avatarUrl ?? r.authorAvatar ?? undefined,
-        rating: Number(r.rating ?? 5),
-        text: r.text ?? r.comment ?? "",
-        createdAt: r.createdAt ?? r.date ?? new Date().toISOString(),
-      }));
+    if (initialTab === "reviews" && tabOrder.includes("reviews")) {
+      setActiveTab("reviews");
+      return;
     }
-    return [];
-  }, [normalizedVendor.reviews]);
+    if (!tabOrder.includes(activeTab)) {
+      setActiveTab(tabOrder[0]);
+    }
+  }, [profile, tabOrder, initialTab, activeTab]);
 
-  const ratingBreakdown = useMemo(() => {
-    const counts = [0, 0, 0, 0, 0];
-    reviewsData.forEach((r) => {
-      const clamped = Math.max(1, Math.min(5, Math.round(r.rating)));
-      counts[5 - clamped] += 1;
-    });
-    const total = reviewsData.length || 1;
-    return counts.map((count, idx) => ({ stars: 5 - idx, ratio: count / total, count }));
-  }, [reviewsData]);
-
-  const mediaCellWidth = (SCREEN_WIDTH - 40 - 8) / 3;
+  useEffect(() => {
+    if (!profile || isOwnProfile || !isAuthenticated) return;
+    const targetId = profile.userId || profile.id;
+    apiClient
+      .checkFollowStatus(targetId)
+      .then((result) => setIsFollowing(result.isFollowing))
+      .catch(() => setIsFollowing(false));
+  }, [profile, isOwnProfile, isAuthenticated]);
 
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [120, 220],
     outputRange: [0, 1],
     extrapolate: "clamp",
   });
-  const headerTitleOpacity = scrollY.interpolate({
-    inputRange: [170, 240],
+  const titleOpacity = scrollY.interpolate({
+    inputRange: [170, 260],
     outputRange: [0, 1],
     extrapolate: "clamp",
   });
 
-  const openBookingSheet = () => {
+  const handleFollowToggle = useCallback(async () => {
+    if (!profile || followBusy) return;
+    const targetId = profile.userId || profile.id;
+    const targetType =
+      profile.role === "business"
+        ? "business"
+        : profile.role === "photographer"
+          ? "photographer"
+          : "user";
+
+    setFollowBusy(true);
+    try {
+      if (isFollowing) {
+        await apiClient.unfollowUser(targetId);
+        setIsFollowing(false);
+      } else {
+        await apiClient.followUser(targetId, targetType);
+        setIsFollowing(true);
+      }
+      // TODO: Wire follow/unfollow to API
+    } catch (error) {
+      console.error("Follow toggle failed:", error);
+      Alert.alert("Unable to update follow", "Please try again.");
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [followBusy, isFollowing, profile]);
+
+  const openBookingModal = useCallback(() => {
     setReviewSheetIndex(-1);
     setBookingSheetIndex(0);
-  };
-  const openReviewSheet = () => {
+  }, []);
+
+  const openReviewModal = useCallback(() => {
     setBookingSheetIndex(-1);
     setReviewSheetIndex(0);
-  };
+  }, []);
 
-  const handleShareProfile = async () => {
+  const handleShare = useCallback(async () => {
+    if (!profile) return;
     try {
       await Share.share({
-        message: `Check out ${normalizedVendor.name} on Outsyde`,
+        message: `Check out ${profile.name} on Outsyde`,
       });
     } catch (error) {
       console.warn("Share failed:", error);
     }
-  };
+  }, [profile]);
 
-  const toggleLikePost = (postId: string) => {
-    setLikedPostIds((prev) => ({ ...prev, [postId]: !prev[postId] }));
-    // TODO: Wire like/save on posts to API endpoints
-  };
-
-  const toggleSaveProduct = (productId: string) => {
-    setSavedProductIds((prev) => ({ ...prev, [productId]: !prev[productId] }));
-  };
-
-  const handleSubmitReview = () => {
-    // TODO: Wire review submission to POST /reviews endpoint
-    console.log("Review submit draft:", {
-      vendorId: normalizedVendor.id,
+  const handleSubmitReview = useCallback(() => {
+    if (!profile || reviewRating === 0) {
+      Alert.alert("Add a rating", "Select a star rating before submitting.");
+      return;
+    }
+    console.log("TODO review submit", {
+      profileId: profile.id,
       rating: reviewRating,
-      text: reviewText,
+      reviewText,
     });
-    setReviewText("");
+    // TODO: Wire review submit to POST /reviews endpoint
     setReviewRating(0);
+    setReviewText("");
     setReviewSheetIndex(-1);
-    Alert.alert("Thanks!", "Your review draft was captured.");
-  };
+    Alert.alert("Review captured", "Thanks for your feedback.");
+  }, [profile, reviewRating, reviewText]);
+
+  const resolvePrimaryAction = useCallback(() => {
+    if (!profile) return { label: "", onPress: () => {} };
+    if (profile.role === "photographer") {
+      return {
+        label: "Book Shoot →",
+        onPress: openBookingModal,
+      };
+    }
+    if (profile.role === "business") {
+      if (profile.hasServices) {
+        return {
+          label: "Book Now →",
+          onPress: openBookingModal,
+        };
+      }
+      if (profile.hasProducts) {
+        return {
+          label: "Shop →",
+          onPress: () => setActiveTab("shop"),
+        };
+      }
+    }
+    return {
+      label: "Message",
+      onPress: () =>
+        Alert.alert(
+          "Coming soon",
+          "Messaging will be wired in a follow-up update.",
+        ),
+    };
+  }, [openBookingModal, profile]);
+
+  const reviewBreakdown = useMemo(() => {
+    if (reviews.length === 0) {
+      return [5, 4, 3, 2, 1].map((stars) => ({ stars, ratio: 0 }));
+    }
+    return [5, 4, 3, 2, 1].map((stars) => {
+      const count = reviews.filter(
+        (review) => Math.round(review.rating) === stars,
+      ).length;
+      return { stars, ratio: count / reviews.length };
+    });
+  }, [reviews]);
+
+  const postCellWidth = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 8) / 3;
 
   const renderFloatingHeader = () => (
-    <Animated.View style={[styles.floatingHeader, { paddingTop: insets.top + 8 }]}>
-      <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: headerBgOpacity }]}>
-        <BlurView intensity={25} tint="dark" style={StyleSheet.absoluteFillObject} />
-        <View style={styles.floatingHeaderBg} />
+    <Animated.View
+      style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]}
+    >
+      <Animated.View
+        style={[StyleSheet.absoluteFillObject, { opacity: headerBgOpacity }]}
+      >
+        <BlurView
+          intensity={22}
+          tint="dark"
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={styles.headerOverlay} />
       </Animated.View>
-      <View style={styles.floatingHeaderRow}>
-        <Pressable style={styles.headerIconButton} onPress={() => navigation.goBack()}>
-          <Feather name="menu" size={18} color={COLORS.white} />
+      <View style={styles.headerRow}>
+        <Pressable
+          style={styles.headerButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={18} color={COLORS.white} />
         </Pressable>
-        <Animated.Text style={[styles.floatingHeaderTitle, { opacity: headerTitleOpacity }]}>
-          {normalizedVendor.name}
+        <Animated.Text
+          numberOfLines={1}
+          style={[styles.headerTitle, { opacity: titleOpacity }]}
+        >
+          {profile?.name || "Profile"}
         </Animated.Text>
-        <View style={styles.headerRightActions}>
-          <Pressable style={styles.headerIconButton}>
+        <View style={styles.headerRight}>
+          <Pressable style={styles.headerButton}>
             <Feather name="bell" size={18} color={COLORS.white} />
           </Pressable>
-          <Pressable style={styles.headerIconButton} onPress={handleShareProfile}>
+          <Pressable style={styles.headerButton} onPress={handleShare}>
             <Feather name="share-2" size={18} color={COLORS.white} />
           </Pressable>
         </View>
@@ -331,292 +907,264 @@ export default function VendorDetailScreen({ route }: Props) {
     </Animated.View>
   );
 
-  const renderCoverMediaHero = () => {
-    const showVideo =
-      normalizedVendor.coverMediaUrl && normalizedVendor.coverMediaType === "video";
-    const showImage =
-      normalizedVendor.coverMediaUrl && normalizedVendor.coverMediaType === "image";
+  const renderIdentityBlock = () => {
+    if (!profile) return null;
+    const primaryAction = resolvePrimaryAction();
+    const middleLabel =
+      profile.role === "business"
+        ? "Bookings"
+        : profile.role === "photographer"
+          ? "Shoots"
+          : "Posts";
+    const middleValue =
+      profile.role === "business"
+        ? profile.bookingCount
+        : profile.role === "photographer"
+          ? profile.shootsCount
+          : profile.postsCount;
 
     return (
-      <View style={styles.coverHero}>
-        {showVideo ? (
-          <Video
-            source={{ uri: normalizedVendor.coverMediaUrl as string }}
-            shouldPlay
-            isLooping
-            isMuted
-            resizeMode={ResizeMode.COVER}
-            style={styles.coverMedia}
+      <View style={styles.identityBlock}>
+        <View style={styles.avatarActionRow}>
+          <AvatarWithInitials
+            name={profile.name}
+            imageUrl={profile.avatarUrl || profile.logoImage}
+            accentColor={accentColor}
           />
-        ) : showImage ? (
-          <Animated.Image
-            source={{ uri: normalizedVendor.coverMediaUrl as string }}
-            style={styles.coverMedia}
-            resizeMode="cover"
-          />
-        ) : (
-          <LinearGradient
-            colors={
-              normalizedVendor.subscriptionTier === "Pro" && normalizedVendor.brandColors
-                ? [brandPrimary, brandAccent, COLORS.black]
-                : ["#1a1a1a", "#2d2410", "#0a0a0a"]
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.coverMedia}
-          />
-        )}
+          <View style={styles.actionsWrap}>
+            <Pressable
+              style={[
+                styles.followButton,
+                isFollowing && styles.followButtonActive,
+                !isFollowing && { backgroundColor: accentColor },
+                isFollowing && { borderColor: accentColor },
+              ]}
+              onPress={handleFollowToggle}
+              disabled={followBusy}
+            >
+              <Text
+                style={[
+                  styles.followButtonText,
+                  isFollowing
+                    ? { color: accentColor }
+                    : { color: COLORS.black },
+                ]}
+              >
+                {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
+              </Text>
+            </Pressable>
 
-        <LinearGradient
-          colors={["rgba(232,185,48,0.12)", "transparent"]}
-          start={{ x: 0.1, y: 0.1 }}
-          end={{ x: 0.9, y: 0.9 }}
-          style={styles.coverGlow}
-        />
-        <LinearGradient
-          colors={["transparent", COLORS.black]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.coverBottomFade}
-        />
+            {profile.role !== "consumer" ? (
+              <Pressable
+                style={[styles.actionButton, { backgroundColor: accentColor }]}
+                onPress={primaryAction.onPress}
+              >
+                <Text style={styles.actionButtonText}>
+                  {primaryAction.label}
+                </Text>
+              </Pressable>
+            ) : null}
 
-        {normalizedVendor.coverMediaType === "video" ? (
-          <View style={styles.heroPlayBadge}>
-            <Feather name="play" size={18} color={COLORS.white} />
+            {profile.role === "business" &&
+            profile.hasServices &&
+            profile.hasProducts ? (
+              <Pressable
+                style={[
+                  styles.secondaryActionButton,
+                  { borderColor: accentColor },
+                ]}
+                onPress={() => setActiveTab("shop")}
+              >
+                <Text
+                  style={[styles.secondaryActionText, { color: accentColor }]}
+                >
+                  Shop
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable style={styles.messageButton}>
+              <Feather name="message-circle" size={15} color={COLORS.white} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.nameRow}>
+          <Text style={styles.nameText}>{profile.name}</Text>
+          {profile.isVerified ? (
+            <View
+              style={[styles.verifiedBadge, { backgroundColor: accentColor }]}
+            >
+              <Feather name="check" size={12} color={COLORS.black} />
+            </View>
+          ) : null}
+          {profile.role === "business" && profile.subscriptionTier ? (
+            <View
+              style={[
+                styles.tierBadge,
+                profile.subscriptionTier.toLowerCase().includes("pro")
+                  ? { backgroundColor: COLORS.gold }
+                  : profile.subscriptionTier.toLowerCase().includes("growth")
+                    ? { backgroundColor: COLORS.emerald }
+                    : { backgroundColor: COLORS.gray },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tierBadgeText,
+                  profile.subscriptionTier.toLowerCase().includes("pro")
+                    ? { color: COLORS.black }
+                    : { color: COLORS.white },
+                ]}
+              >
+                {profile.subscriptionTier}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={styles.metaLine}>
+          {profile.handle}
+          {profile.location ? `  •  📍 ${profile.location}` : ""}
+        </Text>
+
+        {profile.role === "photographer" && profile.specialties.length > 0 ? (
+          <View style={styles.tagRow}>
+            {profile.specialties.slice(0, 4).map((tag) => (
+              <View key={tag} style={styles.tagPill}>
+                <Text style={styles.tagPillText}>{tag}</Text>
+              </View>
+            ))}
           </View>
         ) : null}
 
-        {isOwnProfile ? (
-          <View style={styles.addCoverHint}>
-            <Feather name="upload" size={12} color={COLORS.white} />
-            <Text style={styles.addCoverHintText}>Add cover media</Text>
+        {profile.role === "consumer" && profile.specialties.length > 0 ? (
+          <View style={styles.tagRow}>
+            {profile.specialties.slice(0, 4).map((tag) => (
+              <View key={tag} style={styles.tagPill}>
+                <Text style={styles.tagPillText}>{tag}</Text>
+              </View>
+            ))}
           </View>
         ) : null}
+
+        <View style={styles.ratingInlineRow}>
+          <StarRating rating={profile.rating} color={accentColor} />
+          <Text style={styles.ratingText}>{profile.rating.toFixed(1)}</Text>
+          <Text style={styles.ratingMeta}>({profile.reviewCount})</Text>
+          {profile.responseTime ? (
+            <Text style={styles.ratingMeta}>⚡ {profile.responseTime}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.statsCard}>
+          <View style={styles.statCol}>
+            <Text style={styles.statValue}>{profile.followerCount}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={styles.statValue}>{middleValue}</Text>
+            <Text style={styles.statLabel}>{middleLabel}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={styles.statValue}>{profile.followingCount}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+        </View>
       </View>
     );
   };
 
-  const renderProfileIdentityBlock = () => (
-    <View style={styles.identityWrap}>
-      <View style={styles.avatarActionRow}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatarOuterRing}>
-            <View style={styles.avatarInnerRing}>
-              {normalizedVendor.avatarUrl ? (
-                <Animated.Image
-                  source={{ uri: normalizedVendor.avatarUrl }}
-                  style={styles.avatarImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Feather name="user" size={28} color={COLORS.cream} />
-                </View>
-              )}
-            </View>
-          </View>
-          <View style={styles.onlineDot} />
-        </View>
-
-        {!isAdminView ? (
-          <View style={styles.profileActionButtons}>
-            <Pressable
-              style={[styles.followButton, isFollowing && styles.followButtonActive]}
-              onPress={() => {
-                setIsFollowing((prev) => !prev);
-                // TODO: Wire follow/unfollow to API endpoint
-              }}
-            >
-              <Text style={[styles.followButtonText, isFollowing && styles.followButtonTextActive]}>
-                {isFollowing ? "Following" : "Follow"}
-              </Text>
-            </Pressable>
-
-            <Pressable style={styles.bookButton} onPress={openBookingSheet}>
-              <Text style={styles.bookButtonText}>Book</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.messageIconButton}
-              onPress={() => Alert.alert("Message", "Messaging flow will be wired here.")}
-            >
-              <Feather name="message-circle" size={16} color={COLORS.white} />
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-
-      <View style={styles.nameRow}>
-        <Text style={styles.vendorName}>{normalizedVendor.name}</Text>
-        {normalizedVendor.isVerified ? (
-          <View style={styles.verifiedBadge}>
-            <Feather name="check" size={12} color={COLORS.white} />
-          </View>
-        ) : null}
-        <View
-          style={[
-            styles.tierPill,
-            normalizedVendor.subscriptionTier === "Pro"
-              ? styles.proTierPill
-              : normalizedVendor.subscriptionTier === "Growth"
-                ? styles.growthTierPill
-                : styles.starterTierPill,
-          ]}
-        >
-          <Text style={styles.tierPillText}>{normalizedVendor.subscriptionTier}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.handleLocationText}>
-        {normalizedVendor.handle} · {normalizedVendor.location}
-      </Text>
-
-      <View style={styles.metaBadgeRow}>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryBadgeText}>{normalizedVendor.category}</Text>
-        </View>
-        {normalizedVendor.availability.toLowerCase().includes("available") ? (
-          <View style={styles.availableBadge}>
-            <Text style={styles.availableBadgeText}>{normalizedVendor.availability}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <Text style={styles.taglineText}>{normalizedVendor.tagline}</Text>
-
-      <View style={styles.ratingRow}>
-        <View style={styles.starRow}>
-          {Array.from({ length: 5 }).map((_, idx) => (
-            <Feather
-              key={`star-${idx}`}
-              name="star"
-              size={14}
-              color={idx < Math.round(normalizedVendor.rating) ? COLORS.gold : COLORS.grayMid}
-            />
-          ))}
-        </View>
-        <Text style={styles.ratingText}>{normalizedVendor.rating.toFixed(1)}</Text>
-        <Text style={styles.reviewCountText}>({normalizedVendor.reviewCount})</Text>
-        <Text style={styles.responseTimeText}>⚡ {normalizedVendor.responseTime}</Text>
-      </View>
-
-      <View style={styles.statsContainer}>
-        <View style={styles.statCol}>
-          <Text style={styles.statValue}>{normalizedVendor.followerCount}</Text>
-          <Text style={styles.statLabel}>Followers</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statCol}>
-          <Text style={styles.statValue}>{normalizedVendor.bookingCount}</Text>
-          <Text style={styles.statLabel}>Bookings</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statCol}>
-          <Text style={styles.statValue}>{normalizedVendor.followingCount}</Text>
-          <Text style={styles.statLabel}>Following</Text>
-        </View>
-      </View>
-
-      {!isAdminView ? (
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {tabOrder.map((tab) => (
         <Pressable
-          style={styles.subscribeButtonWrap}
-          onPress={() => {
-            setIsSubscribed((prev) => !prev);
-            // TODO: Wire subscribe to vendor subscription API endpoint
-          }}
+          key={tab}
+          style={styles.tabButton}
+          onPress={() => setActiveTab(tab)}
         >
-          {isSubscribed ? (
-            <View style={styles.subscribedButton}>
-              <Text style={styles.subscribedButtonText}>
-                ✓ Subscribed — Exclusive Access Unlocked
-              </Text>
-            </View>
-          ) : (
-            <LinearGradient
-              colors={[COLORS.gold, COLORS.goldDim]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.subscribeButton}
-            >
-              <Text style={styles.subscribeButtonText}>
-                ⭐ Subscribe for Exclusive Drops & Deals
-              </Text>
-            </LinearGradient>
-          )}
-        </Pressable>
-      ) : null}
-    </View>
-  );
-
-  const renderStickyTabBar = () => (
-    <View style={styles.tabBarContainer}>
-      {(["posts", "shop", "reviews", "about"] as ProfileTab[]).map((tab) => (
-        <Pressable key={tab} style={styles.tabButton} onPress={() => setActiveTab(tab)}>
-          <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          <Text
+            style={[
+              styles.tabLabel,
+              activeTab === tab && { color: accentColor, fontWeight: "700" },
+            ]}
+          >
+            {tab === "shop"
+              ? "Shop"
+              : tab === "booking"
+                ? "Booking"
+                : tab === "availability"
+                  ? "Availability"
+                  : tab === "saved"
+                    ? "Saved"
+                    : tab === "reviews"
+                      ? "Reviews"
+                      : tab === "about"
+                        ? "About"
+                        : "Posts"}
           </Text>
-          <View style={[styles.tabUnderline, activeTab === tab && styles.tabUnderlineActive]} />
+          <View
+            style={[
+              styles.tabIndicator,
+              activeTab === tab && { backgroundColor: accentColor },
+            ]}
+          />
         </Pressable>
       ))}
     </View>
   );
 
   const renderPostsTab = () => {
-    const featured = postsData[0];
-    const gridItems = postsData.slice(1);
+    if (posts.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Feather name="camera" size={26} color={COLORS.grayLight} />
+          <Text style={styles.emptyTitle}>Share your best work</Text>
+        </View>
+      );
+    }
 
     return (
-      <View style={styles.tabSectionWrap}>
-        <View style={styles.featuredPostCard}>
-          {featured?.mediaUrl ? (
-            <Animated.Image source={{ uri: featured.mediaUrl }} style={styles.featuredPostMedia} resizeMode="cover" />
-          ) : (
-            <LinearGradient colors={[brandPrimary, COLORS.black]} style={styles.featuredPostMedia} />
-          )}
-          {featured?.type === "video" ? (
-            <View style={styles.featuredPlayBadge}>
-              <Feather name="play" size={16} color={COLORS.white} />
-            </View>
-          ) : null}
-          <LinearGradient colors={["transparent", "rgba(0,0,0,0.85)"]} style={styles.featuredPostOverlay}>
-            <View style={styles.featuredCategoryBadge}>
-              <Text style={styles.featuredCategoryText}>{featured?.category || normalizedVendor.category}</Text>
-            </View>
-            <Text style={styles.featuredTitle}>{featured?.title || "Featured Story"}</Text>
-            <View style={styles.featuredEngagementRow}>
-              <Text style={styles.featuredEngagement}>❤️ {featured?.likes ?? 0}</Text>
-              <Text style={styles.featuredEngagement}>💬 {featured?.comments ?? 0}</Text>
-              <Text style={styles.featuredEngagement}>📤 Share</Text>
-              <Text style={styles.featuredEngagement}>🔖 Save</Text>
-            </View>
-          </LinearGradient>
-        </View>
-
+      <View style={styles.tabContent}>
         <View style={styles.mediaGrid}>
-          {gridItems.map((post, idx) => {
-            const isPortrait = idx % 3 === 0;
-            const cellHeight = isPortrait ? mediaCellWidth * 1.33 : mediaCellWidth;
+          {posts.map((post) => {
+            const cellHeight =
+              post.aspect === "portrait" ? postCellWidth * 1.33 : postCellWidth;
             return (
-              <Pressable key={post.id} style={[styles.mediaCell, { width: mediaCellWidth, height: cellHeight }]}>
+              <Pressable
+                key={post.id}
+                style={[
+                  styles.mediaCell,
+                  { width: postCellWidth, height: cellHeight },
+                ]}
+              >
                 {post.mediaUrl ? (
-                  <Animated.Image source={{ uri: post.mediaUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                  <Image
+                    source={{ uri: post.mediaUrl }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                  />
                 ) : (
-                  <LinearGradient colors={[COLORS.gray, COLORS.black]} style={StyleSheet.absoluteFillObject} />
+                  <LinearGradient
+                    colors={[COLORS.gray, COLORS.black]}
+                    style={StyleSheet.absoluteFillObject}
+                  />
                 )}
-                {post.type === "video" ? (
-                  <View style={styles.mediaVideoBadge}>
-                    <Feather name="play" size={10} color={COLORS.white} />
+                {post.mediaType === "video" ? (
+                  <View style={styles.videoBadge}>
+                    <Text style={styles.videoBadgeText}>▶</Text>
                   </View>
                 ) : null}
-                <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.mediaCellOverlay}>
-                  <Text style={styles.mediaCellLabel} numberOfLines={1}>
-                    {post.title}
+                <LinearGradient
+                  colors={["transparent", "rgba(0,0,0,0.78)"]}
+                  style={styles.mediaOverlay}
+                >
+                  <Text numberOfLines={1} style={styles.mediaLabel}>
+                    {post.label}
                   </Text>
-                  <Pressable onPress={() => toggleLikePost(post.id)}>
-                    <Text style={styles.mediaCellLikes}>
-                      {likedPostIds[post.id] ? "❤️" : "🤍"} {post.likes ?? 0}
-                    </Text>
-                  </Pressable>
+                  <Text style={styles.mediaLikes}>♥ {post.likes}</Text>
                 </LinearGradient>
               </Pressable>
             );
@@ -627,62 +1175,42 @@ export default function VendorDetailScreen({ route }: Props) {
   };
 
   const renderShopTab = () => (
-    <View style={styles.tabSectionWrap}>
-      <LinearGradient colors={["#1f1f1f", "#0f0f0f"]} style={styles.shopCollectionCard}>
-        <View style={styles.shopCollectionGlow} />
-        <View style={styles.featuredCategoryBadge}>
-          <Text style={styles.featuredCategoryText}>{normalizedVendor.category}</Text>
-        </View>
-        <Text style={styles.shopCollectionTitle}>Signature Collection</Text>
-        <Text style={styles.shopCollectionSubtitle}>
-          {products.length} pieces · Starting from{" "}
-          {products.length > 0 ? `$${(products[0].priceCents / 100).toFixed(2)}` : "$0.00"}
-        </Text>
-        <Pressable style={styles.shopAllButton}>
-          <Text style={styles.shopAllButtonText}>Shop All →</Text>
-        </Pressable>
-      </LinearGradient>
-
-      {productsLoading ? (
-        <View style={styles.emptyBlock}>
-          <Text style={styles.emptyBlockText}>Loading products...</Text>
+    <View style={styles.tabContent}>
+      {products.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="shopping-bag" size={24} color={COLORS.grayLight} />
+          <Text style={styles.emptyTitle}>No products yet</Text>
         </View>
       ) : (
         <View style={styles.productGrid}>
-          {products.map((product: any, idx) => (
-            <View key={product.id ?? `product-${idx}`} style={styles.productCard}>
-              <View style={styles.productImageZone}>
+          {products.map((product) => (
+            <View key={String(product.id)} style={styles.productCard}>
+              <View style={styles.productImageWrap}>
                 {product.imageUrl ? (
-                  <Animated.Image source={{ uri: product.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-                ) : (
-                  <LinearGradient colors={[COLORS.grayMid, COLORS.black]} style={StyleSheet.absoluteFillObject} />
-                )}
-                <View style={styles.productTagBadge}>
-                  <Text style={styles.productTagText}>
-                    {idx % 3 === 0 ? "New" : idx % 3 === 1 ? "Best Seller" : "Low Stock"}
-                  </Text>
-                </View>
-                <Pressable
-                  style={styles.productSaveButton}
-                  onPress={() => toggleSaveProduct(String(product.id))}
-                >
-                  <Feather
-                    name={savedProductIds[String(product.id)] ? "heart" : "heart"}
-                    size={14}
-                    color={savedProductIds[String(product.id)] ? COLORS.gold : COLORS.white}
+                  <Image
+                    source={{ uri: product.imageUrl }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
                   />
-                </Pressable>
+                ) : (
+                  <LinearGradient
+                    colors={[COLORS.gray, COLORS.black]}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                )}
               </View>
-              <View style={styles.productInfoZone}>
-                <Text style={styles.productNameText} numberOfLines={2}>
+              <View style={styles.productBody}>
+                <Text style={styles.productName} numberOfLines={1}>
                   {product.name}
                 </Text>
-                <Text style={styles.productPriceText}>${(product.priceCents / 100).toFixed(2)}</Text>
-                <View style={styles.productButtonRow}>
-                  <Pressable style={styles.smallAddButton}>
-                    <Text style={styles.smallAddButtonText}>Add</Text>
-                  </Pressable>
-                </View>
+                <Text style={[styles.productPrice, { color: accentColor }]}>
+                  {formatCents(product.priceCents)}
+                </Text>
+                <Pressable
+                  style={[styles.cardCta, { backgroundColor: accentColor }]}
+                >
+                  <Text style={styles.cardCtaText}>Add to Cart</Text>
+                </Pressable>
               </View>
             </View>
           ))}
@@ -691,65 +1219,191 @@ export default function VendorDetailScreen({ route }: Props) {
     </View>
   );
 
+  const renderBookingTab = () => (
+    <View style={styles.tabContent}>
+      {services.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="calendar" size={24} color={COLORS.grayLight} />
+          <Text style={styles.emptyTitle}>No services yet</Text>
+        </View>
+      ) : (
+        <>
+          {services.map((service) => (
+            <View key={service.id} style={styles.serviceCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.serviceName}>{service.name}</Text>
+                {service.description ? (
+                  <Text style={styles.serviceDescription} numberOfLines={2}>
+                    {service.description}
+                  </Text>
+                ) : null}
+                <View style={styles.serviceMetaRow}>
+                  <Text style={[styles.servicePrice, { color: accentColor }]}>
+                    {formatCents(service.priceCents)}
+                  </Text>
+                  {service.durationMinutes ? (
+                    <Text style={styles.serviceMeta}>
+                      • {service.durationMinutes} min
+                    </Text>
+                  ) : null}
+                  {service.rating ? (
+                    <Text style={styles.serviceMeta}>
+                      • ★ {service.rating.toFixed(1)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              <Pressable
+                style={[styles.cardCta, { backgroundColor: accentColor }]}
+                onPress={openBookingModal}
+              >
+                <Text style={styles.cardCtaText}>Book</Text>
+              </Pressable>
+            </View>
+          ))}
+          {profile?.availabilitySummary ? (
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryText}>
+                {profile.availabilitySummary}
+              </Text>
+              <Pressable>
+                <Text style={[styles.summaryLink, { color: accentColor }]}>
+                  View Full Availability →
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+
+  const renderAvailabilityTab = () => {
+    const slotsByDay = DAY_LABELS.map((_, dayOfWeek) =>
+      availability.find(
+        (slot) => slot.dayOfWeek === dayOfWeek && slot.isActive !== false,
+      ),
+    );
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.calendarGrid}>
+          {DAY_LABELS.map((label, index) => {
+            const slot = slotsByDay[index];
+            const isAvailable = Boolean(slot);
+            return (
+              <View key={label} style={styles.calendarCard}>
+                <Text style={styles.calendarDay}>{label}</Text>
+                <Text style={styles.calendarHours}>
+                  {isAvailable
+                    ? `${slot?.startTime} - ${slot?.endTime}`
+                    : "Unavailable"}
+                </Text>
+                {isAvailable ? (
+                  <Pressable
+                    style={[styles.slotButton, { borderColor: accentColor }]}
+                    onPress={openBookingModal}
+                  >
+                    <Text
+                      style={[styles.slotButtonText, { color: accentColor }]}
+                    >
+                      Book a Slot
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  const renderSavedTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.emptyState}>
+        <Feather name="bookmark" size={24} color={COLORS.grayLight} />
+        <Text style={styles.emptyTitle}>No saved items yet</Text>
+      </View>
+    </View>
+  );
+
   const renderReviewsTab = () => (
-    <View style={styles.tabSectionWrap}>
+    <View style={styles.tabContent}>
       <View style={styles.reviewSummaryCard}>
         <View style={styles.reviewSummaryLeft}>
-          <Text style={styles.reviewSummaryRating}>{normalizedVendor.rating.toFixed(1)}</Text>
-          <View style={styles.starRow}>
-            {Array.from({ length: 5 }).map((_, idx) => (
-              <Feather
-                key={`summary-star-${idx}`}
-                name="star"
-                size={14}
-                color={idx < Math.round(normalizedVendor.rating) ? COLORS.gold : COLORS.grayMid}
-              />
-            ))}
-          </View>
-          <Text style={styles.reviewSummaryCount}>{normalizedVendor.reviewCount} reviews</Text>
+          <Text style={styles.reviewScore}>
+            {profile?.rating?.toFixed(1) || "0.0"}
+          </Text>
+          <StarRating
+            rating={profile?.rating || 0}
+            color={accentColor}
+            size={14}
+          />
+          <Text style={styles.reviewCountLabel}>
+            {profile?.reviewCount || 0} reviews
+          </Text>
         </View>
         <View style={styles.reviewSummaryRight}>
-          {ratingBreakdown.map((item) => (
-            <View key={`ratio-${item.stars}`} style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>{item.stars}</Text>
+          {reviewBreakdown.map((row) => (
+            <View key={row.stars} style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>{row.stars}</Text>
               <View style={styles.breakdownTrack}>
-                <View style={[styles.breakdownFill, { width: `${item.ratio * 100}%` }]} />
+                <View
+                  style={[
+                    styles.breakdownFill,
+                    {
+                      width: `${row.ratio * 100}%`,
+                      backgroundColor: accentColor,
+                    },
+                  ]}
+                />
               </View>
             </View>
           ))}
         </View>
       </View>
 
-      {!isAdminView ? (
-        <Pressable style={styles.leaveReviewButton} onPress={openReviewSheet}>
-          <Text style={styles.leaveReviewButtonText}>Leave a Review</Text>
-        </Pressable>
-      ) : null}
+      <Pressable
+        style={[styles.leaveReviewButton, { borderColor: accentColor }]}
+        onPress={openReviewModal}
+      >
+        <Text style={[styles.leaveReviewButtonText, { color: accentColor }]}>
+          ✍️ Leave a Review
+        </Text>
+      </Pressable>
 
-      {reviewsData.length === 0 ? (
-        <View style={styles.emptyBlock}>
-          <Text style={styles.emptyBlockText}>No reviews yet.</Text>
+      {reviews.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>No reviews yet</Text>
         </View>
       ) : (
-        reviewsData.map((review) => (
+        reviews.map((review) => (
           <View key={review.id} style={styles.reviewCard}>
             <View style={styles.reviewHeader}>
               <View style={styles.reviewAvatar}>
                 {review.avatarUrl ? (
-                  <Animated.Image source={{ uri: review.avatarUrl }} style={styles.reviewAvatarImg} resizeMode="cover" />
+                  <Image
+                    source={{ uri: review.avatarUrl }}
+                    style={styles.reviewAvatarImage}
+                    contentFit="cover"
+                  />
                 ) : (
-                  <Feather name="user" size={12} color={COLORS.white} />
+                  <Text style={styles.reviewAvatarInitial}>
+                    {getInitials(review.userName)}
+                  </Text>
                 )}
               </View>
-              <View style={styles.reviewMeta}>
-                <Text style={styles.reviewUserName}>{review.userName}</Text>
-                <Text style={styles.reviewMetaText}>
-                  {"★".repeat(Math.max(1, Math.min(5, Math.round(review.rating))))} ·{" "}
-                  {new Date(review.createdAt).toLocaleDateString()}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewUser}>{review.userName}</Text>
+                <Text style={styles.reviewMeta}>
+                  {"★".repeat(
+                    Math.max(1, Math.min(5, Math.round(review.rating))),
+                  )}{" "}
+                  • {new Date(review.createdAt).toLocaleDateString()}
                 </Text>
               </View>
             </View>
-            <Text style={styles.reviewBody}>{review.text || "Great experience!"}</Text>
+            <Text style={styles.reviewText}>{review.text}</Text>
           </View>
         ))
       )}
@@ -757,33 +1411,54 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderAboutTab = () => {
-    const aboutRows = [
-      { icon: "map-pin", label: "Location", value: normalizedVendor.location },
-      { icon: "tag", label: "Category", value: normalizedVendor.category },
-      { icon: "zap", label: "Response Time", value: normalizedVendor.responseTime },
-      { icon: "clock", label: "Availability", value: normalizedVendor.availability },
-      { icon: "check-circle", label: "Verified", value: normalizedVendor.isVerified ? "Verified" : "Not Verified" },
-      { icon: "award", label: "Subscription Tier", value: normalizedVendor.subscriptionTier },
-    ];
+    if (!profile) return null;
     return (
-      <View style={styles.tabSectionWrap}>
-        {aboutRows.map((row) => (
-          <View key={row.label} style={styles.aboutRow}>
-            <Feather name={row.icon as any} size={14} color={COLORS.gold} />
-            <Text style={styles.aboutLabel}>{row.label}</Text>
-            <Text style={styles.aboutValue}>{row.value}</Text>
-          </View>
-        ))}
-        {!isAdminView ? (
-          <View style={styles.aboutActionRow}>
-            <Pressable style={styles.aboutMessageButton}>
-              <Text style={styles.aboutMessageButtonText}>💬 Message</Text>
-            </Pressable>
-            <Pressable style={styles.aboutReportButton}>
-              <Text style={styles.aboutReportButtonText}>🚩 Report</Text>
-            </Pressable>
+      <View style={styles.tabContent}>
+        {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
+        <View style={styles.aboutRow}>
+          <Feather name="map-pin" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Location</Text>
+          <Text style={styles.aboutValue}>
+            {profile.location || "Not listed"}
+          </Text>
+        </View>
+        <View style={styles.aboutRow}>
+          <Feather name="mail" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Email</Text>
+          <Text style={styles.aboutValue}>
+            {profile.contactEmail || "Not listed"}
+          </Text>
+        </View>
+        <View style={styles.aboutRow}>
+          <Feather name="phone" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Phone</Text>
+          <Text style={styles.aboutValue}>
+            {profile.contactPhone || "Not listed"}
+          </Text>
+        </View>
+        <View style={styles.aboutRow}>
+          <Feather name="globe" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Website</Text>
+          <Text style={styles.aboutValue}>
+            {profile.websiteUrl || "Not listed"}
+          </Text>
+        </View>
+        {profile.role === "business" ? (
+          <View style={styles.aboutRow}>
+            <Feather name="clock" size={14} color={accentColor} />
+            <Text style={styles.aboutLabel}>Store Hours</Text>
+            <Text style={styles.aboutValue}>
+              {profile.hoursOfOperation || "Not listed"}
+            </Text>
           </View>
         ) : null}
+        <View style={styles.aboutRow}>
+          <Feather name="zap" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Response Time</Text>
+          <Text style={styles.aboutValue}>
+            {profile.responseTime || "Usually responds in 2h"}
+          </Text>
+        </View>
       </View>
     );
   };
@@ -794,6 +1469,12 @@ export default function VendorDetailScreen({ route }: Props) {
         return renderPostsTab();
       case "shop":
         return renderShopTab();
+      case "booking":
+        return renderBookingTab();
+      case "availability":
+        return renderAvailabilityTab();
+      case "saved":
+        return renderSavedTab();
       case "reviews":
         return renderReviewsTab();
       case "about":
@@ -803,52 +1484,72 @@ export default function VendorDetailScreen({ route }: Props) {
     }
   };
 
-  const stickyMinPrice = normalizedVendor.minPrice;
-  const showBookingBar = !isAdminView;
-
-  if (loading) {
+  if (loading || !profile) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centerLoader}>
-          <Text style={styles.loadingText}>Loading vendor profile...</Text>
+        <View style={styles.loadingWrap}>
+          <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const showStickyBottom = !isOwnProfile && profile.role !== "consumer";
+  const primaryAction = resolvePrimaryAction();
+  const minLabel =
+    profile.role === "photographer" && profile.hourlyRate
+      ? `From ${formatCents(profile.hourlyRate)}/hr`
+      : profile.minPrice
+        ? `Starting from ${formatMoney(profile.minPrice)}`
+        : "";
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {renderFloatingHeader()}
-
       <Animated.ScrollView
-        contentContainerStyle={{ paddingBottom: showBookingBar ? insets.bottom + 110 : insets.bottom + 24 }}
+        contentContainerStyle={{
+          paddingBottom: showStickyBottom
+            ? insets.bottom + 112
+            : insets.bottom + 28,
+        }}
         stickyHeaderIndices={[2]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
+          {
+            useNativeDriver: false,
+          },
         )}
         scrollEventThrottle={16}
       >
-        {renderCoverMediaHero()}
-        {renderProfileIdentityBlock()}
-        {renderStickyTabBar()}
+        <CoverMediaHero
+          profile={profile}
+          primaryColor={accentColor}
+          accentColor={accentDimColor}
+        />
+        {renderIdentityBlock()}
+        {renderTabBar()}
         {renderTabContent()}
       </Animated.ScrollView>
 
-      {showBookingBar ? (
-        <View style={[styles.stickyBookingWrap, { paddingBottom: insets.bottom + 12 }]}>
-          <LinearGradient colors={["transparent", COLORS.black]} style={StyleSheet.absoluteFillObject} />
-          <View style={styles.stickyBookingInner}>
-            {stickyMinPrice != null ? (
-              <View style={styles.minPriceBlock}>
-                <Text style={styles.minPriceLabel}>Starting from</Text>
-                <Text style={styles.minPriceValue}>${Number(stickyMinPrice).toFixed(2)}</Text>
+      {showStickyBottom ? (
+        <View
+          style={[styles.stickyWrap, { paddingBottom: insets.bottom + 12 }]}
+        >
+          <LinearGradient
+            colors={["transparent", COLORS.black]}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={styles.stickyInner}>
+            {minLabel ? (
+              <View style={styles.minPriceWrap}>
+                <Text style={styles.minPriceText}>{minLabel}</Text>
               </View>
             ) : null}
-            <Pressable style={styles.bookNowWrap} onPress={openBookingSheet}>
-              <LinearGradient colors={[COLORS.gold, COLORS.goldDim]} style={styles.bookNowButton}>
-                <Text style={styles.bookNowButtonText}>Book Now →</Text>
-              </LinearGradient>
+            <Pressable
+              style={[styles.stickyButton, { backgroundColor: accentColor }]}
+              onPress={primaryAction.onPress}
+            >
+              <Text style={styles.stickyButtonText}>{primaryAction.label}</Text>
             </Pressable>
           </View>
         </View>
@@ -863,28 +1564,41 @@ export default function VendorDetailScreen({ route }: Props) {
         backgroundStyle={{ backgroundColor: "#111111" }}
         handleIndicatorStyle={{ backgroundColor: COLORS.gray }}
       >
-        <BottomSheetView style={styles.sheetContent}>
-          <Text style={styles.sheetTitle}>Book with {normalizedVendor.name}</Text>
-          <Text style={styles.sheetSubtitle}>⚡ {normalizedVendor.responseTime}</Text>
-          {[
-            "Custom Shoot / Styling",
-            "In-Store Experience",
-            "Virtual Consultation",
-            "Brand Campaign",
-          ].map((option) => (
-            <Pressable key={option} style={styles.sheetOptionRow}>
-              <Text style={styles.sheetOptionText}>{option}</Text>
-              <Feather name="chevron-right" size={16} color={COLORS.grayLight} />
+        <BottomSheetView style={styles.sheetBody}>
+          <Text style={styles.sheetTitle}>Book with {profile.name}</Text>
+          <Text style={styles.sheetSubtitle}>
+            ⚡ {profile.responseTime || "Usually responds in 2h"}
+          </Text>
+          {(services.length
+            ? services.slice(0, 5).map((service) => service.name)
+            : ["Session", "Consultation"]
+          ).map((option) => (
+            <Pressable key={option} style={styles.sheetRow}>
+              <Text style={styles.sheetRowText}>{option}</Text>
+              <Feather
+                name="chevron-right"
+                size={16}
+                color={COLORS.grayLight}
+              />
             </Pressable>
           ))}
           <Pressable
             onPress={() => {
-              // TODO: Wire "Continue to Booking" to existing booking flow screen
               setBookingSheetIndex(-1);
-              navigation.navigate("CartOrders");
+              if (profile.role === "photographer") {
+                navigation.navigate("Booking", { photographerId: profile.id });
+              } else {
+                navigation.navigate("CartOrders");
+              }
+              // TODO: Wire booking modal to existing booking flow screen
             }}
           >
-            <LinearGradient colors={[COLORS.gold, COLORS.goldDim]} style={styles.sheetCtaButton}>
+            <LinearGradient
+              colors={[accentColor, accentDimColor]}
+              style={styles.sheetCta}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
               <Text style={styles.sheetCtaText}>Continue to Booking</Text>
             </LinearGradient>
           </Pressable>
@@ -900,32 +1614,39 @@ export default function VendorDetailScreen({ route }: Props) {
         backgroundStyle={{ backgroundColor: "#111111" }}
         handleIndicatorStyle={{ backgroundColor: COLORS.gray }}
       >
-        <BottomSheetView style={styles.sheetContent}>
-          <Text style={styles.sheetTitle}>Rate {normalizedVendor.name}</Text>
-          <View style={styles.largeStarRow}>
-            {Array.from({ length: 5 }).map((_, idx) => (
-              <Pressable key={`rate-${idx}`} onPress={() => setReviewRating(idx + 1)}>
+        <BottomSheetView style={styles.sheetBody}>
+          <Text style={styles.sheetTitle}>Rate {profile.name}</Text>
+          <View style={styles.largeStars}>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Pressable
+                key={`rating-${index}`}
+                onPress={() => setReviewRating(index + 1)}
+              >
                 <Feather
                   name="star"
                   size={36}
-                  color={idx < reviewRating ? COLORS.gold : COLORS.grayMid}
+                  color={index < reviewRating ? accentColor : COLORS.grayMid}
                 />
               </Pressable>
             ))}
           </View>
           <TextInput
+            value={reviewText}
+            onChangeText={setReviewText}
             style={styles.reviewInput}
             placeholder="Share your experience..."
             placeholderTextColor={COLORS.grayLight}
             multiline
             maxLength={500}
-            value={reviewText}
-            onChangeText={setReviewText}
           />
-          <Pressable onPress={handleSubmitReview}>
-            <LinearGradient colors={[COLORS.gold, COLORS.goldDim]} style={styles.sheetCtaButton}>
-              <Text style={styles.sheetCtaText}>Submit Review</Text>
-            </LinearGradient>
+          <Pressable
+            style={[
+              styles.submitReviewButton,
+              { backgroundColor: accentColor },
+            ]}
+            onPress={handleSubmitReview}
+          >
+            <Text style={styles.submitReviewText}>Submit Review</Text>
           </Pressable>
         </BottomSheetView>
       </BottomSheet>
@@ -938,7 +1659,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.black,
   },
-  centerLoader: {
+  loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -946,122 +1667,86 @@ const styles = StyleSheet.create({
   loadingText: {
     color: COLORS.cream,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   floatingHeader: {
     position: "absolute",
-    top: 0,
     left: 0,
     right: 0,
+    top: 0,
     zIndex: 50,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   },
-  floatingHeaderBg: {
+  headerOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(10,10,10,0.95)",
   },
-  floatingHeaderRow: {
+  headerRow: {
     height: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerIconButton: {
+  headerButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.14)",
     marginHorizontal: 2,
   },
-  floatingHeaderTitle: {
+  headerTitle: {
     color: COLORS.white,
     fontSize: 15,
     fontWeight: "800",
     maxWidth: "45%",
   },
-  headerRightActions: {
+  headerRight: {
     flexDirection: "row",
     alignItems: "center",
   },
   coverHero: {
-    height: 320,
-    overflow: "hidden",
+    height: HERO_HEIGHT,
     position: "relative",
+    overflow: "hidden",
   },
   coverMedia: {
     ...StyleSheet.absoluteFillObject,
   },
-  coverGlow: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  coverBottomFade: {
+  coverFade: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     height: 160,
   },
-  heroPlayBadge: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    marginTop: -24,
-    marginLeft: -24,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  addCoverHint: {
-    position: "absolute",
-    right: 12,
-    bottom: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  addCoverHintText: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  identityWrap: {
+  identityBlock: {
     marginTop: -60,
-    zIndex: 10,
-    paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: 16,
+    zIndex: 5,
   },
   avatarActionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  avatarContainer: {
-    position: "relative",
-  },
   avatarOuterRing: {
-    width: 87,
-    height: 87,
-    borderRadius: 43.5,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     borderWidth: 4,
     borderColor: COLORS.black,
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
   },
   avatarInnerRing: {
     width: 80,
     height: 80,
     borderRadius: 40,
     borderWidth: 3,
-    borderColor: COLORS.gold,
     overflow: "hidden",
   },
   avatarImage: {
@@ -1072,56 +1757,66 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.gray,
+  },
+  avatarInitials: {
+    color: COLORS.black,
+    fontSize: 28,
+    fontWeight: "800",
   },
   onlineDot: {
     position: "absolute",
-    right: 3,
-    bottom: 3,
     width: 14,
     height: 14,
     borderRadius: 7,
+    right: 2,
+    bottom: 2,
+    backgroundColor: "#22c55e",
     borderWidth: 2,
     borderColor: COLORS.black,
-    backgroundColor: "#22c55e",
   },
-  profileActionButtons: {
+  actionsWrap: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: 8,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   followButton: {
     borderRadius: 22,
     paddingHorizontal: 18,
     paddingVertical: 8,
-    backgroundColor: COLORS.gold,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   followButtonActive: {
     backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: COLORS.gold,
   },
   followButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  actionButton: {
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  actionButtonText: {
     color: COLORS.black,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  followButtonTextActive: {
-    color: COLORS.gold,
-  },
-  bookButton: {
+  secondaryActionButton: {
     borderRadius: 22,
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: COLORS.emerald,
+    borderWidth: 1,
   },
-  bookButtonText: {
-    color: COLORS.white,
+  secondaryActionText: {
     fontSize: 13,
     fontWeight: "700",
   },
-  messageIconButton: {
+  messageButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -1134,13 +1829,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 8,
   },
-  vendorName: {
+  nameText: {
     color: COLORS.white,
     fontSize: 22,
     fontWeight: "800",
-    letterSpacing: -0.5,
   },
   verifiedBadge: {
     width: 20,
@@ -1148,72 +1842,42 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.gold,
   },
-  tierPill: {
-    borderRadius: 20,
+  tierBadge: {
+    borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  proTierPill: {
-    backgroundColor: COLORS.gold,
-  },
-  growthTierPill: {
-    backgroundColor: COLORS.emerald,
-  },
-  starterTierPill: {
-    backgroundColor: COLORS.gray,
-  },
-  tierPillText: {
-    color: COLORS.black,
+  tierBadgeText: {
     fontSize: 11,
     fontWeight: "700",
   },
-  handleLocationText: {
+  metaLine: {
     marginTop: 6,
     color: COLORS.grayLight,
     fontSize: 13,
     fontWeight: "500",
   },
-  metaBadgeRow: {
+  tagRow: {
     marginTop: 10,
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
     flexWrap: "wrap",
+    gap: 8,
   },
-  categoryBadge: {
+  tagPill: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(201,168,76,0.2)",
-    backgroundColor: "rgba(201,168,76,0.1)",
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  categoryBadgeText: {
-    color: COLORS.goldDim,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  availableBadge: {
-    borderRadius: 14,
-    backgroundColor: "rgba(34,197,94,0.18)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  availableBadgeText: {
-    color: "#8dffb4",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  taglineText: {
-    marginTop: 12,
+  tagPillText: {
     color: COLORS.cream,
-    fontSize: 14,
-    lineHeight: 21,
-    opacity: 0.85,
+    fontSize: 11,
+    fontWeight: "600",
   },
-  ratingRow: {
+  ratingInlineRow: {
     marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
@@ -1230,22 +1894,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
-  reviewCountText: {
+  ratingMeta: {
     color: COLORS.grayLight,
     fontSize: 12,
     fontWeight: "500",
   },
-  responseTimeText: {
-    color: COLORS.grayLight,
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  statsContainer: {
+  statsCard: {
     marginTop: 14,
     borderRadius: 16,
     backgroundColor: COLORS.gray,
     flexDirection: "row",
-    alignItems: "stretch",
     overflow: "hidden",
   },
   statCol: {
@@ -1256,7 +1914,7 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   statValue: {
     color: COLORS.white,
@@ -1267,44 +1925,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: COLORS.grayLight,
     fontSize: 11,
-    fontWeight: "700",
     letterSpacing: 0.8,
     textTransform: "uppercase",
+    fontWeight: "700",
   },
-  subscribeButtonWrap: {
-    marginTop: 14,
-  },
-  subscribeButton: {
-    borderRadius: 14,
-    paddingVertical: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  subscribeButtonText: {
-    color: COLORS.black,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  subscribedButton: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.gold,
-    paddingVertical: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-  },
-  subscribedButtonText: {
-    color: COLORS.gold,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  tabBarContainer: {
+  tabBar: {
     backgroundColor: COLORS.black,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.07)",
     flexDirection: "row",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   tabButton: {
     flex: 1,
@@ -1312,85 +1942,34 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 12,
   },
-  tabText: {
+  tabLabel: {
     color: COLORS.grayLight,
     fontSize: 13,
     fontWeight: "500",
   },
-  tabTextActive: {
-    color: COLORS.gold,
-    fontWeight: "700",
-  },
-  tabUnderline: {
+  tabIndicator: {
     marginTop: 8,
     height: 2,
     alignSelf: "stretch",
     backgroundColor: "transparent",
   },
-  tabUnderlineActive: {
-    backgroundColor: COLORS.gold,
-  },
-  tabSectionWrap: {
-    paddingHorizontal: 20,
+  tabContent: {
+    paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 16,
   },
-  featuredPostCard: {
-    height: 200,
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 14,
-  },
-  featuredPostMedia: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  featuredPlayBadge: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    marginTop: -18,
-    marginLeft: -18,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  emptyState: {
+    paddingVertical: 26,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: COLORS.gray,
   },
-  featuredPostOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "flex-end",
-    padding: 14,
-  },
-  featuredCategoryBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    marginBottom: 8,
-  },
-  featuredCategoryText: {
-    color: COLORS.cream,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-  },
-  featuredTitle: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  featuredEngagementRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  featuredEngagement: {
-    color: COLORS.cream,
-    fontSize: 12,
+  emptyTitle: {
+    marginTop: 8,
+    color: COLORS.grayLight,
+    fontSize: 13,
     fontWeight: "500",
   },
   mediaGrid: {
@@ -1403,72 +1982,36 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: COLORS.gray,
   },
-  mediaCellOverlay: {
+  videoBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.56)",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  videoBadgeText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  mediaOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "flex-end",
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
-  mediaCellLabel: {
+  mediaLabel: {
     color: COLORS.white,
     fontSize: 11,
     fontWeight: "600",
   },
-  mediaCellLikes: {
+  mediaLikes: {
+    marginTop: 2,
     color: COLORS.cream,
     fontSize: 10,
     fontWeight: "600",
-    marginTop: 2,
-  },
-  mediaVideoBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  shopCollectionCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 14,
-    overflow: "hidden",
-  },
-  shopCollectionGlow: {
-    position: "absolute",
-    top: -30,
-    right: -20,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: "rgba(232,185,48,0.15)",
-  },
-  shopCollectionTitle: {
-    color: COLORS.white,
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  shopCollectionSubtitle: {
-    color: COLORS.grayLight,
-    fontSize: 13,
-    fontWeight: "500",
-    marginBottom: 14,
-  },
-  shopAllButton: {
-    alignSelf: "flex-start",
-    borderRadius: 22,
-    backgroundColor: COLORS.gold,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  shopAllButtonText: {
-    color: COLORS.black,
-    fontSize: 13,
-    fontWeight: "700",
   },
   productGrid: {
     flexDirection: "row",
@@ -1476,101 +2019,147 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   productCard: {
-    width: (SCREEN_WIDTH - 50) / 2,
+    width: (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 10) / 2,
     borderRadius: 14,
     overflow: "hidden",
     backgroundColor: COLORS.gray,
   },
-  productImageZone: {
-    height: 140,
-    backgroundColor: "#1f1f1f",
-    position: "relative",
+  productImageWrap: {
+    height: 132,
+    backgroundColor: "#191919",
   },
-  productTagBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  productBody: {
+    padding: 10,
   },
-  productTagText: {
-    color: COLORS.white,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  productSaveButton: {
-    position: "absolute",
-    right: 8,
-    bottom: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  productInfoZone: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  productNameText: {
+  productName: {
     color: COLORS.cream,
     fontSize: 12,
     fontWeight: "600",
-    minHeight: 32,
   },
-  productPriceText: {
+  productPrice: {
     marginTop: 4,
-    color: COLORS.gold,
     fontSize: 13,
     fontWeight: "800",
   },
-  productButtonRow: {
+  cardCta: {
     marginTop: 8,
-    flexDirection: "row",
-    justifyContent: "flex-start",
-  },
-  smallAddButton: {
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(232,185,48,0.4)",
-    backgroundColor: "rgba(232,185,48,0.15)",
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
+    alignSelf: "flex-start",
   },
-  smallAddButtonText: {
-    color: COLORS.gold,
+  cardCtaText: {
+    color: COLORS.black,
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  reviewSummaryCard: {
-    flexDirection: "row",
+  serviceCard: {
     borderRadius: 14,
     backgroundColor: COLORS.gray,
     padding: 14,
-    marginBottom: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  reviewSummaryLeft: {
-    width: "36%",
-  },
-  reviewSummaryRating: {
+  serviceName: {
     color: COLORS.white,
-    fontSize: 42,
-    fontWeight: "900",
-    lineHeight: 44,
+    fontSize: 14,
+    fontWeight: "700",
   },
-  reviewSummaryCount: {
+  serviceDescription: {
+    marginTop: 4,
+    color: COLORS.grayLight,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  serviceMetaRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  servicePrice: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  serviceMeta: {
+    color: COLORS.grayLight,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  summaryCard: {
+    marginTop: 4,
+    borderRadius: 14,
+    backgroundColor: COLORS.gray,
+    padding: 14,
+  },
+  summaryText: {
+    color: COLORS.cream,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  summaryLink: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  calendarGrid: {
+    gap: 8,
+  },
+  calendarCard: {
+    borderRadius: 12,
+    backgroundColor: COLORS.gray,
+    padding: 12,
+  },
+  calendarDay: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  calendarHours: {
     marginTop: 4,
     color: COLORS.grayLight,
     fontSize: 12,
     fontWeight: "500",
   },
+  slotButton: {
+    marginTop: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  slotButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  reviewSummaryCard: {
+    borderRadius: 14,
+    backgroundColor: COLORS.gray,
+    padding: 14,
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  reviewSummaryLeft: {
+    width: "36%",
+  },
   reviewSummaryRight: {
     flex: 1,
     justifyContent: "center",
     gap: 6,
+  },
+  reviewScore: {
+    color: COLORS.white,
+    fontSize: 42,
+    fontWeight: "900",
+    lineHeight: 44,
+  },
+  reviewCountLabel: {
+    marginTop: 4,
+    color: COLORS.grayLight,
+    fontSize: 12,
   },
   breakdownRow: {
     flexDirection: "row",
@@ -1587,32 +2176,29 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 4,
     borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.09)",
     overflow: "hidden",
   },
   breakdownFill: {
     height: 4,
     borderRadius: 4,
-    backgroundColor: COLORS.gold,
   },
   leaveReviewButton: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.gold,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
     marginBottom: 12,
   },
   leaveReviewButtonText: {
-    color: COLORS.gold,
     fontSize: 13,
     fontWeight: "700",
   },
   reviewCard: {
     borderRadius: 14,
     backgroundColor: COLORS.gray,
-    padding: 16,
+    padding: 14,
     marginBottom: 10,
   },
   reviewHeader: {
@@ -1621,50 +2207,56 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   reviewAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.grayMid,
     overflow: "hidden",
+    backgroundColor: COLORS.grayMid,
     marginRight: 8,
   },
-  reviewAvatarImg: {
+  reviewAvatarImage: {
     width: "100%",
     height: "100%",
   },
-  reviewMeta: {
-    flex: 1,
+  reviewAvatarInitial: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "700",
   },
-  reviewUserName: {
+  reviewUser: {
     color: COLORS.white,
     fontSize: 13,
     fontWeight: "700",
   },
-  reviewMetaText: {
+  reviewMeta: {
     color: COLORS.grayLight,
     fontSize: 11,
-    fontWeight: "500",
   },
-  reviewBody: {
+  reviewText: {
     color: COLORS.cream,
     fontSize: 13,
-    lineHeight: 19.5,
-    fontWeight: "400",
+    lineHeight: 19,
+  },
+  bioText: {
+    color: COLORS.cream,
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 10,
   },
   aboutRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomColor: "rgba(255,255,255,0.07)",
   },
   aboutLabel: {
-    width: 110,
     marginLeft: 10,
+    width: 110,
     color: COLORS.grayLight,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.8,
     textTransform: "uppercase",
@@ -1673,92 +2265,44 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.cream,
     fontSize: 13,
-    fontWeight: "500",
     textAlign: "right",
   },
-  aboutActionRow: {
-    marginTop: 14,
-    flexDirection: "row",
-    gap: 10,
-  },
-  aboutMessageButton: {
-    flex: 1,
-    borderRadius: 12,
-    backgroundColor: COLORS.gray,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-  },
-  aboutMessageButtonText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  aboutReportButton: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.grayMid,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    backgroundColor: "transparent",
-  },
-  aboutReportButtonText: {
-    color: COLORS.grayLight,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  stickyBookingWrap: {
+  stickyWrap: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 20,
+    paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 12,
   },
-  stickyBookingInner: {
+  stickyInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-  minPriceBlock: {
+  minPriceWrap: {
     flex: 1,
   },
-  minPriceLabel: {
+  minPriceText: {
     color: COLORS.grayLight,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
   },
-  minPriceValue: {
-    color: COLORS.gold,
-    fontSize: 18,
-    fontWeight: "900",
-    marginTop: 2,
-  },
-  bookNowWrap: {
+  stickyButton: {
     flex: 2,
-  },
-  bookNowButton: {
     borderRadius: 14,
-    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: COLORS.gold,
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    paddingVertical: 14,
   },
-  bookNowButtonText: {
+  stickyButtonText: {
     color: COLORS.black,
     fontSize: 15,
     fontWeight: "900",
   },
-  sheetContent: {
+  sheetBody: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: 20,
   },
   sheetTitle: {
@@ -1770,10 +2314,9 @@ const styles = StyleSheet.create({
   sheetSubtitle: {
     color: COLORS.grayLight,
     fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  sheetOptionRow: {
+  sheetRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1781,24 +2324,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.06)",
   },
-  sheetOptionText: {
+  sheetRowText: {
     color: COLORS.cream,
     fontSize: 14,
     fontWeight: "500",
   },
-  sheetCtaButton: {
+  sheetCta: {
     marginTop: 16,
     borderRadius: 14,
-    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 14,
   },
   sheetCtaText: {
     color: COLORS.black,
     fontSize: 14,
     fontWeight: "800",
   },
-  largeStarRow: {
+  largeStars: {
     marginTop: 8,
     marginBottom: 14,
     flexDirection: "row",
@@ -1811,22 +2354,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.gray,
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "400",
     paddingHorizontal: 14,
     paddingVertical: 12,
     textAlignVertical: "top",
   },
-  emptyBlock: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: COLORS.gray,
-    paddingVertical: 18,
+  submitReviewButton: {
+    marginTop: 16,
+    borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
   },
-  emptyBlockText: {
-    color: COLORS.grayLight,
-    fontSize: 13,
-    fontWeight: "500",
+  submitReviewText: {
+    color: COLORS.black,
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
