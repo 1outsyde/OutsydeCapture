@@ -238,6 +238,8 @@ export interface VendorBookerBusiness {
   contactEmail?: string | null;
   contactPhone?: string | null;
   websiteUrl?: string | null;
+  knownFor?: string[] | string | null;
+  socialMedia?: Record<string, string> | string | null;
   stripeAccountId?: string | null;
   stripeOnboardingComplete?: boolean | null;
   approvalStatus?: "pending" | "approved" | "rejected" | null;
