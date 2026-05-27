@@ -176,12 +176,29 @@ const getInitials = (name?: string): string => {
 
 const formatMoney = (amount?: number | null): string => {
   if (amount == null || Number.isNaN(amount)) return "";
-  return `$${Number(amount).toFixed(2).replace(/\.00$/, "")}`;
+  return `$${Number(amount).toFixed(2)}`;
 };
 
 const formatCents = (cents?: number | null): string => {
   if (cents == null || Number.isNaN(cents)) return "";
   return formatMoney(cents / 100);
+};
+
+const priceCentsToDollars = (priceCents?: number | null): number | null => {
+  const value = Number(priceCents);
+  return Number.isFinite(value) ? value / 100 : null;
+};
+
+const getMinimumPrice = (
+  products: VendorProduct[],
+  services: ServiceCard[],
+): number | undefined => {
+  const prices = [
+    ...products.map((item) => priceCentsToDollars(item.priceCents)),
+    ...services.map((item) => priceCentsToDollars(item.priceCents)),
+  ].filter((price): price is number => price != null);
+
+  return prices.length > 0 ? Math.min(...prices) : undefined;
 };
 
 const toPosts = (items: ApiPost[]): PostCard[] =>
@@ -385,11 +402,15 @@ export default function AccountScreen() {
           productsResponse,
           servicesResponse,
           weeklyResponse,
+          postResponse,
         ] = await Promise.all([
           apiClient.getVendorMyBusiness(token),
           apiClient.getVendorProducts(token).catch(() => ({ products: [] })),
           apiClient.getVendorServices(token).catch(() => ({ services: [] })),
           apiClient.getWeeklyAvailability(token, "business").catch(() => []),
+          apiClient
+            .getProfilePosts(String(user?.id || ""), { limit: 60 })
+            .catch(() => ({ posts: [] })),
         ]);
 
         const business = businessResponse.business;
@@ -410,13 +431,7 @@ export default function AccountScreen() {
             rating: Number(item.rating ?? 0),
           }));
 
-        const profilePosts = await apiClient
-          .getProfilePosts(
-            String(business.ownerId || user?.id || business.id),
-            { limit: 60 },
-          )
-          .catch(() => ({ posts: [] }));
-        resolvedPosts = toPosts(profilePosts.posts || []);
+        resolvedPosts = toPosts(postResponse.posts || []);
         resolvedSaved = [];
         resolvedAvailability = weeklyResponse;
         resolvedProducts = liveProducts;
@@ -431,16 +446,7 @@ export default function AccountScreen() {
             }))
           : [];
 
-        const productFloor = liveProducts.length
-          ? Math.min(
-              ...liveProducts.map((item) => Number(item.priceCents ?? 0) / 100),
-            )
-          : undefined;
-        const serviceFloor = liveServices.length
-          ? Math.min(
-              ...liveServices.map((item) => Number(item.priceCents ?? 0) / 100),
-            )
-          : undefined;
+        const minPrice = getMinimumPrice(liveProducts, liveServices);
 
         profileData = {
           id: String(business.id),
@@ -461,9 +467,17 @@ export default function AccountScreen() {
           tagline: business.tagline || undefined,
           rating: Number(business.rating ?? 0),
           reviewCount: Number(business.reviewCount ?? 0),
-          followerCount: Number((business as any).followerCount ?? 0),
+          followerCount: Number(
+            (business as any).followerCount ??
+              (business as any).followersCount ??
+              0,
+          ),
           followingCount: Number((business as any).followingCount ?? 0),
-          bookingsCount: Number((business as any).bookingCount ?? 0),
+          bookingsCount: Number(
+            (business as any).bookingCount ??
+              (business as any).totalBookings ??
+              0,
+          ),
           shootsCount: 0,
           postsCount: resolvedPosts.length,
           isVerified: Boolean((business as any).isVerified),
@@ -471,10 +485,10 @@ export default function AccountScreen() {
             (business as any).subscriptionTier || "Starter",
           ),
           brandColors: parseBrandColors(business.brandColors),
-          hasProducts: Boolean(business.hasProducts) || liveProducts.length > 0,
-          hasServices: Boolean(business.hasServices) || liveServices.length > 0,
+          hasProducts: liveProducts.length > 0,
+          hasServices: liveServices.length > 0,
           specialties: business.category ? [business.category] : [],
-          minPrice: serviceFloor || productFloor,
+          minPrice,
           responseTime:
             (business as any).responseTime || "Usually responds in 2h",
           availabilitySummary: (business as any).availability || undefined,
@@ -488,16 +502,23 @@ export default function AccountScreen() {
               : undefined,
         };
       } else if (role === "photographer") {
-        const [photographer, photographerServices, weeklyResponse] =
-          await Promise.all([
-            apiClient.getPhotographerMe(token),
-            apiClient
-              .getPhotographerMeServices(token)
-              .catch(() => ({ services: [] })),
-            apiClient
-              .getWeeklyAvailability(token, "photographer")
-              .catch(() => []),
-          ]);
+        const [
+          photographer,
+          photographerServices,
+          weeklyResponse,
+          postResponse,
+        ] = await Promise.all([
+          apiClient.getPhotographerMe(token),
+          apiClient
+            .getPhotographerMeServices(token)
+            .catch(() => ({ services: [] })),
+          apiClient
+            .getWeeklyAvailability(token, "photographer")
+            .catch(() => []),
+          apiClient
+            .getProfilePosts(String(user?.id || ""), { limit: 60 })
+            .catch(() => ({ posts: [] })),
+        ]);
 
         const mappedServices = (photographerServices.services || [])
           .filter((item) => item.status === "live" || item.status === "active")
@@ -510,13 +531,7 @@ export default function AccountScreen() {
             rating: Number((item as any).rating ?? 0),
           }));
 
-        const profilePosts = await apiClient
-          .getProfilePosts(
-            String(photographer.userId || user?.id || photographer.id),
-            { limit: 60 },
-          )
-          .catch(() => ({ posts: [] }));
-        resolvedPosts = toPosts(profilePosts.posts || []);
+        resolvedPosts = toPosts(postResponse.posts || []);
         resolvedSaved = [];
         resolvedServices = mappedServices;
         resolvedAvailability = weeklyResponse;
@@ -554,10 +569,21 @@ export default function AccountScreen() {
           tagline: (photographer as any).tagline || undefined,
           rating: Number((photographer as any).rating ?? 0),
           reviewCount: Number((photographer as any).reviewCount ?? 0),
-          followerCount: Number((photographer as any).followerCount ?? 0),
+          followerCount: Number(
+            (photographer as any).followerCount ??
+              (photographer as any).followersCount ??
+              0,
+          ),
           followingCount: Number((photographer as any).followingCount ?? 0),
           bookingsCount: 0,
-          shootsCount: Number((photographer as any).shootCount ?? 0),
+          shootsCount: Number(
+            (photographer as any).shootCount ??
+              (photographer as any).shootsCount ??
+              (photographer as any).totalShoots ??
+              (photographer as any).bookingCount ??
+              (photographer as any).totalBookings ??
+              0,
+          ),
           postsCount: resolvedPosts.length,
           isVerified: Boolean((photographer as any).isVerified),
           subscriptionTier: "",
@@ -566,14 +592,7 @@ export default function AccountScreen() {
           hasServices: mappedServices.length > 0,
           specialties: photographer.specialties || [],
           hourlyRate: Number(photographer.hourlyRate ?? 0) || undefined,
-          minPrice:
-            mappedServices.length > 0
-              ? Math.min(
-                  ...mappedServices.map(
-                    (item) => Number(item.priceCents ?? 0) / 100,
-                  ),
-                )
-              : undefined,
+          minPrice: getMinimumPrice([], mappedServices),
           responseTime:
             (photographer as any).responseTime || "Usually responds in 3h",
           availabilitySummary: undefined,
@@ -607,7 +626,9 @@ export default function AccountScreen() {
           tagline: (user as any)?.tagline || undefined,
           rating: 0,
           reviewCount: 0,
-          followerCount: Number((user as any)?.followerCount ?? 0),
+          followerCount: Number(
+            (user as any)?.followerCount ?? (user as any)?.followersCount ?? 0,
+          ),
           followingCount: Number((user as any)?.followingCount ?? 0),
           bookingsCount: 0,
           shootsCount: 0,
@@ -822,10 +843,37 @@ export default function AccountScreen() {
         {profile.specialties.length > 0 ? (
           <View style={styles.tagRow}>
             {profile.specialties.slice(0, 4).map((tag) => (
-              <View key={tag} style={styles.tagPill}>
-                <Text style={styles.tagPillText}>{tag}</Text>
+              <View
+                key={tag}
+                style={[
+                  styles.tagPill,
+                  {
+                    borderColor: accentColor,
+                    backgroundColor: `${accentColor}22`,
+                  },
+                ]}
+              >
+                <Text style={[styles.tagPillText, { color: accentColor }]}>
+                  {tag}
+                </Text>
               </View>
             ))}
+            {profile.role === "business" || profile.role === "photographer" ? (
+              <View
+                style={[
+                  styles.tagPill,
+                  styles.availablePill,
+                  {
+                    borderColor: accentColor,
+                    backgroundColor: `${accentColor}22`,
+                  },
+                ]}
+              >
+                <Text style={[styles.tagPillText, { color: accentColor }]}>
+                  Available
+                </Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -1240,6 +1288,13 @@ export default function AccountScreen() {
         </Text>
       </View>
       <View style={styles.aboutRow}>
+        <Feather name="grid" size={14} color={accentColor} />
+        <Text style={styles.aboutLabel}>Category</Text>
+        <Text style={styles.aboutValue}>
+          {profile?.specialties[0] || "Not listed"}
+        </Text>
+      </View>
+      <View style={styles.aboutRow}>
         <Feather name="mail" size={14} color={accentColor} />
         <Text style={styles.aboutLabel}>Email</Text>
         <Text style={styles.aboutValue}>
@@ -1276,6 +1331,24 @@ export default function AccountScreen() {
           {profile?.responseTime || "Usually responds in 2h"}
         </Text>
       </View>
+      <View style={styles.aboutRow}>
+        <Feather name="calendar" size={14} color={accentColor} />
+        <Text style={styles.aboutLabel}>Availability</Text>
+        <Text style={styles.aboutValue}>
+          {profile?.availabilitySummary ||
+            profile?.hoursOfOperation ||
+            "Available"}
+        </Text>
+      </View>
+      {profile?.role === "business" ? (
+        <View style={styles.aboutRow}>
+          <Feather name="award" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Tier</Text>
+          <Text style={styles.aboutValue}>
+            {profile?.subscriptionTier || "Starter"}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -1561,6 +1634,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 10,
     paddingVertical: 5,
+  },
+  availablePill: {
+    borderStyle: "solid",
   },
   tagPillText: {
     color: COLORS.cream,

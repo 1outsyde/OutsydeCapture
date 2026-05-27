@@ -158,12 +158,29 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const formatMoney = (amount?: number | null): string => {
   if (amount == null || Number.isNaN(amount)) return "";
-  return `$${Number(amount).toFixed(2).replace(/\.00$/, "")}`;
+  return `$${Number(amount).toFixed(2)}`;
 };
 
 const formatCents = (cents?: number | null): string => {
   if (cents == null || Number.isNaN(cents)) return "";
   return formatMoney(cents / 100);
+};
+
+const priceCentsToDollars = (priceCents?: number | null): number | null => {
+  const value = Number(priceCents);
+  return Number.isFinite(value) ? value / 100 : null;
+};
+
+const getMinimumPrice = (
+  products: VendorProduct[],
+  services: ServiceCard[],
+): number | undefined => {
+  const prices = [
+    ...products.map((item) => priceCentsToDollars(item.priceCents)),
+    ...services.map((item) => priceCentsToDollars(item.priceCents)),
+  ].filter((price): price is number => price != null);
+
+  return prices.length > 0 ? Math.min(...prices) : undefined;
 };
 
 const getInitials = (name?: string): string => {
@@ -403,14 +420,24 @@ export default function VendorDetailScreen({ route }: Props) {
 
       try {
         const business = await apiClient.getBusiness(vendorId);
-        const [productResponse, serviceResponse] = await Promise.all([
-          apiClient
-            .getBusinessPublicProducts(vendorId)
-            .catch(() => ({ products: [] })),
-          apiClient
-            .getBusinessPublicServices(vendorId)
-            .catch(() => ({ services: [] })),
-        ]);
+        const postOwnerId = String(
+          (business as any).ownerId ??
+            (business as any).userId ??
+            business.id ??
+            vendorId,
+        );
+        const [productResponse, serviceResponse, postResponse] =
+          await Promise.all([
+            apiClient
+              .getBusinessPublicProducts(vendorId)
+              .catch(() => ({ products: [] })),
+            apiClient
+              .getBusinessPublicServices(vendorId)
+              .catch(() => ({ services: [] })),
+            apiClient
+              .getProfilePosts(postOwnerId, { limit: 60 })
+              .catch(() => ({ posts: [] })),
+          ]);
 
         const liveProducts = (
           (productResponse.products || []) as VendorProduct[]
@@ -432,29 +459,12 @@ export default function VendorDetailScreen({ route }: Props) {
             reviewCount: Number(item.reviewCount ?? 0),
           }));
 
-        const postOwnerId = String(
-          (business as any).userId ?? business.id ?? vendorId,
-        );
-        const postResponse = await apiClient
-          .getProfilePosts(postOwnerId, { limit: 60 })
-          .catch(() => ({ posts: [] }));
         resolvedPosts = normalizePosts(postResponse.posts || []);
 
         const brandColors = parseBrandColors((business as any).brandColors);
-        const hasProducts =
-          Boolean((business as any).hasProducts) || liveProducts.length > 0;
-        const hasServices =
-          Boolean((business as any).hasServices) || liveServices.length > 0;
-        const productPriceFloor = liveProducts.length
-          ? Math.min(
-              ...liveProducts.map((item) => Number(item.priceCents ?? 0) / 100),
-            )
-          : undefined;
-        const servicePriceFloor = liveServices.length
-          ? Math.min(
-              ...liveServices.map((item) => Number(item.priceCents ?? 0) / 100),
-            )
-          : undefined;
+        const hasProducts = liveProducts.length > 0;
+        const hasServices = liveServices.length > 0;
+        const minPrice = getMinimumPrice(liveProducts, liveServices);
 
         resolvedProfile = {
           id: String(business.id ?? vendorId),
@@ -485,9 +495,17 @@ export default function VendorDetailScreen({ route }: Props) {
           tagline: (business as any).tagline || undefined,
           rating: Number(business.rating ?? 0),
           reviewCount: Number(business.reviewCount ?? 0),
-          followerCount: Number((business as any).followerCount ?? 0),
+          followerCount: Number(
+            (business as any).followerCount ??
+              (business as any).followersCount ??
+              0,
+          ),
           followingCount: Number((business as any).followingCount ?? 0),
-          bookingCount: Number((business as any).bookingCount ?? 0),
+          bookingCount: Number(
+            (business as any).bookingCount ??
+              (business as any).totalBookings ??
+              0,
+          ),
           shootsCount: 0,
           postsCount: resolvedPosts.length,
           isVerified: Boolean((business as any).isVerified),
@@ -498,11 +516,7 @@ export default function VendorDetailScreen({ route }: Props) {
           hasProducts,
           hasServices,
           specialties: business.category ? [business.category] : [],
-          minPrice:
-            (business as any).minPrice ||
-            servicePriceFloor ||
-            productPriceFloor ||
-            undefined,
+          minPrice,
           responseTime:
             (business as any).responseTime || "Usually responds in 2h",
           availabilitySummary: (business as any).availability || undefined,
@@ -534,12 +548,19 @@ export default function VendorDetailScreen({ route }: Props) {
       } catch {
         try {
           const photographer = await apiClient.getPhotographer(vendorId);
-          const [serviceResponse, availabilityResponse] = await Promise.all([
-            apiClient.getPhotographerPublicServices(vendorId).catch(() => []),
-            apiClient
-              .getPhotographerPublicAvailability(vendorId)
-              .catch(() => ({ availability: [] })),
-          ]);
+          const postOwnerId = String(
+            (photographer as any).userId ?? photographer.id ?? vendorId,
+          );
+          const [serviceResponse, availabilityResponse, postResponse] =
+            await Promise.all([
+              apiClient.getPhotographerPublicServices(vendorId).catch(() => []),
+              apiClient
+                .getPhotographerPublicAvailability(vendorId)
+                .catch(() => ({ availability: [] })),
+              apiClient
+                .getProfilePosts(postOwnerId, { limit: 60 })
+                .catch(() => ({ posts: [] })),
+            ]);
 
           const photographerServices = (
             (serviceResponse || []) as VendorBookerPhotographerService[]
@@ -558,12 +579,6 @@ export default function VendorDetailScreen({ route }: Props) {
               reviewCount: Number((item as any).reviewCount ?? 0),
             }));
 
-          const postOwnerId = String(
-            (photographer as any).userId ?? photographer.id ?? vendorId,
-          );
-          const postResponse = await apiClient
-            .getProfilePosts(postOwnerId, { limit: 60 })
-            .catch(() => ({ posts: [] }));
           resolvedPosts = normalizePosts(postResponse.posts || []);
 
           resolvedProfile = {
@@ -602,11 +617,19 @@ export default function VendorDetailScreen({ route }: Props) {
             tagline: (photographer as any).tagline || undefined,
             rating: Number(photographer.rating ?? 0),
             reviewCount: Number(photographer.reviewCount ?? 0),
-            followerCount: Number((photographer as any).followerCount ?? 0),
+            followerCount: Number(
+              (photographer as any).followerCount ??
+                (photographer as any).followersCount ??
+                0,
+            ),
             followingCount: Number((photographer as any).followingCount ?? 0),
             bookingCount: 0,
             shootsCount: Number(
               (photographer as any).shootCount ??
+                (photographer as any).shootsCount ??
+                (photographer as any).totalShoots ??
+                (photographer as any).bookingCount ??
+                (photographer as any).totalBookings ??
                 (photographer as any).bookingsCount ??
                 0,
             ),
@@ -623,14 +646,7 @@ export default function VendorDetailScreen({ route }: Props) {
               (photographer.specialty ? [photographer.specialty] : []),
             hourlyRate:
               Number((photographer as any).hourlyRate ?? 0) || undefined,
-            minPrice:
-              photographerServices.length > 0
-                ? Math.min(
-                    ...photographerServices.map(
-                      (item) => item.priceCents / 100,
-                    ),
-                  )
-                : undefined,
+            minPrice: getMinimumPrice([], photographerServices),
             responseTime:
               (photographer as any).responseTime || "Usually responds in 3h",
             availabilitySummary:
@@ -839,7 +855,7 @@ export default function VendorDetailScreen({ route }: Props) {
       }
       if (profile.hasProducts) {
         return {
-          label: "Shop →",
+          label: "Book Now →",
           onPress: () => setActiveTab("shop"),
         };
       }
@@ -1028,23 +1044,42 @@ export default function VendorDetailScreen({ route }: Props) {
           {profile.location ? `  •  📍 ${profile.location}` : ""}
         </Text>
 
-        {profile.role === "photographer" && profile.specialties.length > 0 ? (
+        {profile.specialties.length > 0 ||
+        profile.role === "business" ||
+        profile.role === "photographer" ? (
           <View style={styles.tagRow}>
             {profile.specialties.slice(0, 4).map((tag) => (
-              <View key={tag} style={styles.tagPill}>
-                <Text style={styles.tagPillText}>{tag}</Text>
+              <View
+                key={tag}
+                style={[
+                  styles.tagPill,
+                  {
+                    borderColor: accentColor,
+                    backgroundColor: `${accentColor}22`,
+                  },
+                ]}
+              >
+                <Text style={[styles.tagPillText, { color: accentColor }]}>
+                  {tag}
+                </Text>
               </View>
             ))}
-          </View>
-        ) : null}
-
-        {profile.role === "consumer" && profile.specialties.length > 0 ? (
-          <View style={styles.tagRow}>
-            {profile.specialties.slice(0, 4).map((tag) => (
-              <View key={tag} style={styles.tagPill}>
-                <Text style={styles.tagPillText}>{tag}</Text>
+            {profile.role === "business" || profile.role === "photographer" ? (
+              <View
+                style={[
+                  styles.tagPill,
+                  styles.availablePill,
+                  {
+                    borderColor: accentColor,
+                    backgroundColor: `${accentColor}22`,
+                  },
+                ]}
+              >
+                <Text style={[styles.tagPillText, { color: accentColor }]}>
+                  Available
+                </Text>
               </View>
-            ))}
+            ) : null}
           </View>
         ) : null}
 
@@ -1207,9 +1242,14 @@ export default function VendorDetailScreen({ route }: Props) {
                   {formatCents(product.priceCents)}
                 </Text>
                 <Pressable
-                  style={[styles.cardCta, { backgroundColor: accentColor }]}
+                  style={[
+                    styles.productAddButton,
+                    { borderColor: accentColor },
+                  ]}
                 >
-                  <Text style={styles.cardCtaText}>Add to Cart</Text>
+                  <Text style={[styles.productAddText, { color: accentColor }]}>
+                    Add
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -1423,6 +1463,13 @@ export default function VendorDetailScreen({ route }: Props) {
           </Text>
         </View>
         <View style={styles.aboutRow}>
+          <Feather name="grid" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Category</Text>
+          <Text style={styles.aboutValue}>
+            {profile.specialties[0] || "Not listed"}
+          </Text>
+        </View>
+        <View style={styles.aboutRow}>
           <Feather name="mail" size={14} color={accentColor} />
           <Text style={styles.aboutLabel}>Email</Text>
           <Text style={styles.aboutValue}>
@@ -1459,6 +1506,24 @@ export default function VendorDetailScreen({ route }: Props) {
             {profile.responseTime || "Usually responds in 2h"}
           </Text>
         </View>
+        <View style={styles.aboutRow}>
+          <Feather name="calendar" size={14} color={accentColor} />
+          <Text style={styles.aboutLabel}>Availability</Text>
+          <Text style={styles.aboutValue}>
+            {profile.availabilitySummary ||
+              profile.hoursOfOperation ||
+              "Available"}
+          </Text>
+        </View>
+        {profile.role === "business" ? (
+          <View style={styles.aboutRow}>
+            <Feather name="award" size={14} color={accentColor} />
+            <Text style={styles.aboutLabel}>Tier</Text>
+            <Text style={styles.aboutValue}>
+              {profile.subscriptionTier || "Starter"}
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -1497,11 +1562,9 @@ export default function VendorDetailScreen({ route }: Props) {
   const showStickyBottom = !isOwnProfile && profile.role !== "consumer";
   const primaryAction = resolvePrimaryAction();
   const minLabel =
-    profile.role === "photographer" && profile.hourlyRate
-      ? `From ${formatCents(profile.hourlyRate)}/hr`
-      : profile.minPrice
-        ? `Starting from ${formatMoney(profile.minPrice)}`
-        : "";
+    profile.minPrice != null
+      ? `Starting from ${formatMoney(profile.minPrice)}`
+      : "";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -1872,6 +1935,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
+  availablePill: {
+    borderStyle: "solid",
+  },
   tagPillText: {
     color: COLORS.cream,
     fontSize: 11,
@@ -2050,6 +2116,19 @@ const styles = StyleSheet.create({
   },
   cardCtaText: {
     color: COLORS.black,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  productAddButton: {
+    marginTop: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    alignSelf: "flex-start",
+    backgroundColor: "transparent",
+  },
+  productAddText: {
     fontSize: 11,
     fontWeight: "800",
   },
