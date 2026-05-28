@@ -1456,7 +1456,6 @@ export default function AccountScreen() {
           paddingBottom: insets.bottom + 30,
           backgroundColor: pageBg,
         }}
-        stickyHeaderIndices={[2]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           {

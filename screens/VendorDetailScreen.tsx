@@ -1619,7 +1619,6 @@ export default function VendorDetailScreen({ route }: Props) {
             : insets.bottom + 28,
           backgroundColor: pageBg,
         }}
-        stickyHeaderIndices={[2]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           {
