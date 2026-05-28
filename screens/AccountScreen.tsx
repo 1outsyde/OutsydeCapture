@@ -184,6 +184,43 @@ const formatCents = (cents?: number | null): string => {
   return formatMoney(cents / 100);
 };
 
+const tabLabel = (tab: ProfileTab): string => {
+  switch (tab) {
+    case "shop":
+      return "Shop";
+    case "booking":
+      return "Booking";
+    case "availability":
+      return "Availability";
+    case "saved":
+      return "Saved";
+    case "reviews":
+      return "Reviews";
+    case "about":
+      return "About";
+    case "posts":
+    default:
+      return "Posts";
+  }
+};
+
+const profileHasAbout = (profile: ProfileData): boolean =>
+  Boolean(
+    profile.bio?.trim() ||
+      profile.tagline?.trim() ||
+      profile.hoursOfOperation?.trim() ||
+      profile.contactEmail?.trim() ||
+      profile.contactPhone?.trim(),
+  );
+
+const getBackgroundGradientColors = (
+  accentColor: string,
+): [string, string, string] => [
+  `${accentColor}40`,
+  `${accentColor}18`,
+  COLORS.black,
+];
+
 const priceCentsToDollars = (priceCents?: number | null): number | null => {
   const value = Number(priceCents);
   return Number.isFinite(value) ? value / 100 : null;
@@ -223,15 +260,23 @@ const toPosts = (items: ApiPost[]): PostCard[] =>
   });
 
 const tabsForRole = (profile: ProfileData): ProfileTab[] => {
+  const showAbout = profileHasAbout(profile);
+
   if (profile.role === "business") {
-    if (profile.hasProducts && profile.hasServices)
-      return ["posts", "shop", "booking", "reviews", "about"];
-    if (profile.hasProducts) return ["posts", "shop", "reviews", "about"];
-    if (profile.hasServices) return ["posts", "booking", "reviews", "about"];
-    return ["posts", "reviews", "about"];
+    const tabs: ProfileTab[] = ["posts"];
+    if (profile.hasProducts) tabs.push("shop");
+    if (profile.hasServices) tabs.push("booking");
+    tabs.push("reviews");
+    if (showAbout) tabs.push("about");
+    return tabs;
   }
-  if (profile.role === "photographer")
-    return ["posts", "availability", "reviews", "about"];
+
+  if (profile.role === "photographer") {
+    const tabs: ProfileTab[] = ["posts", "availability", "reviews"];
+    if (showAbout) tabs.push("about");
+    return tabs;
+  }
+
   return ["posts", "saved", "reviews"];
 };
 
@@ -683,6 +728,7 @@ export default function AccountScreen() {
     profile?.role === "business"
       ? profile.brandColors?.accent || COLORS.goldDim
       : COLORS.goldDim;
+  const bgGradientColors = getBackgroundGradientColors(accentColor);
 
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [120, 220],
@@ -787,6 +833,10 @@ export default function AccountScreen() {
 
     return (
       <View style={styles.identityBlock}>
+        <View
+          pointerEvents="none"
+          style={[styles.identityGlow, { backgroundColor: `${accentColor}20` }]}
+        />
         <View style={styles.avatarActionRow}>
           <AvatarWithInitials
             name={profile.name}
@@ -911,6 +961,13 @@ export default function AccountScreen() {
 
   const renderTabBar = () => (
     <View style={styles.tabBar}>
+      <BlurView
+        intensity={20}
+        tint="dark"
+        style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
+      />
+      <View style={styles.tabBarOverlay} pointerEvents="none" />
       {tabList.map((tab) => (
         <Pressable
           key={tab}
@@ -923,23 +980,11 @@ export default function AccountScreen() {
               activeTab === tab && { color: accentColor, fontWeight: "700" },
             ]}
           >
-            {tab === "shop"
-              ? "Shop"
-              : tab === "booking"
-                ? "Booking"
-                : tab === "availability"
-                  ? "Availability"
-                  : tab === "saved"
-                    ? "Saved"
-                    : tab === "reviews"
-                      ? "Reviews"
-                      : tab === "about"
-                        ? "About"
-                        : "Posts"}
+            {tabLabel(tab)}
           </Text>
           <View
             style={[
-              styles.tabIndicator,
+              styles.tabUnderline,
               activeTab === tab && { backgroundColor: accentColor },
             ]}
           />
@@ -1011,7 +1056,7 @@ export default function AccountScreen() {
                   />
                 ) : (
                   <LinearGradient
-                    colors={[COLORS.gray, COLORS.black]}
+                    colors={["#2a2a2a", "#111111"]}
                     style={StyleSheet.absoluteFillObject}
                   />
                 )}
@@ -1065,7 +1110,16 @@ export default function AccountScreen() {
       ) : (
         <View style={styles.productGrid}>
           {products.map((product) => (
-            <View key={String(product.id)} style={styles.productCard}>
+            <Pressable
+              key={String(product.id)}
+              style={styles.productCard}
+              onPress={() =>
+                Alert.alert(
+                  "Product details",
+                  "Product detail view will be available soon.",
+                )
+              }
+            >
               <View style={styles.productImageWrap}>
                 {product.imageUrl ? (
                   <Image
@@ -1080,7 +1134,7 @@ export default function AccountScreen() {
                   />
                 )}
               </View>
-              <View style={styles.productBody}>
+              <View style={styles.productInfo}>
                 <Text style={styles.productName} numberOfLines={1}>
                   {product.name}
                 </Text>
@@ -1088,7 +1142,7 @@ export default function AccountScreen() {
                   {formatCents(product.priceCents)}
                 </Text>
               </View>
-            </View>
+            </Pressable>
           ))}
         </View>
       )}
@@ -1376,6 +1430,13 @@ export default function AccountScreen() {
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <LinearGradient
+          colors={bgGradientColors}
+          locations={[0, 0.35, 1]}
+          start={{ x: 0.3, y: 0 }}
+          end={{ x: 0.7, y: 0.9 }}
+          style={StyleSheet.absoluteFillObject}
+        />
         <View style={styles.loadingWrap}>
           <Feather name="user" size={46} color={COLORS.gold} />
           <Text style={[styles.loadingText, { marginTop: 10 }]}>
@@ -1398,6 +1459,13 @@ export default function AccountScreen() {
   if (loading || !profile) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <LinearGradient
+          colors={bgGradientColors}
+          locations={[0, 0.35, 1]}
+          start={{ x: 0.3, y: 0 }}
+          end={{ x: 0.7, y: 0.9 }}
+          style={StyleSheet.absoluteFillObject}
+        />
         <View style={styles.loadingWrap}>
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
@@ -1407,8 +1475,16 @@ export default function AccountScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <LinearGradient
+        colors={bgGradientColors}
+        locations={[0, 0.35, 1]}
+        start={{ x: 0.3, y: 0 }}
+        end={{ x: 0.7, y: 0.9 }}
+        style={StyleSheet.absoluteFillObject}
+      />
       {renderFloatingHeader()}
       <Animated.ScrollView
+        style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
         stickyHeaderIndices={[2]}
         onScroll={Animated.event(
@@ -1440,7 +1516,10 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.black,
+    backgroundColor: "transparent",
+  },
+  scrollView: {
+    backgroundColor: "transparent",
   },
   loadingWrap: {
     flex: 1,
@@ -1528,6 +1607,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: 16,
     zIndex: 5,
+    position: "relative",
+  },
+  identityGlow: {
+    position: "absolute",
+    width: 300,
+    height: 200,
+    borderRadius: 150,
+    top: -44,
+    left: (SCREEN_WIDTH - 300) / 2,
   },
   avatarActionRow: {
     flexDirection: "row",
@@ -1668,7 +1756,7 @@ const styles = StyleSheet.create({
   statsCard: {
     marginTop: 14,
     borderRadius: 16,
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
     flexDirection: "row",
     overflow: "hidden",
   },
@@ -1696,28 +1784,34 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   tabBar: {
-    backgroundColor: COLORS.black,
+    flexDirection: "row",
+    backgroundColor: "rgba(10,10,10,0.92)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.07)",
-    flexDirection: "row",
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
+    overflow: "hidden",
+  },
+  tabBarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(10,10,10,0.62)",
   },
   tabButton: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
+    paddingVertical: 11,
   },
   tabLabel: {
-    color: COLORS.grayLight,
     fontSize: 13,
     fontWeight: "500",
+    color: COLORS.grayLight,
+    textTransform: "capitalize",
   },
-  tabIndicator: {
-    marginTop: 8,
+  tabUnderline: {
     height: 2,
     alignSelf: "stretch",
+    marginTop: 8,
     backgroundColor: "transparent",
+    borderRadius: 1,
   },
   tabContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
@@ -1731,7 +1825,7 @@ const styles = StyleSheet.create({
   mediaCell: {
     borderRadius: 10,
     overflow: "hidden",
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   addPostLabel: {
     marginTop: 4,
@@ -1777,7 +1871,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   emptyTitle: {
     marginTop: 8,
@@ -1805,13 +1899,13 @@ const styles = StyleSheet.create({
     width: (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 10) / 2,
     borderRadius: 14,
     overflow: "hidden",
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   productImageWrap: {
     height: 132,
     backgroundColor: "#191919",
   },
-  productBody: {
+  productInfo: {
     padding: 10,
   },
   productName: {
@@ -1826,7 +1920,7 @@ const styles = StyleSheet.create({
   },
   serviceCard: {
     borderRadius: 14,
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
     padding: 14,
     marginBottom: 10,
   },
@@ -1859,7 +1953,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderRadius: 14,
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
     padding: 14,
     marginTop: 4,
   },
@@ -1878,7 +1972,7 @@ const styles = StyleSheet.create({
   },
   calendarCard: {
     borderRadius: 12,
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
     padding: 12,
   },
   calendarDay: {
@@ -1894,7 +1988,7 @@ const styles = StyleSheet.create({
   },
   reviewSummaryCard: {
     borderRadius: 14,
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
     padding: 14,
     flexDirection: "row",
     marginBottom: 12,
@@ -1942,7 +2036,7 @@ const styles = StyleSheet.create({
   },
   reviewCard: {
     borderRadius: 14,
-    backgroundColor: COLORS.gray,
+    backgroundColor: "rgba(255,255,255,0.06)",
     padding: 14,
     marginBottom: 10,
   },
