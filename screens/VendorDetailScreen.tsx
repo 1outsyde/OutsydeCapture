@@ -1648,9 +1648,9 @@ export default function VendorDetailScreen({ route }: Props) {
           accentColor={accentDimColor}
         />
         {renderIdentityBlock()}
+        {renderTabBar()}
         {renderTabContent()}
       </Animated.ScrollView>
-      {renderTabBar()}
 
       {showStickyBottom ? (
         <View

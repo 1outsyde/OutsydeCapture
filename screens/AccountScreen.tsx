@@ -1485,9 +1485,9 @@ export default function AccountScreen() {
           accentColor={accentDimColor}
         />
         {renderIdentityBlock()}
+        {renderTabBar()}
         {renderTabContent()}
       </Animated.ScrollView>
-      {renderTabBar()}
 
       <PersonalSettingsMenu
         visible={settingsVisible}
