@@ -1155,29 +1155,44 @@ export default function VendorDetailScreen({ route }: Props) {
   };
 
   const renderTabBar = () => (
-    <View style={styles.tabBar}>
+    <View
+      style={{
+        flexDirection: "row",
+        backgroundColor: "rgba(0,0,0,0.55)",
+        borderTopWidth: 1,
+        borderTopColor: "rgba(255,255,255,0.10)",
+        borderBottomWidth: 1,
+        borderBottomColor: "rgba(255,255,255,0.10)",
+      }}
+    >
       {tabOrder.map((tab) => (
         <Pressable
           key={tab}
-          style={styles.tabButton}
           onPress={() => setActiveTab(tab)}
+          style={{
+            flex: 1,
+            alignItems: "center",
+            paddingVertical: 10,
+          }}
         >
           <Text
-            style={[
-              styles.tabLabel,
-              activeTab === tab && {
-                color: accentColor,
-                fontWeight: "700",
-              },
-            ]}
+            style={{
+              fontSize: 13,
+              fontWeight: activeTab === tab ? "700" : "500",
+              color: activeTab === tab ? accentColor : "rgba(255,255,255,0.55)",
+              letterSpacing: 0.2,
+            }}
           >
             {tabLabel(tab)}
           </Text>
           <View
-            style={[
-              styles.tabUnderline,
-              activeTab === tab && { backgroundColor: accentColor },
-            ]}
+            style={{
+              height: 2,
+              width: "60%",
+              marginTop: 6,
+              borderRadius: 1,
+              backgroundColor: activeTab === tab ? accentColor : "transparent",
+            }}
           />
         </Pressable>
       ))}
@@ -1633,9 +1648,9 @@ export default function VendorDetailScreen({ route }: Props) {
           accentColor={accentDimColor}
         />
         {renderIdentityBlock()}
-        {renderTabBar()}
         {renderTabContent()}
       </Animated.ScrollView>
+      {renderTabBar()}
 
       {showStickyBottom ? (
         <View
