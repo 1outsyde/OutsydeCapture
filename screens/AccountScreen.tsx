@@ -213,14 +213,6 @@ const profileHasAbout = (profile: ProfileData): boolean =>
       profile.contactPhone?.trim(),
   );
 
-const getBackgroundGradientColors = (
-  accentColor: string,
-): [string, string, string] => [
-  `${accentColor}40`,
-  `${accentColor}18`,
-  COLORS.black,
-];
-
 const priceCentsToDollars = (priceCents?: number | null): number | null => {
   const value = Number(priceCents);
   return Number.isFinite(value) ? value / 100 : null;
@@ -728,7 +720,7 @@ export default function AccountScreen() {
     profile?.role === "business"
       ? profile.brandColors?.accent || COLORS.goldDim
       : COLORS.goldDim;
-  const bgGradientColors = getBackgroundGradientColors(accentColor);
+  const pageBg = `${accentColor}28`;
 
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [120, 220],
@@ -961,13 +953,6 @@ export default function AccountScreen() {
 
   const renderTabBar = () => (
     <View style={styles.tabBar}>
-      <BlurView
-        intensity={20}
-        tint="dark"
-        style={StyleSheet.absoluteFillObject}
-        pointerEvents="none"
-      />
-      <View style={styles.tabBarOverlay} pointerEvents="none" />
       {tabList.map((tab) => (
         <Pressable
           key={tab}
@@ -977,7 +962,10 @@ export default function AccountScreen() {
           <Text
             style={[
               styles.tabLabel,
-              activeTab === tab && { color: accentColor, fontWeight: "700" },
+              activeTab === tab && {
+                color: accentColor,
+                fontWeight: "700",
+              },
             ]}
           >
             {tabLabel(tab)}
@@ -1429,14 +1417,7 @@ export default function AccountScreen() {
 
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <LinearGradient
-          colors={bgGradientColors}
-          locations={[0, 0.35, 1]}
-          start={{ x: 0.3, y: 0 }}
-          end={{ x: 0.7, y: 0.9 }}
-          style={StyleSheet.absoluteFillObject}
-        />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
         <View style={styles.loadingWrap}>
           <Feather name="user" size={46} color={COLORS.gold} />
           <Text style={[styles.loadingText, { marginTop: 10 }]}>
@@ -1458,14 +1439,7 @@ export default function AccountScreen() {
 
   if (loading || !profile) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <LinearGradient
-          colors={bgGradientColors}
-          locations={[0, 0.35, 1]}
-          start={{ x: 0.3, y: 0 }}
-          end={{ x: 0.7, y: 0.9 }}
-          style={StyleSheet.absoluteFillObject}
-        />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
         <View style={styles.loadingWrap}>
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
@@ -1474,18 +1448,14 @@ export default function AccountScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <LinearGradient
-        colors={bgGradientColors}
-        locations={[0, 0.35, 1]}
-        start={{ x: 0.3, y: 0 }}
-        end={{ x: 0.7, y: 0.9 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
       {renderFloatingHeader()}
       <Animated.ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
+        style={[styles.scrollView, { backgroundColor: pageBg }]}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 30,
+          backgroundColor: pageBg,
+        }}
         stickyHeaderIndices={[2]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -1516,10 +1486,10 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "transparent",
+    backgroundColor: COLORS.black,
   },
   scrollView: {
-    backgroundColor: "transparent",
+    backgroundColor: COLORS.black,
   },
   loadingWrap: {
     flex: 1,
@@ -1756,7 +1726,7 @@ const styles = StyleSheet.create({
   statsCard: {
     marginTop: 14,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.35)",
     flexDirection: "row",
     overflow: "hidden",
   },
@@ -1785,37 +1755,33 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "rgba(10,10,10,0.92)",
+    backgroundColor: "rgba(0,0,0,0.55)",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.07)",
-    paddingHorizontal: 4,
-    overflow: "hidden",
-  },
-  tabBarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10,10,10,0.62)",
+    borderBottomColor: "rgba(255,255,255,0.10)",
+    paddingHorizontal: 0,
   },
   tabButton: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 11,
+    paddingVertical: 10,
   },
   tabLabel: {
     fontSize: 13,
     fontWeight: "500",
-    color: COLORS.grayLight,
-    textTransform: "capitalize",
+    color: "rgba(255,255,255,0.55)",
+    letterSpacing: 0.2,
   },
   tabUnderline: {
     height: 2,
-    alignSelf: "stretch",
-    marginTop: 8,
-    backgroundColor: "transparent",
+    width: "60%",
+    marginTop: 6,
     borderRadius: 1,
+    backgroundColor: "transparent",
   },
   tabContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 16,
+    backgroundColor: "transparent",
   },
   mediaGrid: {
     flexDirection: "row",
@@ -1899,7 +1865,7 @@ const styles = StyleSheet.create({
     width: (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 10) / 2,
     borderRadius: 14,
     overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.30)",
   },
   productImageWrap: {
     height: 132,
@@ -1920,7 +1886,7 @@ const styles = StyleSheet.create({
   },
   serviceCard: {
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.30)",
     padding: 14,
     marginBottom: 10,
   },
@@ -1953,7 +1919,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.30)",
     padding: 14,
     marginTop: 4,
   },
@@ -1988,7 +1954,7 @@ const styles = StyleSheet.create({
   },
   reviewSummaryCard: {
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.30)",
     padding: 14,
     flexDirection: "row",
     marginBottom: 12,
@@ -2036,7 +2002,7 @@ const styles = StyleSheet.create({
   },
   reviewCard: {
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.30)",
     padding: 14,
     marginBottom: 10,
   },
