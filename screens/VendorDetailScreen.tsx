@@ -963,7 +963,6 @@ export default function VendorDetailScreen({ route }: Props) {
 
   const renderIdentityBlock = () => {
     if (!profile) return null;
-    const primaryAction = resolvePrimaryAction();
     const middleLabel =
       profile.role === "business"
         ? "Bookings"
@@ -1011,35 +1010,6 @@ export default function VendorDetailScreen({ route }: Props) {
                 {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
               </Text>
             </Pressable>
-
-            {profile.role !== "consumer" ? (
-              <Pressable
-                style={[styles.actionButton, { backgroundColor: accentColor }]}
-                onPress={primaryAction.onPress}
-              >
-                <Text style={styles.actionButtonText}>
-                  {primaryAction.label}
-                </Text>
-              </Pressable>
-            ) : null}
-
-            {profile.role === "business" &&
-            profile.hasServices &&
-            profile.hasProducts ? (
-              <Pressable
-                style={[
-                  styles.secondaryActionButton,
-                  { borderColor: accentColor },
-                ]}
-                onPress={() => setActiveTab("shop")}
-              >
-                <Text
-                  style={[styles.secondaryActionText, { color: accentColor }]}
-                >
-                  Shop
-                </Text>
-              </Pressable>
-            ) : null}
 
             <Pressable style={styles.messageButton}>
               <Feather name="message-circle" size={15} color={COLORS.white} />
