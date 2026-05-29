@@ -1238,7 +1238,7 @@ export default function AccountScreen() {
                   marginBottom: 8,
                 }}
               >
-                {formatCents(service.priceCents)}
+                {formatCents(service.priceCents ?? (service as any).price ?? 0)}
               </Text>
               <View
                 style={{

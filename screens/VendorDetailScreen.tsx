@@ -1402,7 +1402,7 @@ export default function VendorDetailScreen({ route }: Props) {
                   marginBottom: 8,
                 }}
               >
-                {formatCents(service.priceCents)}
+                {formatCents(service.priceCents ?? (service as any).price ?? 0)}
               </Text>
               <View
                 style={{
