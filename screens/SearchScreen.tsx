@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator, Switch } from "react-native";
+import {
+  StyleSheet,
+  View,
+  TextInput,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  Switch,
+} from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,10 +21,20 @@ import { useTheme } from "@/hooks/useTheme";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
-import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
+import api, {
+  UnifiedSearchResult,
+  SearchResultType,
+  ApiError,
+} from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 
-type TabType = "all" | "consumer" | "business" | "photographer" | "product" | "service";
+type TabType =
+  | "all"
+  | "consumer"
+  | "business"
+  | "photographer"
+  | "product"
+  | "service";
 
 const TABS: { id: TabType; label: string; icon: string }[] = [
   { id: "all", label: "All", icon: "grid" },
@@ -51,7 +69,7 @@ const isValidImageUrl = (url?: string): boolean => {
 
 const getInitials = (name: string | undefined | null): string => {
   if (!name) return "?";
-  const words = name.split(" ").filter(w => w.length > 0);
+  const words = name.split(" ").filter((w) => w.length > 0);
   if (words.length === 0) return "?";
   if (words.length === 1) return words[0].charAt(0).toUpperCase();
   return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
@@ -101,54 +119,105 @@ export default function SearchScreen() {
   const [activeCity, setActiveCity] = useState<CityData | null>(null);
 
   const isAuthenticated = !!user && !user.isGuest;
-  const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || 
-                  user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
+  const isAdmin =
+    user?.email?.toLowerCase() === "info@goutsyde.com" ||
+    user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
 
-  const getSearchScope = useCallback((tab: TabType): "all" | "consumers" | "businesses" | "photographers" | "products" | "services" | undefined => {
-    switch (tab) {
-      case "all": return "all";
-      case "consumer": return "consumers";
-      case "business": return "businesses";
-      case "photographer": return "photographers";
-      case "product": return "products";
-      case "service": return "services";
-      default: return "all";
-    }
-  }, []);
+  const getSearchScope = useCallback(
+    (
+      tab: TabType,
+    ):
+      | "all"
+      | "consumers"
+      | "businesses"
+      | "photographers"
+      | "products"
+      | "services"
+      | undefined => {
+      switch (tab) {
+        case "all":
+          return "all";
+        case "consumer":
+          return "consumers";
+        case "business":
+          return "businesses";
+        case "photographer":
+          return "photographers";
+        case "product":
+          return "products";
+        case "service":
+          return "services";
+        default:
+          return "all";
+      }
+    },
+    [],
+  );
 
-  const fetchSearchResults = useCallback(async (query?: string, tab?: TabType, cityFilter?: CityData | null) => {
-    setIsLoading(true);
-    setError(null);
+  const fetchSearchResults = useCallback(
+    async (query?: string, tab?: TabType, cityFilter?: CityData | null) => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const authToken = isAuthenticated ? await getToken() : null;
-      const scope = getSearchScope(tab || activeTab);
-      const response = await api.unifiedSearch(
-        { 
-          q: query || undefined,
-          city: cityFilter?.city,
-          personalized: isAuthenticated && personalized,
+      try {
+        const authToken = isAuthenticated ? await getToken() : null;
+        const scope = getSearchScope(tab || activeTab);
+        const response = await api.unifiedSearch(
+          {
+            q: query || undefined,
+            city: cityFilter?.city,
+            personalized: isAuthenticated && personalized,
+            scope,
+            viewerUserId: user?.id,
+          },
+          authToken,
+          isAdmin,
+        );
+        console.log(
+          "[SearchScreen] Search query:",
+          query,
+          "City:",
+          cityFilter?.city,
+          "Scope:",
           scope,
-          viewerUserId: user?.id,
-        },
-        authToken,
-        isAdmin
-      );
-      console.log("[SearchScreen] Search query:", query, "City:", cityFilter?.city, "Scope:", scope, "Total results:", response.total);
-      console.log("[SearchScreen] Raw result types:", response.results.map(r => `${r.type}: ${r.name} (@${r.username || "no-username"})`));
-      const normalized = api.normalizeUnifiedResults(response);
-      console.log("[SearchScreen] Normalized results:", normalized.map(r => `${r.resultType}: ${r.name} (@${r.username || "no-username"})`));
-      setResults(normalized);
-      setIsPersonalizedResults(response.personalized);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message || "Failed to fetch search results");
-      setResults([]);
-      setIsPersonalizedResults(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated, personalized, getToken, isAdmin, activeTab, user?.id, getSearchScope]);
+          "Total results:",
+          response.total,
+        );
+        console.log(
+          "[SearchScreen] Raw result types:",
+          response.results.map(
+            (r) => `${r.type}: ${r.name} (@${r.username || "no-username"})`,
+          ),
+        );
+        const normalized = api.normalizeUnifiedResults(response);
+        console.log(
+          "[SearchScreen] Normalized results:",
+          normalized.map(
+            (r) =>
+              `${r.resultType}: ${r.name} (@${r.username || "no-username"})`,
+          ),
+        );
+        setResults(normalized);
+        setIsPersonalizedResults(response.personalized);
+      } catch (err) {
+        const apiError = err as ApiError;
+        setError(apiError.message || "Failed to fetch search results");
+        setResults([]);
+        setIsPersonalizedResults(false);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [
+      isAuthenticated,
+      personalized,
+      getToken,
+      isAdmin,
+      activeTab,
+      user?.id,
+      getSearchScope,
+    ],
+  );
 
   useEffect(() => {
     fetchSearchResults(undefined, activeTab, activeCity);
@@ -166,10 +235,13 @@ export default function SearchScreen() {
     return () => clearTimeout(timeoutId);
   }, [searchQuery, activeTab, activeCity, fetchSearchResults]);
 
-  const handleCitySelect = useCallback((city: CityData) => {
-    setActiveCity(city);
-    fetchSearchResults(searchQuery.trim() || undefined, activeTab, city);
-  }, [searchQuery, activeTab, fetchSearchResults]);
+  const handleCitySelect = useCallback(
+    (city: CityData) => {
+      setActiveCity(city);
+      fetchSearchResults(searchQuery.trim() || undefined, activeTab, city);
+    },
+    [searchQuery, activeTab, fetchSearchResults],
+  );
 
   const handleClearCity = useCallback(() => {
     setActiveCity(null);
@@ -189,11 +261,11 @@ export default function SearchScreen() {
   const handleCardPress = (item: UnifiedSearchResult) => {
     const userId = item.userId || item.id;
     const profileId = item.id;
-    
+
     if (item.resultType === "product") {
       // Navigate to business detail with products tab and highlight the product
       const businessId = item.businessId || item.userId || item.id;
-      navigation.navigate("VendorDetail", { 
+      navigation.navigate("VendorDetail", {
         vendorId: businessId,
         initialTab: "products",
         productId: item.id,
@@ -202,32 +274,38 @@ export default function SearchScreen() {
       // Navigate directly to booking flow with service preselected
       const providerId = item.providerId || item.userId;
       if (item.providerType === "photographer" && providerId) {
-        navigation.navigate("Booking", { 
+        navigation.navigate("Booking", {
           photographerId: providerId,
           preselectedServiceId: item.id,
         });
       } else if (item.businessId) {
         // Business service - go to business detail with services tab
-        navigation.navigate("VendorDetail", { 
+        navigation.navigate("VendorDetail", {
           vendorId: item.businessId,
           initialTab: "services",
         });
       } else {
         // Fallback to VendorDetail
-        navigation.navigate("VendorDetail", { 
+        navigation.navigate("VendorDetail", {
           vendorId: providerId || item.id,
           initialTab: "services",
         });
       }
+    } else if (item.resultType === "business") {
+      navigation.navigate("VendorDetail", {
+        businessId: item.id,
+        vendorId: item.id,
+      });
+    } else if (item.resultType === "photographer") {
+      navigation.navigate("VendorDetail", {
+        photographerId: item.id,
+        vendorId: item.id,
+      });
     } else {
-      const userType = item.resultType === "photographer" ? "photographer" 
-                     : item.resultType === "business" ? "business" 
-                     : "consumer";
-      
       navigation.navigate("Profile", {
         userId,
         profileId,
-        userType,
+        userType: "consumer",
         displayName: item.name,
         avatar: item.avatar,
       });
@@ -238,7 +316,7 @@ export default function SearchScreen() {
     if (activeTab === "all") {
       return results;
     }
-    return results.filter(r => r.resultType === activeTab);
+    return results.filter((r) => r.resultType === activeTab);
   }, [results, activeTab]);
 
   const tabCounts = useMemo(() => {
@@ -251,7 +329,7 @@ export default function SearchScreen() {
       service: 0,
     };
 
-    results.forEach(r => {
+    results.forEach((r) => {
       const type = r.resultType as TabType;
       if (type in counts) {
         counts[type]++;
@@ -261,7 +339,7 @@ export default function SearchScreen() {
     return counts;
   }, [results]);
 
-  const renderTab = (tab: typeof TABS[0]) => {
+  const renderTab = (tab: (typeof TABS)[0]) => {
     const isActive = activeTab === tab.id;
     const count = tabCounts[tab.id];
 
@@ -301,7 +379,10 @@ export default function SearchScreen() {
         >
           <ThemedText
             type="small"
-            style={{ color: isActive ? "#0A0A0A" : "#888888", fontWeight: "600" }}
+            style={{
+              color: isActive ? "#0A0A0A" : "#888888",
+              fontWeight: "600",
+            }}
           >
             {count}
           </ThemedText>
@@ -311,9 +392,16 @@ export default function SearchScreen() {
   };
 
   const renderEntityCard = (item: UnifiedSearchResult) => {
-    const tierConfig = item.subscriptionTier ? TIER_CONFIG[item.subscriptionTier] : null;
-    const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
-    const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
+    const tierConfig = item.subscriptionTier
+      ? TIER_CONFIG[item.subscriptionTier]
+      : null;
+    const typeIcon = RESULT_TYPE_ICONS[
+      item.resultType
+    ] as keyof typeof Feather.glyphMap;
+    const isSaved = isFavorite(
+      item.id,
+      item.resultType === "photographer" ? "photographer" : "business",
+    );
     const hasValidAvatar = isValidImageUrl(item.avatar);
 
     const displayLabel =
@@ -361,7 +449,10 @@ export default function SearchScreen() {
               },
             ]}
           >
-            <ThemedText type="h2" style={{ color: "#E8B930", fontWeight: "700" }}>
+            <ThemedText
+              type="h2"
+              style={{ color: "#E8B930", fontWeight: "700" }}
+            >
               {getInitials(displayLabel)}
             </ThemedText>
           </View>
@@ -369,7 +460,11 @@ export default function SearchScreen() {
         <View style={styles.resultInfo}>
           <View style={styles.resultHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText type="h4" numberOfLines={1} style={[styles.resultName, { color: "#F5F0E6" }]}>
+              <ThemedText
+                type="h4"
+                numberOfLines={1}
+                style={[styles.resultName, { color: "#F5F0E6" }]}
+              >
                 {displayLabel}
               </ThemedText>
               {item.username && !displayLabel.startsWith("@") && (
@@ -380,7 +475,9 @@ export default function SearchScreen() {
             </View>
             <Pressable
               onPress={() => handleSaveResult(item)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}
+              style={({ pressed }) => [
+                { opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm },
+              ]}
             >
               <Feather
                 name="bookmark"
@@ -405,14 +502,23 @@ export default function SearchScreen() {
               <Feather name={typeIcon} size={11} color={accentColor} />
               <ThemedText
                 type="small"
-                style={{ color: accentColor, marginLeft: 4, fontSize: 11, fontWeight: "600" }}
+                style={{
+                  color: accentColor,
+                  marginLeft: 4,
+                  fontSize: 11,
+                  fontWeight: "600",
+                }}
               >
                 {RESULT_TYPE_LABELS[item.resultType]}
               </ThemedText>
               {item.category && item.category !== item.resultType && (
                 <ThemedText
                   type="small"
-                  style={{ color: accentColor + "AA", marginLeft: 4, fontSize: 11 }}
+                  style={{
+                    color: accentColor + "AA",
+                    marginLeft: 4,
+                    fontSize: 11,
+                  }}
                 >
                   · {item.category}
                 </ThemedText>
@@ -424,7 +530,10 @@ export default function SearchScreen() {
             {item.rating > 0 && (
               <View style={styles.ratingContainer}>
                 <Feather name="star" size={12} color="#E8B930" />
-                <ThemedText type="small" style={{ color: "#E8B930", marginLeft: 3, fontSize: 12 }}>
+                <ThemedText
+                  type="small"
+                  style={{ color: "#E8B930", marginLeft: 3, fontSize: 12 }}
+                >
                   {item.rating.toFixed(1)}
                 </ThemedText>
               </View>
@@ -432,8 +541,12 @@ export default function SearchScreen() {
             {item.city && item.city !== "Unknown" && (
               <View style={styles.locationContainer}>
                 <Feather name="map-pin" size={12} color="#555555" />
-                <ThemedText type="caption" style={{ color: "#666666", marginLeft: 3, fontSize: 12 }}>
-                  {item.city}{item.state ? `, ${item.state}` : ""}
+                <ThemedText
+                  type="caption"
+                  style={{ color: "#666666", marginLeft: 3, fontSize: 12 }}
+                >
+                  {item.city}
+                  {item.state ? `, ${item.state}` : ""}
                 </ThemedText>
               </View>
             )}
@@ -447,7 +560,13 @@ export default function SearchScreen() {
             ]}
           >
             <Feather name="user" size={12} color="#0A0A0A" />
-            <ThemedText type="small" style={[styles.viewProfileText, { color: "#0A0A0A", fontSize: 12 }]}>
+            <ThemedText
+              type="small"
+              style={[
+                styles.viewProfileText,
+                { color: "#0A0A0A", fontSize: 12 },
+              ]}
+            >
               View Profile
             </ThemedText>
           </Pressable>
@@ -457,8 +576,12 @@ export default function SearchScreen() {
   };
 
   const renderServiceCard = (item: UnifiedSearchResult) => {
-    const priceDisplay = item.priceFormatted || item.priceRange ||
-      (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
+    const priceDisplay =
+      item.priceFormatted ||
+      item.priceRange ||
+      (item.price
+        ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}`
+        : "");
 
     return (
       <Pressable
@@ -473,17 +596,16 @@ export default function SearchScreen() {
         ]}
       >
         <View style={styles.serviceIconContainer}>
-          <View
-            style={[
-              styles.serviceIcon,
-              { backgroundColor: "#1A3C34" },
-            ]}
-          >
+          <View style={[styles.serviceIcon, { backgroundColor: "#1A3C34" }]}>
             <Feather name="scissors" size={22} color="#E8B930" />
           </View>
         </View>
         <View style={styles.serviceInfo}>
-          <ThemedText type="h4" numberOfLines={1} style={[styles.serviceName, { color: "#F5F0E6" }]}>
+          <ThemedText
+            type="h4"
+            numberOfLines={1}
+            style={[styles.serviceName, { color: "#F5F0E6" }]}
+          >
             {item.name || "Unnamed Service"}
           </ThemedText>
           {item.providerName && (
@@ -503,13 +625,29 @@ export default function SearchScreen() {
         </View>
         <View style={styles.serviceRight}>
           {priceDisplay ? (
-            <ThemedText type="h4" style={{ color: "#E8B930", fontWeight: "700" }}>
+            <ThemedText
+              type="h4"
+              style={{ color: "#E8B930", fontWeight: "700" }}
+            >
               {priceDisplay}
             </ThemedText>
           ) : null}
-          <View style={[styles.bookButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
+          <View
+            style={[
+              styles.bookButton,
+              { backgroundColor: "#E8B930", marginTop: 8 },
+            ]}
+          >
             <Feather name="calendar" size={13} color="#0A0A0A" />
-            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>
+            <ThemedText
+              type="small"
+              style={{
+                color: "#0A0A0A",
+                fontWeight: "700",
+                marginLeft: 4,
+                fontSize: 12,
+              }}
+            >
               Book
             </ThemedText>
           </View>
@@ -521,8 +659,12 @@ export default function SearchScreen() {
   const renderProductCard = (item: UnifiedSearchResult) => {
     const hasProductImage = isValidImageUrl(item.productImage || item.avatar);
     const imageUrl = item.productImage || item.avatar;
-    const priceDisplay = item.priceFormatted || item.priceRange ||
-      (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
+    const priceDisplay =
+      item.priceFormatted ||
+      item.priceRange ||
+      (item.price
+        ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}`
+        : "");
 
     return (
       <Pressable
@@ -547,14 +689,22 @@ export default function SearchScreen() {
           <View
             style={[
               styles.productImage,
-              { backgroundColor: "#1A3C34", alignItems: "center", justifyContent: "center" },
+              {
+                backgroundColor: "#1A3C34",
+                alignItems: "center",
+                justifyContent: "center",
+              },
             ]}
           >
             <Feather name="shopping-bag" size={28} color="#E8B930" />
           </View>
         )}
         <View style={styles.productInfo}>
-          <ThemedText type="h4" numberOfLines={2} style={[styles.productName, { color: "#F5F0E6" }]}>
+          <ThemedText
+            type="h4"
+            numberOfLines={2}
+            style={[styles.productName, { color: "#F5F0E6" }]}
+          >
             {item.name || "Unnamed Product"}
           </ThemedText>
           {item.businessName && (
@@ -570,9 +720,22 @@ export default function SearchScreen() {
               {priceDisplay}
             </ThemedText>
           ) : null}
-          <View style={[styles.buyButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
+          <View
+            style={[
+              styles.buyButton,
+              { backgroundColor: "#E8B930", marginTop: 8 },
+            ]}
+          >
             <Feather name="shopping-bag" size={13} color="#0A0A0A" />
-            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>
+            <ThemedText
+              type="small"
+              style={{
+                color: "#0A0A0A",
+                fontWeight: "700",
+                marginLeft: 4,
+                fontSize: 12,
+              }}
+            >
               View
             </ThemedText>
           </View>
@@ -612,15 +775,18 @@ export default function SearchScreen() {
                 onPress={() => handleCitySelect(city)}
                 style={({ pressed }) => [
                   styles.cityCard,
-                  { 
-                    backgroundColor: theme.backgroundDefault, 
+                  {
+                    backgroundColor: theme.backgroundDefault,
                     borderColor: theme.border,
                     opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
                 <Feather name="map-pin" size={14} color={theme.primary} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.xs, fontWeight: "500" }}>
+                <ThemedText
+                  type="body"
+                  style={{ marginLeft: Spacing.xs, fontWeight: "500" }}
+                >
                   {city.displayName}
                 </ThemedText>
               </Pressable>
@@ -633,7 +799,10 @@ export default function SearchScreen() {
         <View style={styles.discoveryContextRow}>
           <View style={styles.discoveryContext}>
             <Feather name="map-pin" size={16} color={theme.primary} />
-            <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
+            <ThemedText
+              type="body"
+              style={{ marginLeft: Spacing.sm, fontWeight: "600" }}
+            >
               Discovering in {activeCity.displayName}
             </ThemedText>
           </View>
@@ -641,11 +810,17 @@ export default function SearchScreen() {
             onPress={handleClearCity}
             style={({ pressed }) => [
               styles.clearCityButton,
-              { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.8 : 1 },
+              {
+                backgroundColor: theme.backgroundSecondary,
+                opacity: pressed ? 0.8 : 1,
+              },
             ]}
           >
             <Feather name="x" size={14} color={theme.textSecondary} />
-            <ThemedText type="caption" style={{ marginLeft: 4, color: theme.textSecondary }}>
+            <ThemedText
+              type="caption"
+              style={{ marginLeft: 4, color: theme.textSecondary }}
+            >
               Clear
             </ThemedText>
           </Pressable>
@@ -664,20 +839,27 @@ export default function SearchScreen() {
 
       <View style={styles.resultsHeaderRow}>
         <ThemedText type="h4" style={styles.resultsTitle}>
-          {filteredResults.length} {filteredResults.length === 1 ? "Result" : "Results"}
-          {activeTab !== "all" ? ` in ${TABS.find(t => t.id === activeTab)?.label}` : ""}
+          {filteredResults.length}{" "}
+          {filteredResults.length === 1 ? "Result" : "Results"}
+          {activeTab !== "all"
+            ? ` in ${TABS.find((t) => t.id === activeTab)?.label}`
+            : ""}
         </ThemedText>
         {isAuthenticated ? (
           <View style={styles.personalizedToggle}>
-            <Feather 
-              name="sliders" 
-              size={14} 
-              color={isPersonalizedResults ? theme.primary : theme.textSecondary} 
+            <Feather
+              name="sliders"
+              size={14}
+              color={
+                isPersonalizedResults ? theme.primary : theme.textSecondary
+              }
             />
-            <ThemedText 
-              type="caption" 
-              style={{ 
-                color: isPersonalizedResults ? theme.primary : theme.textSecondary,
+            <ThemedText
+              type="caption"
+              style={{
+                color: isPersonalizedResults
+                  ? theme.primary
+                  : theme.textSecondary,
                 marginLeft: 4,
                 marginRight: 8,
               }}
@@ -703,7 +885,10 @@ export default function SearchScreen() {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
+          <ThemedText
+            type="body"
+            style={{ marginTop: Spacing.md, color: theme.textSecondary }}
+          >
             Searching...
           </ThemedText>
         </View>
@@ -717,18 +902,30 @@ export default function SearchScreen() {
           <ThemedText type="h4" style={styles.emptyTitle}>
             Connection Error
           </ThemedText>
-          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+          <ThemedText
+            type="body"
+            style={{ color: theme.textSecondary, textAlign: "center" }}
+          >
             {error}
           </ThemedText>
           <Pressable
-            onPress={() => fetchSearchResults(searchQuery || undefined, activeTab, activeCity)}
+            onPress={() =>
+              fetchSearchResults(
+                searchQuery || undefined,
+                activeTab,
+                activeCity,
+              )
+            }
             style={({ pressed }) => [
               styles.retryButton,
               { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
             ]}
           >
             <Feather name="refresh-cw" size={16} color="#FFFFFF" />
-            <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
+            <ThemedText
+              type="body"
+              style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}
+            >
               Try Again
             </ThemedText>
           </Pressable>
@@ -743,7 +940,10 @@ export default function SearchScreen() {
           <ThemedText type="h4" style={styles.emptyTitle}>
             No discoverable users found
           </ThemedText>
-          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+          <ThemedText
+            type="body"
+            style={{ color: theme.textSecondary, textAlign: "center" }}
+          >
             No discoverable users found in {activeCity.displayName} yet
           </ThemedText>
         </View>
@@ -756,7 +956,10 @@ export default function SearchScreen() {
         <ThemedText type="h4" style={styles.emptyTitle}>
           No results found
         </ThemedText>
-        <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+        <ThemedText
+          type="body"
+          style={{ color: theme.textSecondary, textAlign: "center" }}
+        >
           {searchQuery
             ? `No ${activeTab === "all" ? "results" : activeTab + "s"} match "${searchQuery}"`
             : `No ${activeTab === "all" ? "results" : activeTab + "s"} available`}
@@ -767,7 +970,12 @@ export default function SearchScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.searchContainer, { paddingTop: insets.top + Spacing.sm }]}>
+      <View
+        style={[
+          styles.searchContainer,
+          { paddingTop: insets.top + Spacing.sm },
+        ]}
+      >
         <View style={styles.searchInputContainer}>
           <Feather name="search" size={20} color={theme.textSecondary} />
           <TextInput
@@ -784,7 +992,11 @@ export default function SearchScreen() {
             </Pressable>
           ) : null}
           {isLoading && searchQuery ? (
-            <ActivityIndicator size="small" color={theme.primary} style={{ marginLeft: Spacing.sm }} />
+            <ActivityIndicator
+              size="small"
+              color={theme.primary}
+              style={{ marginLeft: Spacing.sm }}
+            />
           ) : null}
         </View>
       </View>
