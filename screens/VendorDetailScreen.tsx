@@ -399,7 +399,7 @@ export default function VendorDetailScreen({ route }: Props) {
   const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated } = useAuth();
-  const { vendorId, initialTab } = route.params;
+  const { vendorId, initialTab, photographerId, businessId } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileViewModel | null>(null);
@@ -448,144 +448,166 @@ export default function VendorDetailScreen({ route }: Props) {
       let resolvedReviews: ReviewItem[] = [];
       let resolvedAvailability: AvailabilitySlot[] = [];
 
-      try {
-        const business = await apiClient.getBusiness(vendorId);
-        const postOwnerId = String(
-          (business as any).ownerId ??
-            (business as any).userId ??
-            business.id ??
-            vendorId,
-        );
-        const [productResponse, serviceResponse, postResponse] =
-          await Promise.all([
-            apiClient
-              .getBusinessPublicProducts(vendorId)
-              .catch(() => ({ products: [] })),
-            apiClient
-              .getBusinessPublicServices(vendorId)
-              .catch(() => ({ services: [] })),
-            apiClient
-              .getProfilePosts(postOwnerId, { limit: 60 })
-              .catch(() => ({ posts: [] })),
-          ]);
+      // When photographerId is present (and businessId is not), skip the business
+      // endpoint entirely and go straight to the photographer API.  This avoids a
+      // guaranteed 404 on the business endpoint and ensures the correct profile is
+      // loaded regardless of how the ID maps on the backend.
+      const isPhotographerRoute = !!photographerId && !businessId;
+      const resolvedPhotographerId = photographerId || vendorId;
+      const resolvedBusinessId = businessId || vendorId;
 
-        const liveProducts = (
-          (productResponse.products || []) as VendorProduct[]
-        ).filter((item: VendorProduct) => item.status === "live");
-        const liveServices = (
-          (serviceResponse.services || []) as VendorService[]
-        )
-          .filter((item: VendorService) => item.status === "live")
-          .map((item: VendorService) => ({
-            id: String(item.id),
-            name: item.name,
-            description: item.description || undefined,
-            priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
-            durationMinutes:
-              item.durationMinutes ||
-              (item as any).estimatedDurationMinutes ||
-              undefined,
-            rating: Number(item.rating ?? 0),
-            reviewCount: Number(item.reviewCount ?? 0),
-          }));
-
-        resolvedPosts = normalizePosts(postResponse.posts || []);
-
-        const brandColors = parseBrandColors((business as any).brandColors);
-        const hasProducts = liveProducts.length > 0;
-        const hasServices = liveServices.length > 0;
-        const minPrice = getMinimumPrice(liveProducts, liveServices);
-
-        resolvedProfile = {
-          id: String(business.id ?? vendorId),
-          userId: String((business as any).userId ?? ""),
-          role: "business",
-          name: business.name || "Business",
-          handle: `@${
-            (business as any).username ||
-            (business as any).handle ||
-            String(business.name || "business")
-              .replace(/\s+/g, "")
-              .toLowerCase()
-          }`,
-          avatarUrl: (business as any).avatar || undefined,
-          logoImage: (business as any).logoImage || undefined,
-          coverMediaUrl:
-            (business as any).coverMediaUrl || business.coverImage || undefined,
-          coverMediaType: ((business as any).coverMediaType === "video"
-            ? "video"
-            : "image") as "image" | "video",
-          city: business.city || undefined,
-          state: business.state || undefined,
-          location:
-            [business.city, business.state].filter(Boolean).join(", ") ||
-            (business as any).location ||
-            undefined,
-          bio: business.description || undefined,
-          tagline: (business as any).tagline || undefined,
-          rating: Number(business.rating ?? 0),
-          reviewCount: Number(business.reviewCount ?? 0),
-          followerCount: Number(
-            (business as any).followerCount ??
-              (business as any).followersCount ??
-              0,
-          ),
-          followingCount: Number((business as any).followingCount ?? 0),
-          bookingCount: Number(
-            (business as any).bookingCount ??
-              (business as any).totalBookings ??
-              0,
-          ),
-          shootsCount: 0,
-          postsCount: resolvedPosts.length,
-          isVerified: Boolean((business as any).isVerified),
-          subscriptionTier: String(
-            (business as any).subscriptionTier || "Starter",
-          ),
-          brandColors,
-          hasProducts,
-          hasServices,
-          specialties: business.category ? [business.category] : [],
-          minPrice,
-          responseTime:
-            (business as any).responseTime || "Usually responds in 2h",
-          availabilitySummary: (business as any).availability || undefined,
-          address: business.address || undefined,
-          contactEmail:
-            (business as any).contactEmail || business.email || undefined,
-          contactPhone:
-            (business as any).contactPhone || business.phone || undefined,
-          websiteUrl:
-            (business as any).websiteUrl || business.website || undefined,
-          hoursOfOperation:
-            typeof (business as any).hoursOfOperation === "string"
-              ? (business as any).hoursOfOperation
-              : undefined,
-        };
-
-        resolvedProducts = liveProducts;
-        resolvedServices = liveServices;
-        resolvedReviews = Array.isArray((business as any).reviews)
-          ? (business as any).reviews.map((item: any, index: number) => ({
-              id: String(item.id ?? `review-${index}`),
-              userName: item.userName || item.authorName || "Outsyde User",
-              avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
-              rating: Number(item.rating ?? 5),
-              text: item.text || item.comment || "",
-              createdAt: item.createdAt || new Date().toISOString(),
-            }))
-          : [];
-      } catch {
+      if (!isPhotographerRoute) {
         try {
-          const photographer = await apiClient.getPhotographer(vendorId);
+          const business = await apiClient.getBusiness(resolvedBusinessId);
           const postOwnerId = String(
-            (photographer as any).userId ?? photographer.id ?? vendorId,
+            (business as any).ownerId ??
+              (business as any).userId ??
+              business.id ??
+              resolvedBusinessId,
+          );
+          const [productResponse, serviceResponse, postResponse] =
+            await Promise.all([
+              apiClient
+                .getBusinessPublicProducts(resolvedBusinessId)
+                .catch(() => ({ products: [] })),
+              apiClient
+                .getBusinessPublicServices(resolvedBusinessId)
+                .catch(() => ({ services: [] })),
+              apiClient
+                .getProfilePosts(postOwnerId, { limit: 60 })
+                .catch(() => ({ posts: [] })),
+            ]);
+
+          const liveProducts = (
+            (productResponse.products || []) as VendorProduct[]
+          ).filter((item: VendorProduct) => item.status === "live");
+          const liveServices = (
+            (serviceResponse.services || []) as VendorService[]
+          )
+            .filter((item: VendorService) => item.status === "live")
+            .map((item: VendorService) => ({
+              id: String(item.id),
+              name: item.name,
+              description: item.description || undefined,
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
+              durationMinutes:
+                item.durationMinutes ||
+                (item as any).estimatedDurationMinutes ||
+                undefined,
+              rating: Number(item.rating ?? 0),
+              reviewCount: Number(item.reviewCount ?? 0),
+            }));
+
+          resolvedPosts = normalizePosts(postResponse.posts || []);
+
+          const brandColors = parseBrandColors((business as any).brandColors);
+          const hasProducts = liveProducts.length > 0;
+          const hasServices = liveServices.length > 0;
+          const minPrice = getMinimumPrice(liveProducts, liveServices);
+
+          resolvedProfile = {
+            id: String(business.id ?? resolvedBusinessId),
+            userId: String((business as any).userId ?? ""),
+            role: "business",
+            name: business.name || "Business",
+            handle: `@${
+              (business as any).username ||
+              (business as any).handle ||
+              String(business.name || "business")
+                .replace(/\s+/g, "")
+                .toLowerCase()
+            }`,
+            avatarUrl: (business as any).avatar || undefined,
+            logoImage: (business as any).logoImage || undefined,
+            coverMediaUrl:
+              (business as any).coverMediaUrl ||
+              business.coverImage ||
+              undefined,
+            coverMediaType: ((business as any).coverMediaType === "video"
+              ? "video"
+              : "image") as "image" | "video",
+            city: business.city || undefined,
+            state: business.state || undefined,
+            location:
+              [business.city, business.state].filter(Boolean).join(", ") ||
+              (business as any).location ||
+              undefined,
+            bio: business.description || undefined,
+            tagline: (business as any).tagline || undefined,
+            rating: Number(business.rating ?? 0),
+            reviewCount: Number(business.reviewCount ?? 0),
+            followerCount: Number(
+              (business as any).followerCount ??
+                (business as any).followersCount ??
+                0,
+            ),
+            followingCount: Number((business as any).followingCount ?? 0),
+            bookingCount: Number(
+              (business as any).bookingCount ??
+                (business as any).totalBookings ??
+                0,
+            ),
+            shootsCount: 0,
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean((business as any).isVerified),
+            subscriptionTier: String(
+              (business as any).subscriptionTier || "Starter",
+            ),
+            brandColors,
+            hasProducts,
+            hasServices,
+            specialties: business.category ? [business.category] : [],
+            minPrice,
+            responseTime:
+              (business as any).responseTime || "Usually responds in 2h",
+            availabilitySummary: (business as any).availability || undefined,
+            address: business.address || undefined,
+            contactEmail:
+              (business as any).contactEmail || business.email || undefined,
+            contactPhone:
+              (business as any).contactPhone || business.phone || undefined,
+            websiteUrl:
+              (business as any).websiteUrl || business.website || undefined,
+            hoursOfOperation:
+              typeof (business as any).hoursOfOperation === "string"
+                ? (business as any).hoursOfOperation
+                : undefined,
+          };
+
+          resolvedProducts = liveProducts;
+          resolvedServices = liveServices;
+          resolvedReviews = Array.isArray((business as any).reviews)
+            ? (business as any).reviews.map((item: any, index: number) => ({
+                id: String(item.id ?? `review-${index}`),
+                userName: item.userName || item.authorName || "Outsyde User",
+                avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
+                rating: Number(item.rating ?? 5),
+                text: item.text || item.comment || "",
+                createdAt: item.createdAt || new Date().toISOString(),
+              }))
+            : [];
+        } catch {
+          // Business fetch failed; fall through to photographer loading below.
+        }
+      }
+
+      if (!resolvedProfile) {
+        try {
+          const photographer = await apiClient.getPhotographer(
+            resolvedPhotographerId,
+          );
+          const postOwnerId = String(
+            (photographer as any).userId ??
+              photographer.id ??
+              resolvedPhotographerId,
           );
           const [serviceResponse, availabilityResponse, postResponse] =
             await Promise.all([
-              apiClient.getPhotographerPublicServices(vendorId).catch(() => []),
               apiClient
-                .getPhotographerPublicAvailability(vendorId)
+                .getPhotographerPublicServices(resolvedPhotographerId)
+                .catch(() => []),
+              apiClient
+                .getPhotographerPublicAvailability(resolvedPhotographerId)
                 .catch(() => ({ availability: [] })),
               apiClient
                 .getProfilePosts(postOwnerId, { limit: 60 })
@@ -612,7 +634,7 @@ export default function VendorDetailScreen({ route }: Props) {
           resolvedPosts = normalizePosts(postResponse.posts || []);
 
           resolvedProfile = {
-            id: String(photographer.id ?? vendorId),
+            id: String(photographer.id ?? resolvedPhotographerId),
             userId: String((photographer as any).userId ?? ""),
             role: "photographer",
             name:
@@ -743,7 +765,7 @@ export default function VendorDetailScreen({ route }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [vendorId]);
+  }, [vendorId, photographerId, businessId]);
 
   useEffect(() => {
     loadProfile();
