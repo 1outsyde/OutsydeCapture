@@ -107,11 +107,18 @@ export default function StorefrontEditorScreen() {
 
   const approvalStatus = business?.approvalStatus || "pending";
 
+  // The backend returns { success, data: VendorEligibility }; unwrap .data when present.
+  const eligData = useMemo((): VendorEligibility | null => {
+    if (!eligibility) return null;
+    const raw = eligibility as any;
+    return raw?.data ?? raw;
+  }, [eligibility]);
+
   const canPublish = useMemo(() => {
     // Primary: use eligibility endpoint result when available
-    if (eligibility !== null) {
+    if (eligData !== null) {
       return Boolean(
-        eligibility.canPublishProducts || eligibility.canPublishServices,
+        eligData.canPublishProducts || eligData.canPublishServices,
       );
     }
     // Fallback when eligibility endpoint fails: derive from business fields
@@ -126,7 +133,7 @@ export default function StorefrontEditorScreen() {
       business?.subscriptionActive === true ||
       business?.subscriptionStatus === "active";
     return isApproved && hasStripe && hasSubscription;
-  }, [eligibility, business]);
+  }, [eligData, business]);
 
   const canPublishProducts = canPublish;
   const canPublishServices = canPublish;
@@ -137,15 +144,15 @@ export default function StorefrontEditorScreen() {
     const reasons: string[] = [];
     const reqApproval =
       errorBody?.requiresApproval ??
-      eligibility?.requiresApproval ??
+      eligData?.requiresApproval ??
       approvalStatus !== "approved";
     const reqSubscription =
       errorBody?.requiresSubscription ??
-      eligibility?.requiresSubscription ??
+      eligData?.requiresSubscription ??
       !business?.subscriptionActive;
     const reqOnboarding =
       errorBody?.requiresOnboarding ??
-      eligibility?.requiresOnboarding ??
+      eligData?.requiresOnboarding ??
       !business?.stripeOnboardingComplete;
 
     if (reqApproval) {
@@ -2009,14 +2016,14 @@ export default function StorefrontEditorScreen() {
 
     const isDark =
       theme.backgroundRoot === "#000000" || theme.backgroundRoot === "#000";
-    const missingStripe = eligibility
-      ? eligibility.requiresOnboarding
+    const missingStripe = eligData
+      ? eligData.requiresOnboarding
       : !business?.stripeOnboardingComplete;
-    const missingSub = eligibility
-      ? eligibility.requiresSubscription
+    const missingSub = eligData
+      ? eligData.requiresSubscription
       : !business?.subscriptionActive;
-    const missingApproval = eligibility
-      ? eligibility.requiresApproval
+    const missingApproval = eligData
+      ? eligData.requiresApproval
       : approvalStatus !== "approved";
 
     return (
