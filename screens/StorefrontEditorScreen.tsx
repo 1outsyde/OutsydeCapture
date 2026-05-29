@@ -30,12 +30,26 @@ import api, {
   VendorEligibility,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
-import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, hoursObjectToArray, convertTo24Hour } from "@/components/HoursEditor";
+import HoursEditor, {
+  DayHours,
+  getDefaultHours,
+  hoursArrayToObject,
+  hoursObjectToArray,
+  convertTo24Hour,
+} from "@/components/HoursEditor";
 import ImageUploader from "@/components/ImageUploader";
 import MediaUploader from "@/components/MediaUploader";
 import { availabilityEvents } from "@/services/availabilityEvents";
 
 type TabType = "branding" | "profile" | "hours" | "products" | "services";
+type ResponseTimeUnit = "minutes" | "hours" | "business_days";
+
+const RESPONSE_TIME_VALUES = [1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60];
+const RESPONSE_TIME_UNITS: Array<{ label: string; value: ResponseTimeUnit }> = [
+  { label: "Minutes", value: "minutes" },
+  { label: "Hours", value: "hours" },
+  { label: "Business Days", value: "business_days" },
+];
 
 const COLOR_PRESETS = [
   { name: "Golden Yellow", color: "#eab308" },
@@ -49,14 +63,21 @@ const COLOR_PRESETS = [
 ];
 
 const SPECIALTY_OPTIONS = [
-  "Fast Service", "Premium Quality", "Eco-Friendly", "Local Favorite",
-  "Award Winning", "Family Owned", "Best Price", "Custom Orders",
+  "Fast Service",
+  "Premium Quality",
+  "Eco-Friendly",
+  "Local Favorite",
+  "Award Winning",
+  "Family Owned",
+  "Best Price",
+  "Custom Orders",
 ];
 
 export default function StorefrontEditorScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { getToken } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>("branding");
@@ -65,14 +86,18 @@ export default function StorefrontEditorScreen() {
   const [saving, setSaving] = useState(false);
 
   const [business, setBusiness] = useState<VendorBookerBusiness | null>(null);
-  const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
+  const [eligibility, setEligibility] = useState<VendorEligibility | null>(
+    null,
+  );
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<VendorService[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
 
   const [coverImage, setCoverImage] = useState("");
   const [coverVideo, setCoverVideo] = useState("");
-  const [coverMediaType, setCoverMediaType] = useState<"image" | "video" | null>(null);
+  const [coverMediaType, setCoverMediaType] = useState<
+    "image" | "video" | null
+  >(null);
   const [logoImage, setLogoImage] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#eab308");
 
@@ -83,6 +108,18 @@ export default function StorefrontEditorScreen() {
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
   const [profileWebsite, setProfileWebsite] = useState("");
+  const [showResponseTime, setShowResponseTime] = useState(true);
+  const [showEmail, setShowEmail] = useState(true);
+  const [showPhone, setShowPhone] = useState(true);
+  const [showWebsite, setShowWebsite] = useState(true);
+  const [showStoreHours, setShowStoreHours] = useState(true);
+  const [responseTimeValue, setResponseTimeValue] = useState(2);
+  const [responseTimeUnit, setResponseTimeUnit] =
+    useState<ResponseTimeUnit>("hours");
+  const [responseValueDropdownOpen, setResponseValueDropdownOpen] =
+    useState(false);
+  const [responseUnitDropdownOpen, setResponseUnitDropdownOpen] =
+    useState(false);
   const [profileAddress, setProfileAddress] = useState("");
   const [profileCity, setProfileCity] = useState("");
   const [profileState, setProfileState] = useState("");
@@ -94,25 +131,36 @@ export default function StorefrontEditorScreen() {
     ? Boolean(eligibility.canPublishProducts)
     : Boolean(
         business?.stripeOnboardingComplete &&
-        business?.subscriptionActive &&
-        approvalStatus === "approved"
+          business?.subscriptionActive &&
+          approvalStatus === "approved",
       );
 
   const canPublishServices = eligibility
     ? Boolean(eligibility.canPublishServices)
     : Boolean(
         business?.stripeOnboardingComplete &&
-        business?.subscriptionActive &&
-        approvalStatus === "approved"
+          business?.subscriptionActive &&
+          approvalStatus === "approved",
       );
 
   const canPublish = canPublishProducts || canPublishServices;
 
-  const getPublishBlockerMessage = (errorBody?: Record<string, any>): string => {
+  const getPublishBlockerMessage = (
+    errorBody?: Record<string, any>,
+  ): string => {
     const reasons: string[] = [];
-    const reqApproval = errorBody?.requiresApproval ?? eligibility?.requiresApproval ?? (approvalStatus !== "approved");
-    const reqSubscription = errorBody?.requiresSubscription ?? eligibility?.requiresSubscription ?? !business?.subscriptionActive;
-    const reqOnboarding = errorBody?.requiresOnboarding ?? eligibility?.requiresOnboarding ?? !business?.stripeOnboardingComplete;
+    const reqApproval =
+      errorBody?.requiresApproval ??
+      eligibility?.requiresApproval ??
+      approvalStatus !== "approved";
+    const reqSubscription =
+      errorBody?.requiresSubscription ??
+      eligibility?.requiresSubscription ??
+      !business?.subscriptionActive;
+    const reqOnboarding =
+      errorBody?.requiresOnboarding ??
+      eligibility?.requiresOnboarding ??
+      !business?.stripeOnboardingComplete;
 
     if (reqApproval) {
       reasons.push(`Storefront approval (currently ${approvalStatus})`);
@@ -126,11 +174,16 @@ export default function StorefrontEditorScreen() {
     if (reasons.length === 0) {
       reasons.push("Your account does not meet the requirements to publish.");
     }
-    return "To go live, you still need:\n\n" + reasons.map(r => `- ${r}`).join("\n");
+    return (
+      "To go live, you still need:\n\n" +
+      reasons.map((r) => `- ${r}`).join("\n")
+    );
   };
 
   const [productModalVisible, setProductModalVisible] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
+  const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(
+    null,
+  );
   const [priceInput, setPriceInput] = useState("");
   const [productForm, setProductForm] = useState<VendorProductInput>({
     name: "",
@@ -142,7 +195,9 @@ export default function StorefrontEditorScreen() {
   });
 
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
-  const [editingService, setEditingService] = useState<VendorService | null>(null);
+  const [editingService, setEditingService] = useState<VendorService | null>(
+    null,
+  );
   const [serviceForm, setServiceForm] = useState<VendorServiceInput>({
     name: "",
     description: "",
@@ -157,12 +212,13 @@ export default function StorefrontEditorScreen() {
 
     try {
       setLoading(true);
-      const [businessRes, productsRes, servicesRes, eligibilityRes] = await Promise.all([
-        api.getVendorMyBusiness(token),
-        api.getVendorProducts(token).catch(() => ({ products: [] })),
-        api.getVendorServices(token).catch(() => ({ services: [] })),
-        api.getVendorEligibility(token).catch(() => null),
-      ]);
+      const [businessRes, productsRes, servicesRes, eligibilityRes] =
+        await Promise.all([
+          api.getVendorMyBusiness(token),
+          api.getVendorProducts(token).catch(() => ({ products: [] })),
+          api.getVendorServices(token).catch(() => ({ services: [] })),
+          api.getVendorEligibility(token).catch(() => null),
+        ]);
 
       if (eligibilityRes) setEligibility(eligibilityRes);
 
@@ -171,15 +227,21 @@ export default function StorefrontEditorScreen() {
 
       const normalizeProduct = (p: any): VendorProduct => ({
         ...p,
-        priceCents: Number.isFinite(Number(p.priceCents)) && p.priceCents > 0
-          ? Number(p.priceCents)
-          : (Number.isFinite(Number(p.price)) && p.price > 0 ? Number(p.price) : 0),
+        priceCents:
+          Number.isFinite(Number(p.priceCents)) && p.priceCents > 0
+            ? Number(p.priceCents)
+            : Number.isFinite(Number(p.price)) && p.price > 0
+              ? Number(p.price)
+              : 0,
       });
       const normalizeService = (s: any): VendorService => ({
         ...s,
-        priceCents: Number.isFinite(Number(s.priceCents)) && s.priceCents > 0
-          ? Number(s.priceCents)
-          : (Number.isFinite(Number(s.price)) && s.price > 0 ? Number(s.price) : 0),
+        priceCents:
+          Number.isFinite(Number(s.priceCents)) && s.priceCents > 0
+            ? Number(s.priceCents)
+            : Number.isFinite(Number(s.price)) && s.price > 0
+              ? Number(s.price)
+              : 0,
       });
 
       setProducts((productsRes.products || []).map(normalizeProduct));
@@ -205,14 +267,24 @@ export default function StorefrontEditorScreen() {
       setProfileEmail(biz.contactEmail || "");
       setProfilePhone(biz.contactPhone || "");
       setProfileWebsite(biz.websiteUrl || "");
+      setShowResponseTime((biz as any).showResponseTime !== false);
+      setShowEmail((biz as any).showEmail !== false);
+      setShowPhone((biz as any).showPhone !== false);
+      setShowWebsite((biz as any).showWebsite !== false);
+      setShowStoreHours((biz as any).showStoreHours !== false);
+      setResponseTimeValue(Number((biz as any).responseTimeValue ?? 2));
+      setResponseTimeUnit(
+        ((biz as any).responseTimeUnit || "hours") as ResponseTimeUnit,
+      );
       setProfileCity(biz.city || "");
       setProfileState(biz.state || "");
 
       if (biz.hoursOfOperation) {
         try {
-          const hoursData = typeof biz.hoursOfOperation === "string" 
-            ? JSON.parse(biz.hoursOfOperation) 
-            : biz.hoursOfOperation;
+          const hoursData =
+            typeof biz.hoursOfOperation === "string"
+              ? JSON.parse(biz.hoursOfOperation)
+              : biz.hoursOfOperation;
           setHours(hoursObjectToArray(hoursData));
         } catch {
           setHours(getDefaultHours());
@@ -242,13 +314,15 @@ export default function StorefrontEditorScreen() {
     try {
       setSaving(true);
       const brandColorsJson = JSON.stringify({ primary: primaryColor });
-      const finalCoverImage = coverMediaType === "video" ? coverVideo : coverImage;
-      const finalCoverMediaType = coverMediaType || (coverImage ? "image" : undefined);
-      console.log("[Storefront] Saving branding:", { 
-        brandColors: brandColorsJson, 
-        coverImage: finalCoverImage, 
+      const finalCoverImage =
+        coverMediaType === "video" ? coverVideo : coverImage;
+      const finalCoverMediaType =
+        coverMediaType || (coverImage ? "image" : undefined);
+      console.log("[Storefront] Saving branding:", {
+        brandColors: brandColorsJson,
+        coverImage: finalCoverImage,
         coverMediaType: finalCoverMediaType,
-        logoImage 
+        logoImage,
       });
       await api.updateVendorMyBusiness(token, {
         brandColors: brandColorsJson,
@@ -271,13 +345,20 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      const profileData = {
+      const profileData: Record<string, any> = {
         name: profileName || undefined,
         tagline: profileTagline || undefined,
         description: profileDescription || undefined,
         contactEmail: profileEmail || undefined,
         contactPhone: profilePhone || undefined,
         websiteUrl: profileWebsite || undefined,
+        showResponseTime,
+        showEmail,
+        showPhone,
+        showWebsite,
+        showStoreHours,
+        responseTimeValue,
+        responseTimeUnit,
         address: profileAddress || undefined,
         city: profileCity || undefined,
         state: profileState || undefined,
@@ -300,7 +381,7 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      
+
       // Convert DayHours to WeeklyAvailabilitySlot format for weekly_availability table
       const slots = hours
         .filter((h) => h.isAvailable)
@@ -311,34 +392,58 @@ export default function StorefrontEditorScreen() {
           isActive: true,
         }));
 
-      console.log("[Storefront] Saving weekly availability:", JSON.stringify(slots, null, 2));
-      
+      console.log(
+        "[Storefront] Saving weekly availability:",
+        JSON.stringify(slots, null, 2),
+      );
+
       // Save to weekly_availability table (primary source of truth)
       await api.updateWeeklyAvailability(token, "business", slots);
-      
+
       // DUAL-SYNC: Also update hoursOfOperation for legacy banner UI support
       // This is transitional - banner should eventually read from weekly_availability directly
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }> = {};
+      const dayNames = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+      ];
+      const hoursOfOperation: Record<
+        string,
+        { open: boolean; start?: string; end?: string }
+      > = {};
       dayNames.forEach((dayName, index) => {
         const slot = slots.find((s) => s.dayOfWeek === index);
         if (slot) {
-          hoursOfOperation[dayName] = { open: true, start: slot.startTime, end: slot.endTime };
+          hoursOfOperation[dayName] = {
+            open: true,
+            start: slot.startTime,
+            end: slot.endTime,
+          };
         } else {
           hoursOfOperation[dayName] = { open: false };
         }
       });
-      console.log("[Storefront] Syncing hoursOfOperation for banner:", JSON.stringify(hoursOfOperation, null, 2));
+      console.log(
+        "[Storefront] Syncing hoursOfOperation for banner:",
+        JSON.stringify(hoursOfOperation, null, 2),
+      );
       try {
         await api.updateVendorMyBusiness(token, { hoursOfOperation });
         console.log("[Storefront] hoursOfOperation synced successfully");
       } catch (syncError) {
-        console.warn("[Storefront] Failed to sync hoursOfOperation (non-blocking):", syncError);
+        console.warn(
+          "[Storefront] Failed to sync hoursOfOperation (non-blocking):",
+          syncError,
+        );
       }
-      
+
       // Emit availability changed event so other screens can refresh
       availabilityEvents.emit();
-      
+
       Alert.alert("Success", "Business hours updated successfully");
     } catch (error: any) {
       console.error("[Storefront] Failed to save hours:", error);
@@ -352,9 +457,12 @@ export default function StorefrontEditorScreen() {
     if (product) {
       setEditingProduct(product);
       const rawProduct = product as any;
-      const centValue: number = Number.isFinite(Number(product.priceCents)) && product.priceCents > 0
-        ? product.priceCents
-        : (Number.isFinite(Number(rawProduct.price)) && rawProduct.price > 0 ? Number(rawProduct.price) : 0);
+      const centValue: number =
+        Number.isFinite(Number(product.priceCents)) && product.priceCents > 0
+          ? product.priceCents
+          : Number.isFinite(Number(rawProduct.price)) && rawProduct.price > 0
+            ? Number(rawProduct.price)
+            : 0;
       setPriceInput(centValue > 0 ? (centValue / 100).toFixed(2) : "");
       setProductForm({
         name: product.name,
@@ -389,16 +497,23 @@ export default function StorefrontEditorScreen() {
     }
 
     const parsedDollars = parseFloat(priceInput.trim());
-    if (!priceInput.trim() || !Number.isFinite(parsedDollars) || parsedDollars <= 0) {
+    if (
+      !priceInput.trim() ||
+      !Number.isFinite(parsedDollars) ||
+      parsedDollars <= 0
+    ) {
       Alert.alert("Error", "Please enter a valid price greater than zero.");
       return;
     }
     const priceCentsValue = Math.round(parsedDollars * 100);
 
     const rawInventory = productForm.inventory;
-    const inventoryValue = (rawInventory === undefined || rawInventory === null || isNaN(Number(rawInventory)))
-      ? 0
-      : Math.max(0, Math.floor(Number(rawInventory)));
+    const inventoryValue =
+      rawInventory === undefined ||
+      rawInventory === null ||
+      isNaN(Number(rawInventory))
+        ? 0
+        : Math.max(0, Math.floor(Number(rawInventory)));
 
     const payload: typeof productForm = {
       ...productForm,
@@ -408,7 +523,10 @@ export default function StorefrontEditorScreen() {
 
     if (payload.status === "live" && !canPublishProducts) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
-      setProductForm((prev) => ({ ...prev, status: editingProduct?.status || "draft" }));
+      setProductForm((prev) => ({
+        ...prev,
+        status: editingProduct?.status || "draft",
+      }));
       fetchData();
       return;
     }
@@ -424,14 +542,20 @@ export default function StorefrontEditorScreen() {
       }
       setProductModalVisible(false);
       fetchData();
-      Alert.alert("Success", editingProduct ? "Product updated" : "Product created");
+      Alert.alert(
+        "Success",
+        editingProduct ? "Product updated" : "Product created",
+      );
     } catch (error: any) {
       if (error.status === 403) {
         Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
       } else {
         Alert.alert("Error", error.message || "Failed to save product");
       }
-      setProductForm((prev) => ({ ...prev, status: editingProduct?.status || "draft" }));
+      setProductForm((prev) => ({
+        ...prev,
+        status: editingProduct?.status || "draft",
+      }));
       fetchData();
     } finally {
       setSaving(false);
@@ -439,25 +563,29 @@ export default function StorefrontEditorScreen() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    Alert.alert("Delete Product", "Are you sure you want to delete this product?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          const token = await getToken();
-          if (!token) return;
+    Alert.alert(
+      "Delete Product",
+      "Are you sure you want to delete this product?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
 
-          try {
-            await api.deleteVendorProduct(token, productId);
-            fetchData();
-            Alert.alert("Success", "Product deleted");
-          } catch (error: any) {
-            Alert.alert("Error", error.message || "Failed to delete product");
-          }
+            try {
+              await api.deleteVendorProduct(token, productId);
+              fetchData();
+              Alert.alert("Success", "Product deleted");
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to delete product");
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const openServiceForm = (service?: VendorService) => {
@@ -494,7 +622,10 @@ export default function StorefrontEditorScreen() {
 
     if (serviceForm.status === "live" && !canPublishServices) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
-      setServiceForm({ ...serviceForm, status: editingService?.status || "draft" });
+      setServiceForm({
+        ...serviceForm,
+        status: editingService?.status || "draft",
+      });
       fetchData();
       return;
     }
@@ -508,14 +639,20 @@ export default function StorefrontEditorScreen() {
       }
       setServiceModalVisible(false);
       fetchData();
-      Alert.alert("Success", editingService ? "Service updated" : "Service created");
+      Alert.alert(
+        "Success",
+        editingService ? "Service updated" : "Service created",
+      );
     } catch (error: any) {
       if (error.status === 403) {
         Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
       } else {
         Alert.alert("Error", error.message || "Failed to save service");
       }
-      setServiceForm({ ...serviceForm, status: editingService?.status || "draft" });
+      setServiceForm({
+        ...serviceForm,
+        status: editingService?.status || "draft",
+      });
       fetchData();
     } finally {
       setSaving(false);
@@ -523,25 +660,29 @@ export default function StorefrontEditorScreen() {
   };
 
   const handleDeleteService = async (serviceId: string) => {
-    Alert.alert("Delete Service", "Are you sure you want to delete this service?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          const token = await getToken();
-          if (!token) return;
+    Alert.alert(
+      "Delete Service",
+      "Are you sure you want to delete this service?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
 
-          try {
-            await api.deleteVendorService(token, serviceId);
-            fetchData();
-            Alert.alert("Success", "Service deleted");
-          } catch (error: any) {
-            Alert.alert("Error", error.message || "Failed to delete service");
-          }
+            try {
+              await api.deleteVendorService(token, serviceId);
+              fetchData();
+              Alert.alert("Success", "Service deleted");
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to delete service");
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const formatPrice = (cents: number | null | undefined) => {
@@ -552,21 +693,31 @@ export default function StorefrontEditorScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "live": return "#22c55e";
-      case "draft": return "#f59e0b";
-      case "paused": return "#ef4444";
-      case "archived": return "#6b7280";
-      default: return theme.textSecondary;
+      case "live":
+        return "#22c55e";
+      case "draft":
+        return "#f59e0b";
+      case "paused":
+        return "#ef4444";
+      case "archived":
+        return "#6b7280";
+      default:
+        return theme.textSecondary;
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "live": return "Live";
-      case "draft": return "Draft";
-      case "paused": return "Paused";
-      case "archived": return "Archived";
-      default: return status;
+      case "live":
+        return "Live";
+      case "draft":
+        return "Draft";
+      case "paused":
+        return "Paused";
+      case "archived":
+        return "Archived";
+      default:
+        return status;
     }
   };
 
@@ -689,6 +840,69 @@ export default function StorefrontEditorScreen() {
     textArea: {
       minHeight: 80,
       textAlignVertical: "top",
+    },
+    visibilityLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 6,
+    },
+    visibilityButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.surfaceSecondary,
+    },
+    visibilityHelp: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      marginTop: -4,
+    },
+    dropdownButton: {
+      backgroundColor: theme.surfaceSecondary,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    dropdownButtonText: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    dropdownMenu: {
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceSecondary,
+      marginBottom: 12,
+      overflow: "hidden",
+    },
+    dropdownOption: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    dropdownOptionActive: {
+      backgroundColor: theme.primary,
+    },
+    dropdownOptionText: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    dropdownOptionTextActive: {
+      color: "#000",
+      fontWeight: "800",
     },
     colorGrid: {
       flexDirection: "row",
@@ -982,8 +1196,13 @@ export default function StorefrontEditorScreen() {
     return (
       <View style={styles.loading}>
         <Feather name="shopping-bag" size={48} color={theme.textSecondary} />
-        <Text style={[styles.emptyText, { marginTop: 16 }]}>No business found</Text>
-        <Pressable style={styles.saveButton} onPress={() => navigation.goBack()}>
+        <Text style={[styles.emptyText, { marginTop: 16 }]}>
+          No business found
+        </Text>
+        <Pressable
+          style={styles.saveButton}
+          onPress={() => navigation.goBack()}
+        >
           <Text style={styles.saveButtonText}>Go Back</Text>
         </Pressable>
       </View>
@@ -995,13 +1214,18 @@ export default function StorefrontEditorScreen() {
       <View style={styles.section}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Cover Media</Text>
-          <Text style={styles.cardDesc}>Upload an image or video banner for your storefront</Text>
+          <Text style={styles.cardDesc}>
+            Upload an image or video banner for your storefront
+          </Text>
           <MediaUploader
             currentImage={coverImage || undefined}
             currentVideo={coverVideo || undefined}
             currentMediaType={coverMediaType}
             onMediaUploaded={(url, mediaType) => {
-              console.log("[Storefront] MediaUploader callback:", { url: url.substring(0, 50), mediaType });
+              console.log("[Storefront] MediaUploader callback:", {
+                url: url.substring(0, 50),
+                mediaType,
+              });
               if (mediaType === "video") {
                 setCoverVideo(url);
                 setCoverImage("");
@@ -1025,7 +1249,9 @@ export default function StorefrontEditorScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Logo</Text>
-          <Text style={styles.cardDesc}>Your business logo appears on cards and your storefront</Text>
+          <Text style={styles.cardDesc}>
+            Your business logo appears on cards and your storefront
+          </Text>
           <View style={{ alignItems: "center" }}>
             <ImageUploader
               currentImage={logoImage || undefined}
@@ -1039,7 +1265,9 @@ export default function StorefrontEditorScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Brand Color</Text>
-          <Text style={styles.cardDesc}>Choose a color that represents your brand</Text>
+          <Text style={styles.cardDesc}>
+            Choose a color that represents your brand
+          </Text>
           <View style={styles.colorGrid}>
             {COLOR_PRESETS.map((preset) => (
               <Pressable
@@ -1054,7 +1282,9 @@ export default function StorefrontEditorScreen() {
             ))}
           </View>
           <Text style={styles.inputLabel}>Preview</Text>
-          <View style={[styles.colorPreview, { backgroundColor: primaryColor }]} />
+          <View
+            style={[styles.colorPreview, { backgroundColor: primaryColor }]}
+          />
         </View>
 
         <Pressable
@@ -1070,6 +1300,16 @@ export default function StorefrontEditorScreen() {
         </Pressable>
       </View>
     </ScrollView>
+  );
+
+  const renderVisibilityToggle = (visible: boolean, onPress: () => void) => (
+    <Pressable style={styles.visibilityButton} onPress={onPress}>
+      <Feather
+        name={visible ? "eye" : "eye-off"}
+        size={16}
+        color={visible ? theme.primary : theme.textSecondary}
+      />
+    </Pressable>
   );
 
   const renderProfileTab = () => (
@@ -1106,23 +1346,35 @@ export default function StorefrontEditorScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Known For</Text>
-          <Text style={styles.cardDesc}>Select what your business is known for</Text>
+          <Text style={styles.cardDesc}>
+            Select what your business is known for
+          </Text>
           <View style={styles.specialtyGrid}>
             {SPECIALTY_OPTIONS.map((specialty) => {
               const isSelected = profileSpecialties.includes(specialty);
               return (
                 <Pressable
                   key={specialty}
-                  style={[styles.specialtyChip, isSelected && styles.specialtyChipActive]}
+                  style={[
+                    styles.specialtyChip,
+                    isSelected && styles.specialtyChipActive,
+                  ]}
                   onPress={() => {
                     if (isSelected) {
-                      setProfileSpecialties(profileSpecialties.filter((s) => s !== specialty));
+                      setProfileSpecialties(
+                        profileSpecialties.filter((s) => s !== specialty),
+                      );
                     } else {
                       setProfileSpecialties([...profileSpecialties, specialty]);
                     }
                   }}
                 >
-                  <Text style={[styles.specialtyText, isSelected && styles.specialtyTextActive]}>
+                  <Text
+                    style={[
+                      styles.specialtyText,
+                      isSelected && styles.specialtyTextActive,
+                    ]}
+                  >
                     {specialty}
                   </Text>
                 </Pressable>
@@ -1133,7 +1385,10 @@ export default function StorefrontEditorScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Contact Info</Text>
-          <Text style={styles.inputLabel}>Email</Text>
+          <View style={styles.visibilityLabelRow}>
+            <Text style={styles.inputLabel}>Email</Text>
+            {renderVisibilityToggle(showEmail, () => setShowEmail((v) => !v))}
+          </View>
           <TextInput
             style={styles.input}
             value={profileEmail}
@@ -1143,7 +1398,10 @@ export default function StorefrontEditorScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          <Text style={styles.inputLabel}>Phone</Text>
+          <View style={styles.visibilityLabelRow}>
+            <Text style={styles.inputLabel}>Phone</Text>
+            {renderVisibilityToggle(showPhone, () => setShowPhone((v) => !v))}
+          </View>
           <TextInput
             style={styles.input}
             value={profilePhone}
@@ -1152,7 +1410,12 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.textSecondary}
             keyboardType="phone-pad"
           />
-          <Text style={styles.inputLabel}>Website</Text>
+          <View style={styles.visibilityLabelRow}>
+            <Text style={styles.inputLabel}>Website</Text>
+            {renderVisibilityToggle(showWebsite, () =>
+              setShowWebsite((v) => !v),
+            )}
+          </View>
           <TextInput
             style={styles.input}
             value={profileWebsite}
@@ -1161,6 +1424,111 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.textSecondary}
             autoCapitalize="none"
           />
+          <View style={styles.visibilityLabelRow}>
+            <Text style={styles.inputLabel}>Store Hours</Text>
+            {renderVisibilityToggle(showStoreHours, () =>
+              setShowStoreHours((v) => !v),
+            )}
+          </View>
+          <Text style={styles.visibilityHelp}>
+            Controls whether your saved business hours appear publicly.
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Response Time</Text>
+          <View style={styles.visibilityLabelRow}>
+            <Text style={styles.inputLabel}>Show response time on profile</Text>
+            {renderVisibilityToggle(showResponseTime, () =>
+              setShowResponseTime((v) => !v),
+            )}
+          </View>
+          <Text style={styles.cardDesc}>Number</Text>
+          <Pressable
+            style={styles.dropdownButton}
+            onPress={() => setResponseValueDropdownOpen((open) => !open)}
+          >
+            <Text style={styles.dropdownButtonText}>{responseTimeValue}</Text>
+            <Feather
+              name={responseValueDropdownOpen ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={theme.textSecondary}
+            />
+          </Pressable>
+          {responseValueDropdownOpen ? (
+            <View style={styles.dropdownMenu}>
+              {RESPONSE_TIME_VALUES.map((value) => {
+                const selected = responseTimeValue === value;
+                return (
+                  <Pressable
+                    key={value}
+                    style={[
+                      styles.dropdownOption,
+                      selected && styles.dropdownOptionActive,
+                    ]}
+                    onPress={() => {
+                      setResponseTimeValue(value);
+                      setResponseValueDropdownOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownOptionText,
+                        selected && styles.dropdownOptionTextActive,
+                      ]}
+                    >
+                      {value}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          <Text style={styles.cardDesc}>Unit</Text>
+          <Pressable
+            style={styles.dropdownButton}
+            onPress={() => setResponseUnitDropdownOpen((open) => !open)}
+          >
+            <Text style={styles.dropdownButtonText}>
+              {RESPONSE_TIME_UNITS.find(
+                (unit) => unit.value === responseTimeUnit,
+              )?.label || "Hours"}
+            </Text>
+            <Feather
+              name={responseUnitDropdownOpen ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={theme.textSecondary}
+            />
+          </Pressable>
+          {responseUnitDropdownOpen ? (
+            <View style={styles.dropdownMenu}>
+              {RESPONSE_TIME_UNITS.map((unit) => {
+                const selected = responseTimeUnit === unit.value;
+                return (
+                  <Pressable
+                    key={unit.value}
+                    style={[
+                      styles.dropdownOption,
+                      selected && styles.dropdownOptionActive,
+                    ]}
+                    onPress={() => {
+                      setResponseTimeUnit(unit.value);
+                      setResponseUnitDropdownOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownOptionText,
+                        selected && styles.dropdownOptionTextActive,
+                      ]}
+                    >
+                      {unit.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -1252,35 +1620,67 @@ export default function StorefrontEditorScreen() {
           products.map((product) => (
             <View key={product.id} style={styles.productCard}>
               {product.imageUrl ? (
-                <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
+                <Image
+                  source={{ uri: product.imageUrl }}
+                  style={styles.productImage}
+                />
               ) : (
-                <View style={[styles.productImage, { justifyContent: "center", alignItems: "center" }]}>
+                <View
+                  style={[
+                    styles.productImage,
+                    { justifyContent: "center", alignItems: "center" },
+                  ]}
+                >
                   <Feather name="image" size={24} color={theme.textSecondary} />
                 </View>
               )}
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{product.name}</Text>
-                <Text style={styles.productPrice}>{formatPrice(product.priceCents)}</Text>
+                <Text style={styles.productPrice}>
+                  {formatPrice(product.priceCents)}
+                </Text>
                 <View style={styles.productMeta}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(product.status) + "20" }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(product.status) }]}>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor: getStatusColor(product.status) + "20",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(product.status) },
+                      ]}
+                    >
                       {getStatusLabel(product.status)}
                     </Text>
                   </View>
                   {product.inventory !== null && (
-                    <Text style={styles.serviceDetailText}>Stock: {product.inventory}</Text>
+                    <Text style={styles.serviceDetailText}>
+                      Stock: {product.inventory}
+                    </Text>
                   )}
                 </View>
                 {getStatusExplanation(product.status) && (
-                  <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                  <Text
+                    style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}
+                  >
                     {getStatusExplanation(product.status)}
                   </Text>
                 )}
                 <View style={styles.productActions}>
-                  <Pressable style={styles.actionButton} onPress={() => openProductForm(product)}>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => openProductForm(product)}
+                  >
                     <Feather name="edit-2" size={16} color={theme.text} />
                   </Pressable>
-                  <Pressable style={styles.actionButton} onPress={() => handleDeleteProduct(product.id)}>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => handleDeleteProduct(product.id)}
+                  >
                     <Feather name="trash-2" size={16} color="#ef4444" />
                   </Pressable>
                 </View>
@@ -1310,36 +1710,67 @@ export default function StorefrontEditorScreen() {
             <View key={service.id} style={styles.serviceCard}>
               <View style={styles.serviceHeader}>
                 <Text style={styles.serviceName}>{service.name}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(service.status) + "20" }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(service.status) }]}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: getStatusColor(service.status) + "20" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusText,
+                      { color: getStatusColor(service.status) },
+                    ]}
+                  >
                     {getStatusLabel(service.status)}
                   </Text>
                 </View>
               </View>
               {getStatusExplanation(service.status) && (
-                <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4, marginBottom: 4 }}>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: "#ef4444",
+                    marginTop: 4,
+                    marginBottom: 4,
+                  }}
+                >
                   {getStatusExplanation(service.status)}
                 </Text>
               )}
               <View style={styles.serviceDetails}>
                 <View style={styles.serviceDetail}>
                   <Feather name="dollar-sign" size={14} color={theme.primary} />
-                  <Text style={[styles.serviceDetailText, { color: theme.primary }]}>
+                  <Text
+                    style={[styles.serviceDetailText, { color: theme.primary }]}
+                  >
                     {formatPrice(service.priceCents)}
                   </Text>
                 </View>
                 {service.durationMinutes && (
                   <View style={styles.serviceDetail}>
-                    <Feather name="clock" size={14} color={theme.textSecondary} />
-                    <Text style={styles.serviceDetailText}>{service.durationMinutes} min</Text>
+                    <Feather
+                      name="clock"
+                      size={14}
+                      color={theme.textSecondary}
+                    />
+                    <Text style={styles.serviceDetailText}>
+                      {service.durationMinutes} min
+                    </Text>
                   </View>
                 )}
               </View>
               <View style={styles.productActions}>
-                <Pressable style={styles.actionButton} onPress={() => openServiceForm(service)}>
+                <Pressable
+                  style={styles.actionButton}
+                  onPress={() => openServiceForm(service)}
+                >
                   <Feather name="edit-2" size={16} color={theme.text} />
                 </Pressable>
-                <Pressable style={styles.actionButton} onPress={() => handleDeleteService(service.id)}>
+                <Pressable
+                  style={styles.actionButton}
+                  onPress={() => handleDeleteService(service.id)}
+                >
                   <Feather name="trash-2" size={16} color="#ef4444" />
                 </Pressable>
               </View>
@@ -1364,7 +1795,9 @@ export default function StorefrontEditorScreen() {
             {saving ? (
               <ActivityIndicator size="small" color={theme.primary} />
             ) : (
-              <Text style={{ color: theme.primary, fontWeight: "600" }}>Save</Text>
+              <Text style={{ color: theme.primary, fontWeight: "600" }}>
+                Save
+              </Text>
             )}
           </Pressable>
         </View>
@@ -1373,7 +1806,9 @@ export default function StorefrontEditorScreen() {
           <TextInput
             style={styles.input}
             value={productForm.name}
-            onChangeText={(v) => setProductForm((prev) => ({ ...prev, name: v }))}
+            onChangeText={(v) =>
+              setProductForm((prev) => ({ ...prev, name: v }))
+            }
             placeholder="Product name"
             placeholderTextColor={theme.textSecondary}
           />
@@ -1382,7 +1817,9 @@ export default function StorefrontEditorScreen() {
           <TextInput
             style={[styles.input, styles.textArea]}
             value={productForm.description}
-            onChangeText={(v) => setProductForm((prev) => ({ ...prev, description: v }))}
+            onChangeText={(v) =>
+              setProductForm((prev) => ({ ...prev, description: v }))
+            }
             placeholder="Product description"
             placeholderTextColor={theme.textSecondary}
             multiline
@@ -1401,10 +1838,18 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.inputLabel}>Inventory</Text>
           <TextInput
             style={styles.input}
-            value={productForm.inventory !== undefined && productForm.inventory !== null ? String(productForm.inventory) : ""}
+            value={
+              productForm.inventory !== undefined &&
+              productForm.inventory !== null
+                ? String(productForm.inventory)
+                : ""
+            }
             onChangeText={(v) => {
               const parsed = parseInt(v, 10);
-              setProductForm((prev) => ({ ...prev, inventory: isNaN(parsed) ? 0 : Math.max(0, parsed) }));
+              setProductForm((prev) => ({
+                ...prev,
+                inventory: isNaN(parsed) ? 0 : Math.max(0, parsed),
+              }));
             }}
             placeholder="0"
             placeholderTextColor={theme.textSecondary}
@@ -1414,8 +1859,12 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.inputLabel}>Product Image</Text>
           <ImageUploader
             currentImage={productForm.imageUrl || undefined}
-            onImageSelected={(uri) => setProductForm((prev) => ({ ...prev, imageUrl: uri }))}
-            onRemove={() => setProductForm((prev) => ({ ...prev, imageUrl: "" }))}
+            onImageSelected={(uri) =>
+              setProductForm((prev) => ({ ...prev, imageUrl: uri }))
+            }
+            onRemove={() =>
+              setProductForm((prev) => ({ ...prev, imageUrl: "" }))
+            }
             aspectRatio="product"
             placeholder="Upload Product Image"
           />
@@ -1423,13 +1872,27 @@ export default function StorefrontEditorScreen() {
           {renderPublishGateWarning()}
 
           {productForm.status === "paused" && (
-            <View style={{ backgroundColor: "#fef2f2", borderRadius: 8, padding: 12, marginTop: 16 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: "#fef2f2",
+                borderRadius: 8,
+                padding: 12,
+                marginTop: 16,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
                 <Feather name="pause-circle" size={18} color="#ef4444" />
-                <Text style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}>Product Paused</Text>
+                <Text
+                  style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}
+                >
+                  Product Paused
+                </Text>
               </View>
               <Text style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
-                This product was paused due to subscription lapse. Reactivate your subscription to publish it again.
+                This product was paused due to subscription lapse. Reactivate
+                your subscription to publish it again.
               </Text>
             </View>
           )}
@@ -1442,19 +1905,31 @@ export default function StorefrontEditorScreen() {
                   Reactivate subscription to unpause
                 </Text>
               ) : !canPublishProducts ? (
-                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.textSecondary,
+                    marginTop: 2,
+                  }}
+                >
                   Requires approval, Stripe setup, and active subscription
                 </Text>
               ) : null}
             </View>
-            <View style={(!canPublishProducts || productForm.status === "paused") ? styles.disabledSwitch : undefined}>
+            <View
+              style={
+                !canPublishProducts || productForm.status === "paused"
+                  ? styles.disabledSwitch
+                  : undefined
+              }
+            >
               <Switch
                 value={productForm.status === "live"}
                 onValueChange={(v) => {
                   if (productForm.status === "paused") {
                     Alert.alert(
                       "Product Paused",
-                      "This product was paused due to subscription lapse. Reactivate your subscription to publish it again."
+                      "This product was paused due to subscription lapse. Reactivate your subscription to publish it again.",
                     );
                     return;
                   }
@@ -1462,10 +1937,16 @@ export default function StorefrontEditorScreen() {
                     Alert.alert("Cannot Publish", getPublishBlockerMessage());
                     return;
                   }
-                  setProductForm({ ...productForm, status: v ? "live" : "draft" });
+                  setProductForm({
+                    ...productForm,
+                    status: v ? "live" : "draft",
+                  });
                 }}
                 trackColor={{ true: theme.primary }}
-                disabled={productForm.status === "paused" || (!canPublishProducts && productForm.status !== "live")}
+                disabled={
+                  productForm.status === "paused" ||
+                  (!canPublishProducts && productForm.status !== "live")
+                }
               />
             </View>
           </View>
@@ -1488,7 +1969,9 @@ export default function StorefrontEditorScreen() {
             {saving ? (
               <ActivityIndicator size="small" color={theme.primary} />
             ) : (
-              <Text style={{ color: theme.primary, fontWeight: "600" }}>Save</Text>
+              <Text style={{ color: theme.primary, fontWeight: "600" }}>
+                Save
+              </Text>
             )}
           </Pressable>
         </View>
@@ -1506,7 +1989,9 @@ export default function StorefrontEditorScreen() {
           <TextInput
             style={[styles.input, styles.textArea]}
             value={serviceForm.description}
-            onChangeText={(v) => setServiceForm({ ...serviceForm, description: v })}
+            onChangeText={(v) =>
+              setServiceForm({ ...serviceForm, description: v })
+            }
             placeholder="Service description"
             placeholderTextColor={theme.textSecondary}
             multiline
@@ -1515,8 +2000,17 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.inputLabel}>Price (in dollars)</Text>
           <TextInput
             style={styles.input}
-            value={serviceForm.priceCents ? (serviceForm.priceCents / 100).toString() : ""}
-            onChangeText={(v) => setServiceForm({ ...serviceForm, priceCents: Math.round(parseFloat(v || "0") * 100) })}
+            value={
+              serviceForm.priceCents
+                ? (serviceForm.priceCents / 100).toString()
+                : ""
+            }
+            onChangeText={(v) =>
+              setServiceForm({
+                ...serviceForm,
+                priceCents: Math.round(parseFloat(v || "0") * 100),
+              })
+            }
             placeholder="0.00"
             placeholderTextColor={theme.textSecondary}
             keyboardType="decimal-pad"
@@ -1526,7 +2020,12 @@ export default function StorefrontEditorScreen() {
           <TextInput
             style={styles.input}
             value={serviceForm.durationMinutes?.toString() || ""}
-            onChangeText={(v) => setServiceForm({ ...serviceForm, durationMinutes: parseInt(v || "60", 10) })}
+            onChangeText={(v) =>
+              setServiceForm({
+                ...serviceForm,
+                durationMinutes: parseInt(v || "60", 10),
+              })
+            }
             placeholder="60"
             placeholderTextColor={theme.textSecondary}
             keyboardType="number-pad"
@@ -1535,13 +2034,27 @@ export default function StorefrontEditorScreen() {
           {renderPublishGateWarning()}
 
           {serviceForm.status === "paused" && (
-            <View style={{ backgroundColor: "#fef2f2", borderRadius: 8, padding: 12, marginTop: 16 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: "#fef2f2",
+                borderRadius: 8,
+                padding: 12,
+                marginTop: 16,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
                 <Feather name="pause-circle" size={18} color="#ef4444" />
-                <Text style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}>Service Paused</Text>
+                <Text
+                  style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}
+                >
+                  Service Paused
+                </Text>
               </View>
               <Text style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
-                This service was paused due to subscription lapse. Reactivate your subscription to publish it again.
+                This service was paused due to subscription lapse. Reactivate
+                your subscription to publish it again.
               </Text>
             </View>
           )}
@@ -1554,19 +2067,31 @@ export default function StorefrontEditorScreen() {
                   Reactivate subscription to unpause
                 </Text>
               ) : !canPublishServices ? (
-                <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.textSecondary,
+                    marginTop: 2,
+                  }}
+                >
                   Requires approval, Stripe setup, and active subscription
                 </Text>
               ) : null}
             </View>
-            <View style={(!canPublishServices || serviceForm.status === "paused") ? styles.disabledSwitch : undefined}>
+            <View
+              style={
+                !canPublishServices || serviceForm.status === "paused"
+                  ? styles.disabledSwitch
+                  : undefined
+              }
+            >
               <Switch
                 value={serviceForm.status === "live"}
                 onValueChange={(v) => {
                   if (serviceForm.status === "paused") {
                     Alert.alert(
                       "Service Paused",
-                      "This service was paused due to subscription lapse. Reactivate your subscription to publish it again."
+                      "This service was paused due to subscription lapse. Reactivate your subscription to publish it again.",
                     );
                     return;
                   }
@@ -1574,10 +2099,16 @@ export default function StorefrontEditorScreen() {
                     Alert.alert("Cannot Publish", getPublishBlockerMessage());
                     return;
                   }
-                  setServiceForm({ ...serviceForm, status: v ? "live" : "draft" });
+                  setServiceForm({
+                    ...serviceForm,
+                    status: v ? "live" : "draft",
+                  });
                 }}
                 trackColor={{ true: theme.primary }}
-                disabled={serviceForm.status === "paused" || (!canPublishServices && serviceForm.status !== "live")}
+                disabled={
+                  serviceForm.status === "paused" ||
+                  (!canPublishServices && serviceForm.status !== "live")
+                }
               />
             </View>
           </View>
@@ -1586,7 +2117,11 @@ export default function StorefrontEditorScreen() {
     </Modal>
   );
 
-  const tabs: { key: TabType; icon: keyof typeof Feather.glyphMap; label: string }[] = [
+  const tabs: {
+    key: TabType;
+    icon: keyof typeof Feather.glyphMap;
+    label: string;
+  }[] = [
     { key: "branding", icon: "image", label: "Branding" },
     { key: "profile", icon: "user", label: "Profile" },
     { key: "hours", icon: "clock", label: "Hours" },
@@ -1610,7 +2145,9 @@ export default function StorefrontEditorScreen() {
           iconBg: "#ef444420",
           iconColor: "#ef4444",
           title: "Application Rejected",
-          desc: business?.approvalNotes || "Your application was not approved. Please contact support.",
+          desc:
+            business?.approvalNotes ||
+            "Your application was not approved. Please contact support.",
         };
       default:
         return {
@@ -1627,7 +2164,12 @@ export default function StorefrontEditorScreen() {
     const config = getApprovalBannerConfig();
     return (
       <View style={styles.approvalBanner}>
-        <View style={[styles.approvalBannerIcon, { backgroundColor: config.iconBg }]}>
+        <View
+          style={[
+            styles.approvalBannerIcon,
+            { backgroundColor: config.iconBg },
+          ]}
+        >
           <Feather name={config.icon} size={20} color={config.iconColor} />
         </View>
         <View style={styles.approvalBannerContent}>
@@ -1640,47 +2182,80 @@ export default function StorefrontEditorScreen() {
 
   const renderPublishGateWarning = () => {
     if (canPublish) return null;
-    
-    const isDark = theme.backgroundRoot === "#000000" || theme.backgroundRoot === "#000";
-    const missingStripe = eligibility ? eligibility.requiresOnboarding : !business?.stripeOnboardingComplete;
-    const missingSub = eligibility ? eligibility.requiresSubscription : !business?.subscriptionActive;
-    const missingApproval = eligibility ? eligibility.requiresApproval : approvalStatus !== "approved";
-    
+
+    const isDark =
+      theme.backgroundRoot === "#000000" || theme.backgroundRoot === "#000";
+    const missingStripe = eligibility
+      ? eligibility.requiresOnboarding
+      : !business?.stripeOnboardingComplete;
+    const missingSub = eligibility
+      ? eligibility.requiresSubscription
+      : !business?.subscriptionActive;
+    const missingApproval = eligibility
+      ? eligibility.requiresApproval
+      : approvalStatus !== "approved";
+
     return (
-      <View style={[styles.publishGateCard, isDark && styles.publishGateCardDark]}>
-        <Text style={[styles.publishGateTitle, isDark && styles.publishGateTitleDark]}>
+      <View
+        style={[styles.publishGateCard, isDark && styles.publishGateCardDark]}
+      >
+        <Text
+          style={[
+            styles.publishGateTitle,
+            isDark && styles.publishGateTitleDark,
+          ]}
+        >
           Publishing Requirements
         </Text>
-        <Text style={[styles.publishGateDesc, isDark && styles.publishGateDescDark]}>
+        <Text
+          style={[styles.publishGateDesc, isDark && styles.publishGateDescDark]}
+        >
           You can create and edit drafts, but to publish items you need:
         </Text>
         <View style={styles.publishGateItem}>
-          <Feather 
-            name={missingApproval ? "x-circle" : "check-circle"} 
-            size={16} 
-            color={missingApproval ? "#ef4444" : "#22c55e"} 
+          <Feather
+            name={missingApproval ? "x-circle" : "check-circle"}
+            size={16}
+            color={missingApproval ? "#ef4444" : "#22c55e"}
           />
-          <Text style={[styles.publishGateItemText, isDark && styles.publishGateItemTextDark]}>
-            Storefront approval {missingApproval ? `(${approvalStatus})` : "(approved)"}
+          <Text
+            style={[
+              styles.publishGateItemText,
+              isDark && styles.publishGateItemTextDark,
+            ]}
+          >
+            Storefront approval{" "}
+            {missingApproval ? `(${approvalStatus})` : "(approved)"}
           </Text>
         </View>
         <View style={styles.publishGateItem}>
-          <Feather 
-            name={missingStripe ? "x-circle" : "check-circle"} 
-            size={16} 
-            color={missingStripe ? "#ef4444" : "#22c55e"} 
+          <Feather
+            name={missingStripe ? "x-circle" : "check-circle"}
+            size={16}
+            color={missingStripe ? "#ef4444" : "#22c55e"}
           />
-          <Text style={[styles.publishGateItemText, isDark && styles.publishGateItemTextDark]}>
-            Stripe payment setup {missingStripe ? "(not complete)" : "(complete)"}
+          <Text
+            style={[
+              styles.publishGateItemText,
+              isDark && styles.publishGateItemTextDark,
+            ]}
+          >
+            Stripe payment setup{" "}
+            {missingStripe ? "(not complete)" : "(complete)"}
           </Text>
         </View>
         <View style={styles.publishGateItem}>
-          <Feather 
-            name={missingSub ? "x-circle" : "check-circle"} 
-            size={16} 
-            color={missingSub ? "#ef4444" : "#22c55e"} 
+          <Feather
+            name={missingSub ? "x-circle" : "check-circle"}
+            size={16}
+            color={missingSub ? "#ef4444" : "#22c55e"}
           />
-          <Text style={[styles.publishGateItemText, isDark && styles.publishGateItemTextDark]}>
+          <Text
+            style={[
+              styles.publishGateItemText,
+              isDark && styles.publishGateItemTextDark,
+            ]}
+          >
             Active subscription {missingSub ? "(not active)" : "(active)"}
           </Text>
         </View>
@@ -1691,12 +2266,17 @@ export default function StorefrontEditorScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+        <Pressable
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Customize Storefront</Text>
         <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{business.category || "Business"}</Text>
+          <Text style={styles.categoryText}>
+            {business.category || "Business"}
+          </Text>
         </View>
       </View>
 
@@ -1714,7 +2294,12 @@ export default function StorefrontEditorScreen() {
               size={18}
               color={activeTab === tab.key ? "#000" : theme.textSecondary}
             />
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab.key && styles.tabTextActive,
+              ]}
+            >
               {tab.label}
             </Text>
           </Pressable>
