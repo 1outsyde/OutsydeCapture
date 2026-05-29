@@ -1294,7 +1294,9 @@ export default function VendorDetailScreen({ route }: Props) {
                   {product.name}
                 </Text>
                 <Text style={[styles.productPrice, { color: accentColor }]}>
-                  {formatCents(product.priceCents)}
+                  {formatCents(
+                    product.priceCents ?? (product as any).price ?? 0,
+                  )}
                 </Text>
                 <View
                   style={[
