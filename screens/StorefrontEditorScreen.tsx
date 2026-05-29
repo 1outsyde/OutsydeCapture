@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -107,23 +107,29 @@ export default function StorefrontEditorScreen() {
 
   const approvalStatus = business?.approvalStatus || "pending";
 
-  const canPublishProducts = eligibility
-    ? Boolean(eligibility.canPublishProducts)
-    : Boolean(
-        business?.stripeOnboardingComplete &&
-          business?.subscriptionActive &&
-          approvalStatus === "approved",
+  const canPublish = useMemo(() => {
+    // Primary: use eligibility endpoint result when available
+    if (eligibility !== null) {
+      return Boolean(
+        eligibility.canPublishProducts || eligibility.canPublishServices,
       );
+    }
+    // Fallback when eligibility endpoint fails: derive from business fields
+    const isApproved =
+      business?.approvalStatus === "approved" ||
+      (business as any)?.status === "approved" ||
+      Boolean((business as any)?.isApproved);
+    const hasStripe =
+      business?.stripeOnboardingComplete === true ||
+      Boolean((business as any)?.stripeConnected);
+    const hasSubscription =
+      business?.subscriptionActive === true ||
+      business?.subscriptionStatus === "active";
+    return isApproved && hasStripe && hasSubscription;
+  }, [eligibility, business]);
 
-  const canPublishServices = eligibility
-    ? Boolean(eligibility.canPublishServices)
-    : Boolean(
-        business?.stripeOnboardingComplete &&
-          business?.subscriptionActive &&
-          approvalStatus === "approved",
-      );
-
-  const canPublish = canPublishProducts || canPublishServices;
+  const canPublishProducts = canPublish;
+  const canPublishServices = canPublish;
 
   const getPublishBlockerMessage = (
     errorBody?: Record<string, any>,
@@ -190,21 +196,8 @@ export default function StorefrontEditorScreen() {
     const token = await getToken();
     if (!token) return;
 
+    setLoading(true);
     try {
-      setLoading(true);
-      const [businessRes, productsRes, servicesRes, eligibilityRes] =
-        await Promise.all([
-          api.getVendorMyBusiness(token),
-          api.getVendorProducts(token).catch(() => ({ products: [] })),
-          api.getVendorServices(token).catch(() => ({ services: [] })),
-          api.getVendorEligibility(token).catch(() => null),
-        ]);
-
-      if (eligibilityRes) setEligibility(eligibilityRes);
-
-      const biz = businessRes.business;
-      setBusiness(biz);
-
       const normalizeProduct = (p: any): VendorProduct => ({
         ...p,
         priceCents:
@@ -224,45 +217,97 @@ export default function StorefrontEditorScreen() {
               : 0,
       });
 
-      setProducts((productsRes.products || []).map(normalizeProduct));
-      setServices((servicesRes.services || []).map(normalizeService));
-
-      const isVideo = biz.coverMediaType === "video";
-      if (isVideo) {
-        setCoverVideo(biz.coverImage || "");
-        setCoverImage("");
-        setCoverMediaType("video");
-      } else {
-        setCoverImage(biz.coverImage || "");
-        setCoverVideo("");
-        setCoverMediaType(biz.coverImage ? "image" : null);
+      let businessRes: { business: VendorBookerBusiness } | null = null;
+      try {
+        businessRes = await api.getVendorMyBusiness(token);
+      } catch (e) {
+        console.warn("[StorefrontEditor] business fetch failed:", e);
       }
-      setLogoImage(biz.logoImage || "");
-      const brandColors = biz.brandColors ? JSON.parse(biz.brandColors) : {};
-      setPrimaryColor(brandColors.primary || "#eab308");
 
-      setProfileName(biz.name || "");
-      setProfileTagline(biz.tagline || "");
-      setProfileDescription(biz.description || "");
-      setProfileEmail(biz.contactEmail || "");
-      setProfilePhone(biz.contactPhone || "");
-      setProfileWebsite(biz.websiteUrl || "");
-      setProfileCity(biz.city || "");
-      setProfileState(biz.state || "");
+      let productsRes: { products: VendorProduct[] } | null = null;
+      try {
+        productsRes = await api.getVendorProducts(token);
+      } catch (e) {
+        console.warn("[StorefrontEditor] products fetch failed:", e);
+      }
 
-      if (biz.hoursOfOperation) {
+      let servicesRes: { services: VendorService[] } | null = null;
+      try {
+        servicesRes = await api.getVendorServices(token);
+      } catch (e) {
+        console.warn("[StorefrontEditor] services fetch failed:", e);
+      }
+
+      let eligibilityRes: VendorEligibility | null = null;
+      try {
+        eligibilityRes = await api.getVendorEligibility(token);
+      } catch (e) {
+        console.warn("[StorefrontEditor] eligibility fetch failed:", e);
+      }
+
+      if (eligibilityRes) setEligibility(eligibilityRes);
+
+      if (productsRes) {
+        setProducts((productsRes.products || []).map(normalizeProduct));
+      }
+      if (servicesRes) {
+        setServices((servicesRes.services || []).map(normalizeService));
+      }
+
+      if (businessRes?.business) {
+        const biz = businessRes.business;
+        setBusiness(biz);
+
+        const isVideo = biz.coverMediaType === "video";
+        if (isVideo) {
+          setCoverVideo(biz.coverImage || "");
+          setCoverImage("");
+          setCoverMediaType("video");
+        } else {
+          setCoverImage(biz.coverImage || "");
+          setCoverVideo("");
+          setCoverMediaType(biz.coverImage ? "image" : null);
+        }
+        setLogoImage(biz.logoImage || "");
+
         try {
-          const hoursData =
-            typeof biz.hoursOfOperation === "string"
-              ? JSON.parse(biz.hoursOfOperation)
-              : biz.hoursOfOperation;
-          setHours(hoursObjectToArray(hoursData));
+          const rawColors = biz.brandColors;
+          const brandColors = rawColors
+            ? typeof rawColors === "string"
+              ? JSON.parse(rawColors)
+              : rawColors
+            : {};
+          setPrimaryColor(brandColors.primary || "#eab308");
         } catch {
-          setHours(getDefaultHours());
+          setPrimaryColor("#eab308");
+        }
+
+        setProfileName(biz.name || "");
+        setProfileTagline(biz.tagline || "");
+        setProfileDescription(biz.description || "");
+        setProfileEmail(biz.contactEmail || "");
+        setProfilePhone(biz.contactPhone || "");
+        setProfileWebsite(biz.websiteUrl || "");
+        setProfileCity(biz.city || "");
+        setProfileState(biz.state || "");
+
+        if (biz.hoursOfOperation) {
+          try {
+            const hoursData =
+              typeof biz.hoursOfOperation === "string"
+                ? JSON.parse(biz.hoursOfOperation)
+                : biz.hoursOfOperation;
+            setHours(hoursObjectToArray(hoursData));
+          } catch {
+            setHours(getDefaultHours());
+          }
         }
       }
     } catch (error) {
-      console.error("Failed to fetch storefront data:", error);
+      console.error(
+        "[StorefrontEditor] Failed to fetch storefront data:",
+        error,
+      );
     } finally {
       setLoading(false);
     }
