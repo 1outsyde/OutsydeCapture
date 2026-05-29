@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
-import { apiGet } from "@/api/client";
+import api from "@/services/api";
 
 export interface OrderItem {
   name: string;
@@ -50,12 +50,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const response: any = await apiGet("/api/my-orders", token);
-      const payload = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.orders)
-          ? response.orders
-          : [];
+      const response = await api.getBusinessOrders(token);
+      const payload = Array.isArray(response?.orders) ? response.orders : [];
 
       const normalizedOrders: Order[] = payload.map((order: any) => ({
         id: String(order?.id ?? ""),
