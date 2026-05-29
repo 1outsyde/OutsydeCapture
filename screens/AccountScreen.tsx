@@ -458,7 +458,7 @@ export default function AccountScreen() {
             id: String(item.id),
             name: item.name,
             description: item.description || undefined,
-            priceCents: Number(item.priceCents ?? 0),
+            priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
             durationMinutes:
               item.durationMinutes ||
               (item as any).estimatedDurationMinutes ||
@@ -561,7 +561,7 @@ export default function AccountScreen() {
             id: String(item.id),
             name: item.name,
             description: item.description || undefined,
-            priceCents: Number(item.priceCents ?? 0),
+            priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
             durationMinutes: (item as any).durationMinutes || undefined,
             rating: Number((item as any).rating ?? 0),
           }));
@@ -1151,6 +1151,11 @@ export default function AccountScreen() {
   );
 
   const renderBookingTab = () => {
+    console.log(
+      "[BookingTab] service keys:",
+      JSON.stringify(services[0] ? Object.keys(services[0]) : []),
+    );
+    console.log("[BookingTab] first service:", JSON.stringify(services[0]));
     if (services.length === 0) {
       return (
         <View style={styles.tabContent}>
@@ -1238,7 +1243,7 @@ export default function AccountScreen() {
                   marginBottom: 8,
                 }}
               >
-                {formatCents(service.priceCents ?? (service as any).price ?? 0)}
+                {formatCents(service.priceCents)}
               </Text>
               <View
                 style={{

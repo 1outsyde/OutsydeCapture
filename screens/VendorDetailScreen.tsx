@@ -480,7 +480,7 @@ export default function VendorDetailScreen({ route }: Props) {
             id: String(item.id),
             name: item.name,
             description: item.description || undefined,
-            priceCents: Number(item.priceCents ?? 0),
+            priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
             durationMinutes:
               item.durationMinutes ||
               (item as any).estimatedDurationMinutes ||
@@ -603,7 +603,7 @@ export default function VendorDetailScreen({ route }: Props) {
               id: String(item.id),
               name: item.name,
               description: item.description || undefined,
-              priceCents: Number(item.priceCents ?? 0),
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
               durationMinutes: (item as any).durationMinutes || undefined,
               rating: Number((item as any).rating ?? 0),
               reviewCount: Number((item as any).reviewCount ?? 0),
@@ -1402,7 +1402,7 @@ export default function VendorDetailScreen({ route }: Props) {
                   marginBottom: 8,
                 }}
               >
-                {formatCents(service.priceCents ?? (service as any).price ?? 0)}
+                {formatCents(service.priceCents)}
               </Text>
               <View
                 style={{
