@@ -9,7 +9,10 @@ export const API_BASE_URL = "https://outsyde-backend.onrender.com";
 
 // ─── Token refresh queue ─────────────────────────────────────────────────────
 let _isRefreshing = false;
-let _refreshQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
+let _refreshQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
 
 async function runRefresh(): Promise<string> {
   const refreshToken = await getRefreshToken();
@@ -363,15 +366,15 @@ export interface WeeklyAvailabilitySlot {
   id?: string;
   dayOfWeek: number; // 0=Sunday, 1=Monday, etc.
   startTime: string; // "09:00"
-  endTime: string;   // "17:00"
+  endTime: string; // "17:00"
   isActive: boolean;
 }
 
 // Availability block (manual time-off)
 export interface AvailabilityBlock {
   id: string;
-  startDate: string;  // ISO date or datetime
-  endDate: string;    // ISO date or datetime
+  startDate: string; // ISO date or datetime
+  endDate: string; // ISO date or datetime
   isFullDay: boolean;
   reason?: string;
   createdAt?: string;
@@ -521,7 +524,10 @@ export interface AdminBusinessDetail {
   createdAt: string;
   updatedAt?: string;
   priceRange?: string;
-  businessHours?: Record<string, { open: string; close: string; closed?: boolean }>;
+  businessHours?: Record<
+    string,
+    { open: string; close: string; closed?: boolean }
+  >;
 }
 
 export interface AdminPhotographer {
@@ -839,7 +845,13 @@ export interface UnifiedSearchParams {
   lat?: number;
   lng?: number;
   personalized?: boolean;
-  scope?: "all" | "consumers" | "businesses" | "photographers" | "products" | "services";
+  scope?:
+    | "all"
+    | "consumers"
+    | "businesses"
+    | "photographers"
+    | "products"
+    | "services";
   viewerUserId?: string;
 }
 
@@ -893,7 +905,12 @@ export interface UnifiedSearchResponse {
   personalized: boolean;
 }
 
-export type SearchResultType = "business" | "photographer" | "product" | "service" | "consumer";
+export type SearchResultType =
+  | "business"
+  | "photographer"
+  | "product"
+  | "service"
+  | "consumer";
 
 export interface MobileLoginRequest {
   email?: string;
@@ -1107,27 +1124,33 @@ class ApiService {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit & { timeout?: number }): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    options?: RequestInit & { timeout?: number },
+  ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     // Merge headers properly - ensure Content-Type is always set
     const mergedHeaders: HeadersInit = {
       "Content-Type": "application/json",
       ...options?.headers,
     };
-    
+
     // Log the final request for debugging
-    console.log(`[API] ${options?.method || 'GET'} ${endpoint}`, options?.body ? `Body: ${options.body}` : '');
-    
+    console.log(
+      `[API] ${options?.method || "GET"} ${endpoint}`,
+      options?.body ? `Body: ${options.body}` : "",
+    );
+
     // Set up timeout with AbortController (default 30s, longer for signup/auth)
     const timeoutMs = options?.timeout || 30000;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    
+
     try {
       const response = await fetch(url, {
         ...options, // Spread options first
-        credentials: 'include', // Required for session-based auth with cookies
+        credentials: "include", // Required for session-based auth with cookies
         headers: mergedHeaders, // Then override with merged headers
         signal: controller.signal,
       });
@@ -1135,14 +1158,23 @@ class ApiService {
       // DIAGNOSTIC: Log response status and CORS headers for auth debugging
       if (__DEV__) {
         const corsHeaders = {
-          'access-control-allow-credentials': response.headers.get('access-control-allow-credentials'),
-          'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+          "access-control-allow-credentials": response.headers.get(
+            "access-control-allow-credentials",
+          ),
+          "access-control-allow-origin": response.headers.get(
+            "access-control-allow-origin",
+          ),
         };
-        console.log(`[API] Response ${response.status} ${endpoint}`, corsHeaders);
-        
+        console.log(
+          `[API] Response ${response.status} ${endpoint}`,
+          corsHeaders,
+        );
+
         // Extra logging for 401 errors
         if (response.status === 401) {
-          console.warn(`[API] 401 UNAUTHORIZED on ${endpoint} - Check: 1) Session expired? 2) CORS blocking cookies? 3) Cookie not set on login?`);
+          console.warn(
+            `[API] 401 UNAUTHORIZED on ${endpoint} - Check: 1) Session expired? 2) CORS blocking cookies? 3) Cookie not set on login?`,
+          );
         }
       }
 
@@ -1161,7 +1193,10 @@ class ApiService {
             validationErrors = errorBody.errors;
             errorMessage = validationErrors.join(", ");
           }
-          console.error("API Error Response:", JSON.stringify(errorBody, null, 2));
+          console.error(
+            "API Error Response:",
+            JSON.stringify(errorBody, null, 2),
+          );
         } catch (parseError) {
           // Could not parse error body, use default message
         }
@@ -1178,9 +1213,20 @@ class ApiService {
             const newToken = await new Promise<string>((resolve, reject) => {
               _refreshQueue.push({ resolve, reject });
             });
-            const retryHeaders: HeadersInit = { ...mergedHeaders, Authorization: `Bearer ${newToken}` };
-            const retryRes = await fetch(url, { ...options, credentials: "include", headers: retryHeaders });
-            if (!retryRes.ok) throw { message: "Retry after refresh failed", status: retryRes.status } as ApiError;
+            const retryHeaders: HeadersInit = {
+              ...mergedHeaders,
+              Authorization: `Bearer ${newToken}`,
+            };
+            const retryRes = await fetch(url, {
+              ...options,
+              credentials: "include",
+              headers: retryHeaders,
+            });
+            if (!retryRes.ok)
+              throw {
+                message: "Retry after refresh failed",
+                status: retryRes.status,
+              } as ApiError;
             return retryRes.json() as T;
           }
 
@@ -1189,9 +1235,20 @@ class ApiService {
             const newToken = await runRefresh();
             _refreshQueue.forEach((p) => p.resolve(newToken));
             _refreshQueue = [];
-            const retryHeaders: HeadersInit = { ...mergedHeaders, Authorization: `Bearer ${newToken}` };
-            const retryRes = await fetch(url, { ...options, credentials: "include", headers: retryHeaders });
-            if (!retryRes.ok) throw { message: "Retry after refresh failed", status: retryRes.status } as ApiError;
+            const retryHeaders: HeadersInit = {
+              ...mergedHeaders,
+              Authorization: `Bearer ${newToken}`,
+            };
+            const retryRes = await fetch(url, {
+              ...options,
+              credentials: "include",
+              headers: retryHeaders,
+            });
+            if (!retryRes.ok)
+              throw {
+                message: "Retry after refresh failed",
+                status: retryRes.status,
+              } as ApiError;
             return retryRes.json() as T;
           } catch (refreshErr) {
             _refreshQueue.forEach((p) => p.reject(refreshErr));
@@ -1216,7 +1273,7 @@ class ApiService {
         throw error;
       }
       // Handle abort/timeout error
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof Error && error.name === "AbortError") {
         throw {
           message: "Request timed out. Please try again.",
         } as ApiError;
@@ -1233,8 +1290,8 @@ class ApiService {
     // Health check doesn't need credentials - avoid CORS issues with wildcard origin
     const url = `${this.baseUrl}/health`;
     const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
     });
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.status}`);
@@ -1264,14 +1321,18 @@ class ApiService {
   }
 
   // Role-specific signup endpoints (creates account with session auth)
-  async customerSignup(data: CustomerSignupRequest): Promise<SessionSignupResponse> {
+  async customerSignup(
+    data: CustomerSignupRequest,
+  ): Promise<SessionSignupResponse> {
     return this.request<SessionSignupResponse>("/api/auth/customer/signup", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async vendorSignup(data: VendorSignupRequest): Promise<SessionSignupResponse> {
+  async vendorSignup(
+    data: VendorSignupRequest,
+  ): Promise<SessionSignupResponse> {
     return this.request<SessionSignupResponse>("/api/auth/vendor/signup", {
       method: "POST",
       body: JSON.stringify(data),
@@ -1279,7 +1340,10 @@ class ApiService {
     });
   }
 
-  async notifyAdminOfBusinessApplication(businessId: string, authToken?: string): Promise<{ success: boolean; message: string }> {
+  async notifyAdminOfBusinessApplication(
+    businessId: string,
+    authToken?: string,
+  ): Promise<{ success: boolean; message: string }> {
     try {
       const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -1287,25 +1351,42 @@ class ApiService {
       if (authToken) {
         headers["Authorization"] = `Bearer ${authToken}`;
       }
-      
-      console.log("[API] Notifying admin of new business application:", businessId);
-      return await this.request<{ success: boolean; message: string }>("/api/admin/notifications/business-application", {
-        method: "POST",
-        body: JSON.stringify({ businessId }),
-        headers,
-        timeout: 15000, // 15 second timeout for notification
-      });
+
+      console.log(
+        "[API] Notifying admin of new business application:",
+        businessId,
+      );
+      return await this.request<{ success: boolean; message: string }>(
+        "/api/admin/notifications/business-application",
+        {
+          method: "POST",
+          body: JSON.stringify({ businessId }),
+          headers,
+          timeout: 15000, // 15 second timeout for notification
+        },
+      );
     } catch (error) {
-      console.warn("[API] Failed to notify admin of business application:", error);
-      return { success: false, message: "Notification failed but signup succeeded" };
+      console.warn(
+        "[API] Failed to notify admin of business application:",
+        error,
+      );
+      return {
+        success: false,
+        message: "Notification failed but signup succeeded",
+      };
     }
   }
 
-  async photographerSignup(data: PhotographerSignupRequest): Promise<SessionSignupResponse> {
-    return this.request<SessionSignupResponse>("/api/auth/photographer/signup", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+  async photographerSignup(
+    data: PhotographerSignupRequest,
+  ): Promise<SessionSignupResponse> {
+    return this.request<SessionSignupResponse>(
+      "/api/auth/photographer/signup",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
   }
 
   async forgotPassword(email: string): Promise<void> {
@@ -1315,27 +1396,49 @@ class ApiService {
     });
   }
 
-  async sendPasswordResetCode(email: string): Promise<{ success: boolean; message: string }> {
+  async sendPasswordResetCode(
+    email: string,
+  ): Promise<{ success: boolean; message: string }> {
     return this.request("/api/auth/forgot-password/send-code", {
       method: "POST",
       body: JSON.stringify({ email }),
     });
   }
 
-  async verifyPasswordResetCode(email: string, code: string): Promise<{ success: boolean; resetToken: string }> {
+  async verifyPasswordResetCode(
+    email: string,
+    code: string,
+  ): Promise<{ success: boolean; resetToken: string }> {
     return this.request("/api/auth/forgot-password/verify-code", {
       method: "POST",
       body: JSON.stringify({ email, code }),
     });
   }
 
-  async resetPassword(token: string, email: string, newPassword: string): Promise<void> {
+  async resetPassword(
+    token: string,
+    email: string,
+    newPassword: string,
+  ): Promise<void> {
     const payload = { resetToken: token, email, newPassword };
-    console.error("[api.resetPassword] token:", token ? `${token.slice(0, 8)}... (len=${token.length})` : "EMPTY");
+    console.error(
+      "[api.resetPassword] token:",
+      token ? `${token.slice(0, 8)}... (len=${token.length})` : "EMPTY",
+    );
     console.error("[api.resetPassword] email:", email || "EMPTY");
-    console.error("[api.resetPassword] body JSON:", JSON.stringify({ resetToken: token || "(EMPTY)", email: email || "(EMPTY)", newPassword: "***" }));
+    console.error(
+      "[api.resetPassword] body JSON:",
+      JSON.stringify({
+        resetToken: token || "(EMPTY)",
+        email: email || "(EMPTY)",
+        newPassword: "***",
+      }),
+    );
     const bodyStr = JSON.stringify(payload);
-    console.error("[api.resetPassword] sending bodyStr:", bodyStr.replace(newPassword, "***"));
+    console.error(
+      "[api.resetPassword] sending bodyStr:",
+      bodyStr.replace(newPassword, "***"),
+    );
     const res = await fetch(`${this.baseUrl}/api/auth/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1344,17 +1447,28 @@ class ApiService {
     console.error("[api.resetPassword] response status:", res.status);
     if (!res.ok) {
       let body: any = {};
-      try { body = await res.json(); } catch {}
+      try {
+        body = await res.json();
+      } catch {}
       console.error("[api.resetPassword] error body:", JSON.stringify(body));
-      throw { message: body?.message || `HTTP ${res.status}`, status: res.status, body };
+      throw {
+        message: body?.message || `HTTP ${res.status}`,
+        status: res.status,
+        body,
+      };
     }
   }
 
-  async refreshTokens(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
-    return this.request<{ accessToken: string; refreshToken: string }>("/api/auth/refresh", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken }),
-    });
+  async refreshTokens(
+    refreshToken: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    return this.request<{ accessToken: string; refreshToken: string }>(
+      "/api/auth/refresh",
+      {
+        method: "POST",
+        body: JSON.stringify({ refreshToken }),
+      },
+    );
   }
 
   async logoutWithToken(refreshToken: string): Promise<void> {
@@ -1372,8 +1486,19 @@ class ApiService {
     email?: string | null;
     nonce?: string;
   }): Promise<
-    | { isNewUser: true; requiresUsername: boolean; appleId: string; email: string; fullName?: string }
-    | { isNewUser: false; user: Record<string, any>; accessToken: string; refreshToken: string }
+    | {
+        isNewUser: true;
+        requiresUsername: boolean;
+        appleId: string;
+        email: string;
+        fullName?: string;
+      }
+    | {
+        isNewUser: false;
+        user: Record<string, any>;
+        accessToken: string;
+        refreshToken: string;
+      }
   > {
     return this.request("/api/auth/oauth/apple", {
       method: "POST",
@@ -1388,7 +1513,11 @@ class ApiService {
     username: string;
     password: string;
     role?: string;
-  }): Promise<{ user: Record<string, any>; accessToken: string; refreshToken: string }> {
+  }): Promise<{
+    user: Record<string, any>;
+    accessToken: string;
+    refreshToken: string;
+  }> {
     return this.request("/api/auth/oauth/apple/complete-signup", {
       method: "POST",
       body: JSON.stringify(params),
@@ -1402,11 +1531,11 @@ class ApiService {
       hourlyRate?: number;
       portfolioUrl?: string;
       offerType?: "products" | "services" | "both";
-    }
+    },
   ): Promise<MobileLoginResponse> {
     // Step 1: Call role-specific signup endpoint to create account
     const fullName = `${data.firstName} ${data.lastName}`.trim();
-    
+
     if (data.role === "consumer") {
       const customerPayload: CustomerSignupRequest = {
         email: data.email,
@@ -1421,7 +1550,10 @@ class ApiService {
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
       };
-      console.log("[Signup] Customer payload:", JSON.stringify(customerPayload, null, 2));
+      console.log(
+        "[Signup] Customer payload:",
+        JSON.stringify(customerPayload, null, 2),
+      );
       await this.customerSignup(customerPayload);
     } else if (data.role === "business") {
       const vendorPayload: VendorSignupRequest = {
@@ -1452,40 +1584,54 @@ class ApiService {
         acceptedSubscription: true,
         username: data.username,
       };
-      console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
+      console.log(
+        "[Signup] Vendor payload:",
+        JSON.stringify(vendorPayload, null, 2),
+      );
       await this.vendorSignup(vendorPayload);
-      
+
       // Login to get JWT (backend already notifies admins during signup)
       console.log("[Signup] Business created, logging in to get JWT...");
       const loginResponse = await this.mobileLogin({
         email: data.email,
         password: data.password,
       });
-      
+
       return loginResponse;
     } else if (data.role === "photographer") {
       // Ensure hourlyRate is a valid positive number
       const rawHourlyRate = data.hourlyRate;
       let hourlyRate: number;
-      if (typeof rawHourlyRate === "number" && !isNaN(rawHourlyRate) && rawHourlyRate > 0) {
+      if (
+        typeof rawHourlyRate === "number" &&
+        !isNaN(rawHourlyRate) &&
+        rawHourlyRate > 0
+      ) {
         hourlyRate = rawHourlyRate;
       } else {
         // Fallback to a default rate if invalid
-        console.warn("[Signup] Invalid hourlyRate received:", rawHourlyRate, "- defaulting to 5000 (50/hr)");
+        console.warn(
+          "[Signup] Invalid hourlyRate received:",
+          rawHourlyRate,
+          "- defaulting to 5000 (50/hr)",
+        );
         hourlyRate = 5000; // $50/hr in cents as fallback
       }
-      
+
       // Handle portfolioUrl - use valid URL or placeholder
       let portfolioUrl: string;
       if (data.portfolioUrl && data.portfolioUrl.trim().length > 0) {
         // Ensure it has a protocol
         const url = data.portfolioUrl.trim();
-        portfolioUrl = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+        portfolioUrl =
+          url.startsWith("http://") || url.startsWith("https://")
+            ? url
+            : `https://${url}`;
       } else {
         // Backend might require a valid URL - use a placeholder
         portfolioUrl = "https://outsyde.app";
       }
-      
+
       const photographerPayload = {
         email: data.email,
         password: data.password,
@@ -1497,7 +1643,10 @@ class ApiService {
         portfolioUrl,
         username: data.username,
       };
-      console.log("[Signup] Photographer payload:", JSON.stringify(photographerPayload, null, 2));
+      console.log(
+        "[Signup] Photographer payload:",
+        JSON.stringify(photographerPayload, null, 2),
+      );
       await this.photographerSignup(photographerPayload);
     }
 
@@ -1514,54 +1663,73 @@ class ApiService {
     if (params?.query) queryString.append("q", params.query);
     if (params?.city) queryString.append("city", params.city);
     if (params?.category) queryString.append("category", params.category);
-    
+
     const endpoint = `/api/search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
     return this.request<SearchResponse>(endpoint);
   }
 
-  async unifiedSearch(params?: UnifiedSearchParams, authToken?: string | null, isAdmin: boolean = false): Promise<UnifiedSearchResponse> {
-    console.log("[API] Using /api/search for unified search, isAdmin:", isAdmin, "scope:", params?.scope);
-    
+  async unifiedSearch(
+    params?: UnifiedSearchParams,
+    authToken?: string | null,
+    isAdmin: boolean = false,
+  ): Promise<UnifiedSearchResponse> {
+    console.log(
+      "[API] Using /api/search for unified search, isAdmin:",
+      isAdmin,
+      "scope:",
+      params?.scope,
+    );
+
     const queryString = new URLSearchParams();
     if (params?.q) queryString.append("q", params.q);
     if (params?.city) queryString.append("city", params.city);
     if (params?.category) queryString.append("category", params.category);
     if (params?.scope) queryString.append("scope", params.scope);
-    if (params?.viewerUserId) queryString.append("viewerUserId", params.viewerUserId);
+    if (params?.viewerUserId)
+      queryString.append("viewerUserId", params.viewerUserId);
     if (params?.personalized) queryString.append("personalized", "true");
-    
+
     const endpoint = `/api/search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
-    
+
     try {
       const headers: Record<string, string> = {};
       if (authToken) {
         headers["Authorization"] = `Bearer ${authToken}`;
       }
-      
+
       const response = await this.request<{
         results: UnifiedSearchItem[];
         total: number;
         personalized?: boolean;
       }>(endpoint, { headers });
-      
+
       console.log("[API] Unified search results:", response.total, "items");
-      
+
       return {
         results: response.results || [],
         total: response.total || 0,
         personalized: response.personalized || false,
       };
     } catch (error) {
-      console.log("[API] Unified search endpoint failed, falling back to legacy search");
+      console.log(
+        "[API] Unified search endpoint failed, falling back to legacy search",
+      );
       const fallbackResponse = await this.search({
         query: params?.q,
         city: params?.city,
         category: params?.category,
       });
-      const normalizedResults = this.normalizeSearchResults(fallbackResponse, isAdmin);
-      console.log("[API] Fallback results:", normalizedResults.length, "from legacy search");
+      const normalizedResults = this.normalizeSearchResults(
+        fallbackResponse,
+        isAdmin,
+      );
+      console.log(
+        "[API] Fallback results:",
+        normalizedResults.length,
+        "from legacy search",
+      );
       return {
-        results: normalizedResults.map(r => ({
+        results: normalizedResults.map((r) => ({
           id: r.id,
           type: r.resultType,
           name: r.name,
@@ -1580,7 +1748,9 @@ class ApiService {
     }
   }
 
-  normalizeUnifiedResults(response: UnifiedSearchResponse): UnifiedSearchResult[] {
+  normalizeUnifiedResults(
+    response: UnifiedSearchResponse,
+  ): UnifiedSearchResult[] {
     // Helper to validate image URLs (filter out local file paths)
     const isValidImageUrl = (url?: string): string => {
       if (!url) return "";
@@ -1590,35 +1760,32 @@ class ApiService {
       return "";
     };
 
-    return response.results.map(item => {
+    return response.results.map((item) => {
       // Backend returns: title, imageUrl, subtitle, providerUserId, ratingAvg, ratingCount, baseScore
       // Map these to our normalized fields
-      
+
       // Get valid avatar URL - check imageUrl first (actual backend field), then fallbacks
-      const avatarUrl = 
+      const avatarUrl =
         isValidImageUrl(item.imageUrl) ||
-        isValidImageUrl(item.profileImage) || 
-        isValidImageUrl(item.avatarUrl) || 
-        isValidImageUrl(item.avatar) || 
-        isValidImageUrl(item.logoImage) || 
-        isValidImageUrl(item.profileImageUrl) || 
+        isValidImageUrl(item.profileImage) ||
+        isValidImageUrl(item.avatarUrl) ||
+        isValidImageUrl(item.avatar) ||
+        isValidImageUrl(item.logoImage) ||
+        isValidImageUrl(item.profileImageUrl) ||
         "";
       const coverUrl = isValidImageUrl(item.coverImage) || "";
 
       // Resolve display name - title is the primary field from backend
-      const resolvedDisplayName = 
-        item.title ||
-        item.displayName || 
-        item.name ||
-        null;
-      
+      const resolvedDisplayName =
+        item.title || item.displayName || item.name || null;
+
       const resolvedUsername = item.username || null;
-      
+
       // Parse city/state from subtitle if not provided separately
       let resolvedCity = item.city;
       let resolvedState = item.state;
       if (!resolvedCity && item.subtitle) {
-        const parts = item.subtitle.split(',').map(p => p.trim());
+        const parts = item.subtitle.split(",").map((p) => p.trim());
         if (parts.length >= 2) {
           resolvedCity = parts[0];
           resolvedState = parts[1];
@@ -1626,9 +1793,12 @@ class ApiService {
           resolvedCity = parts[0];
         }
       }
-      
+
       // Final name resolution
-      const resolvedName = resolvedDisplayName || (resolvedUsername ? `@${resolvedUsername}` : null) || "Unknown";
+      const resolvedName =
+        resolvedDisplayName ||
+        (resolvedUsername ? `@${resolvedUsername}` : null) ||
+        "Unknown";
 
       return {
         id: item.id,
@@ -1641,9 +1811,14 @@ class ApiService {
         city: resolvedCity || "Unknown",
         state: resolvedState || "",
         rating: item.rating || item.ratingAvg || 0,
-        priceRange: item.priceRange ||
-          (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : "") ||
-          (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : ""),
+        priceRange:
+          item.priceRange ||
+          (item.hourlyRate
+            ? `$${(item.hourlyRate / 100).toFixed(0)}/hr`
+            : "") ||
+          (item.price
+            ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}`
+            : ""),
         category: item.category || item.type,
         description: item.description || "",
         subscriptionTier: item.subscriptionTier,
@@ -1666,43 +1841,63 @@ class ApiService {
   }
 
   async getPhotographer(id: string): Promise<ApiPhotographerDetail> {
-    const response = await this.request<{ success: boolean; photographer: ApiPhotographerDetail }>(`/api/photographers/${id}`);
+    const response = await this.request<{
+      success: boolean;
+      photographer: ApiPhotographerDetail;
+    }>(`/api/photographers/${id}`);
     return response.photographer;
   }
 
   async getBusiness(id: string): Promise<ApiBusinessDetail> {
-    const response = await this.request<{ success?: boolean; business?: ApiBusinessDetail } & ApiBusinessDetail>(`/api/businesses/${id}`);
+    const response = await this.request<
+      { success?: boolean; business?: ApiBusinessDetail } & ApiBusinessDetail
+    >(`/api/businesses/${id}`);
     // Handle both wrapped {business: {...}} and direct {...} response formats
     return response.business || response;
   }
 
-  async getBusinessPublicProducts(businessId: string): Promise<{ products: VendorProduct[] }> {
-    return this.request<{ products: VendorProduct[] }>(`/api/businesses/${businessId}/products`);
+  async getBusinessPublicProducts(
+    businessId: string,
+  ): Promise<{ products: VendorProduct[] }> {
+    return this.request<{ products: VendorProduct[] }>(
+      `/api/businesses/${businessId}/products`,
+    );
   }
 
-  async getBusinessPublicServices(businessId: string): Promise<{ services: VendorService[] }> {
-    return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
+  async getBusinessPublicServices(
+    businessId: string,
+  ): Promise<{ services: VendorService[] }> {
+    return this.request<{ services: VendorService[] }>(
+      `/api/businesses/${businessId}/services`,
+    );
   }
 
-  async getConversations(authToken?: string | null): Promise<ApiConversation[]> {
+  async getConversations(
+    authToken?: string | null,
+  ): Promise<ApiConversation[]> {
     const headers: Record<string, string> = {};
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    const response = await this.request<ApiConversation[] | { conversations: ApiConversation[] }>("/api/conversations", {
+    const response = await this.request<
+      ApiConversation[] | { conversations: ApiConversation[] }
+    >("/api/conversations", {
       headers,
     });
-    
+
     // Normalize response - handle both array and wrapped object
     if (Array.isArray(response)) {
       return response;
-    } else if (response && 'conversations' in response) {
+    } else if (response && "conversations" in response) {
       return response.conversations || [];
     }
     return [];
   }
 
-  async createOrGetConversation(data: CreateConversationRequest, authToken?: string | null): Promise<ApiConversation> {
+  async createOrGetConversation(
+    data: CreateConversationRequest,
+    authToken?: string | null,
+  ): Promise<ApiConversation> {
     const headers: Record<string, string> = {};
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
@@ -1714,59 +1909,84 @@ class ApiService {
     });
   }
 
-  async getMessages(conversationId: string, authToken?: string | null): Promise<ApiMessage[]> {
+  async getMessages(
+    conversationId: string,
+    authToken?: string | null,
+  ): Promise<ApiMessage[]> {
     const headers: Record<string, string> = {};
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    return this.request<ApiMessage[]>(`/api/conversations/${conversationId}/messages`, {
-      headers,
-    });
+    return this.request<ApiMessage[]>(
+      `/api/conversations/${conversationId}/messages`,
+      {
+        headers,
+      },
+    );
   }
 
-  async sendMessage(conversationId: string, content: string, authToken?: string | null): Promise<ApiMessage> {
+  async sendMessage(
+    conversationId: string,
+    content: string,
+    authToken?: string | null,
+  ): Promise<ApiMessage> {
     const headers: Record<string, string> = {};
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    return this.request<ApiMessage>(`/api/conversations/${conversationId}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ content }),
-      headers,
-    });
+    return this.request<ApiMessage>(
+      `/api/conversations/${conversationId}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify({ content }),
+        headers,
+      },
+    );
   }
 
-  async createBusiness(data: CreateBusinessRequest, authToken: string): Promise<ApiBusinessDetail> {
+  async createBusiness(
+    data: CreateBusinessRequest,
+    authToken: string,
+  ): Promise<ApiBusinessDetail> {
     return this.request<ApiBusinessDetail>("/api/businesses", {
       method: "POST",
       body: JSON.stringify(data),
       headers: {
-        "Authorization": `Bearer ${authToken}`,
+        Authorization: `Bearer ${authToken}`,
       },
     });
   }
 
-  async createPhotographer(data: CreatePhotographerRequest, authToken: string): Promise<ApiPhotographerDetail> {
+  async createPhotographer(
+    data: CreatePhotographerRequest,
+    authToken: string,
+  ): Promise<ApiPhotographerDetail> {
     return this.request<ApiPhotographerDetail>("/api/photographers", {
       method: "POST",
       body: JSON.stringify(data),
       headers: {
-        "Authorization": `Bearer ${authToken}`,
+        Authorization: `Bearer ${authToken}`,
       },
     });
   }
 
   async getAdminStats(authToken: string): Promise<AdminStats> {
     return this.request<AdminStats>("/api/admin/stats", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async getAdminUsers(authToken: string, search?: string): Promise<AdminUser[]> {
+  async getAdminUsers(
+    authToken: string,
+    search?: string,
+  ): Promise<AdminUser[]> {
     const query = search ? `?search=${encodeURIComponent(search)}` : "";
-    const response = await this.request<AdminUser[] | { users?: any[] }>(`/api/admin/users${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    const response = await this.request<AdminUser[] | { users?: any[] }>(
+      `/api/admin/users${query}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
     const users = Array.isArray(response) ? response : response?.users || [];
     return users.map((user: any) => ({
       id: user.id,
@@ -1788,13 +2008,19 @@ class ApiService {
     }));
   }
 
-  async getAdminBusinesses(authToken: string, status?: string, search?: string): Promise<AdminBusiness[]> {
+  async getAdminBusinesses(
+    authToken: string,
+    status?: string,
+    search?: string,
+  ): Promise<AdminBusiness[]> {
     const params = new URLSearchParams();
     if (status) params.append("status", status);
     if (search) params.append("search", search);
     const query = params.toString() ? `?${params.toString()}` : "";
-    const response = await this.request<{ businesses: AdminBusiness[] } | AdminBusiness[]>(`/api/admin/businesses${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
+    const response = await this.request<
+      { businesses: AdminBusiness[] } | AdminBusiness[]
+    >(`/api/admin/businesses${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
     });
     let businesses: AdminBusiness[];
     if (Array.isArray(response)) {
@@ -1802,82 +2028,129 @@ class ApiService {
     } else {
       businesses = response.businesses || [];
     }
-    console.log(`[API] getAdminBusinesses - Fetched ${businesses.length} businesses. Sample IDs:`, businesses.slice(0, 3).map(b => ({ id: b.id, name: b.name })));
+    console.log(
+      `[API] getAdminBusinesses - Fetched ${businesses.length} businesses. Sample IDs:`,
+      businesses.slice(0, 3).map((b) => ({ id: b.id, name: b.name })),
+    );
     return businesses;
   }
 
-  async getAdminPhotographers(authToken: string, search?: string): Promise<AdminPhotographer[]> {
+  async getAdminPhotographers(
+    authToken: string,
+    search?: string,
+  ): Promise<AdminPhotographer[]> {
     const query = search ? `?search=${encodeURIComponent(search)}` : "";
-    return this.request<AdminPhotographer[]>(`/api/admin/photographers${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<AdminPhotographer[]>(
+      `/api/admin/photographers${query}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async getAdminInfluencers(authToken: string, status?: string): Promise<AdminInfluencer[]> {
+  async getAdminInfluencers(
+    authToken: string,
+    status?: string,
+  ): Promise<AdminInfluencer[]> {
     const query = status ? `?status=${status}` : "";
     return this.request<AdminInfluencer[]>(`/api/admin/influencers${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async getPaymentStats(authToken: string): Promise<PaymentStats> {
     return this.request<PaymentStats>("/api/admin/payments/stats", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async getAdminOrders(authToken: string): Promise<AdminOrder[]> {
     return this.request<AdminOrder[]>("/api/admin/orders", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async getAdminBookings(authToken: string): Promise<AdminBooking[]> {
     return this.request<AdminBooking[]>("/api/admin/bookings", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async getAdminRefunds(authToken: string): Promise<AdminRefund[]> {
     return this.request<AdminRefund[]>("/api/admin/refunds", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async getAdminConversations(authToken: string): Promise<AdminConversation[]> {
     return this.request<AdminConversation[]>("/api/admin/conversations", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async approveApplication(authToken: string, type: "business" | "influencer", id: string, notes?: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
-    const endpoint = type === "business" ? `/api/admin/businesses/${id}/approve` : `/api/admin/applications/${id}/approve`;
-    console.log(`[API] approveApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`);
-    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-      body: JSON.stringify({ notes }),
-    });
+  async approveApplication(
+    authToken: string,
+    type: "business" | "influencer",
+    id: string,
+    notes?: string,
+  ): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
+    const endpoint =
+      type === "business"
+        ? `/api/admin/businesses/${id}/approve`
+        : `/api/admin/applications/${id}/approve`;
+    console.log(
+      `[API] approveApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`,
+    );
+    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(
+      endpoint,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ notes }),
+      },
+    );
   }
 
-  async rejectApplication(authToken: string, type: "business" | "influencer", id: string, reason: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
-    const endpoint = type === "business" ? `/api/admin/businesses/${id}/reject` : `/api/admin/applications/${id}/reject`;
-    console.log(`[API] rejectApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`);
-    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-      body: JSON.stringify({ reason }),
-    });
+  async rejectApplication(
+    authToken: string,
+    type: "business" | "influencer",
+    id: string,
+    reason: string,
+  ): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
+    const endpoint =
+      type === "business"
+        ? `/api/admin/businesses/${id}/reject`
+        : `/api/admin/applications/${id}/reject`;
+    console.log(
+      `[API] rejectApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`,
+    );
+    return this.request<{ success: boolean; business?: AdminBusinessDetail }>(
+      endpoint,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    );
   }
 
-  async getAdminApplications(authToken: string, status?: "pending" | "approved" | "rejected"): Promise<{ applications: AdminBusiness[] }> {
+  async getAdminApplications(
+    authToken: string,
+    status?: "pending" | "approved" | "rejected",
+  ): Promise<{ applications: AdminBusiness[] }> {
     const query = status ? `?status=${status}` : "";
-    return this.request<{ applications: AdminBusiness[] }>(`/api/admin/applications${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<{ applications: AdminBusiness[] }>(
+      `/api/admin/applications${query}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async getAdminUserDetail(authToken: string, userId: string): Promise<{
+  async getAdminUserDetail(
+    authToken: string,
+    userId: string,
+  ): Promise<{
     user: AdminUser;
     orders: AdminOrder[];
     bookings: AdminBooking[];
@@ -1885,7 +2158,7 @@ class ApiService {
     earnings: number;
   }> {
     const response = await this.request<any>(`/api/admin/users/${userId}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
     const user = response?.user || {};
     const accountType: AdminUser["accountType"] = user.isPhotographer
@@ -1922,25 +2195,45 @@ class ApiService {
     };
   }
 
-  async disableAdminUser(authToken: string, userId: string): Promise<{ success: boolean; user?: unknown }> {
-    return this.request<{ success: boolean; user?: unknown }>(`/api/admin/users/${userId}/disable`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async disableAdminUser(
+    authToken: string,
+    userId: string,
+  ): Promise<{ success: boolean; user?: unknown }> {
+    return this.request<{ success: boolean; user?: unknown }>(
+      `/api/admin/users/${userId}/disable`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async enableAdminUser(authToken: string, userId: string): Promise<{ success: boolean; user?: unknown }> {
-    return this.request<{ success: boolean; user?: unknown }>(`/api/admin/users/${userId}/enable`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async enableAdminUser(
+    authToken: string,
+    userId: string,
+  ): Promise<{ success: boolean; user?: unknown }> {
+    return this.request<{ success: boolean; user?: unknown }>(
+      `/api/admin/users/${userId}/enable`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async getAdminBusinessDetail(authToken: string, businessId: string): Promise<AdminBusinessDetail> {
-    console.log(`[API] getAdminBusinessDetail - ID: ${businessId}, Full URL: ${this.baseUrl}/api/admin/businesses/${businessId}`);
-    return this.request<AdminBusinessDetail>(`/api/admin/businesses/${businessId}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getAdminBusinessDetail(
+    authToken: string,
+    businessId: string,
+  ): Promise<AdminBusinessDetail> {
+    console.log(
+      `[API] getAdminBusinessDetail - ID: ${businessId}, Full URL: ${this.baseUrl}/api/admin/businesses/${businessId}`,
+    );
+    return this.request<AdminBusinessDetail>(
+      `/api/admin/businesses/${businessId}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   async getPhotographerDashboard(authToken: string): Promise<{
@@ -1949,83 +2242,118 @@ class ApiService {
     billingAddress?: BillingAddress;
   }> {
     return this.request("/api/photographer/dashboard", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async getPhotographerBookings(authToken: string, status?: string): Promise<PhotographerBooking[]> {
+  async getPhotographerBookings(
+    authToken: string,
+    status?: string,
+  ): Promise<PhotographerBooking[]> {
     const query = status ? `?status=${status}` : "";
-    return this.request<PhotographerBooking[]>(`/api/photographer/bookings${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<PhotographerBooking[]>(
+      `/api/photographer/bookings${query}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async getPhotographerServices(authToken: string): Promise<PhotographerService[]> {
+  async getPhotographerServices(
+    authToken: string,
+  ): Promise<PhotographerService[]> {
     return this.request<PhotographerService[]>("/api/photographer/services", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updatePhotographerService(authToken: string, serviceId: string, data: Partial<PhotographerService>): Promise<PhotographerService> {
-    return this.request<PhotographerService>(`/api/photographer/services/${serviceId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async updatePhotographerService(
+    authToken: string,
+    serviceId: string,
+    data: Partial<PhotographerService>,
+  ): Promise<PhotographerService> {
+    return this.request<PhotographerService>(
+      `/api/photographer/services/${serviceId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async createPhotographerService(authToken: string, data: Omit<PhotographerService, "id">): Promise<PhotographerService> {
+  async createPhotographerService(
+    authToken: string,
+    data: Omit<PhotographerService, "id">,
+  ): Promise<PhotographerService> {
     return this.request<PhotographerService>("/api/photographer/services", {
       method: "POST",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async getPhotographerHours(authToken: string): Promise<PhotographerHours[]> {
     return this.request<PhotographerHours[]>("/api/photographer/hours", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updatePhotographerHours(authToken: string, hours: PhotographerHours[]): Promise<void> {
+  async updatePhotographerHours(
+    authToken: string,
+    hours: PhotographerHours[],
+  ): Promise<void> {
     await this.request<void>("/api/photographer/hours", {
       method: "PUT",
       body: JSON.stringify({ hours }),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updatePhotographerProfile(authToken: string, data: Partial<PhotographerDashboardProfile>): Promise<PhotographerDashboardProfile> {
+  async updatePhotographerProfile(
+    authToken: string,
+    data: Partial<PhotographerDashboardProfile>,
+  ): Promise<PhotographerDashboardProfile> {
     return this.request<PhotographerDashboardProfile>("/api/photographers/me", {
       method: "PUT",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updatePhotographerBillingAddress(authToken: string, address: BillingAddress): Promise<void> {
+  async updatePhotographerBillingAddress(
+    authToken: string,
+    address: BillingAddress,
+  ): Promise<void> {
     await this.request<void>("/api/photographer/billing-address", {
       method: "PUT",
       body: JSON.stringify(address),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async connectStripe(authToken: string, type: "photographer" | "business"): Promise<{ url: string }> {
+  async connectStripe(
+    authToken: string,
+    type: "photographer" | "business",
+  ): Promise<{ url: string }> {
     return this.request<{ url: string }>(`/api/${type}/connect-stripe`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // POST /api/stripe/connect/complete - Verify Stripe Connect account and flip stripe_onboarding_complete
-  async completeStripeConnect(authToken: string): Promise<{ complete: boolean; message?: string }> {
+  async completeStripeConnect(
+    authToken: string,
+  ): Promise<{ complete: boolean; message?: string }> {
     console.log("[DeepLink] Calling /api/stripe/connect/complete");
-    return this.request<{ complete: boolean; message?: string }>("/api/stripe/connect/complete", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<{ complete: boolean; message?: string }>(
+      "/api/stripe/connect/complete",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // ==========================================
@@ -2033,213 +2361,313 @@ class ApiService {
   // ==========================================
 
   // GET /api/photographers/me - Get current photographer profile
-  async getPhotographerMe(authToken: string): Promise<VendorBookerPhotographer> {
+  async getPhotographerMe(
+    authToken: string,
+  ): Promise<VendorBookerPhotographer> {
     return this.request<VendorBookerPhotographer>("/api/photographers/me", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // PATCH /api/photographers/me - Update photographer profile
-  // Backend accepts: displayName, bio, city, state, portfolioUrl, hourlyRate (in dollars), 
+  // Backend accepts: displayName, bio, city, state, portfolioUrl, hourlyRate (in dollars),
   // specialties (array), coverImage, logoImage, brandColors
   // Backend uses !== undefined checks, so we pass through values as-is
-  async updatePhotographerMe(authToken: string, data: Record<string, any>): Promise<{ photographer: VendorBookerPhotographer }> {
-    console.log("[API] updatePhotographerMe payload:", JSON.stringify(data, null, 2));
-    
+  async updatePhotographerMe(
+    authToken: string,
+    data: Record<string, any>,
+  ): Promise<{ photographer: VendorBookerPhotographer }> {
+    console.log(
+      "[API] updatePhotographerMe payload:",
+      JSON.stringify(data, null, 2),
+    );
+
     // Pass through the data directly - caller is responsible for only sending changed fields
     // Backend will reject if no valid fields are provided
     if (!data || Object.keys(data).length === 0) {
       console.warn("[API] updatePhotographerMe: Empty payload");
       throw { message: "No changes to save.", status: 400 };
     }
-    
-    return this.request<{ photographer: VendorBookerPhotographer }>("/api/photographers/me", {
-      method: "PATCH",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+
+    return this.request<{ photographer: VendorBookerPhotographer }>(
+      "/api/photographers/me",
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // PATCH /api/users/me - Update current user profile (for consumers/influencers)
-  async updateUserMe(authToken: string, data: { 
-    profileImageUrl?: string | null; 
-    coverMediaUrl?: string | null; 
-    coverMediaType?: "image" | "video" | null;
-    displayName?: string;
-    username?: string;
-    bio?: string;
-    city?: string;
-    state?: string;
-  }): Promise<{ success: boolean; user?: any; message?: string }> {
+  async updateUserMe(
+    authToken: string,
+    data: {
+      profileImageUrl?: string | null;
+      coverMediaUrl?: string | null;
+      coverMediaType?: "image" | "video" | null;
+      displayName?: string;
+      username?: string;
+      bio?: string;
+      city?: string;
+      state?: string;
+    },
+  ): Promise<{ success: boolean; user?: any; message?: string }> {
     console.log("[API] updateUserMe payload:", JSON.stringify(data, null, 2));
-    
+
     // Filter out undefined/null values to only send actual changes
     const filteredData = Object.fromEntries(
-      Object.entries(data).filter(([_, value]) => value !== undefined && value !== null)
+      Object.entries(data).filter(
+        ([_, value]) => value !== undefined && value !== null,
+      ),
     );
-    
+
     if (!filteredData || Object.keys(filteredData).length === 0) {
       console.warn("[API] updateUserMe: Empty payload after filtering");
       throw { message: "No changes to save.", status: 400 };
     }
-    
-    console.log("[API] updateUserMe filtered payload:", JSON.stringify(filteredData, null, 2));
-    
-    return this.request<{ success: boolean; user?: any; message?: string }>("/api/users/me", {
-      method: "PATCH",
-      body: JSON.stringify(filteredData),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+
+    console.log(
+      "[API] updateUserMe filtered payload:",
+      JSON.stringify(filteredData, null, 2),
+    );
+
+    return this.request<{ success: boolean; user?: any; message?: string }>(
+      "/api/users/me",
+      {
+        method: "PATCH",
+        body: JSON.stringify(filteredData),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // PATCH /api/users/identity - Update username and/or display name
-  async updateUserIdentity(authToken: string, data: { 
-    username?: string; 
-    displayName?: string;
-  }): Promise<{ success: boolean; user?: any; message?: string }> {
-    console.log("[API] updateUserIdentity payload:", JSON.stringify(data, null, 2));
-    
-    const filteredData = Object.fromEntries(
-      Object.entries(data).filter(([_, value]) => value !== undefined && value !== null && value !== "")
+  async updateUserIdentity(
+    authToken: string,
+    data: {
+      username?: string;
+      displayName?: string;
+    },
+  ): Promise<{ success: boolean; user?: any; message?: string }> {
+    console.log(
+      "[API] updateUserIdentity payload:",
+      JSON.stringify(data, null, 2),
     );
-    
+
+    const filteredData = Object.fromEntries(
+      Object.entries(data).filter(
+        ([_, value]) => value !== undefined && value !== null && value !== "",
+      ),
+    );
+
     if (!filteredData || Object.keys(filteredData).length === 0) {
       console.warn("[API] updateUserIdentity: Empty payload after filtering");
       throw { message: "No changes to save.", status: 400 };
     }
-    
-    return this.request<{ success: boolean; user?: any; message?: string }>("/api/users/identity", {
-      method: "PATCH",
-      body: JSON.stringify(filteredData),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+
+    return this.request<{ success: boolean; user?: any; message?: string }>(
+      "/api/users/identity",
+      {
+        method: "PATCH",
+        body: JSON.stringify(filteredData),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // GET /api/users/identity/status - Get cooldown status for username/display name changes
-  async getUserIdentityStatus(authToken: string): Promise<{ 
-    usernameCooldownDays?: number; 
+  async getUserIdentityStatus(authToken: string): Promise<{
+    usernameCooldownDays?: number;
     displayNameCooldownDays?: number;
     canChangeUsername: boolean;
     canChangeDisplayName: boolean;
   }> {
-    return this.request<{ 
-      usernameCooldownDays?: number; 
+    return this.request<{
+      usernameCooldownDays?: number;
       displayNameCooldownDays?: number;
       canChangeUsername: boolean;
       canChangeDisplayName: boolean;
     }>("/api/users/identity/status", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // GET /api/users/check-username - Check if a username is available
-  async checkUsernameAvailable(username: string): Promise<{ available: boolean }> {
+  async checkUsernameAvailable(
+    username: string,
+  ): Promise<{ available: boolean }> {
     return this.request<{ available: boolean }>(
-      `/api/users/check-username?username=${encodeURIComponent(username)}`
+      `/api/users/check-username?username=${encodeURIComponent(username)}`,
     );
   }
 
   // GET /api/photographers/me/stripe-status - Get Stripe onboarding status
-  async getPhotographerStripeStatus(authToken: string): Promise<StripeOnboardingStatus> {
-    return this.request<StripeOnboardingStatus>("/api/photographers/me/stripe-status", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getPhotographerStripeStatus(
+    authToken: string,
+  ): Promise<StripeOnboardingStatus> {
+    return this.request<StripeOnboardingStatus>(
+      "/api/photographers/me/stripe-status",
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // POST /api/photographers/me/stripe-onboarding - Start Stripe onboarding
-  async startPhotographerStripeOnboarding(authToken: string, returnUrl?: string): Promise<{ url: string }> {
+  async startPhotographerStripeOnboarding(
+    authToken: string,
+    returnUrl?: string,
+  ): Promise<{ url: string }> {
     const body: Record<string, string> = {};
     if (returnUrl) {
       body.returnUrl = returnUrl;
       body.refreshUrl = returnUrl;
     }
-    return this.request<{ url: string }>("/api/photographers/me/stripe-onboarding", {
-      method: "POST",
-      body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<{ url: string }>(
+      "/api/photographers/me/stripe-onboarding",
+      {
+        method: "POST",
+        body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // GET /api/photographers/me/services - Get photographer's services
-  async getPhotographerMeServices(authToken: string): Promise<{ services: VendorBookerPhotographerService[] }> {
-    return this.request<{ services: VendorBookerPhotographerService[] }>("/api/photographers/me/services", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getPhotographerMeServices(
+    authToken: string,
+  ): Promise<{ services: VendorBookerPhotographerService[] }> {
+    return this.request<{ services: VendorBookerPhotographerService[] }>(
+      "/api/photographers/me/services",
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // GET /api/photographers/:id/services - Get public services for a photographer
-  async getPhotographerPublicServices(photographerId: string): Promise<VendorBookerPhotographerService[]> {
-    return this.request<VendorBookerPhotographerService[]>(`/api/photographers/${photographerId}/services`);
+  async getPhotographerPublicServices(
+    photographerId: string,
+  ): Promise<VendorBookerPhotographerService[]> {
+    return this.request<VendorBookerPhotographerService[]>(
+      `/api/photographers/${photographerId}/services`,
+    );
   }
 
   // GET /api/photographers/:id/availability - Get public availability for a photographer
-  async getPhotographerPublicAvailability(photographerId: string): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
-    return this.request<{ availability: VendorBookerAvailabilitySlot[] }>(`/api/photographers/${photographerId}/availability`);
+  async getPhotographerPublicAvailability(
+    photographerId: string,
+  ): Promise<{ availability: VendorBookerAvailabilitySlot[] }> {
+    return this.request<{ availability: VendorBookerAvailabilitySlot[] }>(
+      `/api/photographers/${photographerId}/availability`,
+    );
   }
 
   // GET /api/photographers/:id/blocked-dates - Get public blocked dates for a photographer
-  async getPhotographerPublicBlockedDates(photographerId: string): Promise<{ blockedDates: BlockedDate[] }> {
-    return this.request<{ blockedDates: BlockedDate[] }>(`/api/photographers/${photographerId}/blocked-dates`);
+  async getPhotographerPublicBlockedDates(
+    photographerId: string,
+  ): Promise<{ blockedDates: BlockedDate[] }> {
+    return this.request<{ blockedDates: BlockedDate[] }>(
+      `/api/photographers/${photographerId}/blocked-dates`,
+    );
   }
 
   // POST /api/photographers/me/services - Create a new service
-  async createPhotographerMeService(authToken: string, data: Partial<VendorBookerPhotographerService>): Promise<{ service: VendorBookerPhotographerService }> {
-    return this.request<{ service: VendorBookerPhotographerService }>("/api/photographers/me/services", {
-      method: "POST",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async createPhotographerMeService(
+    authToken: string,
+    data: Partial<VendorBookerPhotographerService>,
+  ): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>(
+      "/api/photographers/me/services",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // PATCH /api/photographers/me/services/:id - Update a service
-  async updatePhotographerMeService(authToken: string, serviceId: string, data: Partial<VendorBookerPhotographerService>): Promise<{ service: VendorBookerPhotographerService }> {
-    return this.request<{ service: VendorBookerPhotographerService }>(`/api/photographers/me/services/${serviceId}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async updatePhotographerMeService(
+    authToken: string,
+    serviceId: string,
+    data: Partial<VendorBookerPhotographerService>,
+  ): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>(
+      `/api/photographers/me/services/${serviceId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // DELETE /api/photographers/me/services/:id - Delete a service
-  async deletePhotographerMeService(authToken: string, serviceId: string): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>(`/api/photographers/me/services/${serviceId}`, {
-      method: "DELETE",
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async deletePhotographerMeService(
+    authToken: string,
+    serviceId: string,
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(
+      `/api/photographers/me/services/${serviceId}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // POST /api/photographers/me/services/:id/go-live - Publish a service (creates Stripe product)
-  async goLivePhotographerService(authToken: string, serviceId: string): Promise<{ service: VendorBookerPhotographerService }> {
-    return this.request<{ service: VendorBookerPhotographerService }>(`/api/photographers/me/services/${serviceId}/go-live`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async goLivePhotographerService(
+    authToken: string,
+    serviceId: string,
+  ): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>(
+      `/api/photographers/me/services/${serviceId}/go-live`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // POST /api/photographers/me/services/:id/archive - Archive a service
-  async archivePhotographerService(authToken: string, serviceId: string): Promise<{ service: VendorBookerPhotographerService }> {
-    return this.request<{ service: VendorBookerPhotographerService }>(`/api/photographers/me/services/${serviceId}/archive`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async archivePhotographerService(
+    authToken: string,
+    serviceId: string,
+  ): Promise<{ service: VendorBookerPhotographerService }> {
+    return this.request<{ service: VendorBookerPhotographerService }>(
+      `/api/photographers/me/services/${serviceId}/archive`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // GET /api/photographers/me/availability - Get weekly schedule and travel settings
   async getPhotographerMeAvailability(authToken: string): Promise<{
-    hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }>;
+    hoursOfOperation: Record<
+      string,
+      { open: boolean; start?: string; end?: string }
+    >;
     travel_buffer_minutes: number;
     service_radius_miles: number;
     service_locations: Array<{ name: string; address: string }>;
     blackoutDates: Array<{ id: number; date: string; reason?: string }>;
   }> {
     return this.request<{
-      hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }>;
+      hoursOfOperation: Record<
+        string,
+        { open: boolean; start?: string; end?: string }
+      >;
       travel_buffer_minutes: number;
       service_radius_miles: number;
       service_locations: Array<{ name: string; address: string }>;
       blackoutDates: Array<{ id: number; date: string; reason?: string }>;
     }>("/api/photographers/me/availability", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -2247,72 +2675,92 @@ class ApiService {
   async updatePhotographerMeAvailability(
     authToken: string,
     data: {
-      hoursOfOperation?: Record<string, { open: boolean; start?: string; end?: string }>;
+      hoursOfOperation?: Record<
+        string,
+        { open: boolean; start?: string; end?: string }
+      >;
       travel_buffer_minutes?: number;
       service_radius_miles?: number;
       service_locations?: Array<{ name: string; address: string }>;
-    }
+    },
   ): Promise<{
-    hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }>;
+    hoursOfOperation: Record<
+      string,
+      { open: boolean; start?: string; end?: string }
+    >;
     travel_buffer_minutes: number;
     service_radius_miles: number;
     service_locations: Array<{ name: string; address: string }>;
   }> {
     return this.request<{
-      hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }>;
+      hoursOfOperation: Record<
+        string,
+        { open: boolean; start?: string; end?: string }
+      >;
       travel_buffer_minutes: number;
       service_radius_miles: number;
       service_locations: Array<{ name: string; address: string }>;
     }>("/api/photographers/me/availability", {
       method: "PUT",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // POST /api/photographers/me/availability/blackout-dates - Add blackout date
   async addPhotographerBlackoutDate(
     authToken: string,
-    data: { date: string; reason?: string }
+    data: { date: string; reason?: string },
   ): Promise<{ blackoutDate: { id: number; date: string; reason?: string } }> {
-    return this.request<{ blackoutDate: { id: number; date: string; reason?: string } }>(
-      "/api/photographers/me/availability/blackout-dates",
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: { "Authorization": `Bearer ${authToken}` },
-      }
-    );
+    return this.request<{
+      blackoutDate: { id: number; date: string; reason?: string };
+    }>("/api/photographers/me/availability/blackout-dates", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
   }
 
   // DELETE /api/photographers/me/availability/blackout-dates/:id - Remove blackout date
-  async removePhotographerBlackoutDate(authToken: string, blackoutDateId: number): Promise<{ success: boolean }> {
+  async removePhotographerBlackoutDate(
+    authToken: string,
+    blackoutDateId: number,
+  ): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>(
       `/api/photographers/me/availability/blackout-dates/${blackoutDateId}`,
       {
         method: "DELETE",
-        headers: { "Authorization": `Bearer ${authToken}` },
-      }
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
     );
   }
 
   // GET /api/photographers/me/bookings - Get booking records
-  async getPhotographerMeBookings(authToken: string): Promise<{ bookings: PhotographerBooking[] }> {
-    return this.request<{ bookings: PhotographerBooking[] }>("/api/photographers/me/bookings", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getPhotographerMeBookings(
+    authToken: string,
+  ): Promise<{ bookings: PhotographerBooking[] }> {
+    return this.request<{ bookings: PhotographerBooking[] }>(
+      "/api/photographers/me/bookings",
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // GET /api/photographers/me/blocked-dates - Get blocked dates (legacy, now uses blackout-dates)
-  async getPhotographerBlockedDates(authToken: string): Promise<{ blockedDates: BlockedDate[] }> {
+  async getPhotographerBlockedDates(
+    authToken: string,
+  ): Promise<{ blockedDates: BlockedDate[] }> {
     try {
       const result = await this.getPhotographerMeAvailability(authToken);
-      const blockedDates: BlockedDate[] = (result.blackoutDates || []).map((bd) => ({
-        id: bd.id.toString(),
-        date: bd.date,
-        isFullDay: true,
-        reason: bd.reason,
-      }));
+      const blockedDates: BlockedDate[] = (result.blackoutDates || []).map(
+        (bd) => ({
+          id: bd.id.toString(),
+          date: bd.date,
+          isFullDay: true,
+          reason: bd.reason,
+        }),
+      );
       return { blockedDates };
     } catch {
       return { blockedDates: [] };
@@ -2320,8 +2768,13 @@ class ApiService {
   }
 
   // PUT /api/photographers/me/blocked-dates - Update blocked dates (legacy adapter)
-  async updatePhotographerBlockedDates(authToken: string, blockedDates: BlockedDate[]): Promise<{ blockedDates: BlockedDate[] }> {
-    console.warn("[API] updatePhotographerBlockedDates is deprecated - use addPhotographerBlackoutDate/removePhotographerBlackoutDate");
+  async updatePhotographerBlockedDates(
+    authToken: string,
+    blockedDates: BlockedDate[],
+  ): Promise<{ blockedDates: BlockedDate[] }> {
+    console.warn(
+      "[API] updatePhotographerBlockedDates is deprecated - use addPhotographerBlackoutDate/removePhotographerBlackoutDate",
+    );
     return { blockedDates };
   }
 
@@ -2330,19 +2783,30 @@ class ApiService {
   // ==========================================
 
   // GET /api/vendor/my-business - Get current business profile
-  async getVendorMyBusiness(authToken: string): Promise<{ business: VendorBookerBusiness }> {
-    return this.request<{ business: VendorBookerBusiness }>("/api/vendor/my-business", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getVendorMyBusiness(
+    authToken: string,
+  ): Promise<{ business: VendorBookerBusiness }> {
+    return this.request<{ business: VendorBookerBusiness }>(
+      "/api/vendor/my-business",
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // PATCH /api/vendor/my-business - Update business profile
-  async updateVendorMyBusiness(authToken: string, data: Partial<BusinessOnboardingData>): Promise<{ business: VendorBookerBusiness }> {
-    console.log("[API] updateVendorMyBusiness RAW input:", JSON.stringify(data, null, 2));
-    
+  async updateVendorMyBusiness(
+    authToken: string,
+    data: Partial<BusinessOnboardingData>,
+  ): Promise<{ business: VendorBookerBusiness }> {
+    console.log(
+      "[API] updateVendorMyBusiness RAW input:",
+      JSON.stringify(data, null, 2),
+    );
+
     // Build defensive payload - filter out empty/null/undefined values
     const cleanPayload: Record<string, any> = {};
-    
+
     // Only include fields with valid non-empty values
     if (data.name && data.name.trim()) {
       cleanPayload.name = data.name.trim();
@@ -2374,16 +2838,16 @@ class ApiService {
     if (data.websiteUrl && data.websiteUrl.trim()) {
       cleanPayload.websiteUrl = data.websiteUrl.trim();
     }
-    if (typeof data.hasProducts === 'boolean') {
+    if (typeof data.hasProducts === "boolean") {
       cleanPayload.hasProducts = data.hasProducts;
     }
-    if (typeof data.hasServices === 'boolean') {
+    if (typeof data.hasServices === "boolean") {
       cleanPayload.hasServices = data.hasServices;
     }
-    if (typeof data.hasPhysicalLocation === 'boolean') {
+    if (typeof data.hasPhysicalLocation === "boolean") {
       cleanPayload.hasPhysicalLocation = data.hasPhysicalLocation;
     }
-    if (typeof data.isOnlineOnly === 'boolean') {
+    if (typeof data.isOnlineOnly === "boolean") {
       cleanPayload.isOnlineOnly = data.isOnlineOnly;
     }
     if (data.yearsInBusiness && data.yearsInBusiness > 0) {
@@ -2395,7 +2859,10 @@ class ApiService {
     if (data.businessStructure && data.businessStructure.trim()) {
       cleanPayload.businessStructure = data.businessStructure.trim();
     }
-    if (data.hoursOfOperation && Object.keys(data.hoursOfOperation).length > 0) {
+    if (
+      data.hoursOfOperation &&
+      Object.keys(data.hoursOfOperation).length > 0
+    ) {
       cleanPayload.hoursOfOperation = data.hoursOfOperation;
     }
     if (data.brandColors && data.brandColors.trim()) {
@@ -2407,54 +2874,85 @@ class ApiService {
     if (data.logoImage && data.logoImage.trim()) {
       cleanPayload.logoImage = data.logoImage.trim();
     }
-    
-    console.log("[API] updateVendorMyBusiness CLEAN payload:", JSON.stringify(cleanPayload, null, 2));
-    
+
+    console.log(
+      "[API] updateVendorMyBusiness CLEAN payload:",
+      JSON.stringify(cleanPayload, null, 2),
+    );
+
     // Don't send empty payloads
     if (Object.keys(cleanPayload).length === 0) {
-      console.warn("[API] updateVendorMyBusiness: No valid fields to update after filtering");
-      throw { message: "No changes to save. Please modify at least one field.", status: 400 };
+      console.warn(
+        "[API] updateVendorMyBusiness: No valid fields to update after filtering",
+      );
+      throw {
+        message: "No changes to save. Please modify at least one field.",
+        status: 400,
+      };
     }
-    
-    return this.request<{ business: VendorBookerBusiness }>("/api/vendor/my-business", {
-      method: "PATCH",
-      body: JSON.stringify(cleanPayload),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+
+    return this.request<{ business: VendorBookerBusiness }>(
+      "/api/vendor/my-business",
+      {
+        method: "PATCH",
+        body: JSON.stringify(cleanPayload),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // POST /api/vendor/stripe-onboarding/create-link - Start Stripe onboarding for vendor
-  async startVendorStripeOnboarding(authToken: string, returnUrl?: string): Promise<{ url: string }> {
+  async startVendorStripeOnboarding(
+    authToken: string,
+    returnUrl?: string,
+  ): Promise<{ url: string }> {
     const body: Record<string, string> = {};
     if (returnUrl) {
       body.returnUrl = returnUrl;
       body.refreshUrl = returnUrl;
     }
-    return this.request<{ url: string }>("/api/vendor/stripe-onboarding/create-link", {
-      method: "POST",
-      body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<{ url: string }>(
+      "/api/vendor/stripe-onboarding/create-link",
+      {
+        method: "POST",
+        body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // GET /api/vendor/stripe-onboarding/status - Get vendor Stripe status
-  async getVendorStripeStatus(authToken: string): Promise<StripeOnboardingStatus & { hasStripeAccount: boolean; onboardingComplete: boolean }> {
-    return this.request<StripeOnboardingStatus & { hasStripeAccount: boolean; onboardingComplete: boolean }>("/api/vendor/stripe-onboarding/status", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+  async getVendorStripeStatus(
+    authToken: string,
+  ): Promise<
+    StripeOnboardingStatus & {
+      hasStripeAccount: boolean;
+      onboardingComplete: boolean;
+    }
+  > {
+    return this.request<
+      StripeOnboardingStatus & {
+        hasStripeAccount: boolean;
+        onboardingComplete: boolean;
+      }
+    >("/api/vendor/stripe-onboarding/status", {
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // GET /api/vendor/customers - Get orders and booking records
-  async getVendorCustomers(authToken: string): Promise<{ records: BusinessOrder[] }> {
+  async getVendorCustomers(
+    authToken: string,
+  ): Promise<{ records: BusinessOrder[] }> {
     return this.request<{ records: BusinessOrder[] }>("/api/vendor/customers", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // GET /api/vendor/staff - Get staff members
   async getVendorStaff(authToken: string): Promise<{ staff: any[] }> {
     return this.request<{ staff: any[] }>("/api/vendor/staff", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -2463,46 +2961,74 @@ class ApiService {
   // ==========================================
 
   // GET /api/vendor/products - Get all products
-  async getVendorProducts(authToken: string): Promise<{ products: VendorProduct[] }> {
+  async getVendorProducts(
+    authToken: string,
+  ): Promise<{ products: VendorProduct[] }> {
     return this.request<{ products: VendorProduct[] }>("/api/vendor/products", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // POST /api/vendor/products - Create a new product
-  async createVendorProduct(authToken: string, data: VendorProductInput): Promise<{ product: VendorProduct }> {
+  async createVendorProduct(
+    authToken: string,
+    data: VendorProductInput,
+  ): Promise<{ product: VendorProduct }> {
     const { priceCents, ...rest } = data;
     const payload = { ...rest, price: priceCents };
     console.log("[createVendorProduct] raw form data:", JSON.stringify(data));
-    console.log("[createVendorProduct] final payload:", JSON.stringify(payload));
-    console.log("[createVendorProduct] typeof payload.price:", typeof payload.price);
+    console.log(
+      "[createVendorProduct] final payload:",
+      JSON.stringify(payload),
+    );
+    console.log(
+      "[createVendorProduct] typeof payload.price:",
+      typeof payload.price,
+    );
     return this.request<{ product: VendorProduct }>("/api/vendor/products", {
       method: "POST",
       body: JSON.stringify(payload),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // PATCH /api/vendor/products/:id - Update a product
-  async updateVendorProduct(authToken: string, productId: string, data: Partial<VendorProductInput>): Promise<{ product: VendorProduct }> {
+  async updateVendorProduct(
+    authToken: string,
+    productId: string,
+    data: Partial<VendorProductInput>,
+  ): Promise<{ product: VendorProduct }> {
     const { priceCents, ...rest } = data;
-    const priceField: { price: number } | Record<string, never> = priceCents !== undefined ? { price: priceCents } : {};
+    const priceField: { price: number } | Record<string, never> =
+      priceCents !== undefined ? { price: priceCents } : {};
     const payload = { ...rest, ...priceField };
     console.log("[updateVendorProduct] raw form data:", JSON.stringify(data));
-    console.log("[updateVendorProduct] final payload:", JSON.stringify(payload));
-    console.log("[updateVendorProduct] typeof payload.price:", priceCents !== undefined ? typeof priceCents : "undefined");
-    return this.request<{ product: VendorProduct }>(`/api/vendor/products/${productId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    console.log(
+      "[updateVendorProduct] final payload:",
+      JSON.stringify(payload),
+    );
+    console.log(
+      "[updateVendorProduct] typeof payload.price:",
+      priceCents !== undefined ? typeof priceCents : "undefined",
+    );
+    return this.request<{ product: VendorProduct }>(
+      `/api/vendor/products/${productId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // DELETE /api/vendor/products/:id - Delete a product
-  async deleteVendorProduct(authToken: string, productId: string): Promise<void> {
+  async deleteVendorProduct(
+    authToken: string,
+    productId: string,
+  ): Promise<void> {
     await this.request<void>(`/api/vendor/products/${productId}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -2511,35 +3037,56 @@ class ApiService {
   // ==========================================
 
   // GET /api/vendor/services - Get all services
-  async getVendorServices(authToken: string): Promise<{ services: VendorService[] }> {
+  async getVendorServices(
+    authToken: string,
+  ): Promise<{ services: VendorService[] }> {
     return this.request<{ services: VendorService[] }>("/api/vendor/services", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // POST /api/vendor/services - Create a new service
-  async createVendorService(authToken: string, data: VendorServiceInput): Promise<{ service: VendorService }> {
+  async createVendorService(
+    authToken: string,
+    data: VendorServiceInput,
+  ): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const payload = { ...rest, price: priceCents };
     return this.request<{ service: VendorService }>("/api/vendor/services", {
       method: "POST",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(payload),
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // PATCH /api/vendor/services/:id - Update a service
-  async updateVendorService(authToken: string, serviceId: string, data: Partial<VendorServiceInput>): Promise<{ service: VendorService }> {
-    return this.request<{ service: VendorService }>(`/api/vendor/services/${serviceId}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async updateVendorService(
+    authToken: string,
+    serviceId: string,
+    data: Partial<VendorServiceInput>,
+  ): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const priceField: { price: number } | Record<string, never> =
+      priceCents !== undefined ? { price: priceCents } : {};
+    const payload = { ...rest, ...priceField };
+    return this.request<{ service: VendorService }>(
+      `/api/vendor/services/${serviceId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // DELETE /api/vendor/services/:id - Delete a service
-  async deleteVendorService(authToken: string, serviceId: string): Promise<void> {
+  async deleteVendorService(
+    authToken: string,
+    serviceId: string,
+  ): Promise<void> {
     await this.request<void>(`/api/vendor/services/${serviceId}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -2549,145 +3096,208 @@ class ApiService {
     billingAddress?: BillingAddress;
   }> {
     return this.request("/api/business/dashboard", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async getBusinessOrders(authToken: string, status?: string): Promise<{ orders: BusinessOrder[] }> {
+  async getBusinessOrders(
+    authToken: string,
+    status?: string,
+  ): Promise<{ orders: BusinessOrder[] }> {
     const query = status ? `?status=${status}` : "";
-    return this.request<{ orders: BusinessOrder[] }>(`/api/business/orders${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<{ orders: BusinessOrder[] }>(
+      `/api/business/orders${query}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async getBusinessBookings(authToken: string, status?: string): Promise<{ bookings: BusinessBooking[] }> {
+  async getBusinessBookings(
+    authToken: string,
+    status?: string,
+  ): Promise<{ bookings: BusinessBooking[] }> {
     const query = status ? `?status=${status}` : "";
-    return this.request<{ bookings: BusinessBooking[] }>(`/api/business/bookings${query}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+    return this.request<{ bookings: BusinessBooking[] }>(
+      `/api/business/bookings${query}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async getBusinessProducts(authToken: string): Promise<{ products: BusinessProduct[] }> {
-    return this.request<{ products: BusinessProduct[] }>("/api/business/products", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getBusinessProducts(
+    authToken: string,
+  ): Promise<{ products: BusinessProduct[] }> {
+    return this.request<{ products: BusinessProduct[] }>(
+      "/api/business/products",
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async updateBusinessProduct(authToken: string, productId: string, data: Partial<BusinessProduct>): Promise<BusinessProduct> {
-    return this.request<BusinessProduct>(`/api/business/products/${productId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async updateBusinessProduct(
+    authToken: string,
+    productId: string,
+    data: Partial<BusinessProduct>,
+  ): Promise<BusinessProduct> {
+    return this.request<BusinessProduct>(
+      `/api/business/products/${productId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async createBusinessProduct(authToken: string, data: Omit<BusinessProduct, "id">): Promise<BusinessProduct> {
+  async createBusinessProduct(
+    authToken: string,
+    data: Omit<BusinessProduct, "id">,
+  ): Promise<BusinessProduct> {
     return this.request<BusinessProduct>("/api/business/products", {
       method: "POST",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async getBusinessServices(authToken: string): Promise<{ services: BusinessService[] }> {
-    return this.request<{ services: BusinessService[] }>("/api/business/services", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getBusinessServices(
+    authToken: string,
+  ): Promise<{ services: BusinessService[] }> {
+    return this.request<{ services: BusinessService[] }>(
+      "/api/business/services",
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async updateBusinessService(authToken: string, serviceId: string, data: Partial<BusinessService>): Promise<BusinessService> {
-    return this.request<BusinessService>(`/api/business/services/${serviceId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async updateBusinessService(
+    authToken: string,
+    serviceId: string,
+    data: Partial<BusinessService>,
+  ): Promise<BusinessService> {
+    return this.request<BusinessService>(
+      `/api/business/services/${serviceId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
-  async createBusinessService(authToken: string, data: Omit<BusinessService, "id">): Promise<BusinessService> {
+  async createBusinessService(
+    authToken: string,
+    data: Omit<BusinessService, "id">,
+  ): Promise<BusinessService> {
     return this.request<BusinessService>("/api/business/services", {
       method: "POST",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updateBusinessProfile(authToken: string, data: Partial<BusinessDashboardProfile>): Promise<BusinessDashboardProfile> {
+  async updateBusinessProfile(
+    authToken: string,
+    data: Partial<BusinessDashboardProfile>,
+  ): Promise<BusinessDashboardProfile> {
     return this.request<BusinessDashboardProfile>("/api/business/profile", {
       method: "PUT",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updateBusinessBillingAddress(authToken: string, address: BillingAddress): Promise<void> {
+  async updateBusinessBillingAddress(
+    authToken: string,
+    address: BillingAddress,
+  ): Promise<void> {
     await this.request<void>("/api/business/billing-address", {
       method: "PUT",
       body: JSON.stringify(address),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updateBookingStatus(authToken: string, type: "photographer" | "business", bookingId: string, status: string): Promise<void> {
+  async updateBookingStatus(
+    authToken: string,
+    type: "photographer" | "business",
+    bookingId: string,
+    status: string,
+  ): Promise<void> {
     await this.request<void>(`/api/${type}/bookings/${bookingId}/status`, {
       method: "PUT",
       body: JSON.stringify({ status }),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async updateOrderStatus(authToken: string, orderId: string, status: string): Promise<void> {
+  async updateOrderStatus(
+    authToken: string,
+    orderId: string,
+    status: string,
+  ): Promise<void> {
     await this.request<void>(`/api/business/orders/${orderId}/status`, {
       method: "PUT",
       body: JSON.stringify({ status }),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // Accept a pending booking
   async acceptBooking(
-    authToken: string, 
-    type: "photographer" | "business", 
-    bookingId: string
-  ): Promise<{ success: boolean; booking?: PhotographerBooking | BusinessBooking }> {
-    const endpoint = type === "photographer" 
-      ? `/api/bookings/photographer/${bookingId}/accept`
-      : `/api/bookings/appointments/${bookingId}/accept`;
+    authToken: string,
+    type: "photographer" | "business",
+    bookingId: string,
+  ): Promise<{
+    success: boolean;
+    booking?: PhotographerBooking | BusinessBooking;
+  }> {
+    const endpoint =
+      type === "photographer"
+        ? `/api/bookings/photographer/${bookingId}/accept`
+        : `/api/bookings/appointments/${bookingId}/accept`;
     return this.request(endpoint, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // Decline a pending booking (triggers refund/void)
   async declineBooking(
-    authToken: string, 
-    type: "photographer" | "business", 
+    authToken: string,
+    type: "photographer" | "business",
     bookingId: string,
-    reason?: string
+    reason?: string,
   ): Promise<{ success: boolean; refunded?: boolean }> {
-    const endpoint = type === "photographer" 
-      ? `/api/bookings/photographer/${bookingId}/decline`
-      : `/api/bookings/appointments/${bookingId}/decline`;
+    const endpoint =
+      type === "photographer"
+        ? `/api/bookings/photographer/${bookingId}/decline`
+        : `/api/bookings/appointments/${bookingId}/decline`;
     return this.request(endpoint, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ reason }),
     });
   }
 
   // Issue refund for a confirmed booking
   async issueRefund(
-    authToken: string, 
-    type: "photographer" | "business", 
+    authToken: string,
+    type: "photographer" | "business",
     bookingId: string,
-    amount?: number // Optional partial refund amount, full refund if not provided
+    amount?: number, // Optional partial refund amount, full refund if not provided
   ): Promise<{ success: boolean; refundedAmount?: number; message?: string }> {
-    const endpoint = type === "photographer" 
-      ? `/api/bookings/photographer/${bookingId}/refund`
-      : `/api/bookings/appointments/${bookingId}/refund`;
+    const endpoint =
+      type === "photographer"
+        ? `/api/bookings/photographer/${bookingId}/refund`
+        : `/api/bookings/appointments/${bookingId}/refund`;
     return this.request(endpoint, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ amount }),
     });
   }
@@ -2696,14 +3306,19 @@ class ApiService {
   async createBookingPaymentIntent(
     authToken: string,
     type: "photographer" | "business",
-    bookingId: string
-  ): Promise<{ clientSecret: string; paymentIntentId: string; captureMethod: "automatic" | "manual" }> {
-    const endpoint = type === "photographer"
-      ? `/api/bookings/photographer/${bookingId}/create-payment-intent`
-      : `/api/bookings/appointments/${bookingId}/create-payment-intent`;
+    bookingId: string,
+  ): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+    captureMethod: "automatic" | "manual";
+  }> {
+    const endpoint =
+      type === "photographer"
+        ? `/api/bookings/photographer/${bookingId}/create-payment-intent`
+        : `/api/bookings/appointments/${bookingId}/create-payment-intent`;
     return this.request(endpoint, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -2711,22 +3326,22 @@ class ApiService {
   async updateProviderSettings(
     authToken: string,
     type: "photographer" | "business",
-    settings: Partial<ProviderSettings>
+    settings: Partial<ProviderSettings>,
   ): Promise<{ success: boolean; settings: ProviderSettings }> {
     return this.request(`/api/${type}/settings`, {
       method: "PUT",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(settings),
     });
   }
 
   async updateBusinessSettings(
     authToken: string,
-    settings: { autoAcceptBookings: boolean }
+    settings: { autoAcceptBookings: boolean },
   ): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>("/api/business/settings", {
       method: "PATCH",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(settings),
     });
   }
@@ -2734,23 +3349,27 @@ class ApiService {
   // Get provider settings
   async getProviderSettings(
     authToken: string,
-    type: "photographer" | "business"
+    type: "photographer" | "business",
   ): Promise<ProviderSettings> {
     return this.request<ProviderSettings>(`/api/${type}/settings`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // Weekly availability endpoints
   async getWeeklyAvailability(
     authToken: string,
-    type: "photographer" | "business"
+    type: "photographer" | "business",
   ): Promise<WeeklyAvailabilitySlot[]> {
-    const endpoint = type === "photographer"
-      ? "/api/photographers/me/weekly-availability"
-      : "/api/businesses/me/weekly-availability";
-    const response = await this.request<{ availability: WeeklyAvailabilitySlot[], autoAcceptBookings?: boolean } | WeeklyAvailabilitySlot[]>(endpoint, {
-      headers: { "Authorization": `Bearer ${authToken}` },
+    const endpoint =
+      type === "photographer"
+        ? "/api/photographers/me/weekly-availability"
+        : "/api/businesses/me/weekly-availability";
+    const response = await this.request<
+      | { availability: WeeklyAvailabilitySlot[]; autoAcceptBookings?: boolean }
+      | WeeklyAvailabilitySlot[]
+    >(endpoint, {
+      headers: { Authorization: `Bearer ${authToken}` },
     });
     // Backend may return { availability: [...] } or array directly - handle both
     if (Array.isArray(response)) {
@@ -2762,14 +3381,15 @@ class ApiService {
   async updateWeeklyAvailability(
     authToken: string,
     type: "photographer" | "business",
-    availability: WeeklyAvailabilitySlot[]
+    availability: WeeklyAvailabilitySlot[],
   ): Promise<WeeklyAvailabilitySlot[]> {
-    const endpoint = type === "photographer"
-      ? "/api/photographers/me/weekly-availability"
-      : "/api/businesses/me/weekly-availability";
+    const endpoint =
+      type === "photographer"
+        ? "/api/photographers/me/weekly-availability"
+        : "/api/businesses/me/weekly-availability";
     return this.request<WeeklyAvailabilitySlot[]>(endpoint, {
       method: "PUT",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ slots: availability }),
     });
   }
@@ -2777,27 +3397,29 @@ class ApiService {
   // Blocked dates/times endpoints
   async getBlocks(
     authToken: string,
-    type: "photographer" | "business"
+    type: "photographer" | "business",
   ): Promise<AvailabilityBlock[]> {
-    const endpoint = type === "photographer"
-      ? "/api/photographers/me/blocks"
-      : "/api/businesses/me/blocks";
+    const endpoint =
+      type === "photographer"
+        ? "/api/photographers/me/blocks"
+        : "/api/businesses/me/blocks";
     return this.request<AvailabilityBlock[]>(endpoint, {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async createBlock(
     authToken: string,
     type: "photographer" | "business",
-    block: Omit<AvailabilityBlock, "id">
+    block: Omit<AvailabilityBlock, "id">,
   ): Promise<AvailabilityBlock> {
-    const endpoint = type === "photographer"
-      ? "/api/photographers/me/blocks"
-      : "/api/businesses/me/blocks";
+    const endpoint =
+      type === "photographer"
+        ? "/api/photographers/me/blocks"
+        : "/api/businesses/me/blocks";
     return this.request<AvailabilityBlock>(endpoint, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(block),
     });
   }
@@ -2806,14 +3428,15 @@ class ApiService {
     authToken: string,
     type: "photographer" | "business",
     blockId: string,
-    updates: Partial<AvailabilityBlock>
+    updates: Partial<AvailabilityBlock>,
   ): Promise<AvailabilityBlock> {
-    const endpoint = type === "photographer"
-      ? "/api/photographers/me/blocks"
-      : "/api/businesses/me/blocks";
+    const endpoint =
+      type === "photographer"
+        ? "/api/photographers/me/blocks"
+        : "/api/businesses/me/blocks";
     return this.request<AvailabilityBlock>(endpoint, {
       method: "PATCH",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ id: blockId, ...updates }),
     });
   }
@@ -2821,14 +3444,15 @@ class ApiService {
   async deleteBlock(
     authToken: string,
     type: "photographer" | "business",
-    blockId: string
+    blockId: string,
   ): Promise<{ success: boolean }> {
-    const endpoint = type === "photographer"
-      ? "/api/photographers/me/blocks"
-      : "/api/businesses/me/blocks";
+    const endpoint =
+      type === "photographer"
+        ? "/api/photographers/me/blocks"
+        : "/api/businesses/me/blocks";
     return this.request<{ success: boolean }>(endpoint, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({ id: blockId }),
     });
   }
@@ -2842,16 +3466,22 @@ class ApiService {
     state: string;
   }): Promise<{ success: boolean }> {
     try {
-      return await this.request<{ success: boolean }>("/api/admin/notifications/business-application", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return await this.request<{ success: boolean }>(
+        "/api/admin/notifications/business-application",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        },
+      );
     } catch {
       return { success: false };
     }
   }
 
-  normalizeSearchResults(response: SearchResponse, isAdmin: boolean = false): UnifiedSearchResult[] {
+  normalizeSearchResults(
+    response: SearchResponse,
+    isAdmin: boolean = false,
+  ): UnifiedSearchResult[] {
     const results: UnifiedSearchResult[] = [];
 
     const isDemoOwner = (ownerId?: string) => {
@@ -2859,32 +3489,49 @@ class ApiService {
       return ownerId.startsWith("demo-") || ownerId.includes("demo");
     };
 
-    const isVisibleToUsers = (entity: { ownerId?: string; userId?: string; approvalStatus?: string; stripeOnboardingComplete?: boolean }) => {
+    const isVisibleToUsers = (entity: {
+      ownerId?: string;
+      userId?: string;
+      approvalStatus?: string;
+      stripeOnboardingComplete?: boolean;
+    }) => {
       if (isAdmin) return true;
       const ownerField = entity.ownerId || entity.userId;
       if (isDemoOwner(ownerField)) return false;
-      if (entity.approvalStatus && entity.approvalStatus !== "approved") return false;
+      if (entity.approvalStatus && entity.approvalStatus !== "approved")
+        return false;
       if (entity.stripeOnboardingComplete === false) return false;
       return true;
     };
 
     if (response.businesses && Array.isArray(response.businesses)) {
-      response.businesses.forEach(b => {
+      response.businesses.forEach((b) => {
         if (!isVisibleToUsers(b)) return;
 
         const category = (b.category || b.type || "business").toLowerCase();
         let resultType: SearchResultType = "business";
-        
-        if (category.includes("product") || category.includes("shop") || category.includes("store")) {
+
+        if (
+          category.includes("product") ||
+          category.includes("shop") ||
+          category.includes("store")
+        ) {
           resultType = "product";
-        } else if (category.includes("service") || category.includes("salon") || category.includes("spa")) {
+        } else if (
+          category.includes("service") ||
+          category.includes("salon") ||
+          category.includes("spa")
+        ) {
           resultType = "service";
         }
 
         results.push({
           id: b.id,
           name: b.name || "Unknown Business",
-          avatar: b.avatar || b.image || "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=400",
+          avatar:
+            b.avatar ||
+            b.image ||
+            "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=400",
           city: b.city || "Unknown",
           state: b.state || "",
           rating: b.rating || 0,
@@ -2899,14 +3546,14 @@ class ApiService {
     }
 
     if (response.photographers && Array.isArray(response.photographers)) {
-      response.photographers.forEach(p => {
+      response.photographers.forEach((p) => {
         if (!isVisibleToUsers(p)) return;
 
         // Check for separate city/state fields first, then fall back to parsing location string
         let city = p.city || "";
         let state = p.state || "";
         if (!city && p.location) {
-          const locationParts = p.location.split(",").map(s => s.trim());
+          const locationParts = p.location.split(",").map((s) => s.trim());
           city = locationParts[0] || "";
           state = locationParts[1] || "";
         }
@@ -2921,20 +3568,26 @@ class ApiService {
         };
 
         // Check multiple field names for avatar: logoImage, avatar, image
-        const avatarUrl = isValidImageUrl(p.logoImage) || isValidImageUrl(p.avatar) || isValidImageUrl(p.image) || "";
+        const avatarUrl =
+          isValidImageUrl(p.logoImage) ||
+          isValidImageUrl(p.avatar) ||
+          isValidImageUrl(p.image) ||
+          "";
         const coverUrl = isValidImageUrl(p.coverImage) || "";
-        
+
         // Check multiple field names for name: displayName, name
         const displayName = p.displayName || p.name || "Unknown Photographer";
-        
+
         // Check multiple field names for description: bio, description
         const description = p.bio || p.description || "";
-        
+
         results.push({
           id: p.id,
           userId: p.userId,
           name: displayName,
-          avatar: avatarUrl || "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?w=400",
+          avatar:
+            avatarUrl ||
+            "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?w=400",
           coverImage: coverUrl,
           city: city || "Unknown",
           state: state,
@@ -2952,7 +3605,10 @@ class ApiService {
   }
 
   // Follow/Unfollow API
-  async followUser(targetUserId: string, targetType: "user" | "photographer" | "business"): Promise<{ success: boolean }> {
+  async followUser(
+    targetUserId: string,
+    targetType: "user" | "photographer" | "business",
+  ): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>("/api/follows", {
       method: "POST",
       body: JSON.stringify({ targetUserId, targetType }),
@@ -2965,60 +3621,72 @@ class ApiService {
     });
   }
 
-  async checkFollowStatus(targetUserId: string): Promise<{ isFollowing: boolean }> {
+  async checkFollowStatus(
+    targetUserId: string,
+  ): Promise<{ isFollowing: boolean }> {
     try {
-      return await this.request<{ isFollowing: boolean }>(`/api/follows/status/${targetUserId}`);
+      return await this.request<{ isFollowing: boolean }>(
+        `/api/follows/status/${targetUserId}`,
+      );
     } catch {
       return { isFollowing: false };
     }
   }
 
-  async getFollowNotifications(): Promise<Array<{
-    id: string;
-    type: "follow";
-    followerId: string;
-    followerName: string;
-    followerAvatar?: string;
-    createdAt: string;
-  }>> {
+  async getFollowNotifications(): Promise<
+    Array<{
+      id: string;
+      type: "follow";
+      followerId: string;
+      followerName: string;
+      followerAvatar?: string;
+      createdAt: string;
+    }>
+  > {
     try {
-      return await this.request<Array<{
-        id: string;
-        type: "follow";
-        followerId: string;
-        followerName: string;
-        followerAvatar?: string;
-        createdAt: string;
-      }>>("/api/notifications/follows");
+      return await this.request<
+        Array<{
+          id: string;
+          type: "follow";
+          followerId: string;
+          followerName: string;
+          followerAvatar?: string;
+          createdAt: string;
+        }>
+      >("/api/notifications/follows");
     } catch {
       return [];
     }
   }
 
-  async getNotifications(authToken: string): Promise<Array<{
-    id: string;
-    type: string;
-    title?: string;
-    body?: string;
-    message?: string;
-    businessId?: string;
-    businessName?: string;
-    createdAt: string;
-    read?: boolean;
-  }>> {
+  async getNotifications(authToken: string): Promise<
+    Array<{
+      id: string;
+      type: string;
+      title?: string;
+      body?: string;
+      message?: string;
+      businessId?: string;
+      businessName?: string;
+      createdAt: string;
+      read?: boolean;
+    }>
+  > {
     try {
-      return await this.request<Array<{
-        id: string;
-        type: string;
-        title?: string;
-        body?: string;
-        message?: string;
-        businessId?: string;
-        businessName?: string;
-        createdAt: string;
-        read?: boolean;
-      }>>("/api/notifications", {
-        headers: { "Authorization": `Bearer ${authToken}` },
+      return await this.request<
+        Array<{
+          id: string;
+          type: string;
+          title?: string;
+          body?: string;
+          message?: string;
+          businessId?: string;
+          businessName?: string;
+          createdAt: string;
+          read?: boolean;
+        }>
+      >("/api/notifications", {
+        headers: { Authorization: `Bearer ${authToken}` },
       });
     } catch {
       return [];
@@ -3031,30 +3699,33 @@ class ApiService {
 
   // POST /api/feed - Create a new post (auth required)
   // Supports both legacy format (imageUrl/videoUrl) and new media object format
-  async createPost(authToken: string, data: {
-    content?: string;
-    imageUrl?: string;
-    images?: string[];
-    videoUrl?: string;
-    // New media object format for direct-to-Cloudinary uploads
-    media?: {
-      url: string;
-      type: "image" | "video";
+  async createPost(
+    authToken: string,
+    data: {
+      content?: string;
+      imageUrl?: string;
+      images?: string[];
+      videoUrl?: string;
+      // New media object format for direct-to-Cloudinary uploads
+      media?: {
+        url: string;
+        type: "image" | "video";
+        thumbnailUrl?: string;
+        duration?: number;
+        width?: number;
+        height?: number;
+      };
+      mediaType?: "image" | "video";
       thumbnailUrl?: string;
-      duration?: number;
-      width?: number;
-      height?: number;
-    };
-    mediaType?: "image" | "video";
-    thumbnailUrl?: string;
-    mediaDuration?: number;
-    taggedBusinessId?: string;
-    taggedPhotographerId?: string;
-    photographerServiceId?: string;
-    productId?: string;
-    displayLayout?: "pro" | "pulse";
-    feedSurface?: "pro" | "pulse";
-  }): Promise<{ post: ApiPost }> {
+      mediaDuration?: number;
+      taggedBusinessId?: string;
+      taggedPhotographerId?: string;
+      photographerServiceId?: string;
+      productId?: string;
+      displayLayout?: "pro" | "pulse";
+      feedSurface?: "pro" | "pulse";
+    },
+  ): Promise<{ post: ApiPost }> {
     // DEBUG: Log exactly what we're sending to the backend
     console.log("[API.createPost] ===== SENDING TO BACKEND =====");
     console.log("[API.createPost] videoUrl:", data.videoUrl);
@@ -3063,88 +3734,117 @@ class ApiService {
     console.log("[API.createPost] feedSurface:", data.feedSurface);
     console.log("[API.createPost] displayLayout:", data.displayLayout);
     console.log("[API.createPost] Full data:", JSON.stringify(data, null, 2));
-    
+
     const response = await this.request<{ post: ApiPost }>("/api/feed", {
       method: "POST",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
-    
+
     // DEBUG: Log what the backend returned
     console.log("[API.createPost] ===== BACKEND RESPONSE =====");
     console.log("[API.createPost] post.id:", response.post?.id);
     console.log("[API.createPost] post.videoUrl:", response.post?.videoUrl);
     console.log("[API.createPost] post.imageUrl:", response.post?.imageUrl);
-    console.log("[API.createPost] post.thumbnailUrl:", (response.post as any)?.thumbnailUrl);
-    console.log("[API.createPost] post.feedSurface:", (response.post as any)?.feedSurface);
-    console.log("[API.createPost] post.displayLayout:", response.post?.displayLayout);
-    console.log("[API.createPost] Full response:", JSON.stringify(response, null, 2));
-    
+    console.log(
+      "[API.createPost] post.thumbnailUrl:",
+      (response.post as any)?.thumbnailUrl,
+    );
+    console.log(
+      "[API.createPost] post.feedSurface:",
+      (response.post as any)?.feedSurface,
+    );
+    console.log(
+      "[API.createPost] post.displayLayout:",
+      response.post?.displayLayout,
+    );
+    console.log(
+      "[API.createPost] Full response:",
+      JSON.stringify(response, null, 2),
+    );
+
     return response;
   }
 
   // GET /api/feed - Get algorithmic feed posts (ranked by engagement, recency, location, user preferences)
-  async getFeed(params?: {
-    page?: number;
-    limit?: number;
-    latitude?: number;
-    longitude?: number;
-    city?: string;
-    state?: string;
-  }, authToken?: string): Promise<{ posts: ApiPost[] }> {
+  async getFeed(
+    params?: {
+      page?: number;
+      limit?: number;
+      latitude?: number;
+      longitude?: number;
+      city?: string;
+      state?: string;
+    },
+    authToken?: string,
+  ): Promise<{ posts: ApiPost[] }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
-    if (params?.latitude) queryParams.append("latitude", params.latitude.toString());
-    if (params?.longitude) queryParams.append("longitude", params.longitude.toString());
+    if (params?.latitude)
+      queryParams.append("latitude", params.latitude.toString());
+    if (params?.longitude)
+      queryParams.append("longitude", params.longitude.toString());
     if (params?.city) queryParams.append("city", params.city);
     if (params?.state) queryParams.append("state", params.state);
     const queryString = queryParams.toString();
     const url = queryString ? `/api/feed?${queryString}` : "/api/feed";
-    
+
     const headers: Record<string, string> = {};
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    
+
     return this.request<{ posts: ApiPost[] }>(url, { headers });
   }
 
   // DELETE /api/feed/:postId - Delete own post
-  async deletePost(authToken: string, postId: string): Promise<{ success: boolean }> {
+  async deletePost(
+    authToken: string,
+    postId: string,
+  ): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>(`/api/feed/${postId}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // POST /api/feed/:postId/like - Like a post
-  async likePost(authToken: string, postId: string): Promise<{ success: boolean }> {
+  async likePost(
+    authToken: string,
+    postId: string,
+  ): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>(`/api/feed/${postId}/like`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // DELETE /api/feed/:postId/like - Unlike a post
-  async unlikePost(authToken: string, postId: string): Promise<{ success: boolean }> {
+  async unlikePost(
+    authToken: string,
+    postId: string,
+  ): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>(`/api/feed/${postId}/like`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   // POST /api/feed/:postId/report - Report a post for admin review
   async reportPost(
-    authToken: string, 
-    postId: string, 
-    reason: string
+    authToken: string,
+    postId: string,
+    reason: string,
   ): Promise<{ success: boolean; message?: string }> {
-    return this.request<{ success: boolean; message?: string }>(`/api/feed/${postId}/report`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
-      body: JSON.stringify({ reason }),
-    });
+    return this.request<{ success: boolean; message?: string }>(
+      `/api/feed/${postId}/report`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    );
   }
 
   // GET /api/feed/:postId/comments - Get comments on a post
@@ -3153,11 +3853,15 @@ class ApiService {
   }
 
   // POST /api/feed/:postId/comments - Add comment to a post
-  async addPostComment(authToken: string, postId: string, content: string): Promise<{ comment: any }> {
+  async addPostComment(
+    authToken: string,
+    postId: string,
+    content: string,
+  ): Promise<{ comment: any }> {
     return this.request<{ comment: any }>(`/api/feed/${postId}/comments`, {
       method: "POST",
       body: JSON.stringify({ content }),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -3166,45 +3870,52 @@ class ApiService {
   // ==========================================
 
   // GET /api/pulse/feed - Get TikTok-style ranked Pulse feed
-  async getPulseFeed(params?: {
-    limit?: number;
-    cursor?: string;
-  }, authToken?: string): Promise<PulseFeedResponse> {
+  async getPulseFeed(
+    params?: {
+      limit?: number;
+      cursor?: string;
+    },
+    authToken?: string,
+  ): Promise<PulseFeedResponse> {
     const queryParams = new URLSearchParams();
     if (params?.limit) queryParams.append("limit", params.limit.toString());
     if (params?.cursor) queryParams.append("cursor", params.cursor);
     const queryString = queryParams.toString();
-    const url = queryString ? `/api/pulse/feed?${queryString}` : "/api/pulse/feed";
-    
+    const url = queryString
+      ? `/api/pulse/feed?${queryString}`
+      : "/api/pulse/feed";
+
     const headers: Record<string, string> = {};
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    
+
     const response = await this.request<PulseFeedResponse>(url, { headers });
-    
+
     // DEBUG: Log Pulse feed response
     console.log("[API.getPulseFeed] ===== PULSE FEED RESPONSE =====");
     console.log("[API.getPulseFeed] Total posts:", response.posts?.length || 0);
     if (response.posts?.length > 0) {
       response.posts.slice(0, 3).forEach((post, i) => {
-        console.log(`[API.getPulseFeed] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl}, feedSurface=${(post as any).feedSurface}`);
+        console.log(
+          `[API.getPulseFeed] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl}, feedSurface=${(post as any).feedSurface}`,
+        );
       });
     } else {
       console.log("[API.getPulseFeed] No posts returned from /api/pulse/feed");
     }
-    
+
     return response;
   }
 
   // POST /api/pulse/engagement - Track engagement signals for Pulse ranking
   async trackPulseEngagement(
     authToken: string,
-    engagement: PulseEngagement
+    engagement: PulseEngagement,
   ): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>("/api/pulse/engagement", {
       method: "POST",
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(engagement),
     });
   }
@@ -3215,21 +3926,23 @@ class ApiService {
     });
   }
 
-  async trackInfluencerClick(referralCode: string, postId?: string): Promise<void> {
+  async trackInfluencerClick(
+    referralCode: string,
+    postId?: string,
+  ): Promise<void> {
     try {
       await this.request<{ success: boolean }>("/api/influencer/click", {
         method: "POST",
         body: JSON.stringify({ ref: referralCode, postId }),
       });
-    } catch {
-    }
+    } catch {}
   }
 
   async sendInfluencerReferralEvent(
     authToken: string,
     eventType: "signup" | "first_purchase" | "repeat_purchase",
     ref: string,
-    extras?: Record<string, unknown>
+    extras?: Record<string, unknown>,
   ): Promise<void> {
     try {
       await this.request<{ success: boolean }>("/api/influencer/event", {
@@ -3237,36 +3950,43 @@ class ApiService {
         headers: { Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ ref, eventType, ...extras }),
       });
-    } catch {
-    }
+    } catch {}
   }
 
   // GET /api/profiles/:profileId/posts - Get posts for a specific profile
   // Note: Pro/Pulse is a display layout decision, not a backend filter
-  async getProfilePosts(profileId: string, params?: {
-    page?: number;
-    limit?: number;
-  }): Promise<{ posts: ApiPost[] }> {
+  async getProfilePosts(
+    profileId: string,
+    params?: {
+      page?: number;
+      limit?: number;
+    },
+  ): Promise<{ posts: ApiPost[] }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
     const queryString = queryParams.toString();
-    const url = queryString 
-      ? `/api/profiles/${profileId}/posts?${queryString}` 
+    const url = queryString
+      ? `/api/profiles/${profileId}/posts?${queryString}`
       : `/api/profiles/${profileId}/posts`;
-    
+
     const response = await this.request<{ posts: ApiPost[] }>(url);
-    
+
     // DEBUG: Log profile posts response
     console.log("[API.getProfilePosts] ===== PROFILE POSTS RESPONSE =====");
     console.log("[API.getProfilePosts] profileId:", profileId);
-    console.log("[API.getProfilePosts] Total posts:", response.posts?.length || 0);
+    console.log(
+      "[API.getProfilePosts] Total posts:",
+      response.posts?.length || 0,
+    );
     if (response.posts?.length > 0) {
       response.posts.forEach((post, i) => {
-        console.log(`[API.getProfilePosts] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl?.substring(0, 50)}, displayLayout=${post.displayLayout}, feedSurface=${(post as any).feedSurface}`);
+        console.log(
+          `[API.getProfilePosts] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl?.substring(0, 50)}, displayLayout=${post.displayLayout}, feedSurface=${(post as any).feedSurface}`,
+        );
       });
     }
-    
+
     return response;
   }
 
@@ -3277,28 +3997,26 @@ class ApiService {
   async getPhotographerAvailableSlots(
     photographerId: string,
     date: string,
-    serviceId?: string
+    serviceId?: string,
   ): Promise<{ slots: AvailableSlot[]; date: string }> {
     const params = new URLSearchParams({ date });
     if (serviceId) params.append("serviceId", serviceId);
     return this.request<{ slots: AvailableSlot[]; date: string }>(
-      `/api/photographers/${photographerId}/slots?${params.toString()}`
+      `/api/photographers/${photographerId}/slots?${params.toString()}`,
     );
   }
 
   async getPhotographerAvailableDates(
     photographerId: string,
     startDate: string,
-    endDate: string
+    endDate: string,
   ): Promise<{ dates: string[] }> {
     const params = new URLSearchParams({ startDate, endDate });
     // Use the backend availability endpoint that checks for existing bookings
     const response = await this.request<{
       availableDates?: string[];
       dates?: string[];
-    }>(
-      `/api/availability/photographer/${photographerId}?${params.toString()}`
-    );
+    }>(`/api/availability/photographer/${photographerId}?${params.toString()}`);
     return { dates: response.availableDates || response.dates || [] };
   }
 
@@ -3312,7 +4030,7 @@ class ApiService {
       endTime?: string;
       location?: string;
       notes?: string;
-    }
+    },
   ): Promise<{
     success: boolean;
     draftId: string;
@@ -3361,52 +4079,67 @@ class ApiService {
     }>("/api/bookings/photographer/draft", {
       method: "POST",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async cancelBookingDraft(authToken: string, draftId: string): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>(`/api/bookings/draft/${draftId}`, {
-      method: "DELETE",
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async cancelBookingDraft(
+    authToken: string,
+    draftId: string,
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(
+      `/api/bookings/draft/${draftId}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   async initiateBookingPayment(
     authToken: string,
     draftId: string,
     successUrl: string,
-    cancelUrl: string
+    cancelUrl: string,
   ): Promise<{ checkoutUrl: string; sessionId: string }> {
     return this.request<{ checkoutUrl: string; sessionId: string }>(
       `/api/bookings/shoot/${draftId}/initiate-payment`,
       {
         method: "POST",
         body: JSON.stringify({ successUrl, cancelUrl }),
-        headers: { "Authorization": `Bearer ${authToken}` },
-      }
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
     );
   }
 
   async confirmBookingDraft(
     authToken: string,
     draftId: string,
-    paymentMethodId?: string
-  ): Promise<{ booking: PhotographerBooking; paymentIntentClientSecret?: string }> {
-    return this.request<{ booking: PhotographerBooking; paymentIntentClientSecret?: string }>(
-      `/api/bookings/photographer/${draftId}/confirm-payment`,
-      {
-        method: "POST",
-        body: JSON.stringify({ paymentMethodId }),
-        headers: { "Authorization": `Bearer ${authToken}` },
-      }
-    );
+    paymentMethodId?: string,
+  ): Promise<{
+    booking: PhotographerBooking;
+    paymentIntentClientSecret?: string;
+  }> {
+    return this.request<{
+      booking: PhotographerBooking;
+      paymentIntentClientSecret?: string;
+    }>(`/api/bookings/photographer/${draftId}/confirm-payment`, {
+      method: "POST",
+      body: JSON.stringify({ paymentMethodId }),
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
   }
 
-  async getBookingDraft(authToken: string, draftId: string): Promise<{ draft: BookingDraft }> {
-    return this.request<{ draft: BookingDraft }>(`/api/bookings/draft/${draftId}`, {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
+  async getBookingDraft(
+    authToken: string,
+    draftId: string,
+  ): Promise<{ draft: BookingDraft }> {
+    return this.request<{ draft: BookingDraft }>(
+      `/api/bookings/draft/${draftId}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // Availability Calendar endpoints
@@ -3414,22 +4147,30 @@ class ApiService {
     providerId: string,
     providerType: "photographer" | "business",
     year: number,
-    month: number // 1-12
+    month: number, // 1-12
   ): Promise<AvailabilityCalendarResponse> {
     // Backend returns { days: [{ date, hasAvailability, totalSlots }] }
     // Frontend expects { days: [{ date, status, slotsAvailable, slotsTotal }] }
-    const rawResponse = await this.request<{ days: Array<{ date: string; hasAvailability: boolean; totalSlots?: number }> }>(
-      `/api/availability/calendar?providerType=${providerType}&providerId=${providerId}&year=${year}&month=${month}`
+    const rawResponse = await this.request<{
+      days: Array<{
+        date: string;
+        hasAvailability: boolean;
+        totalSlots?: number;
+      }>;
+    }>(
+      `/api/availability/calendar?providerType=${providerType}&providerId=${providerId}&year=${year}&month=${month}`,
     );
-    
+
     // Transform backend format to frontend format
-    const transformedDays: AvailabilityCalendarDay[] = (rawResponse.days || []).map(day => ({
+    const transformedDays: AvailabilityCalendarDay[] = (
+      rawResponse.days || []
+    ).map((day) => ({
       date: day.date,
       status: day.hasAvailability ? "available" : "unavailable",
       slotsTotal: day.totalSlots || 0,
-      slotsAvailable: day.hasAvailability ? (day.totalSlots || 0) : 0,
+      slotsAvailable: day.hasAvailability ? day.totalSlots || 0 : 0,
     }));
-    
+
     return {
       month: `${year}-${String(month).padStart(2, "0")}`,
       days: transformedDays,
@@ -3440,7 +4181,7 @@ class ApiService {
     providerId: string,
     providerType: "photographer" | "business",
     date: string, // Format: YYYY-MM-DD
-    serviceDurationMinutes: number = 60 // Default to 60 minutes if not provided
+    serviceDurationMinutes: number = 60, // Default to 60 minutes if not provided
   ): Promise<AvailabilitySlotResponse> {
     // Backend returns { date, slots: [{ startTime, endTime, available }], totalAvailable }
     // Frontend expects { date, slots: [{ id, startTime, endTime, status }] }
@@ -3449,17 +4190,19 @@ class ApiService {
       slots: Array<{ startTime: string; endTime: string; available: boolean }>;
       totalAvailable?: number;
     }>(
-      `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}&serviceDurationMinutes=${serviceDurationMinutes}`
+      `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}&serviceDurationMinutes=${serviceDurationMinutes}`,
     );
-    
+
     // Transform backend format to frontend format
-    const transformedSlots: AvailabilitySlot[] = (rawResponse.slots || []).map((slot, index) => ({
-      id: `${date}-${slot.startTime}-${index}`,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      status: slot.available ? "available" : "booked" as const,
-    }));
-    
+    const transformedSlots: AvailabilitySlot[] = (rawResponse.slots || []).map(
+      (slot, index) => ({
+        id: `${date}-${slot.startTime}-${index}`,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        status: slot.available ? "available" : ("booked" as const),
+      }),
+    );
+
     return {
       date: rawResponse.date,
       slots: transformedSlots,
@@ -3469,12 +4212,15 @@ class ApiService {
   // Booking Flow endpoints
   async getProviderServices(
     providerId: string,
-    providerType: "photographer" | "business"
+    providerType: "photographer" | "business",
   ): Promise<BookingService[]> {
-    const endpoint = providerType === "photographer"
-      ? `/api/photographers/${providerId}/services`
-      : `/api/businesses/${providerId}/services`;
-    const response = await this.request<{ services: BookingService[] }>(endpoint);
+    const endpoint =
+      providerType === "photographer"
+        ? `/api/photographers/${providerId}/services`
+        : `/api/businesses/${providerId}/services`;
+    const response = await this.request<{ services: BookingService[] }>(
+      endpoint,
+    );
     return response.services || [];
   }
 
@@ -3486,12 +4232,12 @@ class ApiService {
       serviceId: string;
       date: string;
       startTime: string;
-    }
+    },
   ): Promise<BookingValidationResponse> {
     return this.request<BookingValidationResponse>("/api/booking/validate", {
       method: "POST",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -3503,12 +4249,12 @@ class ApiService {
       serviceId: string;
       date: string;
       startTime: string;
-    }
+    },
   ): Promise<BookingHoldResponse> {
     return this.request<BookingHoldResponse>("/api/booking/hold", {
       method: "POST",
       body: JSON.stringify(data),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -3516,51 +4262,61 @@ class ApiService {
     authToken: string,
     holdId: string,
     successUrl: string,
-    cancelUrl: string
+    cancelUrl: string,
   ): Promise<BookingConfirmResponse> {
     return this.request<BookingConfirmResponse>("/api/booking/confirm", {
       method: "POST",
       body: JSON.stringify({ holdId, successUrl, cancelUrl }),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async getVendorEligibility(authToken: string): Promise<VendorEligibility> {
     return this.request<VendorEligibility>("/api/vendor/eligibility", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
-  async getSubscriptionTiers(authToken: string): Promise<{ tiers: SubscriptionTier[] }> {
+  async getSubscriptionTiers(
+    authToken: string,
+  ): Promise<{ tiers: SubscriptionTier[] }> {
     // Subscription tiers are often a public endpoint. We try three strategies in order:
     // 1. With Bearer token (works for JWT-based auth)
     // 2. Cookie-only (works for session-based auth — credentials: include is always set)
     // 3. Completely public (no auth, no cookies)
     // This handles the case where the stored token is "session_userId" (not a real JWT).
     const isLikelyJwt = authToken && authToken.startsWith("ey");
-    
+
     try {
       // Strategy 1: with Bearer token (only if it looks like a real JWT)
       if (isLikelyJwt) {
         const res = await this.request<any>("/api/subscription-tiers", {
-          headers: { "Authorization": `Bearer ${authToken}` },
+          headers: { Authorization: `Bearer ${authToken}` },
         });
         const tiers = res?.tiers ?? res?.data ?? [];
-        console.log(`[API] getSubscriptionTiers (JWT strategy) → ${tiers.length} tiers`);
+        console.log(
+          `[API] getSubscriptionTiers (JWT strategy) → ${tiers.length} tiers`,
+        );
         return { tiers };
       }
     } catch (e: any) {
-      console.warn(`[API] getSubscriptionTiers JWT strategy failed (${e?.status ?? "?"}): ${e?.message ?? e}`);
+      console.warn(
+        `[API] getSubscriptionTiers JWT strategy failed (${e?.status ?? "?"}): ${e?.message ?? e}`,
+      );
     }
-    
+
     try {
       // Strategy 2: session cookies only (no Authorization header)
       const res = await this.request<any>("/api/subscription-tiers");
       const tiers = res?.tiers ?? res?.data ?? [];
-      console.log(`[API] getSubscriptionTiers (cookie strategy) → ${tiers.length} tiers`);
+      console.log(
+        `[API] getSubscriptionTiers (cookie strategy) → ${tiers.length} tiers`,
+      );
       return { tiers };
     } catch (e: any) {
-      console.warn(`[API] getSubscriptionTiers cookie strategy failed (${e?.status ?? "?"}): ${e?.message ?? e}`);
+      console.warn(
+        `[API] getSubscriptionTiers cookie strategy failed (${e?.status ?? "?"}): ${e?.message ?? e}`,
+      );
       // Re-throw so the caller can show the actual error
       throw e;
     }
@@ -3570,27 +4326,29 @@ class ApiService {
     hasSubscription: boolean;
     subscription: CurrentSubscription | null;
   }> {
-    return this.request<{ hasSubscription: boolean; subscription: CurrentSubscription | null }>(
-      "/api/subscription/current",
-      { headers: { Authorization: `Bearer ${authToken}` } }
-    );
+    return this.request<{
+      hasSubscription: boolean;
+      subscription: CurrentSubscription | null;
+    }>("/api/subscription/current", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
   }
 
   async createBillingPortalSession(
     authToken: string,
-    returnUrl: string
+    returnUrl: string,
   ): Promise<{ portalUrl: string }> {
     return this.request<{ portalUrl: string }>("/api/stripe/billing-portal", {
       method: "POST",
       body: JSON.stringify({ returnUrl }),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   async createTierSubscriptionCheckout(
     authToken: string,
     tierId: string,
-    returnUrl?: string
+    returnUrl?: string,
   ): Promise<{
     url?: string;
     clientSecret?: string;
@@ -3605,7 +4363,7 @@ class ApiService {
     }>("/api/stripe/checkout/tier-subscription", {
       method: "POST",
       body: JSON.stringify({ tierId, ...(returnUrl ? { returnUrl } : {}) }),
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -3615,11 +4373,11 @@ class ApiService {
 
   async getBusinessProductionCredits(
     authToken: string,
-    businessId: string
+    businessId: string,
   ): Promise<ProductionCreditData> {
     return this.request<ProductionCreditData>(
       `/api/business/${businessId}/production-credits`,
-      { headers: { Authorization: `Bearer ${authToken}` } }
+      { headers: { Authorization: `Bearer ${authToken}` } },
     );
   }
 
@@ -3631,7 +4389,7 @@ class ApiService {
       location: string;
       creditsToUse: number;
       pricingOption: "full" | "1credit" | "2credits" | "free";
-    }
+    },
   ): Promise<{ success: boolean; newBalance: number; booking: any }> {
     return this.request<{ success: boolean; newBalance: number; booking: any }>(
       "/api/production/book",
@@ -3639,7 +4397,7 @@ class ApiService {
         method: "POST",
         body: JSON.stringify(payload),
         headers: { Authorization: `Bearer ${authToken}` },
-      }
+      },
     );
   }
 }
@@ -3813,9 +4571,12 @@ export interface CurrentSubscription {
   status: string;
 }
 
-export function canChangeUsername(user: { username_updated_at?: string | null }): boolean {
+export function canChangeUsername(user: {
+  username_updated_at?: string | null;
+}): boolean {
   if (!user.username_updated_at) return true;
   const daysSinceUpdate =
-    (Date.now() - new Date(user.username_updated_at).getTime()) / (1000 * 60 * 60 * 24);
+    (Date.now() - new Date(user.username_updated_at).getTime()) /
+    (1000 * 60 * 60 * 24);
   return daysSinceUpdate >= 14;
 }
