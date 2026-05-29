@@ -264,12 +264,10 @@ const tabsForRole = (profile: ProfileData): ProfileTab[] => {
   }
 
   if (profile.role === "photographer") {
-    const tabs: ProfileTab[] = ["posts", "availability", "reviews"];
-    if (showAbout) tabs.push("about");
-    return tabs;
+    return ["posts", "booking", "reviews", "about"];
   }
 
-  return ["posts", "saved", "reviews"];
+  return ["posts", "reviews"];
 };
 
 const scoreToStars = (rating: number): number => {
@@ -1152,56 +1150,116 @@ export default function AccountScreen() {
     </View>
   );
 
-  const renderBookingTab = () => (
-    <View style={styles.tabContent}>
-      {services.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Feather name="calendar" size={24} color={COLORS.grayLight} />
-          <Text style={styles.emptyTitle}>No services yet</Text>
+  const renderBookingTab = () => {
+    if (services.length === 0) {
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No services listed yet</Text>
+          </View>
         </View>
-      ) : (
-        <>
-          {services.map((service) => (
-            <View key={service.id} style={styles.serviceCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.serviceName}>{service.name}</Text>
-                {service.description ? (
-                  <Text style={styles.serviceDescription} numberOfLines={2}>
-                    {service.description}
-                  </Text>
-                ) : null}
-                <View style={styles.serviceMetaRow}>
-                  <Text style={[styles.servicePrice, { color: accentColor }]}>
-                    {formatCents(service.priceCents)}
-                  </Text>
-                  {service.durationMinutes ? (
-                    <Text style={styles.serviceMeta}>
-                      • {service.durationMinutes} min
-                    </Text>
-                  ) : null}
-                  {service.rating ? (
-                    <Text style={styles.serviceMeta}>
-                      • ★ {service.rating.toFixed(1)}
-                    </Text>
-                  ) : null}
-                </View>
+      );
+    }
+    return (
+      <View style={styles.tabContent}>
+        <Text
+          style={{
+            color: "rgba(255,255,255,0.5)",
+            fontSize: 11,
+            fontWeight: "600",
+            textTransform: "uppercase",
+            letterSpacing: 0.8,
+            marginBottom: 12,
+            paddingHorizontal: 4,
+          }}
+        >
+          Select a Service
+        </Text>
+        {services.map((service) => (
+          <Pressable
+            key={service.id}
+            onPress={() =>
+              Alert.alert(
+                service.name,
+                `Duration: ${service.durationMinutes ? service.durationMinutes + " min" : "TBD"}\n\nBooking flow coming soon.`,
+              )
+            }
+            style={{
+              backgroundColor: "rgba(0,0,0,0.30)",
+              borderRadius: 14,
+              padding: 16,
+              marginBottom: 10,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 15,
+                  fontWeight: "700",
+                  marginBottom: 4,
+                }}
+              >
+                {service.name}
+              </Text>
+              {service.description ? (
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.55)",
+                    fontSize: 13,
+                    lineHeight: 18,
+                  }}
+                  numberOfLines={2}
+                >
+                  {service.description}
+                </Text>
+              ) : null}
+              {service.durationMinutes ? (
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: 12,
+                    marginTop: 6,
+                  }}
+                >
+                  {service.durationMinutes} min
+                </Text>
+              ) : null}
+            </View>
+            <View style={{ alignItems: "flex-end", marginLeft: 12 }}>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "800",
+                  color: accentColor,
+                  marginBottom: 8,
+                }}
+              >
+                {formatCents(service.priceCents)}
+              </Text>
+              <View
+                style={{
+                  backgroundColor: accentColor,
+                  borderRadius: 20,
+                  paddingHorizontal: 16,
+                  paddingVertical: 7,
+                }}
+              >
+                <Text
+                  style={{ color: "#000000", fontSize: 12, fontWeight: "800" }}
+                >
+                  Book
+                </Text>
               </View>
             </View>
-          ))}
-          {profile?.availabilitySummary ? (
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryText}>
-                {profile.availabilitySummary}
-              </Text>
-              <Text style={[styles.summaryLink, { color: accentColor }]}>
-                View Full Availability →
-              </Text>
-            </View>
-          ) : null}
-        </>
-      )}
-    </View>
-  );
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
 
   const renderAvailabilityTab = () => {
     const slotsByDay = [0, 1, 2, 3, 4, 5, 6].map((day) =>
@@ -1397,15 +1455,6 @@ export default function AccountScreen() {
             "Available"}
         </Text>
       </View>
-      {profile?.role === "business" ? (
-        <View style={styles.aboutRow}>
-          <Feather name="award" size={14} color={accentColor} />
-          <Text style={styles.aboutLabel}>Tier</Text>
-          <Text style={styles.aboutValue}>
-            {profile?.subscriptionTier || "Starter"}
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 
