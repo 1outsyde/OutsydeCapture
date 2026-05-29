@@ -1,8 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Linking } from "react-native";
 import { api } from "../services/api";
-import { captureReferralFromURL, captureReferralFromInitialURL } from "../services/referral";
+import {
+  captureReferralFromURL,
+  captureReferralFromInitialURL,
+} from "../services/referral";
 import {
   storeTokens,
   storeUserData,
@@ -154,9 +163,17 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (identifier: string, password: string, type?: "email" | "username") => Promise<LoginResult>;
+  login: (
+    identifier: string,
+    password: string,
+    type?: "email" | "username",
+  ) => Promise<LoginResult>;
   loginWithGoogle: (idToken: string) => Promise<LoginResult>;
-  loginWithTokens: (accessToken: string, refreshToken: string, userData: GoogleAuthUserData) => Promise<LoginResult>;
+  loginWithTokens: (
+    accessToken: string,
+    refreshToken: string,
+    userData: GoogleAuthUserData,
+  ) => Promise<LoginResult>;
   signup: (data: SignupData) => Promise<SignupResult>;
   loginAsGuest: () => Promise<void>;
   logout: () => Promise<void>;
@@ -178,7 +195,9 @@ const STORAGE_KEYS = {
   PENDING_BUSINESSES: "@outsyde_pending_businesses",
 };
 
-function parseResetPasswordURL(url: string): { token: string; email: string } | null {
+function parseResetPasswordURL(
+  url: string,
+): { token: string; email: string } | null {
   try {
     const normalized = url.replace("outsyde://", "https://outsyde.app/");
     const parsed = new URL(normalized);
@@ -192,13 +211,21 @@ function parseResetPasswordURL(url: string): { token: string; email: string } | 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingResetParams, setPendingResetParams] = useState<{ token: string; email: string } | null>(null);
-  const [pendingStripeReturn, setPendingStripeReturn] = useState<{ status: string; type: string } | null>(null);
+  const [pendingResetParams, setPendingResetParams] = useState<{
+    token: string;
+    email: string;
+  } | null>(null);
+  const [pendingStripeReturn, setPendingStripeReturn] = useState<{
+    status: string;
+    type: string;
+  } | null>(null);
 
   const clearPendingResetParams = () => setPendingResetParams(null);
   const clearPendingStripeReturn = () => setPendingStripeReturn(null);
 
-  function parseStripeReturnURL(url: string): { status: string; type: string } | null {
+  function parseStripeReturnURL(
+    url: string,
+  ): { status: string; type: string } | null {
     try {
       if (!url.includes("stripe-return")) return null;
       const normalized = url.replace("outsyde://", "https://outsyde.app/");
@@ -214,23 +241,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadStoredAuth();
     captureReferralFromInitialURL();
     // Handle cold-start deep links
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        console.log("[DeepLink] Initial URL:", url);
-        captureReferralFromURL(url);
-        if (url.includes("reset-password")) {
-          const params = parseResetPasswordURL(url);
-          if (params) setPendingResetParams(params);
-        }
-        if (url.includes("stripe-return")) {
-          const params = parseStripeReturnURL(url);
-          if (params) {
-            console.log("[DeepLink] Stripe return on cold start:", params);
-            setPendingStripeReturn(params);
+    Linking.getInitialURL()
+      .then((url) => {
+        if (url) {
+          console.log("[DeepLink] Initial URL:", url);
+          captureReferralFromURL(url);
+          if (url.includes("reset-password")) {
+            const params = parseResetPasswordURL(url);
+            if (params) setPendingResetParams(params);
+          }
+          if (url.includes("stripe-return")) {
+            const params = parseStripeReturnURL(url);
+            if (params) {
+              console.log("[DeepLink] Stripe return on cold start:", params);
+              setPendingStripeReturn(params);
+            }
           }
         }
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {});
     const sub = Linking.addEventListener("url", ({ url }) => {
       console.log("[DeepLink] Received URL:", url);
       captureReferralFromURL(url);
@@ -264,7 +293,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const secureUser = await getStoredUserData<User>();
       if (secureUser) {
         // Skip pending/rejected users
-        if (secureUser.role === "business" && secureUser.approvalStatus === "pending") {
+        if (
+          secureUser.role === "business" &&
+          secureUser.approvalStatus === "pending"
+        ) {
           setIsLoading(false);
           return;
         }
@@ -278,12 +310,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // ── 2. Migration: also try AsyncStorage if SecureStore is empty ──────────
       const storedUserJson = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      const parsed: User | null = secureUser || (storedUserJson ? JSON.parse(storedUserJson) : null);
+      const parsed: User | null =
+        secureUser || (storedUserJson ? JSON.parse(storedUserJson) : null);
       if (!parsed) {
         // Clean up any abandoned Google OAuth profile
         try {
-          const abandoned = await AsyncStorage.getItem("@outsyde_google_profile");
-          if (abandoned) await AsyncStorage.removeItem("@outsyde_google_profile");
+          const abandoned = await AsyncStorage.getItem(
+            "@outsyde_google_profile",
+          );
+          if (abandoned)
+            await AsyncStorage.removeItem("@outsyde_google_profile");
         } catch (_) {}
         setIsLoading(false);
         return;
@@ -295,11 +331,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const headers: HeadersInit = { "Content-Type": "application/json" };
         if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
-        const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
-          method: "GET",
-          credentials: "include",
-          headers,
-        });
+        const response = await fetch(
+          "https://outsyde-backend.onrender.com/api/auth/me",
+          {
+            method: "GET",
+            credentials: "include",
+            headers,
+          },
+        );
 
         if (response.ok) {
           const backendData = await response.json();
@@ -315,12 +354,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               ...parsed,
               username: backendUser.username || parsed.username,
               displayName: backendUser.displayName || parsed.displayName,
-              avatar: backendUser.avatar || backendUser.profileImageUrl || parsed.avatar,
-              profileImageUrl: backendUser.profileImageUrl || parsed.profileImageUrl,
+              avatar:
+                backendUser.avatar ||
+                backendUser.profileImageUrl ||
+                parsed.avatar,
+              profileImageUrl:
+                backendUser.profileImageUrl || parsed.profileImageUrl,
               coverMediaUrl: backendUser.coverMediaUrl || parsed.coverMediaUrl,
-              coverMediaType: backendUser.coverMediaType || parsed.coverMediaType,
+              coverMediaType:
+                backendUser.coverMediaType || parsed.coverMediaType,
             };
-            await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
+            await AsyncStorage.setItem(
+              STORAGE_KEYS.USER,
+              JSON.stringify(updated),
+            );
             await storeUserData(updated);
             setUser(updated);
           } else {
@@ -335,13 +382,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const refreshToken = await getRefreshToken();
           if (refreshToken) {
             try {
-              const refreshRes = await fetch("https://outsyde-backend.onrender.com/api/auth/refresh", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ refreshToken }),
-              });
+              const refreshRes = await fetch(
+                "https://outsyde-backend.onrender.com/api/auth/refresh",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ refreshToken }),
+                },
+              );
               if (refreshRes.ok) {
-                const { accessToken: newAccess, refreshToken: newRefresh } = await refreshRes.json();
+                const { accessToken: newAccess, refreshToken: newRefresh } =
+                  await refreshRes.json();
                 await storeTokens(newAccess, newRefresh);
                 await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, newAccess);
                 setUser(parsed);
@@ -359,7 +410,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Other errors (network, 500) — use cached auth (offline-first)
         setUser(parsed);
       } catch (verifyError) {
-        console.warn("[Auth] Verification failed (using cached auth):", verifyError);
+        console.warn(
+          "[Auth] Verification failed (using cached auth):",
+          verifyError,
+        );
         setUser(parsed);
       }
     } catch (error) {
@@ -369,17 +423,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (identifier: string, password: string, type: "email" | "username" = "email"): Promise<LoginResult> => {
+  const login = async (
+    identifier: string,
+    password: string,
+    type: "email" | "username" = "email",
+  ): Promise<LoginResult> => {
     setIsLoading(true);
     try {
-      const loginPayload = type === "username"
-        ? { username: identifier, password }
-        : { email: identifier, password };
+      const loginPayload =
+        type === "username"
+          ? { username: identifier, password }
+          : { email: identifier, password };
       const response = await api.mobileLogin(loginPayload);
       console.log("[Auth] Login response received, user:", response.user?.id);
-      
+
       const backendUser = response.user;
-      
+
       // Determine role from backend flags
       let role: UserRole = "consumer";
       if (backendUser.isPhotographer) {
@@ -387,21 +446,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (backendUser.isVendor) {
         role = "business";
       }
-      
+
       // Extract photographer data if present
       const photographerData = (response as any).photographer;
-      
+
       const newUser: User = {
         id: backendUser.id,
-        firstName: backendUser.firstName || backendUser.name?.split(" ")[0] || backendUser.email?.split("@")[0] || identifier,
-        lastName: backendUser.lastName || backendUser.name?.split(" ").slice(1).join(" ") || "",
+        firstName:
+          backendUser.firstName ||
+          backendUser.name?.split(" ")[0] ||
+          backendUser.email?.split("@")[0] ||
+          identifier,
+        lastName:
+          backendUser.lastName ||
+          backendUser.name?.split(" ").slice(1).join(" ") ||
+          "",
         email: backendUser.email,
         phone: backendUser.phone || "",
         dateOfBirth: backendUser.dateOfBirth || "",
         role,
         approvalStatus: backendUser.approvalStatus || "approved",
         isProfileComplete: backendUser.isProfileComplete,
-        avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || backendUser.email?.split("@")[0] || identifier)}&background=D4A84B&color=fff`,
+        avatar:
+          backendUser.avatar ||
+          backendUser.profileImageUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || backendUser.email?.split("@")[0] || identifier)}&background=D4A84B&color=fff`,
         profileImageUrl: backendUser.profileImageUrl,
         coverMediaUrl: (backendUser as any).coverMediaUrl,
         coverMediaType: (backendUser as any).coverMediaType,
@@ -413,25 +482,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: photographerData?.displayName || backendUser.displayName,
         bio: photographerData?.bio || backendUser.bio,
         hourlyRate: photographerData?.hourlyRate || backendUser.hourlyRate,
-        portfolioUrl: photographerData?.portfolioUrl || backendUser.portfolioUrl,
+        portfolioUrl:
+          photographerData?.portfolioUrl || backendUser.portfolioUrl,
         specialties: photographerData?.specialties || backendUser.specialties,
         isAdmin: backendUser.isAdmin || false,
         businessId: (response as any).vendor?.id,
         photographerId: photographerData?.id,
         username: (backendUser as any).username,
       };
-      console.log("[Auth] Login user constructed with username:", newUser.username);
+      console.log(
+        "[Auth] Login user constructed with username:",
+        newUser.username,
+      );
 
       if (newUser.approvalStatus === "rejected") {
         return { success: false, isPending: false, isRejected: true };
       }
-      
+
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
-      console.log("[Auth] Token stored:", response.accessToken ? "JWT accessToken received" : "Fallback to session indicator", "Token preview:", sessionToken.substring(0, 30) + "...");
+      console.log(
+        "[Auth] Token stored:",
+        response.accessToken
+          ? "JWT accessToken received"
+          : "Fallback to session indicator",
+        "Token preview:",
+        sessionToken.substring(0, 30) + "...",
+      );
       if (response.refreshToken) {
-        await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
+        await AsyncStorage.setItem(
+          "@outsyde_refresh_token",
+          response.refreshToken,
+        );
       }
-      
+
       // Persist to both SecureStore and AsyncStorage
       if (response.accessToken && response.refreshToken) {
         await storeTokens(response.accessToken, response.refreshToken);
@@ -441,14 +524,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newUser.role === "business" && newUser.approvalStatus === "pending") {
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
         await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
-        return { success: true, isPending: true, isRejected: false, user: newUser };
+        return {
+          success: true,
+          isPending: true,
+          isRejected: false,
+          user: newUser,
+        };
       }
-      
+
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
       setUser(newUser);
-      console.log("[Auth] User logged in successfully:", newUser.email, "role:", newUser.role);
-      return { success: true, isPending: false, isRejected: false, user: newUser };
+      console.log(
+        "[Auth] User logged in successfully:",
+        newUser.email,
+        "role:",
+        newUser.role,
+      );
+      return {
+        success: true,
+        isPending: false,
+        isRejected: false,
+        user: newUser,
+      };
     } catch (error: any) {
       console.error("Login failed:", error);
       const status = error?.status;
@@ -465,10 +563,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const response = await api.mobileGoogleLogin(idToken);
-      console.log("[Auth] Google login response received, user:", response.user?.id);
-      
+      console.log(
+        "[Auth] Google login response received, user:",
+        response.user?.id,
+      );
+
       const backendUser = response.user;
-      
+
       // Determine role from backend flags
       let role: UserRole = "consumer";
       if (backendUser.isPhotographer) {
@@ -476,21 +577,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (backendUser.isVendor) {
         role = "business";
       }
-      
+
       // Extract photographer data if present
       const photographerData = (response as any).photographer;
-      
+
       const newUser: User = {
         id: backendUser.id,
-        firstName: backendUser.firstName || backendUser.name?.split(" ")[0] || "",
-        lastName: backendUser.lastName || backendUser.name?.split(" ").slice(1).join(" ") || "",
+        firstName:
+          backendUser.firstName || backendUser.name?.split(" ")[0] || "",
+        lastName:
+          backendUser.lastName ||
+          backendUser.name?.split(" ").slice(1).join(" ") ||
+          "",
         email: backendUser.email,
         phone: backendUser.phone || "",
         dateOfBirth: backendUser.dateOfBirth || "",
         role,
         approvalStatus: backendUser.approvalStatus || "approved",
         isProfileComplete: backendUser.isProfileComplete,
-        avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || "User")}&background=D4A84B&color=fff`,
+        avatar:
+          backendUser.avatar ||
+          backendUser.profileImageUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || "User")}&background=D4A84B&color=fff`,
         profileImageUrl: backendUser.profileImageUrl,
         coverMediaUrl: (backendUser as any).coverMediaUrl,
         coverMediaType: (backendUser as any).coverMediaType,
@@ -502,7 +610,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: photographerData?.displayName || backendUser.displayName,
         bio: photographerData?.bio || backendUser.bio,
         hourlyRate: photographerData?.hourlyRate || backendUser.hourlyRate,
-        portfolioUrl: photographerData?.portfolioUrl || backendUser.portfolioUrl,
+        portfolioUrl:
+          photographerData?.portfolioUrl || backendUser.portfolioUrl,
         specialties: photographerData?.specialties || backendUser.specialties,
         isAdmin: backendUser.isAdmin || false,
         businessId: (response as any).vendor?.id,
@@ -512,26 +621,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newUser.approvalStatus === "rejected") {
         return { success: false, isPending: false, isRejected: true };
       }
-      
+
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
       if (response.accessToken && response.refreshToken) {
         await storeTokens(response.accessToken, response.refreshToken);
       } else if (response.refreshToken) {
-        await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
+        await AsyncStorage.setItem(
+          "@outsyde_refresh_token",
+          response.refreshToken,
+        );
       }
       await storeUserData(newUser);
 
       if (newUser.role === "business" && newUser.approvalStatus === "pending") {
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
         await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
-        return { success: true, isPending: true, isRejected: false, user: newUser };
+        return {
+          success: true,
+          isPending: true,
+          isRejected: false,
+          user: newUser,
+        };
       }
-      
+
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
       setUser(newUser);
-      console.log("[Auth] User logged in via Google:", newUser.email, "role:", newUser.role);
-      return { success: true, isPending: false, isRejected: false, user: newUser };
+      console.log(
+        "[Auth] User logged in via Google:",
+        newUser.email,
+        "role:",
+        newUser.role,
+      );
+      return {
+        success: true,
+        isPending: false,
+        isRejected: false,
+        user: newUser,
+      };
     } catch (error: any) {
       console.error("Google login failed:", error);
       return { success: false, isPending: false, isRejected: false };
@@ -586,7 +713,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
       });
-      
+
       const backendUser = response.user;
       const newUser: User = {
         id: backendUser.id,
@@ -596,9 +723,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: backendUser.phone || data.phone,
         dateOfBirth: backendUser.dateOfBirth || data.dateOfBirth,
         role: backendUser.role || data.role,
-        approvalStatus: backendUser.approvalStatus || (data.role === "business" ? "pending" : "approved"),
-        isProfileComplete: backendUser.isProfileComplete ?? (data.role === "consumer"),
-        avatar: backendUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
+        approvalStatus:
+          backendUser.approvalStatus ||
+          (data.role === "business" ? "pending" : "approved"),
+        isProfileComplete:
+          backendUser.isProfileComplete ?? data.role === "consumer",
+        avatar:
+          backendUser.avatar ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
         city: backendUser.city || data.city,
         state: backendUser.state || data.state,
         businessName: backendUser.businessName || data.businessName,
@@ -615,24 +747,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
       };
-      
+
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       // Session-based auth: backend uses cookies, store session indicator
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
-      
+
       if (data.role === "business" && newUser.approvalStatus === "pending") {
         // Keep the user logged in so they can see their profile while waiting for approval
         setUser(newUser);
         return { success: true, isPending: true };
       }
-      
+
       setUser(newUser);
       return { success: true, isPending: false };
     } catch (error: any) {
       console.error("Signup failed:", error);
       // Extract error message for display
-      const errorMessage = error?.message || "Registration failed. Please try again.";
+      const errorMessage =
+        error?.message || "Registration failed. Please try again.";
       return { success: false, isPending: false, errorMessage };
     } finally {
       setIsLoading(false);
@@ -676,18 +809,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         console.warn("[Auth] Backend logout failed (non-critical):", e);
       }
-      
+
       // Clear SecureStore + AsyncStorage
       await clearAuthStorage();
       await AsyncStorage.multiRemove([
-        STORAGE_KEYS.USER, 
-        STORAGE_KEYS.TOKEN, 
+        STORAGE_KEYS.USER,
+        STORAGE_KEYS.TOKEN,
         "@outsyde_refresh_token",
         "@outsyde_favorites",
         "@outsyde_notifications",
         "@outsyde_cart",
       ]);
-      
+
       setUser(null);
       console.log("[Auth] Logout complete - all state cleared");
     } catch (error) {
@@ -718,35 +851,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = async (): Promise<LoginResult> => {
     setIsLoading(true);
     try {
-      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        "https://outsyde-backend.onrender.com/api/auth/me",
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         return { success: false, isPending: false, isRejected: false };
       }
 
       const data = await response.json();
-      console.log("[AuthContext] refreshSession response:", JSON.stringify(data, null, 2));
-      
+      console.log(
+        "[AuthContext] refreshSession response:",
+        JSON.stringify(data, null, 2),
+      );
+
       const userData = data.user || data;
-      
+
       const isPhotographer = userData.isPhotographer || !!data.photographer;
       const isVendor = userData.isVendor || !!data.vendor;
-      
+
       let derivedRole: UserRole = "consumer";
       if (isPhotographer) {
         derivedRole = "photographer";
       } else if (isVendor) {
         derivedRole = "business";
       }
-      
-      const approvalStatus = userData.approvalStatus || data.vendor?.approvalStatus;
-      
+
+      const approvalStatus =
+        userData.approvalStatus || data.vendor?.approvalStatus;
+
       if (derivedRole === "business" && approvalStatus === "pending") {
         return {
           success: true,
@@ -756,7 +896,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: userData.id,
             email: userData.email || "",
             firstName: userData.firstName || userData.name?.split(" ")[0] || "",
-            lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
+            lastName:
+              userData.lastName ||
+              userData.name?.split(" ").slice(1).join(" ") ||
+              "",
             phone: userData.phone || "",
             dateOfBirth: userData.dateOfBirth || "",
             role: derivedRole,
@@ -766,16 +909,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         };
       }
-      
+
       if (approvalStatus === "rejected") {
         return { success: false, isPending: false, isRejected: true };
       }
-      
+
       const newUser: User = {
         id: userData.id,
         email: userData.email || "",
         firstName: userData.firstName || userData.name?.split(" ")[0] || "",
-        lastName: userData.lastName || userData.name?.split(" ").slice(1).join(" ") || "",
+        lastName:
+          userData.lastName ||
+          userData.name?.split(" ").slice(1).join(" ") ||
+          "",
         phone: userData.phone || "",
         dateOfBirth: userData.dateOfBirth || "",
         role: derivedRole,
@@ -783,20 +929,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         avatar: userData.avatar,
         city: isPhotographer ? data.photographer?.city : data.vendor?.city,
         state: isPhotographer ? data.photographer?.state : data.vendor?.state,
-        displayName: isPhotographer ? data.photographer?.displayName : undefined,
+        displayName: isPhotographer
+          ? data.photographer?.displayName
+          : undefined,
         bio: isPhotographer ? data.photographer?.bio : undefined,
         hourlyRate: isPhotographer ? data.photographer?.hourlyRate : undefined,
-        portfolioUrl: isPhotographer ? data.photographer?.portfolioUrl : undefined,
-        specialties: isPhotographer ? data.photographer?.specialties : undefined,
+        portfolioUrl: isPhotographer
+          ? data.photographer?.portfolioUrl
+          : undefined,
+        specialties: isPhotographer
+          ? data.photographer?.specialties
+          : undefined,
         businessName: data.vendor?.businessName,
         businessCategory: data.vendor?.businessCategory,
       };
-      
+
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, `session_${newUser.id}`);
       setUser(newUser);
-      
-      return { success: true, isPending: false, isRejected: false, user: newUser };
+
+      return {
+        success: true,
+        isPending: false,
+        isRejected: false,
+        user: newUser,
+      };
     } catch (error) {
       console.error("Failed to refresh session:", error);
       return { success: false, isPending: false, isRejected: false };
@@ -808,43 +965,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async (): Promise<void> => {
     try {
       console.log("[Auth] Refreshing user from /api/auth/me...");
-      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
-        method: "GET",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      
+      const response = await fetch(
+        "https://outsyde-backend.onrender.com/api/auth/me",
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
       if (!response.ok) {
         console.warn("[Auth] refreshUser failed - status:", response.status);
         return;
       }
-      
+
       const data = await response.json();
-      console.log("[Auth] refreshUser response:", JSON.stringify(data, null, 2));
-      
-      const backendUser = data.user || data;
-      if (!backendUser?.id) {
+      console.log(
+        "[Auth] refreshUser response:",
+        JSON.stringify(data, null, 2),
+      );
+
+      // /api/auth/me returns a flat object { userId, username, ... }
+      // but some paths wrap it as { user: { id, ... } } — handle both
+      const userPayload = data.user ?? data;
+      if (!userPayload?.userId && !userPayload?.id) {
         console.warn("[Auth] refreshUser - no user in response");
         return;
       }
-      
+
       // Update current user with fresh data from backend
       if (user) {
         const updatedUser: User = {
           ...user,
-          username: backendUser.username,
-          displayName: backendUser.displayName || user.displayName,
-          avatar: backendUser.avatar || backendUser.profileImageUrl || user.avatar,
-          profileImageUrl: backendUser.profileImageUrl || user.profileImageUrl,
-          coverMediaUrl: backendUser.coverMediaUrl || user.coverMediaUrl,
-          coverMediaType: backendUser.coverMediaType || user.coverMediaType,
-          city: backendUser.city || user.city,
-          state: backendUser.state || user.state,
-          bio: backendUser.bio || user.bio,
+          username: userPayload.username,
+          displayName: userPayload.displayName || user.displayName,
+          avatar:
+            userPayload.avatar || userPayload.profileImageUrl || user.avatar,
+          profileImageUrl: userPayload.profileImageUrl || user.profileImageUrl,
+          coverMediaUrl: userPayload.coverMediaUrl || user.coverMediaUrl,
+          coverMediaType: userPayload.coverMediaType || user.coverMediaType,
+          city: userPayload.city || user.city,
+          state: userPayload.state || user.state,
+          bio: userPayload.bio || user.bio,
         };
-        
+
         console.log("[Auth] User refreshed - username:", updatedUser.username);
-        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.USER,
+          JSON.stringify(updatedUser),
+        );
         setUser(updatedUser);
       }
     } catch (error) {
@@ -852,12 +1021,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithTokens = async (accessToken: string, refreshToken: string, userData: GoogleAuthUserData): Promise<LoginResult> => {
+  const loginWithTokens = async (
+    accessToken: string,
+    refreshToken: string,
+    userData: GoogleAuthUserData,
+  ): Promise<LoginResult> => {
     setIsLoading(true);
     try {
-      console.log("[AuthContext] loginWithTokens called with userId:", userData.userId);
-      console.log("[AuthContext] User data from URL:", JSON.stringify(userData, null, 2));
-      
+      console.log(
+        "[AuthContext] loginWithTokens called with userId:",
+        userData.userId,
+      );
+      console.log(
+        "[AuthContext] User data from URL:",
+        JSON.stringify(userData, null, 2),
+      );
+
       await storeTokens(accessToken, refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
       await AsyncStorage.setItem("@outsyde_refresh_token", refreshToken);
@@ -868,11 +1047,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (userData.isVendor) {
         derivedRole = "business";
       }
-      
+
       const nameParts = userData.name?.split(" ") || [];
       const firstName = userData.firstName || nameParts[0] || "";
       const lastName = userData.lastName || nameParts.slice(1).join(" ") || "";
-      
+
       const newUser: User = {
         id: userData.userId,
         email: userData.email,
@@ -887,15 +1066,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         businessId: userData.businessId,
         photographerId: userData.photographerId,
       };
-      
+
       await storeUserData(newUser);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
       setUser(newUser);
-      
-      console.log("[AuthContext] User logged in successfully:", newUser.email, "role:", derivedRole, "isAdmin:", newUser.isAdmin);
+
+      console.log(
+        "[AuthContext] User logged in successfully:",
+        newUser.email,
+        "role:",
+        derivedRole,
+        "isAdmin:",
+        newUser.isAdmin,
+      );
       // Remove any abandoned Google profile stored during OAuth signup flow
-      await AsyncStorage.removeItem('@outsyde_google_profile');
-      return { success: true, isPending: false, isRejected: false, user: newUser };
+      await AsyncStorage.removeItem("@outsyde_google_profile");
+      return {
+        success: true,
+        isPending: false,
+        isRejected: false,
+        user: newUser,
+      };
     } catch (error) {
       console.error("Failed to login with tokens:", error);
       return { success: false, isPending: false, isRejected: false };
