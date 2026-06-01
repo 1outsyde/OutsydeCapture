@@ -2348,73 +2348,10 @@ class ApiService {
   async updateVendorMyBusiness(authToken: string, data: Partial<BusinessOnboardingData>): Promise<{ business: VendorBookerBusiness }> {
     console.log("[API] updateVendorMyBusiness RAW input:", JSON.stringify(data, null, 2));
     
-    // Build defensive payload - filter out empty/null/undefined values
-    const cleanPayload: Record<string, any> = {};
-    
-    // Only include fields with valid non-empty values
-    if (data.name && data.name.trim()) {
-      cleanPayload.name = data.name.trim();
-    }
-    if (data.category && data.category.trim()) {
-      cleanPayload.category = data.category.trim();
-    }
-    if (data.description && data.description.trim()) {
-      cleanPayload.description = data.description.trim();
-    }
-    if (data.tagline && data.tagline.trim()) {
-      cleanPayload.tagline = data.tagline.trim();
-    }
-    if (data.city && data.city.trim()) {
-      cleanPayload.city = data.city.trim();
-    }
-    if (data.state && data.state.trim()) {
-      cleanPayload.state = data.state.trim();
-    }
-    if (data.address && data.address.trim()) {
-      cleanPayload.address = data.address.trim();
-    }
-    if (data.contactEmail && data.contactEmail.trim()) {
-      cleanPayload.contactEmail = data.contactEmail.trim();
-    }
-    if (data.contactPhone && data.contactPhone.trim()) {
-      cleanPayload.contactPhone = data.contactPhone.trim();
-    }
-    if (data.websiteUrl && data.websiteUrl.trim()) {
-      cleanPayload.websiteUrl = data.websiteUrl.trim();
-    }
-    if (typeof data.hasProducts === 'boolean') {
-      cleanPayload.hasProducts = data.hasProducts;
-    }
-    if (typeof data.hasServices === 'boolean') {
-      cleanPayload.hasServices = data.hasServices;
-    }
-    if (typeof data.hasPhysicalLocation === 'boolean') {
-      cleanPayload.hasPhysicalLocation = data.hasPhysicalLocation;
-    }
-    if (typeof data.isOnlineOnly === 'boolean') {
-      cleanPayload.isOnlineOnly = data.isOnlineOnly;
-    }
-    if (data.yearsInBusiness && data.yearsInBusiness > 0) {
-      cleanPayload.yearsInBusiness = data.yearsInBusiness;
-    }
-    if (data.numberOfEmployees && data.numberOfEmployees > 0) {
-      cleanPayload.numberOfEmployees = data.numberOfEmployees;
-    }
-    if (data.businessStructure && data.businessStructure.trim()) {
-      cleanPayload.businessStructure = data.businessStructure.trim();
-    }
-    if (data.hoursOfOperation && Object.keys(data.hoursOfOperation).length > 0) {
-      cleanPayload.hoursOfOperation = data.hoursOfOperation;
-    }
-    if (data.brandColors && data.brandColors.trim()) {
-      cleanPayload.brandColors = data.brandColors.trim();
-    }
-    if (data.coverImage && data.coverImage.trim()) {
-      cleanPayload.coverImage = data.coverImage.trim();
-    }
-    if (data.logoImage && data.logoImage.trim()) {
-      cleanPayload.logoImage = data.logoImage.trim();
-    }
+    // Build defensive payload - strip only undefined values
+    const cleanPayload: Record<string, any> = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined)
+    );
     
     console.log("[API] updateVendorMyBusiness CLEAN payload:", JSON.stringify(cleanPayload, null, 2));
     
