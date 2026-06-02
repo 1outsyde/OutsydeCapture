@@ -515,7 +515,14 @@ export default function VendorDetailScreen({ route }: Props) {
 
         const liveProducts = (
           (productResponse.products || []) as VendorProduct[]
-        ).filter((item: VendorProduct) => item.status === "live");
+        )
+          .filter((item: VendorProduct) => item.status === "live")
+          .map((item) => ({
+            ...item,
+            priceCents: Number(
+              item.priceCents ?? (item as any).price ?? 0
+            ),
+          }));
         const liveServices = (
           (serviceResponse.services || []) as VendorService[]
         )
@@ -524,7 +531,9 @@ export default function VendorDetailScreen({ route }: Props) {
             id: String(item.id),
             name: item.name,
             description: item.description || undefined,
-            priceCents: Number(item.priceCents ?? 0),
+            priceCents: Number(
+              item.priceCents ?? (item as any).price ?? 0
+            ),
             durationMinutes:
               item.durationMinutes ||
               (item as any).estimatedDurationMinutes ||
@@ -654,7 +663,9 @@ export default function VendorDetailScreen({ route }: Props) {
               id: String(item.id),
               name: item.name,
               description: item.description || undefined,
-              priceCents: Number(item.priceCents ?? 0),
+              priceCents: Number(
+                item.priceCents ?? (item as any).price ?? 0
+              ),
               durationMinutes: (item as any).durationMinutes || undefined,
               rating: Number((item as any).rating ?? 0),
               reviewCount: Number((item as any).reviewCount ?? 0),
