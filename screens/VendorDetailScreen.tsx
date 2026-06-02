@@ -654,7 +654,11 @@ export default function VendorDetailScreen({ route }: Props) {
 
           try {
             const photographerServices = (
-              (serviceResponse || []) as VendorBookerPhotographerService[]
+              (Array.isArray(serviceResponse)
+                ? serviceResponse
+                : (serviceResponse as any)?.services ||
+                  (serviceResponse as any)?.data ||
+                  []) as VendorBookerPhotographerService[]
             )
               .filter((item: VendorBookerPhotographerService) => {
                 if (!item.status) return true;
@@ -797,7 +801,11 @@ export default function VendorDetailScreen({ route }: Props) {
             resolvedReviews = [];
             try {
               resolvedServices = (
-                (serviceResponse || []) as VendorBookerPhotographerService[]
+                (Array.isArray(serviceResponse)
+                  ? serviceResponse
+                  : (serviceResponse as any)?.services ||
+                    (serviceResponse as any)?.data ||
+                    []) as VendorBookerPhotographerService[]
               )
                 .filter((item: VendorBookerPhotographerService) => {
                   if (!item.status) return true;
