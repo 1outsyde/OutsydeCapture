@@ -219,15 +219,19 @@ export default function SearchScreen() {
           initialTab: "services",
         });
       }
+    } else if (item.resultType === "business") {
+      navigation.navigate("VendorDetail", {
+        vendorId: item.id,
+      });
+    } else if (item.resultType === "photographer") {
+      navigation.navigate("VendorDetail", {
+        vendorId: item.id,
+      });
     } else {
-      const userType = item.resultType === "photographer" ? "photographer" 
-                     : item.resultType === "business" ? "business" 
-                     : "consumer";
-      
       navigation.navigate("Profile", {
         userId,
         profileId,
-        userType,
+        userType: "consumer",
         displayName: item.name,
         avatar: item.avatar,
       });
