@@ -13,7 +13,8 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "@/hooks/useTheme";
-import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
+import { useAuth } from "@/context/AuthContext";
+import { uploadImage, uploadVideo } from "@/services/mediaUpload";
 
 type MediaType = "image" | "video";
 
@@ -45,6 +46,7 @@ export default function MediaUploader({
   maxVideoSizeMB = 50,
 }: MediaUploaderProps) {
   const { theme } = useTheme();
+  const { getToken } = useAuth();
   const [activeTab, setActiveTab] = useState<MediaType>(currentMediaType || "image");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
@@ -90,8 +92,11 @@ export default function MediaUploader({
 
       if (!result.canceled && result.assets[0]) {
         setUploadProgress("Uploading image...");
-        const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, folder);
-        onMediaUploaded(cloudinaryUrl, "image");
+        const token = await getToken();
+        if (!token) throw new Error("Not authenticated");
+        const mimeType = result.assets[0].mimeType || "image/jpeg";
+        const uploadResult = await uploadImage(result.assets[0].uri, mimeType, folder, token);
+        onMediaUploaded(uploadResult.url, "image");
         setActiveTab("image");
       }
     } catch (error: any) {
@@ -130,8 +135,11 @@ export default function MediaUploader({
 
       if (!result.canceled && result.assets[0]) {
         setUploadProgress("Uploading photo...");
-        const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, folder);
-        onMediaUploaded(cloudinaryUrl, "image");
+        const token = await getToken();
+        if (!token) throw new Error("Not authenticated");
+        const mimeType = result.assets[0].mimeType || "image/jpeg";
+        const uploadResult = await uploadImage(result.assets[0].uri, mimeType, folder, token);
+        onMediaUploaded(uploadResult.url, "image");
         setActiveTab("image");
       }
     } catch (error: any) {
@@ -194,10 +202,13 @@ export default function MediaUploader({
           duration: asset.duration,
           fileSize: asset.fileSize,
         });
-        
-        const cloudinaryUrl = await uploadVideoToCloudinary(asset.uri, folder, asset.mimeType);
-        console.log("[MediaUploader] Video uploaded successfully:", cloudinaryUrl);
-        onMediaUploaded(cloudinaryUrl, "video");
+
+        const token = await getToken();
+        if (!token) throw new Error("Not authenticated");
+        const mimeType = asset.mimeType || "video/mp4";
+        const uploadResult = await uploadVideo(asset.uri, mimeType, token);
+        console.log("[MediaUploader] Video uploaded successfully, uploadId:", uploadResult.uploadId);
+        onMediaUploaded(uploadResult.url, "video");
         setActiveTab("video");
       }
     } catch (error: any) {

@@ -54,7 +54,7 @@ import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
-import { uploadImageToCloudinary } from "@/services/cloudinary";
+import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { feedEvents } from "@/services/feedEvents";
 
@@ -892,7 +892,8 @@ export default function ProfileScreen() {
 
     setPostSaving(true);
     try {
-      const cloudinaryUrl = await uploadImageToCloudinary(newPostImage, "posts");
+      const uploadResult = await uploadImage(newPostImage, "image/jpeg", "posts", authToken);
+      const cloudinaryUrl = uploadResult.url;
       if (!cloudinaryUrl) {
         throw new Error("Failed to upload image. Please try again.");
       }
@@ -987,24 +988,8 @@ export default function ProfileScreen() {
     const cardStyle = isPro ? styles.proPostCard : styles.pulsePostCard;
     const viewCount = Math.floor(Math.random() * 100) + 10;
     
-    // Determine the thumbnail to display
-    // For video posts: derive thumbnail from Cloudinary video URL (first frame)
-    // For image posts: use the imageUri
     const isVideo = post.mediaType === "video" || (post.videoUri && !post.imageUri);
-    let thumbnailUri = post.imageUri;
-    
-    if (isVideo && post.videoUri) {
-      // Convert Cloudinary video URL to thumbnail by replacing /video/upload/ with /video/upload/so_0,f_jpg/
-      // This gets the first frame of the video as a JPG
-      if (post.videoUri.includes("/video/upload/")) {
-        thumbnailUri = post.videoUri.replace("/video/upload/", "/video/upload/so_0,f_jpg,w_400/");
-        // Also change extension to jpg if it ends with mp4/mov
-        thumbnailUri = thumbnailUri.replace(/\.(mp4|mov|webm)$/i, ".jpg");
-      } else {
-        // Fallback: just use the video URL and hope Image can extract a frame
-        thumbnailUri = post.videoUri;
-      }
-    }
+    const thumbnailUri = post.imageUri || (isVideo && post.videoUri ? post.videoUri : "");
     
     return (
       <Pressable
