@@ -637,6 +637,10 @@ export default function VendorDetailScreen({ route }: Props) {
           : [];
       } catch {
         try {
+          console.log(
+            "[VendorDetail] Business lookup failed, trying photographer with vendorId:",
+            vendorId,
+          );
           const photographer = await apiClient.getPhotographer(vendorId);
           const postOwnerId = String(
             (photographer as any).userId ?? photographer.id ?? vendorId,
@@ -651,6 +655,11 @@ export default function VendorDetailScreen({ route }: Props) {
                 .getProfilePosts(postOwnerId, { limit: 60 })
                 .catch(() => ({ posts: [] })),
             ]);
+          console.log(
+            "[VendorDetail] Photographer loaded:",
+            photographer.id,
+            photographer.name || (photographer as any).displayName,
+          );
 
           try {
             const photographerServices = (
@@ -923,6 +932,10 @@ export default function VendorDetailScreen({ route }: Props) {
             };
           }
         } catch {
+          console.error(
+            "[VendorDetail] Both business and photographer lookups failed for vendorId:",
+            vendorId,
+          );
           const postResponse = await apiClient
             .getProfilePosts(vendorId, { limit: 60 })
             .catch(() => ({ posts: [] }));
