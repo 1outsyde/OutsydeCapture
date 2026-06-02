@@ -1169,7 +1169,9 @@ class ApiService {
             validationErrors = errorBody.errors;
             errorMessage = validationErrors.join(", ");
           }
-          console.error("API Error Response:", JSON.stringify(errorBody, null, 2));
+          if (response.status !== 404) {
+            console.error("API Error Response:", JSON.stringify(errorBody, null, 2));
+          }
         } catch (parseError) {
           // Could not parse error body, use default message
         }
