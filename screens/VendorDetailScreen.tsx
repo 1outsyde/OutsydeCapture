@@ -661,133 +661,237 @@ export default function VendorDetailScreen({ route }: Props) {
             photographer.name || (photographer as any).displayName,
           );
 
-          const photographerServices = (
-            (serviceResponse || []) as VendorBookerPhotographerService[]
-          )
-            .filter(
-              (item: VendorBookerPhotographerService) =>
-                item.status === "live" || item.status === "active",
+          try {
+            const photographerServices = (
+              (serviceResponse || []) as VendorBookerPhotographerService[]
             )
-            .map((item: VendorBookerPhotographerService) => ({
-              id: String(item.id),
-              name: item.name,
-              description: item.description || undefined,
-              priceCents: Number(
-                item.priceCents ?? (item as any).price ?? 0
+              .filter(
+                (item: VendorBookerPhotographerService) =>
+                  item.status === "live" || item.status === "active",
+              )
+              .map((item: VendorBookerPhotographerService) => ({
+                id: String(item.id),
+                name: item.name,
+                description: item.description || undefined,
+                priceCents: Number(
+                  item.priceCents ?? (item as any).price ?? 0
+                ),
+                durationMinutes: (item as any).durationMinutes || undefined,
+                rating: Number((item as any).rating ?? 0),
+                reviewCount: Number((item as any).reviewCount ?? 0),
+              }));
+
+            resolvedPosts = normalizePosts(postResponse.posts || []);
+
+            resolvedProfile = {
+              id: String(photographer.id ?? vendorId),
+              userId: String((photographer as any).userId ?? ""),
+              role: "photographer",
+              name:
+                photographer.name ||
+                (photographer as any).displayName ||
+                "Photographer",
+              handle: `@${
+                (photographer as any).username ||
+                String(photographer.name || "photographer")
+                  .replace(/\s+/g, "")
+                  .toLowerCase()
+              }`,
+              avatarUrl:
+                (photographer as any).avatar ||
+                (photographer as any).logoImage ||
+                undefined,
+              coverMediaUrl:
+                (photographer as any).coverMediaUrl ||
+                photographer.coverImage ||
+                undefined,
+              coverMediaType: ((photographer as any).coverMediaType === "video"
+                ? "video"
+                : "image") as "image" | "video",
+              city: photographer.city || undefined,
+              state: photographer.state || undefined,
+              location:
+                photographer.location ||
+                [photographer.city, photographer.state]
+                  .filter(Boolean)
+                  .join(", "),
+              bio: photographer.description || undefined,
+              tagline: (photographer as any).tagline || undefined,
+              rating: Number(photographer.rating ?? 0),
+              reviewCount: Number(photographer.reviewCount ?? 0),
+              followerCount: Number(
+                (photographer as any).followerCount ??
+                  (photographer as any).followersCount ??
+                  0,
               ),
-              durationMinutes: (item as any).durationMinutes || undefined,
-              rating: Number((item as any).rating ?? 0),
-              reviewCount: Number((item as any).reviewCount ?? 0),
-            }));
+              followingCount: Number((photographer as any).followingCount ?? 0),
+              bookingCount: 0,
+              shootsCount: Number(
+                (photographer as any).shootCount ??
+                  (photographer as any).shootsCount ??
+                  (photographer as any).totalShoots ??
+                  (photographer as any).bookingCount ??
+                  (photographer as any).totalBookings ??
+                  (photographer as any).bookingsCount ??
+                  0,
+              ),
+              postsCount: resolvedPosts.length,
+              isVerified: Boolean((photographer as any).isVerified),
+              subscriptionTier: String(
+                (photographer as any).subscriptionTier || "",
+              ),
+              brandColors: null,
+              hasProducts: false,
+              hasServices: photographerServices.length > 0,
+              specialties:
+                photographer.specialties ||
+                (photographer.specialty ? [photographer.specialty] : []),
+              hourlyRate:
+                Number((photographer as any).hourlyRate ?? 0) || undefined,
+              minPrice: getMinimumPrice([], photographerServices),
+              responseTime: resolveResponseTime(
+                photographer as any,
+                "Usually responds in 3h",
+              ),
+              responseTimeValue: Number(
+                (photographer as any).responseTimeValue ?? 3,
+              ),
+              responseTimeUnit: ((photographer as any).responseTimeUnit ||
+                "hours") as ResponseTimeUnit,
+              showResponseTime: (photographer as any).showResponseTime !== false,
+              availabilitySummary:
+                (photographer as any).availability || undefined,
+              contactEmail: photographer.email || undefined,
+              contactPhone: photographer.phone || undefined,
+              websiteUrl: photographer.website || undefined,
+              showEmail: (photographer as any).showEmail !== false,
+              showPhone: (photographer as any).showPhone !== false,
+              showWebsite: (photographer as any).showWebsite !== false,
+              showStoreHours: true,
+            };
 
-          resolvedPosts = normalizePosts(postResponse.posts || []);
-
-          resolvedProfile = {
-            id: String(photographer.id ?? vendorId),
-            userId: String((photographer as any).userId ?? ""),
-            role: "photographer",
-            name:
-              photographer.name ||
-              (photographer as any).displayName ||
-              "Photographer",
-            handle: `@${
-              (photographer as any).username ||
-              String(photographer.name || "photographer")
-                .replace(/\s+/g, "")
-                .toLowerCase()
-            }`,
-            avatarUrl:
-              (photographer as any).avatar ||
-              (photographer as any).logoImage ||
-              undefined,
-            coverMediaUrl:
-              (photographer as any).coverMediaUrl ||
-              photographer.coverImage ||
-              undefined,
-            coverMediaType: ((photographer as any).coverMediaType === "video"
-              ? "video"
-              : "image") as "image" | "video",
-            city: photographer.city || undefined,
-            state: photographer.state || undefined,
-            location:
-              photographer.location ||
-              [photographer.city, photographer.state]
-                .filter(Boolean)
-                .join(", "),
-            bio: photographer.description || undefined,
-            tagline: (photographer as any).tagline || undefined,
-            rating: Number(photographer.rating ?? 0),
-            reviewCount: Number(photographer.reviewCount ?? 0),
-            followerCount: Number(
-              (photographer as any).followerCount ??
-                (photographer as any).followersCount ??
-                0,
-            ),
-            followingCount: Number((photographer as any).followingCount ?? 0),
-            bookingCount: 0,
-            shootsCount: Number(
-              (photographer as any).shootCount ??
-                (photographer as any).shootsCount ??
-                (photographer as any).totalShoots ??
-                (photographer as any).bookingCount ??
-                (photographer as any).totalBookings ??
-                (photographer as any).bookingsCount ??
-                0,
-            ),
-            postsCount: resolvedPosts.length,
-            isVerified: Boolean((photographer as any).isVerified),
-            subscriptionTier: String(
-              (photographer as any).subscriptionTier || "",
-            ),
-            brandColors: null,
-            hasProducts: false,
-            hasServices: photographerServices.length > 0,
-            specialties:
-              photographer.specialties ||
-              (photographer.specialty ? [photographer.specialty] : []),
-            hourlyRate:
-              Number((photographer as any).hourlyRate ?? 0) || undefined,
-            minPrice: getMinimumPrice([], photographerServices),
-            responseTime: resolveResponseTime(
-              photographer as any,
-              "Usually responds in 3h",
-            ),
-            responseTimeValue: Number(
-              (photographer as any).responseTimeValue ?? 3,
-            ),
-            responseTimeUnit: ((photographer as any).responseTimeUnit ||
-              "hours") as ResponseTimeUnit,
-            showResponseTime: (photographer as any).showResponseTime !== false,
-            availabilitySummary:
-              (photographer as any).availability || undefined,
-            contactEmail: photographer.email || undefined,
-            contactPhone: photographer.phone || undefined,
-            websiteUrl: photographer.website || undefined,
-            showEmail: (photographer as any).showEmail !== false,
-            showPhone: (photographer as any).showPhone !== false,
-            showWebsite: (photographer as any).showWebsite !== false,
-            showStoreHours: true,
-          };
-
-          resolvedServices = photographerServices;
-          resolvedAvailability = (availabilityResponse.availability || []).map(
-            (slot: any) => ({
+            resolvedServices = photographerServices;
+            resolvedAvailability = (
+              availabilityResponse.availability || []
+            ).map((slot: any) => ({
               dayOfWeek: Number(slot.dayOfWeek ?? 0),
               startTime: String(slot.startTime ?? ""),
               endTime: String(slot.endTime ?? ""),
               isActive: Boolean(slot.isActive ?? true),
-            }),
-          );
-          resolvedReviews = Array.isArray((photographer as any).reviews)
-            ? (photographer as any).reviews.map((item: any, index: number) => ({
-                id: String(item.id ?? `review-${index}`),
-                userName: item.userName || item.authorName || "Outsyde User",
-                avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
-                rating: Number(item.rating ?? 5),
-                text: item.text || item.comment || "",
-                createdAt: item.createdAt || new Date().toISOString(),
-              }))
-            : [];
+            }));
+            resolvedReviews = Array.isArray((photographer as any).reviews)
+              ? (photographer as any).reviews.map(
+                  (item: any, index: number) => ({
+                    id: String(item.id ?? `review-${index}`),
+                    userName: item.userName || item.authorName || "Outsyde User",
+                    avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
+                    rating: Number(item.rating ?? 5),
+                    text: item.text || item.comment || "",
+                    createdAt: item.createdAt || new Date().toISOString(),
+                  }),
+                )
+              : [];
+          } catch (processingError) {
+            console.warn(
+              "[VendorDetail] Photographer data processing error, rendering with partial data:",
+              processingError,
+            );
+            resolvedPosts = [];
+            resolvedServices = [];
+            resolvedAvailability = [];
+            resolvedReviews = [];
+            resolvedProfile = {
+              id: String(photographer.id ?? vendorId),
+              userId: String((photographer as any).userId ?? ""),
+              role: "photographer",
+              name:
+                (photographer as any).displayName ||
+                photographer.name ||
+                "Photographer",
+              handle: `@${
+                (photographer as any).username ||
+                String(
+                  (photographer as any).displayName ||
+                    photographer.name ||
+                    "photographer",
+                )
+                  .replace(/\s+/g, "")
+                  .toLowerCase()
+              }`,
+              avatarUrl:
+                (photographer as any).avatar ||
+                (photographer as any).logoImage ||
+                undefined,
+              coverMediaUrl:
+                (photographer as any).coverMediaUrl ||
+                photographer.coverImage ||
+                undefined,
+              coverMediaType: ((photographer as any).coverMediaType === "video"
+                ? "video"
+                : "image") as "image" | "video",
+              city: photographer.city || undefined,
+              state: photographer.state || undefined,
+              location:
+                photographer.location ||
+                [photographer.city, photographer.state]
+                  .filter(Boolean)
+                  .join(", "),
+              bio: photographer.description || undefined,
+              tagline: (photographer as any).tagline || undefined,
+              rating: Number(photographer.rating ?? 0),
+              reviewCount: Number(photographer.reviewCount ?? 0),
+              followerCount: Number(
+                (photographer as any).followerCount ??
+                  (photographer as any).followersCount ??
+                  0,
+              ),
+              followingCount: Number((photographer as any).followingCount ?? 0),
+              bookingCount: 0,
+              shootsCount: Number(
+                (photographer as any).shootCount ??
+                  (photographer as any).shootsCount ??
+                  (photographer as any).totalShoots ??
+                  (photographer as any).bookingCount ??
+                  (photographer as any).totalBookings ??
+                  (photographer as any).bookingsCount ??
+                  0,
+              ),
+              postsCount: 0,
+              isVerified: Boolean((photographer as any).isVerified),
+              subscriptionTier: String(
+                (photographer as any).subscriptionTier || "",
+              ),
+              brandColors: null,
+              hasProducts: false,
+              hasServices: false,
+              specialties: Array.isArray(photographer.specialties)
+                ? photographer.specialties
+                : photographer.specialty
+                  ? [photographer.specialty]
+                  : [],
+              hourlyRate:
+                Number((photographer as any).hourlyRate ?? 0) || undefined,
+              responseTime: resolveResponseTime(
+                photographer as any,
+                "Usually responds in 3h",
+              ),
+              responseTimeValue: Number(
+                (photographer as any).responseTimeValue ?? 3,
+              ),
+              responseTimeUnit: ((photographer as any).responseTimeUnit ||
+                "hours") as ResponseTimeUnit,
+              showResponseTime: (photographer as any).showResponseTime !== false,
+              availabilitySummary:
+                (photographer as any).availability || undefined,
+              contactEmail: photographer.email || undefined,
+              contactPhone: photographer.phone || undefined,
+              websiteUrl: photographer.website || undefined,
+              showEmail: (photographer as any).showEmail !== false,
+              showPhone: (photographer as any).showPhone !== false,
+              showWebsite: (photographer as any).showWebsite !== false,
+              showStoreHours: true,
+            };
+          }
         } catch {
           console.error(
             "[VendorDetail] Both business and photographer lookups failed for vendorId:",
