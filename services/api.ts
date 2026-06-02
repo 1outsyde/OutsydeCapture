@@ -238,12 +238,16 @@ export interface VendorBookerBusiness {
   contactEmail?: string | null;
   contactPhone?: string | null;
   websiteUrl?: string | null;
+  knownFor?: string[] | string | null;
+  socialMedia?: Record<string, string> | string | null;
   stripeAccountId?: string | null;
   stripeOnboardingComplete?: boolean | null;
   approvalStatus?: "pending" | "approved" | "rejected" | null;
   approvalNotes?: string | null;
   subscriptionActive?: boolean | null;
   subscriptionStatus?: string | null;
+  subscriptionTier?: string | null;
+  hasActiveSubscription?: boolean | null;
   rating?: number | null;
   reviewCount?: number | null;
   createdAt?: string;
@@ -737,7 +741,11 @@ export interface BusinessDashboardProfile {
   website?: string;
   stripeConnected: boolean;
   businessType: "service" | "product" | "both";
+  brandColor?: string;
   autoAcceptBookings?: boolean; // Auto-accept new bookings without manual approval
+  subscriptionStatus?: string;
+  subscriptionTier?: string;
+  hasActiveSubscription?: boolean;
 }
 
 export interface BusinessOrder {
@@ -1117,7 +1125,7 @@ class ApiService {
     };
     
     // Log the final request for debugging
-    console.log(`[API] ${options?.method || 'GET'} ${endpoint}`, options?.body ? `Body: ${options.body}` : '');
+    console.log(`[API] ${options?.method || 'GET'} ${url}`, options?.body ? `Body: ${options.body}` : '');
     
     // Set up timeout with AbortController (default 30s, longer for signup/auth)
     const timeoutMs = options?.timeout || 30000;
@@ -1138,7 +1146,7 @@ class ApiService {
           'access-control-allow-credentials': response.headers.get('access-control-allow-credentials'),
           'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
         };
-        console.log(`[API] Response ${response.status} ${endpoint}`, corsHeaders);
+        console.log(`[API] Response ${response.status} ${url}`, corsHeaders);
         
         // Extra logging for 401 errors
         if (response.status === 401) {
@@ -2340,73 +2348,10 @@ class ApiService {
   async updateVendorMyBusiness(authToken: string, data: Partial<BusinessOnboardingData>): Promise<{ business: VendorBookerBusiness }> {
     console.log("[API] updateVendorMyBusiness RAW input:", JSON.stringify(data, null, 2));
     
-    // Build defensive payload - filter out empty/null/undefined values
-    const cleanPayload: Record<string, any> = {};
-    
-    // Only include fields with valid non-empty values
-    if (data.name && data.name.trim()) {
-      cleanPayload.name = data.name.trim();
-    }
-    if (data.category && data.category.trim()) {
-      cleanPayload.category = data.category.trim();
-    }
-    if (data.description && data.description.trim()) {
-      cleanPayload.description = data.description.trim();
-    }
-    if (data.tagline && data.tagline.trim()) {
-      cleanPayload.tagline = data.tagline.trim();
-    }
-    if (data.city && data.city.trim()) {
-      cleanPayload.city = data.city.trim();
-    }
-    if (data.state && data.state.trim()) {
-      cleanPayload.state = data.state.trim();
-    }
-    if (data.address && data.address.trim()) {
-      cleanPayload.address = data.address.trim();
-    }
-    if (data.contactEmail && data.contactEmail.trim()) {
-      cleanPayload.contactEmail = data.contactEmail.trim();
-    }
-    if (data.contactPhone && data.contactPhone.trim()) {
-      cleanPayload.contactPhone = data.contactPhone.trim();
-    }
-    if (data.websiteUrl && data.websiteUrl.trim()) {
-      cleanPayload.websiteUrl = data.websiteUrl.trim();
-    }
-    if (typeof data.hasProducts === 'boolean') {
-      cleanPayload.hasProducts = data.hasProducts;
-    }
-    if (typeof data.hasServices === 'boolean') {
-      cleanPayload.hasServices = data.hasServices;
-    }
-    if (typeof data.hasPhysicalLocation === 'boolean') {
-      cleanPayload.hasPhysicalLocation = data.hasPhysicalLocation;
-    }
-    if (typeof data.isOnlineOnly === 'boolean') {
-      cleanPayload.isOnlineOnly = data.isOnlineOnly;
-    }
-    if (data.yearsInBusiness && data.yearsInBusiness > 0) {
-      cleanPayload.yearsInBusiness = data.yearsInBusiness;
-    }
-    if (data.numberOfEmployees && data.numberOfEmployees > 0) {
-      cleanPayload.numberOfEmployees = data.numberOfEmployees;
-    }
-    if (data.businessStructure && data.businessStructure.trim()) {
-      cleanPayload.businessStructure = data.businessStructure.trim();
-    }
-    if (data.hoursOfOperation && Object.keys(data.hoursOfOperation).length > 0) {
-      cleanPayload.hoursOfOperation = data.hoursOfOperation;
-    }
-    if (data.brandColors && data.brandColors.trim()) {
-      cleanPayload.brandColors = data.brandColors.trim();
-    }
-    if (data.coverImage && data.coverImage.trim()) {
-      cleanPayload.coverImage = data.coverImage.trim();
-    }
-    if (data.logoImage && data.logoImage.trim()) {
-      cleanPayload.logoImage = data.logoImage.trim();
-    }
+    // Build defensive payload - strip only undefined values
+    const cleanPayload: Record<string, any> = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined)
+    );
     
     console.log("[API] updateVendorMyBusiness CLEAN payload:", JSON.stringify(cleanPayload, null, 2));
     
@@ -3525,10 +3470,36 @@ class ApiService {
     });
   }
 
+  private normalizeVendorEligibility(response: any): VendorEligibility {
+    const payload =
+      response?.eligibility ??
+      response?.data?.eligibility ??
+      response?.data ??
+      response;
+
+    return {
+      requiresApproval: Boolean(payload?.requiresApproval),
+      requiresPlanSelection: Boolean(payload?.requiresPlanSelection),
+      requiresOnboarding: Boolean(payload?.requiresOnboarding),
+      requiresSubscription: Boolean(payload?.requiresSubscription),
+      canPublishProducts: Boolean(payload?.canPublishProducts),
+      canPublishServices: Boolean(payload?.canPublishServices),
+      ...(typeof payload?.currentStep === "string" ? { currentStep: payload.currentStep } : {}),
+      ...(typeof payload?.subscriptionStatus === "string" ? { subscriptionStatus: payload.subscriptionStatus } : {}),
+      ...(typeof payload?.hasActiveSubscription === "boolean"
+        ? { hasActiveSubscription: payload.hasActiveSubscription }
+        : {}),
+      ...(payload?.subscriptionTier !== undefined ? { subscriptionTier: payload.subscriptionTier } : {}),
+    };
+  }
+
   async getVendorEligibility(authToken: string): Promise<VendorEligibility> {
-    return this.request<VendorEligibility>("/api/vendor/eligibility", {
+    const endpoint = "/api/vendor/eligibility";
+    const response = await this.request<any>(endpoint, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    console.log("ELIGIBILITY RESPONSE:", JSON.stringify(response, null, 2));
+    return this.normalizeVendorEligibility(response);
   }
 
   async getSubscriptionTiers(authToken: string): Promise<{ tiers: SubscriptionTier[] }> {
@@ -3571,9 +3542,20 @@ class ApiService {
     subscription: CurrentSubscription | null;
   }> {
     return this.request<{ hasSubscription: boolean; subscription: CurrentSubscription | null }>(
-      "/api/subscription/current",
+      "/api/vendor/subscription",
       { headers: { Authorization: `Bearer ${authToken}` } }
     );
+  }
+
+  async syncVendorSubscription(authToken: string): Promise<{
+    synced: boolean;
+    previousStatus?: string;
+    currentStatus?: string;
+    error?: string;
+  }> {
+    return this.request("/api/vendor/subscription/sync", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
   }
 
   async createBillingPortalSession(
@@ -3788,6 +3770,9 @@ export interface VendorEligibility {
   canPublishProducts: boolean;
   canPublishServices: boolean;
   currentStep?: string;
+  subscriptionStatus?: string;
+  hasActiveSubscription?: boolean;
+  subscriptionTier?: string | null;
 }
 
 export interface SubscriptionTier {
