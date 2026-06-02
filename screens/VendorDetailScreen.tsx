@@ -656,10 +656,15 @@ export default function VendorDetailScreen({ route }: Props) {
             const photographerServices = (
               (serviceResponse || []) as VendorBookerPhotographerService[]
             )
-              .filter(
-                (item: VendorBookerPhotographerService) =>
-                  item.status === "live" || item.status === "active",
-              )
+              .filter((item: VendorBookerPhotographerService) => {
+                if (!item.status) return true;
+                const s = item.status.toLowerCase();
+                return (
+                  s === "live" ||
+                  s === "active" ||
+                  (s !== "archived" && s !== "paused" && s !== "draft")
+                );
+              })
               .map((item: VendorBookerPhotographerService) => ({
                 id: String(item.id),
                 name: item.name,
@@ -788,9 +793,35 @@ export default function VendorDetailScreen({ route }: Props) {
               processingError,
             );
             resolvedPosts = [];
-            resolvedServices = [];
             resolvedAvailability = [];
             resolvedReviews = [];
+            try {
+              resolvedServices = (
+                (serviceResponse || []) as VendorBookerPhotographerService[]
+              )
+                .filter((item: VendorBookerPhotographerService) => {
+                  if (!item.status) return true;
+                  const s = item.status.toLowerCase();
+                  return (
+                    s === "live" ||
+                    s === "active" ||
+                    (s !== "archived" && s !== "paused" && s !== "draft")
+                  );
+                })
+                .map((item: VendorBookerPhotographerService) => ({
+                  id: String(item.id),
+                  name: item.name,
+                  description: item.description || undefined,
+                  priceCents: Number(
+                    item.priceCents ?? (item as any).price ?? 0
+                  ),
+                  durationMinutes: (item as any).durationMinutes || undefined,
+                  rating: Number((item as any).rating ?? 0),
+                  reviewCount: Number((item as any).reviewCount ?? 0),
+                }));
+            } catch {
+              resolvedServices = [];
+            }
             resolvedProfile = {
               id: String(photographer.id ?? vendorId),
               userId: String((photographer as any).userId ?? ""),
@@ -854,7 +885,7 @@ export default function VendorDetailScreen({ route }: Props) {
               ),
               brandColors: null,
               hasProducts: false,
-              hasServices: false,
+              hasServices: resolvedServices.length > 0,
               specialties: Array.isArray(photographer.specialties)
                 ? photographer.specialties
                 : photographer.specialty
