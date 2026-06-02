@@ -38,7 +38,7 @@ import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import { VendorBookerPhotographerService } from "@/services/api";
-import { uploadImageToCloudinary, uploadVideoToCloudinary } from "@/services/cloudinary";
+import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
@@ -1854,8 +1854,11 @@ export default function PhotographerDashboardScreen() {
                         if (!result.canceled && result.assets[0]) {
                           try {
                             setEditProfile(prev => ({ ...prev, avatar: result.assets[0].uri }));
-                            const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, "profiles");
-                            setEditProfile(prev => ({ ...prev, avatar: cloudinaryUrl }));
+                            const authToken = await getToken();
+                            if (!authToken) throw new Error("Not authenticated");
+                            const mimeType = result.assets[0].mimeType || "image/jpeg";
+                            const uploadResult = await uploadImage(result.assets[0].uri, mimeType, "profiles", authToken);
+                            setEditProfile(prev => ({ ...prev, avatar: uploadResult.url }));
                           } catch (error) {
                             console.error("[Dashboard] Profile photo upload failed:", error);
                             Alert.alert("Upload Failed", "Could not upload photo. Please try again.");
@@ -1881,8 +1884,11 @@ export default function PhotographerDashboardScreen() {
                         if (!result.canceled && result.assets[0]) {
                           try {
                             setEditProfile(prev => ({ ...prev, avatar: result.assets[0].uri }));
-                            const cloudinaryUrl = await uploadImageToCloudinary(result.assets[0].uri, "profiles");
-                            setEditProfile(prev => ({ ...prev, avatar: cloudinaryUrl }));
+                            const authToken = await getToken();
+                            if (!authToken) throw new Error("Not authenticated");
+                            const mimeType = result.assets[0].mimeType || "image/jpeg";
+                            const uploadResult = await uploadImage(result.assets[0].uri, mimeType, "profiles", authToken);
+                            setEditProfile(prev => ({ ...prev, avatar: uploadResult.url }));
                           } catch (error) {
                             console.error("[Dashboard] Profile photo upload failed:", error);
                             Alert.alert("Upload Failed", "Could not upload photo. Please try again.");

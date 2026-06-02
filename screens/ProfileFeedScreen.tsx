@@ -113,21 +113,8 @@ export default function ProfileFeedScreen() {
   };
 
   const renderPost = ({ item }: { item: ApiPost }) => {
-    // Determine if this is a video post
     const isVideo = item.mediaType === "video" || (item.videoUrl && !item.imageUrl);
-    
-    // Get thumbnail: for videos, derive from Cloudinary URL; for images, use imageUrl
-    let thumbnailUri = item.imageUrl || (item.images && item.images[0]) || "";
-    
-    if (isVideo && item.videoUrl) {
-      // Convert Cloudinary video URL to thumbnail by getting first frame
-      if (item.videoUrl.includes("/video/upload/")) {
-        thumbnailUri = item.videoUrl.replace("/video/upload/", "/video/upload/so_0,f_jpg,w_400/");
-        thumbnailUri = thumbnailUri.replace(/\.(mp4|mov|webm)$/i, ".jpg");
-      } else {
-        thumbnailUri = item.videoUrl;
-      }
-    }
+    const thumbnailUri = item.imageUrl || (item.images && item.images[0]) || (isVideo ? item.videoUrl : "") || "";
 
     return (
       <Pressable style={styles.postCard}>
