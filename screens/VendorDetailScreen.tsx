@@ -18,6 +18,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -387,15 +388,31 @@ const CoverMediaHero = ({
   primaryColor: string;
   accentColor: string;
 }) => {
-  const isVideo = profile.coverMediaType === "video" && !!profile.coverMediaUrl;
+  const isMuxVideo =
+    profile.coverMediaType === "video" &&
+    !!profile.coverMediaUrl &&
+    profile.coverMediaUrl.startsWith("https://stream.mux.com/");
+  const isProcessingVideo =
+    profile.coverMediaType === "video" &&
+    !!profile.coverMediaUrl &&
+    !profile.coverMediaUrl.startsWith("https://stream.mux.com/");
   const isImage = profile.coverMediaType === "image" && !!profile.coverMediaUrl;
 
+  const [showFullscreen, setShowFullscreen] = useState(false);
+
   const videoPlayer = useVideoPlayer(
-    isVideo ? profile.coverMediaUrl || "" : "",
+    isMuxVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
       player.loop = true;
       player.muted = true;
       player.play();
+    },
+  );
+
+  const fullscreenPlayer = useVideoPlayer(
+    isMuxVideo ? profile.coverMediaUrl || "" : "",
+    (player) => {
+      player.muted = false;
     },
   );
 
@@ -404,24 +421,54 @@ const CoverMediaHero = ({
       ? [primaryColor, accentColor, COLORS.black]
       : ["#1a1a1a", "#2d2410", "#0a0a0a"];
 
+  const handleVideoTap = () => {
+    videoPlayer.pause();
+    fullscreenPlayer.play();
+    setShowFullscreen(true);
+  };
+
+  const handleFullscreenClose = () => {
+    fullscreenPlayer.pause();
+    setShowFullscreen(false);
+    videoPlayer.play();
+  };
+
   return (
     <View style={styles.coverHero}>
-      {isVideo ? (
-        <VideoView
-          player={videoPlayer}
-          style={styles.coverMedia}
-          contentFit="cover"
-          nativeControls={false}
-        />
+      {isMuxVideo ? (
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={handleVideoTap}
+        >
+          <VideoView
+            player={videoPlayer}
+            style={styles.coverMedia}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        </Pressable>
       ) : null}
-      {!isVideo && isImage ? (
+      {isProcessingVideo ? (
+        <>
+          <LinearGradient
+            colors={gradientColors}
+            style={styles.coverMedia}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+          <View style={styles.processingOverlay}>
+            <Text style={styles.processingText}>Processing video...</Text>
+          </View>
+        </>
+      ) : null}
+      {!isMuxVideo && !isProcessingVideo && isImage ? (
         <Image
           source={{ uri: profile.coverMediaUrl }}
           style={styles.coverMedia}
           contentFit="cover"
         />
       ) : null}
-      {!isVideo && !isImage ? (
+      {!isMuxVideo && !isProcessingVideo && !isImage ? (
         <LinearGradient
           colors={gradientColors}
           style={styles.coverMedia}
@@ -435,6 +482,27 @@ const CoverMediaHero = ({
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
+      <Modal
+        visible={showFullscreen}
+        animationType="fade"
+        supportedOrientations={["portrait", "landscape"]}
+        onRequestClose={handleFullscreenClose}
+      >
+        <View style={styles.fullscreenContainer}>
+          <VideoView
+            player={fullscreenPlayer}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="contain"
+            nativeControls
+          />
+          <Pressable
+            style={styles.fullscreenCloseButton}
+            onPress={handleFullscreenClose}
+          >
+            <Feather name="x" size={24} color={COLORS.white} />
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -2111,6 +2179,32 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 160,
+  },
+  processingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  processingText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: COLORS.black,
+  },
+  fullscreenCloseButton: {
+    position: "absolute",
+    top: 48,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   identityBlock: {
     marginTop: -60,
