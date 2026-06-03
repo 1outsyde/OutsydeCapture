@@ -194,7 +194,14 @@ export default function ProfileScreen() {
   const { user, isAuthenticated, getToken } = useAuth();
   const { unreadCount } = useNotifications();
 
-  const { userId, profileId, userType, displayName: initialDisplayName, avatar: initialAvatar } = route.params;
+  const {
+    userId,
+    profileId,
+    userType,
+    displayName: initialDisplayName,
+    avatar: initialAvatar,
+    openCreatePost,
+  } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -224,6 +231,7 @@ export default function ProfileScreen() {
   const [linkedServiceId, setLinkedServiceId] = useState<string>("");
   const [postSaving, setPostSaving] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const hasOpenedCreatePostRef = useRef(false);
 
   const fetchId = profileId || userId;
   const profileUserType = userType || "consumer";
@@ -254,6 +262,18 @@ export default function ProfileScreen() {
       profileUserType,
     });
   }
+
+  useEffect(() => {
+    if (
+      openCreatePost &&
+      isOwner &&
+      profileUserType !== "consumer" &&
+      !hasOpenedCreatePostRef.current
+    ) {
+      hasOpenedCreatePostRef.current = true;
+      setShowCreatePost(true);
+    }
+  }, [isOwner, openCreatePost, profileUserType]);
 
   const fetchProfile = useCallback(async () => {
     try {

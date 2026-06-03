@@ -825,6 +825,18 @@ export default function AccountScreen() {
     setSettingsVisible(true);
   }, [navigation, profile]);
 
+  const openCreatePost = useCallback(() => {
+    if (!profile || !user?.id || profile.role === "consumer") return;
+    navigation.navigate("Profile", {
+      userId: String(profile.userId || user.id),
+      profileId: profile.id,
+      userType: profile.role,
+      displayName: profile.name,
+      avatar: profile.avatarUrl,
+      openCreatePost: true,
+    });
+  }, [navigation, profile, user?.id]);
+
   const postCellWidth = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 8) / 3;
 
   const renderFloatingHeader = () => (
@@ -1091,12 +1103,7 @@ export default function AccountScreen() {
                       backgroundColor: "rgba(255,255,255,0.03)",
                     },
                   ]}
-                  onPress={() =>
-                    Alert.alert(
-                      "Create Post",
-                      "Use your existing posting flow from dashboard or feed composer.",
-                    )
-                  }
+                  onPress={openCreatePost}
                 >
                   <Feather name="plus" size={20} color={accentColor} />
                   <Text style={[styles.addPostLabel, { color: accentColor }]}>
@@ -1156,12 +1163,7 @@ export default function AccountScreen() {
             <Text style={styles.emptyTitle}>Share your best work</Text>
             <Pressable
               style={[styles.emptyCta, { backgroundColor: accentColor }]}
-              onPress={() =>
-                Alert.alert(
-                  "Create Post",
-                  "Use your existing posting flow from dashboard or feed composer.",
-                )
-              }
+              onPress={openCreatePost}
             >
               <Text style={styles.emptyCtaText}>Post</Text>
             </Pressable>

@@ -76,6 +76,7 @@ export type RootStackParamList = {
     userType?: "photographer" | "business" | "consumer";
     displayName?: string;
     avatar?: string;
+    openCreatePost?: boolean;
   };
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
