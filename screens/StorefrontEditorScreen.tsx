@@ -39,6 +39,7 @@ import HoursEditor, {
 } from "@/components/HoursEditor";
 import ImageUploader from "@/components/ImageUploader";
 import MediaUploader from "@/components/MediaUploader";
+import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 
 type TabType = "branding" | "profile" | "hours" | "products" | "services";
@@ -685,6 +686,40 @@ export default function StorefrontEditorScreen() {
     );
   };
 
+  const handleLogoImageSelected = async (uri: string) => {
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Error", "Authentication required. Please log in again.");
+      return;
+    }
+    try {
+      setSaving(true);
+      const result = await uploadImage(uri, "image/jpeg", "logos", token);
+      setLogoImage(result.url);
+    } catch (error: any) {
+      Alert.alert("Upload Error", error.message || "Failed to upload logo image");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleProductImageSelected = async (uri: string) => {
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Error", "Authentication required. Please log in again.");
+      return;
+    }
+    try {
+      setSaving(true);
+      const result = await uploadImage(uri, "image/jpeg", "products", token);
+      setProductForm((prev) => ({ ...prev, imageUrl: result.url }));
+    } catch (error: any) {
+      Alert.alert("Upload Error", error.message || "Failed to upload product image");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const formatPrice = (cents: number | null | undefined) => {
     const n = Number(cents);
     if (!isFinite(n)) return "$0.00";
@@ -1221,7 +1256,12 @@ export default function StorefrontEditorScreen() {
             currentImage={coverImage || undefined}
             currentVideo={coverVideo || undefined}
             currentMediaType={coverMediaType}
-            onMediaUploaded={(url, mediaType) => {
+            onMediaUploaded={async (url, mediaType) => {
+              const token = await getToken();
+              if (!token) {
+                Alert.alert("Error", "Authentication required. Please log in again.");
+                return;
+              }
               console.log("[Storefront] MediaUploader callback:", {
                 url: url.substring(0, 50),
                 mediaType,
@@ -1255,7 +1295,7 @@ export default function StorefrontEditorScreen() {
           <View style={{ alignItems: "center" }}>
             <ImageUploader
               currentImage={logoImage || undefined}
-              onImageSelected={setLogoImage}
+              onImageSelected={handleLogoImageSelected}
               onRemove={() => setLogoImage("")}
               aspectRatio="logo"
               placeholder="Upload Logo"
@@ -1859,9 +1899,7 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.inputLabel}>Product Image</Text>
           <ImageUploader
             currentImage={productForm.imageUrl || undefined}
-            onImageSelected={(uri) =>
-              setProductForm((prev) => ({ ...prev, imageUrl: uri }))
-            }
+            onImageSelected={handleProductImageSelected}
             onRemove={() =>
               setProductForm((prev) => ({ ...prev, imageUrl: "" }))
             }
