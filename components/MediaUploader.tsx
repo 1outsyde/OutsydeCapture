@@ -43,7 +43,7 @@ export default function MediaUploader({
   showRemove = true,
   folder = "banners",
   maxVideoDuration = 15,
-  maxVideoSizeMB = 50,
+  maxVideoSizeMB = 200,
 }: MediaUploaderProps) {
   const { theme } = useTheme();
   const { getToken } = useAuth();
