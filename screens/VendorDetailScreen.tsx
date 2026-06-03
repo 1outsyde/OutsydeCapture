@@ -1498,7 +1498,7 @@ export default function VendorDetailScreen({ route }: Props) {
                   { width: postCellWidth, height: cellHeight },
                 ]}
                 onPress={() => {
-                  navigation.getParent()?.navigate("ProfileFeed", {
+                  navigation.getParent()?.getParent()?.navigate("ProfileFeed", {
                     profileId: profile?.userId || profile?.id || vendorId,
                     profileName: profile?.name,
                     layout: post.displayLayout || "pro",
