@@ -56,7 +56,7 @@ import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerAvailabilitySlot, BlockedDate, VendorProduct, VendorService, ApiPost, WeeklyAvailabilitySlot } from "@/services/api";
-import { uploadImage } from "@/services/mediaUpload";
+import { uploadImage, uploadVideo } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { feedEvents } from "@/services/feedEvents";
 
@@ -717,7 +717,9 @@ export default function ProfileScreen() {
     const fetchProfilePosts = async () => {
       if (!profile?.id) return;
       try {
-        const response = await api.getProfilePosts(profile.id, { limit: 50 });
+        // Use profile.userId (the auth user ID) so the backend can match posts by authorId.
+        // profile.id is the business/photographer entity ID which differs from the user ID.
+        const response = await api.getProfilePosts(profile.userId || profile.id, { limit: 50 });
         const allPosts = (response.posts || []).map(mapApiPostToFeaturedPost);
         setFeaturedPosts(allPosts);
         setProPosts(allPosts.filter(p => p.displayLayout === "pro"));
@@ -917,31 +919,47 @@ export default function ProfileScreen() {
 
     setPostSaving(true);
     try {
-      const uploadResult = await uploadImage(newPostImage, "image/jpeg", "posts", authToken);
-      const cloudinaryUrl = uploadResult.url;
-      if (!cloudinaryUrl) {
-        throw new Error("Failed to upload image. Please try again.");
-      }
-      
-      // CRITICAL: feedSurface is the source of truth for feed placement
+      // pulse layout is auto-assigned for videos (see handlePickPostImage)
+      const isVideo = newPostLayout === "pulse";
+
+      console.log("[ProfileScreen] newPostLayout:", newPostLayout, "isVideo:", isVideo);
+
       const postData: {
-        imageUrl: string;
+        imageUrl?: string;
+        videoUrl?: string;
+        mediaType?: "image" | "video";
         content?: string;
         displayLayout?: "pro" | "pulse";
         feedSurface?: "pro" | "pulse";
         photographerServiceId?: string;
       } = {
-        imageUrl: cloudinaryUrl,
         content: newPostCaption.trim() || " ",
         displayLayout: newPostLayout,
-        feedSurface: newPostLayout, // CRITICAL: Explicit feed routing
+        feedSurface: newPostLayout,
       };
-      
+
+      if (isVideo) {
+        const uploadResult = await uploadVideo(newPostImage, "video/mp4", authToken);
+        if (!uploadResult.uploadId) {
+          throw new Error("Failed to upload video. Please try again.");
+        }
+        postData.videoUrl = uploadResult.uploadId;
+        postData.mediaType = "video";
+      } else {
+        const uploadResult = await uploadImage(newPostImage, "image/jpeg", "posts", authToken);
+        const cloudinaryUrl = uploadResult.url;
+        if (!cloudinaryUrl) {
+          throw new Error("Failed to upload image. Please try again.");
+        }
+        postData.imageUrl = cloudinaryUrl;
+      }
+
       if (linkedServiceId) {
         postData.photographerServiceId = linkedServiceId;
       }
-      
-      console.log("[ProfileScreen] Creating post with feedSurface:", newPostLayout, "data:", JSON.stringify(postData));
+
+      // CRITICAL: feedSurface is the source of truth for feed placement
+      console.log("[ProfileScreen] newPostLayout:", newPostLayout, "displayLayout:", postData.displayLayout, "feedSurface:", postData.feedSurface, "data:", JSON.stringify(postData));
       const response = await api.createPost(authToken, postData);
       
       if (response.post) {
