@@ -840,6 +840,7 @@ export default function ProfileScreen() {
   };
 
   const formatPrice = (cents: number): string => {
+    if (cents == null || Number.isNaN(Number(cents))) return "Price TBD";
     return `$${(cents / 100).toFixed(2)}`;
   };
 
@@ -1939,7 +1940,16 @@ export default function ProfileScreen() {
               }}
             >
               {newPostImage ? (
-                <Image source={{ uri: newPostImage }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                newPostLayout === "pulse" ? (
+                  <View style={{ width: "100%", height: "100%", backgroundColor: "#1a1a1a", alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="video" size={48} color="rgba(255,255,255,0.7)" />
+                    <ThemedText type="body" style={{ color: "rgba(255,255,255,0.7)", marginTop: Spacing.sm }}>
+                      Video selected
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <Image source={{ uri: newPostImage }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                )
               ) : (
                 <View style={{ alignItems: "center" }}>
                   <Feather name="image" size={48} color={theme.textSecondary} />

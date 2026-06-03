@@ -11,6 +11,7 @@ import {
   Pressable,
   Dimensions,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -407,8 +408,14 @@ export default function PulseFeedScreenV2() {
         viewabilityConfig={VIEWABILITY_CONFIG}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
-        onRefresh={handleRefresh}
-        refreshing={refreshing}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#FFFFFF"
+            colors={["#FFFFFF"]}
+          />
+        }
         style={styles.list}
         windowSize={5}
         maxToRenderPerBatch={3}
