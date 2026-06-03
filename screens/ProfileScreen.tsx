@@ -885,13 +885,16 @@ export default function ProfileScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setNewPostImage(result.assets[0].uri);
+      const asset = result.assets[0];
+      setNewPostImage(asset.uri);
+      const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
+      setNewPostLayout(isVideo ? "pulse" : "pro");
     }
   };
 
@@ -1904,57 +1907,6 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
 
-            <View style={{ marginBottom: Spacing.md }}>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  How should this post appear?
-                </ThemedText>
-                <ThemedText type="small" style={{ color: "#FF3B30", marginLeft: 4 }}>*</ThemedText>
-              </View>
-              <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-                <Pressable
-                  onPress={() => setNewPostLayout("pulse")}
-                  style={{
-                    flex: 1,
-                    paddingVertical: Spacing.md,
-                    paddingHorizontal: Spacing.md,
-                    borderRadius: 12,
-                    backgroundColor: newPostLayout === "pulse" ? PULSE_DOT_COLOR : theme.backgroundSecondary,
-                    borderWidth: 2,
-                    borderColor: newPostLayout === "pulse" ? PULSE_DOT_COLOR : theme.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <ThemedText type="body" style={{ color: newPostLayout === "pulse" ? "#000" : theme.text, fontWeight: "600" }}>
-                    Pulse
-                  </ThemedText>
-                  <ThemedText type="small" style={{ color: newPostLayout === "pulse" ? "#000" : theme.textSecondary, marginTop: 2 }}>
-                    Vertical / Feed
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() => setNewPostLayout("pro")}
-                  style={{
-                    flex: 1,
-                    paddingVertical: Spacing.md,
-                    paddingHorizontal: Spacing.md,
-                    borderRadius: 12,
-                    backgroundColor: newPostLayout === "pro" ? GOLD_DOT_COLOR : theme.backgroundSecondary,
-                    borderWidth: 2,
-                    borderColor: newPostLayout === "pro" ? GOLD_DOT_COLOR : theme.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <ThemedText type="body" style={{ color: newPostLayout === "pro" ? "#000" : theme.text, fontWeight: "600" }}>
-                    Pro
-                  </ThemedText>
-                  <ThemedText type="small" style={{ color: newPostLayout === "pro" ? "#000" : theme.textSecondary, marginTop: 2 }}>
-                    Grid / Editorial
-                  </ThemedText>
-                </Pressable>
-              </View>
-            </View>
-
             <Pressable
               onPress={handlePickPostImage}
               style={{
@@ -1974,7 +1926,7 @@ export default function ProfileScreen() {
                 <View style={{ alignItems: "center" }}>
                   <Feather name="image" size={48} color={theme.textSecondary} />
                   <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-                    Tap to select photo
+                    Tap to select photo or video
                   </ThemedText>
                 </View>
               )}
@@ -2049,20 +2001,20 @@ export default function ProfileScreen() {
 
             <Pressable
               onPress={handleCreatePost}
-              disabled={postSaving || !newPostLayout}
+              disabled={postSaving || !newPostImage}
               style={{
-                backgroundColor: postSaving || !newPostLayout ? theme.textSecondary : profileTheme,
+                backgroundColor: postSaving || !newPostImage ? theme.textSecondary : profileTheme,
                 paddingVertical: 16,
                 borderRadius: 12,
                 alignItems: "center",
-                opacity: postSaving || !newPostLayout ? 0.5 : 1,
+                opacity: postSaving || !newPostImage ? 0.5 : 1,
               }}
             >
               {postSaving ? (
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <ThemedText type="button" style={{ color: "#000" }}>
-                  {!newPostLayout ? "Select Pro or Pulse" : "Share Post"}
+                  Share Post
                 </ThemedText>
               )}
             </Pressable>
