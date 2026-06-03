@@ -98,6 +98,7 @@ type PostCard = {
   mediaUrl?: string;
   mediaType: "image" | "video";
   aspect: "portrait" | "square";
+  displayLayout?: "pro" | "pulse";
 };
 
 type ServiceCard = {
@@ -320,11 +321,12 @@ const normalizePosts = (posts: ApiPost[]): PostCard[] =>
       post.images?.[0];
     return {
       id: String(post.id),
-      label: post.content?.trim() || "Outsyde Post",
+      label: post.content?.trim() || "",
       likes: Number(post.likesCount ?? 0),
       mediaUrl: mediaUrl || undefined,
       mediaType,
       aspect: index % 3 === 0 ? "portrait" : "square",
+      displayLayout: post.displayLayout || undefined,
     };
   });
 
@@ -1495,6 +1497,13 @@ export default function VendorDetailScreen({ route }: Props) {
                   styles.mediaCell,
                   { width: postCellWidth, height: cellHeight },
                 ]}
+                onPress={() => {
+                  navigation.navigate("ProfileFeed", {
+                    profileId: profile?.userId || profile?.id || vendorId,
+                    profileName: profile?.name,
+                    layout: post.displayLayout || "pro",
+                  });
+                }}
               >
                 {post.mediaUrl ? (
                   <Image
