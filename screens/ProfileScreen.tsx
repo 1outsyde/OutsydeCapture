@@ -9,6 +9,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
@@ -1886,6 +1888,7 @@ export default function ProfileScreen() {
       </Modal>
 
       <Modal visible={showCreatePost} animationType="slide" transparent>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
           <View style={{
             backgroundColor: theme.card,
@@ -1983,6 +1986,8 @@ export default function ProfileScreen() {
               placeholder="Write a caption..."
               placeholderTextColor={theme.textSecondary}
               multiline
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
               style={{
                 backgroundColor: theme.backgroundSecondary,
                 borderRadius: 12,
@@ -2063,6 +2068,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </ThemedView>
   );
