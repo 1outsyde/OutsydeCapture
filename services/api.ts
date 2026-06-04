@@ -3658,6 +3658,47 @@ class ApiService {
       }
     );
   }
+
+  // GET /api/users/:id — public user profile (consumers / any registered user)
+  async getPublicUser(userId: string): Promise<{
+    user: {
+      id: string;
+      userId?: string;
+      name?: string;
+      username?: string;
+      profileImageUrl?: string;
+      avatarUrl?: string;
+      coverMediaUrl?: string;
+      coverMediaType?: "image" | "video";
+      city?: string;
+      state?: string;
+      isVendor?: boolean;
+      isPhotographer?: boolean;
+      isInfluencer?: boolean;
+      followerCount?: number;
+      followingCount?: number;
+    };
+  }> {
+    return this.request<{
+      user: {
+        id: string;
+        userId?: string;
+        name?: string;
+        username?: string;
+        profileImageUrl?: string;
+        avatarUrl?: string;
+        coverMediaUrl?: string;
+        coverMediaType?: "image" | "video";
+        city?: string;
+        state?: string;
+        isVendor?: boolean;
+        isPhotographer?: boolean;
+        isInfluencer?: boolean;
+        followerCount?: number;
+        followingCount?: number;
+      };
+    }>(`/api/users/${userId}`);
+  }
 }
 
 // Availability Calendar types
