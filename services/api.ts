@@ -3133,24 +3133,34 @@ class ApiService {
     // CHANGE 1 — diagnostic: log raw body before any key extraction
     console.log('[API.getPulseFeed] RAW BODY:', JSON.stringify(response, null, 2));
 
-    // CHANGE 2 — resilient array extraction: check keys in priority order
+    // CHANGE 2 — unwrap the success/data envelope when present, then extract
+    const raw = response as any;
+    const container: any = (raw && raw.data && typeof raw.data === 'object')
+      ? raw.data
+      : raw;
+
+    // Resilient array extraction: check keys in priority order against container
     let postsArray: ApiPost[] = [];
     let matchedKeyName = 'none';
-    const raw = response as any;
-    if (Array.isArray(raw.videos)) {
-      postsArray = raw.videos;
+    if (Array.isArray(container.videos)) {
+      postsArray = container.videos;
       matchedKeyName = 'videos';
-    } else if (Array.isArray(raw.posts)) {
-      postsArray = raw.posts;
+    } else if (Array.isArray(container.posts)) {
+      postsArray = container.posts;
       matchedKeyName = 'posts';
-    } else if (Array.isArray(raw.feed)) {
-      postsArray = raw.feed;
+    } else if (Array.isArray(container.feed)) {
+      postsArray = container.feed;
       matchedKeyName = 'feed';
-    } else if (Array.isArray(raw)) {
-      postsArray = raw;
+    } else if (Array.isArray(container)) {
+      postsArray = container;
       matchedKeyName = 'data (bare array)';
     }
     console.log('[API.getPulseFeed] matched key:', matchedKeyName, 'count:', postsArray.length);
+
+    // Pull pagination fields from the same container level as the posts array
+    const hasMore: boolean = container.hasMore ?? false;
+    const nextCursor: string | undefined =
+      container.nextCursor ?? container.nextOffset ?? undefined;
 
     // DEBUG: Log Pulse feed response
     console.log("[API.getPulseFeed] ===== PULSE FEED RESPONSE =====");
@@ -3163,7 +3173,7 @@ class ApiService {
       console.log("[API.getPulseFeed] No posts returned from /api/pulse/feed");
     }
 
-    return { ...response, posts: postsArray };
+    return { posts: postsArray, hasMore, nextCursor };
   }
 
   // POST /api/pulse/engagement - Track engagement signals for Pulse ranking
