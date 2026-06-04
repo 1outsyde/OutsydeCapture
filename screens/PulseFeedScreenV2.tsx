@@ -45,7 +45,7 @@ function convertApiPost(apiPost: ApiPost): Post {
     (apiPost.author as any)?.displayName || apiPost.author?.name || "Unknown";
   const authorAvatar =
     (apiPost.author as any)?.profilePhotoUrl || apiPost.author?.profileImageUrl || "";
-  const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id || apiPost.id;
+  const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id;
   const username = apiPost.author?.username;
   const authorRole = (apiPost.author as any)?.role;
 
@@ -288,15 +288,13 @@ export default function PulseFeedScreenV2() {
 
   // ─── Navigation ─────────────────────────────────────────────────────────────
   const handleAuthorPress = useCallback((post: Post) => {
-    const userType =
-      post.type === "photographer" ? "photographer" : post.type === "vendor" ? "business" : "consumer";
-    navigation.navigate("Profile", {
-      userId: post.userId,
-      profileId: post.providerId,
-      userType,
-      displayName: post.displayName || post.authorName,
-      avatar: post.authorAvatar,
-    });
+    const vendorId = post.providerId || post.userId;
+    if (!vendorId) {
+      console.warn('[AuthorTap] no id available for post', post.id);
+      return;
+    }
+    console.log('[AuthorTap] → VendorDetail vendorId:', vendorId);
+    navigation.navigate("VendorDetail", { vendorId });
   }, [navigation]);
 
   const handleActionPress = useCallback((post: Post) => {
