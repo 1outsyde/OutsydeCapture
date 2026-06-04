@@ -3129,19 +3129,41 @@ class ApiService {
     }
     
     const response = await this.request<PulseFeedResponse>(url, { headers });
-    
+
+    // CHANGE 1 — diagnostic: log raw body before any key extraction
+    console.log('[API.getPulseFeed] RAW BODY:', JSON.stringify(response, null, 2));
+
+    // CHANGE 2 — resilient array extraction: check keys in priority order
+    let postsArray: ApiPost[] = [];
+    let matchedKeyName = 'none';
+    const raw = response as any;
+    if (Array.isArray(raw.videos)) {
+      postsArray = raw.videos;
+      matchedKeyName = 'videos';
+    } else if (Array.isArray(raw.posts)) {
+      postsArray = raw.posts;
+      matchedKeyName = 'posts';
+    } else if (Array.isArray(raw.feed)) {
+      postsArray = raw.feed;
+      matchedKeyName = 'feed';
+    } else if (Array.isArray(raw)) {
+      postsArray = raw;
+      matchedKeyName = 'data (bare array)';
+    }
+    console.log('[API.getPulseFeed] matched key:', matchedKeyName, 'count:', postsArray.length);
+
     // DEBUG: Log Pulse feed response
     console.log("[API.getPulseFeed] ===== PULSE FEED RESPONSE =====");
-    console.log("[API.getPulseFeed] Total posts:", response.posts?.length || 0);
-    if (response.posts?.length > 0) {
-      response.posts.slice(0, 3).forEach((post, i) => {
+    console.log("[API.getPulseFeed] Total posts:", postsArray.length);
+    if (postsArray.length > 0) {
+      postsArray.slice(0, 3).forEach((post, i) => {
         console.log(`[API.getPulseFeed] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl}, feedSurface=${(post as any).feedSurface}`);
       });
     } else {
       console.log("[API.getPulseFeed] No posts returned from /api/pulse/feed");
     }
-    
-    return response;
+
+    return { ...response, posts: postsArray };
   }
 
   // POST /api/pulse/engagement - Track engagement signals for Pulse ranking
