@@ -28,6 +28,8 @@ export interface PulseEngagementEvent {
 export interface PulseVideoCardProps {
   post: Post;
   isActive: boolean;
+  muted: boolean;
+  onToggleMute: () => void;
   isLiked?: boolean;
   isSaved?: boolean;
   onLike: (postId: string) => void;
@@ -43,11 +45,12 @@ interface VideoInnerProps {
   videoUrl: string;
   isActive: boolean;
   isPaused: boolean;
+  muted: boolean;
   postId: string;
   onEngagement?: (e: PulseEngagementEvent) => void;
 }
 
-function WebPulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: VideoInnerProps) {
+function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement }: VideoInnerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watchStartTime = useRef<number | null>(null);
   const totalWatchTime = useRef(0);
@@ -96,13 +99,21 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: V
     }
   }, []);
 
+  // React doesn't reactively update the `muted` DOM property on <video> via
+  // the JSX attribute, so we sync it imperatively whenever the prop changes.
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = muted;
+    }
+  }, [muted]);
+
   return (
     <View style={StyleSheet.absoluteFill}>
       <video
         ref={videoRef as any}
         src={videoUrl}
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        muted
+        muted={muted}
         playsInline
         onEnded={handleEnded}
       />
@@ -111,7 +122,7 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: V
 }
 
 // ─── Native video (expo-video) ───────────────────────────────────────────────
-function NativePulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: VideoInnerProps) {
+function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement }: VideoInnerProps) {
   const watchStartTime = useRef<number | null>(null);
   const totalWatchTime = useRef(0);
   const loopCount = useRef(0);
@@ -120,8 +131,13 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = muted;
   });
+
+  // Keep mute state in sync whenever the shared toggle changes.
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
 
   const reportEngagement = useCallback(() => {
     if (!onEngagement || !watchStartTime.current) return;
@@ -184,6 +200,8 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }
 export default function PulseVideoCard({
   post,
   isActive,
+  muted,
+  onToggleMute,
   isLiked = false,
   isSaved = false,
   onLike,
@@ -228,6 +246,7 @@ export default function PulseVideoCard({
           videoUrl={post.videoUrl}
           isActive={isActive}
           isPaused={isPaused}
+          muted={muted}
           postId={post.id}
           onEngagement={handleEngagement}
         />
@@ -296,6 +315,15 @@ export default function PulseVideoCard({
         >
           <View style={styles.actionIcon}>
             <Feather name="bookmark" size={26} color={isSaved ? theme.primary : "#FFFFFF"} />
+          </View>
+        </Pressable>
+
+        <Pressable
+          onPress={onToggleMute}
+          style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <View style={styles.actionIcon}>
+            <Feather name={muted ? "volume-x" : "volume-2"} size={26} color="#FFFFFF" />
           </View>
         </Pressable>
       </View>

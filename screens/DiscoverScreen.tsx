@@ -213,6 +213,9 @@ export default function DiscoverScreen() {
   const proListRef = useRef<FlatList>(null);
   const [visibleProIndices, setVisibleProIndices] = useState<Set<number>>(new Set([0, 1]));
 
+  // Shared mute state — one toggle for the entire Pro feed, default UNMUTED
+  const [proMuted, setProMuted] = useState(false);
+
   const onProViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
       const s = new Set<number>();
@@ -364,6 +367,8 @@ export default function DiscoverScreen() {
         currentUserId={user?.id}
         isAdmin={user?.isAdmin}
         isVisible={isVisible}
+        muted={proMuted}
+        onToggleMute={() => setProMuted((m) => !m)}
       />
     );
   };
