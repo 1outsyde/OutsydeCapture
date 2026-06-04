@@ -115,6 +115,9 @@ export default function PulseFeedScreenV2() {
   // Active video index — drives single-video playback
   const [activeIndex, setActiveIndex] = useState(0);
 
+  // Shared mute state — one toggle for the entire Pulse feed, default UNMUTED
+  const [muted, setMuted] = useState(false);
+
   // Comments modal state
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -328,6 +331,8 @@ export default function PulseFeedScreenV2() {
         <PulseVideoCard
           post={item}
           isActive={index === activeIndex}
+          muted={muted}
+          onToggleMute={() => setMuted((m) => !m)}
           isLiked={likedIds.has(item.id)}
           isSaved={isSaved}
           onLike={handleLike}
@@ -341,6 +346,7 @@ export default function PulseFeedScreenV2() {
     },
     [
       activeIndex,
+      muted,
       likedIds,
       isFavorite,
       handleLike,

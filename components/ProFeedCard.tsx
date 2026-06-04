@@ -26,23 +26,40 @@ interface ProFeedCardProps {
   currentUserId?: string;
   isAdmin?: boolean;
   isVisible?: boolean;
+  muted?: boolean;
+  onToggleMute?: () => void;
 }
 
-function CardVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVisible?: boolean }) {
+function CardVideoMedia({
+  videoUrl,
+  isVisible = true,
+  muted = false,
+  onToggleMute,
+}: {
+  videoUrl: string;
+  isVisible?: boolean;
+  muted?: boolean;
+  onToggleMute?: () => void;
+}) {
   console.log("VIDEO_URL [Pro]:", videoUrl);
-  
+
   const [isPlaying, setIsPlaying] = useState(false);
-  
+
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = muted;
     if (isVisible) {
       p.play();
       setIsPlaying(true);
     }
   });
 
-  // Control playback based on visibility
+  // Keep mute state in sync whenever the shared toggle changes.
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
+
+  // Control playback based on visibility.
   useEffect(() => {
     if (isVisible) {
       player.play();
@@ -76,6 +93,13 @@ function CardVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVi
           <Feather name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
         </View>
       )}
+      <Pressable
+        onPress={onToggleMute}
+        style={styles.muteButton}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Feather name={muted ? "volume-x" : "volume-2"} size={20} color="#FFFFFF" />
+      </Pressable>
     </Pressable>
   );
 }
@@ -94,6 +118,8 @@ export function ProFeedCard({
   currentUserId,
   isAdmin = false,
   isVisible = true,
+  muted = false,
+  onToggleMute,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -313,7 +339,12 @@ export function ProFeedCard({
 
       <View style={styles.mediaContainer}>
         {hasVideo ? (
-          <CardVideoMedia videoUrl={post.videoUrl!} isVisible={isVisible} />
+          <CardVideoMedia
+            videoUrl={post.videoUrl!}
+            isVisible={isVisible}
+            muted={muted}
+            onToggleMute={onToggleMute}
+          />
         ) : (
           <Image
             source={{ uri: post.image }}
@@ -480,6 +511,17 @@ const styles = StyleSheet.create({
   },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  muteButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.45)",
     alignItems: "center",
     justifyContent: "center",
   },

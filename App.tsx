@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { StyleSheet } from "react-native";
+import { Audio } from "expo-av";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -58,6 +59,17 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    })
+      .then(() => console.log("[Audio] session configured: playsInSilentModeIOS"))
+      .catch((e) => console.warn("[Audio] setAudioMode failed", e));
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>
