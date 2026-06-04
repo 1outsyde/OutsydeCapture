@@ -2149,6 +2149,11 @@ class ApiService {
     );
   }
 
+  // GET /api/users/:id - Get public user profile by id
+  async getPublicUser(userId: string): Promise<{ user: Record<string, any> }> {
+    return this.request<{ user: Record<string, any> }>(`/api/users/${userId}`);
+  }
+
   // GET /api/photographers/me/stripe-status - Get Stripe onboarding status
   async getPhotographerStripeStatus(authToken: string): Promise<StripeOnboardingStatus> {
     return this.request<StripeOnboardingStatus>("/api/photographers/me/stripe-status", {

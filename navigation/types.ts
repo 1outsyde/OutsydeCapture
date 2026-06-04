@@ -127,7 +127,7 @@ export type DiscoverStackParamList = {
 };
 
 export type AccountStackParamList = {
-  Account: undefined;
+  Account: { userId?: string; userType?: "business" | "photographer" | "consumer" } | undefined;
   EditProfile: undefined;
   Settings: undefined;
   Notifications: undefined;
