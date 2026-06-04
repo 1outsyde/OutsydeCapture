@@ -187,9 +187,6 @@ export default function SearchScreen() {
   };
 
   const handleCardPress = (item: UnifiedSearchResult) => {
-    const userId = item.userId || item.id;
-    const profileId = item.id;
-    
     if (item.resultType === "product") {
       // Navigate to business detail with products tab and highlight the product
       const businessId = item.businessId || item.userId || item.id;
@@ -228,13 +225,7 @@ export default function SearchScreen() {
         vendorId: item.id,
       });
     } else {
-      navigation.navigate("Profile", {
-        userId,
-        profileId,
-        userType: "consumer",
-        displayName: item.name,
-        avatar: item.avatar,
-      });
+      navigation.navigate("VendorDetail", { vendorId: item.userId || item.id });
     }
   };
 

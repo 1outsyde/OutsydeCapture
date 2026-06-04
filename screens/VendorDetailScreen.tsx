@@ -1006,33 +1006,85 @@ export default function VendorDetailScreen({ route }: Props) {
             "[VendorDetail] Both business and photographer lookups failed for vendorId:",
             vendorId,
           );
-          const postResponse = await apiClient
-            .getProfilePosts(vendorId, { limit: 60 })
-            .catch(() => ({ posts: [] }));
-          resolvedPosts = normalizePosts(postResponse.posts || []);
-          resolvedProfile = {
-            id: vendorId,
-            role: "consumer",
-            name: "Outsyde User",
-            handle: "@outsyde",
-            rating: 0,
-            reviewCount: 0,
-            followerCount: 0,
-            followingCount: 0,
-            bookingCount: 0,
-            shootsCount: 0,
-            postsCount: resolvedPosts.length,
-            isVerified: false,
-            brandColors: null,
-            hasProducts: false,
-            hasServices: false,
-            specialties: [],
-            showResponseTime: false,
-            showEmail: false,
-            showPhone: false,
-            showWebsite: false,
-            showStoreHours: false,
-          };
+          // Consumer resolution: try getPublicUser before falling back to stub
+          try {
+            const { user } = await apiClient.getPublicUser(vendorId);
+            console.log(
+              "[VendorDetail] consumer path: getPublicUser for",
+              vendorId,
+              "→",
+              { name: user.name, followerCount: user.followerCount },
+            );
+            const postResponse = await apiClient
+              .getProfilePosts(vendorId, { limit: 60 })
+              .catch(() => ({ posts: [] }));
+            resolvedPosts = normalizePosts(postResponse.posts || []);
+            const avatarUrl =
+              user.avatarUrl || user.profileImageUrl || undefined;
+            resolvedProfile = {
+              id: String(user.id),
+              userId: String(user.id),
+              role: "consumer",
+              name: user.name || user.username || "Outsyde User",
+              handle: `@${user.username || "outsyde"}`,
+              avatarUrl: avatarUrl && avatarUrl !== "" ? avatarUrl : undefined,
+              coverMediaUrl: user.coverMediaUrl || undefined,
+              coverMediaType: (user.coverMediaType === "video"
+                ? "video"
+                : "image") as "image" | "video",
+              city: user.city || undefined,
+              state: user.state || undefined,
+              location:
+                [user.city, user.state].filter(Boolean).join(", ") ||
+                undefined,
+              rating: 0,
+              reviewCount: 0,
+              followerCount: Number(user.followerCount ?? 0),
+              followingCount: Number(user.followingCount ?? 0),
+              bookingCount: 0,
+              shootsCount: 0,
+              postsCount: resolvedPosts.length,
+              isVerified: false,
+              brandColors: null,
+              hasProducts: false,
+              hasServices: false,
+              specialties: [],
+              showResponseTime: false,
+              showEmail: false,
+              showPhone: false,
+              showWebsite: false,
+              showStoreHours: false,
+            };
+          } catch {
+            // Final fallback stub — truly unknown id or network error
+            const postResponse = await apiClient
+              .getProfilePosts(vendorId, { limit: 60 })
+              .catch(() => ({ posts: [] }));
+            resolvedPosts = normalizePosts(postResponse.posts || []);
+            resolvedProfile = {
+              id: vendorId,
+              role: "consumer",
+              name: "Outsyde User",
+              handle: "@outsyde",
+              rating: 0,
+              reviewCount: 0,
+              followerCount: 0,
+              followingCount: 0,
+              bookingCount: 0,
+              shootsCount: 0,
+              postsCount: resolvedPosts.length,
+              isVerified: false,
+              brandColors: null,
+              hasProducts: false,
+              hasServices: false,
+              specialties: [],
+              showResponseTime: false,
+              showEmail: false,
+              showPhone: false,
+              showWebsite: false,
+              showStoreHours: false,
+            };
+          }
         }
       }
 

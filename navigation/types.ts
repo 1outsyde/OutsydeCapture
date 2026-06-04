@@ -2,58 +2,6 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
 import { GoogleProfile } from "@/context/AuthContext";
 
-export interface BusinessProfileData {
-  id: string;
-  name: string;
-  username?: string;
-  avatar: string;
-  city: string;
-  state: string;
-  rating: number;
-  priceRange: string;
-  category: string;
-  description: string;
-  subscriptionTier?: "basic" | "pro" | "premium";
-  resultType: "business" | "photographer" | "product" | "service";
-  address?: string;
-  website?: string;
-  phone?: string;
-  email?: string;
-  instagram?: string;
-  facebook?: string;
-  twitter?: string;
-  reviewCount?: number;
-  coverImage?: string;
-  brandColors?: string;
-}
-
-export interface PhotographerProfileData {
-  id: string;
-  userId?: string; // The actual user ID for messaging/conversations
-  name: string;
-  username?: string;
-  avatar: string;
-  city: string;
-  state: string;
-  rating: number;
-  priceRange: string;
-  specialty: string;
-  description: string;
-  subscriptionTier?: "basic" | "pro" | "premium";
-  website?: string;
-  phone?: string;
-  email?: string;
-  instagram?: string;
-  facebook?: string;
-  twitter?: string;
-  reviewCount?: number;
-  coverImage?: string;
-  yearsOfExperience?: number;
-  portfolio?: string[];
-  specialties?: string[];
-  brandColors?: string;
-  stripeOnboardingComplete?: boolean; // Whether photographer can accept bookings
-}
 
 export type RootStackParamList = {
   Onboarding: { startAtSlide?: number; googleProfile?: GoogleProfile } | undefined;
@@ -68,16 +16,6 @@ export type RootStackParamList = {
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer?: Photographer; photographerId?: string; preselectedServiceId?: string };
   VendorDetail: { vendorId: string; initialTab?: "products" | "services" | "reviews"; productId?: string };
-  BusinessProfile: { business: BusinessProfileData };
-  PhotographerProfile: { photographer: PhotographerProfileData };
-  Profile: { 
-    userId: string; 
-    profileId?: string;
-    userType?: "photographer" | "business" | "consumer";
-    displayName?: string;
-    avatar?: string;
-    openCreatePost?: boolean;
-  };
   SessionDetail: { sessionId: string };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };
