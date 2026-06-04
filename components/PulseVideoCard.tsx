@@ -20,8 +20,8 @@ const TAB_BAR_HEIGHT = 80;
 export const PULSE_CARD_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
 
 export interface PulseEngagementEvent {
-  watchTimeSeconds: number;
-  completionRate: number;
+  watchTimeMs: number;
+  videoDurationMs: number;
   isRewatch: boolean;
 }
 
@@ -64,8 +64,8 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngageme
     if (totalWatchTime.current < 1) return;
     const duration = videoRef.current?.duration ?? 30;
     onEngagement({
-      watchTimeSeconds: Math.round(totalWatchTime.current),
-      completionRate: Math.round(Math.min(totalWatchTime.current / duration, 1) * 100) / 100,
+      watchTimeMs: Math.round(totalWatchTime.current * 1000),
+      videoDurationMs: Math.round(duration * 1000),
       isRewatch: loopCount.current > 0,
     });
   }, [onEngagement]);
@@ -147,8 +147,8 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngag
     if (totalWatchTime.current < 1) return;
     const duration = videoDuration.current > 0 ? videoDuration.current : 30;
     onEngagement({
-      watchTimeSeconds: Math.round(totalWatchTime.current),
-      completionRate: Math.round(Math.min(totalWatchTime.current / duration, 1) * 100) / 100,
+      watchTimeMs: Math.round(totalWatchTime.current * 1000),
+      videoDurationMs: Math.round(duration * 1000),
       isRewatch: loopCount.current > 0,
     });
   }, [onEngagement]);

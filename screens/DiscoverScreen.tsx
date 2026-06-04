@@ -50,7 +50,7 @@ export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { likePost, addComment, getPhotographer } = useData();
+  const { addComment, getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { user, getToken } = useAuth();
@@ -267,7 +267,53 @@ export default function DiscoverScreen() {
     }
   };
 
-  const handleLike = (postId: string) => likePost(postId);
+  const handleLike = useCallback(
+    async (postId: string) => {
+      const currentPost = feedPosts.find((p) => p.id === postId);
+      const wasLiked = currentPost?.isLiked ?? false;
+
+      console.log('[ProLike] postId:', postId, 'wasLiked:', wasLiked);
+
+      // Optimistic update against feedPosts
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, isLiked: !wasLiked, likes: wasLiked ? Math.max(0, p.likes - 1) : p.likes + 1 }
+            : p
+        )
+      );
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          setFeedPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
+                : p
+            )
+          );
+          Alert.alert("Sign In Required", "Please sign in to like posts.");
+          return;
+        }
+        if (wasLiked) {
+          await api.unlikePost(token, postId);
+        } else {
+          await api.likePost(token, postId);
+        }
+      } catch {
+        // Roll back on network/server error
+        setFeedPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
+              : p
+          )
+        );
+      }
+    },
+    [feedPosts, getToken]
+  );
 
   const handleSavePost = (post: Post) => {
     const favoriteType = post.type === "vendor" ? "product" : "photographer";
