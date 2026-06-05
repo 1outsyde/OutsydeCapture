@@ -345,6 +345,22 @@ export default function DiscoverScreen() {
       const res = await api.getPostComments(post.id);
       const fetched = res.comments || [];
       console.log('[Comments] fetched', fetched.length, 'for', post.id);
+      // TODO: remove before final merge — temporary name-resolution diagnostic
+      console.log('[Comments] sample row →', {
+        rawUserName: fetched[0]?.user?.name,
+        rawUsername: fetched[0]?.user?.username,
+        resolvedName:
+          fetched[0]?.user?.name ||
+          fetched[0]?.user?.username ||
+          (fetched[0]?.user?.firstName
+            ? (fetched[0].user.firstName + (fetched[0].user.lastName ? ' ' + fetched[0].user.lastName : '')).trim()
+            : undefined) ||
+          fetched[0]?.userName || fetched[0]?.username ||
+          (fetched[0]?.author as any)?.displayName ||
+          (fetched[0]?.author as any)?.username ||
+          (fetched[0]?.author as any)?.name ||
+          'User',
+      });
       setModalComments(fetched);
     } catch {
       setModalComments([]);
@@ -570,9 +586,14 @@ export default function DiscoverScreen() {
                 renderItem={({ item: comment }) => {
                   const author = comment.author || {};
                   const displayName =
+                    comment.user?.name ||
+                    comment.user?.username ||
+                    (comment.user?.firstName
+                      ? (comment.user.firstName + (comment.user.lastName ? ' ' + comment.user.lastName : '')).trim()
+                      : undefined) ||
                     comment.userName || comment.username || author.displayName || author.username || author.name || "User";
                   const avatarUri =
-                    comment.userAvatar || author.profilePhotoUrl || author.profileImageUrl || "";
+                    comment.userAvatar || author.profilePhotoUrl || author.profileImageUrl || comment.user?.profileImageUrl || "";
                   const body = comment.text || comment.content || "";
                   return (
                     <View style={styles.commentRow}>

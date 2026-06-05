@@ -292,6 +292,22 @@ export default function PulseFeedScreenV2() {
       const res = await api.getPostComments(post.id);
       const fetched = res.comments || [];
       console.log('[Comments] fetched', fetched.length, 'for', post.id);
+      // TODO: remove before final merge — temporary name-resolution diagnostic
+      console.log('[Comments] sample row →', {
+        rawUserName: fetched[0]?.user?.name,
+        rawUsername: fetched[0]?.user?.username,
+        resolvedName:
+          fetched[0]?.user?.name ||
+          fetched[0]?.user?.username ||
+          (fetched[0]?.user?.firstName
+            ? (fetched[0].user.firstName + (fetched[0].user.lastName ? ' ' + fetched[0].user.lastName : '')).trim()
+            : undefined) ||
+          fetched[0]?.userName || fetched[0]?.username ||
+          (fetched[0]?.author as any)?.displayName ||
+          (fetched[0]?.author as any)?.username ||
+          (fetched[0]?.author as any)?.name ||
+          'User',
+      });
       setModalComments(fetched);
     } catch {
       setModalComments([]);
@@ -512,9 +528,14 @@ export default function PulseFeedScreenV2() {
                 renderItem={({ item: c }) => {
                   const author = c.author || {};
                   const displayName =
+                    c.user?.name ||
+                    c.user?.username ||
+                    (c.user?.firstName
+                      ? (c.user.firstName + (c.user.lastName ? ' ' + c.user.lastName : '')).trim()
+                      : undefined) ||
                     c.userName || c.username || author.displayName || author.username || author.name || "User";
                   const avatarUri =
-                    c.userAvatar || author.profilePhotoUrl || author.profileImageUrl || "";
+                    c.userAvatar || author.profilePhotoUrl || author.profileImageUrl || c.user?.profileImageUrl || "";
                   const body = c.text || c.content || "";
                   return (
                     <View style={styles.commentRow}>
