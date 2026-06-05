@@ -96,6 +96,24 @@ function convertApiPost(apiPost: ApiPost): Post {
   };
 }
 
+function formatRelativeTime(timestamp: string): string | null {
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffMins < 1) return "now";
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays === 1) return "1d";
+  if (diffDays < 7) return `${diffDays}d`;
+  if (diffWeeks < 4) return `${diffWeeks}w`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export default function PulseFeedScreenV2() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -292,22 +310,6 @@ export default function PulseFeedScreenV2() {
       const res = await api.getPostComments(post.id);
       const fetched = res.comments || [];
       console.log('[Comments] fetched', fetched.length, 'for', post.id);
-      // TODO: remove before final merge — temporary name-resolution diagnostic
-      console.log('[Comments] sample row →', {
-        rawUserName: fetched[0]?.user?.name,
-        rawUsername: fetched[0]?.user?.username,
-        resolvedName:
-          fetched[0]?.user?.name ||
-          fetched[0]?.user?.username ||
-          (fetched[0]?.user?.firstName
-            ? (fetched[0].user.firstName + (fetched[0].user.lastName ? ' ' + fetched[0].user.lastName : '')).trim()
-            : undefined) ||
-          fetched[0]?.userName || fetched[0]?.username ||
-          (fetched[0]?.author as any)?.displayName ||
-          (fetched[0]?.author as any)?.username ||
-          (fetched[0]?.author as any)?.name ||
-          'User',
-      });
       setModalComments(fetched);
     } catch {
       setModalComments([]);
@@ -537,17 +539,31 @@ export default function PulseFeedScreenV2() {
                   const avatarUri =
                     c.userAvatar || author.profilePhotoUrl || author.profileImageUrl || c.user?.profileImageUrl || "";
                   const body = c.text || c.content || "";
+                  const timestamp = formatRelativeTime(c.createdAt || "");
                   return (
                     <View style={styles.commentRow}>
-                      <Image
-                        source={{ uri: avatarUri }}
-                        style={styles.commentAvatar}
-                        contentFit="cover"
-                      />
-                      <ThemedText style={styles.commentText}>
-                        <ThemedText style={{ fontWeight: "700" }}>{displayName} </ThemedText>
-                        {body}
-                      </ThemedText>
+                      {avatarUri ? (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={styles.commentAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.commentAvatarPlaceholder}>
+                          <ThemedText style={styles.commentAvatarInitial}>
+                            {displayName.charAt(0).toUpperCase()}
+                          </ThemedText>
+                        </View>
+                      )}
+                      <View style={styles.commentRight}>
+                        <View style={styles.commentMeta}>
+                          <ThemedText style={styles.commentAuthorText}>{displayName}</ThemedText>
+                          {timestamp ? (
+                            <ThemedText style={styles.commentTimestamp}>{timestamp}</ThemedText>
+                          ) : null}
+                        </View>
+                        <ThemedText style={styles.commentBodyText}>{body}</ThemedText>
+                      </View>
                     </View>
                   );
                 }}
@@ -652,17 +668,50 @@ const styles = StyleSheet.create({
   },
   commentRow: {
     flexDirection: "row",
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
     alignItems: "flex-start",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   commentAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    marginRight: Spacing.sm,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
   },
-  commentText: {
+  commentAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  commentAvatarInitial: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#999",
+  },
+  commentRight: {
     flex: 1,
+  },
+  commentMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  commentAuthorText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  commentTimestamp: {
+    fontSize: 11,
+    color: "#999",
+    marginLeft: 6,
+  },
+  commentBodyText: {
+    fontSize: 14,
     lineHeight: 20,
   },
   commentInput: {
