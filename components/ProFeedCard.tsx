@@ -409,10 +409,10 @@ export function ProFeedCard({
             {post.caption}
           </ThemedText>
         ) : null}
-        {post.comments.length > 0 && (
+        {(post.commentCount ?? post.comments.length) > 0 && (
           <Pressable onPress={() => onComment(post)}>
             <ThemedText style={[styles.viewComments, { color: theme.textSecondary }]}>
-              View all {post.comments.length} comments
+              View all {post.commentCount ?? post.comments.length} comments
             </ThemedText>
           </Pressable>
         )}
