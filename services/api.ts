@@ -3785,13 +3785,9 @@ export interface BookingConfirmResponse {
 
 export interface PulseEngagement {
   postId: string;
-  watchTimeSeconds?: number;
-  completionRate?: number;
+  watchTimeMs: number;
+  videoDurationMs: number;
   isRewatch?: boolean;
-  shared?: boolean;
-  saved?: boolean;
-  commented?: boolean;
-  liked?: boolean;
 }
 
 export interface PulseFeedResponse {

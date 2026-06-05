@@ -195,12 +195,14 @@ export default function PulseFeedScreenV2() {
       try {
         const token = await getToken();
         if (token) {
-          await api.trackPulseEngagement(token, {
+          const payload: PulseEngagement = {
             postId,
-            watchTimeSeconds: e.watchTimeSeconds,
-            completionRate: e.completionRate,
+            watchTimeMs: e.watchTimeMs,
+            videoDurationMs: e.videoDurationMs,
             isRewatch: e.isRewatch,
-          } as PulseEngagement);
+          };
+          console.log('[Engagement] POST', payload);
+          await api.trackPulseEngagement(token, payload);
         }
       } catch {
         // Non-critical — silent fail
