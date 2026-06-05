@@ -50,7 +50,7 @@ export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { addComment, getPhotographer } = useData();
+  const { getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { user, getToken } = useAuth();
@@ -64,6 +64,8 @@ export default function DiscoverScreen() {
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [modalComments, setModalComments] = useState<any[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   // Feed toggle / swipe
   const handleModeChange = useCallback((mode: FeedMode) => setFeedMode(mode), []);
@@ -124,6 +126,7 @@ export default function DiscoverScreen() {
       likes: apiPost.likesCount || 0,
       isLiked: false,
       comments: [],
+      commentCount: apiPost.commentsCount || 0,
       createdAt: apiPost.createdAt,
       serviceId: apiPost.photographerServiceId || apiPost.serviceId,
       productId: apiPost.productId,
@@ -329,19 +332,51 @@ export default function DiscoverScreen() {
     });
   };
 
-  const openCommentsModal = (post: Post) => {
+  const handleCloseComments = () => {
+    setCommentsModalVisible(false);
+    setModalComments([]);
+  };
+
+  const openCommentsModal = async (post: Post) => {
     setSelectedPost(post);
     setCommentsModalVisible(true);
+    setCommentsLoading(true);
+    try {
+      const res = await api.getPostComments(post.id);
+      const fetched = res.comments || [];
+      console.log('[Comments] fetched', fetched.length, 'for', post.id);
+      setModalComments(fetched);
+    } catch {
+      setModalComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
   };
 
   const handleSubmitComment = async () => {
-    if (selectedPost && commentText.trim()) {
-      try {
-        await addComment(selectedPost.id, commentText);
-        setCommentText("");
-      } catch (err) {
-        console.error("Error submitting comment:", err);
+    if (!selectedPost || !commentText.trim()) return;
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Sign In Required", "Please sign in to comment on posts.");
+        return;
       }
+      await api.addPostComment(token, selectedPost.id, commentText.trim());
+      setCommentText("");
+      // Refetch for correctness
+      const res = await api.getPostComments(selectedPost.id);
+      setModalComments(res.comments || []);
+      // Optimistically bump count in feed list
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p.id === selectedPost.id
+            ? { ...p, commentCount: (p.commentCount ?? 0) + 1 }
+            : p
+        )
+      );
+    } catch (err) {
+      console.error("Error submitting comment:", err);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
     }
   };
 
@@ -499,7 +534,7 @@ export default function DiscoverScreen() {
         visible={commentsModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setCommentsModalVisible(false)}
+        onRequestClose={handleCloseComments}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -507,44 +542,58 @@ export default function DiscoverScreen() {
         >
           <Pressable
             style={styles.modalBackdrop}
-            onPress={() => setCommentsModalVisible(false)}
+            onPress={handleCloseComments}
           />
           <View style={[styles.commentsModal, { backgroundColor: theme.card }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <ThemedText type="h4">Comments</ThemedText>
-              <Pressable onPress={() => setCommentsModalVisible(false)}>
+              <Pressable onPress={handleCloseComments}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
 
-            <FlatList
-              data={selectedPost?.comments || []}
-              keyExtractor={(item) => item.id}
-              style={styles.commentsList}
-              ListEmptyComponent={
-                <View style={styles.emptyComments}>
-                  <ThemedText type="body" style={{ color: theme.textSecondary }}>
-                    No comments yet. Be the first!
-                  </ThemedText>
-                </View>
-              }
-              renderItem={({ item: comment }) => (
-                <View style={styles.commentRow}>
-                  <Image
-                    source={{ uri: comment.userAvatar }}
-                    style={styles.commentAvatar}
-                    contentFit="cover"
-                  />
-                  <View style={styles.commentContent}>
-                    <ThemedText type="body">
-                      <ThemedText style={{ fontWeight: "600" }}>{comment.userName} </ThemedText>
-                      {comment.text}
+            {commentsLoading ? (
+              <View style={styles.emptyComments}>
+                <ActivityIndicator size="small" color={theme.primary} />
+              </View>
+            ) : (
+              <FlatList
+                data={modalComments}
+                keyExtractor={(item, i) => item.id ?? String(i)}
+                style={styles.commentsList}
+                ListEmptyComponent={
+                  <View style={styles.emptyComments}>
+                    <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                      No comments yet. Be the first!
                     </ThemedText>
                   </View>
-                </View>
-              )}
-            />
+                }
+                renderItem={({ item: comment }) => {
+                  const author = comment.author || {};
+                  const displayName =
+                    comment.userName || comment.username || author.displayName || author.username || author.name || "User";
+                  const avatarUri =
+                    comment.userAvatar || author.profilePhotoUrl || author.profileImageUrl || "";
+                  const body = comment.text || comment.content || "";
+                  return (
+                    <View style={styles.commentRow}>
+                      <Image
+                        source={{ uri: avatarUri }}
+                        style={styles.commentAvatar}
+                        contentFit="cover"
+                      />
+                      <View style={styles.commentContent}>
+                        <ThemedText type="body">
+                          <ThemedText style={{ fontWeight: "600" }}>{displayName} </ThemedText>
+                          {body}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+            )}
 
             <View style={[styles.commentInputRow, { borderTopColor: theme.border }]}>
               <TextInput

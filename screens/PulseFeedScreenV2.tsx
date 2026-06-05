@@ -86,6 +86,7 @@ function convertApiPost(apiPost: ApiPost): Post {
     likes: apiPost.likesCount || 0,
     isLiked: false,
     comments: [],
+    commentCount: apiPost.commentsCount || 0,
     createdAt: apiPost.createdAt,
     serviceId: apiPost.photographerServiceId || apiPost.serviceId,
     productId: apiPost.productId,
@@ -99,7 +100,7 @@ export default function PulseFeedScreenV2() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { addComment, getPhotographer } = useData();
+  const { getPhotographer } = useData();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { getToken } = useAuth();
 
@@ -122,6 +123,8 @@ export default function PulseFeedScreenV2() {
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [modalComments, setModalComments] = useState<any[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   const listRef = useRef<FlatList>(null);
 
@@ -276,20 +279,53 @@ export default function PulseFeedScreenV2() {
   }, [toggleFavorite]);
 
   // ─── Comments ───────────────────────────────────────────────────────────────
-  const handleComment = useCallback((post: Post) => {
+  const handleCloseComments = useCallback(() => {
+    setCommentsVisible(false);
+    setModalComments([]);
+  }, []);
+
+  const handleComment = useCallback(async (post: Post) => {
     setSelectedPost(post);
     setCommentsVisible(true);
+    setCommentsLoading(true);
+    try {
+      const res = await api.getPostComments(post.id);
+      const fetched = res.comments || [];
+      console.log('[Comments] fetched', fetched.length, 'for', post.id);
+      setModalComments(fetched);
+    } catch {
+      setModalComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
   }, []);
 
   const handleSubmitComment = useCallback(async () => {
     if (!selectedPost || !commentText.trim()) return;
     try {
-      await addComment(selectedPost.id, commentText.trim());
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Sign In Required", "Please sign in to comment on posts.");
+        return;
+      }
+      await api.addPostComment(token, selectedPost.id, commentText.trim());
       setCommentText("");
+      // Refetch for correctness
+      const res = await api.getPostComments(selectedPost.id);
+      setModalComments(res.comments || []);
+      // Optimistically bump count in feed list
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === selectedPost.id
+            ? { ...p, commentCount: (p.commentCount ?? 0) + 1 }
+            : p
+        )
+      );
     } catch (err) {
       console.error("[PulseFeedV2] Comment error:", err);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
     }
-  }, [selectedPost, commentText, addComment]);
+  }, [selectedPost, commentText, getToken]);
 
   // ─── Navigation ─────────────────────────────────────────────────────────────
   const handleAuthorPress = useCallback((post: Post) => {
@@ -440,7 +476,7 @@ export default function PulseFeedScreenV2() {
         visible={commentsVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setCommentsVisible(false)}
+        onRequestClose={handleCloseComments}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -448,42 +484,56 @@ export default function PulseFeedScreenV2() {
         >
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setCommentsVisible(false)}
+            onPress={handleCloseComments}
           />
           <View style={[styles.commentsSheet, { backgroundColor: theme.card }]}>
             <View style={styles.sheetHandle} />
             <View style={[styles.sheetHeader, { borderBottomColor: theme.border }]}>
               <ThemedText type="h4">Comments</ThemedText>
-              <Pressable onPress={() => setCommentsVisible(false)}>
+              <Pressable onPress={handleCloseComments}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
 
-            <FlatList
-              data={selectedPost?.comments || []}
-              keyExtractor={(c) => c.id}
-              style={styles.commentList}
-              ListEmptyComponent={
-                <View style={styles.emptyComments}>
-                  <ThemedText style={{ color: theme.textSecondary }}>
-                    No comments yet. Be the first!
-                  </ThemedText>
-                </View>
-              }
-              renderItem={({ item: c }) => (
-                <View style={styles.commentRow}>
-                  <Image
-                    source={{ uri: c.userAvatar }}
-                    style={styles.commentAvatar}
-                    contentFit="cover"
-                  />
-                  <ThemedText style={styles.commentText}>
-                    <ThemedText style={{ fontWeight: "700" }}>{c.userName} </ThemedText>
-                    {c.text}
-                  </ThemedText>
-                </View>
-              )}
-            />
+            {commentsLoading ? (
+              <View style={styles.emptyComments}>
+                <ActivityIndicator size="small" color={theme.primary} />
+              </View>
+            ) : (
+              <FlatList
+                data={modalComments}
+                keyExtractor={(c, i) => c.id ?? String(i)}
+                style={styles.commentList}
+                ListEmptyComponent={
+                  <View style={styles.emptyComments}>
+                    <ThemedText style={{ color: theme.textSecondary }}>
+                      No comments yet. Be the first!
+                    </ThemedText>
+                  </View>
+                }
+                renderItem={({ item: c }) => {
+                  const author = c.author || {};
+                  const displayName =
+                    c.userName || c.username || author.displayName || author.username || author.name || "User";
+                  const avatarUri =
+                    c.userAvatar || author.profilePhotoUrl || author.profileImageUrl || "";
+                  const body = c.text || c.content || "";
+                  return (
+                    <View style={styles.commentRow}>
+                      <Image
+                        source={{ uri: avatarUri }}
+                        style={styles.commentAvatar}
+                        contentFit="cover"
+                      />
+                      <ThemedText style={styles.commentText}>
+                        <ThemedText style={{ fontWeight: "700" }}>{displayName} </ThemedText>
+                        {body}
+                      </ThemedText>
+                    </View>
+                  );
+                }}
+              />
+            )}
 
             <View style={[styles.commentInput, { borderTopColor: theme.border }]}>
               <TextInput

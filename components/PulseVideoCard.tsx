@@ -295,7 +295,7 @@ export default function PulseVideoCard({
           <View style={styles.actionIcon}>
             <Feather name="message-circle" size={26} color="#FFFFFF" />
           </View>
-          <ThemedText style={styles.actionCount}>{post.comments.length}</ThemedText>
+          <ThemedText style={styles.actionCount}>{post.commentCount ?? post.comments.length}</ThemedText>
         </Pressable>
 
         <Pressable
