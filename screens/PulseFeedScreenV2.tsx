@@ -478,10 +478,7 @@ export default function PulseFeedScreenV2() {
         transparent
         onRequestClose={handleCloseComments}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.modalWrap}
-        >
+        <View style={styles.modalWrap}>
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={handleCloseComments}
@@ -496,7 +493,7 @@ export default function PulseFeedScreenV2() {
             </View>
 
             {commentsLoading ? (
-              <View style={styles.emptyComments}>
+              <View style={styles.listArea}>
                 <ActivityIndicator size="small" color={theme.primary} />
               </View>
             ) : (
@@ -504,6 +501,7 @@ export default function PulseFeedScreenV2() {
                 data={modalComments}
                 keyExtractor={(c, i) => c.id ?? String(i)}
                 style={styles.commentList}
+                contentContainerStyle={styles.commentListContent}
                 ListEmptyComponent={
                   <View style={styles.emptyComments}>
                     <ThemedText style={{ color: theme.textSecondary }}>
@@ -535,28 +533,32 @@ export default function PulseFeedScreenV2() {
               />
             )}
 
-            <View style={[styles.commentInput, { borderTopColor: theme.border }]}>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  { backgroundColor: theme.backgroundSecondary, color: theme.text },
-                ]}
-                placeholder="Add a comment..."
-                placeholderTextColor={theme.textSecondary}
-                value={commentText}
-                onChangeText={setCommentText}
-                onSubmitEditing={handleSubmitComment}
-                returnKeyType="send"
-              />
-              <Pressable
-                onPress={handleSubmitComment}
-                style={[styles.sendBtn, { backgroundColor: theme.primary }]}
-              >
-                <Feather name="send" size={18} color="#000000" />
-              </Pressable>
-            </View>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
+              <View style={[styles.commentInput, { borderTopColor: theme.border }]}>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    { backgroundColor: theme.backgroundSecondary, color: theme.text },
+                  ]}
+                  placeholder="Add a comment..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  onSubmitEditing={handleSubmitComment}
+                  returnKeyType="send"
+                />
+                <Pressable
+                  onPress={handleSubmitComment}
+                  style={[styles.sendBtn, { backgroundColor: theme.primary }]}
+                >
+                  <Feather name="send" size={18} color="#000000" />
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -589,10 +591,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   commentsSheet: {
+    height: SCREEN_HEIGHT * 0.7,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    maxHeight: SCREEN_HEIGHT * 0.72,
-    paddingBottom: Spacing.xl,
   },
   sheetHandle: {
     width: 40,
@@ -610,13 +611,23 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
   },
+  listArea: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   commentList: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
   },
+  commentListContent: {
+    flexGrow: 1,
+  },
   emptyComments: {
-    paddingVertical: Spacing["2xl"],
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    paddingVertical: Spacing["2xl"],
   },
   commentRow: {
     flexDirection: "row",
@@ -638,6 +649,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.xl,
     borderTopWidth: 1,
   },
   textInput: {

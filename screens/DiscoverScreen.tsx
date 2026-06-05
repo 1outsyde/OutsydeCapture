@@ -536,10 +536,7 @@ export default function DiscoverScreen() {
         transparent
         onRequestClose={handleCloseComments}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.modalOverlay}
-        >
+        <View style={styles.modalOverlay}>
           <Pressable
             style={styles.modalBackdrop}
             onPress={handleCloseComments}
@@ -554,7 +551,7 @@ export default function DiscoverScreen() {
             </View>
 
             {commentsLoading ? (
-              <View style={styles.emptyComments}>
+              <View style={styles.listArea}>
                 <ActivityIndicator size="small" color={theme.primary} />
               </View>
             ) : (
@@ -562,6 +559,7 @@ export default function DiscoverScreen() {
                 data={modalComments}
                 keyExtractor={(item, i) => item.id ?? String(i)}
                 style={styles.commentsList}
+                contentContainerStyle={styles.commentListContent}
                 ListEmptyComponent={
                   <View style={styles.emptyComments}>
                     <ThemedText type="body" style={{ color: theme.textSecondary }}>
@@ -595,27 +593,31 @@ export default function DiscoverScreen() {
               />
             )}
 
-            <View style={[styles.commentInputRow, { borderTopColor: theme.border }]}>
-              <TextInput
-                style={[
-                  styles.commentInput,
-                  { backgroundColor: theme.backgroundSecondary, color: theme.text },
-                ]}
-                placeholder="Add a comment..."
-                placeholderTextColor={theme.textSecondary}
-                value={commentText}
-                onChangeText={setCommentText}
-                onSubmitEditing={handleSubmitComment}
-              />
-              <Pressable
-                onPress={handleSubmitComment}
-                style={[styles.sendButton, { backgroundColor: theme.primary }]}
-              >
-                <Feather name="send" size={18} color="#000000" />
-              </Pressable>
-            </View>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
+              <View style={[styles.commentInputRow, { borderTopColor: theme.border }]}>
+                <TextInput
+                  style={[
+                    styles.commentInput,
+                    { backgroundColor: theme.backgroundSecondary, color: theme.text },
+                  ]}
+                  placeholder="Add a comment..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  onSubmitEditing={handleSubmitComment}
+                />
+                <Pressable
+                  onPress={handleSubmitComment}
+                  style={[styles.sendButton, { backgroundColor: theme.primary }]}
+                >
+                  <Feather name="send" size={18} color="#000000" />
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -659,10 +661,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   commentsModal: {
+    height: SCREEN_HEIGHT * 0.7,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    maxHeight: SCREEN_HEIGHT * 0.7,
-    paddingBottom: Spacing.xl,
   },
   modalHandle: {
     width: 40,
@@ -681,13 +682,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.1)",
   },
+  listArea: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   commentsList: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
   },
+  commentListContent: {
+    flexGrow: 1,
+  },
   emptyComments: {
-    paddingVertical: Spacing["2xl"],
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    paddingVertical: Spacing["2xl"],
   },
   commentRow: {
     flexDirection: "row",
@@ -707,6 +718,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.xl,
     borderTopWidth: 1,
   },
   commentInput: {
