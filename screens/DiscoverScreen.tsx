@@ -46,6 +46,24 @@ const PRO_VIEWABILITY_CONFIG = {
   minimumViewTime: 100,
 };
 
+function formatRelativeTime(timestamp: string): string | null {
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffMins < 1) return "now";
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays === 1) return "1d";
+  if (diffDays < 7) return `${diffDays}d`;
+  if (diffWeeks < 4) return `${diffWeeks}w`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -570,22 +588,39 @@ export default function DiscoverScreen() {
                 renderItem={({ item: comment }) => {
                   const author = comment.author || {};
                   const displayName =
+                    comment.user?.name ||
+                    comment.user?.username ||
+                    (comment.user?.firstName
+                      ? (comment.user.firstName + (comment.user.lastName ? ' ' + comment.user.lastName : '')).trim()
+                      : undefined) ||
                     comment.userName || comment.username || author.displayName || author.username || author.name || "User";
                   const avatarUri =
-                    comment.userAvatar || author.profilePhotoUrl || author.profileImageUrl || "";
+                    comment.userAvatar || author.profilePhotoUrl || author.profileImageUrl || comment.user?.profileImageUrl || "";
                   const body = comment.text || comment.content || "";
+                  const timestamp = formatRelativeTime(comment.createdAt || "");
                   return (
                     <View style={styles.commentRow}>
-                      <Image
-                        source={{ uri: avatarUri }}
-                        style={styles.commentAvatar}
-                        contentFit="cover"
-                      />
+                      {avatarUri ? (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={styles.commentAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.commentAvatarPlaceholder}>
+                          <ThemedText style={styles.commentAvatarInitial}>
+                            {displayName.charAt(0).toUpperCase()}
+                          </ThemedText>
+                        </View>
+                      )}
                       <View style={styles.commentContent}>
-                        <ThemedText type="body">
-                          <ThemedText style={{ fontWeight: "600" }}>{displayName} </ThemedText>
-                          {body}
-                        </ThemedText>
+                        <View style={styles.commentMeta}>
+                          <ThemedText style={styles.commentAuthorText}>{displayName}</ThemedText>
+                          {timestamp ? (
+                            <ThemedText style={styles.commentTimestamp}>{timestamp}</ThemedText>
+                          ) : null}
+                        </View>
+                        <ThemedText style={styles.commentBodyText}>{body}</ThemedText>
                       </View>
                     </View>
                   );
@@ -702,16 +737,51 @@ const styles = StyleSheet.create({
   },
   commentRow: {
     flexDirection: "row",
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
+    alignItems: "flex-start",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   commentAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    marginRight: Spacing.sm,
+    marginRight: 12,
+  },
+  commentAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  commentAvatarInitial: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#999",
   },
   commentContent: {
     flex: 1,
+  },
+  commentMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  commentAuthorText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  commentTimestamp: {
+    fontSize: 11,
+    color: "#999",
+    marginLeft: 6,
+  },
+  commentBodyText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   commentInputRow: {
     flexDirection: "row",
