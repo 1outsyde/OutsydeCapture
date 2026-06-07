@@ -68,6 +68,10 @@ function convertApiPost(apiPost: ApiPost): Post {
     apiPost.taggedPhotographerId ||
     apiPost.taggedBusinessId;
 
+  // TODO: remove before final merge
+  console.log('[PulseCounts]', apiPost.id,
+    'rawLike=', (apiPost as any).likeCount, 'rawComment=', (apiPost as any).commentCount);
+
   return {
     id: apiPost.id,
     type: postType,
@@ -83,10 +87,10 @@ function convertApiPost(apiPost: ApiPost): Post {
     image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
     videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
     caption: apiPost.content || "",
-    likes: apiPost.likesCount || 0,
+    likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
     isLiked: false,
     comments: [],
-    commentCount: apiPost.commentsCount || 0,
+    commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
     createdAt: apiPost.createdAt,
     serviceId: apiPost.photographerServiceId || apiPost.serviceId,
     productId: apiPost.productId,
