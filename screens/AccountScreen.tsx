@@ -1058,6 +1058,7 @@ export default function AccountScreen() {
             userId: String(user?.id || ""),
             role: "consumer",
             name:
+              user?.displayName ||
               `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
               "Outsyde User",
             handle: `@${user?.username || "outsyde"}`,
@@ -1172,7 +1173,7 @@ export default function AccountScreen() {
       navigation.navigate("PhotographerDashboard");
       return;
     }
-    setSettingsVisible(true);
+    (navigation as any).navigate("EditProfile");
   }, [navigation, profile]);
 
   const openCreatePost = useCallback(() => {
@@ -2077,6 +2078,11 @@ Booking flow coming soon.`,
       <PersonalSettingsMenu
         visible={isOwner && settingsVisible}
         onClose={() => setSettingsVisible(false)}
+        onEditProfile={
+          profile?.role === "consumer"
+            ? () => { (navigation as any).navigate("EditProfile"); }
+            : undefined
+        }
       />
 
       <Modal visible={isOwner && showCreatePost} animationType="slide" transparent>
