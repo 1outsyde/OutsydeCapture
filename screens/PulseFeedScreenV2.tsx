@@ -68,10 +68,6 @@ function convertApiPost(apiPost: ApiPost): Post {
     apiPost.taggedPhotographerId ||
     apiPost.taggedBusinessId;
 
-  // TODO: remove before final merge
-  console.log('[PulseCounts]', apiPost.id,
-    'rawLike=', (apiPost as any).likeCount, 'rawComment=', (apiPost as any).commentCount);
-
   return {
     id: apiPost.id,
     type: postType,
