@@ -84,7 +84,7 @@ function convertApiPost(apiPost: ApiPost): Post {
     videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
     caption: apiPost.content || "",
     likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
-    isLiked: false,
+    isLiked: (apiPost as any).isLiked ?? false,
     comments: [],
     commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
     createdAt: apiPost.createdAt,
@@ -165,6 +165,15 @@ export default function PulseFeedScreenV2() {
       if (response.posts && Array.isArray(response.posts)) {
         const converted = response.posts.map(convertApiPost);
         setPosts((prev) => (refresh ? converted : [...prev, ...converted]));
+        // Seed likedIds from payload — merge so session toggles are never clobbered
+        const payloadLikedIds = converted.filter((p) => p.isLiked).map((p) => p.id);
+        if (payloadLikedIds.length > 0) {
+          setLikedIds((prev) => {
+            const next = new Set(prev);
+            payloadLikedIds.forEach((id) => next.add(id));
+            return next;
+          });
+        }
         setHasMore(response.hasMore);
         setCursor(response.nextCursor);
       }

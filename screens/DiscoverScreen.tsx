@@ -142,7 +142,7 @@ export default function DiscoverScreen() {
       videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
       caption: apiPost.content || "",
       likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
-      isLiked: false,
+      isLiked: (apiPost as any).isLiked ?? false,
       comments: [],
       commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
       createdAt: apiPost.createdAt,
