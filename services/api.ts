@@ -2919,7 +2919,7 @@ class ApiService {
 
   async checkFollowStatus(targetUserId: string): Promise<{ isFollowing: boolean }> {
     try {
-      return await this.request<{ isFollowing: boolean }>(`/api/follows/status/${targetUserId}`);
+      return await this.request<{ isFollowing: boolean }>(`/api/follows/check/${targetUserId}`);
     } catch {
       return { isFollowing: false };
     }
