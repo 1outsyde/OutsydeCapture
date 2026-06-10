@@ -18,7 +18,8 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -72,6 +73,16 @@ export default function PhotographerDashboardScreen() {
   const [saving, setSaving] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+
+  const route = useRoute<RouteProp<RootStackParamList, "PhotographerDashboard">>();
+  useEffect(() => {
+    if (route.params?.openModal) {
+      setActiveModal(route.params.openModal);
+      // consume the param so the modal doesn't reopen on a later remount
+      navigation.setParams({ openModal: undefined });
+    }
+  }, [route.params?.openModal]);
+
   const [authError, setAuthError] = useState<string | null>(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const hasFetchedRef = useRef(false);
@@ -1796,7 +1807,7 @@ export default function PhotographerDashboardScreen() {
                       bannerType: "color" 
                     }));
                   }}
-                  folder="banners"
+                  folder="covers"
                   maxVideoDuration={15}
                   placeholder="Upload banner image"
                 />

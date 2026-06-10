@@ -1166,11 +1166,11 @@ export default function AccountScreen() {
   const onEditProfilePress = useCallback(() => {
     if (!profile) return;
     if (profile.role === "business") {
-      navigation.navigate("BusinessDashboard");
+      navigation.navigate("StorefrontEditor");
       return;
     }
     if (profile.role === "photographer") {
-      navigation.navigate("PhotographerDashboard");
+      navigation.navigate("PhotographerDashboard", { openModal: "profile" });
       return;
     }
     (navigation as any).navigate("EditProfile");

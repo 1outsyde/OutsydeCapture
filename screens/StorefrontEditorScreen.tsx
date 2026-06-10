@@ -1281,7 +1281,7 @@ export default function StorefrontEditorScreen() {
               setCoverVideo("");
               setCoverMediaType(null);
             }}
-            folder="banners"
+            folder="covers"
             maxVideoDuration={15}
             placeholder="Upload cover image"
           />
