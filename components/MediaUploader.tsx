@@ -41,7 +41,7 @@ export default function MediaUploader({
   aspectRatio = "cover",
   placeholder = "Upload Media",
   showRemove = true,
-  folder = "banners",
+  folder = "covers",
   maxVideoDuration = 15,
   maxVideoSizeMB = 200,
 }: MediaUploaderProps) {
