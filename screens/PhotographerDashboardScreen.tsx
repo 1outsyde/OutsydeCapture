@@ -1796,7 +1796,7 @@ export default function PhotographerDashboardScreen() {
                       bannerType: "color" 
                     }));
                   }}
-                  folder="banners"
+                  folder="covers"
                   maxVideoDuration={15}
                   placeholder="Upload banner image"
                 />
