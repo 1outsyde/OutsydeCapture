@@ -2078,11 +2078,7 @@ Booking flow coming soon.`,
       <PersonalSettingsMenu
         visible={isOwner && settingsVisible}
         onClose={() => setSettingsVisible(false)}
-        onEditProfile={
-          profile?.role === "consumer"
-            ? () => { (navigation as any).navigate("EditProfile"); }
-            : undefined
-        }
+        onEditProfile={isOwner ? onEditProfilePress : undefined}
       />
 
       <Modal visible={isOwner && showCreatePost} animationType="slide" transparent>

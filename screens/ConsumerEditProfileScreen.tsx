@@ -75,7 +75,9 @@ export default function ConsumerEditProfileScreen() {
     [getToken],
   );
 
-  // ─── Save: only send fields that changed ─────────────────────────────────
+  // ─── Save: route fields to the correct endpoints ─────────────────────────
+  // displayName → PATCH /api/users/identity  (updateUserMe silently drops it)
+  // bio, avatar, cover → PATCH /api/users/me
   const handleSave = useCallback(async () => {
     const token = await getToken();
     if (!token) {
@@ -83,33 +85,45 @@ export default function ConsumerEditProfileScreen() {
       return;
     }
 
-    const payload: Parameters<typeof api.updateUserMe>[1] = {};
+    const displayNameChanged = displayName.trim() !== origDisplayName.trim();
 
+    const mePayload: Parameters<typeof api.updateUserMe>[1] = {};
     if (profileImageUrl !== origProfileImageUrl) {
-      payload.profileImageUrl = profileImageUrl || null;
+      mePayload.profileImageUrl = profileImageUrl || null;
     }
     if (coverMediaUrl !== origCoverMediaUrl) {
-      payload.coverMediaUrl = coverMediaUrl || null;
-      payload.coverMediaType = coverMediaUrl ? coverMediaType : null;
+      mePayload.coverMediaUrl = coverMediaUrl || null;
+      mePayload.coverMediaType = coverMediaUrl ? coverMediaType : null;
     } else if (coverMediaType !== origCoverMediaType && coverMediaUrl) {
-      payload.coverMediaType = coverMediaType;
-    }
-    if (displayName.trim() !== origDisplayName.trim()) {
-      payload.displayName = displayName.trim();
+      mePayload.coverMediaType = coverMediaType;
     }
     if (bio.trim() !== origBio.trim()) {
-      payload.bio = bio.trim();
+      mePayload.bio = bio.trim();
     }
 
-    if (Object.keys(payload).length === 0) {
+    const hasIdentityChange = displayNameChanged;
+    const hasMeChange = Object.keys(mePayload).length > 0;
+
+    if (!hasIdentityChange && !hasMeChange) {
       navigation.goBack();
       return;
     }
 
     try {
       setSaving(true);
-      console.log("[ConsumerEditProfile] Saving payload:", JSON.stringify(payload, null, 2));
-      await api.updateUserMe(token, payload);
+      console.log("[ConsumerEditProfile] identity payload:", displayNameChanged ? { displayName: displayName.trim() } : "no change");
+      console.log("[ConsumerEditProfile] me payload:", JSON.stringify(mePayload, null, 2));
+
+      // Run both calls (whichever are needed) before refreshing
+      const calls: Promise<any>[] = [];
+      if (displayNameChanged) {
+        calls.push(api.updateUserIdentity(token, { displayName: displayName.trim() }));
+      }
+      if (hasMeChange) {
+        calls.push(api.updateUserMe(token, mePayload));
+      }
+      await Promise.all(calls);
+
       await refreshUser();
       navigation.goBack();
     } catch (error: any) {
@@ -180,7 +194,7 @@ export default function ConsumerEditProfileScreen() {
               setCoverMediaUrl("");
               setCoverMediaType("image");
             }}
-            folder="banners"
+            folder="covers"
             aspectRatio="cover"
             placeholder="Upload cover photo or video"
             maxVideoDuration={15}

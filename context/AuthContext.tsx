@@ -822,9 +822,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       console.log("[Auth] refreshUser response:", JSON.stringify(data, null, 2));
       
-      const backendUser = data.user || data;
-      if (!backendUser?.id) {
-        console.warn("[Auth] refreshUser - no user in response");
+      // /api/auth/me returns a flat object { userId, username, displayName, bio,
+      // profilePhotoUrl, coverMediaUrl, coverMediaType, ... } with no nested .user
+      const backendUser = data;
+      if (!backendUser?.userId && !backendUser?.id) {
+        console.warn("[Auth] refreshUser - no user id in response");
         return;
       }
       
@@ -832,18 +834,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         const updatedUser: User = {
           ...user,
-          username: backendUser.username,
-          displayName: backendUser.displayName || user.displayName,
-          avatar: backendUser.avatar || backendUser.profileImageUrl || user.avatar,
-          profileImageUrl: backendUser.profileImageUrl || user.profileImageUrl,
-          coverMediaUrl: backendUser.coverMediaUrl || user.coverMediaUrl,
-          coverMediaType: backendUser.coverMediaType || user.coverMediaType,
-          city: backendUser.city || user.city,
-          state: backendUser.state || user.state,
-          bio: backendUser.bio || user.bio,
+          username: backendUser.username ?? user.username,
+          displayName: backendUser.displayName ?? user.displayName,
+          // profilePhotoUrl is the field name on the flat /api/auth/me response
+          avatar: backendUser.profilePhotoUrl || backendUser.avatar || backendUser.profileImageUrl || user.avatar,
+          profileImageUrl: backendUser.profilePhotoUrl || backendUser.profileImageUrl || user.profileImageUrl,
+          coverMediaUrl: backendUser.coverMediaUrl ?? user.coverMediaUrl,
+          coverMediaType: (backendUser.coverMediaType as "image" | "video" | undefined) ?? user.coverMediaType,
+          city: backendUser.city ?? user.city,
+          state: backendUser.state ?? user.state,
+          bio: backendUser.bio ?? user.bio,
         };
         
-        console.log("[Auth] User refreshed - username:", updatedUser.username);
+        console.log("[Auth] User refreshed - username:", updatedUser.username, "displayName:", updatedUser.displayName, "bio:", updatedUser.bio);
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
         setUser(updatedUser);
       }
