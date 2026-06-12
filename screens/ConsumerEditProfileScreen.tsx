@@ -155,7 +155,7 @@ export default function ConsumerEditProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: theme.backgroundRoot }]}
+      style={[styles.flex, { backgroundColor: theme.brandBg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
@@ -168,10 +168,10 @@ export default function ConsumerEditProfileScreen() {
       >
         {/* ── Cover Photo / Video ──────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
             COVER PHOTO / VIDEO
           </Text>
-          <Text style={[styles.sectionHint, { color: theme.textSecondary }]}>
+          <Text style={[styles.sectionHint, { color: theme.brandTextDim }]}>
             Appears at the top of your profile (supports image or short video)
           </Text>
           <MediaUploader
@@ -203,10 +203,10 @@ export default function ConsumerEditProfileScreen() {
 
         {/* ── Profile Photo ────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
             PROFILE PHOTO
           </Text>
-          <Text style={[styles.sectionHint, { color: theme.textSecondary }]}>
+          <Text style={[styles.sectionHint, { color: theme.brandTextDim }]}>
             Your avatar shown on posts, messages, and search results
           </Text>
           <View style={styles.avatarRow}>
@@ -220,8 +220,8 @@ export default function ConsumerEditProfileScreen() {
             />
             {avatarUploading ? (
               <View style={styles.uploadingOverlay}>
-                <ActivityIndicator color={theme.primary} />
-                <Text style={[styles.uploadingText, { color: theme.textSecondary }]}>
+                <ActivityIndicator color={theme.brandPrimary} />
+                <Text style={[styles.uploadingText, { color: theme.brandTextDim }]}>
                   Uploading…
                 </Text>
               </View>
@@ -231,22 +231,22 @@ export default function ConsumerEditProfileScreen() {
 
         {/* ── Display Name ─────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
             DISPLAY NAME
           </Text>
           <TextInput
             style={[
               styles.input,
               {
-                backgroundColor: theme.backgroundDefault,
-                color: theme.text,
-                borderColor: theme.border,
+                backgroundColor: theme.brandBgElevated,
+                color: theme.brandCream,
+                borderColor: theme.brandSurfaceBorder,
               },
             ]}
             value={displayName}
             onChangeText={setDisplayName}
             placeholder="Your display name"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             maxLength={60}
             returnKeyType="next"
             autoCapitalize="words"
@@ -255,7 +255,7 @@ export default function ConsumerEditProfileScreen() {
 
         {/* ── Bio ──────────────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
             BIO
           </Text>
           <TextInput
@@ -263,20 +263,20 @@ export default function ConsumerEditProfileScreen() {
               styles.input,
               styles.bioInput,
               {
-                backgroundColor: theme.backgroundDefault,
-                color: theme.text,
-                borderColor: theme.border,
+                backgroundColor: theme.brandBgElevated,
+                color: theme.brandCream,
+                borderColor: theme.brandSurfaceBorder,
               },
             ]}
             value={bio}
             onChangeText={setBio}
             placeholder="Tell people a bit about yourself"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             multiline
             maxLength={200}
             textAlignVertical="top"
           />
-          <Text style={[styles.charCount, { color: theme.textSecondary }]}>
+          <Text style={[styles.charCount, { color: theme.brandTextDim }]}>
             {bio.length}/200
           </Text>
         </View>
@@ -285,15 +285,15 @@ export default function ConsumerEditProfileScreen() {
         <Pressable
           style={[
             styles.saveButton,
-            { backgroundColor: busy ? theme.textSecondary : theme.primary },
+            { backgroundColor: busy ? theme.brandTextDim : theme.brandPrimary },
           ]}
           onPress={handleSave}
           disabled={busy}
         >
           {saving ? (
-            <ActivityIndicator color="#000" size="small" />
+            <ActivityIndicator color={theme.brandPrimaryText} size="small" />
           ) : (
-            <Text style={styles.saveText}>Save Changes</Text>
+            <Text style={[styles.saveText, { color: theme.brandPrimaryText }]}>Save Changes</Text>
           )}
         </Pressable>
       </ScrollView>
@@ -362,7 +362,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveText: {
-    color: "#000000",
     fontWeight: "800",
     fontSize: 15,
   },
