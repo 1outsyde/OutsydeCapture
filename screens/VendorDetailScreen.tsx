@@ -2418,7 +2418,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   taglineText: {
-    color: COLORS.gold,
+    color: COLORS.cream,
     fontSize: 14,
     fontStyle: "italic",
     fontWeight: "500",
