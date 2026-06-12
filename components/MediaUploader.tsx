@@ -237,7 +237,7 @@ export default function MediaUploader({
     tabsContainer: {
       flexDirection: "row",
       marginBottom: 12,
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
       borderRadius: 8,
       padding: 4,
     },
@@ -251,19 +251,19 @@ export default function MediaUploader({
       gap: 6,
     },
     activeTab: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandPrimary,
     },
     tabText: {
       fontSize: 14,
       fontWeight: "500",
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     activeTabText: {
-      color: "#000",
+      color: theme.brandPrimaryText,
     },
     mediaContainer: {
       ...getAspectRatioStyle(),
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandBgElevated,
       overflow: "hidden",
       justifyContent: "center",
       alignItems: "center",
@@ -312,13 +312,13 @@ export default function MediaUploader({
     },
     placeholderText: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     uploadButton: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandPrimary,
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 8,
@@ -327,7 +327,7 @@ export default function MediaUploader({
     uploadButtonText: {
       fontSize: 14,
       fontWeight: "600",
-      color: "#000",
+      color: theme.brandPrimaryText,
     },
     uploadingContainer: {
       alignItems: "center",
@@ -335,7 +335,7 @@ export default function MediaUploader({
     },
     uploadingText: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       textAlign: "center",
     },
   });
@@ -348,20 +348,20 @@ export default function MediaUploader({
             style={[styles.tab, activeTab === "image" && styles.activeTab]}
             disabled
           >
-            <Feather name="image" size={16} color={activeTab === "image" ? "#000" : theme.textSecondary} />
+            <Feather name="image" size={16} color={activeTab === "image" ? theme.brandPrimaryText : theme.brandTextDim} />
             <Text style={[styles.tabText, activeTab === "image" && styles.activeTabText]}>Image</Text>
           </Pressable>
           <Pressable 
             style={[styles.tab, activeTab === "video" && styles.activeTab]}
             disabled
           >
-            <Feather name="video" size={16} color={activeTab === "video" ? "#000" : theme.textSecondary} />
+            <Feather name="video" size={16} color={activeTab === "video" ? theme.brandPrimaryText : theme.brandTextDim} />
             <Text style={[styles.tabText, activeTab === "video" && styles.activeTabText]}>Video</Text>
           </Pressable>
         </View>
         <View style={styles.mediaContainer}>
           <View style={styles.uploadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
+            <ActivityIndicator size="large" color={theme.brandPrimary} />
             <Text style={styles.uploadingText}>{uploadProgress}</Text>
           </View>
         </View>
@@ -376,7 +376,7 @@ export default function MediaUploader({
           <Image source={{ uri: currentImage }} style={styles.media} contentFit="cover" />
           <View style={styles.overlay}>
             <Pressable onPress={showImageOptions} style={styles.uploadButton}>
-              <Feather name="camera" size={16} color="#000" />
+              <Feather name="camera" size={16} color={theme.brandPrimaryText} />
               <Text style={styles.uploadButtonText}>Change</Text>
             </Pressable>
           </View>
@@ -404,7 +404,7 @@ export default function MediaUploader({
           </View>
           <View style={styles.overlay}>
             <Pressable onPress={pickVideo} style={styles.uploadButton}>
-              <Feather name="video" size={16} color="#000" />
+              <Feather name="video" size={16} color={theme.brandPrimaryText} />
               <Text style={styles.uploadButtonText}>Change</Text>
             </Pressable>
           </View>
@@ -426,13 +426,13 @@ export default function MediaUploader({
           <Feather 
             name={activeTab === "image" ? "image" : "video"} 
             size={32} 
-            color={theme.textSecondary} 
+            color={theme.brandTextDim} 
           />
           <Text style={styles.placeholderText}>
             {activeTab === "image" ? placeholder : `Upload Video (max ${maxVideoDuration}s)`}
           </Text>
           <View style={styles.uploadButton}>
-            <Feather name={activeTab === "image" ? "camera" : "video"} size={16} color="#000" />
+            <Feather name={activeTab === "image" ? "camera" : "video"} size={16} color={theme.brandPrimaryText} />
             <Text style={styles.uploadButtonText}>Upload</Text>
           </View>
         </View>
@@ -447,14 +447,14 @@ export default function MediaUploader({
           style={[styles.tab, activeTab === "image" && styles.activeTab]}
           onPress={() => setActiveTab("image")}
         >
-          <Feather name="image" size={16} color={activeTab === "image" ? "#000" : theme.textSecondary} />
+          <Feather name="image" size={16} color={activeTab === "image" ? theme.brandPrimaryText : theme.brandTextDim} />
           <Text style={[styles.tabText, activeTab === "image" && styles.activeTabText]}>Image</Text>
         </Pressable>
         <Pressable 
           style={[styles.tab, activeTab === "video" && styles.activeTab]}
           onPress={() => setActiveTab("video")}
         >
-          <Feather name="video" size={16} color={activeTab === "video" ? "#000" : theme.textSecondary} />
+          <Feather name="video" size={16} color={activeTab === "video" ? theme.brandPrimaryText : theme.brandTextDim} />
           <Text style={[styles.tabText, activeTab === "video" && styles.activeTabText]}>Video</Text>
         </Pressable>
       </View>

@@ -112,7 +112,7 @@ export default function ImageUploader({
   const styles = StyleSheet.create({
     container: {
       ...getAspectRatioStyle(),
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandBgElevated,
       overflow: "hidden",
       justifyContent: "center",
       alignItems: "center",
@@ -144,13 +144,13 @@ export default function ImageUploader({
     },
     placeholderText: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     uploadButton: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandPrimary,
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 8,
@@ -159,14 +159,14 @@ export default function ImageUploader({
     uploadButtonText: {
       fontSize: 14,
       fontWeight: "600",
-      color: "#000",
+      color: theme.brandPrimaryText,
     },
   });
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={theme.brandPrimary} />
       </View>
     );
   }
@@ -177,7 +177,7 @@ export default function ImageUploader({
         <Image source={{ uri: currentImage }} style={styles.image} resizeMode="cover" />
         <View style={styles.overlay}>
           <Pressable onPress={showOptions} style={styles.uploadButton}>
-            <Feather name="camera" size={16} color="#000" />
+            <Feather name="camera" size={16} color={theme.brandPrimaryText} />
             <Text style={styles.uploadButtonText}>Change</Text>
           </Pressable>
         </View>
@@ -193,10 +193,10 @@ export default function ImageUploader({
   return (
     <Pressable style={styles.container} onPress={showOptions}>
       <View style={styles.placeholder}>
-        <Feather name="image" size={32} color={theme.textSecondary} />
+        <Feather name="image" size={32} color={theme.brandTextDim} />
         <Text style={styles.placeholderText}>{placeholder}</Text>
         <View style={styles.uploadButton}>
-          <Feather name="camera" size={16} color="#000" />
+          <Feather name="camera" size={16} color={theme.brandPrimaryText} />
           <Text style={styles.uploadButtonText}>Upload</Text>
         </View>
       </View>
