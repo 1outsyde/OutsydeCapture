@@ -48,6 +48,7 @@ export const Colors = {
     brandSuccess:       "#34C759",
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",
+    brandInfo:          "#007AFF",
   },
   dark: {
     text: "#FFFFFF",
@@ -98,6 +99,7 @@ export const Colors = {
     brandSuccess:       "#34C759",
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",
+    brandInfo:          "#007AFF",
   },
 };
 
