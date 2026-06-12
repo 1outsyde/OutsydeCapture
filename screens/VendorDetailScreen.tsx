@@ -48,6 +48,7 @@ import apiClient, {
   VendorProduct,
   VendorService,
 } from "@/services/api";
+import { hoursObjectToArray } from "@/components/HoursEditor";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -157,7 +158,7 @@ type ProfileViewModel = {
   contactEmail?: string;
   contactPhone?: string;
   websiteUrl?: string;
-  hoursOfOperation?: string;
+  hoursOfOperation?: Record<string, any> | string | null;
   showEmail?: boolean;
   showPhone?: boolean;
   showWebsite?: boolean;
@@ -234,7 +235,7 @@ const profileHasAbout = (profile: ProfileViewModel): boolean =>
   Boolean(
     profile.bio?.trim() ||
       profile.tagline?.trim() ||
-      (profile.showStoreHours !== false && profile.hoursOfOperation?.trim()) ||
+      (profile.showStoreHours !== false && Boolean(profile.hoursOfOperation)) ||
       (profile.showEmail !== false && profile.contactEmail?.trim()) ||
       (profile.showPhone !== false && profile.contactPhone?.trim()) ||
       (profile.showWebsite !== false && profile.websiteUrl?.trim()) ||
@@ -683,10 +684,7 @@ export default function VendorDetailScreen({ route }: Props) {
             (business as any).contactPhone || business.phone || undefined,
           websiteUrl:
             (business as any).websiteUrl || business.website || undefined,
-          hoursOfOperation:
-            typeof (business as any).hoursOfOperation === "string"
-              ? (business as any).hoursOfOperation
-              : undefined,
+          hoursOfOperation: (business as any).hoursOfOperation ?? undefined,
           showEmail: (business as any).showEmail !== false,
           showPhone: (business as any).showPhone !== false,
           showWebsite: (business as any).showWebsite !== false,
@@ -1408,6 +1406,10 @@ export default function VendorDetailScreen({ route }: Props) {
           ) : null}
         </View>
 
+        {profile.role === "business" && profile.tagline?.trim() ? (
+          <Text style={styles.taglineText}>{profile.tagline}</Text>
+        ) : null}
+
         <Text style={styles.metaLine}>
           {profile.handle}
           {profile.location ? `  •  📍 ${profile.location}` : ""}
@@ -1950,15 +1952,40 @@ Booking flow coming soon.`,
             </Text>
           </View>
         ) : null}
-        {profile?.role === "business" && profile.showStoreHours !== false ? (
-          <View style={styles.aboutRow}>
-            <Feather name="clock" size={14} color={accentColor} />
-            <Text style={styles.aboutLabel}>Store Hours</Text>
-            <Text style={styles.aboutValue}>
-              {profile.hoursOfOperation || "Not listed"}
-            </Text>
-          </View>
-        ) : null}
+        {profile?.role === "business" && profile.showStoreHours !== false ? (() => {
+          const hoursObj =
+            profile.hoursOfOperation &&
+            typeof profile.hoursOfOperation === "object"
+              ? profile.hoursOfOperation
+              : null;
+          const dayRows = hoursObj
+            ? hoursObjectToArray(hoursObj as Parameters<typeof hoursObjectToArray>[0])
+            : [];
+          return (
+            <View style={styles.aboutRow}>
+              <Feather name="clock" size={14} color={accentColor} />
+              <Text style={styles.aboutLabel}>Store Hours</Text>
+              {dayRows.length > 0 ? (
+                <View style={styles.hoursGrid}>
+                  {dayRows.map((day) => (
+                    <View key={day.dayOfWeek} style={styles.hoursRow}>
+                      <Text style={styles.hoursDayLabel}>
+                        {DAY_LABELS[day.dayOfWeek]}
+                      </Text>
+                      <Text style={styles.hoursValue}>
+                        {day.isAvailable
+                          ? `${day.startTime} – ${day.endTime}`
+                          : "Closed"}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.aboutValue}>Not listed</Text>
+              )}
+            </View>
+          );
+        })() : null}
         {profile?.showResponseTime !== false && profile?.responseTime ? (
           <View style={styles.aboutRow}>
             <Feather name="zap" size={14} color={accentColor} />
@@ -1966,17 +1993,16 @@ Booking flow coming soon.`,
             <Text style={styles.aboutValue}>{profile.responseTime}</Text>
           </View>
         ) : null}
-        <View style={styles.aboutRow}>
-          <Feather name="calendar" size={14} color={accentColor} />
-          <Text style={styles.aboutLabel}>Availability</Text>
-          <Text style={styles.aboutValue}>
-            {profile.availabilitySummary ||
-              (profile?.showStoreHours !== false
-                ? profile.hoursOfOperation
-                : undefined) ||
-              "Available"}
-          </Text>
-        </View>
+        {/* Availability row: hidden for business when real store hours are shown */}
+        {profile?.role !== "business" ? (
+          <View style={styles.aboutRow}>
+            <Feather name="calendar" size={14} color={accentColor} />
+            <Text style={styles.aboutLabel}>Availability</Text>
+            <Text style={styles.aboutValue}>
+              {profile.availabilitySummary || "Available"}
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -2390,6 +2416,13 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 22,
     fontWeight: "800",
+  },
+  taglineText: {
+    color: COLORS.gold,
+    fontSize: 14,
+    fontStyle: "italic",
+    fontWeight: "500",
+    marginTop: 4,
   },
   verifiedBadge: {
     width: 20,
@@ -2839,6 +2872,27 @@ const styles = StyleSheet.create({
     color: COLORS.cream,
     fontSize: 13,
     textAlign: "right",
+  },
+  hoursGrid: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  hoursRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 2,
+  },
+  hoursDayLabel: {
+    color: COLORS.grayLight,
+    fontSize: 12,
+    fontWeight: "600",
+    width: 32,
+  },
+  hoursValue: {
+    color: COLORS.cream,
+    fontSize: 12,
+    textAlign: "right",
+    flex: 1,
   },
   stickyWrap: {
     position: "absolute",
