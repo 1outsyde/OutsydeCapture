@@ -271,11 +271,11 @@ export default function CartOrdersScreen() {
 
   const getStatusColor = (status: string) => {
     const normalized = status.toLowerCase();
-    if (normalized.includes("processing") || normalized.includes("pending")) return "#FF9500";
-    if (normalized.includes("shipped")) return "#007AFF";
-    if (normalized.includes("delivered") || normalized.includes("completed")) return "#34C759";
-    if (normalized.includes("cancelled") || normalized.includes("failed")) return "#FF3B30";
-    return theme.textSecondary;
+    if (normalized.includes("processing") || normalized.includes("pending")) return theme.brandPending;
+    if (normalized.includes("shipped")) return theme.brandInfo;
+    if (normalized.includes("delivered") || normalized.includes("completed")) return theme.brandSuccess;
+    if (normalized.includes("cancelled") || normalized.includes("failed")) return theme.brandError;
+    return theme.brandTextDim;
   };
 
   const styles = StyleSheet.create({
@@ -304,7 +304,7 @@ export default function CartOrdersScreen() {
       paddingVertical: Spacing.sm,
       paddingHorizontal: Spacing.lg,
       borderRadius: BorderRadius.full,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandPrimary,
     },
     cartItem: {
       flexDirection: "row",
@@ -313,6 +313,8 @@ export default function CartOrdersScreen() {
       borderRadius: BorderRadius.lg,
       marginBottom: Spacing.sm,
       gap: Spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.brandSurfaceBorder,
     },
     cartIcon: {
       width: 44,
@@ -320,7 +322,7 @@ export default function CartOrdersScreen() {
       borderRadius: 22,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.primary + "1A",
+      backgroundColor: theme.brandGold + "1A",
     },
     cartInfo: {
       flex: 1,
@@ -337,7 +339,7 @@ export default function CartOrdersScreen() {
       borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: theme.brandSurface,
     },
     quantityText: {
       minWidth: 20,
@@ -346,7 +348,9 @@ export default function CartOrdersScreen() {
     shippingCard: {
       padding: Spacing.md,
       borderRadius: BorderRadius.lg,
-      backgroundColor: theme.card,
+      backgroundColor: theme.brandSurface,
+      borderWidth: 1,
+      borderColor: theme.brandSurfaceBorder,
       gap: Spacing.sm,
       marginTop: Spacing.sm,
     },
@@ -354,9 +358,9 @@ export default function CartOrdersScreen() {
       height: 44,
       borderRadius: BorderRadius.md,
       borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.backgroundSecondary,
-      color: theme.text,
+      borderColor: theme.brandSurfaceBorder,
+      backgroundColor: theme.brandBgElevated,
+      color: theme.brandCream,
       paddingHorizontal: Spacing.md,
       fontSize: 15,
     },
@@ -378,7 +382,7 @@ export default function CartOrdersScreen() {
     ordersEmpty: {
       padding: Spacing.lg,
       borderRadius: BorderRadius.lg,
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: theme.brandSurface,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -386,7 +390,9 @@ export default function CartOrdersScreen() {
       borderRadius: BorderRadius.lg,
       padding: Spacing.md,
       marginBottom: Spacing.md,
-      backgroundColor: theme.card,
+      backgroundColor: theme.brandSurface,
+      borderWidth: 1,
+      borderColor: theme.brandSurfaceBorder,
     },
     orderHeader: {
       flexDirection: "row",
@@ -406,7 +412,7 @@ export default function CartOrdersScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.background }}
+      style={{ flex: 1, backgroundColor: theme.brandBg }}
       contentContainerStyle={{
         padding: Spacing.lg,
         paddingBottom: insets.bottom + Spacing.xl,
@@ -416,7 +422,7 @@ export default function CartOrdersScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitle}>
-            <Feather name="shopping-cart" size={20} color={theme.primary} />
+            <Feather name="shopping-cart" size={20} color={theme.brandGold} />
             <ThemedText type="h3" style={{ marginLeft: Spacing.sm }}>
               Cart
             </ThemedText>
@@ -424,13 +430,13 @@ export default function CartOrdersScreen() {
         </View>
 
         {cart.length === 0 ? (
-          <ThemedView style={styles.emptyCard}>
-            <Feather name="shopping-bag" size={40} color={theme.textSecondary} />
-            <ThemedText type="body" style={{ color: theme.textSecondary }}>
+          <ThemedView style={[styles.emptyCard, { backgroundColor: theme.brandSurface }]}>
+            <Feather name="shopping-bag" size={40} color={theme.brandTextDim} />
+            <ThemedText type="body" style={{ color: theme.brandTextDim }}>
               Your cart is empty
             </ThemedText>
             <Pressable style={styles.browseButton} onPress={() => navigation.goBack()}>
-              <ThemedText type="body" style={{ color: "#FFFFFF" }}>
+              <ThemedText type="body" style={{ color: theme.brandPrimaryText }}>
                 Browse Vendors
               </ThemedText>
             </Pressable>
@@ -440,13 +446,13 @@ export default function CartOrdersScreen() {
             {cart.map((item) => (
               <View key={item.id} style={styles.cartItem}>
                 <View style={styles.cartIcon}>
-                  <Feather name="package" size={20} color={theme.primary} />
+                  <Feather name="package" size={20} color={theme.brandGold} />
                 </View>
                 <View style={styles.cartInfo}>
                   <ThemedText type="h4" numberOfLines={1}>
                     {item.name}
                   </ThemedText>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
                     ${item.price.toFixed(2)} each
                   </ThemedText>
                 </View>
@@ -455,7 +461,7 @@ export default function CartOrdersScreen() {
                     onPress={() => updateQuantity(item.id, -1)}
                     style={styles.quantityBtn}
                   >
-                    <Feather name="minus" size={14} color={theme.text} />
+                    <Feather name="minus" size={14} color={theme.brandCream} />
                   </Pressable>
                   <ThemedText type="body" style={styles.quantityText}>
                     {item.quantity}
@@ -464,7 +470,7 @@ export default function CartOrdersScreen() {
                     onPress={() => updateQuantity(item.id, 1)}
                     style={styles.quantityBtn}
                   >
-                    <Feather name="plus" size={14} color={theme.text} />
+                    <Feather name="plus" size={14} color={theme.brandCream} />
                   </Pressable>
                 </View>
               </View>
@@ -475,28 +481,28 @@ export default function CartOrdersScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Address Line 1"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
                 value={shippingAddress.line1}
                 onChangeText={(v) => updateShippingAddress("line1", v)}
               />
               <TextInput
                 style={styles.input}
                 placeholder="City"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
                 value={shippingAddress.city}
                 onChangeText={(v) => updateShippingAddress("city", v)}
               />
               <TextInput
                 style={styles.input}
                 placeholder="State"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
                 value={shippingAddress.state}
                 onChangeText={(v) => updateShippingAddress("state", v)}
               />
               <TextInput
                 style={styles.input}
                 placeholder="Zip Code"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
                 value={shippingAddress.zipCode}
                 onChangeText={(v) => updateShippingAddress("zipCode", v)}
               />
@@ -504,24 +510,24 @@ export default function CartOrdersScreen() {
 
             <View style={[styles.shippingCard, { marginTop: Spacing.md }]}>
               <View style={styles.row}>
-                <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                <ThemedText type="body" style={{ color: theme.brandTextDim }}>
                   Subtotal
                 </ThemedText>
                 <ThemedText type="body">${displayedSubtotal.toFixed(2)}</ThemedText>
               </View>
               <View style={styles.row}>
-                <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                <ThemedText type="body" style={{ color: theme.brandTextDim }}>
                   Outsyde Service Fee (+4%)
                 </ThemedText>
                 <ThemedText type="body">${displayedServiceFee.toFixed(2)}</ThemedText>
               </View>
               <View style={[styles.row, { marginBottom: 0 }]}>
                 <ThemedText type="h4">Total</ThemedText>
-                <ThemedText type="h4" style={{ color: theme.primary }}>
+                <ThemedText type="h4" style={{ color: theme.brandGold }}>
                   ${displayedTotal.toFixed(2)}
                 </ThemedText>
               </View>
-              <ThemedText type="body" style={{ color: "#22c55e", marginTop: Spacing.xs }}>
+              <ThemedText type="body" style={{ color: theme.brandSuccess, marginTop: Spacing.xs }}>
                 You'll earn {displayedPoints} Outsyde Points
               </ThemedText>
             </View>
@@ -532,17 +538,17 @@ export default function CartOrdersScreen() {
               style={({ pressed }) => [
                 styles.checkoutButton,
                 {
-                  backgroundColor: checkoutDisabled ? theme.border : theme.primary,
+                  backgroundColor: checkoutDisabled ? theme.brandPrimary + "66" : theme.brandPrimary,
                   opacity: pressed ? 0.85 : 1,
                 },
               ]}
             >
               {checkoutLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={theme.brandPrimaryText} />
               ) : (
                 <>
-                  <Feather name="credit-card" size={18} color="#FFFFFF" />
-                  <ThemedText type="body" style={{ color: "#FFFFFF" }}>
+                  <Feather name="credit-card" size={18} color={theme.brandPrimaryText} />
+                  <ThemedText type="body" style={{ color: theme.brandPrimaryText }}>
                     Proceed to Checkout
                   </ThemedText>
                 </>
@@ -554,7 +560,7 @@ export default function CartOrdersScreen() {
 
       <View style={styles.section}>
         <View style={styles.sectionTitle}>
-          <Feather name="package" size={20} color={theme.primary} />
+          <Feather name="package" size={20} color={theme.brandGold} />
           <ThemedText type="h3" style={{ marginLeft: Spacing.sm }}>
             Recent Orders
           </ThemedText>
@@ -562,11 +568,11 @@ export default function CartOrdersScreen() {
 
         {ordersLoading ? (
           <View style={styles.ordersEmpty}>
-            <ActivityIndicator size="small" color={theme.primary} />
+            <ActivityIndicator size="small" color={theme.brandGold} />
           </View>
         ) : orders.length === 0 ? (
           <View style={styles.ordersEmpty}>
-            <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            <ThemedText type="body" style={{ color: theme.brandTextDim }}>
               No orders yet
             </ThemedText>
           </View>
@@ -576,7 +582,7 @@ export default function CartOrdersScreen() {
               <View style={styles.orderHeader}>
                 <View style={{ flex: 1 }}>
                   <ThemedText type="h4">{order.vendorName || "Order"}</ThemedText>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
                     {new Date(order.date).toLocaleDateString()}
                   </ThemedText>
                 </View>
@@ -588,13 +594,13 @@ export default function CartOrdersScreen() {
                 </View>
               </View>
               {order.items.map((item, idx) => (
-                <ThemedText key={`${order.id}-${idx}`} type="caption" style={{ color: theme.textSecondary }}>
+                <ThemedText key={`${order.id}-${idx}`} type="caption" style={{ color: theme.brandTextDim }}>
                   {item.quantity}x {item.name}
                 </ThemedText>
               ))}
               <View style={[styles.row, { marginTop: Spacing.sm, marginBottom: 0 }]}>
                 <ThemedText type="body">Order Total</ThemedText>
-                <ThemedText type="h4" style={{ color: theme.primary }}>
+                <ThemedText type="h4" style={{ color: theme.brandGold }}>
                   ${order.total.toFixed(2)}
                 </ThemedText>
               </View>
