@@ -89,7 +89,7 @@ function MessageBubble({ message, isOwnMessage }: MessageBubbleProps) {
         styles.messageBubble,
         isOwnMessage ? styles.ownMessage : styles.otherMessage,
         {
-          backgroundColor: isOwnMessage ? theme.primary : theme.backgroundDefault,
+          backgroundColor: isOwnMessage ? theme.brandPrimary : theme.brandSurface,
         },
       ]}
     >
@@ -97,7 +97,7 @@ function MessageBubble({ message, isOwnMessage }: MessageBubbleProps) {
         type="body"
         style={[
           styles.messageText,
-          { color: isOwnMessage ? "#FFFFFF" : theme.text },
+          { color: isOwnMessage ? theme.brandPrimaryText : theme.brandCream },
         ]}
       >
         {message.content}
@@ -111,7 +111,7 @@ function HourSeparator({ time }: { time: string }) {
 
   return (
     <View style={styles.hourSeparator}>
-      <ThemedText type="small" style={[styles.hourText, { color: theme.textSecondary }]}>
+      <ThemedText type="small" style={[styles.hourText, { color: theme.brandTextDim }]}>
         {time}
       </ThemedText>
     </View>
@@ -133,11 +133,11 @@ function DateSeparator({ date }: { date: string }) {
 
   return (
     <View style={styles.dateSeparator}>
-      <View style={[styles.dateLine, { backgroundColor: theme.textSecondary }]} />
-      <ThemedText type="small" style={[styles.dateText, { color: theme.textSecondary }]}>
+      <View style={[styles.dateLine, { backgroundColor: theme.brandTextDim }]} />
+      <ThemedText type="small" style={[styles.dateText, { color: theme.brandTextDim }]}>
         {date}
       </ThemedText>
-      <View style={[styles.dateLine, { backgroundColor: theme.textSecondary }]} />
+      <View style={[styles.dateLine, { backgroundColor: theme.brandTextDim }]} />
     </View>
   );
 }
@@ -178,8 +178,8 @@ export default function ChatScreen() {
               contentFit="cover"
             />
           ) : (
-            <View style={[styles.headerAvatar, { backgroundColor: theme.backgroundDefault }]}>
-              <Feather name="user" size={16} color={theme.textSecondary} />
+            <View style={[styles.headerAvatar, { backgroundColor: theme.brandSurface }]}>
+              <Feather name="user" size={16} color={theme.brandTextDim} />
             </View>
           )}
           <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>
@@ -197,7 +197,7 @@ export default function ChatScreen() {
           ]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <ThemedText type="small" style={{ color: theme.primary }}>
+          <ThemedText type="small" style={{ color: theme.brandGold }}>
             View Profile
           </ThemedText>
         </Pressable>
@@ -324,8 +324,8 @@ export default function ChatScreen() {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.centeredContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+          <ActivityIndicator size="large" color={theme.brandPrimary} />
+          <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.md }}>
             Loading messages...
           </ThemedText>
         </View>
@@ -337,18 +337,18 @@ export default function ChatScreen() {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.centeredContainer}>
-          <Feather name="alert-circle" size={48} color={theme.textSecondary} />
-          <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}>
+          <Feather name="alert-circle" size={48} color={theme.brandTextDim} />
+          <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.md, textAlign: "center" }}>
             {error}
           </ThemedText>
           <Pressable
             onPress={fetchMessages}
             style={({ pressed }) => [
               styles.retryButton,
-              { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+              { backgroundColor: theme.brandPrimary, opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+            <ThemedText type="body" style={{ color: theme.brandPrimaryText, fontWeight: "600" }}>
               Retry
             </ThemedText>
           </Pressable>
@@ -376,8 +376,8 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyMessages}>
-              <Feather name="message-circle" size={48} color={theme.textSecondary} />
-              <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.md }}>
+              <Feather name="message-circle" size={48} color={theme.brandTextDim} />
+              <ThemedText type="body" style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.md }}>
                 Start your conversation with {participantName}
               </ThemedText>
             </View>
@@ -388,19 +388,19 @@ export default function ChatScreen() {
           style={[
             styles.inputContainer,
             {
-              backgroundColor: theme.background,
-              borderTopColor: theme.backgroundDefault,
+              backgroundColor: theme.brandBg,
+              borderTopColor: theme.brandSurfaceBorder,
               paddingBottom: insets.bottom + Spacing.sm,
             },
           ]}
         >
-          <View style={[styles.inputWrapper, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={[styles.inputWrapper, { backgroundColor: theme.brandSurface }]}>
             <TextInput
               value={inputText}
               onChangeText={setInputText}
               placeholder="Type a message..."
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.textInput, { color: theme.text }]}
+              placeholderTextColor={theme.brandTextDim}
+              style={[styles.textInput, { color: theme.brandCream }]}
               multiline
               maxLength={1000}
             />
@@ -411,18 +411,18 @@ export default function ChatScreen() {
             style={({ pressed }) => [
               styles.sendButton,
               {
-                backgroundColor: inputText.trim() ? theme.primary : theme.backgroundDefault,
+                backgroundColor: inputText.trim() ? theme.brandPrimary : theme.brandSurface,
                 opacity: pressed ? 0.8 : 1,
               },
             ]}
           >
             {isSending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={theme.brandPrimaryText} />
             ) : (
               <Feather
                 name="send"
                 size={20}
-                color={inputText.trim() ? "#FFFFFF" : theme.textSecondary}
+                color={inputText.trim() ? theme.brandPrimaryText : theme.brandTextDim}
               />
             )}
           </Pressable>
