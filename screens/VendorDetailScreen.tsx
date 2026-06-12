@@ -564,6 +564,11 @@ export default function VendorDetailScreen({ route }: Props) {
 
       try {
         const business = await apiClient.getBusiness(vendorId);
+        console.log("[TEMP-DIAG][VendorDetail] business keys:", Object.keys(business || {}));
+        console.log("[TEMP-DIAG][VendorDetail] hoursOfOperation value:", JSON.stringify((business as any)?.hoursOfOperation));
+        console.log("[TEMP-DIAG][VendorDetail] hoursOfOperation typeof:", typeof (business as any)?.hoursOfOperation);
+        console.log("[TEMP-DIAG][VendorDetail] showStoreHours value:", JSON.stringify((business as any)?.showStoreHours), "typeof:", typeof (business as any)?.showStoreHours);
+        console.log("[TEMP-DIAG][VendorDetail] tagline value:", JSON.stringify((business as any)?.tagline));
         const postOwnerId = String(
           (business as any).ownerId ??
             (business as any).userId ??
@@ -692,6 +697,7 @@ export default function VendorDetailScreen({ route }: Props) {
           showWebsite: (business as any).showWebsite !== false,
           showStoreHours: (business as any).showStoreHours !== false,
         };
+        console.log("[TEMP-DIAG][VendorDetail] VM.role:", resolvedProfile.role, "VM.showStoreHours:", JSON.stringify(resolvedProfile.showStoreHours), "VM.hoursOfOperation typeof:", typeof resolvedProfile.hoursOfOperation, "VM.hoursOfOperation:", JSON.stringify(resolvedProfile.hoursOfOperation));
 
         resolvedProducts = liveProducts;
         resolvedServices = liveServices;
@@ -1906,6 +1912,7 @@ Booking flow coming soon.`,
 
   const renderAboutTab = () => {
     if (!profile) return null;
+    console.log("[TEMP-DIAG][VendorDetail] render About — role:", profile.role, "showStoreHours:", JSON.stringify(profile.showStoreHours), "hoursOfOperation typeof:", typeof profile.hoursOfOperation, "hoursOfOperation:", JSON.stringify(profile.hoursOfOperation));
     return (
       <View style={styles.tabContent}>
         {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
