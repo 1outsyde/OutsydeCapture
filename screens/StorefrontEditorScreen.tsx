@@ -259,7 +259,18 @@ export default function StorefrontEditorScreen() {
         setCoverMediaType(biz.coverImage ? "image" : null);
       }
       setLogoImage(biz.logoImage || "");
-      const brandColors = biz.brandColors ? JSON.parse(biz.brandColors) : {};
+      const brandColors =
+        !biz.brandColors
+          ? {}
+          : typeof biz.brandColors === "string"
+            ? (() => {
+                try {
+                  return JSON.parse(biz.brandColors as string);
+                } catch {
+                  return {};
+                }
+              })()
+            : biz.brandColors;
       setPrimaryColor(brandColors.primary || "#eab308");
 
       setProfileName(biz.name || "");
@@ -403,31 +414,9 @@ export default function StorefrontEditorScreen() {
 
       // DUAL-SYNC: Also update hoursOfOperation for legacy banner UI support
       // This is transitional - banner should eventually read from weekly_availability directly
-      const dayNames = [
-        "sunday",
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-      ];
-      const hoursOfOperation: Record<
-        string,
-        { open: boolean; start?: string; end?: string }
-      > = {};
-      dayNames.forEach((dayName, index) => {
-        const slot = slots.find((s) => s.dayOfWeek === index);
-        if (slot) {
-          hoursOfOperation[dayName] = {
-            open: true,
-            start: slot.startTime,
-            end: slot.endTime,
-          };
-        } else {
-          hoursOfOperation[dayName] = { open: false };
-        }
-      });
+      // Use hoursArrayToObject to produce the { open, close, closed } shape that
+      // hoursObjectToArray (the reader) expects, matching HoursOfOperation interface.
+      const hoursOfOperation = hoursArrayToObject(hours);
       console.log(
         "[Storefront] Syncing hoursOfOperation for banner:",
         JSON.stringify(hoursOfOperation, null, 2),
