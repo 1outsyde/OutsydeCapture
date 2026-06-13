@@ -1344,10 +1344,6 @@ export default function AccountScreen() {
 
     return (
       <View style={styles.identityBlock}>
-        <View
-          pointerEvents="none"
-          style={[styles.identityGlow, { backgroundColor: `${accentColor}20` }]}
-        />
         <View style={styles.avatarActionRow}>
           <AvatarWithInitials
             name={profile.name}
@@ -2240,14 +2236,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     zIndex: 5,
     position: "relative",
-  },
-  identityGlow: {
-    position: "absolute",
-    width: 300,
-    height: 200,
-    borderRadius: 150,
-    top: -44,
-    left: (SCREEN_WIDTH - 300) / 2,
   },
   avatarActionRow: {
     flexDirection: "row",
