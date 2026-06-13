@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -153,6 +153,21 @@ export default function ConsumerEditProfileScreen() {
 
   const busy = saving || avatarUploading;
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={handleSave}
+          disabled={busy}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={({ pressed }) => [{ opacity: pressed || busy ? 0.5 : 1, paddingHorizontal: 4 }]}
+        >
+          <Text style={{ color: theme.brandPrimary, fontSize: 16, fontWeight: "600" }}>Save</Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, handleSave, busy, theme]);
+
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: theme.brandBg }]}
@@ -203,29 +218,33 @@ export default function ConsumerEditProfileScreen() {
 
         {/* ── Profile Photo ────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
-            PROFILE PHOTO
-          </Text>
-          <Text style={[styles.sectionHint, { color: theme.brandTextDim }]}>
-            Your avatar shown on posts, messages, and search results
-          </Text>
           <View style={styles.avatarRow}>
-            <ImageUploader
-              currentImage={profileImageUrl || undefined}
-              onImageSelected={handleAvatarSelected}
-              onRemove={() => setProfileImageUrl("")}
-              aspectRatio="logo"
-              placeholder="Upload Photo"
-              showRemove={!!profileImageUrl}
-            />
-            {avatarUploading ? (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator color={theme.brandPrimary} />
-                <Text style={[styles.uploadingText, { color: theme.brandTextDim }]}>
-                  Uploading…
-                </Text>
-              </View>
-            ) : null}
+            <View>
+              <ImageUploader
+                currentImage={profileImageUrl || undefined}
+                onImageSelected={handleAvatarSelected}
+                onRemove={() => setProfileImageUrl("")}
+                aspectRatio="logo"
+                placeholder="Upload Photo"
+                showRemove={!!profileImageUrl}
+              />
+              {avatarUploading ? (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator color={theme.brandPrimary} />
+                  <Text style={[styles.uploadingText, { color: theme.brandTextDim }]}>
+                    Uploading…
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.avatarMeta}>
+              <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+                PROFILE PHOTO
+              </Text>
+              <Text style={[styles.sectionHint, { color: theme.brandTextDim }]}>
+                Your avatar shown on posts, messages, and search results
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -255,9 +274,14 @@ export default function ConsumerEditProfileScreen() {
 
         {/* ── Bio ──────────────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
-            BIO
-          </Text>
+          <View style={styles.bioLabelRow}>
+            <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+              BIO
+            </Text>
+            <Text style={[styles.charCount, { color: theme.brandTextDim }]}>
+              {bio.length}/200
+            </Text>
+          </View>
           <TextInput
             style={[
               styles.input,
@@ -276,26 +300,8 @@ export default function ConsumerEditProfileScreen() {
             maxLength={200}
             textAlignVertical="top"
           />
-          <Text style={[styles.charCount, { color: theme.brandTextDim }]}>
-            {bio.length}/200
-          </Text>
         </View>
 
-        {/* ── Save Button ──────────────────────────────────────────────── */}
-        <Pressable
-          style={[
-            styles.saveButton,
-            { backgroundColor: busy ? theme.brandTextDim : theme.brandPrimary },
-          ]}
-          onPress={handleSave}
-          disabled={busy}
-        >
-          {saving ? (
-            <ActivityIndicator color={theme.brandPrimaryText} size="small" />
-          ) : (
-            <Text style={[styles.saveText, { color: theme.brandPrimaryText }]}>Save Changes</Text>
-          )}
-        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -326,7 +332,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   avatarRow: {
-    alignItems: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  avatarMeta: {
+    flex: 1,
   },
   uploadingOverlay: {
     marginTop: 10,
@@ -349,20 +360,13 @@ const styles = StyleSheet.create({
     minHeight: 100,
     paddingTop: 12,
   },
+  bioLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   charCount: {
     fontSize: 12,
     textAlign: "right",
-    marginTop: 4,
-  },
-  saveButton: {
-    marginTop: 8,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveText: {
-    fontWeight: "800",
-    fontSize: 15,
   },
 });
