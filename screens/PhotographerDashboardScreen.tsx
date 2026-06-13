@@ -1511,22 +1511,6 @@ export default function PhotographerDashboardScreen() {
       color: theme.brandGold,
       fontWeight: "500",
     },
-    saveButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.brandPrimary,
-      paddingVertical: 16,
-      borderRadius: 12,
-      marginTop: 8,
-      marginBottom: insets.bottom + 20,
-    },
-    saveButtonText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.brandPrimaryText,
-      marginLeft: 8,
-    },
     bookingCard: {
       backgroundColor: theme.backgroundDefault,
       borderRadius: 14,
@@ -1718,9 +1702,21 @@ export default function PhotographerDashboardScreen() {
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Profile</Text>
             <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseButton}>
               <Feather name="x" size={24} color={theme.brandCream} />
+            </Pressable>
+            <Text style={[styles.modalTitle, { flex: 1, textAlign: "center" }]}>Edit Profile</Text>
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={saving}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ opacity: saving ? 0.5 : 1, padding: 4 }}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={theme.brandPrimary} />
+              ) : (
+                <Text style={{ color: theme.brandPrimary, fontSize: 16, fontWeight: "600" }}>Save</Text>
+              )}
             </Pressable>
           </View>
           <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
@@ -1844,8 +1840,7 @@ export default function PhotographerDashboardScreen() {
             </View>
 
             {/* Profile Picture Editor */}
-            <View style={[styles.formGroup, { alignItems: "center", marginBottom: 24 }]}>
-              <Text style={[styles.formLabel, { textAlign: "center", marginBottom: 8 }]}>Profile Photo</Text>
+            <View style={[styles.formGroup, { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 24 }]}>
               <Pressable
                 onPress={async () => {
                   Alert.alert("Update Profile Photo", "Choose an option", [
@@ -1939,7 +1934,10 @@ export default function PhotographerDashboardScreen() {
                   <Feather name="edit-2" size={12} color={theme.brandCream} />
                 </View>
               </Pressable>
-              <Text style={{ color: theme.brandTextDim, fontSize: 12, marginTop: 8 }}>Tap to change photo</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Profile Photo</Text>
+                <Text style={{ color: theme.brandTextDim, fontSize: 12, marginTop: 4 }}>Tap to change photo</Text>
+              </View>
             </View>
 
             <View style={styles.formRow}>
@@ -2109,16 +2107,6 @@ export default function PhotographerDashboardScreen() {
               <View style={[styles.themePreviewBar, { backgroundColor: editProfile.profileTheme }]} />
             </View>
 
-            <Pressable onPress={handleSaveProfile} style={styles.saveButton} disabled={saving}>
-              {saving ? (
-                <ActivityIndicator size="small" color={theme.brandPrimaryText} />
-              ) : (
-                <>
-                  <Feather name="check" size={18} color={theme.brandPrimaryText} />
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                </>
-              )}
-            </Pressable>
           </ScrollView>
         </View>
       </View>
