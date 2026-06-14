@@ -129,7 +129,7 @@ export default function MainTabNavigator() {
       <Tab.Navigator
         initialRouteName="DiscoverTab"
         screenOptions={{
-          tabBarActiveTintColor: theme.tabIconSelected,
+          tabBarActiveTintColor: theme.brandGold,
           tabBarInactiveTintColor: theme.tabIconDefault,
           headerShown: false,
           tabBarStyle: {

@@ -14,7 +14,7 @@ export function HeaderTitle({ title }: HeaderTitleProps) {
   
   return (
     <View style={styles.container}>
-      <ThemedText type="h2" style={[styles.title, { color: theme.primary }]}>
+      <ThemedText type="h2" style={[styles.title, { color: theme.brandGold }]}>
         Outsyde
       </ThemedText>
     </View>
