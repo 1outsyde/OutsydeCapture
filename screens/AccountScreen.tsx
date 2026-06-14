@@ -1402,6 +1402,10 @@ export default function AccountScreen() {
           {profile.location ? `  •  📍 ${profile.location}` : ""}
         </Text>
 
+        {profile.role !== "business" && profile.bio?.trim() ? (
+          <Text style={styles.bioInline}>{profile.bio.trim()}</Text>
+        ) : null}
+
         {profile.specialties.length > 0 ? (
           <View style={styles.tagRow}>
             {profile.specialties.slice(0, 4).map((tag) => (
@@ -2694,6 +2698,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 10,
+  },
+  bioInline: {
+    color: COLORS.cream,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 6,
+    marginBottom: 2,
   },
   aboutRow: {
     flexDirection: "row",
