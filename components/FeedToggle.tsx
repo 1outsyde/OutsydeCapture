@@ -36,7 +36,7 @@ export function FeedToggle({ mode, onModeChange }: FeedToggleProps) {
           style={[
             styles.segmentIndicator,
             {
-              backgroundColor: mode === "pro" ? theme.primary : "#FFFFFF",
+              backgroundColor: theme.brandGold,
               transform: [{ translateX }],
             },
           ]}
@@ -50,7 +50,7 @@ export function FeedToggle({ mode, onModeChange }: FeedToggleProps) {
             style={[
               styles.segmentText,
               {
-                color: mode === "pro" ? "#000000" : theme.textSecondary,
+                color: mode === "pro" ? theme.brandCream : theme.brandTextDim,
                 fontWeight: mode === "pro" ? "700" : "500",
               },
             ]}
@@ -67,7 +67,7 @@ export function FeedToggle({ mode, onModeChange }: FeedToggleProps) {
             style={[
               styles.segmentText,
               {
-                color: mode === "pulse" ? "#000000" : theme.textSecondary,
+                color: mode === "pulse" ? theme.brandCream : theme.brandTextDim,
                 fontWeight: mode === "pulse" ? "700" : "500",
               },
             ]}

@@ -267,7 +267,7 @@ export function ProFeedCard({
             </ThemedText>
             {post.type !== "user" && (
               <>
-                <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                <View style={[styles.badge, { backgroundColor: theme.brandGold }]}>
                   <ThemedText style={styles.badgeText}>
                     {post.type === "photographer" ? "Photographer" : "Business"}
                   </ThemedText>
@@ -394,7 +394,7 @@ export function ProFeedCard({
           <Feather
             name="bookmark"
             size={24}
-            color={isSaved ? theme.primary : theme.text}
+            color={isSaved ? theme.brandGold : theme.text}
           />
         </Pressable>
       </View>
@@ -426,7 +426,7 @@ export function ProFeedCard({
             }
             onActionPress(post);
           }}
-          style={[styles.commerceButton, { backgroundColor: theme.primary }]}
+          style={[styles.commerceButton, { backgroundColor: theme.brandPrimary }]}
         >
           <Feather
             name={post.productId ? "shopping-bag" : "calendar"}

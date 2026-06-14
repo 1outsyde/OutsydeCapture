@@ -314,7 +314,7 @@ export default function PulseVideoCard({
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
         >
           <View style={styles.actionIcon}>
-            <Feather name="bookmark" size={26} color={isSaved ? theme.primary : "#FFFFFF"} />
+            <Feather name="bookmark" size={26} color={isSaved ? theme.brandGold : "#FFFFFF"} />
           </View>
         </Pressable>
 
@@ -365,7 +365,7 @@ export default function PulseVideoCard({
             onPress={() => onActionPress(post)}
             style={({ pressed }) => [
               styles.commerceBtn,
-              { backgroundColor: theme.primary, opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: theme.brandPrimary, opacity: pressed ? 0.85 : 1 },
             ]}
           >
             <Feather
