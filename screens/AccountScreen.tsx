@@ -1295,7 +1295,13 @@ export default function AccountScreen() {
             <Feather name="menu" size={18} color={COLORS.white} />
           </Pressable>
         ) : (
-          <View style={styles.headerButton} />
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="arrow-left" size={18} color={COLORS.white} />
+          </Pressable>
         )}
         <Animated.Text
           numberOfLines={1}
