@@ -443,7 +443,7 @@ const CoverMediaHero = ({
 
 export default function AccountScreen() {
   const navigation = useNavigation<Navigation>();
-  const route = useRoute<RouteProp<AccountStackParamList, "Account">>();
+  const route = useRoute<RouteProp<AccountStackParamList, "Account"> | RouteProp<RootStackParamList, "UserProfile">>();
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, getToken } = useAuth();
   const { unreadCount } = useNotifications();

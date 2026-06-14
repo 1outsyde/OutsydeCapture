@@ -13,6 +13,7 @@ import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
 import ChatScreen from "@/screens/ChatScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
+import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
@@ -216,6 +217,16 @@ export default function RootNavigator() {
         }}
       />
 
+      <Stack.Screen
+        name="UserProfile"
+        component={AccountScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
 
       <Stack.Screen
         name="SessionDetail"
