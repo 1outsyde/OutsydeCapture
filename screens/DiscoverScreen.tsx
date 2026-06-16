@@ -17,6 +17,7 @@ import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -68,6 +69,7 @@ export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -516,7 +518,9 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: feedMode === "pulse" ? "#000000" : theme.backgroundRoot }]}>
-      <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+      <View style={{ paddingTop: headerHeight }}>
+        <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+      </View>
 
       <GestureDetector gesture={horizontalSwipe}>
         <View style={styles.feedPage}>
