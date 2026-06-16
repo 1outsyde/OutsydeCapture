@@ -146,7 +146,7 @@ export default function ChatScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
-  const { conversationId, participantId, participantName, participantAvatar } = route.params;
+  const { conversationId, participantId, participantName, participantAvatar, participantType } = route.params;
   const insets = useSafeAreaInsets();
   const { user, getToken } = useAuth();
 
@@ -159,10 +159,12 @@ export default function ChatScreen() {
 
   const handleViewProfile = useCallback(() => {
     if (!participantId) return;
-    // TODO(launch+): chat only has participant user id; business/photographer
-    // participants render via getPublicUser fallback. Thread entity id later.
-    navigation.navigate("VendorDetail", { vendorId: participantId });
-  }, [navigation, participantId]);
+    if (participantType === "business") {
+      navigation.navigate("VendorDetail", { vendorId: participantId });
+    } else {
+      navigation.navigate("UserProfile", { userId: participantId, userType: participantType });
+    }
+  }, [navigation, participantId, participantType]);
 
   // Check if this is a self-conversation (user chatting with themselves)
   const isSelfConversation = user?.id === participantId;

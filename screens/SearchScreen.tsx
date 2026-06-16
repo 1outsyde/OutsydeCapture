@@ -221,11 +221,12 @@ export default function SearchScreen() {
         vendorId: item.id,
       });
     } else if (item.resultType === "photographer") {
-      navigation.navigate("VendorDetail", {
-        vendorId: item.id,
+      navigation.navigate("UserProfile", {
+        userId: item.id,
+        userType: "photographer",
       });
     } else {
-      navigation.navigate("VendorDetail", { vendorId: item.userId || item.id });
+      navigation.navigate("UserProfile", { userId: item.userId || item.id, userType: "consumer" });
     }
   };
 
