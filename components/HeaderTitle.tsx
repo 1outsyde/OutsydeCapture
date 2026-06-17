@@ -25,7 +25,6 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
   },
   title: {
     fontWeight: "700",
