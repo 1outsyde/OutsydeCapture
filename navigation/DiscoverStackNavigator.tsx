@@ -10,7 +10,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
 import { DiscoverStackParamList, RootStackParamList } from "@/navigation/types";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { ThemedText } from "@/components/ThemedText";
 
 const Stack = createNativeStackNavigator<DiscoverStackParamList>();
 
@@ -31,9 +30,6 @@ function UpcomingChip() {
       ]}
     >
       <Feather name="calendar" size={14} color={theme.brandGold} />
-      <ThemedText style={[styles.upcomingChipText, { color: theme.brandGold }]}>
-        Upcoming
-      </ThemedText>
       {/* TODO: activity badge (red dot) once a backend "new upcoming activity" signal exists */}
     </Pressable>
   );
@@ -74,6 +70,8 @@ export default function DiscoverStackNavigator() {
         name="Discover"
         component={DiscoverScreen}
         options={{
+          title: "",
+          headerBackTitle: "",
           headerLeft: () => <HeaderTitle />,
           headerTitle: () => null,
           headerRight: () => <HeaderRightButtons />,
@@ -92,14 +90,10 @@ const styles = StyleSheet.create({
   upcomingChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: Spacing.md,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
     borderRadius: BorderRadius.round,
     borderWidth: 1,
-  },
-  upcomingChipText: {
-    fontSize: 13,
-    fontWeight: "600",
   },
 });
