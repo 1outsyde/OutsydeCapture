@@ -518,9 +518,11 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: feedMode === "pulse" ? "#000000" : theme.backgroundRoot }]}>
-      <View style={{ paddingTop: headerHeight }}>
-        <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
-      </View>
+      {feedMode === "pro" ? (
+        <View style={{ paddingTop: headerHeight }}>
+          <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+        </View>
+      ) : null}
 
       <GestureDetector gesture={horizontalSwipe}>
         <View style={styles.feedPage}>
@@ -550,6 +552,12 @@ export default function DiscoverScreen() {
           )}
         </View>
       </GestureDetector>
+
+      {feedMode === "pulse" ? (
+        <View style={[styles.pulseToggleOverlay, { top: headerHeight }]} pointerEvents="box-none">
+          <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+        </View>
+      ) : null}
 
       {/* Comments modal — Pro feed */}
       <Modal
@@ -668,6 +676,13 @@ const styles = StyleSheet.create({
   },
   feedPage: {
     flex: 1,
+  },
+  pulseToggleOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: "transparent",
   },
   proFeedContent: {
     paddingBottom: Spacing.xl,
