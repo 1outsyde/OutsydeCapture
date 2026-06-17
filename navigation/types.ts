@@ -51,13 +51,15 @@ export type RootStackParamList = {
     profileName?: string;
     layout: "pro" | "pulse";
   };
+  Sessions: undefined;
+  CreatePost: undefined;
 };
 
 export type MainTabParamList = {
   DiscoverTab: NavigatorScreenParams<DiscoverStackParamList>;
   SearchTab: undefined;
-  SessionsTab: undefined;
-  MessagesTab: undefined;
+  CreateTab: undefined;
+  InboxTab: undefined;
   AccountTab: NavigatorScreenParams<AccountStackParamList>;
 };
 

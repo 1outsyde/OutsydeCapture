@@ -19,7 +19,7 @@ function UpcomingChip() {
 
   return (
     <Pressable
-      onPress={() => navigation.getParent()?.navigate("SessionsTab")}
+      onPress={() => navigation.navigate("Sessions")}
       style={({ pressed }) => [
         styles.upcomingChip,
         {
