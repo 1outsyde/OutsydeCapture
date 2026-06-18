@@ -17,7 +17,7 @@ import { Post } from "@/context/DataContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
-export const PULSE_CARD_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
+export const PULSE_CARD_HEIGHT = SCREEN_HEIGHT;
 
 export interface PulseEngagementEvent {
   watchTimeMs: number;
