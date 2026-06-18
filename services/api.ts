@@ -2947,6 +2947,42 @@ class ApiService {
     }
   }
 
+  async getUserNotifications(authToken: string): Promise<{
+    notifications: Array<{
+      id: string;
+      type: string;
+      title: string;
+      message: string;
+      isRead: boolean;
+      referenceType?: string;
+      referenceId?: string;
+      metadata?: Record<string, any>;
+      createdAt: string;
+    }>;
+    unreadCount: number;
+  }> {
+    try {
+      return await this.request<{
+        notifications: Array<{
+          id: string;
+          type: string;
+          title: string;
+          message: string;
+          isRead: boolean;
+          referenceType?: string;
+          referenceId?: string;
+          metadata?: Record<string, any>;
+          createdAt: string;
+        }>;
+        unreadCount: number;
+      }>("/api/notifications", {
+        headers: { "Authorization": `Bearer ${authToken}` },
+      });
+    } catch {
+      return { notifications: [], unreadCount: 0 };
+    }
+  }
+
   async getNotifications(authToken: string): Promise<Array<{
     id: string;
     type: string;

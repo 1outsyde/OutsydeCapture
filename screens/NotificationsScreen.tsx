@@ -57,7 +57,12 @@ export default function NotificationsScreen() {
       navigation.navigate("SessionDetail", {
         sessionId: notification.metadata.sessionId as string,
       });
+    } else if (notification.type === "new_follower" && notification.metadata?.referenceId) {
+      navigation.navigate("UserProfile", {
+        userId: notification.metadata.referenceId,
+      });
     }
+    // All other backend types: mark-read-only for now, no confirmed target screen yet.
   };
 
   const formatTimestamp = (date: Date): string => {
@@ -90,6 +95,40 @@ export default function NotificationsScreen() {
         return "user-plus";
       case "business_pending":
         return "briefcase";
+      case "booking_confirmed":
+        return "check-circle";
+      case "order_shipped":
+        return "truck";
+      case "new_order":
+        return "shopping-bag";
+      case "new_follower":
+        return "user-plus";
+      case "refund_issued":
+        return "rotate-ccw";
+      case "payment_succeeded":
+        return "credit-card";
+      case "payment_failed":
+        return "alert-circle";
+      case "subscription_activated":
+        return "star";
+      case "subscription_canceled":
+        return "x-circle";
+      case "subscription_tier_changed":
+        return "trending-up";
+      case "addon_charged":
+        return "plus-circle";
+      case "photographer_assigned":
+        return "camera";
+      case "stripe_onboarding_complete":
+        return "check-square";
+      case "new_vendor_application":
+        return "briefcase";
+      case "new_photographer_application":
+        return "camera";
+      case "vendor_approved":
+        return "check-circle";
+      case "vendor_rejected":
+        return "x-circle";
       case "system":
       default:
         return "bell";

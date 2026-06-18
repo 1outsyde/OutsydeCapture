@@ -17,7 +17,8 @@ export interface Notification {
   id: string;
   title: string;
   body: string;
-  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow" | "business_pending" | "new_vendor_application" | "vendor_approved" | "vendor_rejected";
+  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow" | "business_pending" | "new_vendor_application" | "vendor_approved" | "vendor_rejected"
+    | "booking_confirmed" | "payment_succeeded" | "payment_failed" | "subscription_activated" | "subscription_canceled" | "addon_charged" | "refund_issued" | "new_order" | "order_shipped" | "photographer_assigned" | "subscription_tier_changed" | "stripe_onboarding_complete" | "new_photographer_application" | "new_follower";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;
@@ -45,6 +46,7 @@ interface NotificationContextType {
   enableNotifications: () => Promise<boolean>;
   disableNotifications: () => void;
   refreshAdminNotifications: () => Promise<void>;
+  refreshNotifications: () => Promise<void>;
   sendBookingConfirmation: (photographerName: string, date: string, time: string) => Promise<void>;
   scheduleBookingReminders: (photographerName: string, date: string, time: string, sessionDate: Date) => Promise<void>;
 }
@@ -72,6 +74,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [seenBusinessIds, setSeenBusinessIds] = useState<string[]>([]);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notificationListenerRef = useRef<any>(null);
   const responseListenerRef = useRef<any>(null);
 
@@ -82,6 +85,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (user.isAdmin) {
         startAdminPolling();
       }
+      startUserPolling();
     } else {
       setNotifications([]);
       setSettings(DEFAULT_SETTINGS);
@@ -89,9 +93,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setPendingBusinessCount(0);
       setPushToken(null);
       stopAdminPolling();
+      stopUserPolling();
     }
     return () => {
       stopAdminPolling();
+      stopUserPolling();
       if (notificationListenerRef.current) {
         notificationListenerRef.current.remove();
       }
@@ -218,6 +224,83 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     await fetchAdminNotifications();
   };
 
+  const stringifyFlat = (metadata?: Record<string, any>): Record<string, string> => {
+    if (!metadata) return {};
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(metadata)) {
+      if (typeof value === "string") {
+        result[key] = value;
+      }
+    }
+    return result;
+  };
+
+  const normalizeServerNotification = (raw: {
+    id: string;
+    type: string;
+    title: string;
+    message: string;
+    isRead: boolean;
+    referenceType?: string;
+    referenceId?: string;
+    metadata?: Record<string, any>;
+    createdAt: string;
+  }): Notification => ({
+    id: raw.id,
+    title: raw.title,
+    body: raw.message,
+    type: raw.type as Notification["type"],
+    date: raw.createdAt,
+    read: raw.isRead,
+    metadata: {
+      ...(raw.referenceType ? { referenceType: raw.referenceType } : {}),
+      ...(raw.referenceId ? { referenceId: raw.referenceId } : {}),
+      ...stringifyFlat(raw.metadata),
+    },
+  });
+
+  const startUserPolling = () => {
+    stopUserPolling();
+    fetchUserNotifications();
+    userPollingRef.current = setInterval(() => {
+      fetchUserNotifications();
+    }, 30000);
+  };
+
+  const stopUserPolling = () => {
+    if (userPollingRef.current) {
+      clearInterval(userPollingRef.current);
+      userPollingRef.current = null;
+    }
+  };
+
+  const fetchUserNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const { notifications: raw } = await api.getUserNotifications(token);
+      const server = raw.map(normalizeServerNotification);
+
+      const readById = new Map(notifications.map(n => [n.id, n.read]));
+      const local = notifications.filter(n => n.id.startsWith("notif_"));
+      const merged = [
+        ...local,
+        ...server.map(n => (readById.get(n.id) === true ? { ...n, read: true } : n)),
+      ];
+
+      setNotifications(merged);
+      await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(merged));
+    } catch (error) {
+      console.log("Failed to fetch user notifications (non-critical):", error);
+    }
+  }, [user, getToken, notifications]);
+
+  const refreshNotifications = async () => {
+    await fetchUserNotifications();
+  };
+
   const addNotification = async (notification: Omit<Notification, "id" | "date" | "read">) => {
     if (!user) return;
     const newNotification: Notification = {
@@ -335,6 +418,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         enableNotifications,
         disableNotifications,
         refreshAdminNotifications,
+        refreshNotifications,
         sendBookingConfirmation,
         scheduleBookingReminders,
       }}
