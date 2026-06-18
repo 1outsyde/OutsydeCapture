@@ -10,6 +10,7 @@ import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
@@ -212,7 +213,16 @@ export default function PulseVideoCard({
   onEngagement,
 }: PulseVideoCardProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [isPaused, setIsPaused] = useState(false);
+
+  // Floating tab bar overlays content rather than reserving layout space
+  // (see MainTabNavigator.tsx: height = 83 + insets.bottom / 2), so
+  // bottom-anchored elements here must add their own clearance.
+  const TAB_BAR_OVERLAY = 83 + insets.bottom / 2;
+  const soundLabelBottom = TAB_BAR_OVERLAY + 16;
+  const authorBlockBottom = soundLabelBottom + 20;
+  const actionBarBottom = authorBlockBottom + 60;
 
   // Reset pause state when card becomes inactive
   useEffect(() => {
@@ -277,7 +287,7 @@ export default function PulseVideoCard({
       />
 
       {/* Right engagement stack — absolute, right:16, bottom:160 */}
-      <View style={styles.actionBar} pointerEvents="box-none">
+      <View style={[styles.actionBar, { bottom: actionBarBottom }]} pointerEvents="box-none">
         <Pressable
           onPress={() => onLike(post.id)}
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
@@ -329,7 +339,7 @@ export default function PulseVideoCard({
       </View>
 
       {/* Bottom-left author block — absolute, left:16, bottom:100 */}
-      <View style={styles.authorBlock} pointerEvents="box-none">
+      <View style={[styles.authorBlock, { bottom: authorBlockBottom }]} pointerEvents="box-none">
         <Pressable onPress={() => onAuthorPress(post)} style={styles.authorRow}>
           {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
             <Image
@@ -381,7 +391,7 @@ export default function PulseVideoCard({
       </View>
 
       {/* Bottom-right sound label — absolute, right:16, bottom:80 */}
-      <View style={styles.soundLabel} pointerEvents="none">
+      <View style={[styles.soundLabel, { bottom: soundLabelBottom }]} pointerEvents="none">
         <Feather name="music" size={12} color="rgba(255,255,255,0.8)" />
         <ThemedText style={styles.soundText} numberOfLines={1}>
           {soundName}
