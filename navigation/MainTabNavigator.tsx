@@ -16,6 +16,7 @@ import AccountStackNavigator from "@/navigation/AccountStackNavigator";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useMessaging } from "@/context/MessagingContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { MainTabParamList } from "@/navigation/types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -46,6 +47,8 @@ export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { totalUnreadCount } = useMessaging();
+  const { unreadCount } = useNotifications();
+  const combinedUnread = (unreadCount || 0) + (totalUnreadCount || 0);
   const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
   const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
@@ -222,7 +225,7 @@ export default function MainTabNavigator() {
             tabBarIcon: ({ color, size }) => (
               <Feather name="message-circle" size={size} color={color} />
             ),
-            tabBarBadge: totalUnreadCount > 0 ? totalUnreadCount : undefined,
+            tabBarBadge: combinedUnread > 0 ? combinedUnread : undefined,
           }}
         />
 
