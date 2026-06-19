@@ -1645,6 +1645,9 @@ export default function AccountScreen() {
                   styles.mediaCell,
                   { width: postCellWidth, height: cellHeight },
                 ]}
+                onPress={() =>
+                  navigation.navigate("PostDetail", { postId: typedCell.id })
+                }
               >
                 {typedCell.mediaUrl ? (
                   <Image

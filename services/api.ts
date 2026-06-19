@@ -121,6 +121,7 @@ export interface ApiPost {
   mediaUrl?: string; // Added: alternative field name from backend (snake_case → camelCase)
   taggedBusinessId?: string;
   taggedPhotographerId?: string;
+  aspectRatio?: number;
   likesCount: number;
   commentsCount: number;
   isActive?: boolean;
@@ -3096,6 +3097,15 @@ class ApiService {
     }
     
     return this.request<{ posts: ApiPost[] }>(url, { headers });
+  }
+
+  // GET /api/feed/:postId - Get a single post by id (public)
+  async getPost(postId: string, authToken?: string): Promise<{ post: ApiPost }> {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    return this.request<{ post: ApiPost }>(`/api/feed/${postId}`, { headers });
   }
 
   // DELETE /api/feed/:postId - Delete own post
