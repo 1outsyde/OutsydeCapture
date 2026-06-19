@@ -1175,18 +1175,29 @@ export default function VendorDetailScreen({ route }: Props) {
           ? "photographer"
           : "user";
 
+    const wasFollowing = isFollowing;
+    const previousFollowerCount = profile.followerCount;
+    const nextFollowerCount = wasFollowing
+      ? Math.max(0, previousFollowerCount - 1)
+      : previousFollowerCount + 1;
+
     setFollowBusy(true);
+    setIsFollowing(!wasFollowing);
+    setProfile((prev) =>
+      prev ? { ...prev, followerCount: nextFollowerCount } : prev,
+    );
     try {
-      if (isFollowing) {
+      if (wasFollowing) {
         await apiClient.unfollowUser(targetId);
-        setIsFollowing(false);
       } else {
         await apiClient.followUser(targetId, targetType);
-        setIsFollowing(true);
       }
-      // TODO: Wire follow/unfollow to API
     } catch (error) {
       console.error("Follow toggle failed:", error);
+      setIsFollowing(wasFollowing);
+      setProfile((prev) =>
+        prev ? { ...prev, followerCount: previousFollowerCount } : prev,
+      );
       Alert.alert("Unable to update follow", "Please try again.");
     } finally {
       setFollowBusy(false);
