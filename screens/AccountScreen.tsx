@@ -1085,9 +1085,13 @@ export default function AccountScreen() {
             showStoreHours: true,
           };
         } else {
-          const profilePosts = await apiClient
-            .getProfilePosts(String(user?.id || ""), { limit: 60 })
-            .catch(() => ({ posts: [] }));
+          const [profilePosts, publicUserResult] = await Promise.all([
+            apiClient
+              .getProfilePosts(String(user?.id || ""), { limit: 60 })
+              .catch(() => ({ posts: [] })),
+            apiClient.getPublicUser(String(user?.id || "")).catch(() => null),
+          ]);
+          const publicUser = publicUserResult?.user;
           resolvedPosts = toPosts(profilePosts.posts || []);
           resolvedSaved = [];
           resolvedReviews = [];
@@ -1113,11 +1117,9 @@ export default function AccountScreen() {
             rating: 0,
             reviewCount: 0,
             followerCount: Number(
-              (user as any)?.followerCount ??
-                (user as any)?.followersCount ??
-                0,
+              publicUser?.followerCount ?? publicUser?.followersCount ?? 0,
             ),
-            followingCount: Number((user as any)?.followingCount ?? 0),
+            followingCount: Number(publicUser?.followingCount ?? 0),
             bookingsCount: 0,
             shootsCount: 0,
             postsCount: resolvedPosts.length,
