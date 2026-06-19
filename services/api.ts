@@ -3116,6 +3116,15 @@ class ApiService {
     });
   }
 
+  // PATCH /api/feed/:postId - Update own post's caption
+  async updatePostCaption(authToken: string, postId: string, content: string): Promise<{ post: ApiPost }> {
+    return this.request<{ post: ApiPost }>(`/api/feed/${postId}`, {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ content }),
+    });
+  }
+
   // POST /api/feed/:postId/like - Like a post
   async likePost(authToken: string, postId: string): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>(`/api/feed/${postId}/like`, {

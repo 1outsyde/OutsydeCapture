@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -87,6 +88,11 @@ export default function PostDetailScreen() {
   const [likesCount, setLikesCount] = useState(0);
   const [likeBusy, setLikeBusy] = useState(false);
 
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedCaption, setEditedCaption] = useState("");
+  const [saveBusy, setSaveBusy] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -164,6 +170,71 @@ export default function PostDetailScreen() {
     }
   }, [post, isLiked, likesCount, likeBusy, isAuthenticated, getToken]);
 
+  const isOwner = !!user && !!post && user.id === (post.authorId || post.userId);
+
+  const handleDelete = useCallback(() => {
+    if (!post) return;
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleteBusy(true);
+            try {
+              const token = await getToken();
+              if (!token) {
+                Alert.alert("Sign In Required", "Please sign in to delete posts.");
+                return;
+              }
+              await apiClient.deletePost(token, post.id);
+              navigation.goBack();
+            } catch (err) {
+              console.error("Failed to delete post:", err);
+              Alert.alert("Unable to delete post", "Please try again.");
+            } finally {
+              setDeleteBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [post, getToken, navigation]);
+
+  const handleStartEdit = useCallback(() => {
+    if (!post) return;
+    setEditedCaption(post.content || "");
+    setIsEditing(true);
+  }, [post]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!post || saveBusy) return;
+
+    setSaveBusy(true);
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Sign In Required", "Please sign in to edit posts.");
+        return;
+      }
+      const { post: updatedPost } = await apiClient.updatePostCaption(token, post.id, editedCaption);
+      setPost(updatedPost);
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Failed to update post caption:", err);
+      Alert.alert("Unable to save changes", "Please try again.");
+    } finally {
+      setSaveBusy(false);
+    }
+  }, [post, editedCaption, saveBusy, getToken]);
+
   const mediaUrl = post?.videoUrl || post?.mediaUrl || post?.imageUrl;
   const isVideo = post?.mediaType === "video" && !!post?.videoUrl;
   const aspectRatio = post?.aspectRatio && post.aspectRatio > 0 ? post.aspectRatio : 1;
@@ -178,6 +249,28 @@ export default function PostDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundRoot }]} edges={["top"]}>
       <View style={styles.header}>
+        <View style={styles.headerActions}>
+          {isOwner ? (
+            <>
+              <Pressable
+                onPress={handleStartEdit}
+                style={styles.closeButton}
+                hitSlop={16}
+                disabled={deleteBusy}
+              >
+                <Feather name="edit-2" size={20} color={theme.text} />
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                style={styles.closeButton}
+                hitSlop={16}
+                disabled={deleteBusy}
+              >
+                <Feather name="trash-2" size={20} color={theme.text} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
         <Pressable
           onPress={() => navigation.goBack()}
           style={styles.closeButton}
@@ -250,7 +343,38 @@ export default function PostDetailScreen() {
 
             <ThemedText style={styles.likesCount}>{likesCount} likes</ThemedText>
 
-            {post.content ? (
+            {isEditing ? (
+              <View style={styles.editContainer}>
+                <TextInput
+                  value={editedCaption}
+                  onChangeText={setEditedCaption}
+                  multiline
+                  maxLength={2000}
+                  style={[styles.editInput, { color: theme.text, borderColor: theme.border ?? theme.textSecondary }]}
+                  placeholder="Write a caption..."
+                  placeholderTextColor={theme.textSecondary}
+                  autoFocus
+                />
+                <View style={styles.editActionsRow}>
+                  <Pressable
+                    onPress={handleCancelEdit}
+                    style={styles.editActionButton}
+                    disabled={saveBusy}
+                  >
+                    <ThemedText style={{ color: theme.textSecondary }}>Cancel</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleSaveEdit}
+                    style={styles.editActionButton}
+                    disabled={saveBusy}
+                  >
+                    <ThemedText style={{ color: theme.brandGold ?? theme.primary, fontWeight: "600" }}>
+                      {saveBusy ? "Saving..." : "Save"}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : post.content ? (
               <ThemedText style={styles.caption}>
                 <ThemedText style={styles.captionAuthor}>{authorName} </ThemedText>
                 {post.content}
@@ -275,9 +399,14 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
   },
   closeButton: {
     padding: 4,
@@ -353,6 +482,27 @@ const styles = StyleSheet.create({
   caption: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  editContainer: {
+    marginTop: Spacing.xs,
+  },
+  editInput: {
+    fontSize: 14,
+    lineHeight: 20,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: Spacing.sm,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  editActionsRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  editActionButton: {
+    padding: 4,
   },
   captionAuthor: {
     fontWeight: "600",
