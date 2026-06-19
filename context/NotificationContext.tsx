@@ -394,6 +394,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  console.log("[NOTIF-DEBUG] context unreadCount =", unreadCount, "| total notifications =", notifications.length, "| unread ids =", notifications.filter(n=>!n.read).map(n=>n.id));
 
   useEffect(() => {
     if (Platform.OS !== "web") {

@@ -447,6 +447,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, getToken } = useAuth();
   const { unreadCount } = useNotifications();
+  console.log("[NOTIF-DEBUG] AccountScreen bell sees unreadCount =", unreadCount);
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);

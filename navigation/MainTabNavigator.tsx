@@ -48,6 +48,7 @@ export default function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const { totalUnreadCount } = useMessaging();
   const { unreadCount } = useNotifications();
+  console.log("[NOTIF-DEBUG] MainTabNavigator sees unreadCount =", unreadCount, "| totalUnreadCount =", totalUnreadCount);
   const combinedUnread = (unreadCount || 0) + (totalUnreadCount || 0);
   const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
   const navigation = useNavigation<any>();
