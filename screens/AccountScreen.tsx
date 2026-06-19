@@ -465,6 +465,8 @@ export default function AccountScreen() {
   const [newPostCaption, setNewPostCaption] = useState("");
   const [newPostLayout, setNewPostLayout] = useState<"pro" | "pulse" | null>(null);
   const [postSaving, setPostSaving] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -486,6 +488,42 @@ export default function AccountScreen() {
       selfId: user?.id,
     });
   }, [viewerMode, isOwner, routeUserId, routeUserType, user?.id]);
+
+  useEffect(() => {
+    if (!profile || isOwner || !isAuthenticated) return;
+    const targetId = profile.userId || profile.id;
+    apiClient
+      .checkFollowStatus(targetId)
+      .then((result) => setIsFollowing(result.isFollowing))
+      .catch(() => setIsFollowing(false));
+  }, [profile, isOwner, isAuthenticated]);
+
+  const handleFollowToggle = useCallback(async () => {
+    if (!profile || followBusy) return;
+    const targetId = profile.userId || profile.id;
+    const targetType =
+      profile.role === "business"
+        ? "business"
+        : profile.role === "photographer"
+          ? "photographer"
+          : "user";
+
+    setFollowBusy(true);
+    try {
+      if (isFollowing) {
+        await apiClient.unfollowUser(targetId);
+        setIsFollowing(false);
+      } else {
+        await apiClient.followUser(targetId, targetType);
+        setIsFollowing(true);
+      }
+    } catch (error) {
+      console.error("Follow toggle failed:", error);
+      Alert.alert("Unable to update follow", "Please try again.");
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [followBusy, isFollowing, profile]);
 
   const loadProfile = useCallback(async () => {
     if (!isAuthenticated) {
@@ -1364,8 +1402,25 @@ export default function AccountScreen() {
               <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
             </Pressable>
           ) : (
-            // TODO: viewer-mode Follow/Share actions (separate task)
-            null
+            <Pressable
+              style={[
+                styles.followButton,
+                isFollowing && styles.followButtonActive,
+                !isFollowing && { backgroundColor: accentColor },
+                isFollowing && { borderColor: accentColor },
+              ]}
+              onPress={handleFollowToggle}
+              disabled={followBusy}
+            >
+              <Text
+                style={[
+                  styles.followButtonText,
+                  isFollowing ? { color: accentColor } : { color: COLORS.black },
+                ]}
+              >
+                {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
+              </Text>
+            </Pressable>
           )}
         </View>
 
@@ -2304,6 +2359,20 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     fontSize: 13,
     fontWeight: "800",
+  },
+  followButton: {
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  followButtonActive: {
+    backgroundColor: "transparent",
+  },
+  followButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   nameRow: {
     marginTop: 14,
