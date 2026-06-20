@@ -96,6 +96,7 @@ export default function PostDetailScreen() {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { getPhotographer } = useData();
   const insets = useSafeAreaInsets();
+  const NAV_BAR_HEIGHT = insets.top + 52;
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -360,7 +361,7 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        <View style={{ height: PULSE_CARD_HEIGHT }}>
+        <View style={{ height: PULSE_CARD_HEIGHT, paddingTop: NAV_BAR_HEIGHT }}>
           <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
@@ -394,6 +395,7 @@ export default function PostDetailScreen() {
       handleReport,
       handleEdit,
       user,
+      NAV_BAR_HEIGHT,
     ]
   );
 
@@ -434,7 +436,7 @@ export default function PostDetailScreen() {
         />
       )}
 
-      <View style={[styles.navBar, { paddingTop: insets.top, backgroundColor: theme.backgroundRoot ?? "#080C08" }]}>
+      <View style={[styles.navBar, { paddingTop: insets.top, height: NAV_BAR_HEIGHT, backgroundColor: theme.backgroundRoot ?? "#080C08" }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.navBackButton} hitSlop={16}>
           <Feather name="chevron-left" size={26} color="#FFFFFF" />
         </Pressable>
