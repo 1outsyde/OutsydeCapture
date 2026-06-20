@@ -3,10 +3,12 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,7 +22,7 @@ import apiClient, { ApiPost } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
-import { Spacing } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -92,6 +94,7 @@ export default function PostDetailScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedCaption, setEditedCaption] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
+  const [sheetVisible, setSheetVisible] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,6 +238,16 @@ export default function PostDetailScreen() {
     }
   }, [post, editedCaption, saveBusy, getToken]);
 
+  const handleSheetEdit = useCallback(() => {
+    setSheetVisible(false);
+    handleStartEdit();
+  }, [handleStartEdit]);
+
+  const handleSheetDelete = useCallback(() => {
+    setSheetVisible(false);
+    handleDelete();
+  }, [handleDelete]);
+
   const mediaUrl = post?.videoUrl || post?.mediaUrl || post?.imageUrl;
   const isVideo = post?.mediaType === "video" && !!post?.videoUrl;
   const aspectRatio = post?.aspectRatio && post.aspectRatio > 0 ? post.aspectRatio : 1;
@@ -249,28 +262,6 @@ export default function PostDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundRoot }]} edges={["top"]}>
       <View style={styles.header}>
-        <View style={styles.headerActions}>
-          {isOwner ? (
-            <>
-              <Pressable
-                onPress={handleStartEdit}
-                style={styles.closeButton}
-                hitSlop={16}
-                disabled={deleteBusy}
-              >
-                <Feather name="edit-2" size={20} color={theme.text} />
-              </Pressable>
-              <Pressable
-                onPress={handleDelete}
-                style={styles.closeButton}
-                hitSlop={16}
-                disabled={deleteBusy}
-              >
-                <Feather name="trash-2" size={20} color={theme.text} />
-              </Pressable>
-            </>
-          ) : null}
-        </View>
         <Pressable
           onPress={() => navigation.goBack()}
           style={styles.closeButton}
@@ -339,6 +330,15 @@ export default function PostDetailScreen() {
               <View style={styles.actionButton}>
                 <Feather name="message-circle" size={24} color={theme.text} />
               </View>
+              {isOwner ? (
+                <Pressable
+                  onPress={() => setSheetVisible(true)}
+                  style={({ pressed }) => [styles.moreButton, { opacity: pressed ? 0.7 : 1 }]}
+                  disabled={deleteBusy}
+                >
+                  <Feather name="more-horizontal" size={24} color={theme.text} />
+                </Pressable>
+              ) : null}
             </View>
 
             <ThemedText style={styles.likesCount}>{likesCount} likes</ThemedText>
@@ -389,6 +389,47 @@ export default function PostDetailScreen() {
           </View>
         </ScrollView>
       )}
+
+      <Modal
+        visible={sheetVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSheetVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setSheetVisible(false)}>
+          <View style={styles.sheetOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.sheetPanel, { backgroundColor: theme.card ?? theme.backgroundRoot }]}>
+                <View style={styles.sheetGrabber} />
+                <Pressable
+                  onPress={handleSheetEdit}
+                  style={({ pressed }) => [styles.sheetItem, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Feather name="edit-2" size={18} color={theme.text} />
+                  <ThemedText style={styles.sheetItemText}>Edit Caption</ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={handleSheetDelete}
+                  style={({ pressed }) => [styles.sheetItem, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Feather name="trash-2" size={18} color="#FF3B30" />
+                  <ThemedText style={[styles.sheetItemText, { color: "#FF3B30" }]}>
+                    Delete Post
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setSheetVisible(false)}
+                  style={({ pressed }) => [styles.sheetItem, styles.sheetItemCancel, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <ThemedText style={[styles.sheetItemText, { color: theme.textSecondary }]}>
+                    Cancel
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -399,14 +440,9 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
   },
   closeButton: {
     padding: 4,
@@ -468,10 +504,15 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   actionButton: {
+    padding: 4,
+  },
+  moreButton: {
+    marginLeft: "auto",
     padding: 4,
   },
   likesCount: {
@@ -510,5 +551,40 @@ const styles = StyleSheet.create({
   viewComments: {
     fontSize: 14,
     marginTop: Spacing.xs,
+  },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  sheetPanel: {
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
+  },
+  sheetGrabber: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(128, 128, 128, 0.4)",
+    alignSelf: "center",
+    marginBottom: Spacing.sm,
+  },
+  sheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
+  },
+  sheetItemText: {
+    fontSize: 16,
+  },
+  sheetItemCancel: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(128, 128, 128, 0.2)",
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.md,
   },
 });
