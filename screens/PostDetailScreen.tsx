@@ -67,6 +67,7 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     reviewCount: 0,
     image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
     videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
+    displayLayout: (apiPost.displayLayout || apiPost.feedSurface) as ("pro" | "pulse" | undefined),
     caption: apiPost.content || "",
     likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
     isLiked: (apiPost as any).isLiked ?? false,
@@ -330,7 +331,7 @@ export default function PostDetailScreen() {
     ({ item, index }: { item: Post; index: number }) => {
       const isVendor = item.type === "vendor";
       const isSaved = isFavorite(item.id, isVendor ? "product" : "photographer");
-      const isVideo = !!item.videoUrl;
+      const isVideo = item.displayLayout === "pulse";
 
       return (
         <View style={{ height: PULSE_CARD_HEIGHT }}>
