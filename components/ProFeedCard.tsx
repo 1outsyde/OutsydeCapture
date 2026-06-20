@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Post } from "@/context/DataContext";
 import { sendClickEvent } from "@/services/referral";
+import { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 1.25;
@@ -466,7 +467,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   cardFullScreen: {
-    flex: 1,
+    height: PULSE_CARD_HEIGHT,
+    marginBottom: 0,
   },
   header: {
     flexDirection: "row",

@@ -404,6 +404,7 @@ export default function PostDetailScreen() {
       ) : (
         <FlatList
           ref={listRef}
+          style={{ flex: 1 }}
           data={posts}
           renderItem={renderItem}
           keyExtractor={(item) => `post-detail-${item.id}`}
