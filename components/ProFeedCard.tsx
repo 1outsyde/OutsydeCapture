@@ -29,6 +29,7 @@ interface ProFeedCardProps {
   isVisible?: boolean;
   muted?: boolean;
   onToggleMute?: () => void;
+  fullScreen?: boolean;
 }
 
 function CardVideoMedia({
@@ -122,6 +123,7 @@ export function ProFeedCard({
   isVisible = true,
   muted = false,
   onToggleMute,
+  fullScreen = false,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -245,7 +247,7 @@ export function ProFeedCard({
   };
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.card }]}>
+    <View style={[styles.card, { backgroundColor: theme.card }, fullScreen && styles.cardFullScreen]}>
       <Pressable onPress={() => onAuthorPress(post)} style={styles.header}>
         {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
           <Image
@@ -354,7 +356,7 @@ export function ProFeedCard({
         </Modal>
       )}
 
-      <View style={styles.mediaContainer}>
+      <View style={[styles.mediaContainer, fullScreen && styles.mediaContainerFullScreen]}>
         {hasVideo ? (
           <CardVideoMedia
             videoUrl={post.videoUrl!}
@@ -463,6 +465,9 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: Spacing.sm,
   },
+  cardFullScreen: {
+    flex: 1,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -521,6 +526,11 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: CARD_MEDIA_HEIGHT,
     position: "relative",
+  },
+  mediaContainerFullScreen: {
+    flex: 1,
+    width: undefined,
+    height: undefined,
   },
   media: {
     width: "100%",

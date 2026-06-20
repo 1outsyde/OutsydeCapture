@@ -367,6 +367,7 @@ export default function PostDetailScreen() {
               isAdmin={(user as any)?.isAdmin}
               muted={muted}
               onToggleMute={() => setMuted((m) => !m)}
+              fullScreen
             />
           )}
         </View>
