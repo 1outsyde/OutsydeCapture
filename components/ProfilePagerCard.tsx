@@ -146,8 +146,8 @@ export default function ProfilePagerCard({
   // (see MainTabNavigator.tsx: height = 83 + insets.bottom / 2), so
   // bottom-anchored elements here must add their own clearance.
   const TAB_BAR_OVERLAY = 83 + insets.bottom / 2;
-  const authorBlockBottom = TAB_BAR_OVERLAY + 16;
-  const actionBarBottom = authorBlockBottom + 60;
+  const authorBlockBottom = TAB_BAR_OVERLAY + 80;
+  const actionBarBottom = authorBlockBottom + 40;
 
   useEffect(() => {
     if (!isActive) setIsPaused(false);
@@ -175,24 +175,151 @@ export default function ProfilePagerCard({
     onDelete(post);
   };
 
+  const brandedSheet = (
+    <Modal
+      transparent
+      animationType="fade"
+      visible={sheetVisible}
+      onRequestClose={() => setSheetVisible(false)}
+    >
+      <TouchableWithoutFeedback onPress={() => setSheetVisible(false)}>
+        <View style={styles.sheetOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={[styles.sheetPanel, { backgroundColor: theme.card ?? theme.backgroundRoot }]}>
+              <View style={styles.sheetGrabber} />
+              <Pressable style={styles.sheetItem} onPress={handleSheetEdit}>
+                <Feather name="edit-2" size={18} color={theme.text} />
+                <ThemedText style={styles.sheetItemText}>Edit Caption</ThemedText>
+              </Pressable>
+              <Pressable style={styles.sheetItem} onPress={handleSheetDelete}>
+                <Feather name="trash-2" size={18} color="#FF3B30" />
+                <ThemedText style={[styles.sheetItemText, { color: "#FF3B30" }]}>
+                  Delete Post
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.sheetItem, styles.sheetItemCancel]}
+                onPress={() => setSheetVisible(false)}
+              >
+                <ThemedText style={styles.sheetItemText}>Cancel</ThemedText>
+              </Pressable>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+
+  if (!isVideo) {
+    return (
+      <View style={[styles.stillCard, { height: PROFILE_PAGER_CARD_HEIGHT, paddingTop: insets.top }]}>
+        {/* Header row */}
+        <View style={styles.stillHeader}>
+          {author?.avatarUrl ? (
+            <Image source={{ uri: author.avatarUrl }} style={styles.stillAvatar} contentFit="cover" />
+          ) : (
+            <View style={[styles.stillAvatar, styles.avatarFallback, { backgroundColor: theme.primary }]}>
+              <ThemedText style={styles.avatarInitial}>
+                {displayName.charAt(0).toUpperCase()}
+              </ThemedText>
+            </View>
+          )}
+          <View style={styles.stillHeaderTexts}>
+            <ThemedText style={styles.stillDisplayName} numberOfLines={1}>
+              {displayName}
+            </ThemedText>
+            {author?.username ? (
+              <ThemedText style={styles.usernameText}>@{author.username}</ThemedText>
+            ) : null}
+          </View>
+          {isOwner ? (
+            <Pressable
+              onPress={() => setSheetVisible(true)}
+              style={({ pressed }) => [styles.stillMoreButton, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Feather name="more-horizontal" size={24} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* Image */}
+        <View style={styles.stillImageContainer}>
+          {mediaUrl ? (
+            <Image source={{ uri: mediaUrl }} style={styles.stillImage} contentFit="contain" />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
+          )}
+        </View>
+
+        {/* Footer */}
+        <View style={styles.stillFooter}>
+          <View style={styles.stillActionRow}>
+            <Pressable
+              onPress={() => onLike(post.id)}
+              style={({ pressed }) => [styles.stillActionItem, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Feather name="heart" size={24} color={isLiked ? "#FF3B30" : "#FFFFFF"} />
+            </Pressable>
+            <Pressable
+              onPress={() => onComment(post)}
+              style={({ pressed }) => [styles.stillActionItem, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Feather name="message-circle" size={24} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              onPress={() => onSave(post.id, isSaved)}
+              style={({ pressed }) => [styles.stillActionItem, styles.stillSaveButton, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Feather name="bookmark" size={24} color={isSaved ? theme.brandGold : "#FFFFFF"} />
+            </Pressable>
+          </View>
+
+          <ThemedText style={styles.stillLikesCount}>{likesCount} likes</ThemedText>
+
+          {post.content ? (
+            <ThemedText style={styles.stillCaption} numberOfLines={3}>
+              <ThemedText style={styles.stillCaptionAuthor}>{displayName} </ThemedText>
+              {post.content}
+            </ThemedText>
+          ) : null}
+
+          {hasCommerce ? (
+            <Pressable
+              onPress={() => onActionPress(post)}
+              style={({ pressed }) => [
+                styles.commerceBtn,
+                { backgroundColor: theme.brandPrimary, opacity: pressed ? 0.85 : 1, marginTop: Spacing.sm },
+              ]}
+            >
+              <Feather
+                name={post.productId ? "shopping-bag" : "calendar"}
+                size={16}
+                color="#000000"
+              />
+              <ThemedText style={styles.commerceBtnText}>
+                {post.productId ? "Buy Now" : "Book Now"}
+              </ThemedText>
+            </Pressable>
+          ) : null}
+        </View>
+
+        {brandedSheet}
+      </View>
+    );
+  }
+
   return (
     <Pressable
       onPress={handleTap}
       style={[styles.card, { height: PROFILE_PAGER_CARD_HEIGHT }]}
     >
       {/* Background media */}
-      {isVideo && mediaUrl ? (
+      {mediaUrl ? (
         <VideoComponent
           videoUrl={mediaUrl}
           isActive={isActive}
           isPaused={isPaused}
           muted={muted}
-        />
-      ) : mediaUrl ? (
-        <Image
-          source={{ uri: mediaUrl }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
@@ -256,16 +383,14 @@ export default function ProfilePagerCard({
           </Pressable>
         ) : null}
 
-        {isVideo ? (
-          <Pressable
-            onPress={onToggleMute}
-            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
-          >
-            <View style={styles.actionIcon}>
-              <Feather name={muted ? "volume-x" : "volume-2"} size={26} color="#FFFFFF" />
-            </View>
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={onToggleMute}
+          style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <View style={styles.actionIcon}>
+            <Feather name={muted ? "volume-x" : "volume-2"} size={26} color="#FFFFFF" />
+          </View>
+        </Pressable>
       </View>
 
       {/* Bottom-left author block */}
@@ -320,39 +445,7 @@ export default function ProfilePagerCard({
         ) : null}
       </View>
 
-      {/* Owner ••• branded bottom sheet */}
-      <Modal
-        transparent
-        animationType="fade"
-        visible={sheetVisible}
-        onRequestClose={() => setSheetVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setSheetVisible(false)}>
-          <View style={styles.sheetOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.sheetPanel, { backgroundColor: theme.card ?? theme.backgroundRoot }]}>
-                <View style={styles.sheetGrabber} />
-                <Pressable style={styles.sheetItem} onPress={handleSheetEdit}>
-                  <Feather name="edit-2" size={18} color={theme.text} />
-                  <ThemedText style={styles.sheetItemText}>Edit Caption</ThemedText>
-                </Pressable>
-                <Pressable style={styles.sheetItem} onPress={handleSheetDelete}>
-                  <Feather name="trash-2" size={18} color="#FF3B30" />
-                  <ThemedText style={[styles.sheetItemText, { color: "#FF3B30" }]}>
-                    Delete Post
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  style={[styles.sheetItem, styles.sheetItemCancel]}
-                  onPress={() => setSheetVisible(false)}
-                >
-                  <ThemedText style={styles.sheetItemText}>Cancel</ThemedText>
-                </Pressable>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {brandedSheet}
     </Pressable>
   );
 }
@@ -508,5 +601,76 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(128,128,128,0.2)",
     marginTop: Spacing.xs,
     paddingTop: Spacing.md,
+  },
+
+  // Instagram-style still layout
+  stillCard: {
+    width: SCREEN_WIDTH,
+    backgroundColor: "#000000",
+    flexDirection: "column",
+  },
+  stillHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  stillAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  stillHeaderTexts: {
+    marginLeft: Spacing.sm,
+  },
+  stillDisplayName: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  stillMoreButton: {
+    marginLeft: "auto",
+    padding: 4,
+  },
+  stillImageContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stillImage: {
+    width: "100%",
+    height: "100%",
+  },
+  stillFooter: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.lg,
+  },
+  stillActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  stillActionItem: {
+    padding: 2,
+  },
+  stillSaveButton: {
+    marginLeft: "auto",
+  },
+  stillLikesCount: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  stillCaption: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  stillCaptionAuthor: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
 });
