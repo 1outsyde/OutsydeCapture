@@ -8,7 +8,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Post } from "@/context/DataContext";
 import { sendClickEvent } from "@/services/referral";
-import { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 1.25;
@@ -30,7 +29,6 @@ interface ProFeedCardProps {
   isVisible?: boolean;
   muted?: boolean;
   onToggleMute?: () => void;
-  fullScreen?: boolean;
 }
 
 function CardVideoMedia({
@@ -124,7 +122,6 @@ export function ProFeedCard({
   isVisible = true,
   muted = false,
   onToggleMute,
-  fullScreen = false,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -248,7 +245,7 @@ export function ProFeedCard({
   };
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.card }, fullScreen && styles.cardFullScreen]}>
+    <View style={[styles.card, { backgroundColor: theme.card }]}>
       <Pressable onPress={() => onAuthorPress(post)} style={styles.header}>
         {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
           <Image
@@ -357,7 +354,7 @@ export function ProFeedCard({
         </Modal>
       )}
 
-      <View style={[styles.mediaContainer, fullScreen && styles.mediaContainerFullScreen]}>
+      <View style={styles.mediaContainer}>
         {hasVideo ? (
           <CardVideoMedia
             videoUrl={post.videoUrl!}
@@ -466,10 +463,6 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: Spacing.sm,
   },
-  cardFullScreen: {
-    height: PULSE_CARD_HEIGHT,
-    marginBottom: 0,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -528,11 +521,6 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     height: CARD_MEDIA_HEIGHT,
     position: "relative",
-  },
-  mediaContainerFullScreen: {
-    flex: 1,
-    width: undefined,
-    height: undefined,
   },
   media: {
     width: "100%",
