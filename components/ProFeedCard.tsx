@@ -22,6 +22,7 @@ interface ProFeedCardProps {
   onActionPress: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onReport?: (postId: string, reason: string) => void;
+  onEdit?: (postId: string) => void;
   isSaved: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
@@ -114,6 +115,7 @@ export function ProFeedCard({
   onActionPress,
   onDelete,
   onReport,
+  onEdit,
   isSaved,
   currentUserId,
   isAdmin = false,
@@ -131,12 +133,12 @@ export function ProFeedCard({
 
   const handleMenuPress = () => {
     if (Platform.OS === "ios") {
-      const options = canDelete 
-        ? ["Delete Post", "Cancel"]
+      const options = canDelete
+        ? ["Edit Caption", "Delete Post", "Cancel"]
         : ["Report Post", "Cancel"];
-      const destructiveIndex = canDelete ? 0 : undefined;
-      const cancelIndex = canDelete ? 1 : 1;
-      
+      const destructiveIndex = canDelete ? 1 : undefined;
+      const cancelIndex = canDelete ? 2 : 1;
+
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
@@ -144,14 +146,16 @@ export function ProFeedCard({
           cancelButtonIndex: cancelIndex,
         },
         (buttonIndex) => {
-          if (canDelete && buttonIndex === 0 && onDelete) {
+          if (canDelete && buttonIndex === 0) {
+            onEdit?.(post.id);
+          } else if (canDelete && buttonIndex === 1 && onDelete) {
             Alert.alert(
               "Delete Post",
               "Are you sure you want to delete this post? This action cannot be undone.",
               [
                 { text: "Cancel", style: "cancel" },
-                { 
-                  text: "Delete", 
+                {
+                  text: "Delete",
                   style: "destructive",
                   onPress: () => onDelete(post.id)
                 }
@@ -204,9 +208,11 @@ export function ProFeedCard({
     }
   };
 
-  const handleAndroidMenuAction = (action: "delete" | "report") => {
+  const handleAndroidMenuAction = (action: "edit" | "delete" | "report") => {
     setMenuVisible(false);
-    if (action === "delete" && onDelete) {
+    if (action === "edit") {
+      onEdit?.(post.id);
+    } else if (action === "delete" && onDelete) {
       Alert.alert(
         "Delete Post",
         "Are you sure you want to delete this post? This action cannot be undone.",
@@ -305,15 +311,26 @@ export function ProFeedCard({
             <View style={styles.modalOverlay}>
               <View style={[styles.menuContainer, { backgroundColor: theme.card }]}>
                 {canDelete ? (
-                  <Pressable
-                    onPress={() => handleAndroidMenuAction("delete")}
-                    style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
-                  >
-                    <Feather name="trash-2" size={18} color="#FF3B30" />
-                    <ThemedText style={[styles.menuItemText, { color: "#FF3B30" }]}>
-                      Delete Post
-                    </ThemedText>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      onPress={() => handleAndroidMenuAction("edit")}
+                      style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="edit-2" size={18} color={theme.text} />
+                      <ThemedText style={styles.menuItemText}>
+                        Edit Caption
+                      </ThemedText>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleAndroidMenuAction("delete")}
+                      style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="trash-2" size={18} color="#FF3B30" />
+                      <ThemedText style={[styles.menuItemText, { color: "#FF3B30" }]}>
+                        Delete Post
+                      </ThemedText>
+                    </Pressable>
+                  </>
                 ) : (
                   <Pressable
                     onPress={() => handleAndroidMenuAction("report")}
