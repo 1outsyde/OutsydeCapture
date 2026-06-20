@@ -1646,7 +1646,10 @@ export default function AccountScreen() {
                   { width: postCellWidth, height: cellHeight },
                 ]}
                 onPress={() =>
-                  navigation.navigate("PostDetail", { postId: typedCell.id })
+                  navigation.navigate("PostDetail", {
+                    userId: routeUserId || String(user?.id),
+                    initialPostId: typedCell.id,
+                  })
                 }
               >
                 {typedCell.mediaUrl ? (

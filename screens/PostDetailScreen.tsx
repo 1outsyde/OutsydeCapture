@@ -1,100 +1,107 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
 
 import apiClient, { ApiPost } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { useFavorites } from "@/context/FavoritesContext";
+import { useData, Post, PostType } from "@/context/DataContext";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { ProFeedCard } from "@/components/ProFeedCard";
+import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 type PostDetailRouteProp = RouteProp<RootStackParamList, "PostDetail">;
 type PostDetailNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-function DetailVideoMedia({
-  videoUrl,
-  aspectRatio,
-}: {
-  videoUrl: string;
-  aspectRatio: number;
-}) {
-  const [isPlaying, setIsPlaying] = useState(false);
+// Must be defined outside component to prevent "Changing viewabilityConfig on the fly" error
+const VIEWABILITY_CONFIG = {
+  itemVisiblePercentThreshold: 80,
+  minimumViewTime: 100,
+};
 
-  const player = useVideoPlayer(videoUrl, (p) => {
-    p.loop = true;
-    p.muted = false;
-  });
+function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
+  const displayName = author.name || author.username || "Unknown";
+  const authorAvatar = author.avatarUrl || author.profileImageUrl || "";
+  const userId = author.userId || author.id;
+  const username = author.username;
 
-  const togglePlayback = () => {
-    if (player.playing) {
-      player.pause();
-      setIsPlaying(false);
-    } else {
-      player.play();
-      setIsPlaying(true);
-    }
+  let postType: PostType = "user";
+  if (author.isPhotographer) {
+    postType = "photographer";
+  } else if (author.isVendor) {
+    postType = "vendor";
+  }
+
+  const providerId =
+    apiPost.providerId || apiPost.taggedPhotographerId || apiPost.taggedBusinessId;
+
+  return {
+    id: apiPost.id,
+    type: postType,
+    userId,
+    username,
+    displayName,
+    authorAvatar,
+    authorId: userId,
+    authorName: displayName,
+    subscriptionTier: undefined,
+    rating: 0,
+    reviewCount: 0,
+    image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
+    videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
+    caption: apiPost.content || "",
+    likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
+    isLiked: (apiPost as any).isLiked ?? false,
+    comments: [],
+    commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
+    createdAt: apiPost.createdAt,
+    serviceId: apiPost.photographerServiceId || apiPost.serviceId,
+    productId: apiPost.productId,
+    providerId,
+    photographerId: postType === "photographer" ? userId : undefined,
+    photographerName: postType === "photographer" ? displayName : undefined,
   };
-
-  return (
-    <Pressable
-      onPress={togglePlayback}
-      style={[styles.mediaContainer, { width: SCREEN_WIDTH, aspectRatio }]}
-    >
-      <VideoView
-        player={player}
-        style={styles.media}
-        contentFit="contain"
-        nativeControls={false}
-      />
-      {!isPlaying && (
-        <View style={styles.playOverlay}>
-          <Feather name="play-circle" size={56} color="rgba(255,255,255,0.85)" />
-        </View>
-      )}
-    </Pressable>
-  );
 }
 
 export default function PostDetailScreen() {
   const navigation = useNavigation<PostDetailNavigationProp>();
   const route = useRoute<PostDetailRouteProp>();
-  const { postId } = route.params;
+  const { userId, initialPostId } = route.params;
   const { theme } = useTheme();
-  const { user, isAuthenticated, getToken } = useAuth();
+  const { user, getToken } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const { getPhotographer } = useData();
 
-  const [post, setPost] = useState<ApiPost | null>(null);
-  const [author, setAuthor] = useState<Record<string, any> | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [muted, setMuted] = useState(false);
 
-  const [isLiked, setIsLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(0);
-  const [likeBusy, setLikeBusy] = useState(false);
-
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editedCaption, setEditedCaption] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
-  const [sheetVisible, setSheetVisible] = useState(false);
+
+  const initialIndexRef = useRef(0);
+  const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,27 +110,21 @@ export default function PostDetailScreen() {
       setLoading(true);
       setError(null);
       try {
-        const token = isAuthenticated ? await getToken() : undefined;
-        const { post: fetchedPost } = await apiClient.getPost(postId, token || undefined);
+        const [{ posts: apiPosts }, { user: author }] = await Promise.all([
+          apiClient.getProfilePosts(userId),
+          apiClient.getPublicUser(userId),
+        ]);
         if (cancelled) return;
 
-        setPost(fetchedPost);
-        setLikesCount(fetchedPost.likesCount || 0);
+        const converted = apiPosts.map((p) => convertApiPost(p, author));
+        setPosts(converted);
 
-        const authorId = fetchedPost.authorId || fetchedPost.userId;
-        if (authorId) {
-          apiClient
-            .getPublicUser(authorId)
-            .then(({ user: publicUser }) => {
-              if (!cancelled) setAuthor(publicUser);
-            })
-            .catch(() => {
-              if (!cancelled) setAuthor(null);
-            });
-        }
+        const startIndex = converted.findIndex((p) => p.id === initialPostId);
+        initialIndexRef.current = startIndex >= 0 ? startIndex : 0;
+        setActiveIndex(initialIndexRef.current);
       } catch (err) {
-        console.error("Failed to load post:", err);
-        if (!cancelled) setError("This post could not be loaded.");
+        console.error("Failed to load profile posts:", err);
+        if (!cancelled) setError("These posts could not be loaded.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -133,93 +134,142 @@ export default function PostDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [postId, isAuthenticated, getToken]);
+  }, [userId, initialPostId]);
 
-  const handleLikeToggle = useCallback(async () => {
-    if (!post || likeBusy) return;
+  // ─── Like ───────────────────────────────────────────────────────────────────
+  const handleLike = useCallback(
+    async (postId: string) => {
+      const current = posts.find((p) => p.id === postId);
+      const wasLiked = current?.isLiked ?? false;
 
-    if (!isAuthenticated) {
-      Alert.alert("Sign In Required", "Please sign in to like posts.");
-      return;
-    }
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, isLiked: !wasLiked, likes: wasLiked ? Math.max(0, p.likes - 1) : p.likes + 1 }
+            : p
+        )
+      );
 
-    const wasLiked = isLiked;
-    const previousLikesCount = likesCount;
-
-    setLikeBusy(true);
-    setIsLiked(!wasLiked);
-    setLikesCount(wasLiked ? Math.max(0, previousLikesCount - 1) : previousLikesCount + 1);
-
-    try {
-      const token = await getToken();
-      if (!token) {
-        setIsLiked(wasLiked);
-        setLikesCount(previousLikesCount);
-        Alert.alert("Sign In Required", "Please sign in to like posts.");
-        return;
+      try {
+        const token = await getToken();
+        if (!token) {
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
+                : p
+            )
+          );
+          Alert.alert("Sign In Required", "Please sign in to like posts.");
+          return;
+        }
+        if (wasLiked) {
+          await apiClient.unlikePost(token, postId);
+        } else {
+          await apiClient.likePost(token, postId);
+        }
+      } catch {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
+              : p
+          )
+        );
       }
-      if (wasLiked) {
-        await apiClient.unlikePost(token, post.id);
-      } else {
-        await apiClient.likePost(token, post.id);
+    },
+    [posts, getToken]
+  );
+
+  // ─── Save / bookmark ────────────────────────────────────────────────────────
+  const handleSave = useCallback(
+    (post: Post) => {
+      const favoriteType = post.type === "vendor" ? "product" : "photographer";
+      toggleFavorite({
+        id: post.id,
+        type: favoriteType,
+        name: post.type === "vendor" && (post as any).productName ? (post as any).productName : post.authorName,
+        image: post.image,
+        subtitle:
+          post.type === "vendor"
+            ? `$${(post as any).productPrice?.toFixed(2)}`
+            : post.caption?.substring(0, 50),
+      });
+    },
+    [toggleFavorite]
+  );
+
+  // ─── Comment (stub for this build) ──────────────────────────────────────────
+  const handleComment = useCallback((_post: Post) => {
+    // No-op for this build — full comments modal is a follow-up.
+  }, []);
+
+  // ─── Navigation ─────────────────────────────────────────────────────────────
+  const handleAuthorPress = useCallback(
+    (post: Post) => {
+      const vendorId = post.providerId || post.userId;
+      if (!vendorId) return;
+      navigation.navigate("VendorDetail", { vendorId });
+    },
+    [navigation]
+  );
+
+  const handleActionPress = useCallback(
+    (post: Post) => {
+      if (post.serviceId) {
+        const photographerId = post.photographerId || post.providerId || post.userId;
+        const photographer = getPhotographer(photographerId);
+        navigation.navigate("Booking", {
+          photographer: photographer || undefined,
+          photographerId,
+          preselectedServiceId: post.serviceId,
+        });
+      } else if (post.productId) {
+        const businessId = post.providerId || post.userId;
+        navigation.navigate("VendorDetail", {
+          vendorId: businessId,
+          initialTab: "products",
+          productId: post.productId,
+        });
       }
-    } catch (err) {
-      console.error("Failed to like/unlike post:", err);
-      setIsLiked(wasLiked);
-      setLikesCount(previousLikesCount);
-      Alert.alert("Unable to update like", "Please try again.");
-    } finally {
-      setLikeBusy(false);
-    }
-  }, [post, isLiked, likesCount, likeBusy, isAuthenticated, getToken]);
+    },
+    [navigation, getPhotographer]
+  );
 
-  const isOwner = !!user && !!post && user.id === (post.authorId || post.userId);
+  // ─── Owner actions: delete / edit / report ──────────────────────────────────
+  const handleDelete = useCallback(
+    async (postId: string) => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          Alert.alert("Error", "You must be logged in to delete posts.");
+          return;
+        }
+        await apiClient.deletePost(token, postId);
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
+      } catch (err) {
+        console.error("Failed to delete post:", err);
+        Alert.alert("Unable to delete post", "Please try again.");
+      }
+    },
+    [getToken]
+  );
 
-  const handleDelete = useCallback(() => {
-    if (!post) return;
-    Alert.alert(
-      "Delete Post",
-      "Are you sure you want to delete this post? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setDeleteBusy(true);
-            try {
-              const token = await getToken();
-              if (!token) {
-                Alert.alert("Sign In Required", "Please sign in to delete posts.");
-                return;
-              }
-              await apiClient.deletePost(token, post.id);
-              navigation.goBack();
-            } catch (err) {
-              console.error("Failed to delete post:", err);
-              Alert.alert("Unable to delete post", "Please try again.");
-            } finally {
-              setDeleteBusy(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [post, getToken, navigation]);
-
-  const handleStartEdit = useCallback(() => {
-    if (!post) return;
-    setEditedCaption(post.content || "");
-    setIsEditing(true);
-  }, [post]);
+  const handleEdit = useCallback(
+    (postId: string) => {
+      const target = posts.find((p) => p.id === postId);
+      setEditedCaption(target?.caption || "");
+      setEditingPostId(postId);
+    },
+    [posts]
+  );
 
   const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
+    setEditingPostId(null);
   }, []);
 
   const handleSaveEdit = useCallback(async () => {
-    if (!post || saveBusy) return;
-
+    if (!editingPostId || saveBusy) return;
     setSaveBusy(true);
     try {
       const token = await getToken();
@@ -227,124 +277,168 @@ export default function PostDetailScreen() {
         Alert.alert("Sign In Required", "Please sign in to edit posts.");
         return;
       }
-      const { post: updatedPost } = await apiClient.updatePostCaption(token, post.id, editedCaption);
-      setPost(updatedPost);
-      setIsEditing(false);
+      const { post: updatedPost } = await apiClient.updatePostCaption(token, editingPostId, editedCaption);
+      setPosts((prev) =>
+        prev.map((p) => (p.id === editingPostId ? { ...p, caption: updatedPost.content || "" } : p))
+      );
+      setEditingPostId(null);
     } catch (err) {
       console.error("Failed to update post caption:", err);
       Alert.alert("Unable to save changes", "Please try again.");
     } finally {
       setSaveBusy(false);
     }
-  }, [post, editedCaption, saveBusy, getToken]);
+  }, [editingPostId, editedCaption, saveBusy, getToken]);
 
-  const handleSheetEdit = useCallback(() => {
-    setSheetVisible(false);
-    handleStartEdit();
-  }, [handleStartEdit]);
+  const handleReport = useCallback(
+    async (postId: string, reason: string) => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          Alert.alert("Sign In Required", "Please sign in to report posts.");
+          return;
+        }
+        await apiClient.reportPost(token, postId, reason);
+        Alert.alert("Reported", "Thanks — our team will review this post.");
+      } catch (err) {
+        console.error("Failed to report post:", err);
+        Alert.alert("Unable to report post", "Please try again.");
+      }
+    },
+    [getToken]
+  );
 
-  const handleSheetDelete = useCallback(() => {
-    setSheetVisible(false);
-    handleDelete();
-  }, [handleDelete]);
+  // ─── Viewability ────────────────────────────────────────────────────────────
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index !== null) {
+        setActiveIndex(viewableItems[0].index);
+      }
+    }
+  ).current;
 
-  const mediaUrl = post?.videoUrl || post?.mediaUrl || post?.imageUrl;
-  const isVideo = post?.mediaType === "video" && !!post?.videoUrl;
-  const aspectRatio = post?.aspectRatio && post.aspectRatio > 0 ? post.aspectRatio : 1;
-  const authorName = author?.name || "Outsyde User";
-  const authorAvatar = author?.avatarUrl || author?.profileImageUrl;
-  const authorBadge = author?.isPhotographer
-    ? "Photographer"
-    : author?.isVendor
-      ? "Business"
-      : null;
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: PULSE_CARD_HEIGHT,
+      offset: PULSE_CARD_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: Post; index: number }) => {
+      const isVendor = item.type === "vendor";
+      const isSaved = isFavorite(item.id, isVendor ? "product" : "photographer");
+      const isVideo = !!item.videoUrl;
+
+      return (
+        <View style={{ height: PULSE_CARD_HEIGHT }}>
+          {isVideo ? (
+            <PulseVideoCard
+              post={item}
+              isActive={index === activeIndex}
+              muted={muted}
+              onToggleMute={() => setMuted((m) => !m)}
+              isLiked={item.isLiked}
+              isSaved={isSaved}
+              onLike={handleLike}
+              onComment={handleComment}
+              onBookmark={handleSave}
+              onAuthorPress={handleAuthorPress}
+              onActionPress={handleActionPress}
+              onEngagement={() => {}}
+            />
+          ) : (
+            <ProFeedCard
+              post={item}
+              isVisible={index === activeIndex}
+              isSaved={isSaved}
+              onLike={handleLike}
+              onComment={handleComment}
+              onSave={handleSave}
+              onAuthorPress={handleAuthorPress}
+              onActionPress={handleActionPress}
+              onDelete={handleDelete}
+              onReport={handleReport}
+              onEdit={handleEdit}
+              currentUserId={user?.id}
+              isAdmin={(user as any)?.isAdmin}
+              muted={muted}
+              onToggleMute={() => setMuted((m) => !m)}
+            />
+          )}
+        </View>
+      );
+    },
+    [
+      activeIndex,
+      muted,
+      isFavorite,
+      handleLike,
+      handleComment,
+      handleSave,
+      handleAuthorPress,
+      handleActionPress,
+      handleDelete,
+      handleReport,
+      handleEdit,
+      user,
+    ]
+  );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundRoot }]} edges={["top"]}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.closeButton}
-          hitSlop={16}
-        >
-          <Feather name="x" size={24} color={theme.text} />
-        </Pressable>
-      </View>
-
+    <View style={styles.root}>
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator color={theme.brandGold ?? theme.text} />
         </View>
-      ) : error || !post ? (
+      ) : error || posts.length === 0 ? (
         <View style={styles.centered}>
           <ThemedText style={{ color: theme.textSecondary }}>
-            {error || "Post not found."}
+            {error || "No posts found."}
           </ThemedText>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {mediaUrl ? (
-            isVideo ? (
-              <DetailVideoMedia videoUrl={mediaUrl} aspectRatio={aspectRatio} />
-            ) : (
-              <Image
-                source={{ uri: mediaUrl }}
-                style={[styles.mediaContainer, { width: SCREEN_WIDTH, aspectRatio }]}
-                contentFit="contain"
-              />
-            )
-          ) : null}
+        <FlatList
+          ref={listRef}
+          data={posts}
+          renderItem={renderItem}
+          keyExtractor={(item) => `post-detail-${item.id}`}
+          pagingEnabled
+          horizontal={false}
+          snapToInterval={PULSE_CARD_HEIGHT}
+          decelerationRate="fast"
+          showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={initialIndexRef.current}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={VIEWABILITY_CONFIG}
+          windowSize={5}
+          maxToRenderPerBatch={3}
+          removeClippedSubviews
+        />
+      )}
 
-          <View style={styles.body}>
-            <View style={styles.authorRow}>
-              {authorAvatar ? (
-                <Image source={{ uri: authorAvatar }} style={styles.avatar} contentFit="cover" />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.brandGold ?? theme.primary }]}>
-                  <ThemedText style={styles.avatarInitial}>
-                    {authorName.charAt(0).toUpperCase()}
-                  </ThemedText>
-                </View>
-              )}
-              <View style={styles.authorInfo}>
-                <ThemedText style={styles.authorName}>{authorName}</ThemedText>
-                {authorBadge ? (
-                  <ThemedText style={[styles.authorBadge, { color: theme.textSecondary }]}>
-                    {authorBadge}
-                  </ThemedText>
-                ) : null}
-              </View>
-            </View>
+      <Pressable
+        onPress={() => navigation.goBack()}
+        style={styles.closeButton}
+        hitSlop={16}
+      >
+        <Feather name="x" size={26} color="#FFFFFF" />
+      </Pressable>
 
-            <View style={styles.actionsRow}>
-              <Pressable
-                onPress={handleLikeToggle}
-                style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
-              >
-                <Feather
-                  name="heart"
-                  size={24}
-                  color={isLiked ? "#FF3B30" : theme.text}
-                />
-              </Pressable>
-              <View style={styles.actionButton}>
-                <Feather name="message-circle" size={24} color={theme.text} />
-              </View>
-              {isOwner ? (
-                <Pressable
-                  onPress={() => setSheetVisible(true)}
-                  style={({ pressed }) => [styles.moreButton, { opacity: pressed ? 0.7 : 1 }]}
-                  disabled={deleteBusy}
-                >
-                  <Feather name="more-horizontal" size={24} color={theme.text} />
-                </Pressable>
-              ) : null}
-            </View>
-
-            <ThemedText style={styles.likesCount}>{likesCount} likes</ThemedText>
-
-            {isEditing ? (
-              <View style={styles.editContainer}>
+      <Modal
+        visible={editingPostId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelEdit}
+      >
+        <TouchableWithoutFeedback onPress={handleCancelEdit}>
+          <View style={styles.editOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.editPanel, { backgroundColor: theme.card ?? theme.backgroundRoot }]}>
+                <ThemedText style={styles.editTitle}>Edit Caption</ThemedText>
                 <TextInput
                   value={editedCaption}
                   onChangeText={setEditedCaption}
@@ -356,176 +450,56 @@ export default function PostDetailScreen() {
                   autoFocus
                 />
                 <View style={styles.editActionsRow}>
-                  <Pressable
-                    onPress={handleCancelEdit}
-                    style={styles.editActionButton}
-                    disabled={saveBusy}
-                  >
+                  <Pressable onPress={handleCancelEdit} style={styles.editActionButton} disabled={saveBusy}>
                     <ThemedText style={{ color: theme.textSecondary }}>Cancel</ThemedText>
                   </Pressable>
-                  <Pressable
-                    onPress={handleSaveEdit}
-                    style={styles.editActionButton}
-                    disabled={saveBusy}
-                  >
+                  <Pressable onPress={handleSaveEdit} style={styles.editActionButton} disabled={saveBusy}>
                     <ThemedText style={{ color: theme.brandGold ?? theme.primary, fontWeight: "600" }}>
                       {saveBusy ? "Saving..." : "Save"}
                     </ThemedText>
                   </Pressable>
                 </View>
               </View>
-            ) : post.content ? (
-              <ThemedText style={styles.caption}>
-                <ThemedText style={styles.captionAuthor}>{authorName} </ThemedText>
-                {post.content}
-              </ThemedText>
-            ) : null}
-
-            {post.commentsCount > 0 ? (
-              <ThemedText style={[styles.viewComments, { color: theme.textSecondary }]}>
-                {post.commentsCount} comment{post.commentsCount === 1 ? "" : "s"}
-              </ThemedText>
-            ) : null}
-          </View>
-        </ScrollView>
-      )}
-
-      <Modal
-        visible={sheetVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSheetVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setSheetVisible(false)}>
-          <View style={styles.sheetOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.sheetPanel, { backgroundColor: theme.card ?? theme.backgroundRoot }]}>
-                <View style={styles.sheetGrabber} />
-                <Pressable
-                  onPress={handleSheetEdit}
-                  style={({ pressed }) => [styles.sheetItem, { opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <Feather name="edit-2" size={18} color={theme.text} />
-                  <ThemedText style={styles.sheetItemText}>Edit Caption</ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={handleSheetDelete}
-                  style={({ pressed }) => [styles.sheetItem, { opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <Feather name="trash-2" size={18} color="#FF3B30" />
-                  <ThemedText style={[styles.sheetItemText, { color: "#FF3B30" }]}>
-                    Delete Post
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  onPress={() => setSheetVisible(false)}
-                  style={({ pressed }) => [styles.sheetItem, styles.sheetItemCancel, { opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <ThemedText style={[styles.sheetItemText, { color: theme.textSecondary }]}>
-                    Cancel
-                  </ThemedText>
-                </Pressable>
-              </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  closeButton: {
-    padding: 4,
+    backgroundColor: "#000000",
   },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  scrollContent: {
-    paddingBottom: Spacing.xl,
+  closeButton: {
+    position: "absolute",
+    top: 56,
+    left: Spacing.md,
+    padding: 6,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 18,
   },
-  mediaContainer: {
-    backgroundColor: "#000000",
-    position: "relative",
-  },
-  media: {
-    width: "100%",
-    height: "100%",
-  },
-  playOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
+  editOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
   },
-  body: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
+  editPanel: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
   },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  avatarPlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitial: {
-    color: "#000000",
+  editTitle: {
     fontSize: 16,
-    fontWeight: "bold",
-  },
-  authorInfo: {
-    marginLeft: Spacing.sm,
-  },
-  authorName: {
-    fontSize: 15,
     fontWeight: "600",
-  },
-  authorBadge: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.lg,
     marginBottom: Spacing.sm,
-  },
-  actionButton: {
-    padding: 4,
-  },
-  moreButton: {
-    marginLeft: "auto",
-    padding: 4,
-  },
-  likesCount: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  caption: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  editContainer: {
-    marginTop: Spacing.xs,
   },
   editInput: {
     fontSize: 14,
@@ -544,47 +518,5 @@ const styles = StyleSheet.create({
   },
   editActionButton: {
     padding: 4,
-  },
-  captionAuthor: {
-    fontWeight: "600",
-  },
-  viewComments: {
-    fontSize: 14,
-    marginTop: Spacing.xs,
-  },
-  sheetOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  sheetPanel: {
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xl,
-    paddingHorizontal: Spacing.md,
-  },
-  sheetGrabber: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(128, 128, 128, 0.4)",
-    alignSelf: "center",
-    marginBottom: Spacing.sm,
-  },
-  sheetItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  sheetItemText: {
-    fontSize: 16,
-  },
-  sheetItemCancel: {
-    borderTopWidth: 1,
-    borderTopColor: "rgba(128, 128, 128, 0.2)",
-    marginTop: Spacing.xs,
-    paddingTop: Spacing.md,
   },
 });
