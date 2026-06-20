@@ -14,6 +14,8 @@ import {
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image } from "expo-image";
 
 import apiClient, { ApiPost } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -93,12 +95,14 @@ export default function PostDetailScreen() {
   const { user, getToken } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { getPhotographer } = useData();
+  const insets = useSafeAreaInsets();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(false);
+  const [profileName, setProfileName] = useState("");
 
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editedCaption, setEditedCaption] = useState("");
@@ -119,6 +123,8 @@ export default function PostDetailScreen() {
           apiClient.getPublicUser(userId),
         ]);
         if (cancelled) return;
+
+        setProfileName(author.name || author.username || "");
 
         const converted = apiPosts.map((p) => convertApiPost(p, author));
         setPosts(converted);
@@ -354,7 +360,7 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        <View style={{ height: PULSE_CARD_HEIGHT, justifyContent: "center" }}>
+        <View style={{ height: PULSE_CARD_HEIGHT }}>
           <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
@@ -391,6 +397,9 @@ export default function PostDetailScreen() {
     ]
   );
 
+  const activePost = posts[activeIndex];
+  const showCommentBar = !!activePost && activePost.displayLayout !== "pulse";
+
   return (
     <View style={styles.root}>
       {loading ? (
@@ -425,13 +434,43 @@ export default function PostDetailScreen() {
         />
       )}
 
-      <Pressable
-        onPress={() => navigation.goBack()}
-        style={styles.closeButton}
-        hitSlop={16}
-      >
-        <Feather name="x" size={26} color="#FFFFFF" />
-      </Pressable>
+      <View style={[styles.navBar, { paddingTop: insets.top, backgroundColor: theme.backgroundRoot ?? "#080C08" }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.navBackButton} hitSlop={16}>
+          <Feather name="chevron-left" size={26} color="#FFFFFF" />
+        </Pressable>
+        <View style={styles.navTitleBlock}>
+          <ThemedText style={styles.navTitle}>Posts</ThemedText>
+          {profileName ? (
+            <ThemedText style={styles.navSubtitle}>{profileName}</ThemedText>
+          ) : null}
+        </View>
+        <View style={styles.navSpacer} />
+      </View>
+
+      {showCommentBar && (
+        <View style={[styles.commentBar, { paddingBottom: insets.bottom + Spacing.sm }]}>
+          {/* Visual anchor — live comment posting wired in follow-up. */}
+          {user?.avatar || user?.profileImageUrl ? (
+            <Image
+              source={{ uri: user?.avatar || user?.profileImageUrl }}
+              style={styles.commentAvatar}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={[styles.commentAvatar, styles.commentAvatarPlaceholder]}>
+              <ThemedText style={styles.commentAvatarInitial}>
+                {(user?.displayName || user?.username || "?").charAt(0).toUpperCase()}
+              </ThemedText>
+            </View>
+          )}
+          <Pressable
+            style={styles.commentInputPlaceholder}
+            onPress={() => activePost && handleComment(activePost)}
+          >
+            <ThemedText style={styles.commentInputText}>Add a comment…</ThemedText>
+          </Pressable>
+        </View>
+      )}
 
       <Modal
         visible={editingPostId !== null}
@@ -483,13 +522,78 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  closeButton: {
+  navBar: {
     position: "absolute",
-    top: 56,
-    left: Spacing.md,
-    padding: 6,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    borderRadius: 18,
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  navBackButton: {
+    width: 36,
+    padding: 4,
+  },
+  navTitleBlock: {
+    flex: 1,
+    alignItems: "center",
+  },
+  navTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  navSubtitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  navSpacer: {
+    width: 36,
+  },
+  commentBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    backgroundColor: "rgba(8,12,8,0.92)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.12)",
+  },
+  commentAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  commentAvatarPlaceholder: {
+    backgroundColor: "#D4A84B",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  commentAvatarInitial: {
+    color: "#000000",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  commentInputPlaceholder: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  commentInputText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 14,
   },
   editOverlay: {
     flex: 1,
