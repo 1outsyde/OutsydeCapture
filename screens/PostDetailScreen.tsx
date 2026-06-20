@@ -24,8 +24,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-// TEMP PREVIEW — replaced in 5b
-import ProfilePagerCard from "@/components/ProfilePagerCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -97,10 +95,6 @@ export default function PostDetailScreen() {
   const [editedCaption, setEditedCaption] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
-
-  // TEMP PREVIEW — replaced in 5b
-  const [isSaved, setIsSaved] = useState(false);
-  const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -277,7 +271,6 @@ export default function PostDetailScreen() {
         </Pressable>
       </View>
 
-      {/* TEMP PREVIEW — replaced in 5b. Original render restored/replaced there.
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator color={theme.brandGold ?? theme.text} />
@@ -437,46 +430,6 @@ export default function PostDetailScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-      */}
-
-      {/* TEMP PREVIEW — replaced in 5b */}
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={theme.brandGold ?? theme.text} />
-        </View>
-      ) : error || !post ? (
-        <View style={styles.centered}>
-          <ThemedText style={{ color: theme.textSecondary }}>
-            {error || "Post not found."}
-          </ThemedText>
-        </View>
-      ) : (
-        <ProfilePagerCard
-          post={post}
-          author={
-            author
-              ? {
-                  name: authorName,
-                  avatarUrl: authorAvatar,
-                  username: author?.username,
-                }
-              : null
-          }
-          isOwner={isOwner}
-          isActive
-          isLiked={isLiked}
-          likesCount={likesCount}
-          isSaved={isSaved}
-          muted={muted}
-          onToggleMute={() => setMuted((m) => !m)}
-          onLike={handleLikeToggle}
-          onComment={() => {}}
-          onSave={(_postId, currentlySaved) => setIsSaved(!currentlySaved)}
-          onActionPress={() => {}}
-          onEdit={handleStartEdit}
-          onDelete={handleDelete}
-        />
-      )}
     </SafeAreaView>
   );
 }
