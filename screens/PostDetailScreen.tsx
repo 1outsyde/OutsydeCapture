@@ -53,6 +53,9 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
   const providerId =
     apiPost.providerId || apiPost.taggedPhotographerId || apiPost.taggedBusinessId;
 
+  const layout = apiPost.displayLayout || apiPost.feedSurface;
+  const isVideoPost = layout === "pulse";
+
   return {
     id: apiPost.id,
     type: postType,
@@ -65,8 +68,8 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     subscriptionTier: undefined,
     rating: 0,
     reviewCount: 0,
-    image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
-    videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
+    image: apiPost.imageUrl || (isVideoPost ? "" : apiPost.mediaUrl) || (apiPost.images && apiPost.images[0]) || "",
+    videoUrl: isVideoPost ? (apiPost.videoUrl || apiPost.mediaUrl) : undefined,
     displayLayout: (apiPost.displayLayout || apiPost.feedSurface) as ("pro" | "pulse" | undefined),
     caption: apiPost.content || "",
     likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
@@ -333,43 +336,42 @@ export default function PostDetailScreen() {
       const isSaved = isFavorite(item.id, isVendor ? "product" : "photographer");
       const isVideo = item.displayLayout === "pulse";
 
-      return (
+      return isVideo ? (
         <View style={{ height: PULSE_CARD_HEIGHT }}>
-          {isVideo ? (
-            <PulseVideoCard
-              post={item}
-              isActive={index === activeIndex}
-              muted={muted}
-              onToggleMute={() => setMuted((m) => !m)}
-              isLiked={item.isLiked}
-              isSaved={isSaved}
-              onLike={handleLike}
-              onComment={handleComment}
-              onBookmark={handleSave}
-              onAuthorPress={handleAuthorPress}
-              onActionPress={handleActionPress}
-              onEngagement={() => {}}
-            />
-          ) : (
-            <ProFeedCard
-              post={item}
-              isVisible={index === activeIndex}
-              isSaved={isSaved}
-              onLike={handleLike}
-              onComment={handleComment}
-              onSave={handleSave}
-              onAuthorPress={handleAuthorPress}
-              onActionPress={handleActionPress}
-              onDelete={handleDelete}
-              onReport={handleReport}
-              onEdit={handleEdit}
-              currentUserId={user?.id}
-              isAdmin={(user as any)?.isAdmin}
-              muted={muted}
-              onToggleMute={() => setMuted((m) => !m)}
-              fullScreen
-            />
-          )}
+          <PulseVideoCard
+            post={item}
+            isActive={index === activeIndex}
+            muted={muted}
+            onToggleMute={() => setMuted((m) => !m)}
+            isLiked={item.isLiked}
+            isSaved={isSaved}
+            onLike={handleLike}
+            onComment={handleComment}
+            onBookmark={handleSave}
+            onAuthorPress={handleAuthorPress}
+            onActionPress={handleActionPress}
+            onEngagement={() => {}}
+          />
+        </View>
+      ) : (
+        <View style={{ height: PULSE_CARD_HEIGHT, justifyContent: "center" }}>
+          <ProFeedCard
+            post={item}
+            isVisible={index === activeIndex}
+            isSaved={isSaved}
+            onLike={handleLike}
+            onComment={handleComment}
+            onSave={handleSave}
+            onAuthorPress={handleAuthorPress}
+            onActionPress={handleActionPress}
+            onDelete={handleDelete}
+            onReport={handleReport}
+            onEdit={handleEdit}
+            currentUserId={user?.id}
+            isAdmin={(user as any)?.isAdmin}
+            muted={muted}
+            onToggleMute={() => setMuted((m) => !m)}
+          />
         </View>
       );
     },
