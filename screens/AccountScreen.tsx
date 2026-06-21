@@ -28,7 +28,6 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -53,7 +52,6 @@ import apiClient, {
   VendorBookerPhotographerService,
   WeeklyAvailabilitySlot,
 } from "@/services/api";
-import { uploadImage, uploadVideo } from "@/services/mediaUpload";
 import { feedEvents } from "@/services/feedEvents";
 
 const COLORS = {
@@ -461,11 +459,6 @@ export default function AccountScreen() {
   const [reviews, setReviews] = useState<ReviewCard[]>([]);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [showCreatePost, setShowCreatePost] = useState(false);
-  const [newPostImage, setNewPostImage] = useState<string>("");
-  const [newPostCaption, setNewPostCaption] = useState("");
-  const [newPostLayout, setNewPostLayout] = useState<"pro" | "pulse" | null>(null);
-  const [postSaving, setPostSaving] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
 
@@ -1173,6 +1166,13 @@ export default function AccountScreen() {
     loadProfile();
   }, [loadProfile]);
 
+  useEffect(() => {
+    const unsub = feedEvents.subscribe(() => {
+      loadProfile();
+    });
+    return unsub;
+  }, [loadProfile]);
+
   const tabList = useMemo<ProfileTab[]>(
     () => (profile ? tabsForRole(profile) : ["posts"]),
     [profile],
@@ -1228,100 +1228,6 @@ export default function AccountScreen() {
     }
     (navigation as any).navigate("EditProfile");
   }, [navigation, profile]);
-
-  const openCreatePost = useCallback(() => {
-    if (!isOwner || !profile || !user?.id || profile.role === "consumer") return;
-    setShowCreatePost(true);
-  }, [isOwner, profile, user?.id]);
-
-  const handlePickPostImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Required", "Please allow access to your photo library.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setNewPostImage(asset.uri);
-      const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
-      setNewPostLayout(isVideo ? "pulse" : "pro");
-    }
-  };
-
-  const handleCreatePost = async () => {
-    if (!newPostImage) {
-      Alert.alert("No Media", "Please select a photo or video for your post.");
-      return;
-    }
-    if (!newPostLayout) {
-      Alert.alert("Layout Required", "Please select a photo or video first.");
-      return;
-    }
-    const authToken = await getToken();
-    if (!authToken) {
-      Alert.alert("Error", "You must be logged in to create a post.");
-      return;
-    }
-    setPostSaving(true);
-    try {
-      const isVideo = newPostLayout === "pulse";
-      const postData: {
-        imageUrl?: string;
-        videoUrl?: string;
-        mediaType?: "image" | "video";
-        content?: string;
-        displayLayout?: "pro" | "pulse";
-        feedSurface?: "pro" | "pulse";
-      } = {
-        content: newPostCaption.trim() || " ",
-        displayLayout: newPostLayout,
-        feedSurface: newPostLayout,
-      };
-      if (isVideo) {
-        const uploadResult = await uploadVideo(newPostImage, "video/mp4", authToken);
-        if (!uploadResult.uploadId) throw new Error("Failed to upload video. Please try again.");
-        postData.videoUrl = uploadResult.uploadId;
-        postData.mediaType = "video";
-      } else {
-        const uploadResult = await uploadImage(newPostImage, "image/jpeg", "posts", authToken);
-        if (!uploadResult.url) throw new Error("Failed to upload image. Please try again.");
-        postData.imageUrl = uploadResult.url;
-      }
-      const response = await apiClient.createPost(authToken, postData);
-      if (response.post) {
-        const newCard: PostCard = {
-          id: String(response.post.id),
-          label: response.post.content?.trim() || "",
-          likes: 0,
-          mediaUrl: response.post.imageUrl || response.post.videoUrl || undefined,
-          mediaType: isVideo ? "video" : "image",
-          aspect: "square",
-        };
-        setPosts((prev) => [newCard, ...prev]);
-      }
-      setNewPostImage("");
-      setNewPostCaption("");
-      setNewPostLayout(null);
-      setShowCreatePost(false);
-      Alert.alert(
-        "Post Shared!",
-        isVideo ? "Your video is now live on the Pulse feed!" : "Your post is now live on the Pro feed!",
-        [{ text: "OK" }],
-      );
-      feedEvents.emitRefresh(isVideo ? "pulse" : "pro");
-    } catch (error: any) {
-      console.error("[AccountScreen] Failed to create post:", error);
-      Alert.alert("Error", error.message || "Failed to create post. Please try again.");
-    } finally {
-      setPostSaving(false);
-    }
-  };
 
   const postCellWidth = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 8) / 3;
 
@@ -1623,7 +1529,7 @@ export default function AccountScreen() {
                       backgroundColor: "rgba(255,255,255,0.03)",
                     },
                   ]}
-                  onPress={openCreatePost}
+                  onPress={() => navigation.navigate("CreatePost")}
                 >
                   <Feather name="plus" size={20} color={accentColor} />
                   <Text style={[styles.addPostLabel, { color: accentColor }]}>
@@ -1690,7 +1596,7 @@ export default function AccountScreen() {
             {isOwner ? (
               <Pressable
                 style={[styles.emptyCta, { backgroundColor: accentColor }]}
-                onPress={openCreatePost}
+                onPress={() => navigation.navigate("CreatePost")}
               >
                 <Text style={styles.emptyCtaText}>Post</Text>
               </Pressable>
@@ -2165,64 +2071,6 @@ Booking flow coming soon.`,
         }
       />
 
-      <Modal visible={isOwner && showCreatePost} animationType="slide" transparent>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-            <View style={{ backgroundColor: "#111111", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <Text style={{ color: COLORS.white, fontSize: 18, fontWeight: "800" }}>Create Post</Text>
-                <Pressable onPress={() => { setShowCreatePost(false); setNewPostImage(""); setNewPostCaption(""); setNewPostLayout(null); }}>
-                  <Feather name="x" size={24} color={COLORS.white} />
-                </Pressable>
-              </View>
-
-              <Pressable
-                onPress={handlePickPostImage}
-                style={{ width: "100%", aspectRatio: 1, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 16, overflow: "hidden" }}
-              >
-                {newPostImage ? (
-                  newPostLayout === "pulse" ? (
-                    <View style={{ width: "100%", height: "100%", backgroundColor: "#1a1a1a", alignItems: "center", justifyContent: "center" }}>
-                      <Feather name="video" size={48} color="rgba(255,255,255,0.7)" />
-                      <Text style={{ color: "rgba(255,255,255,0.7)", marginTop: 8, fontSize: 14 }}>Video selected</Text>
-                    </View>
-                  ) : (
-                    <Image source={{ uri: newPostImage }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                  )
-                ) : (
-                  <View style={{ alignItems: "center" }}>
-                    <Feather name="image" size={48} color={COLORS.grayLight} />
-                    <Text style={{ color: COLORS.grayLight, marginTop: 8, fontSize: 14 }}>Tap to select photo or video</Text>
-                  </View>
-                )}
-              </Pressable>
-
-              <TextInput
-                value={newPostCaption}
-                onChangeText={setNewPostCaption}
-                placeholder="Write a caption..."
-                placeholderTextColor={COLORS.grayLight}
-                multiline
-                returnKeyType="done"
-                onSubmitEditing={() => Keyboard.dismiss()}
-                style={{ backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, padding: 14, color: COLORS.white, minHeight: 80, textAlignVertical: "top", marginBottom: 16, fontSize: 14 }}
-              />
-
-              <Pressable
-                onPress={handleCreatePost}
-                disabled={postSaving || !newPostImage}
-                style={{ backgroundColor: postSaving || !newPostImage ? COLORS.grayMid : accentColor, paddingVertical: 16, borderRadius: 12, alignItems: "center", opacity: postSaving || !newPostImage ? 0.5 : 1 }}
-              >
-                {postSaving ? (
-                  <Text style={{ color: COLORS.black, fontWeight: "800", fontSize: 15 }}>Sharing...</Text>
-                ) : (
-                  <Text style={{ color: COLORS.black, fontWeight: "800", fontSize: 15 }}>Share Post</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
     </SafeAreaView>
   );
 }
