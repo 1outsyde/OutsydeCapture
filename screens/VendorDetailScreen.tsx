@@ -100,6 +100,7 @@ type PostCard = {
   mediaType: "image" | "video";
   aspect: "portrait" | "square";
   displayLayout?: "pro" | "pulse";
+  authorUserId?: string;
 };
 
 type ServiceCard = {
@@ -308,7 +309,7 @@ const scoreToStars = (rating: number): number => {
   return rating > 5 ? Math.round(rating / 10) : Math.round(rating);
 };
 
-const normalizePosts = (posts: ApiPost[]): PostCard[] =>
+const normalizePosts = (posts: ApiPost[], ownerId?: string): PostCard[] =>
   posts.map((post, index) => {
     const mediaType =
       post.mediaType === "video" || (!!post.videoUrl && !post.imageUrl)
@@ -328,6 +329,7 @@ const normalizePosts = (posts: ApiPost[]): PostCard[] =>
       mediaType,
       aspect: index % 3 === 0 ? "portrait" : "square",
       displayLayout: post.displayLayout || undefined,
+      authorUserId: post.userId || post.authorId || ownerId,
     };
   });
 
@@ -613,7 +615,7 @@ export default function VendorDetailScreen({ route }: Props) {
             reviewCount: Number(item.reviewCount ?? 0),
           }));
 
-        resolvedPosts = normalizePosts(postResponse.posts || []);
+        resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
 
         const brandColors = parseBrandColors((business as any).brandColors);
         const hasProducts = liveProducts.length > 0;
@@ -758,7 +760,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 reviewCount: Number((item as any).reviewCount ?? 0),
               }));
 
-            resolvedPosts = normalizePosts(postResponse.posts || []);
+            resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
 
             resolvedProfile = {
               id: String(photographer.id ?? vendorId),
@@ -1016,7 +1018,7 @@ export default function VendorDetailScreen({ route }: Props) {
             const postResponse = await apiClient
               .getProfilePosts(vendorId, { limit: 60 })
               .catch(() => ({ posts: [] }));
-            resolvedPosts = normalizePosts(postResponse.posts || []);
+            resolvedPosts = normalizePosts(postResponse.posts || [], String(user.id));
             const avatarUrl =
               user.avatarUrl || user.profileImageUrl || undefined;
             resolvedProfile = {
@@ -1058,7 +1060,7 @@ export default function VendorDetailScreen({ route }: Props) {
             const postResponse = await apiClient
               .getProfilePosts(vendorId, { limit: 60 })
               .catch(() => ({ posts: [] }));
-            resolvedPosts = normalizePosts(postResponse.posts || []);
+            resolvedPosts = normalizePosts(postResponse.posts || [], vendorId);
             resolvedProfile = {
               id: vendorId,
               role: "consumer",
@@ -1560,7 +1562,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 ]}
                 onPress={() => {
                   navigation.navigate("PostDetail", {
-                    userId: profile?.userId || profile?.id || vendorId,
+                    userId: post.authorUserId || profile?.userId || profile?.id || vendorId,
                     initialPostId: post.id,
                   });
                 }}
