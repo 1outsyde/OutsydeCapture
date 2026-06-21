@@ -38,7 +38,6 @@ export default function CreatePostScreen() {
   const [postSaving, setPostSaving] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  const canCreatePosts = user?.role !== "consumer";
   const canAttach = user?.role === "business" || user?.role === "photographer";
 
   const handlePickPostImage = async () => {
@@ -117,28 +116,6 @@ export default function CreatePostScreen() {
       setPostSaving(false);
     }
   };
-
-  if (!canCreatePosts) {
-    return (
-      <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
-            <Feather name="x" size={24} color={theme.brandCream} />
-          </Pressable>
-          <ThemedText type="h4" style={{ flex: 1, textAlign: "center", color: theme.brandCream }}>
-            Create Post
-          </ThemedText>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={styles.notAvailable}>
-          <Feather name="lock" size={40} color={theme.brandTextDim} />
-          <ThemedText type="body" style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.md }}>
-            Posting is available for businesses and photographers.
-          </ThemedText>
-        </View>
-      </ThemedView>
-    );
-  }
 
   const handleClose = () => {
     setPostImage("");
