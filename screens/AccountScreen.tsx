@@ -18,14 +18,11 @@ import {
   Alert,
   Animated,
   Dimensions,
-  Keyboard,
-  Modal,
   Pressable,
   Share,
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import {
