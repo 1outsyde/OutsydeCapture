@@ -36,8 +36,9 @@ export default function CreatePostScreen() {
   const [postCaption, setPostCaption] = useState("");
   const [postLayout, setPostLayout] = useState<"pro" | "pulse" | null>(null);
   const [postSaving, setPostSaving] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  const canCreatePosts = user?.role !== "consumer";
+  const canAttach = user?.role === "business" || user?.role === "photographer";
 
   const handlePickPostImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -116,101 +117,165 @@ export default function CreatePostScreen() {
     }
   };
 
-  if (!canCreatePosts) {
-    return (
-      <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
-            <Feather name="x" size={24} color={theme.brandCream} />
-          </Pressable>
-          <ThemedText type="h4" style={{ flex: 1, textAlign: "center", color: theme.brandCream }}>
-            Create Post
-          </ThemedText>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={styles.notAvailable}>
-          <Feather name="lock" size={40} color={theme.brandTextDim} />
-          <ThemedText type="body" style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.md }}>
-            Posting is available for businesses and photographers.
-          </ThemedText>
-        </View>
-      </ThemedView>
-    );
-  }
+  const handleClose = () => {
+    setPostImage("");
+    setPostCaption("");
+    setPostLayout(null);
+    setStep(1);
+    navigation.goBack();
+  };
+
+  const renderShareButton = () => (
+    <Pressable
+      onPress={handleCreatePost}
+      disabled={postSaving || !postImage}
+      style={[
+        styles.footerButton,
+        {
+          backgroundColor: theme.brandPrimary,
+          opacity: postSaving || !postImage ? 0.5 : 1,
+        },
+      ]}
+    >
+      {postSaving ? (
+        <ActivityIndicator size="small" color={theme.brandPrimaryText} />
+      ) : (
+        <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
+          Share Post
+        </ThemedText>
+      )}
+    </Pressable>
+  );
 
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable
-          onPress={() => {
-            setPostImage("");
-            setPostCaption("");
-            setPostLayout(null);
-            navigation.goBack();
-          }}
-          hitSlop={16}
-        >
-          <Feather name="x" size={24} color={theme.brandCream} />
-        </Pressable>
+        {step === 1 ? (
+          <Pressable onPress={handleClose} hitSlop={16}>
+            <Feather name="x" size={24} color={theme.brandCream} />
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => setStep(step === 3 ? 2 : 1)} hitSlop={16}>
+            <Feather name="chevron-left" size={24} color={theme.brandCream} />
+          </Pressable>
+        )}
         <ThemedText type="h4" style={{ flex: 1, textAlign: "center", color: theme.brandCream }}>
           Create Post
         </ThemedText>
         <View style={{ width: 24 }} />
       </View>
 
-      <Pressable
-        onPress={handlePickPostImage}
-        style={[styles.mediaPicker, { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder }]}
-      >
-        {postImage ? (
-          postLayout === "pulse" ? (
-            <View style={styles.videoSelected}>
-              <Feather name="video" size={32} color={theme.brandGold} />
-              <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                Video selected
+      {step === 1 && (
+        <>
+          <Pressable
+            onPress={handlePickPostImage}
+            style={[styles.mediaPicker, { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder }]}
+          >
+            {postImage ? (
+              postLayout === "pulse" ? (
+                <View style={styles.videoSelected}>
+                  <Feather name="video" size={32} color={theme.brandGold} />
+                  <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
+                    Video selected
+                  </ThemedText>
+                </View>
+              ) : (
+                <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
+              )
+            ) : (
+              <View style={styles.mediaEmpty}>
+                <Feather name="image" size={32} color={theme.brandTextDim} />
+                <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
+                  Tap to select a photo or video
+                </ThemedText>
+              </View>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => setStep(2)}
+            disabled={!postImage}
+            style={[
+              styles.footerButton,
+              { backgroundColor: theme.brandPrimary, opacity: !postImage ? 0.5 : 1 },
+            ]}
+          >
+            <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
+              Next
+            </ThemedText>
+          </Pressable>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <View
+            style={[
+              styles.detailsThumbnail,
+              { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+            ]}
+          >
+            {postLayout === "pulse" ? (
+              <View style={styles.videoSelected}>
+                <Feather name="video" size={20} color={theme.brandGold} />
+                <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: Spacing.xs }}>
+                  Video selected
+                </ThemedText>
+              </View>
+            ) : (
+              <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
+            )}
+          </View>
+
+          <TextInput
+            style={[styles.captionInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder }]}
+            placeholder="Write a caption..."
+            placeholderTextColor={theme.brandTextDim}
+            value={postCaption}
+            onChangeText={setPostCaption}
+            multiline
+          />
+
+          {canAttach ? (
+            <Pressable
+              onPress={() => setStep(3)}
+              style={[styles.footerButton, { backgroundColor: theme.brandPrimary }]}
+            >
+              <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
+                Next
+              </ThemedText>
+            </Pressable>
+          ) : (
+            renderShareButton()
+          )}
+        </>
+      )}
+
+      {step === 3 && canAttach && (
+        <>
+          <View style={styles.attachContent}>
+            <ThemedText type="h4" style={{ color: theme.brandCream, textAlign: "center" }}>
+              {user?.role === "photographer" ? "Attach a service?" : "Attach a product or service?"}
+            </ThemedText>
+            <View
+              style={[
+                styles.attachPlaceholder,
+                { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+              ]}
+            >
+              <Feather name="tag" size={28} color={theme.brandTextDim} />
+              <ThemedText
+                type="body"
+                style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.md }}
+              >
+                Coming soon — you'll be able to attach your live products and services here.
               </ThemedText>
             </View>
-          ) : (
-            <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
-          )
-        ) : (
-          <View style={styles.mediaEmpty}>
-            <Feather name="image" size={32} color={theme.brandTextDim} />
-            <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-              Tap to select a photo or video
-            </ThemedText>
           </View>
-        )}
-      </Pressable>
 
-      <TextInput
-        style={[styles.captionInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder }]}
-        placeholder="Write a caption..."
-        placeholderTextColor={theme.brandTextDim}
-        value={postCaption}
-        onChangeText={setPostCaption}
-        multiline
-      />
-
-      <Pressable
-        onPress={handleCreatePost}
-        disabled={postSaving || !postImage}
-        style={[
-          styles.shareButton,
-          {
-            backgroundColor: theme.brandPrimary,
-            opacity: postSaving || !postImage ? 0.5 : 1,
-          },
-        ]}
-      >
-        {postSaving ? (
-          <ActivityIndicator size="small" color={theme.brandPrimaryText} />
-        ) : (
-          <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
-            Share Post
-          </ThemedText>
-        )}
-      </Pressable>
+          {renderShareButton()}
+        </>
+      )}
     </ThemedView>
   );
 }
@@ -263,11 +328,35 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlignVertical: "top",
   },
-  shareButton: {
+  footerButton: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
     height: 48,
     borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailsThumbnail: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    height: 120,
+    width: 120,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachContent: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+  },
+  attachPlaceholder: {
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    paddingVertical: Spacing["2xl"],
+    paddingHorizontal: Spacing.lg,
     alignItems: "center",
     justifyContent: "center",
   },
