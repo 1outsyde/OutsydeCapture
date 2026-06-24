@@ -193,6 +193,9 @@ export default function NotificationsScreen() {
     },
     notificationCard: {
       padding: Spacing.md,
+      borderLeftWidth: 3,
+      borderTopLeftRadius: 0,
+      borderBottomLeftRadius: 0,
     },
     notificationPressable: {
       flexDirection: "row",
@@ -355,7 +358,22 @@ export default function NotificationsScreen() {
         ) : (
           <View style={styles.notificationList}>
             {notifications.map((notification) => (
-              <Card key={notification.id} style={styles.notificationCard}>
+              <Card
+                key={notification.id}
+                style={
+                  [
+                    styles.notificationCard,
+                    {
+                      borderLeftColor: notification.read
+                        ? "transparent"
+                        : theme.brandGold,
+                      backgroundColor: notification.read
+                        ? undefined
+                        : theme.primaryTransparent,
+                    },
+                  ] as any
+                }
+              >
                 <Pressable
                   style={styles.notificationPressable}
                   onPress={() => handleNotificationPress(notification)}
