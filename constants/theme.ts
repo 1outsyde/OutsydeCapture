@@ -92,7 +92,7 @@ export const Colors = {
     brandSurfaceBorder: "rgba(255,255,255,0.08)",
     brandPrimary:       "#1A3C34",
     brandPrimaryText:   "#F0EAD6",
-    brandGold:          "#C9933A",
+    brandGold:          "#E8B930",
     brandGoldDim:       "#C9A84C",
     brandCream:         "#F0EAD6",
     brandTextDim:       "rgba(200,191,168,0.6)",
