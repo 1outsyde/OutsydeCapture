@@ -228,7 +228,7 @@ export default function NotificationsScreen() {
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandGold,
       marginLeft: Spacing.xs,
     },
     emptyState: {
@@ -283,9 +283,9 @@ export default function NotificationsScreen() {
             onValueChange={handleToggleNotifications}
             trackColor={{
               false: theme.surfaceSecondary,
-              true: theme.primaryLight,
+              true: theme.brandGold,
             }}
-            thumbColor={isEnabled ? theme.primary : theme.textSecondary}
+            thumbColor={isEnabled ? theme.brandPrimaryText : theme.textSecondary}
           />
         </Card>
 
@@ -318,7 +318,7 @@ export default function NotificationsScreen() {
                 >
                   <ThemedText
                     type="caption"
-                    style={[styles.actionButtonText, { color: theme.primary }]}
+                    style={[styles.actionButtonText, { color: theme.brandGold }]}
                   >
                     Mark all read
                   </ThemedText>
@@ -392,7 +392,7 @@ export default function NotificationsScreen() {
                       name={getNotificationIcon(notification.type)}
                       size={20}
                       color={
-                        notification.read ? theme.textSecondary : theme.primary
+                        notification.read ? theme.textSecondary : theme.brandGold
                       }
                     />
                   </View>
