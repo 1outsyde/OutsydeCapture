@@ -3041,6 +3041,7 @@ class ApiService {
     taggedPhotographerId?: string;
     photographerServiceId?: string;
     productId?: string;
+    serviceId?: string;
     displayLayout?: "pro" | "pulse";
     feedSurface?: "pro" | "pulse";
   }): Promise<{ post: ApiPost }> {
