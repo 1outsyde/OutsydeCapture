@@ -182,8 +182,9 @@ export default function NotificationsScreen() {
     actionButton: {
       paddingVertical: Spacing.xs,
       paddingHorizontal: Spacing.sm,
-      backgroundColor: theme.surfaceSecondary,
-      borderRadius: BorderRadius.sm,
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderRadius: BorderRadius.round,
     },
     actionButtonText: {
       fontSize: FontSizes.xs,
@@ -313,7 +314,7 @@ export default function NotificationsScreen() {
             <View style={styles.actionButtons}>
               {unreadCount > 0 ? (
                 <Pressable
-                  style={styles.actionButton}
+                  style={[styles.actionButton, { borderColor: theme.brandGold }]}
                   onPress={markAllAsRead}
                 >
                   <ThemedText
@@ -325,10 +326,13 @@ export default function NotificationsScreen() {
                 </Pressable>
               ) : null}
               <Pressable
-                style={styles.actionButton}
+                style={[styles.actionButton, { borderColor: theme.textSecondary }]}
                 onPress={clearNotifications}
               >
-                <ThemedText type="caption" style={styles.actionButtonText}>
+                <ThemedText
+                  type="caption"
+                  style={[styles.actionButtonText, { color: theme.textSecondary }]}
+                >
                   Clear all
                 </ThemedText>
               </Pressable>
