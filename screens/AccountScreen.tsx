@@ -1537,10 +1537,7 @@ export default function AccountScreen() {
             }
 
             const typedCell = cell as PostCard & { isAdd: false };
-            const cellHeight =
-              typedCell.aspect === "portrait"
-                ? postCellWidth * 1.33
-                : postCellWidth;
+            const cellHeight = postCellWidth;
             return (
               <Pressable
                 key={typedCell.id}
