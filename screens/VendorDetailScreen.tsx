@@ -1551,8 +1551,7 @@ export default function VendorDetailScreen({ route }: Props) {
       <View style={styles.tabContent}>
         <View style={styles.mediaGrid}>
           {posts.map((post) => {
-            const cellHeight =
-              post.aspect === "portrait" ? postCellWidth * 1.33 : postCellWidth;
+            const cellHeight = postCellWidth;
             return (
               <Pressable
                 key={post.id}
