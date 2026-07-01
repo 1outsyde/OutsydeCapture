@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Pressable,
@@ -6,6 +6,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -38,7 +39,57 @@ export default function CreatePostScreen() {
   const [postSaving, setPostSaving] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
+  type AttachType = "product" | "service" | "photographerService";
+  type AttachItem = { type: AttachType; id: string; name: string; priceCents: number | null };
+
+  const [attachItems, setAttachItems] = useState<AttachItem[]>([]);
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [selectedAttach, setSelectedAttach] = useState<{ type: AttachType; id: string } | null>(null);
+
   const canAttach = user?.role === "business" || user?.role === "photographer";
+
+  useEffect(() => {
+    if (step !== 3 || attachItems.length > 0 || attachLoading) return;
+
+    const fetchAttachItems = async () => {
+      setAttachLoading(true);
+      setAttachError(null);
+      try {
+        const authToken = await getToken();
+        if (!authToken) {
+          setAttachError("You must be logged in to load your products and services.");
+          return;
+        }
+        if (user?.role === "business") {
+          const [productsRes, servicesRes] = await Promise.all([
+            apiClient.getVendorProducts(authToken),
+            apiClient.getVendorServices(authToken),
+          ]);
+          const liveProducts: AttachItem[] = productsRes.products
+            .filter((product) => product.status === "live")
+            .map((product) => ({ type: "product", id: product.id, name: product.name, priceCents: product.priceCents }));
+          const liveServices: AttachItem[] = servicesRes.services
+            .filter((service) => service.status === "live")
+            .map((service) => ({ type: "service", id: service.id, name: service.name, priceCents: service.priceCents }));
+          setAttachItems([...liveProducts, ...liveServices]);
+        } else if (user?.role === "photographer") {
+          const servicesRes = await apiClient.getPhotographerMeServices(authToken);
+          const liveServices: AttachItem[] = servicesRes.services
+            .filter((service) => service.status === "live")
+            .map((service) => ({ type: "photographerService", id: service.id, name: service.name, priceCents: service.priceCents ?? null }));
+          setAttachItems(liveServices);
+        }
+      } catch (error: any) {
+        console.error("[CreatePostScreen] Failed to load attach items:", error);
+        setAttachError("Couldn't load your products and services. You can still share your post.");
+      } finally {
+        setAttachLoading(false);
+      }
+    };
+
+    fetchAttachItems();
+  }, [step]);
 
   const handlePickPostImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -84,6 +135,9 @@ export default function CreatePostScreen() {
         content?: string;
         displayLayout?: "pro" | "pulse";
         feedSurface?: "pro" | "pulse";
+        productId?: string;
+        serviceId?: string;
+        photographerServiceId?: string;
       } = {
         content: postCaption.trim() || " ",
         displayLayout: postLayout,
@@ -98,6 +152,11 @@ export default function CreatePostScreen() {
         const uploadResult = await uploadImage(postImage, "image/jpeg", "posts", authToken);
         if (!uploadResult.url) throw new Error("Failed to upload image. Please try again.");
         postData.imageUrl = uploadResult.url;
+      }
+      if (selectedAttach) {
+        if (selectedAttach.type === "product") postData.productId = selectedAttach.id;
+        else if (selectedAttach.type === "service") postData.serviceId = selectedAttach.id;
+        else if (selectedAttach.type === "photographerService") postData.photographerServiceId = selectedAttach.id;
       }
       await apiClient.createPost(authToken, postData);
       setPostImage("");
@@ -122,6 +181,9 @@ export default function CreatePostScreen() {
     setPostCaption("");
     setPostLayout(null);
     setStep(1);
+    setSelectedAttach(null);
+    setAttachItems([]);
+    setAttachError(null);
     navigation.goBack();
   };
 
@@ -257,20 +319,83 @@ export default function CreatePostScreen() {
             <ThemedText type="h4" style={{ color: theme.brandCream, textAlign: "center" }}>
               {user?.role === "photographer" ? "Attach a service?" : "Attach a product or service?"}
             </ThemedText>
-            <View
-              style={[
-                styles.attachPlaceholder,
-                { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
-              ]}
-            >
-              <Feather name="tag" size={28} color={theme.brandTextDim} />
-              <ThemedText
-                type="body"
-                style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.md }}
+
+            {attachLoading ? (
+              <View style={styles.attachStatusBox}>
+                <ActivityIndicator size="small" color={theme.brandPrimary} />
+              </View>
+            ) : attachError ? (
+              <View
+                style={[
+                  styles.attachPlaceholder,
+                  { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+                ]}
               >
-                Coming soon — you'll be able to attach your live products and services here.
-              </ThemedText>
-            </View>
+                <Feather name="alert-circle" size={28} color={theme.brandTextDim} />
+                <ThemedText
+                  type="body"
+                  style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.md }}
+                >
+                  {attachError}
+                </ThemedText>
+              </View>
+            ) : attachItems.length === 0 ? (
+              <View
+                style={[
+                  styles.attachPlaceholder,
+                  { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+                ]}
+              >
+                <Feather name="tag" size={28} color={theme.brandTextDim} />
+                <ThemedText
+                  type="body"
+                  style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.md }}
+                >
+                  No live items to attach — you can still share your post.
+                </ThemedText>
+              </View>
+            ) : (
+              <ScrollView style={styles.attachList} showsVerticalScrollIndicator={false}>
+                {attachItems.map((item) => {
+                  const isSelected = selectedAttach?.type === item.type && selectedAttach?.id === item.id;
+                  const priceLabel = item.priceCents != null ? `$${(item.priceCents / 100).toFixed(2)}` : "—";
+                  return (
+                    <Pressable
+                      key={`${item.type}-${item.id}`}
+                      onPress={() => setSelectedAttach(isSelected ? null : { type: item.type, id: item.id })}
+                      style={[
+                        styles.attachRow,
+                        {
+                          backgroundColor: isSelected ? theme.brandPrimary : theme.brandSurface,
+                          borderColor: isSelected ? theme.brandPrimary : theme.brandSurfaceBorder,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        type="body"
+                        style={{ color: isSelected ? theme.brandPrimaryText : theme.brandCream, flex: 1 }}
+                      >
+                        {item.name}
+                      </ThemedText>
+                      <ThemedText
+                        type="body"
+                        style={{ color: isSelected ? theme.brandPrimaryText : theme.brandTextDim }}
+                      >
+                        {priceLabel}
+                      </ThemedText>
+                      {isSelected && (
+                        <Feather
+                          name="check-circle"
+                          size={18}
+                          color={theme.brandPrimaryText}
+                          style={{ marginLeft: Spacing.sm }}
+                        />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
 
           {renderShareButton()}
@@ -359,5 +484,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     alignItems: "center",
     justifyContent: "center",
+  },
+  attachStatusBox: {
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing["2xl"],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachList: {
+    marginTop: Spacing.lg,
+  },
+  attachRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
 });
