@@ -133,6 +133,7 @@ export default function BusinessSignupScreen() {
 
   const [offerType, setOfferType] = useState<"products" | "services" | "both" | "">("");
   const [isStartup, setIsStartup] = useState(false);
+  const [isMultiStaff, setIsMultiStaff] = useState(false);
 
   const [yearsInBusiness, setYearsInBusiness] = useState("");
   const [employeeCount, setEmployeeCount] = useState("");
@@ -281,6 +282,7 @@ export default function BusinessSignupScreen() {
       businessDescription,
       logoImage,
       isStartup,
+      isMultiStaff,
       yearsInBusiness,
       employeeCount,
       businessType,
@@ -346,6 +348,7 @@ export default function BusinessSignupScreen() {
       logoImage: businessDetailsPayload.logoImage,
       profileImageUrl: businessDetailsPayload.logoImage || undefined,
       isStartup: businessDetailsPayload.isStartup,
+      isMultiStaff: businessDetailsPayload.isMultiStaff,
       yearsInBusiness: businessDetailsPayload.yearsInBusiness,
       employeeCount: businessDetailsPayload.employeeCount,
       businessType: businessDetailsPayload.businessType,
@@ -620,7 +623,13 @@ export default function BusinessSignupScreen() {
               {OFFER_TYPES.map((offer) => (
                 <Pressable
                   key={offer.id}
-                  onPress={() => setOfferType(offer.id as "products" | "services" | "both")}
+                  onPress={() => {
+                    const nextOfferType = offer.id as "products" | "services" | "both";
+                    setOfferType(nextOfferType);
+                    if (nextOfferType === "products") {
+                      setIsMultiStaff(false);
+                    }
+                  }}
                   style={[
                     styles.offerCard,
                     {
@@ -655,6 +664,25 @@ export default function BusinessSignupScreen() {
                 trackColor={{ false: theme.border, true: theme.primary }}
               />
             </View>
+
+            {(offerType === "services" || offerType === "both") && (
+              <View style={[styles.switchRow, { marginTop: Spacing.xl }]}>
+                <View style={styles.switchContent}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>
+                    Do multiple team members each take their own appointments?
+                  </ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                    Choose No if one person manages and approves all bookings for the team (e.g. barbers,
+                    stylists, or tattoo artists who each book their own clients).
+                  </ThemedText>
+                </View>
+                <Switch
+                  value={isMultiStaff}
+                  onValueChange={setIsMultiStaff}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                />
+              </View>
+            )}
           </View>
         );
 

@@ -66,6 +66,7 @@ export interface SignupData {
   businessDescription?: string;
   offerType?: "products" | "services" | "both";
   isStartup?: boolean;
+  isMultiStaff?: boolean;
   yearsInBusiness?: string;
   employeeCount?: string;
   businessType?: string;
@@ -566,6 +567,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Business-specific fields
         offerType: data.offerType,
         isStartup: data.isStartup,
+        isMultiStaff: data.isMultiStaff,
         yearsInBusiness: data.yearsInBusiness,
         employeeCount: data.employeeCount,
         businessType: data.businessType,

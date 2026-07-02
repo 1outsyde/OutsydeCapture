@@ -989,6 +989,7 @@ export interface MobileSignupRequest {
   billingState?: string;
   billingZipCode?: string;
   isStartup?: boolean;
+  isMultiStaff?: boolean;
   yearsInBusiness?: string;
   employeeCount?: string;
   businessType?: string;
@@ -1039,6 +1040,7 @@ export interface VendorSignupRequest {
   businessDescription?: string;
   offerType: "products" | "services" | "both";
   isStartup?: boolean;
+  isMultiStaff?: boolean;
   yearsInBusiness?: string;
   employeeCount?: string;
   businessType?: string;
@@ -1445,6 +1447,7 @@ class ApiService {
         businessDescription: data.businessDescription,
         offerType: data.offerType || "both",
         isStartup: data.isStartup,
+        isMultiStaff: data.isMultiStaff,
         yearsInBusiness: data.yearsInBusiness,
         employeeCount: data.employeeCount,
         businessType: data.businessType,
