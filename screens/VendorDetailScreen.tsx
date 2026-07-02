@@ -49,6 +49,7 @@ import apiClient, {
   VendorService,
 } from "@/services/api";
 import { hoursObjectToArray } from "@/components/HoursEditor";
+import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -147,6 +148,7 @@ type ProfileViewModel = {
   brandColors: BrandColors;
   hasProducts: boolean;
   hasServices: boolean;
+  isMultiStaff: boolean;
   specialties: string[];
   hourlyRate?: number;
   minPrice?: number;
@@ -522,6 +524,8 @@ export default function VendorDetailScreen({ route }: Props) {
   const [profile, setProfile] = useState<ProfileViewModel | null>(null);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
+  const [staff, setStaff] = useState<StaffCardVM[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -671,6 +675,7 @@ export default function VendorDetailScreen({ route }: Props) {
           brandColors,
           hasProducts,
           hasServices,
+          isMultiStaff: business.isMultiStaff ?? false,
           specialties: business.category ? [business.category] : [],
           minPrice,
           responseTime: resolveResponseTime(business as any),
@@ -822,6 +827,7 @@ export default function VendorDetailScreen({ route }: Props) {
               brandColors: null,
               hasProducts: false,
               hasServices: photographerServices.length > 0,
+              isMultiStaff: false,
               specialties:
                 photographer.specialties ||
                 (photographer.specialty ? [photographer.specialty] : []),
@@ -973,6 +979,7 @@ export default function VendorDetailScreen({ route }: Props) {
               brandColors: null,
               hasProducts: false,
               hasServices: resolvedServices.length > 0,
+              isMultiStaff: false,
               specialties: Array.isArray(photographer.specialties)
                 ? photographer.specialties
                 : photographer.specialty
@@ -1048,6 +1055,7 @@ export default function VendorDetailScreen({ route }: Props) {
               brandColors: null,
               hasProducts: false,
               hasServices: false,
+              isMultiStaff: false,
               specialties: [],
               showResponseTime: false,
               showEmail: false,
@@ -1077,6 +1085,7 @@ export default function VendorDetailScreen({ route }: Props) {
               brandColors: null,
               hasProducts: false,
               hasServices: false,
+              isMultiStaff: false,
               specialties: [],
               showResponseTime: false,
               showEmail: false,
@@ -1105,6 +1114,42 @@ export default function VendorDetailScreen({ route }: Props) {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!profile?.isMultiStaff) {
+      setStaff([]);
+      setSelectedStaffId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiClient.getBusinessPublicStaff(vendorId);
+        if (cancelled) return;
+        const mapped: StaffCardVM[] = (response.staff || []).map((member) => ({
+          id: String(member.id),
+          displayName: member.displayName || "Team Member",
+          bio: member.bio || undefined,
+          profileImageUrl: member.profileImageUrl || undefined,
+          specialties: Array.isArray(member.specialties)
+            ? member.specialties
+            : [],
+          serviceIds: Array.isArray(member.serviceIds)
+            ? member.serviceIds
+            : [],
+          rating: Number(member.rating ?? 0),
+          reviewCount: Number(member.reviewCount ?? 0),
+        }));
+        setStaff(mapped);
+      } catch (error) {
+        console.error("[VendorDetail] Failed to load staff:", error);
+        if (!cancelled) setStaff([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.isMultiStaff, vendorId]);
 
   const tabOrder = useMemo<ProfileTab[]>(() => {
     if (!profile) return ["posts", "reviews"];
@@ -1660,6 +1705,55 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderBookingTab = () => {
+    if (profile?.isMultiStaff) {
+      if (staff.length === 0) {
+        return (
+          <View style={styles.tabContent}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>
+                No team members available to book yet
+              </Text>
+            </View>
+          </View>
+        );
+      }
+
+      return (
+        <View style={styles.tabContent}>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 11,
+              fontWeight: "600",
+              textTransform: "uppercase",
+              letterSpacing: 0.8,
+              marginBottom: 12,
+              paddingHorizontal: 4,
+            }}
+          >
+            Select a Team Member
+          </Text>
+          <StaffCardList
+            staff={staff}
+            accentColor={accentColor}
+            selectedStaffId={selectedStaffId}
+            onSelect={setSelectedStaffId}
+            onViewProfile={(staffId) => {
+              const member = staff.find((item) => item.id === staffId);
+              Alert.alert(
+                member?.displayName || "Team Member",
+                "Full staff profiles are coming soon.",
+              );
+            }}
+            onBook={(staffId) => {
+              setSelectedStaffId(staffId);
+              openBookingModal();
+            }}
+          />
+        </View>
+      );
+    }
+
     if (services.length === 0) {
       return (
         <View style={styles.tabContent}>
@@ -2051,6 +2145,9 @@ Booking flow coming soon.`,
     profile.minPrice != null
       ? `Starting from ${formatMoney(profile.minPrice)}`
       : "";
+  const selectedStaffMember = profile.isMultiStaff
+    ? staff.find((member) => member.id === selectedStaffId)
+    : undefined;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
@@ -2090,7 +2187,13 @@ Booking flow coming soon.`,
             style={StyleSheet.absoluteFillObject}
           />
           <View style={styles.stickyInner}>
-            {minLabel ? (
+            {selectedStaffMember ? (
+              <View style={styles.minPriceWrap}>
+                <Text style={styles.minPriceText}>
+                  With {selectedStaffMember.displayName}
+                </Text>
+              </View>
+            ) : minLabel ? (
               <View style={styles.minPriceWrap}>
                 <Text style={styles.minPriceText}>{minLabel}</Text>
               </View>
