@@ -81,6 +81,18 @@ export interface ApiBusinessDetail {
   facebook?: string;
   twitter?: string;
   brandColors?: string;
+  isMultiStaff?: boolean;
+}
+
+export interface ApiBusinessStaffMember {
+  id: string;
+  displayName: string;
+  bio?: string;
+  profileImageUrl?: string;
+  specialties?: string[];
+  serviceIds?: string[];
+  rating?: number;
+  reviewCount?: number;
 }
 
 export interface ApiConversation {
@@ -1696,6 +1708,10 @@ class ApiService {
 
   async getBusinessPublicServices(businessId: string): Promise<{ services: VendorService[] }> {
     return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
+  }
+
+  async getBusinessPublicStaff(businessId: string): Promise<{ staff: ApiBusinessStaffMember[] }> {
+    return this.request<{ staff: ApiBusinessStaffMember[] }>(`/api/businesses/${businessId}/staff`);
   }
 
   async getConversations(authToken?: string | null): Promise<ApiConversation[]> {
