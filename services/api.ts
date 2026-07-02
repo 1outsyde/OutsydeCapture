@@ -2491,18 +2491,24 @@ class ApiService {
 
   // POST /api/vendor/services - Create a new service
   async createVendorService(authToken: string, data: VendorServiceInput): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const payload = { ...rest, price: priceCents };
+    delete payload.status; // backend create schema does not accept `status`
     return this.request<{ service: VendorService }>("/api/vendor/services", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
   // PATCH /api/vendor/services/:id - Update a service
   async updateVendorService(authToken: string, serviceId: string, data: Partial<VendorServiceInput>): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const priceField: { price: number } | Record<string, never> = priceCents !== undefined ? { price: priceCents } : {};
+    const payload = { ...rest, ...priceField };
     return this.request<{ service: VendorService }>(`/api/vendor/services/${serviceId}`, {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
