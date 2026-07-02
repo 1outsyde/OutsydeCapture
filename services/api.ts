@@ -805,6 +805,7 @@ export interface BusinessService {
 
 export interface ApiPhotographerDetail {
   id: string;
+  userId?: string;
   name: string;
   avatar?: string;
   coverImage?: string;
