@@ -37,6 +37,7 @@ import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import { feedEvents } from "@/services/feedEvents";
 import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
+import { resolvePostMedia } from "@/utils/resolvePostMedia";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -128,6 +129,8 @@ export default function DiscoverScreen() {
       apiPost.taggedPhotographerId ||
       apiPost.taggedBusinessId;
 
+    const media = resolvePostMedia(apiPost);
+
     return {
       id: apiPost.id,
       type: postType,
@@ -140,8 +143,8 @@ export default function DiscoverScreen() {
       subscriptionTier: undefined,
       rating: (apiPost.author as any)?.rating || 0,
       reviewCount: (apiPost.author as any)?.reviewCount || 0,
-      image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
-      videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
+      image: media.imageUrl,
+      videoUrl: media.videoUrl ?? undefined,
       caption: apiPost.content || "",
       likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
       isLiked: (apiPost as any).isLiked ?? false,
