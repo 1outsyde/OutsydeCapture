@@ -798,7 +798,7 @@ export default function VendorDetailScreen({ route }: Props) {
               subscriptionTier: String(
                 (photographer as any).subscriptionTier || "",
               ),
-              brandColors: null,
+              brandColors: parseBrandColors((photographer as any).brandColors),
               hasProducts: false,
               hasServices: photographerServices.length > 0,
               isMultiStaff: false,
@@ -950,7 +950,7 @@ export default function VendorDetailScreen({ route }: Props) {
               subscriptionTier: String(
                 (photographer as any).subscriptionTier || "",
               ),
-              brandColors: null,
+              brandColors: parseBrandColors((photographer as any).brandColors),
               hasProducts: false,
               hasServices: resolvedServices.length > 0,
               isMultiStaff: false,
