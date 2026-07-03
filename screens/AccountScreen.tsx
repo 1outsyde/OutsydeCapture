@@ -50,6 +50,12 @@ import apiClient, {
   WeeklyAvailabilitySlot,
 } from "@/services/api";
 import { feedEvents } from "@/services/feedEvents";
+import { useTheme } from "@/hooks/useTheme";
+import {
+  BrandColorSpec,
+  resolveBrandColor,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -102,7 +108,7 @@ type ProfileData = {
   postsCount: number;
   isVerified: boolean;
   subscriptionTier?: string;
-  brandColors?: { primary?: string; accent?: string } | null;
+  brandColors?: BrandColorSpec | null;
   hasProducts: boolean;
   hasServices: boolean;
   specialties: string[];
@@ -150,31 +156,8 @@ type ServiceCard = {
   rating?: number;
 };
 
-const parseBrandColors = (
-  raw: unknown,
-): { primary?: string; accent?: string } | null => {
-  if (!raw) return null;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw) as { primary?: unknown; accent?: unknown };
-      return {
-        primary:
-          typeof parsed.primary === "string" ? parsed.primary : undefined,
-        accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
-      };
-    } catch {
-      return null;
-    }
-  }
-  if (typeof raw === "object") {
-    const casted = raw as { primary?: unknown; accent?: unknown };
-    return {
-      primary: typeof casted.primary === "string" ? casted.primary : undefined,
-      accent: typeof casted.accent === "string" ? casted.accent : undefined,
-    };
-  }
-  return null;
-};
+const parseBrandColors = (raw: unknown): BrandColorSpec | null =>
+  parseBrandColorSpec(raw);
 
 const getInitials = (name?: string): string => {
   if (!name) return "O";
@@ -442,6 +425,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, getToken } = useAuth();
   const { unreadCount } = useNotifications();
+  const { isDark } = useTheme();
   console.log("[NOTIF-DEBUG] AccountScreen bell sees unreadCount =", unreadCount);
 
   const [loading, setLoading] = useState(true);
@@ -777,7 +761,7 @@ export default function AccountScreen() {
             postsCount: resolvedPosts.length,
             isVerified: Boolean((photographer as any).isVerified),
             subscriptionTier: "",
-            brandColors: null,
+            brandColors: parseBrandColors((photographer as any).brandColors),
             hasProducts: false,
             hasServices: mappedServices.length > 0,
             specialties: photographer.specialties || [],
@@ -1068,7 +1052,7 @@ export default function AccountScreen() {
             postsCount: resolvedPosts.length,
             isVerified: Boolean((photographer as any).isVerified),
             subscriptionTier: "",
-            brandColors: null,
+            brandColors: parseBrandColors((photographer as any).brandColors),
             hasProducts: false,
             hasServices: mappedServices.length > 0,
             specialties: photographer.specialties || [],
@@ -1187,14 +1171,12 @@ export default function AccountScreen() {
     }
   }, [activeTab, tabList]);
 
+  const colorMode = isDark ? "dark" : "light";
   const accentColor =
-    profile?.role === "business"
-      ? profile.brandColors?.primary || COLORS.gold
+    profile?.role === "business" || profile?.role === "photographer"
+      ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
-  const accentDimColor =
-    profile?.role === "business"
-      ? profile.brandColors?.accent || COLORS.goldDim
-      : COLORS.goldDim;
+  const accentDimColor = COLORS.goldDim;
   const pageBg = `${accentColor}28`;
 
   const headerBgOpacity = scrollY.interpolate({

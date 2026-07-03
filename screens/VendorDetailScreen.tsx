@@ -48,7 +48,14 @@ import apiClient, {
   VendorProduct,
   VendorService,
 } from "@/services/api";
+import { useTheme } from "@/hooks/useTheme";
+import {
+  BrandColorSpec,
+  resolveBrandColor,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 import { hoursObjectToArray } from "@/components/HoursEditor";
+import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -81,7 +88,7 @@ type ProfileTab =
   | "about";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
 
-type BrandColors = { primary?: string; accent?: string } | null;
+type BrandColors = BrandColorSpec | null;
 
 type ReviewItem = {
   id: string;
@@ -147,6 +154,7 @@ type ProfileViewModel = {
   brandColors: BrandColors;
   hasProducts: boolean;
   hasServices: boolean;
+  isMultiStaff: boolean;
   specialties: string[];
   hourlyRate?: number;
   minPrice?: number;
@@ -270,39 +278,8 @@ const getInitials = (name?: string): string => {
     .join("");
 };
 
-const safeJsonParse = (
-  value?: string | null,
-): Record<string, unknown> | null => {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "object" && parsed
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
-const parseBrandColors = (raw: unknown): BrandColors => {
-  if (!raw) return null;
-  if (typeof raw === "string") {
-    const parsed = safeJsonParse(raw);
-    if (!parsed) return null;
-    return {
-      primary: typeof parsed.primary === "string" ? parsed.primary : undefined,
-      accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
-    };
-  }
-  if (typeof raw === "object") {
-    const casted = raw as { primary?: unknown; accent?: unknown };
-    return {
-      primary: typeof casted.primary === "string" ? casted.primary : undefined,
-      accent: typeof casted.accent === "string" ? casted.accent : undefined,
-    };
-  }
-  return null;
-};
+const parseBrandColors = (raw: unknown): BrandColors =>
+  parseBrandColorSpec(raw);
 
 const scoreToStars = (rating: number): number => {
   if (!Number.isFinite(rating) || rating <= 0) return 0;
@@ -516,12 +493,15 @@ export default function VendorDetailScreen({ route }: Props) {
   const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated } = useAuth();
+  const { isDark } = useTheme();
   const { vendorId, initialTab } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileViewModel | null>(null);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
+  const [staff, setStaff] = useState<StaffCardVM[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -545,14 +525,12 @@ export default function VendorDetailScreen({ route }: Props) {
     );
   }, [profile, user?.id]);
 
+  const colorMode = isDark ? "dark" : "light";
   const accentColor =
-    profile?.role === "business"
-      ? profile.brandColors?.primary || COLORS.gold
+    profile?.role === "business" || profile?.role === "photographer"
+      ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
-  const accentDimColor =
-    profile?.role === "business"
-      ? profile.brandColors?.accent || COLORS.goldDim
-      : COLORS.goldDim;
+  const accentDimColor = COLORS.goldDim;
   const pageBg = `${accentColor}28`;
 
   const loadProfile = useCallback(async () => {
@@ -671,6 +649,7 @@ export default function VendorDetailScreen({ route }: Props) {
           brandColors,
           hasProducts,
           hasServices,
+          isMultiStaff: business.isMultiStaff ?? false,
           specialties: business.category ? [business.category] : [],
           minPrice,
           responseTime: resolveResponseTime(business as any),
@@ -819,9 +798,10 @@ export default function VendorDetailScreen({ route }: Props) {
               subscriptionTier: String(
                 (photographer as any).subscriptionTier || "",
               ),
-              brandColors: null,
+              brandColors: parseBrandColors((photographer as any).brandColors),
               hasProducts: false,
               hasServices: photographerServices.length > 0,
+              isMultiStaff: false,
               specialties:
                 photographer.specialties ||
                 (photographer.specialty ? [photographer.specialty] : []),
@@ -970,9 +950,10 @@ export default function VendorDetailScreen({ route }: Props) {
               subscriptionTier: String(
                 (photographer as any).subscriptionTier || "",
               ),
-              brandColors: null,
+              brandColors: parseBrandColors((photographer as any).brandColors),
               hasProducts: false,
               hasServices: resolvedServices.length > 0,
+              isMultiStaff: false,
               specialties: Array.isArray(photographer.specialties)
                 ? photographer.specialties
                 : photographer.specialty
@@ -1048,6 +1029,7 @@ export default function VendorDetailScreen({ route }: Props) {
               brandColors: null,
               hasProducts: false,
               hasServices: false,
+              isMultiStaff: false,
               specialties: [],
               showResponseTime: false,
               showEmail: false,
@@ -1077,6 +1059,7 @@ export default function VendorDetailScreen({ route }: Props) {
               brandColors: null,
               hasProducts: false,
               hasServices: false,
+              isMultiStaff: false,
               specialties: [],
               showResponseTime: false,
               showEmail: false,
@@ -1105,6 +1088,42 @@ export default function VendorDetailScreen({ route }: Props) {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!profile?.isMultiStaff) {
+      setStaff([]);
+      setSelectedStaffId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiClient.getBusinessPublicStaff(vendorId);
+        if (cancelled) return;
+        const mapped: StaffCardVM[] = (response.staff || []).map((member) => ({
+          id: String(member.id),
+          displayName: member.displayName || "Team Member",
+          bio: member.bio || undefined,
+          profileImageUrl: member.profileImageUrl || undefined,
+          specialties: Array.isArray(member.specialties)
+            ? member.specialties
+            : [],
+          serviceIds: Array.isArray(member.serviceIds)
+            ? member.serviceIds
+            : [],
+          rating: Number(member.rating ?? 0),
+          reviewCount: Number(member.reviewCount ?? 0),
+        }));
+        setStaff(mapped);
+      } catch (error) {
+        console.error("[VendorDetail] Failed to load staff:", error);
+        if (!cancelled) setStaff([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.isMultiStaff, vendorId]);
 
   const tabOrder = useMemo<ProfileTab[]>(() => {
     if (!profile) return ["posts", "reviews"];
@@ -1660,6 +1679,55 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderBookingTab = () => {
+    if (profile?.isMultiStaff) {
+      if (staff.length === 0) {
+        return (
+          <View style={styles.tabContent}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>
+                No team members available to book yet
+              </Text>
+            </View>
+          </View>
+        );
+      }
+
+      return (
+        <View style={styles.tabContent}>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 11,
+              fontWeight: "600",
+              textTransform: "uppercase",
+              letterSpacing: 0.8,
+              marginBottom: 12,
+              paddingHorizontal: 4,
+            }}
+          >
+            Select a Team Member
+          </Text>
+          <StaffCardList
+            staff={staff}
+            accentColor={accentColor}
+            selectedStaffId={selectedStaffId}
+            onSelect={setSelectedStaffId}
+            onViewProfile={(staffId) => {
+              const member = staff.find((item) => item.id === staffId);
+              Alert.alert(
+                member?.displayName || "Team Member",
+                "Full staff profiles are coming soon.",
+              );
+            }}
+            onBook={(staffId) => {
+              setSelectedStaffId(staffId);
+              openBookingModal();
+            }}
+          />
+        </View>
+      );
+    }
+
     if (services.length === 0) {
       return (
         <View style={styles.tabContent}>
@@ -2051,6 +2119,9 @@ Booking flow coming soon.`,
     profile.minPrice != null
       ? `Starting from ${formatMoney(profile.minPrice)}`
       : "";
+  const selectedStaffMember = profile.isMultiStaff
+    ? staff.find((member) => member.id === selectedStaffId)
+    : undefined;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
@@ -2090,7 +2161,13 @@ Booking flow coming soon.`,
             style={StyleSheet.absoluteFillObject}
           />
           <View style={styles.stickyInner}>
-            {minLabel ? (
+            {selectedStaffMember ? (
+              <View style={styles.minPriceWrap}>
+                <Text style={styles.minPriceText}>
+                  With {selectedStaffMember.displayName}
+                </Text>
+              </View>
+            ) : minLabel ? (
               <View style={styles.minPriceWrap}>
                 <Text style={styles.minPriceText}>{minLabel}</Text>
               </View>

@@ -81,6 +81,18 @@ export interface ApiBusinessDetail {
   facebook?: string;
   twitter?: string;
   brandColors?: string;
+  isMultiStaff?: boolean;
+}
+
+export interface ApiBusinessStaffMember {
+  id: string;
+  displayName: string;
+  bio?: string;
+  profileImageUrl?: string;
+  specialties?: string[];
+  serviceIds?: string[];
+  rating?: number;
+  reviewCount?: number;
 }
 
 export interface ApiConversation {
@@ -1699,6 +1711,10 @@ class ApiService {
     return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
   }
 
+  async getBusinessPublicStaff(businessId: string): Promise<{ staff: ApiBusinessStaffMember[] }> {
+    return this.request<{ staff: ApiBusinessStaffMember[] }>(`/api/businesses/${businessId}/staff`);
+  }
+
   async getConversations(authToken?: string | null): Promise<ApiConversation[]> {
     const headers: Record<string, string> = {};
     if (authToken) {
@@ -2430,6 +2446,7 @@ class ApiService {
   async createVendorProduct(authToken: string, data: VendorProductInput): Promise<{ product: VendorProduct }> {
     const { priceCents, ...rest } = data;
     const payload = { ...rest, price: priceCents };
+    delete payload.status;
     console.log("[createVendorProduct] raw form data:", JSON.stringify(data));
     console.log("[createVendorProduct] final payload:", JSON.stringify(payload));
     console.log("[createVendorProduct] typeof payload.price:", typeof payload.price);
@@ -2440,11 +2457,20 @@ class ApiService {
     });
   }
 
+  // POST /api/vendor/products/:id/go-live - Publish a product (creates Stripe product)
+  async goLiveVendorProduct(authToken: string, productId: string): Promise<{ product: VendorProduct; message?: string }> {
+    return this.request<{ product: VendorProduct; message?: string }>(`/api/vendor/products/${productId}/go-live`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // PATCH /api/vendor/products/:id - Update a product
   async updateVendorProduct(authToken: string, productId: string, data: Partial<VendorProductInput>): Promise<{ product: VendorProduct }> {
     const { priceCents, ...rest } = data;
     const priceField: { price: number } | Record<string, never> = priceCents !== undefined ? { price: priceCents } : {};
     const payload = { ...rest, ...priceField };
+    delete payload.status;
     console.log("[updateVendorProduct] raw form data:", JSON.stringify(data));
     console.log("[updateVendorProduct] final payload:", JSON.stringify(payload));
     console.log("[updateVendorProduct] typeof payload.price:", priceCents !== undefined ? typeof priceCents : "undefined");
@@ -2476,18 +2502,33 @@ class ApiService {
 
   // POST /api/vendor/services - Create a new service
   async createVendorService(authToken: string, data: VendorServiceInput): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const payload = { ...rest, price: priceCents };
+    delete payload.status; // backend create schema does not accept `status`
     return this.request<{ service: VendorService }>("/api/vendor/services", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/vendor/services/:id/go-live - Publish a service (creates Stripe product)
+  async goLiveVendorService(authToken: string, serviceId: string): Promise<{ service: VendorService; message?: string }> {
+    return this.request<{ service: VendorService; message?: string }>(`/api/vendor/services/${serviceId}/go-live`, {
+      method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
   // PATCH /api/vendor/services/:id - Update a service
   async updateVendorService(authToken: string, serviceId: string, data: Partial<VendorServiceInput>): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const priceField: { price: number } | Record<string, never> = priceCents !== undefined ? { price: priceCents } : {};
+    const payload = { ...rest, ...priceField };
+    delete payload.status;
     return this.request<{ service: VendorService }>(`/api/vendor/services/${serviceId}`, {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

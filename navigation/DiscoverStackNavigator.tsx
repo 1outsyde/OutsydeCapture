@@ -51,7 +51,7 @@ function HeaderRightButtons() {
           padding: Spacing.sm,
         })}
       >
-        <Feather name="shopping-bag" size={22} color={theme.text} />
+        <Feather name="shopping-bag" size={22} color={theme.brandGold} />
       </Pressable>
     </View>
   );
