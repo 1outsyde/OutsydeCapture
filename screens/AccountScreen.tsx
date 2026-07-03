@@ -609,7 +609,7 @@ export default function AccountScreen() {
               id: String(item.id),
               name: item.name,
               description: item.description || undefined,
-              priceCents: Number(item.priceCents ?? 0),
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
               durationMinutes:
                 item.durationMinutes ||
                 (item as any).estimatedDurationMinutes ||
@@ -731,7 +731,7 @@ export default function AccountScreen() {
               id: String(item.id),
               name: item.name,
               description: item.description || undefined,
-              priceCents: Number(item.priceCents ?? 0),
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
               durationMinutes:
                 (item as any).durationMinutes ||
                 item.estimatedDurationMinutes ||
@@ -920,7 +920,7 @@ export default function AccountScreen() {
               id: String(item.id),
               name: item.name,
               description: item.description || undefined,
-              priceCents: Number(item.priceCents ?? 0),
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
               durationMinutes:
                 item.durationMinutes ||
                 (item as any).estimatedDurationMinutes ||
@@ -1031,7 +1031,7 @@ export default function AccountScreen() {
               id: String(item.id),
               name: item.name,
               description: item.description || undefined,
-              priceCents: Number(item.priceCents ?? 0),
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
               durationMinutes: (item as any).durationMinutes || undefined,
               rating: Number((item as any).rating ?? 0),
             }));
