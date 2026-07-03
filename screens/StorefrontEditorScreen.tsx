@@ -179,6 +179,57 @@ export default function StorefrontEditorScreen() {
     );
   };
 
+  const getGoLiveFailureAlert = (
+    error: any,
+    itemLabel: "service" | "product",
+  ): { title: string; message: string } => {
+    const blockerMessage = getPublishBlockerMessage(error?.body);
+    const code = error?.body?.code;
+    const hasActionableFlags =
+      error?.body?.requiresApproval ||
+      error?.body?.requiresOnboarding ||
+      error?.body?.requiresSubscription;
+
+    if (
+      blockerMessage?.trim() &&
+      (hasActionableFlags ||
+        (code !== "connect_incomplete" && code !== "subscription_inactive"))
+    ) {
+      return { title: "Cannot Publish", message: blockerMessage };
+    }
+
+    if (code === "connect_incomplete") {
+      return {
+        title: "Cannot Publish",
+        message: "Complete Stripe setup before publishing.",
+      };
+    }
+    if (code === "subscription_inactive") {
+      return {
+        title: "Cannot Publish",
+        message: "Your subscription is inactive. Reactivate your subscription to publish.",
+      };
+    }
+
+    return {
+      title: "Saved as Draft",
+      message: `Your ${itemLabel} was saved, but could not be published right now. You can try Go Live again from your ${itemLabel} list.`,
+    };
+  };
+
+  const completeSaveSuccess = (
+    itemLabel: "service" | "product",
+    isEdit: boolean,
+    closeModal: () => void,
+  ) => {
+    closeModal();
+    fetchData();
+    Alert.alert(
+      "Success",
+      isEdit ? `${itemLabel === "service" ? "Service" : "Product"} updated` : `${itemLabel === "service" ? "Service" : "Product"} created`,
+    );
+  };
+
   const [productModalVisible, setProductModalVisible] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(
     null,
@@ -514,19 +565,37 @@ export default function StorefrontEditorScreen() {
 
     console.log("[handleSaveProduct] payload:", JSON.stringify(payload));
 
+    const shouldGoLive = productForm.status === "live";
+
     try {
       setSaving(true);
+      let productId: string;
       if (editingProduct) {
         await api.updateVendorProduct(token, editingProduct.id, payload);
+        productId = editingProduct.id;
       } else {
-        await api.createVendorProduct(token, payload);
+        const response = await api.createVendorProduct(token, payload);
+        productId = response.product.id;
       }
-      setProductModalVisible(false);
-      fetchData();
-      Alert.alert(
-        "Success",
-        editingProduct ? "Product updated" : "Product created",
-      );
+
+      if (!shouldGoLive) {
+        completeSaveSuccess("product", Boolean(editingProduct), () =>
+          setProductModalVisible(false),
+        );
+        return;
+      }
+
+      try {
+        await api.goLiveVendorProduct(token, productId);
+        completeSaveSuccess("product", Boolean(editingProduct), () =>
+          setProductModalVisible(false),
+        );
+      } catch (goLiveError: any) {
+        const { title, message } = getGoLiveFailureAlert(goLiveError, "product");
+        setProductModalVisible(false);
+        fetchData();
+        Alert.alert(title, message);
+      }
     } catch (error: any) {
       if (error.status === 403) {
         Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
@@ -611,19 +680,37 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
+    const shouldGoLive = serviceForm.status === "live";
+
     try {
       setSaving(true);
+      let serviceId: string;
       if (editingService) {
         await api.updateVendorService(token, editingService.id, serviceForm);
+        serviceId = editingService.id;
       } else {
-        await api.createVendorService(token, serviceForm);
+        const response = await api.createVendorService(token, serviceForm);
+        serviceId = response.service.id;
       }
-      setServiceModalVisible(false);
-      fetchData();
-      Alert.alert(
-        "Success",
-        editingService ? "Service updated" : "Service created",
-      );
+
+      if (!shouldGoLive) {
+        completeSaveSuccess("service", Boolean(editingService), () =>
+          setServiceModalVisible(false),
+        );
+        return;
+      }
+
+      try {
+        await api.goLiveVendorService(token, serviceId);
+        completeSaveSuccess("service", Boolean(editingService), () =>
+          setServiceModalVisible(false),
+        );
+      } catch (goLiveError: any) {
+        const { title, message } = getGoLiveFailureAlert(goLiveError, "service");
+        setServiceModalVisible(false);
+        fetchData();
+        Alert.alert(title, message);
+      }
     } catch (error: any) {
       if (error.status === 403) {
         Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
@@ -1827,7 +1914,7 @@ export default function StorefrontEditorScreen() {
             {saving ? (
               <ActivityIndicator size="small" color={theme.brandPrimary} />
             ) : (
-              <Text style={{ color: theme.brandPrimary, fontWeight: "600" }}>
+              <Text style={{ color: theme.brandGold, fontWeight: "600" }}>
                 Save
               </Text>
             )}
@@ -1927,7 +2014,8 @@ export default function StorefrontEditorScreen() {
             </View>
           )}
 
-          <View style={[styles.switchRow, { marginTop: 16 }]}>
+          <View style={[styles.publishGateCard, { marginTop: 16 }]}>
+            <View style={[styles.switchRow, { marginBottom: 0 }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.inputLabel}>Publish (Go Live)</Text>
               {productForm.status === "paused" ? (
@@ -1972,13 +2060,14 @@ export default function StorefrontEditorScreen() {
                     status: v ? "live" : "draft",
                   });
                 }}
-                trackColor={{ true: theme.brandPrimary }}
+                trackColor={{ true: theme.brandGold }}
                 disabled={
                   productForm.status === "paused" ||
                   (!canPublishProducts && productForm.status !== "live")
                 }
               />
             </View>
+          </View>
           </View>
         </ScrollView>
       </View>
@@ -1999,7 +2088,7 @@ export default function StorefrontEditorScreen() {
             {saving ? (
               <ActivityIndicator size="small" color={theme.brandPrimary} />
             ) : (
-              <Text style={{ color: theme.brandPrimary, fontWeight: "600" }}>
+              <Text style={{ color: theme.brandGold, fontWeight: "600" }}>
                 Save
               </Text>
             )}
@@ -2089,7 +2178,8 @@ export default function StorefrontEditorScreen() {
             </View>
           )}
 
-          <View style={styles.switchRow}>
+          <View style={styles.publishGateCard}>
+            <View style={[styles.switchRow, { marginBottom: 0 }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.inputLabel}>Publish (Go Live)</Text>
               {serviceForm.status === "paused" ? (
@@ -2134,13 +2224,14 @@ export default function StorefrontEditorScreen() {
                     status: v ? "live" : "draft",
                   });
                 }}
-                trackColor={{ true: theme.brandPrimary }}
+                trackColor={{ true: theme.brandGold }}
                 disabled={
                   serviceForm.status === "paused" ||
                   (!canPublishServices && serviceForm.status !== "live")
                 }
               />
             </View>
+          </View>
           </View>
         </ScrollView>
       </View>
