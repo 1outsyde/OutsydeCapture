@@ -20,6 +20,12 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import {
+  SOLID_COLOR_IDS,
+  COLOR_VALUES,
+  SolidColorId,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 import api, {
   VendorBookerBusiness,
   VendorProduct,
@@ -52,16 +58,8 @@ const RESPONSE_TIME_UNITS: Array<{ label: string; value: ResponseTimeUnit }> = [
   { label: "Business Days", value: "business_days" },
 ];
 
-const COLOR_PRESETS = [
-  { name: "Golden Yellow", color: "#eab308" },
-  { name: "Rose Pink", color: "#ec4899" },
-  { name: "Ocean Blue", color: "#3b82f6" },
-  { name: "Forest Green", color: "#22c55e" },
-  { name: "Royal Purple", color: "#8b5cf6" },
-  { name: "Sunset Orange", color: "#f97316" },
-  { name: "Teal", color: "#14b8a6" },
-  { name: "Slate Gray", color: "#64748b" },
-];
+// Swatches are driven by SOLID_COLOR_IDS from constants/colorOptions.ts.
+// Each swatch's display hex is resolved per theme mode via COLOR_VALUES.
 
 const SPECIALTY_OPTIONS = [
   "Fast Service",
@@ -75,7 +73,7 @@ const SPECIALTY_OPTIONS = [
 ];
 
 export default function StorefrontEditorScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -100,7 +98,7 @@ export default function StorefrontEditorScreen() {
     "image" | "video" | null
   >(null);
   const [logoImage, setLogoImage] = useState("");
-  const [primaryColor, setPrimaryColor] = useState("#eab308");
+  const [selectedColorId, setSelectedColorId] = useState<string>("sunset_gold");
 
   const [profileName, setProfileName] = useState("");
   const [profileTagline, setProfileTagline] = useState("");
@@ -310,19 +308,12 @@ export default function StorefrontEditorScreen() {
         setCoverMediaType(biz.coverImage ? "image" : null);
       }
       setLogoImage(biz.logoImage || "");
-      const brandColors =
-        !biz.brandColors
-          ? {}
-          : typeof biz.brandColors === "string"
-            ? (() => {
-                try {
-                  return JSON.parse(biz.brandColors as string);
-                } catch {
-                  return {};
-                }
-              })()
-            : biz.brandColors;
-      setPrimaryColor(brandColors.primary || "#eab308");
+      const parsedBrandColors = parseBrandColorSpec(biz.brandColors);
+      setSelectedColorId(
+        parsedBrandColors?.type === "solid" && parsedBrandColors.id
+          ? parsedBrandColors.id
+          : "sunset_gold",
+      );
 
       setProfileName(biz.name || "");
       setProfileTagline(biz.tagline || "");
@@ -376,19 +367,19 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      const brandColorsJson = JSON.stringify({ primary: primaryColor });
+      const brandColorsPayload = { type: "solid", id: selectedColorId };
       const finalCoverImage =
         coverMediaType === "video" ? coverVideo : coverImage;
       const finalCoverMediaType =
         coverMediaType || (coverImage ? "image" : undefined);
       console.log("[Storefront] Saving branding:", {
-        brandColors: brandColorsJson,
+        brandColors: brandColorsPayload,
         coverImage: finalCoverImage,
         coverMediaType: finalCoverMediaType,
         logoImage,
       });
       await api.updateVendorMyBusiness(token, {
-        brandColors: brandColorsJson,
+        brandColors: brandColorsPayload as any,
         coverImage: finalCoverImage || undefined,
         coverMediaType: finalCoverMediaType,
         logoImage: logoImage || undefined,
@@ -1385,21 +1376,33 @@ export default function StorefrontEditorScreen() {
             Choose a color that represents your brand
           </Text>
           <View style={styles.colorGrid}>
-            {COLOR_PRESETS.map((preset) => (
-              <Pressable
-                key={preset.color}
-                style={[
-                  styles.colorPreset,
-                  { backgroundColor: preset.color },
-                  primaryColor === preset.color && styles.colorPresetSelected,
-                ]}
-                onPress={() => setPrimaryColor(preset.color)}
-              />
-            ))}
+            {SOLID_COLOR_IDS.map((id) => {
+              const hex = (COLOR_VALUES[id as SolidColorId] as { dark: string; light: string })[
+                isDark ? "dark" : "light"
+              ];
+              return (
+                <Pressable
+                  key={id}
+                  style={[
+                    styles.colorPreset,
+                    { backgroundColor: hex },
+                    selectedColorId === id && styles.colorPresetSelected,
+                  ]}
+                  onPress={() => setSelectedColorId(id)}
+                />
+              );
+            })}
           </View>
           <Text style={styles.inputLabel}>Preview</Text>
           <View
-            style={[styles.colorPreview, { backgroundColor: primaryColor }]}
+            style={[
+              styles.colorPreview,
+              {
+                backgroundColor: (COLOR_VALUES[selectedColorId as SolidColorId] as { dark: string; light: string } | undefined)?.[
+                  isDark ? "dark" : "light"
+                ] ?? (isDark ? "#E8B930" : "#B38600"),
+              },
+            ]}
           />
         </View>
 
