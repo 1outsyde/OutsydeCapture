@@ -600,9 +600,12 @@ export default function AccountScreen() {
                 .catch(() => ({ posts: [] })),
             ]);
 
-          const liveProducts = (productsResponse.products || []).filter(
-            (item) => item.status === "live",
-          );
+          const liveProducts = (productsResponse.products || [])
+            .filter((item) => item.status === "live")
+            .map((item) => ({
+              ...item,
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
+            }));
           const liveServices = (servicesResponse.services || [])
             .filter((item) => item.status === "live")
             .map((item: VendorService) => ({
@@ -911,9 +914,12 @@ export default function AccountScreen() {
           ]);
 
           const business = businessResponse.business;
-          const liveProducts = (productsResponse.products || []).filter(
-            (item) => item.status === "live",
-          );
+          const liveProducts = (productsResponse.products || [])
+            .filter((item) => item.status === "live")
+            .map((item) => ({
+              ...item,
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
+            }));
           const liveServices = (servicesResponse.services || [])
             .filter((item) => item.status === "live")
             .map((item: VendorService) => ({
