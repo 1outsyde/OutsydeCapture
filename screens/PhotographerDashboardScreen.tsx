@@ -22,6 +22,12 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
+import {
+  SOLID_COLOR_IDS,
+  COLOR_VALUES,
+  SolidColorId,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 import { useAuth } from "@/context/AuthContext";
 import api, {
   PhotographerDashboardStats,
@@ -49,21 +55,14 @@ const SPECIALTIES = [
   "Fashion", "Real Estate", "Concerts", "Sports",
 ];
 
-const PROFILE_THEME_COLORS = [
-  { name: "Default Gold", color: "#D4A84B" },
-  { name: "Rose Pink", color: "#ec4899" },
-  { name: "Ocean Blue", color: "#3b82f6" },
-  { name: "Forest Green", color: "#22c55e" },
-  { name: "Royal Purple", color: "#8b5cf6" },
-  { name: "Sunset Orange", color: "#f97316" },
-  { name: "Teal", color: "#14b8a6" },
-  { name: "Slate Gray", color: "#64748b" },
-];
+// Photographer color picker uses the same 16-swatch SOLID_COLOR_IDS list as
+// the business StorefrontEditorScreen for consistency.
+// Display hex per swatch is resolved at render time from COLOR_VALUES[id][mode].
 
 type ModalType = "profile" | "hours" | "services" | "bookings" | "blocked" | null;
 
 export default function PhotographerDashboardScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { getToken, logout, user, isLoading: authLoading, refreshUser } = useAuth();
@@ -119,7 +118,7 @@ export default function PhotographerDashboardScreen() {
     state: "",
     portfolioUrl: "",
     specialties: [] as string[],
-    profileTheme: "#D4A84B",
+    profileTheme: "sunset_gold",
     avatar: "" as string,
     bannerType: "color" as "color" | "image" | "video" | "mock",
     bannerImage: "" as string,
@@ -213,20 +212,12 @@ export default function PhotographerDashboardScreen() {
         completedShoots: photographer.completedShoots || 0,
       });
       
-      // Parse brandColors - handle both object and JSON string formats
-      let brandColors: { primary?: string } = {};
-      if (photographer.brandColors) {
-        if (typeof photographer.brandColors === 'string') {
-          try {
-            brandColors = JSON.parse(photographer.brandColors);
-          } catch {
-            brandColors = {};
-          }
-        } else {
-          brandColors = photographer.brandColors as { primary?: string };
-        }
-      }
-      const originalTheme = brandColors.primary || "#D4A84B";
+      // Parse brandColors — new shape { type, id }
+      const parsedBrandColors = parseBrandColorSpec(photographer.brandColors);
+      const originalThemeId =
+        parsedBrandColors?.type === "solid" && parsedBrandColors.id
+          ? parsedBrandColors.id
+          : "sunset_gold";
       
       setProfile({
         id: photographer.id,
@@ -239,7 +230,7 @@ export default function PhotographerDashboardScreen() {
         portfolioUrl: photographer.portfolioUrl,
         specialties: photographer.specialties || [],
         stripeConnected: photographer.stripeOnboardingComplete || false,
-        profileTheme: originalTheme,
+        profileTheme: originalThemeId,
         autoAcceptBookings: photographer.autoAcceptBookings ?? false,
       });
       setAutoAcceptBookings(photographer.autoAcceptBookings ?? false);
@@ -253,7 +244,7 @@ export default function PhotographerDashboardScreen() {
         state: photographer.state || "",
         portfolioUrl: photographer.portfolioUrl || "",
         specialties: photographer.specialties || [],
-        profileTheme: originalTheme,
+        profileTheme: originalThemeId,
         avatar: photographer.logoImage || "",
         bannerType: photographer.coverMediaType === "video" 
           ? "video" 
@@ -396,7 +387,7 @@ export default function PhotographerDashboardScreen() {
           state: defaultProfile.state || "",
           portfolioUrl: defaultProfile.portfolioUrl || "",
           specialties: defaultProfile.specialties,
-          profileTheme: "#D4A84B",
+          profileTheme: "sunset_gold",
           avatar: "",
           bannerType: "color",
           bannerImage: "",
@@ -667,24 +658,14 @@ export default function PhotographerDashboardScreen() {
         updateData.specialties = currentSpecialties;
       }
       
-      // brandColors - parse raw value (could be object or string)
-      const currentTheme = editProfile.profileTheme || "#D4A84B";
-      let originalTheme = "#D4A84B";
-      if (rawPhotographer?.brandColors) {
-        if (typeof rawPhotographer.brandColors === 'string') {
-          try {
-            const parsed = JSON.parse(rawPhotographer.brandColors);
-            originalTheme = parsed.primary || "#D4A84B";
-          } catch {
-            originalTheme = "#D4A84B";
-          }
-        } else if (rawPhotographer.brandColors.primary) {
-          originalTheme = rawPhotographer.brandColors.primary;
-        }
-      }
-      console.log(`[Dashboard] profileTheme: current="${currentTheme}" vs original="${originalTheme}"`);
-      if (currentTheme !== originalTheme) {
-        updateData.brandColors = { primary: currentTheme };
+      // brandColors - compare IDs; send new { type, id } shape
+      const currentThemeId = editProfile.profileTheme || "sunset_gold";
+      const rawParsed = parseBrandColorSpec(rawPhotographer?.brandColors);
+      const originalThemeId =
+        rawParsed?.type === "solid" && rawParsed.id ? rawParsed.id : "sunset_gold";
+      console.log(`[Dashboard] profileTheme: current="${currentThemeId}" vs original="${originalThemeId}"`);
+      if (currentThemeId !== originalThemeId) {
+        updateData.brandColors = { type: "solid", id: currentThemeId } as any;
       }
       
       // logoImage (avatar)
@@ -2088,23 +2069,37 @@ export default function PhotographerDashboardScreen() {
               <Text style={styles.formLabel}>Profile Theme</Text>
               <Text style={styles.formHint}>Choose a color for your public profile</Text>
               <View style={styles.themeColorGrid}>
-                {PROFILE_THEME_COLORS.map((preset) => (
-                  <Pressable
-                    key={preset.color}
-                    style={[
-                      styles.themeColorPreset,
-                      { backgroundColor: preset.color },
-                      editProfile.profileTheme === preset.color && styles.themeColorPresetSelected,
-                    ]}
-                    onPress={() => setEditProfile({ ...editProfile, profileTheme: preset.color })}
-                  >
-                    {editProfile.profileTheme === preset.color && (
-                      <Feather name="check" size={16} color="#fff" />
-                    )}
-                  </Pressable>
-                ))}
+                {SOLID_COLOR_IDS.map((id) => {
+                  const hex = (COLOR_VALUES[id as SolidColorId] as { dark: string; light: string })[
+                    isDark ? "dark" : "light"
+                  ];
+                  return (
+                    <Pressable
+                      key={id}
+                      style={[
+                        styles.themeColorPreset,
+                        { backgroundColor: hex },
+                        editProfile.profileTheme === id && styles.themeColorPresetSelected,
+                      ]}
+                      onPress={() => setEditProfile({ ...editProfile, profileTheme: id })}
+                    >
+                      {editProfile.profileTheme === id && (
+                        <Feather name="check" size={16} color="#fff" />
+                      )}
+                    </Pressable>
+                  );
+                })}
               </View>
-              <View style={[styles.themePreviewBar, { backgroundColor: editProfile.profileTheme }]} />
+              <View
+                style={[
+                  styles.themePreviewBar,
+                  {
+                    backgroundColor: (COLOR_VALUES[editProfile.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[
+                      isDark ? "dark" : "light"
+                    ] ?? (isDark ? "#E8B930" : "#B38600"),
+                  },
+                ]}
+              />
             </View>
 
           </ScrollView>
