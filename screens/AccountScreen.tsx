@@ -128,6 +128,7 @@ type ProfileData = {
   showPhone?: boolean;
   showWebsite?: boolean;
   showStoreHours?: boolean;
+  isMultiStaff?: boolean;
 };
 
 type PostCard = {
@@ -154,6 +155,16 @@ type ServiceCard = {
   priceCents: number;
   durationMinutes?: number;
   rating?: number;
+};
+
+type OwnerStaffMember = {
+  id: string;
+  displayName: string;
+  bio?: string;
+  profileImageUrl?: string;
+  specialties: string[];
+  rating: number;
+  reviewCount: number;
 };
 
 const parseBrandColors = (raw: unknown): BrandColorSpec | null =>
@@ -438,6 +449,7 @@ export default function AccountScreen() {
     [],
   );
   const [reviews, setReviews] = useState<ReviewCard[]>([]);
+  const [ownerStaff, setOwnerStaff] = useState<OwnerStaffMember[]>([]);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -472,6 +484,32 @@ export default function AccountScreen() {
       .then((result) => setIsFollowing(result.isFollowing))
       .catch(() => setIsFollowing(false));
   }, [profile, isOwner, isAuthenticated]);
+
+  useEffect(() => {
+    if (!profile?.isMultiStaff || !isOwner) return;
+    const loadOwnerStaff = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const response = await apiClient.getVendorStaff(token);
+        const members: OwnerStaffMember[] = (response.staff || []).map(
+          (m: any) => ({
+            id: String(m.id),
+            displayName: m.displayName || m.name || "Team Member",
+            bio: m.bio || undefined,
+            profileImageUrl: m.profileImageUrl || m.avatarUrl || undefined,
+            specialties: Array.isArray(m.specialties) ? m.specialties : [],
+            rating: Number(m.rating ?? 0),
+            reviewCount: Number(m.reviewCount ?? 0),
+          }),
+        );
+        setOwnerStaff(members);
+      } catch (error) {
+        console.error("[AccountScreen] Failed to load owner staff:", error);
+      }
+    };
+    loadOwnerStaff();
+  }, [profile?.isMultiStaff, isOwner]);
 
   const handleFollowToggle = useCallback(async () => {
     if (!profile || followBusy) return;
@@ -657,6 +695,7 @@ export default function AccountScreen() {
             showPhone: (business as any).showPhone !== false,
             showWebsite: (business as any).showWebsite !== false,
             showStoreHours: (business as any).showStoreHours !== false,
+            isMultiStaff: Boolean(business.isMultiStaff),
           };
         } else if (resolvedType === "photographer") {
           console.log(
@@ -965,6 +1004,7 @@ export default function AccountScreen() {
             showPhone: (business as any).showPhone !== false,
             showWebsite: (business as any).showWebsite !== false,
             showStoreHours: (business as any).showStoreHours !== false,
+            isMultiStaff: Boolean((business as any).isMultiStaff),
           };
         } else if (role === "photographer") {
           const [
@@ -1639,6 +1679,371 @@ export default function AccountScreen() {
   );
 
   const renderBookingTab = () => {
+    // ── isMultiStaff owner branch ────────────────────────────────────────────
+    if (profile?.isMultiStaff && isOwner) {
+      const sectionLabelStyle = {
+        color: "rgba(255,255,255,0.5)" as const,
+        fontSize: 11,
+        fontWeight: "600" as const,
+        textTransform: "uppercase" as const,
+        letterSpacing: 0.8,
+        paddingHorizontal: 4,
+      };
+
+      // Case A: isMultiStaff + owner + no staff yet
+      if (ownerStaff.length === 0) {
+        return (
+          <View style={styles.tabContent}>
+            <Text style={[sectionLabelStyle, { marginBottom: 12 }]}>
+              Your Team
+            </Text>
+            <View
+              style={{
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderStyle: "dashed",
+                borderColor: accentColor,
+                padding: 24,
+                alignItems: "center",
+                backgroundColor: `${accentColor}0D`,
+              }}
+            >
+              <View
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 26,
+                  backgroundColor: `${accentColor}22`,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 14,
+                }}
+              >
+                <Feather name="user-plus" size={24} color={accentColor} />
+              </View>
+              <Text
+                style={{
+                  color: COLORS.white,
+                  fontSize: 16,
+                  fontWeight: "700",
+                  marginBottom: 8,
+                  textAlign: "center",
+                }}
+              >
+                No team members yet
+              </Text>
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.55)",
+                  fontSize: 13,
+                  lineHeight: 19,
+                  textAlign: "center",
+                  marginBottom: 20,
+                }}
+              >
+                Multi-staff booking is on for{" "}
+                <Text style={{ fontWeight: "700", color: COLORS.white }}>
+                  {profile.name}
+                </Text>
+                , but no one{"'"}s been added. Add team members so customers
+                can book them individually instead of just the shop.
+              </Text>
+              <Pressable
+                onPress={() =>
+                  Alert.alert(
+                    "Coming soon",
+                    "Staff invites are launching soon — check back shortly.",
+                  )
+                }
+                style={{
+                  backgroundColor: accentColor,
+                  borderRadius: 20,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Feather name="user-plus" size={14} color={COLORS.black} />
+                <Text
+                  style={{
+                    color: COLORS.black,
+                    fontWeight: "800",
+                    fontSize: 13,
+                  }}
+                >
+                  + Add team member
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        );
+      }
+
+      // Case B: isMultiStaff + owner + staff populated
+      return (
+        <View style={styles.tabContent}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <Text style={sectionLabelStyle}>Your Team</Text>
+            <Pressable
+              onPress={() =>
+                Alert.alert(
+                  "Coming soon",
+                  "Staff invites are launching soon — check back shortly.",
+                )
+              }
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                backgroundColor: `${accentColor}22`,
+                borderRadius: 12,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+              }}
+            >
+              <Feather name="user-plus" size={12} color={accentColor} />
+              <Text
+                style={{
+                  color: accentColor,
+                  fontWeight: "700",
+                  fontSize: 11,
+                }}
+              >
+                + Add
+              </Text>
+            </Pressable>
+          </View>
+          {ownerStaff.map((member) => (
+            <View
+              key={member.id}
+              style={{
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+                backgroundColor: "rgba(0,0,0,0.30)",
+                padding: 14,
+                marginBottom: 10,
+              }}
+            >
+              {/* Avatar + name/rating row */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  marginBottom: 10,
+                }}
+              >
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 26,
+                    overflow: "hidden",
+                    backgroundColor: `${accentColor}22`,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {member.profileImageUrl ? (
+                    <Image
+                      source={{ uri: member.profileImageUrl }}
+                      style={{ width: 52, height: 52, borderRadius: 26 }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Text
+                      style={{
+                        color: COLORS.black,
+                        fontSize: 18,
+                        fontWeight: "800",
+                      }}
+                    >
+                      {getInitials(member.displayName)}
+                    </Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: accentColor,
+                      fontSize: 15,
+                      fontWeight: "800",
+                      marginBottom: 2,
+                    }}
+                  >
+                    {member.displayName}
+                  </Text>
+                  <Text
+                    style={{
+                      color: COLORS.grayLight,
+                      fontSize: 12,
+                      fontWeight: "500",
+                      marginBottom: 6,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {member.specialties[0] ||
+                      (member.bio ? member.bio : "Team Member")}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    {Array.from({ length: 5 }).map((_, idx) => (
+                      <Feather
+                        key={`staff-star-${member.id}-${idx}`}
+                        name="star"
+                        size={11}
+                        color={
+                          idx < Math.round(member.rating)
+                            ? accentColor
+                            : COLORS.grayMid
+                        }
+                      />
+                    ))}
+                    <Text
+                      style={{
+                        color: COLORS.white,
+                        fontSize: 11,
+                        fontWeight: "700",
+                        marginLeft: 2,
+                      }}
+                    >
+                      {member.rating.toFixed(1)}
+                    </Text>
+                    <Text style={{ color: COLORS.grayLight, fontSize: 11 }}>
+                      ({member.reviewCount})
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              {/* Specialty chips */}
+              {member.specialties.length > 0 ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    marginBottom: 8,
+                  }}
+                >
+                  {member.specialties.slice(0, 4).map((tag) => (
+                    <View
+                      key={tag}
+                      style={{
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: accentColor,
+                        backgroundColor: `${accentColor}22`,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: accentColor,
+                          fontSize: 11,
+                          fontWeight: "600",
+                        }}
+                      >
+                        {tag}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {/* Bio */}
+              {member.bio ? (
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.55)",
+                    fontSize: 13,
+                    lineHeight: 18,
+                    marginBottom: 10,
+                  }}
+                  numberOfLines={2}
+                >
+                  {member.bio}
+                </Text>
+              ) : null}
+              {/* Edit / Preview action buttons */}
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+                <Pressable
+                  onPress={() =>
+                    Alert.alert(
+                      "Coming soon",
+                      "Staff editing is launching soon — check back shortly.",
+                    )
+                  }
+                  style={{
+                    flex: 1,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    borderColor: accentColor,
+                    paddingVertical: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: accentColor,
+                      fontWeight: "700",
+                      fontSize: 13,
+                    }}
+                  >
+                    Edit
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    Alert.alert(
+                      "Coming soon",
+                      "Staff preview is launching soon — check back shortly.",
+                    )
+                  }
+                  style={{
+                    flex: 1,
+                    borderRadius: 20,
+                    backgroundColor: `${accentColor}22`,
+                    paddingVertical: 8,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 5,
+                  }}
+                >
+                  <Feather name="eye" size={13} color={accentColor} />
+                  <Text
+                    style={{
+                      color: accentColor,
+                      fontWeight: "700",
+                      fontSize: 13,
+                    }}
+                  >
+                    Preview
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </View>
+      );
+    }
+
+    // ── Case C: not multi-staff OR viewer mode — existing flat service list ──
     if (services.length === 0) {
       return (
         <View style={styles.tabContent}>
