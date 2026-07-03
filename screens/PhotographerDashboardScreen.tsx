@@ -1745,7 +1745,7 @@ export default function PhotographerDashboardScreen() {
                 <View style={{ 
                   height: 120, 
                   borderRadius: 12, 
-                  backgroundColor: editProfile.profileTheme,
+                  backgroundColor: (COLOR_VALUES[editProfile.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? (isDark ? "#E8B930" : "#B38600"),
                   alignItems: "center",
                   justifyContent: "center",
                 }}>
@@ -2872,7 +2872,7 @@ export default function PhotographerDashboardScreen() {
         }}
         onSave={handleSaveService}
         initialData={editingService}
-        brandColor={profile?.profileTheme || theme.primary}
+        brandColor={(COLOR_VALUES[profile?.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? theme.primary}
       />
 
       <RefundModal
