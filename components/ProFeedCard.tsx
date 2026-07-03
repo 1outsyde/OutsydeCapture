@@ -22,27 +22,45 @@ interface ProFeedCardProps {
   onActionPress: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onReport?: (postId: string, reason: string) => void;
+  onEdit?: (postId: string) => void;
   isSaved: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
   isVisible?: boolean;
+  muted?: boolean;
+  onToggleMute?: () => void;
 }
 
-function CardVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVisible?: boolean }) {
+function CardVideoMedia({
+  videoUrl,
+  isVisible = true,
+  muted = false,
+  onToggleMute,
+}: {
+  videoUrl: string;
+  isVisible?: boolean;
+  muted?: boolean;
+  onToggleMute?: () => void;
+}) {
   console.log("VIDEO_URL [Pro]:", videoUrl);
-  
+
   const [isPlaying, setIsPlaying] = useState(false);
-  
+
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = muted;
     if (isVisible) {
       p.play();
       setIsPlaying(true);
     }
   });
 
-  // Control playback based on visibility
+  // Keep mute state in sync whenever the shared toggle changes.
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
+
+  // Control playback based on visibility.
   useEffect(() => {
     if (isVisible) {
       player.play();
@@ -76,6 +94,13 @@ function CardVideoMedia({ videoUrl, isVisible = true }: { videoUrl: string; isVi
           <Feather name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
         </View>
       )}
+      <Pressable
+        onPress={onToggleMute}
+        style={styles.muteButton}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Feather name={muted ? "volume-x" : "volume-2"} size={20} color="#FFFFFF" />
+      </Pressable>
     </Pressable>
   );
 }
@@ -90,10 +115,13 @@ export function ProFeedCard({
   onActionPress,
   onDelete,
   onReport,
+  onEdit,
   isSaved,
   currentUserId,
   isAdmin = false,
   isVisible = true,
+  muted = false,
+  onToggleMute,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -105,12 +133,12 @@ export function ProFeedCard({
 
   const handleMenuPress = () => {
     if (Platform.OS === "ios") {
-      const options = canDelete 
-        ? ["Delete Post", "Cancel"]
+      const options = canDelete
+        ? ["Edit Caption", "Delete Post", "Cancel"]
         : ["Report Post", "Cancel"];
-      const destructiveIndex = canDelete ? 0 : undefined;
-      const cancelIndex = canDelete ? 1 : 1;
-      
+      const destructiveIndex = canDelete ? 1 : undefined;
+      const cancelIndex = canDelete ? 2 : 1;
+
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
@@ -118,14 +146,16 @@ export function ProFeedCard({
           cancelButtonIndex: cancelIndex,
         },
         (buttonIndex) => {
-          if (canDelete && buttonIndex === 0 && onDelete) {
+          if (canDelete && buttonIndex === 0) {
+            onEdit?.(post.id);
+          } else if (canDelete && buttonIndex === 1 && onDelete) {
             Alert.alert(
               "Delete Post",
               "Are you sure you want to delete this post? This action cannot be undone.",
               [
                 { text: "Cancel", style: "cancel" },
-                { 
-                  text: "Delete", 
+                {
+                  text: "Delete",
                   style: "destructive",
                   onPress: () => onDelete(post.id)
                 }
@@ -178,9 +208,11 @@ export function ProFeedCard({
     }
   };
 
-  const handleAndroidMenuAction = (action: "delete" | "report") => {
+  const handleAndroidMenuAction = (action: "edit" | "delete" | "report") => {
     setMenuVisible(false);
-    if (action === "delete" && onDelete) {
+    if (action === "edit") {
+      onEdit?.(post.id);
+    } else if (action === "delete" && onDelete) {
       Alert.alert(
         "Delete Post",
         "Are you sure you want to delete this post? This action cannot be undone.",
@@ -241,7 +273,7 @@ export function ProFeedCard({
             </ThemedText>
             {post.type !== "user" && (
               <>
-                <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                <View style={[styles.badge, { backgroundColor: theme.brandGold }]}>
                   <ThemedText style={styles.badgeText}>
                     {post.type === "photographer" ? "Photographer" : "Business"}
                   </ThemedText>
@@ -279,15 +311,26 @@ export function ProFeedCard({
             <View style={styles.modalOverlay}>
               <View style={[styles.menuContainer, { backgroundColor: theme.card }]}>
                 {canDelete ? (
-                  <Pressable
-                    onPress={() => handleAndroidMenuAction("delete")}
-                    style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
-                  >
-                    <Feather name="trash-2" size={18} color="#FF3B30" />
-                    <ThemedText style={[styles.menuItemText, { color: "#FF3B30" }]}>
-                      Delete Post
-                    </ThemedText>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      onPress={() => handleAndroidMenuAction("edit")}
+                      style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="edit-2" size={18} color={theme.text} />
+                      <ThemedText style={styles.menuItemText}>
+                        Edit Caption
+                      </ThemedText>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleAndroidMenuAction("delete")}
+                      style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="trash-2" size={18} color="#FF3B30" />
+                      <ThemedText style={[styles.menuItemText, { color: "#FF3B30" }]}>
+                        Delete Post
+                      </ThemedText>
+                    </Pressable>
+                  </>
                 ) : (
                   <Pressable
                     onPress={() => handleAndroidMenuAction("report")}
@@ -313,7 +356,12 @@ export function ProFeedCard({
 
       <View style={styles.mediaContainer}>
         {hasVideo ? (
-          <CardVideoMedia videoUrl={post.videoUrl!} isVisible={isVisible} />
+          <CardVideoMedia
+            videoUrl={post.videoUrl!}
+            isVisible={isVisible}
+            muted={muted}
+            onToggleMute={onToggleMute}
+          />
         ) : (
           <Image
             source={{ uri: post.image }}
@@ -363,7 +411,7 @@ export function ProFeedCard({
           <Feather
             name="bookmark"
             size={24}
-            color={isSaved ? theme.primary : theme.text}
+            color={isSaved ? theme.brandGold : theme.text}
           />
         </Pressable>
       </View>
@@ -378,10 +426,10 @@ export function ProFeedCard({
             {post.caption}
           </ThemedText>
         ) : null}
-        {post.comments.length > 0 && (
+        {(post.commentCount ?? post.comments.length) > 0 && (
           <Pressable onPress={() => onComment(post)}>
             <ThemedText style={[styles.viewComments, { color: theme.textSecondary }]}>
-              View all {post.comments.length} comments
+              View all {post.commentCount ?? post.comments.length} comments
             </ThemedText>
           </Pressable>
         )}
@@ -395,7 +443,7 @@ export function ProFeedCard({
             }
             onActionPress(post);
           }}
-          style={[styles.commerceButton, { backgroundColor: theme.primary }]}
+          style={[styles.commerceButton, { backgroundColor: theme.brandPrimary }]}
         >
           <Feather
             name={post.productId ? "shopping-bag" : "calendar"}
@@ -480,6 +528,17 @@ const styles = StyleSheet.create({
   },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  muteButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.45)",
     alignItems: "center",
     justifyContent: "center",
   },

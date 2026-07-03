@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import AccountScreen from "@/screens/AccountScreen";
+import ConsumerEditProfileScreen from "@/screens/ConsumerEditProfileScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import OutsydePointsScreen from "@/screens/OutsydePointsScreen";
 import { useTheme } from "@/hooks/useTheme";
@@ -20,6 +21,13 @@ export default function AccountStackNavigator() {
         component={AccountScreen}
         options={{
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="EditProfile"
+        component={ConsumerEditProfileScreen}
+        options={{
+          title: "Edit Profile",
         }}
       />
       <Stack.Screen

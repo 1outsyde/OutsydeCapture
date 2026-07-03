@@ -17,6 +17,7 @@ import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -36,6 +37,7 @@ import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import { feedEvents } from "@/services/feedEvents";
 import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
+import { resolvePostMedia } from "@/utils/resolvePostMedia";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -46,11 +48,30 @@ const PRO_VIEWABILITY_CONFIG = {
   minimumViewTime: 100,
 };
 
+function formatRelativeTime(timestamp: string): string | null {
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffMins < 1) return "now";
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays === 1) return "1d";
+  if (diffDays < 7) return `${diffDays}d`;
+  if (diffWeeks < 4) return `${diffWeeks}w`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export default function DiscoverScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { likePost, addComment, getPhotographer } = useData();
+  const headerHeight = useHeaderHeight();
+  const { getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { user, getToken } = useAuth();
@@ -64,6 +85,8 @@ export default function DiscoverScreen() {
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [modalComments, setModalComments] = useState<any[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   // Feed toggle / swipe
   const handleModeChange = useCallback((mode: FeedMode) => setFeedMode(mode), []);
@@ -83,7 +106,7 @@ export default function DiscoverScreen() {
     const authorAvatar =
       (apiPost.author as any)?.profilePhotoUrl || apiPost.author?.profileImageUrl || "";
     const userId =
-      apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id || apiPost.id;
+      apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id;
     const username = apiPost.author?.username;
     const authorRole = (apiPost.author as any)?.role;
 
@@ -106,6 +129,8 @@ export default function DiscoverScreen() {
       apiPost.taggedPhotographerId ||
       apiPost.taggedBusinessId;
 
+    const media = resolvePostMedia(apiPost);
+
     return {
       id: apiPost.id,
       type: postType,
@@ -118,12 +143,13 @@ export default function DiscoverScreen() {
       subscriptionTier: undefined,
       rating: (apiPost.author as any)?.rating || 0,
       reviewCount: (apiPost.author as any)?.reviewCount || 0,
-      image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
-      videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
+      image: media.imageUrl,
+      videoUrl: media.videoUrl ?? undefined,
       caption: apiPost.content || "",
-      likes: apiPost.likesCount || 0,
-      isLiked: false,
+      likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
+      isLiked: (apiPost as any).isLiked ?? false,
       comments: [],
+      commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
       createdAt: apiPost.createdAt,
       serviceId: apiPost.photographerServiceId || apiPost.serviceId,
       productId: apiPost.productId,
@@ -213,6 +239,9 @@ export default function DiscoverScreen() {
   const proListRef = useRef<FlatList>(null);
   const [visibleProIndices, setVisibleProIndices] = useState<Set<number>>(new Set([0, 1]));
 
+  // Shared mute state — one toggle for the entire Pro feed, default UNMUTED
+  const [proMuted, setProMuted] = useState(false);
+
   const onProViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
       const s = new Set<number>();
@@ -236,15 +265,13 @@ export default function DiscoverScreen() {
 
   // ─── Navigation handlers ──────────────────────────────────────────────────
   const handleAuthorPress = (post: Post) => {
-    const userType =
-      post.type === "photographer" ? "photographer" : post.type === "vendor" ? "business" : "consumer";
-    navigation.navigate("Profile", {
-      userId: post.userId,
-      profileId: post.providerId,
-      userType,
-      displayName: post.displayName || post.authorName,
-      avatar: post.authorAvatar,
-    });
+    const vendorId = post.providerId || post.userId;
+    if (!vendorId) {
+      console.warn('[AuthorTap] no id available for post', post.id);
+      return;
+    }
+    console.log('[AuthorTap] → VendorDetail vendorId:', vendorId);
+    navigation.navigate("VendorDetail", { vendorId });
   };
 
   const handleActionPress = (post: Post) => {
@@ -266,7 +293,53 @@ export default function DiscoverScreen() {
     }
   };
 
-  const handleLike = (postId: string) => likePost(postId);
+  const handleLike = useCallback(
+    async (postId: string) => {
+      const currentPost = feedPosts.find((p) => p.id === postId);
+      const wasLiked = currentPost?.isLiked ?? false;
+
+      console.log('[ProLike] postId:', postId, 'wasLiked:', wasLiked);
+
+      // Optimistic update against feedPosts
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, isLiked: !wasLiked, likes: wasLiked ? Math.max(0, p.likes - 1) : p.likes + 1 }
+            : p
+        )
+      );
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          setFeedPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
+                : p
+            )
+          );
+          Alert.alert("Sign In Required", "Please sign in to like posts.");
+          return;
+        }
+        if (wasLiked) {
+          await api.unlikePost(token, postId);
+        } else {
+          await api.likePost(token, postId);
+        }
+      } catch {
+        // Roll back on network/server error
+        setFeedPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
+              : p
+          )
+        );
+      }
+    },
+    [feedPosts, getToken]
+  );
 
   const handleSavePost = (post: Post) => {
     const favoriteType = post.type === "vendor" ? "product" : "photographer";
@@ -282,19 +355,51 @@ export default function DiscoverScreen() {
     });
   };
 
-  const openCommentsModal = (post: Post) => {
+  const handleCloseComments = () => {
+    setCommentsModalVisible(false);
+    setModalComments([]);
+  };
+
+  const openCommentsModal = async (post: Post) => {
     setSelectedPost(post);
     setCommentsModalVisible(true);
+    setCommentsLoading(true);
+    try {
+      const res = await api.getPostComments(post.id);
+      const fetched = res.comments || [];
+      console.log('[Comments] fetched', fetched.length, 'for', post.id);
+      setModalComments(fetched);
+    } catch {
+      setModalComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
   };
 
   const handleSubmitComment = async () => {
-    if (selectedPost && commentText.trim()) {
-      try {
-        await addComment(selectedPost.id, commentText);
-        setCommentText("");
-      } catch (err) {
-        console.error("Error submitting comment:", err);
+    if (!selectedPost || !commentText.trim()) return;
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Sign In Required", "Please sign in to comment on posts.");
+        return;
       }
+      await api.addPostComment(token, selectedPost.id, commentText.trim());
+      setCommentText("");
+      // Refetch for correctness
+      const res = await api.getPostComments(selectedPost.id);
+      setModalComments(res.comments || []);
+      // Optimistically bump count in feed list
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p.id === selectedPost.id
+            ? { ...p, commentCount: (p.commentCount ?? 0) + 1 }
+            : p
+        )
+      );
+    } catch (err) {
+      console.error("Error submitting comment:", err);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
     }
   };
 
@@ -364,6 +469,8 @@ export default function DiscoverScreen() {
         currentUserId={user?.id}
         isAdmin={user?.isAdmin}
         isVisible={isVisible}
+        muted={proMuted}
+        onToggleMute={() => setProMuted((m) => !m)}
       />
     );
   };
@@ -414,7 +521,11 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: feedMode === "pulse" ? "#000000" : theme.backgroundRoot }]}>
-      <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+      {feedMode === "pro" ? (
+        <View style={{ paddingTop: headerHeight }}>
+          <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+        </View>
+      ) : null}
 
       <GestureDetector gesture={horizontalSwipe}>
         <View style={styles.feedPage}>
@@ -445,79 +556,118 @@ export default function DiscoverScreen() {
         </View>
       </GestureDetector>
 
+      {feedMode === "pulse" ? (
+        <View style={[styles.pulseToggleOverlay, { top: headerHeight }]} pointerEvents="box-none">
+          <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+        </View>
+      ) : null}
+
       {/* Comments modal — Pro feed */}
       <Modal
         visible={commentsModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setCommentsModalVisible(false)}
+        onRequestClose={handleCloseComments}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.modalOverlay}
-        >
+        <View style={styles.modalOverlay}>
           <Pressable
             style={styles.modalBackdrop}
-            onPress={() => setCommentsModalVisible(false)}
+            onPress={handleCloseComments}
           />
           <View style={[styles.commentsModal, { backgroundColor: theme.card }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <ThemedText type="h4">Comments</ThemedText>
-              <Pressable onPress={() => setCommentsModalVisible(false)}>
+              <Pressable onPress={handleCloseComments}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
 
-            <FlatList
-              data={selectedPost?.comments || []}
-              keyExtractor={(item) => item.id}
-              style={styles.commentsList}
-              ListEmptyComponent={
-                <View style={styles.emptyComments}>
-                  <ThemedText type="body" style={{ color: theme.textSecondary }}>
-                    No comments yet. Be the first!
-                  </ThemedText>
-                </View>
-              }
-              renderItem={({ item: comment }) => (
-                <View style={styles.commentRow}>
-                  <Image
-                    source={{ uri: comment.userAvatar }}
-                    style={styles.commentAvatar}
-                    contentFit="cover"
-                  />
-                  <View style={styles.commentContent}>
-                    <ThemedText type="body">
-                      <ThemedText style={{ fontWeight: "600" }}>{comment.userName} </ThemedText>
-                      {comment.text}
+            {commentsLoading ? (
+              <View style={styles.listArea}>
+                <ActivityIndicator size="small" color={theme.primary} />
+              </View>
+            ) : (
+              <FlatList
+                data={modalComments}
+                keyExtractor={(item, i) => item.id ?? String(i)}
+                style={styles.commentsList}
+                contentContainerStyle={styles.commentListContent}
+                ListEmptyComponent={
+                  <View style={styles.emptyComments}>
+                    <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                      No comments yet. Be the first!
                     </ThemedText>
                   </View>
-                </View>
-              )}
-            />
-
-            <View style={[styles.commentInputRow, { borderTopColor: theme.border }]}>
-              <TextInput
-                style={[
-                  styles.commentInput,
-                  { backgroundColor: theme.backgroundSecondary, color: theme.text },
-                ]}
-                placeholder="Add a comment..."
-                placeholderTextColor={theme.textSecondary}
-                value={commentText}
-                onChangeText={setCommentText}
-                onSubmitEditing={handleSubmitComment}
+                }
+                renderItem={({ item: comment }) => {
+                  const author = comment.author || {};
+                  const displayName =
+                    comment.user?.name ||
+                    comment.user?.username ||
+                    (comment.user?.firstName
+                      ? (comment.user.firstName + (comment.user.lastName ? ' ' + comment.user.lastName : '')).trim()
+                      : undefined) ||
+                    comment.userName || comment.username || author.displayName || author.username || author.name || "User";
+                  const avatarUri =
+                    comment.userAvatar || author.profilePhotoUrl || author.profileImageUrl || comment.user?.profileImageUrl || "";
+                  const body = comment.text || comment.content || "";
+                  const timestamp = formatRelativeTime(comment.createdAt || "");
+                  return (
+                    <View style={styles.commentRow}>
+                      {avatarUri ? (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={styles.commentAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.commentAvatarPlaceholder}>
+                          <ThemedText style={styles.commentAvatarInitial}>
+                            {displayName.charAt(0).toUpperCase()}
+                          </ThemedText>
+                        </View>
+                      )}
+                      <View style={styles.commentContent}>
+                        <View style={styles.commentMeta}>
+                          <ThemedText style={styles.commentAuthorText}>{displayName}</ThemedText>
+                          {timestamp ? (
+                            <ThemedText style={styles.commentTimestamp}>{timestamp}</ThemedText>
+                          ) : null}
+                        </View>
+                        <ThemedText style={styles.commentBodyText}>{body}</ThemedText>
+                      </View>
+                    </View>
+                  );
+                }}
               />
-              <Pressable
-                onPress={handleSubmitComment}
-                style={[styles.sendButton, { backgroundColor: theme.primary }]}
-              >
-                <Feather name="send" size={18} color="#000000" />
-              </Pressable>
-            </View>
+            )}
+
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
+              <View style={[styles.commentInputRow, { borderTopColor: theme.border }]}>
+                <TextInput
+                  style={[
+                    styles.commentInput,
+                    { backgroundColor: theme.backgroundSecondary, color: theme.text },
+                  ]}
+                  placeholder="Add a comment..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  onSubmitEditing={handleSubmitComment}
+                />
+                <Pressable
+                  onPress={handleSubmitComment}
+                  style={[styles.sendButton, { backgroundColor: theme.primary }]}
+                >
+                  <Feather name="send" size={18} color="#000000" />
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -529,6 +679,13 @@ const styles = StyleSheet.create({
   },
   feedPage: {
     flex: 1,
+  },
+  pulseToggleOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: "transparent",
   },
   proFeedContent: {
     paddingBottom: Spacing.xl,
@@ -561,10 +718,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   commentsModal: {
+    height: SCREEN_HEIGHT * 0.7,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    maxHeight: SCREEN_HEIGHT * 0.7,
-    paddingBottom: Spacing.xl,
   },
   modalHandle: {
     width: 40,
@@ -583,32 +739,78 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.1)",
   },
+  listArea: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   commentsList: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
   },
+  commentListContent: {
+    flexGrow: 1,
+  },
   emptyComments: {
-    paddingVertical: Spacing["2xl"],
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    paddingVertical: Spacing["2xl"],
   },
   commentRow: {
     flexDirection: "row",
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
+    alignItems: "flex-start",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   commentAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    marginRight: Spacing.sm,
+    marginRight: 12,
+  },
+  commentAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  commentAvatarInitial: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#999",
   },
   commentContent: {
     flex: 1,
+  },
+  commentMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  commentAuthorText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  commentTimestamp: {
+    fontSize: 11,
+    color: "#999",
+    marginLeft: 6,
+  },
+  commentBodyText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   commentInputRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.xl,
     borderTopWidth: 1,
   },
   commentInput: {

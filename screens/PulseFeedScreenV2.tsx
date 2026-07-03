@@ -11,6 +11,7 @@ import {
   Pressable,
   Dimensions,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -44,7 +45,7 @@ function convertApiPost(apiPost: ApiPost): Post {
     (apiPost.author as any)?.displayName || apiPost.author?.name || "Unknown";
   const authorAvatar =
     (apiPost.author as any)?.profilePhotoUrl || apiPost.author?.profileImageUrl || "";
-  const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id || apiPost.id;
+  const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id;
   const username = apiPost.author?.username;
   const authorRole = (apiPost.author as any)?.role;
 
@@ -82,9 +83,10 @@ function convertApiPost(apiPost: ApiPost): Post {
     image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
     videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
     caption: apiPost.content || "",
-    likes: apiPost.likesCount || 0,
-    isLiked: false,
+    likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
+    isLiked: (apiPost as any).isLiked ?? false,
     comments: [],
+    commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
     createdAt: apiPost.createdAt,
     serviceId: apiPost.photographerServiceId || apiPost.serviceId,
     productId: apiPost.productId,
@@ -94,11 +96,29 @@ function convertApiPost(apiPost: ApiPost): Post {
   };
 }
 
+function formatRelativeTime(timestamp: string): string | null {
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffMins < 1) return "now";
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays === 1) return "1d";
+  if (diffDays < 7) return `${diffDays}d`;
+  if (diffWeeks < 4) return `${diffWeeks}w`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export default function PulseFeedScreenV2() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { addComment, getPhotographer } = useData();
+  const { getPhotographer } = useData();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { getToken } = useAuth();
 
@@ -114,10 +134,15 @@ export default function PulseFeedScreenV2() {
   // Active video index — drives single-video playback
   const [activeIndex, setActiveIndex] = useState(0);
 
+  // Shared mute state — one toggle for the entire Pulse feed, default UNMUTED
+  const [muted, setMuted] = useState(false);
+
   // Comments modal state
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [modalComments, setModalComments] = useState<any[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   const listRef = useRef<FlatList>(null);
 
@@ -140,6 +165,15 @@ export default function PulseFeedScreenV2() {
       if (response.posts && Array.isArray(response.posts)) {
         const converted = response.posts.map(convertApiPost);
         setPosts((prev) => (refresh ? converted : [...prev, ...converted]));
+        // Seed likedIds from payload — merge so session toggles are never clobbered
+        const payloadLikedIds = converted.filter((p) => p.isLiked).map((p) => p.id);
+        if (payloadLikedIds.length > 0) {
+          setLikedIds((prev) => {
+            const next = new Set(prev);
+            payloadLikedIds.forEach((id) => next.add(id));
+            return next;
+          });
+        }
         setHasMore(response.hasMore);
         setCursor(response.nextCursor);
       }
@@ -191,12 +225,14 @@ export default function PulseFeedScreenV2() {
       try {
         const token = await getToken();
         if (token) {
-          await api.trackPulseEngagement(token, {
+          const payload: PulseEngagement = {
             postId,
-            watchTimeSeconds: e.watchTimeSeconds,
-            completionRate: e.completionRate,
+            watchTimeMs: e.watchTimeMs,
+            videoDurationMs: e.videoDurationMs,
             isRewatch: e.isRewatch,
-          } as PulseEngagement);
+          };
+          console.log('[Engagement] POST', payload);
+          await api.trackPulseEngagement(token, payload);
         }
       } catch {
         // Non-critical — silent fail
@@ -270,32 +306,63 @@ export default function PulseFeedScreenV2() {
   }, [toggleFavorite]);
 
   // ─── Comments ───────────────────────────────────────────────────────────────
-  const handleComment = useCallback((post: Post) => {
+  const handleCloseComments = useCallback(() => {
+    setCommentsVisible(false);
+    setModalComments([]);
+  }, []);
+
+  const handleComment = useCallback(async (post: Post) => {
     setSelectedPost(post);
     setCommentsVisible(true);
+    setCommentsLoading(true);
+    try {
+      const res = await api.getPostComments(post.id);
+      const fetched = res.comments || [];
+      console.log('[Comments] fetched', fetched.length, 'for', post.id);
+      setModalComments(fetched);
+    } catch {
+      setModalComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
   }, []);
 
   const handleSubmitComment = useCallback(async () => {
     if (!selectedPost || !commentText.trim()) return;
     try {
-      await addComment(selectedPost.id, commentText.trim());
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Sign In Required", "Please sign in to comment on posts.");
+        return;
+      }
+      await api.addPostComment(token, selectedPost.id, commentText.trim());
       setCommentText("");
+      // Refetch for correctness
+      const res = await api.getPostComments(selectedPost.id);
+      setModalComments(res.comments || []);
+      // Optimistically bump count in feed list
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === selectedPost.id
+            ? { ...p, commentCount: (p.commentCount ?? 0) + 1 }
+            : p
+        )
+      );
     } catch (err) {
       console.error("[PulseFeedV2] Comment error:", err);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
     }
-  }, [selectedPost, commentText, addComment]);
+  }, [selectedPost, commentText, getToken]);
 
   // ─── Navigation ─────────────────────────────────────────────────────────────
   const handleAuthorPress = useCallback((post: Post) => {
-    const userType =
-      post.type === "photographer" ? "photographer" : post.type === "vendor" ? "business" : "consumer";
-    navigation.navigate("Profile", {
-      userId: post.userId,
-      profileId: post.providerId,
-      userType,
-      displayName: post.displayName || post.authorName,
-      avatar: post.authorAvatar,
-    });
+    const vendorId = post.providerId || post.userId;
+    if (!vendorId) {
+      console.warn('[AuthorTap] no id available for post', post.id);
+      return;
+    }
+    console.log('[AuthorTap] → VendorDetail vendorId:', vendorId);
+    navigation.navigate("VendorDetail", { vendorId });
   }, [navigation]);
 
   const handleActionPress = useCallback((post: Post) => {
@@ -327,6 +394,8 @@ export default function PulseFeedScreenV2() {
         <PulseVideoCard
           post={item}
           isActive={index === activeIndex}
+          muted={muted}
+          onToggleMute={() => setMuted((m) => !m)}
           isLiked={likedIds.has(item.id)}
           isSaved={isSaved}
           onLike={handleLike}
@@ -340,6 +409,7 @@ export default function PulseFeedScreenV2() {
     },
     [
       activeIndex,
+      muted,
       likedIds,
       isFavorite,
       handleLike,
@@ -407,8 +477,14 @@ export default function PulseFeedScreenV2() {
         viewabilityConfig={VIEWABILITY_CONFIG}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
-        onRefresh={handleRefresh}
-        refreshing={refreshing}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#FFFFFF"
+            colors={["#FFFFFF"]}
+          />
+        }
         style={styles.list}
         windowSize={5}
         maxToRenderPerBatch={3}
@@ -427,73 +503,108 @@ export default function PulseFeedScreenV2() {
         visible={commentsVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setCommentsVisible(false)}
+        onRequestClose={handleCloseComments}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.modalWrap}
-        >
+        <View style={styles.modalWrap}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setCommentsVisible(false)}
+            onPress={handleCloseComments}
           />
           <View style={[styles.commentsSheet, { backgroundColor: theme.card }]}>
             <View style={styles.sheetHandle} />
             <View style={[styles.sheetHeader, { borderBottomColor: theme.border }]}>
               <ThemedText type="h4">Comments</ThemedText>
-              <Pressable onPress={() => setCommentsVisible(false)}>
+              <Pressable onPress={handleCloseComments}>
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
 
-            <FlatList
-              data={selectedPost?.comments || []}
-              keyExtractor={(c) => c.id}
-              style={styles.commentList}
-              ListEmptyComponent={
-                <View style={styles.emptyComments}>
-                  <ThemedText style={{ color: theme.textSecondary }}>
-                    No comments yet. Be the first!
-                  </ThemedText>
-                </View>
-              }
-              renderItem={({ item: c }) => (
-                <View style={styles.commentRow}>
-                  <Image
-                    source={{ uri: c.userAvatar }}
-                    style={styles.commentAvatar}
-                    contentFit="cover"
-                  />
-                  <ThemedText style={styles.commentText}>
-                    <ThemedText style={{ fontWeight: "700" }}>{c.userName} </ThemedText>
-                    {c.text}
-                  </ThemedText>
-                </View>
-              )}
-            />
-
-            <View style={[styles.commentInput, { borderTopColor: theme.border }]}>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  { backgroundColor: theme.backgroundSecondary, color: theme.text },
-                ]}
-                placeholder="Add a comment..."
-                placeholderTextColor={theme.textSecondary}
-                value={commentText}
-                onChangeText={setCommentText}
-                onSubmitEditing={handleSubmitComment}
-                returnKeyType="send"
+            {commentsLoading ? (
+              <View style={styles.listArea}>
+                <ActivityIndicator size="small" color={theme.primary} />
+              </View>
+            ) : (
+              <FlatList
+                data={modalComments}
+                keyExtractor={(c, i) => c.id ?? String(i)}
+                style={styles.commentList}
+                contentContainerStyle={styles.commentListContent}
+                ListEmptyComponent={
+                  <View style={styles.emptyComments}>
+                    <ThemedText style={{ color: theme.textSecondary }}>
+                      No comments yet. Be the first!
+                    </ThemedText>
+                  </View>
+                }
+                renderItem={({ item: c }) => {
+                  const author = c.author || {};
+                  const displayName =
+                    c.user?.name ||
+                    c.user?.username ||
+                    (c.user?.firstName
+                      ? (c.user.firstName + (c.user.lastName ? ' ' + c.user.lastName : '')).trim()
+                      : undefined) ||
+                    c.userName || c.username || author.displayName || author.username || author.name || "User";
+                  const avatarUri =
+                    c.userAvatar || author.profilePhotoUrl || author.profileImageUrl || c.user?.profileImageUrl || "";
+                  const body = c.text || c.content || "";
+                  const timestamp = formatRelativeTime(c.createdAt || "");
+                  return (
+                    <View style={styles.commentRow}>
+                      {avatarUri ? (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={styles.commentAvatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={styles.commentAvatarPlaceholder}>
+                          <ThemedText style={styles.commentAvatarInitial}>
+                            {displayName.charAt(0).toUpperCase()}
+                          </ThemedText>
+                        </View>
+                      )}
+                      <View style={styles.commentRight}>
+                        <View style={styles.commentMeta}>
+                          <ThemedText style={styles.commentAuthorText}>{displayName}</ThemedText>
+                          {timestamp ? (
+                            <ThemedText style={styles.commentTimestamp}>{timestamp}</ThemedText>
+                          ) : null}
+                        </View>
+                        <ThemedText style={styles.commentBodyText}>{body}</ThemedText>
+                      </View>
+                    </View>
+                  );
+                }}
               />
-              <Pressable
-                onPress={handleSubmitComment}
-                style={[styles.sendBtn, { backgroundColor: theme.primary }]}
-              >
-                <Feather name="send" size={18} color="#000000" />
-              </Pressable>
-            </View>
+            )}
+
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
+              <View style={[styles.commentInput, { borderTopColor: theme.border }]}>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    { backgroundColor: theme.backgroundSecondary, color: theme.text },
+                  ]}
+                  placeholder="Add a comment..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  onSubmitEditing={handleSubmitComment}
+                  returnKeyType="send"
+                />
+                <Pressable
+                  onPress={handleSubmitComment}
+                  style={[styles.sendBtn, { backgroundColor: theme.primary }]}
+                >
+                  <Feather name="send" size={18} color="#000000" />
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -526,10 +637,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   commentsSheet: {
+    height: SCREEN_HEIGHT * 0.7,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    maxHeight: SCREEN_HEIGHT * 0.72,
-    paddingBottom: Spacing.xl,
   },
   sheetHandle: {
     width: 40,
@@ -547,27 +657,70 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
   },
+  listArea: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   commentList: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
   },
+  commentListContent: {
+    flexGrow: 1,
+  },
   emptyComments: {
-    paddingVertical: Spacing["2xl"],
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    paddingVertical: Spacing["2xl"],
   },
   commentRow: {
     flexDirection: "row",
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
     alignItems: "flex-start",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   commentAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    marginRight: Spacing.sm,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
   },
-  commentText: {
+  commentAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  commentAvatarInitial: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#999",
+  },
+  commentRight: {
     flex: 1,
+  },
+  commentMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  commentAuthorText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  commentTimestamp: {
+    fontSize: 11,
+    color: "#999",
+    marginLeft: 6,
+  },
+  commentBodyText: {
+    fontSize: 14,
     lineHeight: 20,
   },
   commentInput: {
@@ -575,6 +728,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.xl,
     borderTopWidth: 1,
   },
   textInput: {

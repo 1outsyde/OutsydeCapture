@@ -57,7 +57,12 @@ export default function NotificationsScreen() {
       navigation.navigate("SessionDetail", {
         sessionId: notification.metadata.sessionId as string,
       });
+    } else if (notification.type === "new_follower" && notification.metadata?.referenceId) {
+      navigation.navigate("UserProfile", {
+        userId: notification.metadata.referenceId,
+      });
     }
+    // All other backend types: mark-read-only for now, no confirmed target screen yet.
   };
 
   const formatTimestamp = (date: Date): string => {
@@ -90,6 +95,40 @@ export default function NotificationsScreen() {
         return "user-plus";
       case "business_pending":
         return "briefcase";
+      case "booking_confirmed":
+        return "check-circle";
+      case "order_shipped":
+        return "truck";
+      case "new_order":
+        return "shopping-bag";
+      case "new_follower":
+        return "user-plus";
+      case "refund_issued":
+        return "rotate-ccw";
+      case "payment_succeeded":
+        return "credit-card";
+      case "payment_failed":
+        return "alert-circle";
+      case "subscription_activated":
+        return "star";
+      case "subscription_canceled":
+        return "x-circle";
+      case "subscription_tier_changed":
+        return "trending-up";
+      case "addon_charged":
+        return "plus-circle";
+      case "photographer_assigned":
+        return "camera";
+      case "stripe_onboarding_complete":
+        return "check-square";
+      case "new_vendor_application":
+        return "briefcase";
+      case "new_photographer_application":
+        return "camera";
+      case "vendor_approved":
+        return "check-circle";
+      case "vendor_rejected":
+        return "x-circle";
       case "system":
       default:
         return "bell";
@@ -143,8 +182,9 @@ export default function NotificationsScreen() {
     actionButton: {
       paddingVertical: Spacing.xs,
       paddingHorizontal: Spacing.sm,
-      backgroundColor: theme.surfaceSecondary,
-      borderRadius: BorderRadius.sm,
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderRadius: BorderRadius.round,
     },
     actionButtonText: {
       fontSize: FontSizes.xs,
@@ -154,6 +194,9 @@ export default function NotificationsScreen() {
     },
     notificationCard: {
       padding: Spacing.md,
+      borderLeftWidth: 3,
+      borderTopLeftRadius: 0,
+      borderBottomLeftRadius: 0,
     },
     notificationPressable: {
       flexDirection: "row",
@@ -186,7 +229,7 @@ export default function NotificationsScreen() {
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandGold,
       marginLeft: Spacing.xs,
     },
     emptyState: {
@@ -241,9 +284,9 @@ export default function NotificationsScreen() {
             onValueChange={handleToggleNotifications}
             trackColor={{
               false: theme.surfaceSecondary,
-              true: theme.primaryLight,
+              true: theme.brandGold,
             }}
-            thumbColor={isEnabled ? theme.primary : theme.textSecondary}
+            thumbColor={isEnabled ? theme.brandPrimaryText : theme.textSecondary}
           />
         </Card>
 
@@ -271,22 +314,25 @@ export default function NotificationsScreen() {
             <View style={styles.actionButtons}>
               {unreadCount > 0 ? (
                 <Pressable
-                  style={styles.actionButton}
+                  style={[styles.actionButton, { borderColor: theme.brandGold }]}
                   onPress={markAllAsRead}
                 >
                   <ThemedText
                     type="caption"
-                    style={[styles.actionButtonText, { color: theme.primary }]}
+                    style={[styles.actionButtonText, { color: theme.brandGold }]}
                   >
                     Mark all read
                   </ThemedText>
                 </Pressable>
               ) : null}
               <Pressable
-                style={styles.actionButton}
+                style={[styles.actionButton, { borderColor: theme.textSecondary }]}
                 onPress={clearNotifications}
               >
-                <ThemedText type="caption" style={styles.actionButtonText}>
+                <ThemedText
+                  type="caption"
+                  style={[styles.actionButtonText, { color: theme.textSecondary }]}
+                >
                   Clear all
                 </ThemedText>
               </Pressable>
@@ -316,7 +362,22 @@ export default function NotificationsScreen() {
         ) : (
           <View style={styles.notificationList}>
             {notifications.map((notification) => (
-              <Card key={notification.id} style={styles.notificationCard}>
+              <Card
+                key={notification.id}
+                style={
+                  [
+                    styles.notificationCard,
+                    {
+                      borderLeftColor: notification.read
+                        ? "transparent"
+                        : theme.brandGold,
+                      backgroundColor: notification.read
+                        ? undefined
+                        : theme.primaryTransparent,
+                    },
+                  ] as any
+                }
+              >
                 <Pressable
                   style={styles.notificationPressable}
                   onPress={() => handleNotificationPress(notification)}
@@ -335,7 +396,7 @@ export default function NotificationsScreen() {
                       name={getNotificationIcon(notification.type)}
                       size={20}
                       color={
-                        notification.read ? theme.textSecondary : theme.primary
+                        notification.read ? theme.textSecondary : theme.brandGold
                       }
                     />
                   </View>

@@ -18,6 +18,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -47,6 +48,14 @@ import apiClient, {
   VendorProduct,
   VendorService,
 } from "@/services/api";
+import { useTheme } from "@/hooks/useTheme";
+import {
+  BrandColorSpec,
+  resolveBrandColor,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
+import { hoursObjectToArray } from "@/components/HoursEditor";
+import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -79,7 +88,7 @@ type ProfileTab =
   | "about";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
 
-type BrandColors = { primary?: string; accent?: string } | null;
+type BrandColors = BrandColorSpec | null;
 
 type ReviewItem = {
   id: string;
@@ -97,6 +106,8 @@ type PostCard = {
   mediaUrl?: string;
   mediaType: "image" | "video";
   aspect: "portrait" | "square";
+  displayLayout?: "pro" | "pulse";
+  authorUserId?: string;
 };
 
 type ServiceCard = {
@@ -143,6 +154,7 @@ type ProfileViewModel = {
   brandColors: BrandColors;
   hasProducts: boolean;
   hasServices: boolean;
+  isMultiStaff: boolean;
   specialties: string[];
   hourlyRate?: number;
   minPrice?: number;
@@ -155,7 +167,7 @@ type ProfileViewModel = {
   contactEmail?: string;
   contactPhone?: string;
   websiteUrl?: string;
-  hoursOfOperation?: string;
+  hoursOfOperation?: Record<string, any> | string | null;
   showEmail?: boolean;
   showPhone?: boolean;
   showWebsite?: boolean;
@@ -232,7 +244,7 @@ const profileHasAbout = (profile: ProfileViewModel): boolean =>
   Boolean(
     profile.bio?.trim() ||
       profile.tagline?.trim() ||
-      (profile.showStoreHours !== false && profile.hoursOfOperation?.trim()) ||
+      (profile.showStoreHours !== false && Boolean(profile.hoursOfOperation)) ||
       (profile.showEmail !== false && profile.contactEmail?.trim()) ||
       (profile.showPhone !== false && profile.contactPhone?.trim()) ||
       (profile.showWebsite !== false && profile.websiteUrl?.trim()) ||
@@ -266,46 +278,15 @@ const getInitials = (name?: string): string => {
     .join("");
 };
 
-const safeJsonParse = (
-  value?: string | null,
-): Record<string, unknown> | null => {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "object" && parsed
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
-const parseBrandColors = (raw: unknown): BrandColors => {
-  if (!raw) return null;
-  if (typeof raw === "string") {
-    const parsed = safeJsonParse(raw);
-    if (!parsed) return null;
-    return {
-      primary: typeof parsed.primary === "string" ? parsed.primary : undefined,
-      accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
-    };
-  }
-  if (typeof raw === "object") {
-    const casted = raw as { primary?: unknown; accent?: unknown };
-    return {
-      primary: typeof casted.primary === "string" ? casted.primary : undefined,
-      accent: typeof casted.accent === "string" ? casted.accent : undefined,
-    };
-  }
-  return null;
-};
+const parseBrandColors = (raw: unknown): BrandColors =>
+  parseBrandColorSpec(raw);
 
 const scoreToStars = (rating: number): number => {
   if (!Number.isFinite(rating) || rating <= 0) return 0;
   return rating > 5 ? Math.round(rating / 10) : Math.round(rating);
 };
 
-const normalizePosts = (posts: ApiPost[]): PostCard[] =>
+const normalizePosts = (posts: ApiPost[], ownerId?: string): PostCard[] =>
   posts.map((post, index) => {
     const mediaType =
       post.mediaType === "video" || (!!post.videoUrl && !post.imageUrl)
@@ -319,11 +300,13 @@ const normalizePosts = (posts: ApiPost[]): PostCard[] =>
       post.images?.[0];
     return {
       id: String(post.id),
-      label: post.content?.trim() || "Outsyde Post",
+      label: post.content?.trim() || "",
       likes: Number(post.likesCount ?? 0),
       mediaUrl: mediaUrl || undefined,
       mediaType,
       aspect: index % 3 === 0 ? "portrait" : "square",
+      displayLayout: post.displayLayout || undefined,
+      authorUserId: post.userId || post.authorId || ownerId,
     };
   });
 
@@ -387,15 +370,31 @@ const CoverMediaHero = ({
   primaryColor: string;
   accentColor: string;
 }) => {
-  const isVideo = profile.coverMediaType === "video" && !!profile.coverMediaUrl;
+  const isMuxVideo =
+    profile.coverMediaType === "video" &&
+    !!profile.coverMediaUrl &&
+    profile.coverMediaUrl.startsWith("https://stream.mux.com/");
+  const isProcessingVideo =
+    profile.coverMediaType === "video" &&
+    !!profile.coverMediaUrl &&
+    !profile.coverMediaUrl.startsWith("https://stream.mux.com/");
   const isImage = profile.coverMediaType === "image" && !!profile.coverMediaUrl;
 
+  const [showFullscreen, setShowFullscreen] = useState(false);
+
   const videoPlayer = useVideoPlayer(
-    isVideo ? profile.coverMediaUrl || "" : "",
+    isMuxVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
       player.loop = true;
       player.muted = true;
       player.play();
+    },
+  );
+
+  const fullscreenPlayer = useVideoPlayer(
+    isMuxVideo ? profile.coverMediaUrl || "" : "",
+    (player) => {
+      player.muted = false;
     },
   );
 
@@ -404,24 +403,54 @@ const CoverMediaHero = ({
       ? [primaryColor, accentColor, COLORS.black]
       : ["#1a1a1a", "#2d2410", "#0a0a0a"];
 
+  const handleVideoTap = () => {
+    videoPlayer.pause();
+    fullscreenPlayer.play();
+    setShowFullscreen(true);
+  };
+
+  const handleFullscreenClose = () => {
+    fullscreenPlayer.pause();
+    setShowFullscreen(false);
+    videoPlayer.play();
+  };
+
   return (
     <View style={styles.coverHero}>
-      {isVideo ? (
-        <VideoView
-          player={videoPlayer}
-          style={styles.coverMedia}
-          contentFit="cover"
-          nativeControls={false}
-        />
+      {isMuxVideo ? (
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={handleVideoTap}
+        >
+          <VideoView
+            player={videoPlayer}
+            style={styles.coverMedia}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        </Pressable>
       ) : null}
-      {!isVideo && isImage ? (
+      {isProcessingVideo ? (
+        <>
+          <LinearGradient
+            colors={gradientColors}
+            style={styles.coverMedia}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+          <View style={styles.processingOverlay}>
+            <Text style={styles.processingText}>Processing video...</Text>
+          </View>
+        </>
+      ) : null}
+      {!isMuxVideo && !isProcessingVideo && isImage ? (
         <Image
           source={{ uri: profile.coverMediaUrl }}
           style={styles.coverMedia}
           contentFit="cover"
         />
       ) : null}
-      {!isVideo && !isImage ? (
+      {!isMuxVideo && !isProcessingVideo && !isImage ? (
         <LinearGradient
           colors={gradientColors}
           style={styles.coverMedia}
@@ -435,6 +464,27 @@ const CoverMediaHero = ({
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
+      <Modal
+        visible={showFullscreen}
+        animationType="fade"
+        supportedOrientations={["portrait", "landscape"]}
+        onRequestClose={handleFullscreenClose}
+      >
+        <View style={styles.fullscreenContainer}>
+          <VideoView
+            player={fullscreenPlayer}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="contain"
+            nativeControls
+          />
+          <Pressable
+            style={styles.fullscreenCloseButton}
+            onPress={handleFullscreenClose}
+          >
+            <Feather name="x" size={24} color={COLORS.white} />
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -443,12 +493,15 @@ export default function VendorDetailScreen({ route }: Props) {
   const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated } = useAuth();
+  const { isDark } = useTheme();
   const { vendorId, initialTab } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileViewModel | null>(null);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
+  const [staff, setStaff] = useState<StaffCardVM[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -472,14 +525,12 @@ export default function VendorDetailScreen({ route }: Props) {
     );
   }, [profile, user?.id]);
 
+  const colorMode = isDark ? "dark" : "light";
   const accentColor =
-    profile?.role === "business"
-      ? profile.brandColors?.primary || COLORS.gold
+    profile?.role === "business" || profile?.role === "photographer"
+      ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
-  const accentDimColor =
-    profile?.role === "business"
-      ? profile.brandColors?.accent || COLORS.goldDim
-      : COLORS.goldDim;
+  const accentDimColor = COLORS.goldDim;
   const pageBg = `${accentColor}28`;
 
   const loadProfile = useCallback(async () => {
@@ -542,7 +593,7 @@ export default function VendorDetailScreen({ route }: Props) {
             reviewCount: Number(item.reviewCount ?? 0),
           }));
 
-        resolvedPosts = normalizePosts(postResponse.posts || []);
+        resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
 
         const brandColors = parseBrandColors((business as any).brandColors);
         const hasProducts = liveProducts.length > 0;
@@ -598,6 +649,7 @@ export default function VendorDetailScreen({ route }: Props) {
           brandColors,
           hasProducts,
           hasServices,
+          isMultiStaff: business.isMultiStaff ?? false,
           specialties: business.category ? [business.category] : [],
           minPrice,
           responseTime: resolveResponseTime(business as any),
@@ -613,10 +665,7 @@ export default function VendorDetailScreen({ route }: Props) {
             (business as any).contactPhone || business.phone || undefined,
           websiteUrl:
             (business as any).websiteUrl || business.website || undefined,
-          hoursOfOperation:
-            typeof (business as any).hoursOfOperation === "string"
-              ? (business as any).hoursOfOperation
-              : undefined,
+          hoursOfOperation: (business as any).hoursOfOperation ?? undefined,
           showEmail: (business as any).showEmail !== false,
           showPhone: (business as any).showPhone !== false,
           showWebsite: (business as any).showWebsite !== false,
@@ -690,7 +739,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 reviewCount: Number((item as any).reviewCount ?? 0),
               }));
 
-            resolvedPosts = normalizePosts(postResponse.posts || []);
+            resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
 
             resolvedProfile = {
               id: String(photographer.id ?? vendorId),
@@ -749,9 +798,10 @@ export default function VendorDetailScreen({ route }: Props) {
               subscriptionTier: String(
                 (photographer as any).subscriptionTier || "",
               ),
-              brandColors: null,
+              brandColors: parseBrandColors((photographer as any).brandColors),
               hasProducts: false,
               hasServices: photographerServices.length > 0,
+              isMultiStaff: false,
               specialties:
                 photographer.specialties ||
                 (photographer.specialty ? [photographer.specialty] : []),
@@ -900,9 +950,10 @@ export default function VendorDetailScreen({ route }: Props) {
               subscriptionTier: String(
                 (photographer as any).subscriptionTier || "",
               ),
-              brandColors: null,
+              brandColors: parseBrandColors((photographer as any).brandColors),
               hasProducts: false,
               hasServices: resolvedServices.length > 0,
+              isMultiStaff: false,
               specialties: Array.isArray(photographer.specialties)
                 ? photographer.specialties
                 : photographer.specialty
@@ -936,33 +987,87 @@ export default function VendorDetailScreen({ route }: Props) {
             "[VendorDetail] Both business and photographer lookups failed for vendorId:",
             vendorId,
           );
-          const postResponse = await apiClient
-            .getProfilePosts(vendorId, { limit: 60 })
-            .catch(() => ({ posts: [] }));
-          resolvedPosts = normalizePosts(postResponse.posts || []);
-          resolvedProfile = {
-            id: vendorId,
-            role: "consumer",
-            name: "Outsyde User",
-            handle: "@outsyde",
-            rating: 0,
-            reviewCount: 0,
-            followerCount: 0,
-            followingCount: 0,
-            bookingCount: 0,
-            shootsCount: 0,
-            postsCount: resolvedPosts.length,
-            isVerified: false,
-            brandColors: null,
-            hasProducts: false,
-            hasServices: false,
-            specialties: [],
-            showResponseTime: false,
-            showEmail: false,
-            showPhone: false,
-            showWebsite: false,
-            showStoreHours: false,
-          };
+          // Consumer resolution: try getPublicUser before falling back to stub
+          try {
+            const { user } = await apiClient.getPublicUser(vendorId);
+            console.log(
+              "[VendorDetail] consumer path: getPublicUser for",
+              vendorId,
+              "→",
+              { name: user.name, followerCount: user.followerCount },
+            );
+            const postResponse = await apiClient
+              .getProfilePosts(vendorId, { limit: 60 })
+              .catch(() => ({ posts: [] }));
+            resolvedPosts = normalizePosts(postResponse.posts || [], String(user.id));
+            const avatarUrl =
+              user.avatarUrl || user.profileImageUrl || undefined;
+            resolvedProfile = {
+              id: String(user.id),
+              userId: String(user.id),
+              role: "consumer",
+              name: user.name || user.username || "Outsyde User",
+              handle: `@${user.username || "outsyde"}`,
+              avatarUrl: avatarUrl && avatarUrl !== "" ? avatarUrl : undefined,
+              coverMediaUrl: user.coverMediaUrl || undefined,
+              coverMediaType: (user.coverMediaType === "video"
+                ? "video"
+                : "image") as "image" | "video",
+              city: user.city || undefined,
+              state: user.state || undefined,
+              location:
+                [user.city, user.state].filter(Boolean).join(", ") ||
+                undefined,
+              rating: 0,
+              reviewCount: 0,
+              followerCount: Number(user.followerCount ?? 0),
+              followingCount: Number(user.followingCount ?? 0),
+              bookingCount: 0,
+              shootsCount: 0,
+              postsCount: resolvedPosts.length,
+              isVerified: false,
+              brandColors: null,
+              hasProducts: false,
+              hasServices: false,
+              isMultiStaff: false,
+              specialties: [],
+              showResponseTime: false,
+              showEmail: false,
+              showPhone: false,
+              showWebsite: false,
+              showStoreHours: false,
+            };
+          } catch {
+            // Final fallback stub — truly unknown id or network error
+            const postResponse = await apiClient
+              .getProfilePosts(vendorId, { limit: 60 })
+              .catch(() => ({ posts: [] }));
+            resolvedPosts = normalizePosts(postResponse.posts || [], vendorId);
+            resolvedProfile = {
+              id: vendorId,
+              role: "consumer",
+              name: "Outsyde User",
+              handle: "@outsyde",
+              rating: 0,
+              reviewCount: 0,
+              followerCount: 0,
+              followingCount: 0,
+              bookingCount: 0,
+              shootsCount: 0,
+              postsCount: resolvedPosts.length,
+              isVerified: false,
+              brandColors: null,
+              hasProducts: false,
+              hasServices: false,
+              isMultiStaff: false,
+              specialties: [],
+              showResponseTime: false,
+              showEmail: false,
+              showPhone: false,
+              showWebsite: false,
+              showStoreHours: false,
+            };
+          }
         }
       }
 
@@ -983,6 +1088,42 @@ export default function VendorDetailScreen({ route }: Props) {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!profile?.isMultiStaff) {
+      setStaff([]);
+      setSelectedStaffId(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiClient.getBusinessPublicStaff(vendorId);
+        if (cancelled) return;
+        const mapped: StaffCardVM[] = (response.staff || []).map((member) => ({
+          id: String(member.id),
+          displayName: member.displayName || "Team Member",
+          bio: member.bio || undefined,
+          profileImageUrl: member.profileImageUrl || undefined,
+          specialties: Array.isArray(member.specialties)
+            ? member.specialties
+            : [],
+          serviceIds: Array.isArray(member.serviceIds)
+            ? member.serviceIds
+            : [],
+          rating: Number(member.rating ?? 0),
+          reviewCount: Number(member.reviewCount ?? 0),
+        }));
+        setStaff(mapped);
+      } catch (error) {
+        console.error("[VendorDetail] Failed to load staff:", error);
+        if (!cancelled) setStaff([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.isMultiStaff, vendorId]);
 
   const tabOrder = useMemo<ProfileTab[]>(() => {
     if (!profile) return ["posts", "reviews"];
@@ -1055,18 +1196,29 @@ export default function VendorDetailScreen({ route }: Props) {
           ? "photographer"
           : "user";
 
+    const wasFollowing = isFollowing;
+    const previousFollowerCount = profile.followerCount;
+    const nextFollowerCount = wasFollowing
+      ? Math.max(0, previousFollowerCount - 1)
+      : previousFollowerCount + 1;
+
     setFollowBusy(true);
+    setIsFollowing(!wasFollowing);
+    setProfile((prev) =>
+      prev ? { ...prev, followerCount: nextFollowerCount } : prev,
+    );
     try {
-      if (isFollowing) {
+      if (wasFollowing) {
         await apiClient.unfollowUser(targetId);
-        setIsFollowing(false);
       } else {
         await apiClient.followUser(targetId, targetType);
-        setIsFollowing(true);
       }
-      // TODO: Wire follow/unfollow to API
     } catch (error) {
       console.error("Follow toggle failed:", error);
+      setIsFollowing(wasFollowing);
+      setProfile((prev) =>
+        prev ? { ...prev, followerCount: previousFollowerCount } : prev,
+      );
       Alert.alert("Unable to update follow", "Please try again.");
     } finally {
       setFollowBusy(false);
@@ -1213,10 +1365,6 @@ export default function VendorDetailScreen({ route }: Props) {
 
     return (
       <View style={styles.identityBlock}>
-        <View
-          pointerEvents="none"
-          style={[styles.identityGlow, { backgroundColor: `${accentColor}20` }]}
-        />
         <View style={styles.avatarActionRow}>
           <AvatarWithInitials
             name={profile.name}
@@ -1285,6 +1433,10 @@ export default function VendorDetailScreen({ route }: Props) {
             </View>
           ) : null}
         </View>
+
+        {profile.role === "business" && profile.tagline?.trim() ? (
+          <Text style={styles.taglineText}>{profile.tagline}</Text>
+        ) : null}
 
         <Text style={styles.metaLine}>
           {profile.handle}
@@ -1418,8 +1570,7 @@ export default function VendorDetailScreen({ route }: Props) {
       <View style={styles.tabContent}>
         <View style={styles.mediaGrid}>
           {posts.map((post) => {
-            const cellHeight =
-              post.aspect === "portrait" ? postCellWidth * 1.33 : postCellWidth;
+            const cellHeight = postCellWidth;
             return (
               <Pressable
                 key={post.id}
@@ -1427,6 +1578,12 @@ export default function VendorDetailScreen({ route }: Props) {
                   styles.mediaCell,
                   { width: postCellWidth, height: cellHeight },
                 ]}
+                onPress={() => {
+                  navigation.navigate("PostDetail", {
+                    userId: post.authorUserId || profile?.userId || profile?.id || vendorId,
+                    initialPostId: post.id,
+                  });
+                }}
               >
                 {post.mediaUrl ? (
                   <Image
@@ -1522,6 +1679,55 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderBookingTab = () => {
+    if (profile?.isMultiStaff) {
+      if (staff.length === 0) {
+        return (
+          <View style={styles.tabContent}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>
+                No team members available to book yet
+              </Text>
+            </View>
+          </View>
+        );
+      }
+
+      return (
+        <View style={styles.tabContent}>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 11,
+              fontWeight: "600",
+              textTransform: "uppercase",
+              letterSpacing: 0.8,
+              marginBottom: 12,
+              paddingHorizontal: 4,
+            }}
+          >
+            Select a Team Member
+          </Text>
+          <StaffCardList
+            staff={staff}
+            accentColor={accentColor}
+            selectedStaffId={selectedStaffId}
+            onSelect={setSelectedStaffId}
+            onViewProfile={(staffId) => {
+              const member = staff.find((item) => item.id === staffId);
+              Alert.alert(
+                member?.displayName || "Team Member",
+                "Full staff profiles are coming soon.",
+              );
+            }}
+            onBook={(staffId) => {
+              setSelectedStaffId(staffId);
+              openBookingModal();
+            }}
+          />
+        </View>
+      );
+    }
+
     if (services.length === 0) {
       return (
         <View style={styles.tabContent}>
@@ -1821,15 +2027,40 @@ Booking flow coming soon.`,
             </Text>
           </View>
         ) : null}
-        {profile?.role === "business" && profile.showStoreHours !== false ? (
-          <View style={styles.aboutRow}>
-            <Feather name="clock" size={14} color={accentColor} />
-            <Text style={styles.aboutLabel}>Store Hours</Text>
-            <Text style={styles.aboutValue}>
-              {profile.hoursOfOperation || "Not listed"}
-            </Text>
-          </View>
-        ) : null}
+        {profile?.role === "business" && profile.showStoreHours !== false ? (() => {
+          const hoursObj =
+            profile.hoursOfOperation &&
+            typeof profile.hoursOfOperation === "object"
+              ? profile.hoursOfOperation
+              : null;
+          const dayRows = hoursObj
+            ? hoursObjectToArray(hoursObj as Parameters<typeof hoursObjectToArray>[0])
+            : [];
+          return (
+            <View style={styles.aboutRow}>
+              <Feather name="clock" size={14} color={accentColor} />
+              <Text style={styles.aboutLabel}>Store Hours</Text>
+              {dayRows.length > 0 ? (
+                <View style={styles.hoursGrid}>
+                  {dayRows.map((day) => (
+                    <View key={day.dayOfWeek} style={styles.hoursRow}>
+                      <Text style={styles.hoursDayLabel}>
+                        {DAY_LABELS[day.dayOfWeek]}
+                      </Text>
+                      <Text style={styles.hoursValue}>
+                        {day.isAvailable
+                          ? `${day.startTime} – ${day.endTime}`
+                          : "Closed"}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.aboutValue}>Not listed</Text>
+              )}
+            </View>
+          );
+        })() : null}
         {profile?.showResponseTime !== false && profile?.responseTime ? (
           <View style={styles.aboutRow}>
             <Feather name="zap" size={14} color={accentColor} />
@@ -1837,17 +2068,16 @@ Booking flow coming soon.`,
             <Text style={styles.aboutValue}>{profile.responseTime}</Text>
           </View>
         ) : null}
-        <View style={styles.aboutRow}>
-          <Feather name="calendar" size={14} color={accentColor} />
-          <Text style={styles.aboutLabel}>Availability</Text>
-          <Text style={styles.aboutValue}>
-            {profile.availabilitySummary ||
-              (profile?.showStoreHours !== false
-                ? profile.hoursOfOperation
-                : undefined) ||
-              "Available"}
-          </Text>
-        </View>
+        {/* Availability row: hidden for business when real store hours are shown */}
+        {profile?.role !== "business" ? (
+          <View style={styles.aboutRow}>
+            <Feather name="calendar" size={14} color={accentColor} />
+            <Text style={styles.aboutLabel}>Availability</Text>
+            <Text style={styles.aboutValue}>
+              {profile.availabilitySummary || "Available"}
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -1889,6 +2119,9 @@ Booking flow coming soon.`,
     profile.minPrice != null
       ? `Starting from ${formatMoney(profile.minPrice)}`
       : "";
+  const selectedStaffMember = profile.isMultiStaff
+    ? staff.find((member) => member.id === selectedStaffId)
+    : undefined;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
@@ -1928,7 +2161,13 @@ Booking flow coming soon.`,
             style={StyleSheet.absoluteFillObject}
           />
           <View style={styles.stickyInner}>
-            {minLabel ? (
+            {selectedStaffMember ? (
+              <View style={styles.minPriceWrap}>
+                <Text style={styles.minPriceText}>
+                  With {selectedStaffMember.displayName}
+                </Text>
+              </View>
+            ) : minLabel ? (
               <View style={styles.minPriceWrap}>
                 <Text style={styles.minPriceText}>{minLabel}</Text>
               </View>
@@ -2112,20 +2351,38 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 160,
   },
+  processingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  processingText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: COLORS.black,
+  },
+  fullscreenCloseButton: {
+    position: "absolute",
+    top: 48,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   identityBlock: {
     marginTop: -60,
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: 16,
     zIndex: 5,
     position: "relative",
-  },
-  identityGlow: {
-    position: "absolute",
-    width: 300,
-    height: 200,
-    borderRadius: 150,
-    top: -44,
-    left: (SCREEN_WIDTH - 300) / 2,
   },
   avatarActionRow: {
     flexDirection: "row",
@@ -2235,6 +2492,13 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 22,
     fontWeight: "800",
+  },
+  taglineText: {
+    color: COLORS.cream,
+    fontSize: 14,
+    fontStyle: "italic",
+    fontWeight: "500",
+    marginTop: 4,
   },
   verifiedBadge: {
     width: 20,
@@ -2684,6 +2948,27 @@ const styles = StyleSheet.create({
     color: COLORS.cream,
     fontSize: 13,
     textAlign: "right",
+  },
+  hoursGrid: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  hoursRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 2,
+  },
+  hoursDayLabel: {
+    color: COLORS.grayLight,
+    fontSize: 12,
+    fontWeight: "600",
+    width: 32,
+  },
+  hoursValue: {
+    color: COLORS.cream,
+    fontSize: 12,
+    textAlign: "right",
+    flex: 1,
   },
   stickyWrap: {
     position: "absolute",

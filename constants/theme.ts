@@ -31,6 +31,24 @@ export const Colors = {
     tierPro: "#C0C0C0",
     tierBasic: "#CD7F32",
     link: "#007AFF",
+    // ── Outsyde brand design system v1 ─────────────────────────────────────────
+    // Roles: brandPrimary = solid emerald action buttons; brandGold = accent/links/active;
+    // brandCream = headings/important text; brandBg/Surface = chrome surfaces.
+    // Light mode inverts cream→dark text, gold→darkened for contrast.
+    brandBg:            "#F5F0E6",
+    brandBgElevated:    "#FFFFFF",
+    brandSurface:       "#FFFFFF",
+    brandSurfaceBorder: "rgba(0,0,0,0.08)",
+    brandPrimary:       "#1A3C34",
+    brandPrimaryText:   "#FFFFFF",
+    brandGold:          "#B38600",
+    brandGoldDim:       "#8A6600",
+    brandCream:         "#0A0A0A",
+    brandTextDim:       "#555555",
+    brandSuccess:       "#34C759",
+    brandPending:       "#FF9500",
+    brandError:         "#FF3B30",
+    brandInfo:          "#007AFF",
   },
   dark: {
     text: "#FFFFFF",
@@ -64,6 +82,24 @@ export const Colors = {
     tierPro: "#C0C0C0",
     tierBasic: "#CD7F32",
     link: "#0A84FF",
+    // ── Outsyde brand design system v1 ─────────────────────────────────────────
+    // Roles: brandPrimary = solid emerald action buttons; brandGold = accent/links/active;
+    // brandCream = headings/important text; brandBg/Surface = chrome surfaces.
+    // Light mode inverts cream→dark text, gold→darkened for contrast.
+    brandBg:            "#080C08",
+    brandBgElevated:    "#111411",
+    brandSurface:       "rgba(255,255,255,0.04)",
+    brandSurfaceBorder: "rgba(255,255,255,0.08)",
+    brandPrimary:       "#1A3C34",
+    brandPrimaryText:   "#F0EAD6",
+    brandGold:          "#E8B930",
+    brandGoldDim:       "#C9A84C",
+    brandCream:         "#F0EAD6",
+    brandTextDim:       "rgba(200,191,168,0.6)",
+    brandSuccess:       "#34C759",
+    brandPending:       "#FF9500",
+    brandError:         "#FF3B30",
+    brandInfo:          "#007AFF",
   },
 };
 

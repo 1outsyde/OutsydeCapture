@@ -7,28 +7,30 @@ import { Feather } from "@expo/vector-icons";
 import DiscoverScreen from "@/screens/DiscoverScreen";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { useTheme } from "@/hooks/useTheme";
-import { useAuth } from "@/context/AuthContext";
-import { useNotifications } from "@/context/NotificationContext";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
 import { DiscoverStackParamList, RootStackParamList } from "@/navigation/types";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import { ThemedText } from "@/components/ThemedText";
 
 const Stack = createNativeStackNavigator<DiscoverStackParamList>();
 
-function BookSessionButton() {
+function UpcomingChip() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   return (
     <Pressable
-      onPress={() => navigation.navigate("SelectPhotographer")}
-      style={({ pressed }) => ({
-        opacity: pressed ? 0.7 : 1,
-        padding: Spacing.sm,
-      })}
+      onPress={() => navigation.navigate("Sessions")}
+      style={({ pressed }) => [
+        styles.upcomingChip,
+        {
+          backgroundColor: theme.brandSurface,
+          borderColor: theme.brandSurfaceBorder,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
     >
-      <Feather name="camera" size={22} color={theme.text} />
+      <Feather name="calendar" size={14} color={theme.brandGold} />
+      {/* TODO: activity badge (red dot) once a backend "new upcoming activity" signal exists */}
     </Pressable>
   );
 }
@@ -36,43 +38,12 @@ function BookSessionButton() {
 function HeaderRightButtons() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { user } = useAuth();
-  const { unreadCount } = useNotifications();
 
   return (
     <View style={styles.headerRightContainer}>
-      {/* Universal Notification Bell for all authenticated users */}
-      {user && (
-        <Pressable
-          onPress={() => {
-            navigation.navigate("Notifications");
-          }}
-          hitSlop={16}
-          style={({ pressed }) => ({
-            opacity: pressed ? 0.7 : 1,
-            padding: Spacing.sm,
-            position: "relative",
-          })}
-        >
-          <Feather name="bell" size={22} color={theme.text} />
-          {unreadCount > 0 ? (
-            <View
-              style={[
-                styles.badge,
-                { backgroundColor: theme.error },
-                { pointerEvents: "none" },
-              ]}
-            >
-              <ThemedText
-                type="caption"
-                style={styles.badgeText}
-              >
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </ThemedText>
-            </View>
-          ) : null}
-        </Pressable>
-      )}
+      <UpcomingChip />
+      {/* Bell/Notifications relocated to the bottom-nav Inbox tab (Commit 3) */}
+      {/* TODO: shopping-bag presence dot once a cart-item-count signal exists */}
       <Pressable
         onPress={() => navigation.navigate("CartOrders")}
         style={({ pressed }) => ({
@@ -80,7 +51,7 @@ function HeaderRightButtons() {
           padding: Spacing.sm,
         })}
       >
-        <Feather name="shopping-bag" size={22} color={theme.text} />
+        <Feather name="shopping-bag" size={22} color={theme.brandGold} />
       </Pressable>
     </View>
   );
@@ -99,8 +70,10 @@ export default function DiscoverStackNavigator() {
         name="Discover"
         component={DiscoverScreen}
         options={{
-          headerTitle: () => <HeaderTitle />,
-          headerLeft: () => <BookSessionButton />,
+          title: "",
+          headerBackTitle: "",
+          headerLeft: () => <HeaderTitle />,
+          headerTitle: () => null,
           headerRight: () => <HeaderRightButtons />,
         }}
       />
@@ -112,21 +85,15 @@ const styles = StyleSheet.create({
   headerRightContainer: {
     flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.sm,
   },
-  badge: {
-    position: "absolute",
-    top: 2,
-    right: 2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: BorderRadius.round,
+  upcomingChip: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "700",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.round,
+    borderWidth: 1,
   },
 });

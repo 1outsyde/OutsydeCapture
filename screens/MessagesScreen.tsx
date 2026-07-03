@@ -87,7 +87,7 @@ function ConversationItem({
       onPress={onPress}
       style={({ pressed }) => [
         styles.conversationItem,
-        { backgroundColor: pressed ? theme.backgroundSecondary : "transparent" },
+        { backgroundColor: pressed ? theme.brandSurface : "transparent" },
       ]}
     >
       {conversation.participantAvatar ? (
@@ -98,8 +98,8 @@ function ConversationItem({
           transition={200}
         />
       ) : (
-        <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
-          <ThemedText type="h4" style={{ color: theme.textSecondary }}>
+        <View style={[styles.avatar, { backgroundColor: theme.brandSurface }]}>
+          <ThemedText type="h4" style={{ color: theme.brandTextDim }}>
             {conversation.participantName?.charAt(0)?.toUpperCase() || "?"}
           </ThemedText>
         </View>
@@ -116,7 +116,7 @@ function ConversationItem({
           {relativeTime && (
             <ThemedText
               type="caption"
-              style={[styles.timestamp, { color: theme.textSecondary }]}
+              style={[styles.timestamp, { color: theme.brandTextDim }]}
             >
               {relativeTime}
             </ThemedText>
@@ -127,7 +127,7 @@ function ConversationItem({
           numberOfLines={1}
           style={[
             styles.previewText,
-            { color: hasUnread ? theme.text : theme.textSecondary },
+            { color: hasUnread ? theme.brandCream : theme.brandTextDim },
             hasUnread && { fontWeight: "500" },
           ]}
         >
@@ -135,8 +135,8 @@ function ConversationItem({
         </ThemedText>
       </View>
       {hasUnread && (
-        <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
-          <ThemedText type="small" style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+        <View style={[styles.unreadBadge, { backgroundColor: theme.brandPrimary }]}>
+          <ThemedText type="small" style={{ color: theme.brandPrimaryText, fontSize: 10, fontWeight: "700" }}>
             {unreadCount > 9 ? "9+" : unreadCount}
           </ThemedText>
         </View>
@@ -150,15 +150,15 @@ function EmptyState() {
 
   return (
     <View style={styles.emptyState}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSecondary }]}>
-        <Feather name="message-circle" size={48} color={theme.textSecondary} />
+      <View style={[styles.emptyIcon, { backgroundColor: theme.brandSurface }]}>
+        <Feather name="message-circle" size={48} color={theme.brandTextDim} />
       </View>
       <ThemedText type="h3" style={styles.emptyTitle}>
         No Messages Yet
       </ThemedText>
       <ThemedText
         type="body"
-        style={[styles.emptyDescription, { color: theme.textSecondary }]}
+        style={[styles.emptyDescription, { color: theme.brandTextDim }]}
       >
         Tap the + button to start a new conversation
       </ThemedText>
@@ -172,15 +172,15 @@ function SignInPrompt() {
 
   return (
     <View style={styles.emptyState}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundSecondary }]}>
-        <Feather name="lock" size={48} color={theme.textSecondary} />
+      <View style={[styles.emptyIcon, { backgroundColor: theme.brandSurface }]}>
+        <Feather name="lock" size={48} color={theme.brandTextDim} />
       </View>
       <ThemedText type="h3" style={styles.emptyTitle}>
         Sign In to Message
       </ThemedText>
       <ThemedText
         type="body"
-        style={[styles.emptyDescription, { color: theme.textSecondary }]}
+        style={[styles.emptyDescription, { color: theme.brandTextDim }]}
       >
         Sign in to view your conversations and message others.
       </ThemedText>
@@ -188,10 +188,10 @@ function SignInPrompt() {
         onPress={() => navigation.navigate("Auth", { returnTo: "messages" })}
         style={({ pressed }) => [
           styles.signInButton,
-          { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+          { backgroundColor: theme.brandPrimary, opacity: pressed ? 0.8 : 1 },
         ]}
       >
-        <ThemedText type="button" style={{ color: "#FFFFFF" }}>
+        <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
           Sign In
         </ThemedText>
       </Pressable>
@@ -219,7 +219,7 @@ function NewMessageModal({
   onSelectUser: (user: SearchResult) => void;
   currentUserId: string;
 }) {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -275,14 +275,14 @@ function NewMessageModal({
       onPress={() => onSelectUser(item)}
       style={({ pressed }) => [
         styles.searchResultItem,
-        { backgroundColor: pressed ? theme.backgroundSecondary : "transparent" },
+        { backgroundColor: pressed ? theme.brandSurface : "transparent" },
       ]}
     >
       {item.avatar ? (
         <Image source={{ uri: item.avatar }} style={styles.searchAvatar} contentFit="cover" />
       ) : (
-        <View style={[styles.searchAvatar, { backgroundColor: theme.backgroundSecondary }]}>
-          <ThemedText type="body" style={{ color: theme.textSecondary }}>
+        <View style={[styles.searchAvatar, { backgroundColor: theme.brandSurface }]}>
+          <ThemedText type="body" style={{ color: theme.brandTextDim }}>
             {item.name?.charAt(0)?.toUpperCase() || "?"}
           </ThemedText>
         </View>
@@ -292,13 +292,13 @@ function NewMessageModal({
           {item.name}
         </ThemedText>
         {item.username && (
-          <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+          <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
             @{item.username}
           </ThemedText>
         )}
       </View>
-      <View style={[styles.typeBadge, { backgroundColor: theme.backgroundSecondary }]}>
-        <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 10 }}>
+      <View style={[styles.typeBadge, { backgroundColor: theme.brandSurface }]}>
+        <ThemedText type="small" style={{ color: theme.brandTextDim, fontSize: 10 }}>
           {item.type}
         </ThemedText>
       </View>
@@ -310,12 +310,12 @@ function NewMessageModal({
       <View
         style={[
           styles.modalContainer,
-          { backgroundColor: theme.backgroundDefault, paddingTop: insets.top },
+          { backgroundColor: theme.brandBg, paddingTop: insets.top },
         ]}
       >
         <View style={styles.modalHeader}>
           <Pressable onPress={onClose} hitSlop={16}>
-            <Feather name="x" size={24} color={theme.text} />
+            <Feather name="x" size={24} color={theme.brandCream} />
           </Pressable>
           <ThemedText type="h4" style={{ flex: 1, textAlign: "center" }}>
             New Message
@@ -323,12 +323,12 @@ function NewMessageModal({
           <View style={{ width: 24 }} />
         </View>
 
-        <View style={[styles.searchContainer, { backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7" }]}>
-          <Feather name="search" size={18} color={theme.textSecondary} />
+        <View style={[styles.searchContainer, { backgroundColor: theme.brandSurface }]}>
+          <Feather name="search" size={18} color={theme.brandTextDim} />
           <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
+            style={[styles.searchInput, { color: theme.brandCream }]}
             placeholder="Search by @username or name"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             value={query}
             onChangeText={setQuery}
             autoFocus
@@ -337,14 +337,14 @@ function NewMessageModal({
           />
           {query.length > 0 && (
             <Pressable onPress={() => setQuery("")} hitSlop={12}>
-              <Feather name="x-circle" size={18} color={theme.textSecondary} />
+              <Feather name="x-circle" size={18} color={theme.brandTextDim} />
             </Pressable>
           )}
         </View>
 
         {searching ? (
           <View style={styles.searchLoading}>
-            <ActivityIndicator size="small" color={theme.primary} />
+            <ActivityIndicator size="small" color={theme.brandPrimary} />
           </View>
         ) : results.length > 0 ? (
           <FlatList
@@ -356,16 +356,16 @@ function NewMessageModal({
           />
         ) : query.length >= 2 ? (
           <View style={styles.noResults}>
-            <ThemedText type="body" style={{ color: theme.textSecondary }}>
+            <ThemedText type="body" style={{ color: theme.brandTextDim }}>
               No users found
             </ThemedText>
           </View>
         ) : (
           <View style={styles.searchHint}>
-            <Feather name="at-sign" size={32} color={theme.textSecondary} />
+            <Feather name="at-sign" size={32} color={theme.brandTextDim} />
             <ThemedText
               type="body"
-              style={{ color: theme.textSecondary, marginTop: Spacing.md, textAlign: "center" }}
+              style={{ color: theme.brandTextDim, marginTop: Spacing.md, textAlign: "center" }}
             >
               Search for users by their @username or display name
             </ThemedText>
@@ -440,10 +440,10 @@ export default function MessagesScreen() {
         onPress={() => setShowNewMessage(true)}
         style={({ pressed }) => [
           styles.newMessageButton,
-          { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+          { backgroundColor: theme.brandPrimary, opacity: pressed ? 0.8 : 1 },
         ]}
       >
-        <Feather name="plus" size={20} color="#fff" />
+        <Feather name="plus" size={20} color={theme.brandPrimaryText} />
       </Pressable>
     </View>
   );
@@ -462,7 +462,7 @@ export default function MessagesScreen() {
       <ThemedView style={styles.container}>
         {renderHeader()}
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <ActivityIndicator size="large" color={theme.brandPrimary} />
         </View>
       </ThemedView>
     );
@@ -508,11 +508,11 @@ export default function MessagesScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={refreshConversations}
-            tintColor={theme.primary}
+            tintColor={theme.brandPrimary}
           />
         }
         ItemSeparatorComponent={() => (
-          <View style={[styles.separator, { backgroundColor: theme.border }]} />
+          <View style={[styles.separator, { backgroundColor: theme.brandSurfaceBorder }]} />
         )}
       />
       <NewMessageModal

@@ -22,13 +22,15 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -36,7 +38,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 
-import { RootStackParamList } from "@/navigation/types";
+import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
@@ -47,6 +49,13 @@ import apiClient, {
   VendorBookerPhotographerService,
   WeeklyAvailabilitySlot,
 } from "@/services/api";
+import { feedEvents } from "@/services/feedEvents";
+import { useTheme } from "@/hooks/useTheme";
+import {
+  BrandColorSpec,
+  resolveBrandColor,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -99,7 +108,7 @@ type ProfileData = {
   postsCount: number;
   isVerified: boolean;
   subscriptionTier?: string;
-  brandColors?: { primary?: string; accent?: string } | null;
+  brandColors?: BrandColorSpec | null;
   hasProducts: boolean;
   hasServices: boolean;
   specialties: string[];
@@ -147,31 +156,8 @@ type ServiceCard = {
   rating?: number;
 };
 
-const parseBrandColors = (
-  raw: unknown,
-): { primary?: string; accent?: string } | null => {
-  if (!raw) return null;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw) as { primary?: unknown; accent?: unknown };
-      return {
-        primary:
-          typeof parsed.primary === "string" ? parsed.primary : undefined,
-        accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
-      };
-    } catch {
-      return null;
-    }
-  }
-  if (typeof raw === "object") {
-    const casted = raw as { primary?: unknown; accent?: unknown };
-    return {
-      primary: typeof casted.primary === "string" ? casted.primary : undefined,
-      accent: typeof casted.accent === "string" ? casted.accent : undefined,
-    };
-  }
-  return null;
-};
+const parseBrandColors = (raw: unknown): BrandColorSpec | null =>
+  parseBrandColorSpec(raw);
 
 const getInitials = (name?: string): string => {
   if (!name) return "O";
@@ -435,9 +421,12 @@ const CoverMediaHero = ({
 
 export default function AccountScreen() {
   const navigation = useNavigation<Navigation>();
+  const route = useRoute<RouteProp<AccountStackParamList, "Account"> | RouteProp<RootStackParamList, "UserProfile">>();
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, getToken } = useAuth();
   const { unreadCount } = useNotifications();
+  const { isDark } = useTheme();
+  console.log("[NOTIF-DEBUG] AccountScreen bell sees unreadCount =", unreadCount);
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -451,10 +440,77 @@ export default function AccountScreen() {
   const [reviews, setReviews] = useState<ReviewCard[]>([]);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const role = (user?.role || "consumer") as ProfileRole;
+
+  // ── Viewer-mode params ────────────────────────────────────────────────────
+  const params = route.params;
+  const routeUserId = params?.userId;
+  const routeUserType = params?.userType;
+  const viewerMode = Boolean(routeUserId && routeUserId !== String(user?.id));
+  const isOwner = !viewerMode;
+
+  useEffect(() => {
+    console.log('[AccountScreen] mode', {
+      viewerMode,
+      isOwner,
+      routeUserId,
+      routeUserType,
+      selfId: user?.id,
+    });
+  }, [viewerMode, isOwner, routeUserId, routeUserType, user?.id]);
+
+  useEffect(() => {
+    if (!profile || isOwner || !isAuthenticated) return;
+    const targetId = profile.userId || profile.id;
+    apiClient
+      .checkFollowStatus(targetId)
+      .then((result) => setIsFollowing(result.isFollowing))
+      .catch(() => setIsFollowing(false));
+  }, [profile, isOwner, isAuthenticated]);
+
+  const handleFollowToggle = useCallback(async () => {
+    if (!profile || followBusy) return;
+    const targetId = profile.userId || profile.id;
+    const targetType =
+      profile.role === "business"
+        ? "business"
+        : profile.role === "photographer"
+          ? "photographer"
+          : "user";
+
+    const wasFollowing = isFollowing;
+    const previousFollowerCount = profile.followerCount;
+    const nextFollowerCount = wasFollowing
+      ? Math.max(0, previousFollowerCount - 1)
+      : previousFollowerCount + 1;
+
+    setFollowBusy(true);
+    setIsFollowing(!wasFollowing);
+    setProfile((prev) =>
+      prev ? { ...prev, followerCount: nextFollowerCount } : prev,
+    );
+    try {
+      if (wasFollowing) {
+        await apiClient.unfollowUser(targetId);
+      } else {
+        await apiClient.followUser(targetId, targetType);
+      }
+    } catch (error) {
+      console.error("Follow toggle failed:", error);
+      setIsFollowing(wasFollowing);
+      setProfile((prev) =>
+        prev ? { ...prev, followerCount: previousFollowerCount } : prev,
+      );
+      Alert.alert("Unable to update follow", "Please try again.");
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [followBusy, isFollowing, profile]);
 
   const loadProfile = useCallback(async () => {
     if (!isAuthenticated) {
@@ -463,12 +519,6 @@ export default function AccountScreen() {
     }
     setLoading(true);
     try {
-      const token = await getToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
       let profileData: ProfileData | null = null;
       let resolvedProducts: VendorProduct[] = [];
       let resolvedServices: ServiceCard[] = [];
@@ -477,277 +527,611 @@ export default function AccountScreen() {
       let resolvedAvailability: WeeklyAvailabilitySlot[] = [];
       let resolvedReviews: ReviewCard[] = [];
 
-      if (role === "business") {
-        const [
-          businessResponse,
-          productsResponse,
-          servicesResponse,
-          weeklyResponse,
-          postResponse,
-        ] = await Promise.all([
-          apiClient.getVendorMyBusiness(token),
-          apiClient.getVendorProducts(token).catch(() => ({ products: [] })),
-          apiClient.getVendorServices(token).catch(() => ({ services: [] })),
-          apiClient.getWeeklyAvailability(token, "business").catch(() => []),
-          apiClient
-            .getProfilePosts(String(user?.id || ""), { limit: 60 })
-            .catch(() => ({ posts: [] })),
-        ]);
+      // ── VIEWER MODE: fetch another user's public data ─────────────────────
+      if (viewerMode && routeUserId) {
+        // Resolve the target's role
+        let resolvedType: ProfileRole = routeUserType || "consumer";
+        if (!routeUserType) {
+          const publicUserResult = await apiClient.getPublicUser(routeUserId);
+          const u = publicUserResult.user;
+          resolvedType = u.isPhotographer
+            ? "photographer"
+            : u.isVendor
+              ? "business"
+              : "consumer";
+        }
 
-        const business = businessResponse.business;
-        const liveProducts = (productsResponse.products || []).filter(
-          (item) => item.status === "live",
-        );
-        const liveServices = (servicesResponse.services || [])
-          .filter((item) => item.status === "live")
-          .map((item: VendorService) => ({
-            id: String(item.id),
-            name: item.name,
-            description: item.description || undefined,
-            priceCents: Number(item.priceCents ?? 0),
-            durationMinutes:
-              item.durationMinutes ||
-              (item as any).estimatedDurationMinutes ||
+        if (resolvedType === "business") {
+          // Pass the user id to getBusiness — the public endpoint may accept
+          // either the business record id or the owner/user id. Log which was used.
+          console.log(
+            "[AccountScreen] viewer-mode business: calling getBusiness with user id:",
+            routeUserId,
+          );
+          const [business, productsResponse, servicesResponse, postResponse] =
+            await Promise.all([
+              apiClient.getBusiness(routeUserId),
+              apiClient
+                .getBusinessPublicProducts(routeUserId)
+                .catch(() => ({ products: [] })),
+              apiClient
+                .getBusinessPublicServices(routeUserId)
+                .catch(() => ({ services: [] })),
+              apiClient
+                .getProfilePosts(routeUserId, { limit: 60 })
+                .catch(() => ({ posts: [] })),
+            ]);
+
+          const liveProducts = (productsResponse.products || []).filter(
+            (item) => item.status === "live",
+          );
+          const liveServices = (servicesResponse.services || [])
+            .filter((item) => item.status === "live")
+            .map((item: VendorService) => ({
+              id: String(item.id),
+              name: item.name,
+              description: item.description || undefined,
+              priceCents: Number(item.priceCents ?? 0),
+              durationMinutes:
+                item.durationMinutes ||
+                (item as any).estimatedDurationMinutes ||
+                undefined,
+              rating: Number(item.rating ?? 0),
+            }));
+
+          resolvedPosts = toPosts(postResponse.posts || []);
+          resolvedProducts = liveProducts;
+          resolvedServices = liveServices;
+          resolvedReviews = Array.isArray((business as any).reviews)
+            ? (business as any).reviews.map((entry: any, idx: number) => ({
+                id: String(entry.id ?? `review-${idx}`),
+                userName: entry.userName || entry.authorName || "Outsyde User",
+                rating: Number(entry.rating ?? 5),
+                text: entry.text || entry.comment || "",
+                createdAt: entry.createdAt || new Date().toISOString(),
+              }))
+            : [];
+
+          const minPrice = getMinimumPrice(liveProducts, liveServices);
+          const bizName = business.name || "Business";
+          const logoRaw =
+            (business as any).logoImage || business.avatar || "";
+
+          profileData = {
+            id: String(business.id),
+            userId: routeUserId,
+            role: "business",
+            name: bizName,
+            handle: `@${(business as any).username || bizName.replace(/\s+/g, "").toLowerCase()}`,
+            avatarUrl: logoRaw !== "" ? logoRaw : undefined,
+            coverMediaUrl: business.coverImage || undefined,
+            coverMediaType:
+              (business as any).coverMediaType === "video" ? "video" : "image",
+            city: business.city || undefined,
+            state: business.state || undefined,
+            location:
+              [business.city, business.state].filter(Boolean).join(", ") ||
               undefined,
-            rating: Number(item.rating ?? 0),
-          }));
+            bio: business.description || undefined,
+            tagline: (business as any).tagline || undefined,
+            rating: Number(business.rating ?? 0),
+            reviewCount: Number(business.reviewCount ?? 0),
+            followerCount: Number(
+              (business as any).followerCount ??
+                (business as any).followersCount ??
+                0,
+            ),
+            followingCount: Number((business as any).followingCount ?? 0),
+            bookingsCount: Number(
+              (business as any).bookingCount ??
+                (business as any).totalBookings ??
+                0,
+            ),
+            shootsCount: 0,
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean((business as any).isVerified),
+            subscriptionTier: String((business as any).subscriptionTier || ""),
+            brandColors: parseBrandColors(business.brandColors),
+            hasProducts: liveProducts.length > 0,
+            hasServices: liveServices.length > 0,
+            specialties: business.category ? [business.category] : [],
+            minPrice,
+            responseTime: resolveResponseTime(business as any),
+            responseTimeValue: Number((business as any).responseTimeValue ?? 2),
+            responseTimeUnit: ((business as any).responseTimeUnit ||
+              "hours") as ResponseTimeUnit,
+            showResponseTime: (business as any).showResponseTime !== false,
+            availabilitySummary: (business as any).availability || undefined,
+            address: business.address || undefined,
+            contactEmail:
+              (business as any).contactEmail || business.email || undefined,
+            contactPhone:
+              (business as any).contactPhone || business.phone || undefined,
+            websiteUrl:
+              (business as any).websiteUrl || business.website || undefined,
+            hoursOfOperation:
+              typeof (business as any).hoursOfOperation === "string"
+                ? (business as any).hoursOfOperation
+                : undefined,
+            showEmail: (business as any).showEmail !== false,
+            showPhone: (business as any).showPhone !== false,
+            showWebsite: (business as any).showWebsite !== false,
+            showStoreHours: (business as any).showStoreHours !== false,
+          };
+        } else if (resolvedType === "photographer") {
+          console.log(
+            "[AccountScreen] viewer-mode photographer: calling getPhotographer with user id:",
+            routeUserId,
+          );
+          const photographer = await apiClient.getPhotographer(routeUserId);
+          // getPhotographer requires the record id (routeUserId), but posts are
+          // keyed by authorId = userId, so the posts call must use the
+          // photographer's userId, not the record id. Mirrors VendorDetailScreen.tsx.
+          const photographerUserId =
+            photographer.userId ?? photographer.id ?? routeUserId;
 
-        resolvedPosts = toPosts(postResponse.posts || []);
-        resolvedSaved = [];
-        resolvedAvailability = weeklyResponse;
-        resolvedProducts = liveProducts;
-        resolvedServices = liveServices;
-        resolvedReviews = Array.isArray((business as any).reviews)
-          ? (business as any).reviews.map((entry: any, idx: number) => ({
-              id: String(entry.id ?? `review-${idx}`),
-              userName: entry.userName || entry.authorName || "Outsyde User",
-              rating: Number(entry.rating ?? 5),
-              text: entry.text || entry.comment || "",
-              createdAt: entry.createdAt || new Date().toISOString(),
-            }))
-          : [];
+          const [rawServices, postResponse] = await Promise.all([
+            apiClient
+              .getPhotographerPublicServices(routeUserId)
+              .catch(() => [] as VendorBookerPhotographerService[]),
+            apiClient
+              .getProfilePosts(photographerUserId, { limit: 60 })
+              .catch(() => ({ posts: [] })),
+          ]);
 
-        const minPrice = getMinimumPrice(liveProducts, liveServices);
+          const serviceList: VendorBookerPhotographerService[] =
+            Array.isArray(rawServices)
+              ? rawServices
+              : (rawServices as any)?.services || [];
 
-        profileData = {
-          id: String(business.id),
-          userId: String(business.ownerId || user?.id || ""),
-          role: "business",
-          name: business.name || "Business",
-          handle: `@${user?.username || business.name.replace(/\s+/g, "").toLowerCase()}`,
-          avatarUrl: business.logoImage || undefined,
-          coverMediaUrl: business.coverImage || undefined,
-          coverMediaType:
-            business.coverMediaType === "video" ? "video" : "image",
-          city: business.city || undefined,
-          state: business.state || undefined,
-          location:
-            [business.city, business.state].filter(Boolean).join(", ") ||
-            undefined,
-          bio: business.description || undefined,
-          tagline: business.tagline || undefined,
-          rating: Number(business.rating ?? 0),
-          reviewCount: Number(business.reviewCount ?? 0),
-          followerCount: Number(
-            (business as any).followerCount ??
-              (business as any).followersCount ??
-              0,
-          ),
-          followingCount: Number((business as any).followingCount ?? 0),
-          bookingsCount: Number(
-            (business as any).bookingCount ??
-              (business as any).totalBookings ??
-              0,
-          ),
-          shootsCount: 0,
-          postsCount: resolvedPosts.length,
-          isVerified: Boolean((business as any).isVerified),
-          subscriptionTier: String(
-            (business as any).subscriptionTier || "Starter",
-          ),
-          brandColors: parseBrandColors(business.brandColors),
-          hasProducts: liveProducts.length > 0,
-          hasServices: liveServices.length > 0,
-          specialties: business.category ? [business.category] : [],
-          minPrice,
-          responseTime: resolveResponseTime(business as any),
-          responseTimeValue: Number((business as any).responseTimeValue ?? 2),
-          responseTimeUnit: ((business as any).responseTimeUnit ||
-            "hours") as ResponseTimeUnit,
-          showResponseTime: (business as any).showResponseTime !== false,
-          availabilitySummary: (business as any).availability || undefined,
-          address: business.address || undefined,
-          contactEmail: business.contactEmail || undefined,
-          contactPhone: business.contactPhone || undefined,
-          websiteUrl: business.websiteUrl || undefined,
-          hoursOfOperation:
-            typeof business.hoursOfOperation === "string"
-              ? business.hoursOfOperation
-              : undefined,
-          showEmail: (business as any).showEmail !== false,
-          showPhone: (business as any).showPhone !== false,
-          showWebsite: (business as any).showWebsite !== false,
-          showStoreHours: (business as any).showStoreHours !== false,
-        };
-      } else if (role === "photographer") {
-        const [
-          photographer,
-          photographerServices,
-          weeklyResponse,
-          postResponse,
-        ] = await Promise.all([
-          apiClient.getPhotographerMe(token),
-          apiClient
-            .getPhotographerMeServices(token)
-            .catch(() => ({ services: [] })),
-          apiClient
-            .getWeeklyAvailability(token, "photographer")
-            .catch(() => []),
-          apiClient
-            .getProfilePosts(String(user?.id || ""), { limit: 60 })
-            .catch(() => ({ posts: [] })),
-        ]);
+          const mappedServices = serviceList
+            .filter(
+              (item) => item.status === "live" || item.status === "active",
+            )
+            .map((item: VendorBookerPhotographerService) => ({
+              id: String(item.id),
+              name: item.name,
+              description: item.description || undefined,
+              priceCents: Number(item.priceCents ?? 0),
+              durationMinutes:
+                (item as any).durationMinutes ||
+                item.estimatedDurationMinutes ||
+                undefined,
+              rating: Number((item as any).rating ?? 0),
+            }));
 
-        const mappedServices = (photographerServices.services || [])
-          .filter((item) => item.status === "live" || item.status === "active")
-          .map((item: VendorBookerPhotographerService) => ({
-            id: String(item.id),
-            name: item.name,
-            description: item.description || undefined,
-            priceCents: Number(item.priceCents ?? 0),
-            durationMinutes: (item as any).durationMinutes || undefined,
-            rating: Number((item as any).rating ?? 0),
-          }));
+          resolvedPosts = toPosts(postResponse.posts || []);
+          resolvedServices = mappedServices;
+          resolvedReviews = Array.isArray((photographer as any).reviews)
+            ? (photographer as any).reviews.map((entry: any, idx: number) => ({
+                id: String(entry.id ?? `review-${idx}`),
+                userName: entry.userName || entry.authorName || "Outsyde User",
+                rating: Number(entry.rating ?? 5),
+                text: entry.text || entry.comment || "",
+                createdAt: entry.createdAt || new Date().toISOString(),
+              }))
+            : [];
 
-        resolvedPosts = toPosts(postResponse.posts || []);
-        resolvedSaved = [];
-        resolvedServices = mappedServices;
-        resolvedAvailability = weeklyResponse;
-        resolvedReviews = Array.isArray((photographer as any).reviews)
-          ? (photographer as any).reviews.map((entry: any, idx: number) => ({
-              id: String(entry.id ?? `review-${idx}`),
-              userName: entry.userName || entry.authorName || "Outsyde User",
-              rating: Number(entry.rating ?? 5),
-              text: entry.text || entry.comment || "",
-              createdAt: entry.createdAt || new Date().toISOString(),
-            }))
-          : [];
+          const displayName =
+            (photographer as any).displayName ||
+            photographer.name ||
+            "Photographer";
+          const avatarRaw =
+            (photographer as any).logoImage || photographer.avatar || "";
 
-        profileData = {
-          id: String(photographer.id),
-          userId: String(photographer.userId || user?.id || ""),
-          role: "photographer",
-          name:
-            photographer.displayName ||
-            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
-            "Photographer",
-          handle: `@${user?.username || "photographer"}`,
-          avatarUrl: photographer.logoImage || undefined,
-          coverMediaUrl: photographer.coverImage || undefined,
-          coverMediaType: ((photographer as any).coverMediaType === "video"
-            ? "video"
-            : "image") as "image" | "video",
-          city: photographer.city || undefined,
-          state: photographer.state || undefined,
-          location:
-            [photographer.city, photographer.state]
-              .filter(Boolean)
-              .join(", ") || undefined,
-          bio: photographer.bio || undefined,
-          tagline: (photographer as any).tagline || undefined,
-          rating: Number((photographer as any).rating ?? 0),
-          reviewCount: Number((photographer as any).reviewCount ?? 0),
-          followerCount: Number(
-            (photographer as any).followerCount ??
-              (photographer as any).followersCount ??
-              0,
-          ),
-          followingCount: Number((photographer as any).followingCount ?? 0),
-          bookingsCount: 0,
-          shootsCount: Number(
-            (photographer as any).shootCount ??
-              (photographer as any).shootsCount ??
-              (photographer as any).totalShoots ??
-              (photographer as any).bookingCount ??
-              (photographer as any).totalBookings ??
-              0,
-          ),
-          postsCount: resolvedPosts.length,
-          isVerified: Boolean((photographer as any).isVerified),
-          subscriptionTier: "",
-          brandColors: null,
-          hasProducts: false,
-          hasServices: mappedServices.length > 0,
-          specialties: photographer.specialties || [],
-          hourlyRate: Number(photographer.hourlyRate ?? 0) || undefined,
-          minPrice: getMinimumPrice([], mappedServices),
-          responseTime: resolveResponseTime(
-            photographer as any,
-            "Usually responds in 3h",
-          ),
-          responseTimeValue: Number(
-            (photographer as any).responseTimeValue ?? 3,
-          ),
-          responseTimeUnit: ((photographer as any).responseTimeUnit ||
-            "hours") as ResponseTimeUnit,
-          showResponseTime: (photographer as any).showResponseTime !== false,
-          availabilitySummary: undefined,
-          contactEmail: undefined,
-          contactPhone: undefined,
-          websiteUrl: undefined,
-          showEmail: true,
-          showPhone: true,
-          showWebsite: true,
-          showStoreHours: true,
-        };
+          profileData = {
+            id: String(photographer.id),
+            userId: photographerUserId,
+            role: "photographer",
+            name: displayName,
+            handle: `@${(photographer as any).username || displayName.replace(/\s+/g, "").toLowerCase()}`,
+            avatarUrl: avatarRaw !== "" ? avatarRaw : undefined,
+            coverMediaUrl: photographer.coverImage || undefined,
+            coverMediaType: ((photographer as any).coverMediaType === "video"
+              ? "video"
+              : "image") as "image" | "video",
+            city: photographer.city || undefined,
+            state: photographer.state || undefined,
+            location:
+              [photographer.city, photographer.state]
+                .filter(Boolean)
+                .join(", ") || undefined,
+            bio:
+              (photographer as any).bio ||
+              photographer.description ||
+              undefined,
+            tagline: (photographer as any).tagline || undefined,
+            rating: Number((photographer as any).rating ?? 0),
+            reviewCount: Number((photographer as any).reviewCount ?? 0),
+            followerCount: Number(
+              (photographer as any).followerCount ??
+                (photographer as any).followersCount ??
+                0,
+            ),
+            followingCount: Number((photographer as any).followingCount ?? 0),
+            bookingsCount: 0,
+            shootsCount: Number(
+              (photographer as any).shootCount ??
+                (photographer as any).shootsCount ??
+                (photographer as any).totalShoots ??
+                (photographer as any).bookingCount ??
+                (photographer as any).totalBookings ??
+                0,
+            ),
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean((photographer as any).isVerified),
+            subscriptionTier: "",
+            brandColors: parseBrandColors((photographer as any).brandColors),
+            hasProducts: false,
+            hasServices: mappedServices.length > 0,
+            specialties: photographer.specialties || [],
+            hourlyRate: Number((photographer as any).hourlyRate ?? 0) || undefined,
+            minPrice: getMinimumPrice([], mappedServices),
+            responseTime: resolveResponseTime(
+              photographer as any,
+              "Usually responds in 3h",
+            ),
+            responseTimeValue: Number(
+              (photographer as any).responseTimeValue ?? 3,
+            ),
+            responseTimeUnit: ((photographer as any).responseTimeUnit ||
+              "hours") as ResponseTimeUnit,
+            showResponseTime: (photographer as any).showResponseTime !== false,
+            availabilitySummary: undefined,
+            contactEmail: undefined,
+            contactPhone: undefined,
+            websiteUrl: undefined,
+            showEmail: true,
+            showPhone: true,
+            showWebsite: true,
+            showStoreHours: true,
+          };
+        } else {
+          // consumer viewer
+          const [publicUserResult, postResponse] = await Promise.all([
+            apiClient.getPublicUser(routeUserId),
+            apiClient
+              .getProfilePosts(routeUserId, { limit: 60 })
+              .catch(() => ({ posts: [] })),
+          ]);
+
+          const publicUser = publicUserResult.user;
+          resolvedPosts = toPosts(postResponse.posts || []);
+          // No consumer-review endpoint yet
+          resolvedReviews = [];
+
+          const displayName =
+            publicUser.name || publicUser.username || "Outsyde User";
+          const avatarRaw =
+            publicUser.avatarUrl || publicUser.profileImageUrl || "";
+
+          profileData = {
+            id: routeUserId,
+            userId: routeUserId,
+            role: "consumer",
+            name: displayName,
+            handle: `@${publicUser.username || "outsyde"}`,
+            avatarUrl: avatarRaw !== "" ? avatarRaw : undefined,
+            coverMediaUrl: publicUser.coverMediaUrl || undefined,
+            coverMediaType:
+              publicUser.coverMediaType === "video" ? "video" : "image",
+            city: publicUser.city || undefined,
+            state: publicUser.state || undefined,
+            location:
+              [publicUser.city, publicUser.state].filter(Boolean).join(", ") ||
+              undefined,
+            bio: publicUser.bio || undefined,
+            rating: 0,
+            reviewCount: 0,
+            followerCount: Number(
+              publicUser.followerCount ?? publicUser.followersCount ?? 0,
+            ),
+            followingCount: Number(publicUser.followingCount ?? 0),
+            bookingsCount: 0,
+            shootsCount: 0,
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean(publicUser.isVerified),
+            subscriptionTier: "",
+            brandColors: null,
+            hasProducts: false,
+            hasServices: false,
+            specialties: Array.isArray(publicUser.niches)
+              ? publicUser.niches
+              : [],
+            responseTime: undefined,
+            showResponseTime: false,
+            showEmail: false,
+            showPhone: false,
+            showWebsite: false,
+            showStoreHours: false,
+          };
+        }
       } else {
-        const profilePosts = await apiClient
-          .getProfilePosts(String(user?.id || ""), { limit: 60 })
-          .catch(() => ({ posts: [] }));
-        resolvedPosts = toPosts(profilePosts.posts || []);
-        resolvedSaved = [];
-        resolvedReviews = [];
-        profileData = {
-          id: String(user?.id || "me"),
-          userId: String(user?.id || ""),
-          role: "consumer",
-          name:
-            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
-            "Outsyde User",
-          handle: `@${user?.username || "outsyde"}`,
-          avatarUrl: user?.avatar || user?.profileImageUrl || undefined,
-          coverMediaUrl: user?.coverMediaUrl || undefined,
-          coverMediaType: user?.coverMediaType === "video" ? "video" : "image",
-          city: user?.city || undefined,
-          state: user?.state || undefined,
-          location:
-            [user?.city, user?.state].filter(Boolean).join(", ") || undefined,
-          bio: user?.bio || undefined,
-          tagline: (user as any)?.tagline || undefined,
-          rating: 0,
-          reviewCount: 0,
-          followerCount: Number(
-            (user as any)?.followerCount ?? (user as any)?.followersCount ?? 0,
-          ),
-          followingCount: Number((user as any)?.followingCount ?? 0),
-          bookingsCount: 0,
-          shootsCount: 0,
-          postsCount: resolvedPosts.length,
-          isVerified: Boolean((user as any)?.isVerified),
-          subscriptionTier: "",
-          brandColors: null,
-          hasProducts: false,
-          hasServices: false,
-          specialties: Array.isArray((user as any)?.niches)
-            ? (user as any).niches
-            : [],
-          responseTime: undefined,
-          showResponseTime: false,
-          showEmail: false,
-          showPhone: false,
-          showWebsite: false,
-          showStoreHours: false,
-        };
+        // ── OWNER MODE: existing logic unchanged ────────────────────────────
+        const token = await getToken();
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        if (role === "business") {
+          const [
+            businessResponse,
+            productsResponse,
+            servicesResponse,
+            weeklyResponse,
+            postResponse,
+          ] = await Promise.all([
+            apiClient.getVendorMyBusiness(token),
+            apiClient.getVendorProducts(token).catch(() => ({ products: [] })),
+            apiClient.getVendorServices(token).catch(() => ({ services: [] })),
+            apiClient.getWeeklyAvailability(token, "business").catch(() => []),
+            apiClient
+              .getProfilePosts(String(user?.id || ""), { limit: 60 })
+              .catch(() => ({ posts: [] })),
+          ]);
+
+          const business = businessResponse.business;
+          const liveProducts = (productsResponse.products || []).filter(
+            (item) => item.status === "live",
+          );
+          const liveServices = (servicesResponse.services || [])
+            .filter((item) => item.status === "live")
+            .map((item: VendorService) => ({
+              id: String(item.id),
+              name: item.name,
+              description: item.description || undefined,
+              priceCents: Number(item.priceCents ?? 0),
+              durationMinutes:
+                item.durationMinutes ||
+                (item as any).estimatedDurationMinutes ||
+                undefined,
+              rating: Number(item.rating ?? 0),
+            }));
+
+          resolvedPosts = toPosts(postResponse.posts || []);
+          resolvedSaved = [];
+          resolvedAvailability = weeklyResponse;
+          resolvedProducts = liveProducts;
+          resolvedServices = liveServices;
+          resolvedReviews = Array.isArray((business as any).reviews)
+            ? (business as any).reviews.map((entry: any, idx: number) => ({
+                id: String(entry.id ?? `review-${idx}`),
+                userName: entry.userName || entry.authorName || "Outsyde User",
+                rating: Number(entry.rating ?? 5),
+                text: entry.text || entry.comment || "",
+                createdAt: entry.createdAt || new Date().toISOString(),
+              }))
+            : [];
+
+          const minPrice = getMinimumPrice(liveProducts, liveServices);
+
+          profileData = {
+            id: String(business.id),
+            userId: String(business.ownerId || user?.id || ""),
+            role: "business",
+            name: business.name || "Business",
+            handle: `@${user?.username || business.name.replace(/\s+/g, "").toLowerCase()}`,
+            avatarUrl: business.logoImage || undefined,
+            coverMediaUrl: business.coverImage || undefined,
+            coverMediaType:
+              business.coverMediaType === "video" ? "video" : "image",
+            city: business.city || undefined,
+            state: business.state || undefined,
+            location:
+              [business.city, business.state].filter(Boolean).join(", ") ||
+              undefined,
+            bio: business.description || undefined,
+            tagline: business.tagline || undefined,
+            rating: Number(business.rating ?? 0),
+            reviewCount: Number(business.reviewCount ?? 0),
+            followerCount: Number(
+              (business as any).followerCount ??
+                (business as any).followersCount ??
+                0,
+            ),
+            followingCount: Number((business as any).followingCount ?? 0),
+            bookingsCount: Number(
+              (business as any).bookingCount ??
+                (business as any).totalBookings ??
+                0,
+            ),
+            shootsCount: 0,
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean((business as any).isVerified),
+            subscriptionTier: String(
+              (business as any).subscriptionTier || "Starter",
+            ),
+            brandColors: parseBrandColors(business.brandColors),
+            hasProducts: liveProducts.length > 0,
+            hasServices: liveServices.length > 0,
+            specialties: business.category ? [business.category] : [],
+            minPrice,
+            responseTime: resolveResponseTime(business as any),
+            responseTimeValue: Number((business as any).responseTimeValue ?? 2),
+            responseTimeUnit: ((business as any).responseTimeUnit ||
+              "hours") as ResponseTimeUnit,
+            showResponseTime: (business as any).showResponseTime !== false,
+            availabilitySummary: (business as any).availability || undefined,
+            address: business.address || undefined,
+            contactEmail: business.contactEmail || undefined,
+            contactPhone: business.contactPhone || undefined,
+            websiteUrl: business.websiteUrl || undefined,
+            hoursOfOperation:
+              typeof business.hoursOfOperation === "string"
+                ? business.hoursOfOperation
+                : undefined,
+            showEmail: (business as any).showEmail !== false,
+            showPhone: (business as any).showPhone !== false,
+            showWebsite: (business as any).showWebsite !== false,
+            showStoreHours: (business as any).showStoreHours !== false,
+          };
+        } else if (role === "photographer") {
+          const [
+            photographer,
+            photographerServices,
+            weeklyResponse,
+            postResponse,
+          ] = await Promise.all([
+            apiClient.getPhotographerMe(token),
+            apiClient
+              .getPhotographerMeServices(token)
+              .catch(() => ({ services: [] })),
+            apiClient
+              .getWeeklyAvailability(token, "photographer")
+              .catch(() => []),
+            apiClient
+              .getProfilePosts(String(user?.id || ""), { limit: 60 })
+              .catch(() => ({ posts: [] })),
+          ]);
+
+          const mappedServices = (photographerServices.services || [])
+            .filter((item) => item.status === "live" || item.status === "active")
+            .map((item: VendorBookerPhotographerService) => ({
+              id: String(item.id),
+              name: item.name,
+              description: item.description || undefined,
+              priceCents: Number(item.priceCents ?? 0),
+              durationMinutes: (item as any).durationMinutes || undefined,
+              rating: Number((item as any).rating ?? 0),
+            }));
+
+          resolvedPosts = toPosts(postResponse.posts || []);
+          resolvedSaved = [];
+          resolvedServices = mappedServices;
+          resolvedAvailability = weeklyResponse;
+          resolvedReviews = Array.isArray((photographer as any).reviews)
+            ? (photographer as any).reviews.map((entry: any, idx: number) => ({
+                id: String(entry.id ?? `review-${idx}`),
+                userName: entry.userName || entry.authorName || "Outsyde User",
+                rating: Number(entry.rating ?? 5),
+                text: entry.text || entry.comment || "",
+                createdAt: entry.createdAt || new Date().toISOString(),
+              }))
+            : [];
+
+          profileData = {
+            id: String(photographer.id),
+            userId: String(photographer.userId || user?.id || ""),
+            role: "photographer",
+            name:
+              photographer.displayName ||
+              `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+              "Photographer",
+            handle: `@${user?.username || "photographer"}`,
+            avatarUrl: photographer.logoImage || undefined,
+            coverMediaUrl: photographer.coverImage || undefined,
+            coverMediaType: ((photographer as any).coverMediaType === "video"
+              ? "video"
+              : "image") as "image" | "video",
+            city: photographer.city || undefined,
+            state: photographer.state || undefined,
+            location:
+              [photographer.city, photographer.state]
+                .filter(Boolean)
+                .join(", ") || undefined,
+            bio: photographer.bio || undefined,
+            tagline: (photographer as any).tagline || undefined,
+            rating: Number((photographer as any).rating ?? 0),
+            reviewCount: Number((photographer as any).reviewCount ?? 0),
+            followerCount: Number(
+              (photographer as any).followerCount ??
+                (photographer as any).followersCount ??
+                0,
+            ),
+            followingCount: Number((photographer as any).followingCount ?? 0),
+            bookingsCount: 0,
+            shootsCount: Number(
+              (photographer as any).shootCount ??
+                (photographer as any).shootsCount ??
+                (photographer as any).totalShoots ??
+                (photographer as any).bookingCount ??
+                (photographer as any).totalBookings ??
+                0,
+            ),
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean((photographer as any).isVerified),
+            subscriptionTier: "",
+            brandColors: parseBrandColors((photographer as any).brandColors),
+            hasProducts: false,
+            hasServices: mappedServices.length > 0,
+            specialties: photographer.specialties || [],
+            hourlyRate: Number(photographer.hourlyRate ?? 0) || undefined,
+            minPrice: getMinimumPrice([], mappedServices),
+            responseTime: resolveResponseTime(
+              photographer as any,
+              "Usually responds in 3h",
+            ),
+            responseTimeValue: Number(
+              (photographer as any).responseTimeValue ?? 3,
+            ),
+            responseTimeUnit: ((photographer as any).responseTimeUnit ||
+              "hours") as ResponseTimeUnit,
+            showResponseTime: (photographer as any).showResponseTime !== false,
+            availabilitySummary: undefined,
+            contactEmail: undefined,
+            contactPhone: undefined,
+            websiteUrl: undefined,
+            showEmail: true,
+            showPhone: true,
+            showWebsite: true,
+            showStoreHours: true,
+          };
+        } else {
+          const [profilePosts, publicUserResult] = await Promise.all([
+            apiClient
+              .getProfilePosts(String(user?.id || ""), { limit: 60 })
+              .catch(() => ({ posts: [] })),
+            apiClient.getPublicUser(String(user?.id || "")).catch(() => null),
+          ]);
+          const publicUser = publicUserResult?.user;
+          resolvedPosts = toPosts(profilePosts.posts || []);
+          resolvedSaved = [];
+          resolvedReviews = [];
+          profileData = {
+            id: String(user?.id || "me"),
+            userId: String(user?.id || ""),
+            role: "consumer",
+            name:
+              user?.displayName ||
+              `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+              "Outsyde User",
+            handle: `@${user?.username || "outsyde"}`,
+            avatarUrl: user?.avatar || user?.profileImageUrl || undefined,
+            coverMediaUrl: user?.coverMediaUrl || undefined,
+            coverMediaType:
+              user?.coverMediaType === "video" ? "video" : "image",
+            city: user?.city || undefined,
+            state: user?.state || undefined,
+            location:
+              [user?.city, user?.state].filter(Boolean).join(", ") || undefined,
+            bio: user?.bio || undefined,
+            tagline: (user as any)?.tagline || undefined,
+            rating: 0,
+            reviewCount: 0,
+            followerCount: Number(
+              publicUser?.followerCount ?? publicUser?.followersCount ?? 0,
+            ),
+            followingCount: Number(publicUser?.followingCount ?? 0),
+            bookingsCount: 0,
+            shootsCount: 0,
+            postsCount: resolvedPosts.length,
+            isVerified: Boolean((user as any)?.isVerified),
+            subscriptionTier: "",
+            brandColors: null,
+            hasProducts: false,
+            hasServices: false,
+            specialties: Array.isArray((user as any)?.niches)
+              ? (user as any).niches
+              : [],
+            responseTime: undefined,
+            showResponseTime: false,
+            showEmail: false,
+            showPhone: false,
+            showWebsite: false,
+            showStoreHours: false,
+          };
+        }
       }
 
       setProfile(profileData);
@@ -758,15 +1142,22 @@ export default function AccountScreen() {
       setAvailability(resolvedAvailability);
       setReviews(resolvedReviews);
     } catch (error) {
-      console.error("Failed to load own profile:", error);
+      console.error("Failed to load profile:", error);
       Alert.alert("Unable to load profile", "Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [getToken, isAuthenticated, role, user]);
+  }, [getToken, isAuthenticated, role, user, viewerMode, routeUserId, routeUserType]);
 
   useEffect(() => {
     loadProfile();
+  }, [loadProfile]);
+
+  useEffect(() => {
+    const unsub = feedEvents.subscribe(() => {
+      loadProfile();
+    });
+    return unsub;
   }, [loadProfile]);
 
   const tabList = useMemo<ProfileTab[]>(
@@ -780,14 +1171,12 @@ export default function AccountScreen() {
     }
   }, [activeTab, tabList]);
 
+  const colorMode = isDark ? "dark" : "light";
   const accentColor =
-    profile?.role === "business"
-      ? profile.brandColors?.primary || COLORS.gold
+    profile?.role === "business" || profile?.role === "photographer"
+      ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
-  const accentDimColor =
-    profile?.role === "business"
-      ? profile.brandColors?.accent || COLORS.goldDim
-      : COLORS.goldDim;
+  const accentDimColor = COLORS.goldDim;
   const pageBg = `${accentColor}28`;
 
   const headerBgOpacity = scrollY.interpolate({
@@ -815,14 +1204,14 @@ export default function AccountScreen() {
   const onEditProfilePress = useCallback(() => {
     if (!profile) return;
     if (profile.role === "business") {
-      navigation.navigate("BusinessDashboard");
+      navigation.navigate("StorefrontEditor");
       return;
     }
     if (profile.role === "photographer") {
-      navigation.navigate("PhotographerDashboard");
+      navigation.navigate("PhotographerDashboard", { openModal: "profile" });
       return;
     }
-    setSettingsVisible(true);
+    (navigation as any).navigate("EditProfile");
   }, [navigation, profile]);
 
   const postCellWidth = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 8) / 3;
@@ -842,12 +1231,22 @@ export default function AccountScreen() {
         <View style={styles.headerOverlay} />
       </Animated.View>
       <View style={styles.headerRow}>
-        <Pressable
-          style={styles.headerButton}
-          onPress={() => setSettingsVisible(true)}
-        >
-          <Feather name="menu" size={18} color={COLORS.white} />
-        </Pressable>
+        {isOwner ? (
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => setSettingsVisible(true)}
+          >
+            <Feather name="menu" size={18} color={COLORS.white} />
+          </Pressable>
+        ) : (
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="arrow-left" size={18} color={COLORS.white} />
+          </Pressable>
+        )}
         <Animated.Text
           numberOfLines={1}
           style={[styles.headerTitle, { opacity: titleOpacity }]}
@@ -855,19 +1254,21 @@ export default function AccountScreen() {
           {profile?.name || "Profile"}
         </Animated.Text>
         <View style={styles.headerRight}>
-          <Pressable
-            style={styles.headerButton}
-            onPress={() => navigation.navigate("Notifications")}
-          >
-            <Feather name="bell" size={18} color={COLORS.white} />
-            {unreadCount > 0 ? (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
+          {isOwner ? (
+            <Pressable
+              style={styles.headerButton}
+              onPress={() => navigation.navigate("Notifications")}
+            >
+              <Feather name="bell" size={18} color={COLORS.white} />
+              {unreadCount > 0 ? (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          ) : null}
           <Pressable style={styles.headerButton} onPress={shareProfile}>
             <Feather name="share-2" size={18} color={COLORS.white} />
           </Pressable>
@@ -893,22 +1294,40 @@ export default function AccountScreen() {
 
     return (
       <View style={styles.identityBlock}>
-        <View
-          pointerEvents="none"
-          style={[styles.identityGlow, { backgroundColor: `${accentColor}20` }]}
-        />
         <View style={styles.avatarActionRow}>
           <AvatarWithInitials
             name={profile.name}
             imageUrl={profile.avatarUrl}
             accentColor={accentColor}
           />
-          <Pressable
-            style={[styles.editProfileButton, { backgroundColor: accentColor }]}
-            onPress={onEditProfilePress}
-          >
-            <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
-          </Pressable>
+          {isOwner ? (
+            <Pressable
+              style={[styles.editProfileButton, { backgroundColor: accentColor }]}
+              onPress={onEditProfilePress}
+            >
+              <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[
+                styles.followButton,
+                isFollowing && styles.followButtonActive,
+                !isFollowing && { backgroundColor: accentColor },
+                isFollowing && { borderColor: accentColor },
+              ]}
+              onPress={handleFollowToggle}
+              disabled={followBusy}
+            >
+              <Text
+                style={[
+                  styles.followButtonText,
+                  isFollowing ? { color: accentColor } : { color: COLORS.black },
+                ]}
+              >
+                {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.nameRow}>
@@ -949,6 +1368,10 @@ export default function AccountScreen() {
           {profile.handle}
           {profile.location ? `  •  📍 ${profile.location}` : ""}
         </Text>
+
+        {profile.role !== "business" && profile.bio?.trim() ? (
+          <Text style={styles.bioInline}>{profile.bio.trim()}</Text>
+        ) : null}
 
         {profile.specialties.length > 0 ? (
           <View style={styles.tagRow}>
@@ -1066,7 +1489,7 @@ export default function AccountScreen() {
 
   const renderPostsTab = () => {
     const allCells = [
-      { id: "new-post", isAdd: true },
+      ...(isOwner ? [{ id: "new-post", isAdd: true }] : []),
       ...posts.map((post) => ({ ...post, isAdd: false })),
     ];
     const hasPosts = posts.length > 0;
@@ -1091,12 +1514,7 @@ export default function AccountScreen() {
                       backgroundColor: "rgba(255,255,255,0.03)",
                     },
                   ]}
-                  onPress={() =>
-                    Alert.alert(
-                      "Create Post",
-                      "Use your existing posting flow from dashboard or feed composer.",
-                    )
-                  }
+                  onPress={() => navigation.navigate("CreatePost")}
                 >
                   <Feather name="plus" size={20} color={accentColor} />
                   <Text style={[styles.addPostLabel, { color: accentColor }]}>
@@ -1107,10 +1525,7 @@ export default function AccountScreen() {
             }
 
             const typedCell = cell as PostCard & { isAdd: false };
-            const cellHeight =
-              typedCell.aspect === "portrait"
-                ? postCellWidth * 1.33
-                : postCellWidth;
+            const cellHeight = postCellWidth;
             return (
               <Pressable
                 key={typedCell.id}
@@ -1118,6 +1533,12 @@ export default function AccountScreen() {
                   styles.mediaCell,
                   { width: postCellWidth, height: cellHeight },
                 ]}
+                onPress={() =>
+                  navigation.navigate("PostDetail", {
+                    userId: profile?.userId || routeUserId || String(user?.id),
+                    initialPostId: typedCell.id,
+                  })
+                }
               >
                 {typedCell.mediaUrl ? (
                   <Image
@@ -1154,17 +1575,14 @@ export default function AccountScreen() {
           <View style={styles.emptyState}>
             <Feather name="camera" size={26} color={COLORS.grayLight} />
             <Text style={styles.emptyTitle}>Share your best work</Text>
-            <Pressable
-              style={[styles.emptyCta, { backgroundColor: accentColor }]}
-              onPress={() =>
-                Alert.alert(
-                  "Create Post",
-                  "Use your existing posting flow from dashboard or feed composer.",
-                )
-              }
-            >
-              <Text style={styles.emptyCtaText}>Post</Text>
-            </Pressable>
+            {isOwner ? (
+              <Pressable
+                style={[styles.emptyCta, { backgroundColor: accentColor }]}
+                onPress={() => navigation.navigate("CreatePost")}
+              >
+                <Text style={styles.emptyCtaText}>Post</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -1628,9 +2046,13 @@ Booking flow coming soon.`,
       </Animated.ScrollView>
 
       <PersonalSettingsMenu
-        visible={settingsVisible}
+        visible={isOwner && settingsVisible}
         onClose={() => setSettingsVisible(false)}
+        onEditProfile={
+          isOwner && profile?.role !== "business" ? onEditProfilePress : undefined
+        }
       />
+
     </SafeAreaView>
   );
 }
@@ -1731,14 +2153,6 @@ const styles = StyleSheet.create({
     zIndex: 5,
     position: "relative",
   },
-  identityGlow: {
-    position: "absolute",
-    width: 300,
-    height: 200,
-    borderRadius: 150,
-    top: -44,
-    left: (SCREEN_WIDTH - 300) / 2,
-  },
   avatarActionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1796,6 +2210,20 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     fontSize: 13,
     fontWeight: "800",
+  },
+  followButton: {
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  followButtonActive: {
+    backgroundColor: "transparent",
+  },
+  followButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   nameRow: {
     marginTop: 14,
@@ -2196,6 +2624,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 10,
+  },
+  bioInline: {
+    color: COLORS.cream,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 6,
+    marginBottom: 2,
   },
   aboutRow: {
     flexDirection: "row",

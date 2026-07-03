@@ -20,6 +20,12 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import {
+  SOLID_COLOR_IDS,
+  COLOR_VALUES,
+  SolidColorId,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 import api, {
   VendorBookerBusiness,
   VendorProduct,
@@ -52,16 +58,8 @@ const RESPONSE_TIME_UNITS: Array<{ label: string; value: ResponseTimeUnit }> = [
   { label: "Business Days", value: "business_days" },
 ];
 
-const COLOR_PRESETS = [
-  { name: "Golden Yellow", color: "#eab308" },
-  { name: "Rose Pink", color: "#ec4899" },
-  { name: "Ocean Blue", color: "#3b82f6" },
-  { name: "Forest Green", color: "#22c55e" },
-  { name: "Royal Purple", color: "#8b5cf6" },
-  { name: "Sunset Orange", color: "#f97316" },
-  { name: "Teal", color: "#14b8a6" },
-  { name: "Slate Gray", color: "#64748b" },
-];
+// Swatches are driven by SOLID_COLOR_IDS from constants/colorOptions.ts.
+// Each swatch's display hex is resolved per theme mode via COLOR_VALUES.
 
 const SPECIALTY_OPTIONS = [
   "Fast Service",
@@ -75,7 +73,7 @@ const SPECIALTY_OPTIONS = [
 ];
 
 export default function StorefrontEditorScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -100,7 +98,7 @@ export default function StorefrontEditorScreen() {
     "image" | "video" | null
   >(null);
   const [logoImage, setLogoImage] = useState("");
-  const [primaryColor, setPrimaryColor] = useState("#eab308");
+  const [selectedColorId, setSelectedColorId] = useState<string>("sunset_gold");
 
   const [profileName, setProfileName] = useState("");
   const [profileTagline, setProfileTagline] = useState("");
@@ -178,6 +176,57 @@ export default function StorefrontEditorScreen() {
     return (
       "To go live, you still need:\n\n" +
       reasons.map((r) => `- ${r}`).join("\n")
+    );
+  };
+
+  const getGoLiveFailureAlert = (
+    error: any,
+    itemLabel: "service" | "product",
+  ): { title: string; message: string } => {
+    const blockerMessage = getPublishBlockerMessage(error?.body);
+    const code = error?.body?.code;
+    const hasActionableFlags =
+      error?.body?.requiresApproval ||
+      error?.body?.requiresOnboarding ||
+      error?.body?.requiresSubscription;
+
+    if (
+      blockerMessage?.trim() &&
+      (hasActionableFlags ||
+        (code !== "connect_incomplete" && code !== "subscription_inactive"))
+    ) {
+      return { title: "Cannot Publish", message: blockerMessage };
+    }
+
+    if (code === "connect_incomplete") {
+      return {
+        title: "Cannot Publish",
+        message: "Complete Stripe setup before publishing.",
+      };
+    }
+    if (code === "subscription_inactive") {
+      return {
+        title: "Cannot Publish",
+        message: "Your subscription is inactive. Reactivate your subscription to publish.",
+      };
+    }
+
+    return {
+      title: "Saved as Draft",
+      message: `Your ${itemLabel} was saved, but could not be published right now. You can try Go Live again from your ${itemLabel} list.`,
+    };
+  };
+
+  const completeSaveSuccess = (
+    itemLabel: "service" | "product",
+    isEdit: boolean,
+    closeModal: () => void,
+  ) => {
+    closeModal();
+    fetchData();
+    Alert.alert(
+      "Success",
+      isEdit ? `${itemLabel === "service" ? "Service" : "Product"} updated` : `${itemLabel === "service" ? "Service" : "Product"} created`,
     );
   };
 
@@ -259,8 +308,12 @@ export default function StorefrontEditorScreen() {
         setCoverMediaType(biz.coverImage ? "image" : null);
       }
       setLogoImage(biz.logoImage || "");
-      const brandColors = biz.brandColors ? JSON.parse(biz.brandColors) : {};
-      setPrimaryColor(brandColors.primary || "#eab308");
+      const parsedBrandColors = parseBrandColorSpec(biz.brandColors);
+      setSelectedColorId(
+        parsedBrandColors?.type === "solid" && parsedBrandColors.id
+          ? parsedBrandColors.id
+          : "sunset_gold",
+      );
 
       setProfileName(biz.name || "");
       setProfileTagline(biz.tagline || "");
@@ -314,19 +367,19 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      const brandColorsJson = JSON.stringify({ primary: primaryColor });
+      const brandColorsPayload = { type: "solid", id: selectedColorId };
       const finalCoverImage =
         coverMediaType === "video" ? coverVideo : coverImage;
       const finalCoverMediaType =
         coverMediaType || (coverImage ? "image" : undefined);
       console.log("[Storefront] Saving branding:", {
-        brandColors: brandColorsJson,
+        brandColors: brandColorsPayload,
         coverImage: finalCoverImage,
         coverMediaType: finalCoverMediaType,
         logoImage,
       });
       await api.updateVendorMyBusiness(token, {
-        brandColors: brandColorsJson,
+        brandColors: brandColorsPayload as any,
         coverImage: finalCoverImage || undefined,
         coverMediaType: finalCoverMediaType,
         logoImage: logoImage || undefined,
@@ -403,31 +456,9 @@ export default function StorefrontEditorScreen() {
 
       // DUAL-SYNC: Also update hoursOfOperation for legacy banner UI support
       // This is transitional - banner should eventually read from weekly_availability directly
-      const dayNames = [
-        "sunday",
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-      ];
-      const hoursOfOperation: Record<
-        string,
-        { open: boolean; start?: string; end?: string }
-      > = {};
-      dayNames.forEach((dayName, index) => {
-        const slot = slots.find((s) => s.dayOfWeek === index);
-        if (slot) {
-          hoursOfOperation[dayName] = {
-            open: true,
-            start: slot.startTime,
-            end: slot.endTime,
-          };
-        } else {
-          hoursOfOperation[dayName] = { open: false };
-        }
-      });
+      // Use hoursArrayToObject to produce the { open, close, closed } shape that
+      // hoursObjectToArray (the reader) expects, matching HoursOfOperation interface.
+      const hoursOfOperation = hoursArrayToObject(hours);
       console.log(
         "[Storefront] Syncing hoursOfOperation for banner:",
         JSON.stringify(hoursOfOperation, null, 2),
@@ -534,19 +565,37 @@ export default function StorefrontEditorScreen() {
 
     console.log("[handleSaveProduct] payload:", JSON.stringify(payload));
 
+    const shouldGoLive = productForm.status === "live";
+
     try {
       setSaving(true);
+      let productId: string;
       if (editingProduct) {
         await api.updateVendorProduct(token, editingProduct.id, payload);
+        productId = editingProduct.id;
       } else {
-        await api.createVendorProduct(token, payload);
+        const response = await api.createVendorProduct(token, payload);
+        productId = response.product.id;
       }
-      setProductModalVisible(false);
-      fetchData();
-      Alert.alert(
-        "Success",
-        editingProduct ? "Product updated" : "Product created",
-      );
+
+      if (!shouldGoLive) {
+        completeSaveSuccess("product", Boolean(editingProduct), () =>
+          setProductModalVisible(false),
+        );
+        return;
+      }
+
+      try {
+        await api.goLiveVendorProduct(token, productId);
+        completeSaveSuccess("product", Boolean(editingProduct), () =>
+          setProductModalVisible(false),
+        );
+      } catch (goLiveError: any) {
+        const { title, message } = getGoLiveFailureAlert(goLiveError, "product");
+        setProductModalVisible(false);
+        fetchData();
+        Alert.alert(title, message);
+      }
     } catch (error: any) {
       if (error.status === 403) {
         Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
@@ -631,19 +680,37 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
+    const shouldGoLive = serviceForm.status === "live";
+
     try {
       setSaving(true);
+      let serviceId: string;
       if (editingService) {
         await api.updateVendorService(token, editingService.id, serviceForm);
+        serviceId = editingService.id;
       } else {
-        await api.createVendorService(token, serviceForm);
+        const response = await api.createVendorService(token, serviceForm);
+        serviceId = response.service.id;
       }
-      setServiceModalVisible(false);
-      fetchData();
-      Alert.alert(
-        "Success",
-        editingService ? "Service updated" : "Service created",
-      );
+
+      if (!shouldGoLive) {
+        completeSaveSuccess("service", Boolean(editingService), () =>
+          setServiceModalVisible(false),
+        );
+        return;
+      }
+
+      try {
+        await api.goLiveVendorService(token, serviceId);
+        completeSaveSuccess("service", Boolean(editingService), () =>
+          setServiceModalVisible(false),
+        );
+      } catch (goLiveError: any) {
+        const { title, message } = getGoLiveFailureAlert(goLiveError, "service");
+        setServiceModalVisible(false);
+        fetchData();
+        Alert.alert(title, message);
+      }
     } catch (error: any) {
       if (error.status === 403) {
         Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
@@ -729,15 +796,15 @@ export default function StorefrontEditorScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "live":
-        return "#22c55e";
+        return theme.brandSuccess;
       case "draft":
-        return "#f59e0b";
+        return theme.brandPending;
       case "paused":
-        return "#ef4444";
+        return theme.brandError;
       case "archived":
-        return "#6b7280";
+        return theme.brandTextDim;
       default:
-        return theme.textSecondary;
+        return theme.brandTextDim;
     }
   };
 
@@ -766,7 +833,7 @@ export default function StorefrontEditorScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: theme.brandBg,
     },
     header: {
       flexDirection: "row",
@@ -775,7 +842,7 @@ export default function StorefrontEditorScreen() {
       paddingTop: insets.top + 8,
       paddingBottom: 12,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      borderBottomColor: theme.brandSurfaceBorder,
     },
     backButton: {
       padding: 8,
@@ -785,24 +852,24 @@ export default function StorefrontEditorScreen() {
       flex: 1,
       fontSize: 20,
       fontWeight: "700",
-      color: theme.text,
+      color: theme.brandCream,
     },
     categoryBadge: {
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
       paddingHorizontal: 12,
       paddingVertical: 4,
       borderRadius: 12,
     },
     categoryText: {
       fontSize: 12,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     tabContainer: {
       flexDirection: "row",
       paddingHorizontal: 8,
       paddingVertical: 12,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      borderBottomColor: theme.brandSurfaceBorder,
     },
     tab: {
       flex: 1,
@@ -812,15 +879,15 @@ export default function StorefrontEditorScreen() {
       marginHorizontal: 2,
     },
     tabActive: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandGold,
     },
     tabText: {
       fontSize: 11,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       marginTop: 4,
     },
     tabTextActive: {
-      color: "#000",
+      color: theme.brandCream,
       fontWeight: "600",
     },
     content: {
@@ -832,16 +899,16 @@ export default function StorefrontEditorScreen() {
     sectionTitle: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.text,
+      color: theme.brandCream,
       marginBottom: 8,
     },
     sectionDesc: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       marginBottom: 16,
     },
     card: {
-      backgroundColor: theme.card,
+      backgroundColor: theme.brandBgElevated,
       borderRadius: 12,
       padding: 16,
       marginBottom: 16,
@@ -849,27 +916,27 @@ export default function StorefrontEditorScreen() {
     cardTitle: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.text,
+      color: theme.brandCream,
       marginBottom: 4,
     },
     cardDesc: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       marginBottom: 12,
     },
     inputLabel: {
       fontSize: 14,
       fontWeight: "500",
-      color: theme.text,
+      color: theme.brandCream,
       marginBottom: 6,
     },
     input: {
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 10,
       fontSize: 16,
-      color: theme.text,
+      color: theme.brandCream,
       marginBottom: 12,
     },
     textArea: {
@@ -888,19 +955,19 @@ export default function StorefrontEditorScreen() {
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
     },
     visibilityHelp: {
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       fontSize: 12,
       lineHeight: 17,
       marginTop: -4,
     },
     dropdownButton: {
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
       borderRadius: 8,
       borderWidth: 1,
-      borderColor: theme.border,
+      borderColor: theme.brandSurfaceBorder,
       paddingHorizontal: 12,
       paddingVertical: 10,
       marginBottom: 8,
@@ -909,15 +976,15 @@ export default function StorefrontEditorScreen() {
       justifyContent: "space-between",
     },
     dropdownButtonText: {
-      color: theme.text,
+      color: theme.brandCream,
       fontSize: 15,
       fontWeight: "600",
     },
     dropdownMenu: {
       borderRadius: 10,
       borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surfaceSecondary,
+      borderColor: theme.brandSurfaceBorder,
+      backgroundColor: theme.brandSurface,
       marginBottom: 12,
       overflow: "hidden",
     },
@@ -925,18 +992,18 @@ export default function StorefrontEditorScreen() {
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      borderBottomColor: theme.brandSurfaceBorder,
     },
     dropdownOptionActive: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandGold,
     },
     dropdownOptionText: {
-      color: theme.text,
+      color: theme.brandCream,
       fontSize: 14,
       fontWeight: "600",
     },
     dropdownOptionTextActive: {
-      color: "#000",
+      color: theme.brandCream,
       fontWeight: "800",
     },
     colorGrid: {
@@ -953,7 +1020,7 @@ export default function StorefrontEditorScreen() {
       borderColor: "transparent",
     },
     colorPresetSelected: {
-      borderColor: theme.text,
+      borderColor: theme.brandCream,
       transform: [{ scale: 1.1 }],
     },
     colorPreview: {
@@ -970,24 +1037,24 @@ export default function StorefrontEditorScreen() {
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 16,
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
       borderWidth: 1,
-      borderColor: theme.border,
+      borderColor: theme.brandSurfaceBorder,
     },
     specialtyChipActive: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
+      backgroundColor: theme.brandGold,
+      borderColor: theme.brandGold,
     },
     specialtyText: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     specialtyTextActive: {
-      color: "#000",
+      color: theme.brandCream,
       fontWeight: "500",
     },
     saveButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandPrimary,
       paddingVertical: 14,
       borderRadius: 10,
       alignItems: "center",
@@ -996,13 +1063,13 @@ export default function StorefrontEditorScreen() {
     saveButtonText: {
       fontSize: 16,
       fontWeight: "600",
-      color: "#000",
+      color: theme.brandPrimaryText,
     },
     addButton: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.primary,
+      backgroundColor: theme.brandPrimary,
       paddingVertical: 12,
       borderRadius: 10,
       gap: 8,
@@ -1011,10 +1078,10 @@ export default function StorefrontEditorScreen() {
     addButtonText: {
       fontSize: 15,
       fontWeight: "600",
-      color: "#000",
+      color: theme.brandPrimaryText,
     },
     productCard: {
-      backgroundColor: theme.card,
+      backgroundColor: theme.brandBgElevated,
       borderRadius: 12,
       padding: 12,
       marginBottom: 12,
@@ -1024,7 +1091,7 @@ export default function StorefrontEditorScreen() {
       width: 80,
       height: 80,
       borderRadius: 8,
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
     },
     productInfo: {
       flex: 1,
@@ -1033,12 +1100,12 @@ export default function StorefrontEditorScreen() {
     productName: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.text,
+      color: theme.brandCream,
       marginBottom: 4,
     },
     productPrice: {
       fontSize: 14,
-      color: theme.primary,
+      color: theme.brandGold,
       fontWeight: "500",
       marginBottom: 4,
     },
@@ -1065,10 +1132,10 @@ export default function StorefrontEditorScreen() {
     actionButton: {
       padding: 8,
       borderRadius: 6,
-      backgroundColor: theme.surfaceSecondary,
+      backgroundColor: theme.brandSurface,
     },
     serviceCard: {
-      backgroundColor: theme.card,
+      backgroundColor: theme.brandBgElevated,
       borderRadius: 12,
       padding: 16,
       marginBottom: 12,
@@ -1082,7 +1149,7 @@ export default function StorefrontEditorScreen() {
     serviceName: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.text,
+      color: theme.brandCream,
       flex: 1,
     },
     serviceDetails: {
@@ -1096,11 +1163,11 @@ export default function StorefrontEditorScreen() {
     },
     serviceDetailText: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     modal: {
       flex: 1,
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: theme.brandBg,
     },
     modalHeader: {
       flexDirection: "row",
@@ -1110,12 +1177,12 @@ export default function StorefrontEditorScreen() {
       paddingTop: insets.top + 8,
       paddingBottom: 12,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      borderBottomColor: theme.brandSurfaceBorder,
     },
     modalTitle: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.text,
+      color: theme.brandCream,
     },
     modalContent: {
       flex: 1,
@@ -1133,7 +1200,7 @@ export default function StorefrontEditorScreen() {
     },
     emptyText: {
       fontSize: 16,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       marginTop: 12,
       marginBottom: 16,
     },
@@ -1169,37 +1236,37 @@ export default function StorefrontEditorScreen() {
     approvalBannerTitle: {
       fontSize: 14,
       fontWeight: "600",
-      color: theme.text,
+      color: theme.brandCream,
       marginBottom: 2,
     },
     approvalBannerDesc: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     publishGateCard: {
-      backgroundColor: "#FEF3C7",
+      backgroundColor: theme.brandPending + "20",
       borderRadius: 12,
       padding: 16,
       marginBottom: 16,
     },
     publishGateCardDark: {
-      backgroundColor: "#78350F",
+      backgroundColor: theme.brandPending + "20",
     },
     publishGateTitle: {
       fontSize: 14,
       fontWeight: "600",
-      color: "#92400E",
+      color: theme.brandPending,
       marginBottom: 4,
     },
     publishGateTitleDark: {
-      color: "#FDE68A",
+      color: theme.brandPending,
     },
     publishGateDesc: {
       fontSize: 13,
-      color: "#A16207",
+      color: theme.brandPending,
     },
     publishGateDescDark: {
-      color: "#FCD34D",
+      color: theme.brandPending,
     },
     publishGateItem: {
       flexDirection: "row",
@@ -1209,10 +1276,10 @@ export default function StorefrontEditorScreen() {
     },
     publishGateItemText: {
       fontSize: 13,
-      color: "#92400E",
+      color: theme.brandPending,
     },
     publishGateItemTextDark: {
-      color: "#FDE68A",
+      color: theme.brandPending,
     },
     disabledSwitch: {
       opacity: 0.5,
@@ -1222,7 +1289,7 @@ export default function StorefrontEditorScreen() {
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={theme.brandGold} />
       </View>
     );
   }
@@ -1230,7 +1297,7 @@ export default function StorefrontEditorScreen() {
   if (!business) {
     return (
       <View style={styles.loading}>
-        <Feather name="shopping-bag" size={48} color={theme.textSecondary} />
+        <Feather name="shopping-bag" size={48} color={theme.brandTextDim} />
         <Text style={[styles.emptyText, { marginTop: 16 }]}>
           No business found
         </Text>
@@ -1281,7 +1348,7 @@ export default function StorefrontEditorScreen() {
               setCoverVideo("");
               setCoverMediaType(null);
             }}
-            folder="banners"
+            folder="covers"
             maxVideoDuration={15}
             placeholder="Upload cover image"
           />
@@ -1309,21 +1376,33 @@ export default function StorefrontEditorScreen() {
             Choose a color that represents your brand
           </Text>
           <View style={styles.colorGrid}>
-            {COLOR_PRESETS.map((preset) => (
-              <Pressable
-                key={preset.color}
-                style={[
-                  styles.colorPreset,
-                  { backgroundColor: preset.color },
-                  primaryColor === preset.color && styles.colorPresetSelected,
-                ]}
-                onPress={() => setPrimaryColor(preset.color)}
-              />
-            ))}
+            {SOLID_COLOR_IDS.map((id) => {
+              const hex = (COLOR_VALUES[id as SolidColorId] as { dark: string; light: string })[
+                isDark ? "dark" : "light"
+              ];
+              return (
+                <Pressable
+                  key={id}
+                  style={[
+                    styles.colorPreset,
+                    { backgroundColor: hex },
+                    selectedColorId === id && styles.colorPresetSelected,
+                  ]}
+                  onPress={() => setSelectedColorId(id)}
+                />
+              );
+            })}
           </View>
           <Text style={styles.inputLabel}>Preview</Text>
           <View
-            style={[styles.colorPreview, { backgroundColor: primaryColor }]}
+            style={[
+              styles.colorPreview,
+              {
+                backgroundColor: (COLOR_VALUES[selectedColorId as SolidColorId] as { dark: string; light: string } | undefined)?.[
+                  isDark ? "dark" : "light"
+                ] ?? (isDark ? "#E8B930" : "#B38600"),
+              },
+            ]}
           />
         </View>
 
@@ -1333,7 +1412,7 @@ export default function StorefrontEditorScreen() {
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#000" />
+            <ActivityIndicator color={theme.brandPrimaryText} />
           ) : (
             <Text style={styles.saveButtonText}>Save Branding</Text>
           )}
@@ -1347,7 +1426,7 @@ export default function StorefrontEditorScreen() {
       <Feather
         name={visible ? "eye" : "eye-off"}
         size={16}
-        color={visible ? theme.primary : theme.textSecondary}
+        color={visible ? theme.brandGold : theme.brandTextDim}
       />
     </Pressable>
   );
@@ -1363,7 +1442,7 @@ export default function StorefrontEditorScreen() {
             value={profileName}
             onChangeText={setProfileName}
             placeholder="Your business name"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
           />
           <Text style={styles.inputLabel}>Tagline</Text>
           <TextInput
@@ -1371,7 +1450,7 @@ export default function StorefrontEditorScreen() {
             value={profileTagline}
             onChangeText={setProfileTagline}
             placeholder="A short catchy phrase"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
           />
           <Text style={styles.inputLabel}>Description</Text>
           <TextInput
@@ -1379,7 +1458,7 @@ export default function StorefrontEditorScreen() {
             value={profileDescription}
             onChangeText={setProfileDescription}
             placeholder="Tell customers about your business..."
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             multiline
           />
         </View>
@@ -1434,7 +1513,7 @@ export default function StorefrontEditorScreen() {
             value={profileEmail}
             onChangeText={setProfileEmail}
             placeholder="contact@business.com"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -1447,7 +1526,7 @@ export default function StorefrontEditorScreen() {
             value={profilePhone}
             onChangeText={setProfilePhone}
             placeholder="(555) 123-4567"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             keyboardType="phone-pad"
           />
           <View style={styles.visibilityLabelRow}>
@@ -1461,7 +1540,7 @@ export default function StorefrontEditorScreen() {
             value={profileWebsite}
             onChangeText={setProfileWebsite}
             placeholder="https://yourbusiness.com"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             autoCapitalize="none"
           />
           <View style={styles.visibilityLabelRow}>
@@ -1492,7 +1571,7 @@ export default function StorefrontEditorScreen() {
             <Feather
               name={responseValueDropdownOpen ? "chevron-up" : "chevron-down"}
               size={16}
-              color={theme.textSecondary}
+              color={theme.brandTextDim}
             />
           </Pressable>
           {responseValueDropdownOpen ? (
@@ -1537,7 +1616,7 @@ export default function StorefrontEditorScreen() {
             <Feather
               name={responseUnitDropdownOpen ? "chevron-up" : "chevron-down"}
               size={16}
-              color={theme.textSecondary}
+              color={theme.brandTextDim}
             />
           </Pressable>
           {responseUnitDropdownOpen ? (
@@ -1579,7 +1658,7 @@ export default function StorefrontEditorScreen() {
             value={profileAddress}
             onChangeText={setProfileAddress}
             placeholder="123 Main Street"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
           />
           <View style={styles.row}>
             <View style={styles.flex1}>
@@ -1589,7 +1668,7 @@ export default function StorefrontEditorScreen() {
                 value={profileCity}
                 onChangeText={setProfileCity}
                 placeholder="City"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
               />
             </View>
             <View style={styles.flex1}>
@@ -1599,7 +1678,7 @@ export default function StorefrontEditorScreen() {
                 value={profileState}
                 onChangeText={setProfileState}
                 placeholder="State"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
               />
             </View>
           </View>
@@ -1609,7 +1688,7 @@ export default function StorefrontEditorScreen() {
             value={profileZip}
             onChangeText={setProfileZip}
             placeholder="12345"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
           />
         </View>
@@ -1620,7 +1699,7 @@ export default function StorefrontEditorScreen() {
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#000" />
+            <ActivityIndicator color={theme.brandPrimaryText} />
           ) : (
             <Text style={styles.saveButtonText}>Save Profile</Text>
           )}
@@ -1647,13 +1726,13 @@ export default function StorefrontEditorScreen() {
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
         <Pressable style={styles.addButton} onPress={() => openProductForm()}>
-          <Feather name="plus" size={20} color="#000" />
+          <Feather name="plus" size={20} color={theme.brandPrimaryText} />
           <Text style={styles.addButtonText}>Add Product</Text>
         </Pressable>
 
         {products.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="package" size={48} color={theme.textSecondary} />
+            <Feather name="package" size={48} color={theme.brandTextDim} />
             <Text style={styles.emptyText}>No products yet</Text>
           </View>
         ) : (
@@ -1671,7 +1750,7 @@ export default function StorefrontEditorScreen() {
                     { justifyContent: "center", alignItems: "center" },
                   ]}
                 >
-                  <Feather name="image" size={24} color={theme.textSecondary} />
+                  <Feather name="image" size={24} color={theme.brandTextDim} />
                 </View>
               )}
               <View style={styles.productInfo}>
@@ -1705,7 +1784,7 @@ export default function StorefrontEditorScreen() {
                 </View>
                 {getStatusExplanation(product.status) && (
                   <Text
-                    style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}
+                    style={{ fontSize: 11, color: theme.brandError, marginTop: 4 }}
                   >
                     {getStatusExplanation(product.status)}
                   </Text>
@@ -1715,13 +1794,13 @@ export default function StorefrontEditorScreen() {
                     style={styles.actionButton}
                     onPress={() => openProductForm(product)}
                   >
-                    <Feather name="edit-2" size={16} color={theme.text} />
+                    <Feather name="edit-2" size={16} color={theme.brandCream} />
                   </Pressable>
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => handleDeleteProduct(product.id)}
                   >
-                    <Feather name="trash-2" size={16} color="#ef4444" />
+                    <Feather name="trash-2" size={16} color={theme.brandError} />
                   </Pressable>
                 </View>
               </View>
@@ -1736,13 +1815,13 @@ export default function StorefrontEditorScreen() {
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
         <Pressable style={styles.addButton} onPress={() => openServiceForm()}>
-          <Feather name="plus" size={20} color="#000" />
+          <Feather name="plus" size={20} color={theme.brandPrimaryText} />
           <Text style={styles.addButtonText}>Add Service</Text>
         </Pressable>
 
         {services.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="clock" size={48} color={theme.textSecondary} />
+            <Feather name="clock" size={48} color={theme.brandTextDim} />
             <Text style={styles.emptyText}>No services yet</Text>
           </View>
         ) : (
@@ -1770,7 +1849,7 @@ export default function StorefrontEditorScreen() {
                 <Text
                   style={{
                     fontSize: 11,
-                    color: "#ef4444",
+                    color: theme.brandError,
                     marginTop: 4,
                     marginBottom: 4,
                   }}
@@ -1780,9 +1859,9 @@ export default function StorefrontEditorScreen() {
               )}
               <View style={styles.serviceDetails}>
                 <View style={styles.serviceDetail}>
-                  <Feather name="dollar-sign" size={14} color={theme.primary} />
+                  <Feather name="dollar-sign" size={14} color={theme.brandGold} />
                   <Text
-                    style={[styles.serviceDetailText, { color: theme.primary }]}
+                    style={[styles.serviceDetailText, { color: theme.brandGold }]}
                   >
                     {formatPrice(service.priceCents)}
                   </Text>
@@ -1792,7 +1871,7 @@ export default function StorefrontEditorScreen() {
                     <Feather
                       name="clock"
                       size={14}
-                      color={theme.textSecondary}
+                      color={theme.brandTextDim}
                     />
                     <Text style={styles.serviceDetailText}>
                       {service.durationMinutes} min
@@ -1805,15 +1884,15 @@ export default function StorefrontEditorScreen() {
                   style={styles.actionButton}
                   onPress={() => openServiceForm(service)}
                 >
-                  <Feather name="edit-2" size={16} color={theme.text} />
+                  <Feather name="edit-2" size={16} color={theme.brandCream} />
                 </Pressable>
                 <Pressable
                   style={styles.actionButton}
                   onPress={() => handleDeleteService(service.id)}
                 >
-                  <Feather name="trash-2" size={16} color="#ef4444" />
-                </Pressable>
-              </View>
+                    <Feather name="trash-2" size={16} color={theme.brandError} />
+                  </Pressable>
+                </View>
             </View>
           ))
         )}
@@ -1826,16 +1905,16 @@ export default function StorefrontEditorScreen() {
       <View style={styles.modal}>
         <View style={styles.modalHeader}>
           <Pressable onPress={() => setProductModalVisible(false)}>
-            <Feather name="x" size={24} color={theme.text} />
+            <Feather name="x" size={24} color={theme.brandCream} />
           </Pressable>
           <Text style={styles.modalTitle}>
             {editingProduct ? "Edit Product" : "Add Product"}
           </Text>
           <Pressable onPress={handleSaveProduct} disabled={saving}>
             {saving ? (
-              <ActivityIndicator size="small" color={theme.primary} />
+              <ActivityIndicator size="small" color={theme.brandPrimary} />
             ) : (
-              <Text style={{ color: theme.primary, fontWeight: "600" }}>
+              <Text style={{ color: theme.brandGold, fontWeight: "600" }}>
                 Save
               </Text>
             )}
@@ -1850,7 +1929,7 @@ export default function StorefrontEditorScreen() {
               setProductForm((prev) => ({ ...prev, name: v }))
             }
             placeholder="Product name"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
           />
 
           <Text style={styles.inputLabel}>Description</Text>
@@ -1861,7 +1940,7 @@ export default function StorefrontEditorScreen() {
               setProductForm((prev) => ({ ...prev, description: v }))
             }
             placeholder="Product description"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             multiline
           />
 
@@ -1871,7 +1950,7 @@ export default function StorefrontEditorScreen() {
             value={priceInput}
             onChangeText={(v) => setPriceInput(v.replace(/[^0-9.]/g, ""))}
             placeholder="0.00"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             keyboardType="decimal-pad"
           />
 
@@ -1892,7 +1971,7 @@ export default function StorefrontEditorScreen() {
               }));
             }}
             placeholder="0"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
           />
 
@@ -1912,7 +1991,7 @@ export default function StorefrontEditorScreen() {
           {productForm.status === "paused" && (
             <View
               style={{
-                backgroundColor: "#fef2f2",
+                backgroundColor: theme.brandError + "14",
                 borderRadius: 8,
                 padding: 12,
                 marginTop: 16,
@@ -1921,32 +2000,33 @@ export default function StorefrontEditorScreen() {
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
-                <Feather name="pause-circle" size={18} color="#ef4444" />
+                <Feather name="pause-circle" size={18} color={theme.brandError} />
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}
+                  style={{ fontSize: 14, fontWeight: "600", color: theme.brandError }}
                 >
                   Product Paused
                 </Text>
               </View>
-              <Text style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
+              <Text style={{ fontSize: 13, color: theme.brandError, marginTop: 4 }}>
                 This product was paused due to subscription lapse. Reactivate
                 your subscription to publish it again.
               </Text>
             </View>
           )}
 
-          <View style={[styles.switchRow, { marginTop: 16 }]}>
+          <View style={[styles.publishGateCard, { marginTop: 16 }]}>
+            <View style={[styles.switchRow, { marginBottom: 0 }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.inputLabel}>Publish (Go Live)</Text>
               {productForm.status === "paused" ? (
-                <Text style={{ fontSize: 12, color: "#ef4444", marginTop: 2 }}>
+                <Text style={{ fontSize: 12, color: theme.brandError, marginTop: 2 }}>
                   Reactivate subscription to unpause
                 </Text>
               ) : !canPublishProducts ? (
                 <Text
                   style={{
                     fontSize: 12,
-                    color: theme.textSecondary,
+                    color: theme.brandTextDim,
                     marginTop: 2,
                   }}
                 >
@@ -1980,13 +2060,14 @@ export default function StorefrontEditorScreen() {
                     status: v ? "live" : "draft",
                   });
                 }}
-                trackColor={{ true: theme.primary }}
+                trackColor={{ true: theme.brandGold }}
                 disabled={
                   productForm.status === "paused" ||
                   (!canPublishProducts && productForm.status !== "live")
                 }
               />
             </View>
+          </View>
           </View>
         </ScrollView>
       </View>
@@ -1998,16 +2079,16 @@ export default function StorefrontEditorScreen() {
       <View style={styles.modal}>
         <View style={styles.modalHeader}>
           <Pressable onPress={() => setServiceModalVisible(false)}>
-            <Feather name="x" size={24} color={theme.text} />
+            <Feather name="x" size={24} color={theme.brandCream} />
           </Pressable>
           <Text style={styles.modalTitle}>
             {editingService ? "Edit Service" : "Add Service"}
           </Text>
           <Pressable onPress={handleSaveService} disabled={saving}>
             {saving ? (
-              <ActivityIndicator size="small" color={theme.primary} />
+              <ActivityIndicator size="small" color={theme.brandPrimary} />
             ) : (
-              <Text style={{ color: theme.primary, fontWeight: "600" }}>
+              <Text style={{ color: theme.brandGold, fontWeight: "600" }}>
                 Save
               </Text>
             )}
@@ -2020,7 +2101,7 @@ export default function StorefrontEditorScreen() {
             value={serviceForm.name}
             onChangeText={(v) => setServiceForm({ ...serviceForm, name: v })}
             placeholder="Service name"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
           />
 
           <Text style={styles.inputLabel}>Description</Text>
@@ -2031,7 +2112,7 @@ export default function StorefrontEditorScreen() {
               setServiceForm({ ...serviceForm, description: v })
             }
             placeholder="Service description"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             multiline
           />
 
@@ -2050,7 +2131,7 @@ export default function StorefrontEditorScreen() {
               })
             }
             placeholder="0.00"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             keyboardType="decimal-pad"
           />
 
@@ -2065,7 +2146,7 @@ export default function StorefrontEditorScreen() {
               })
             }
             placeholder="60"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
           />
 
@@ -2074,7 +2155,7 @@ export default function StorefrontEditorScreen() {
           {serviceForm.status === "paused" && (
             <View
               style={{
-                backgroundColor: "#fef2f2",
+                backgroundColor: theme.brandError + "14",
                 borderRadius: 8,
                 padding: 12,
                 marginTop: 16,
@@ -2083,32 +2164,33 @@ export default function StorefrontEditorScreen() {
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
-                <Feather name="pause-circle" size={18} color="#ef4444" />
+                <Feather name="pause-circle" size={18} color={theme.brandError} />
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#991b1b" }}
+                  style={{ fontSize: 14, fontWeight: "600", color: theme.brandError }}
                 >
                   Service Paused
                 </Text>
               </View>
-              <Text style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
+              <Text style={{ fontSize: 13, color: theme.brandError, marginTop: 4 }}>
                 This service was paused due to subscription lapse. Reactivate
                 your subscription to publish it again.
               </Text>
             </View>
           )}
 
-          <View style={styles.switchRow}>
+          <View style={styles.publishGateCard}>
+            <View style={[styles.switchRow, { marginBottom: 0 }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.inputLabel}>Publish (Go Live)</Text>
               {serviceForm.status === "paused" ? (
-                <Text style={{ fontSize: 12, color: "#ef4444", marginTop: 2 }}>
+                <Text style={{ fontSize: 12, color: theme.brandError, marginTop: 2 }}>
                   Reactivate subscription to unpause
                 </Text>
               ) : !canPublishServices ? (
                 <Text
                   style={{
                     fontSize: 12,
-                    color: theme.textSecondary,
+                    color: theme.brandTextDim,
                     marginTop: 2,
                   }}
                 >
@@ -2142,13 +2224,14 @@ export default function StorefrontEditorScreen() {
                     status: v ? "live" : "draft",
                   });
                 }}
-                trackColor={{ true: theme.primary }}
+                trackColor={{ true: theme.brandGold }}
                 disabled={
                   serviceForm.status === "paused" ||
                   (!canPublishServices && serviceForm.status !== "live")
                 }
               />
             </View>
+          </View>
           </View>
         </ScrollView>
       </View>
@@ -2172,16 +2255,16 @@ export default function StorefrontEditorScreen() {
       case "approved":
         return {
           icon: "check-circle" as const,
-          iconBg: "#22c55e20",
-          iconColor: "#22c55e",
+          iconBg: theme.brandSuccess + "20",
+          iconColor: theme.brandSuccess,
           title: "Storefront Approved",
           desc: "Your storefront is visible to customers",
         };
       case "rejected":
         return {
           icon: "x-circle" as const,
-          iconBg: "#ef444420",
-          iconColor: "#ef4444",
+          iconBg: theme.brandError + "20",
+          iconColor: theme.brandError,
           title: "Application Rejected",
           desc:
             business?.approvalNotes ||
@@ -2190,8 +2273,8 @@ export default function StorefrontEditorScreen() {
       default:
         return {
           icon: "clock" as const,
-          iconBg: "#f9731620",
-          iconColor: "#f97316",
+          iconBg: theme.brandPending + "20",
+          iconColor: theme.brandPending,
           title: "Pending Review",
           desc: "Your storefront is under review (24-48 hours). You can still edit your profile.",
         };
@@ -2254,7 +2337,7 @@ export default function StorefrontEditorScreen() {
           <Feather
             name={missingApproval ? "x-circle" : "check-circle"}
             size={16}
-            color={missingApproval ? "#ef4444" : "#22c55e"}
+            color={missingApproval ? theme.brandError : theme.brandSuccess}
           />
           <Text
             style={[
@@ -2270,7 +2353,7 @@ export default function StorefrontEditorScreen() {
           <Feather
             name={missingStripe ? "x-circle" : "check-circle"}
             size={16}
-            color={missingStripe ? "#ef4444" : "#22c55e"}
+            color={missingStripe ? theme.brandError : theme.brandSuccess}
           />
           <Text
             style={[
@@ -2286,7 +2369,7 @@ export default function StorefrontEditorScreen() {
           <Feather
             name={missingSub ? "x-circle" : "check-circle"}
             size={16}
-            color={missingSub ? "#ef4444" : "#22c55e"}
+            color={missingSub ? theme.brandError : theme.brandSuccess}
           />
           <Text
             style={[
@@ -2308,7 +2391,7 @@ export default function StorefrontEditorScreen() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Feather name="arrow-left" size={24} color={theme.text} />
+          <Feather name="arrow-left" size={24} color={theme.brandCream} />
         </Pressable>
         <Text style={styles.headerTitle}>Customize Storefront</Text>
         <View style={styles.categoryBadge}>
@@ -2330,7 +2413,7 @@ export default function StorefrontEditorScreen() {
             <Feather
               name={tab.icon}
               size={18}
-              color={activeTab === tab.key ? "#000" : theme.textSecondary}
+              color={activeTab === tab.key ? theme.brandCream : theme.brandTextDim}
             />
             <Text
               style={[

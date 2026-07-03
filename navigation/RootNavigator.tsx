@@ -13,8 +13,8 @@ import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
 import ChatScreen from "@/screens/ChatScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
-import BusinessProfileScreen from "@/screens/BusinessProfileScreen";
-import PhotographerProfileScreen from "@/screens/PhotographerProfileScreen";
+import PostDetailScreen from "@/screens/PostDetailScreen";
+import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
@@ -38,8 +38,9 @@ import ShootBookingScreen from "@/screens/ShootBookingScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
-import ProfileScreen from "@/screens/ProfileScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
+import SessionsScreen from "@/screens/SessionsScreen";
+import CreatePostScreen from "@/screens/CreatePostScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 
@@ -220,52 +221,22 @@ export default function RootNavigator() {
       />
 
       <Stack.Screen
-        name="BusinessProfile"
-        component={BusinessProfileScreen}
-        options={({ navigation }) => ({
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          headerShown: true,
-          headerTitle: "Business Profile",
-          headerTitleAlign: "center",
-          headerTintColor: theme.text,
-          headerStyle: { backgroundColor: theme.backgroundRoot },
-          headerLeft: () => null,
-          headerRight: () => (
-            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
-              <Feather name="x" size={24} color={theme.text} />
-            </Pressable>
-          ),
-        })}
-      />
-
-      <Stack.Screen
-        name="PhotographerProfile"
-        component={PhotographerProfileScreen}
-        options={({ navigation }) => ({
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          headerShown: true,
-          headerTitle: "Photographer Profile",
-          headerTitleAlign: "center",
-          headerTintColor: theme.text,
-          headerStyle: { backgroundColor: theme.backgroundRoot },
-          headerLeft: () => null,
-          headerRight: () => (
-            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
-              <Feather name="x" size={24} color={theme.text} />
-            </Pressable>
-          ),
-        })}
-      />
-
-      <Stack.Screen
-        name="Profile"
-        component={ProfileScreen}
+        name="PostDetail"
+        component={PostDetailScreen}
         options={{
-          presentation: "card",
-          animation: "slide_from_right",
-          headerShown: false,
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="UserProfile"
+        component={AccountScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
         }}
@@ -657,6 +628,36 @@ export default function RootNavigator() {
         component={ProfileFeedScreen}
         options={{
           presentation: "card",
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="Sessions"
+        component={SessionsScreen}
+        options={({ navigation }) => ({
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Upcoming",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
+      />
+
+      <Stack.Screen
+        name="CreatePost"
+        component={CreatePostScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
           headerShown: false,
         }}
       />

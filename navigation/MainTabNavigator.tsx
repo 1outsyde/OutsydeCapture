@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { StyleSheet, View, Platform, Alert } from "react-native";
+import { StyleSheet, View, Platform, Alert, Pressable } from "react-native";
+import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { api } from "@/services/api";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
@@ -9,22 +10,46 @@ import { useNavigation, CommonActions } from "@react-navigation/native";
 
 import DiscoverStackNavigator from "@/navigation/DiscoverStackNavigator";
 import SearchScreen from "@/screens/SearchScreen";
-import SessionsScreen from "@/screens/SessionsScreen";
-import MessagesScreen from "@/screens/MessagesScreen";
+import InboxScreen from "@/screens/InboxScreen";
 import AccountStackNavigator from "@/navigation/AccountStackNavigator";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useMessaging } from "@/context/MessagingContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { MainTabParamList } from "@/navigation/types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 83;
 
+function EmptyScreen() {
+  return null;
+}
+
+function CreateTabButton(props: BottomTabBarButtonProps) {
+  const { theme } = useTheme();
+  const { onPress } = props;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.createButtonWrapper}
+      hitSlop={8}
+    >
+      <View style={[styles.createButton, { backgroundColor: theme.brandPrimary }]}>
+        <Feather name="plus" size={24} color={theme.brandPrimaryText} />
+      </View>
+    </Pressable>
+  );
+}
+
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { totalUnreadCount } = useMessaging();
+  const { unreadCount } = useNotifications();
+  console.log("[NOTIF-DEBUG] MainTabNavigator sees unreadCount =", unreadCount, "| totalUnreadCount =", totalUnreadCount);
+  const combinedUnread = (unreadCount || 0) + (totalUnreadCount || 0);
   const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
   const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
@@ -129,7 +154,7 @@ export default function MainTabNavigator() {
       <Tab.Navigator
         initialRouteName="DiscoverTab"
         screenOptions={{
-          tabBarActiveTintColor: theme.tabIconSelected,
+          tabBarActiveTintColor: theme.brandGold,
           tabBarInactiveTintColor: theme.tabIconDefault,
           headerShown: false,
           tabBarStyle: {
@@ -176,28 +201,32 @@ export default function MainTabNavigator() {
           }}
         />
 
-        {/* SESSIONS / ORDERS */}
+        {/* CREATE (+) */}
         <Tab.Screen
-          name="SessionsTab"
-          component={SessionsScreen}
+          name="CreateTab"
+          component={EmptyScreen}
           options={{
-            title: "Upcoming",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="calendar" size={size} color={color} />
-            ),
+            title: "",
+            tabBarButton: (props) => <CreateTabButton {...props} />,
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              navigation.navigate("CreatePost");
+            },
           }}
         />
 
-        {/* MESSAGES */}
+        {/* INBOX */}
         <Tab.Screen
-          name="MessagesTab"
-          component={MessagesScreen}
+          name="InboxTab"
+          component={InboxScreen}
           options={{
-            title: "Messages",
+            title: "Inbox",
             tabBarIcon: ({ color, size }) => (
               <Feather name="message-circle" size={size} color={color} />
             ),
-            tabBarBadge: totalUnreadCount > 0 ? totalUnreadCount : undefined,
+            tabBarBadge: combinedUnread > 0 ? combinedUnread : undefined,
           }}
         />
 
@@ -229,4 +258,16 @@ export default function MainTabNavigator() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  createButtonWrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

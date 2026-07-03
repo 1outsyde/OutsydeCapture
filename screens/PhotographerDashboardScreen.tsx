@@ -18,9 +18,16 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
+import {
+  SOLID_COLOR_IDS,
+  COLOR_VALUES,
+  SolidColorId,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 import { useAuth } from "@/context/AuthContext";
 import api, {
   PhotographerDashboardStats,
@@ -48,21 +55,14 @@ const SPECIALTIES = [
   "Fashion", "Real Estate", "Concerts", "Sports",
 ];
 
-const PROFILE_THEME_COLORS = [
-  { name: "Default Gold", color: "#D4A84B" },
-  { name: "Rose Pink", color: "#ec4899" },
-  { name: "Ocean Blue", color: "#3b82f6" },
-  { name: "Forest Green", color: "#22c55e" },
-  { name: "Royal Purple", color: "#8b5cf6" },
-  { name: "Sunset Orange", color: "#f97316" },
-  { name: "Teal", color: "#14b8a6" },
-  { name: "Slate Gray", color: "#64748b" },
-];
+// Photographer color picker uses the same 16-swatch SOLID_COLOR_IDS list as
+// the business StorefrontEditorScreen for consistency.
+// Display hex per swatch is resolved at render time from COLOR_VALUES[id][mode].
 
 type ModalType = "profile" | "hours" | "services" | "bookings" | "blocked" | null;
 
 export default function PhotographerDashboardScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { getToken, logout, user, isLoading: authLoading, refreshUser } = useAuth();
@@ -72,6 +72,16 @@ export default function PhotographerDashboardScreen() {
   const [saving, setSaving] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+
+  const route = useRoute<RouteProp<RootStackParamList, "PhotographerDashboard">>();
+  useEffect(() => {
+    if (route.params?.openModal) {
+      setActiveModal(route.params.openModal);
+      // consume the param so the modal doesn't reopen on a later remount
+      navigation.setParams({ openModal: undefined });
+    }
+  }, [route.params?.openModal]);
+
   const [authError, setAuthError] = useState<string | null>(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const hasFetchedRef = useRef(false);
@@ -108,7 +118,7 @@ export default function PhotographerDashboardScreen() {
     state: "",
     portfolioUrl: "",
     specialties: [] as string[],
-    profileTheme: "#D4A84B",
+    profileTheme: "sunset_gold",
     avatar: "" as string,
     bannerType: "color" as "color" | "image" | "video" | "mock",
     bannerImage: "" as string,
@@ -202,20 +212,12 @@ export default function PhotographerDashboardScreen() {
         completedShoots: photographer.completedShoots || 0,
       });
       
-      // Parse brandColors - handle both object and JSON string formats
-      let brandColors: { primary?: string } = {};
-      if (photographer.brandColors) {
-        if (typeof photographer.brandColors === 'string') {
-          try {
-            brandColors = JSON.parse(photographer.brandColors);
-          } catch {
-            brandColors = {};
-          }
-        } else {
-          brandColors = photographer.brandColors as { primary?: string };
-        }
-      }
-      const originalTheme = brandColors.primary || "#D4A84B";
+      // Parse brandColors — new shape { type, id }
+      const parsedBrandColors = parseBrandColorSpec(photographer.brandColors);
+      const originalThemeId =
+        parsedBrandColors?.type === "solid" && parsedBrandColors.id
+          ? parsedBrandColors.id
+          : "sunset_gold";
       
       setProfile({
         id: photographer.id,
@@ -228,7 +230,7 @@ export default function PhotographerDashboardScreen() {
         portfolioUrl: photographer.portfolioUrl,
         specialties: photographer.specialties || [],
         stripeConnected: photographer.stripeOnboardingComplete || false,
-        profileTheme: originalTheme,
+        profileTheme: originalThemeId,
         autoAcceptBookings: photographer.autoAcceptBookings ?? false,
       });
       setAutoAcceptBookings(photographer.autoAcceptBookings ?? false);
@@ -242,7 +244,7 @@ export default function PhotographerDashboardScreen() {
         state: photographer.state || "",
         portfolioUrl: photographer.portfolioUrl || "",
         specialties: photographer.specialties || [],
-        profileTheme: originalTheme,
+        profileTheme: originalThemeId,
         avatar: photographer.logoImage || "",
         bannerType: photographer.coverMediaType === "video" 
           ? "video" 
@@ -385,7 +387,7 @@ export default function PhotographerDashboardScreen() {
           state: defaultProfile.state || "",
           portfolioUrl: defaultProfile.portfolioUrl || "",
           specialties: defaultProfile.specialties,
-          profileTheme: "#D4A84B",
+          profileTheme: "sunset_gold",
           avatar: "",
           bannerType: "color",
           bannerImage: "",
@@ -656,24 +658,14 @@ export default function PhotographerDashboardScreen() {
         updateData.specialties = currentSpecialties;
       }
       
-      // brandColors - parse raw value (could be object or string)
-      const currentTheme = editProfile.profileTheme || "#D4A84B";
-      let originalTheme = "#D4A84B";
-      if (rawPhotographer?.brandColors) {
-        if (typeof rawPhotographer.brandColors === 'string') {
-          try {
-            const parsed = JSON.parse(rawPhotographer.brandColors);
-            originalTheme = parsed.primary || "#D4A84B";
-          } catch {
-            originalTheme = "#D4A84B";
-          }
-        } else if (rawPhotographer.brandColors.primary) {
-          originalTheme = rawPhotographer.brandColors.primary;
-        }
-      }
-      console.log(`[Dashboard] profileTheme: current="${currentTheme}" vs original="${originalTheme}"`);
-      if (currentTheme !== originalTheme) {
-        updateData.brandColors = { primary: currentTheme };
+      // brandColors - compare IDs; send new { type, id } shape
+      const currentThemeId = editProfile.profileTheme || "sunset_gold";
+      const rawParsed = parseBrandColorSpec(rawPhotographer?.brandColors);
+      const originalThemeId =
+        rawParsed?.type === "solid" && rawParsed.id ? rawParsed.id : "sunset_gold";
+      console.log(`[Dashboard] profileTheme: current="${currentThemeId}" vs original="${originalThemeId}"`);
+      if (currentThemeId !== originalThemeId) {
+        updateData.brandColors = { type: "solid", id: currentThemeId } as any;
       }
       
       // logoImage (avatar)
@@ -1419,7 +1411,7 @@ export default function PhotographerDashboardScreen() {
       justifyContent: "flex-end",
     },
     modalContent: {
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: theme.brandBgElevated,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       maxHeight: "90%",
@@ -1432,12 +1424,12 @@ export default function PhotographerDashboardScreen() {
       paddingTop: 20,
       paddingBottom: 16,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border + "40",
+      borderBottomColor: theme.brandSurfaceBorder,
     },
     modalTitle: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.text,
+      color: theme.brandCream,
     },
     modalCloseButton: {
       padding: 4,
@@ -1451,18 +1443,18 @@ export default function PhotographerDashboardScreen() {
     formLabel: {
       fontSize: 13,
       fontWeight: "500",
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       marginBottom: 8,
       textTransform: "uppercase",
       letterSpacing: 0.5,
     },
     formInput: {
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: theme.brandSurface,
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 14,
       fontSize: 16,
-      color: theme.text,
+      color: theme.brandCream,
     },
     formTextarea: {
       minHeight: 100,
@@ -1484,37 +1476,21 @@ export default function PhotographerDashboardScreen() {
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: 20,
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: theme.brandSurface,
       borderWidth: 1,
-      borderColor: theme.border,
+      borderColor: theme.brandSurfaceBorder,
     },
     specialtyChipActive: {
-      backgroundColor: theme.primary + "20",
-      borderColor: theme.primary,
+      backgroundColor: theme.brandGold + "20",
+      borderColor: theme.brandGold,
     },
     specialtyChipText: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
     },
     specialtyChipTextActive: {
-      color: theme.primary,
+      color: theme.brandGold,
       fontWeight: "500",
-    },
-    saveButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.primary,
-      paddingVertical: 16,
-      borderRadius: 12,
-      marginTop: 8,
-      marginBottom: insets.bottom + 20,
-    },
-    saveButtonText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: "#FFFFFF",
-      marginLeft: 8,
     },
     bookingCard: {
       backgroundColor: theme.backgroundDefault,
@@ -1669,7 +1645,7 @@ export default function PhotographerDashboardScreen() {
     },
     formHint: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: theme.brandTextDim,
       marginTop: 2,
       marginBottom: 12,
     },
@@ -1707,9 +1683,21 @@ export default function PhotographerDashboardScreen() {
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Profile</Text>
             <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseButton}>
-              <Feather name="x" size={24} color={theme.text} />
+              <Feather name="x" size={24} color={theme.brandCream} />
+            </Pressable>
+            <Text style={[styles.modalTitle, { flex: 1, textAlign: "center" }]}>Edit Profile</Text>
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={saving}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ opacity: saving ? 0.5 : 1, padding: 4 }}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={theme.brandPrimary} />
+              ) : (
+                <Text style={{ color: theme.brandPrimary, fontSize: 16, fontWeight: "600" }}>Save</Text>
+              )}
             </Pressable>
           </View>
           <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
@@ -1741,11 +1729,11 @@ export default function PhotographerDashboardScreen() {
                       justifyContent: "center",
                       paddingVertical: 10,
                       borderRadius: 8,
-                      backgroundColor: (opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? theme.primary : theme.backgroundSecondary,
+                      backgroundColor: (opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? theme.brandGold : theme.brandSurface,
                     }}
                   >
-                    <Feather name={opt.icon} size={14} color={(opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? "#000" : theme.text} />
-                    <Text style={{ marginLeft: 4, fontSize: 12, fontWeight: "600", color: (opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? "#000" : theme.text }}>
+                    <Feather name={opt.icon} size={14} color={(opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? theme.brandCream : theme.brandCream} />
+                    <Text style={{ marginLeft: 4, fontSize: 12, fontWeight: "600", color: (opt.type === "media" && (editProfile.bannerType === "image" || editProfile.bannerType === "video")) || editProfile.bannerType === opt.type ? theme.brandCream : theme.brandCream }}>
                       {opt.label}
                     </Text>
                   </Pressable>
@@ -1757,7 +1745,7 @@ export default function PhotographerDashboardScreen() {
                 <View style={{ 
                   height: 120, 
                   borderRadius: 12, 
-                  backgroundColor: editProfile.profileTheme,
+                  backgroundColor: (COLOR_VALUES[editProfile.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? (isDark ? "#E8B930" : "#B38600"),
                   alignItems: "center",
                   justifyContent: "center",
                 }}>
@@ -1796,7 +1784,7 @@ export default function PhotographerDashboardScreen() {
                       bannerType: "color" 
                     }));
                   }}
-                  folder="banners"
+                  folder="covers"
                   maxVideoDuration={15}
                   placeholder="Upload banner image"
                 />
@@ -1815,26 +1803,25 @@ export default function PhotographerDashboardScreen() {
                           borderRadius: 10,
                           overflow: "hidden",
                           borderWidth: editProfile.bannerMock === mock.url ? 3 : 0,
-                          borderColor: theme.primary,
+                          borderColor: theme.brandGold,
                         }}
                       >
                         <Image source={{ uri: mock.url }} style={{ width: "100%", height: "100%" }} />
                         {editProfile.bannerMock === mock.url && (
-                          <View style={{ position: "absolute", top: 4, right: 4, backgroundColor: theme.primary, borderRadius: 10, padding: 2 }}>
-                            <Feather name="check" size={12} color="#000" />
+                          <View style={{ position: "absolute", top: 4, right: 4, backgroundColor: theme.brandGold, borderRadius: 10, padding: 2 }}>
+                            <Feather name="check" size={12} color={theme.brandCream} />
                           </View>
                         )}
                       </Pressable>
                     ))}
                   </ScrollView>
-                  <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 8 }}>Swipe to see more preset banners</Text>
+                  <Text style={{ color: theme.brandTextDim, fontSize: 11, marginTop: 8 }}>Swipe to see more preset banners</Text>
                 </View>
               )}
             </View>
 
             {/* Profile Picture Editor */}
-            <View style={[styles.formGroup, { alignItems: "center", marginBottom: 24 }]}>
-              <Text style={[styles.formLabel, { textAlign: "center", marginBottom: 8 }]}>Profile Photo</Text>
+            <View style={[styles.formGroup, { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 24 }]}>
               <Pressable
                 onPress={async () => {
                   Alert.alert("Update Profile Photo", "Choose an option", [
@@ -1904,31 +1891,34 @@ export default function PhotographerDashboardScreen() {
                   width: 100,
                   height: 100,
                   borderRadius: 50,
-                  backgroundColor: theme.backgroundSecondary,
+                  backgroundColor: theme.brandSurface,
                   overflow: "hidden",
                   borderWidth: 3,
-                  borderColor: theme.primary,
+                  borderColor: theme.brandGold,
                 }}
               >
                 {editProfile.avatar ? (
                   <Image source={{ uri: editProfile.avatar }} style={{ width: "100%", height: "100%" }} />
                 ) : (
                   <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="camera" size={28} color={theme.textSecondary} />
+                    <Feather name="camera" size={28} color={theme.brandTextDim} />
                   </View>
                 )}
                 <View style={{ 
                   position: "absolute", 
                   bottom: 0, 
                   right: 0, 
-                  backgroundColor: theme.primary, 
+                  backgroundColor: theme.brandGold, 
                   borderRadius: 12, 
                   padding: 6,
                 }}>
-                  <Feather name="edit-2" size={12} color="#000" />
+                  <Feather name="edit-2" size={12} color={theme.brandCream} />
                 </View>
               </Pressable>
-              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8 }}>Tap to change photo</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Profile Photo</Text>
+                <Text style={{ color: theme.brandTextDim, fontSize: 12, marginTop: 4 }}>Tap to change photo</Text>
+              </View>
             </View>
 
             <View style={styles.formRow}>
@@ -1939,7 +1929,7 @@ export default function PhotographerDashboardScreen() {
                   value={editProfile.name}
                   onChangeText={(text) => setEditProfile({ ...editProfile, name: text })}
                   placeholder="Your name"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.brandTextDim}
                 />
               </View>
               <View style={[styles.formGroup, styles.formHalf]}>
@@ -1949,7 +1939,7 @@ export default function PhotographerDashboardScreen() {
                   value={editProfile.hourlyRate}
                   onChangeText={(text) => setEditProfile({ ...editProfile, hourlyRate: text })}
                   placeholder="150"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.brandTextDim}
                   keyboardType="numeric"
                 />
               </View>
@@ -1969,7 +1959,7 @@ export default function PhotographerDashboardScreen() {
                     value={editProfile.username}
                     onChangeText={(text) => setEditProfile({ ...editProfile, username: text.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
                     placeholder="your_username"
-                    placeholderTextColor={theme.textSecondary}
+                    placeholderTextColor={theme.brandTextDim}
                     autoCapitalize="none"
                     autoCorrect={false}
                     editable={identityStatus?.canChangeUsername !== false}
@@ -1980,26 +1970,26 @@ export default function PhotographerDashboardScreen() {
                     onPress={handleSaveUsername} 
                     disabled={savingIdentity}
                     style={{
-                      backgroundColor: theme.primary,
+                      backgroundColor: theme.brandPrimary,
                       paddingHorizontal: 16,
                       paddingVertical: 10,
                       borderRadius: 8,
                     }}
                   >
                     {savingIdentity ? (
-                      <ActivityIndicator size="small" color="#000" />
+                      <ActivityIndicator size="small" color={theme.brandPrimaryText} />
                     ) : (
-                      <Text style={{ color: "#000", fontWeight: "600" }}>Save</Text>
+                      <Text style={{ color: theme.brandPrimaryText, fontWeight: "600" }}>Save</Text>
                     )}
                   </Pressable>
                 )}
               </View>
               {!identityStatus?.canChangeUsername && identityStatus?.usernameCooldownDays ? (
-                <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
+                <Text style={{ color: theme.brandTextDim, fontSize: 12, marginTop: 4 }}>
                   You can change your username again in {identityStatus.usernameCooldownDays} days
                 </Text>
               ) : (
-                <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
+                <Text style={{ color: theme.brandTextDim, fontSize: 12, marginTop: 4 }}>
                   This is how others find you (@{editProfile.username || "username"})
                 </Text>
               )}
@@ -2012,7 +2002,7 @@ export default function PhotographerDashboardScreen() {
                 value={editProfile.bio}
                 onChangeText={(text) => setEditProfile({ ...editProfile, bio: text })}
                 placeholder="Tell clients about yourself..."
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
                 multiline
               />
             </View>
@@ -2025,7 +2015,7 @@ export default function PhotographerDashboardScreen() {
                   value={editProfile.city}
                   onChangeText={(text) => setEditProfile({ ...editProfile, city: text })}
                   placeholder="New York"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.brandTextDim}
                 />
               </View>
               <View style={[styles.formGroup, styles.formHalf]}>
@@ -2035,7 +2025,7 @@ export default function PhotographerDashboardScreen() {
                   value={editProfile.state}
                   onChangeText={(text) => setEditProfile({ ...editProfile, state: text })}
                   placeholder="NY"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.brandTextDim}
                 />
               </View>
             </View>
@@ -2047,7 +2037,7 @@ export default function PhotographerDashboardScreen() {
                 value={editProfile.portfolioUrl}
                 onChangeText={(text) => setEditProfile({ ...editProfile, portfolioUrl: text })}
                 placeholder="https://yourportfolio.com"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.brandTextDim}
                 autoCapitalize="none"
               />
             </View>
@@ -2079,35 +2069,39 @@ export default function PhotographerDashboardScreen() {
               <Text style={styles.formLabel}>Profile Theme</Text>
               <Text style={styles.formHint}>Choose a color for your public profile</Text>
               <View style={styles.themeColorGrid}>
-                {PROFILE_THEME_COLORS.map((preset) => (
-                  <Pressable
-                    key={preset.color}
-                    style={[
-                      styles.themeColorPreset,
-                      { backgroundColor: preset.color },
-                      editProfile.profileTheme === preset.color && styles.themeColorPresetSelected,
-                    ]}
-                    onPress={() => setEditProfile({ ...editProfile, profileTheme: preset.color })}
-                  >
-                    {editProfile.profileTheme === preset.color && (
-                      <Feather name="check" size={16} color="#fff" />
-                    )}
-                  </Pressable>
-                ))}
+                {SOLID_COLOR_IDS.map((id) => {
+                  const hex = (COLOR_VALUES[id as SolidColorId] as { dark: string; light: string })[
+                    isDark ? "dark" : "light"
+                  ];
+                  return (
+                    <Pressable
+                      key={id}
+                      style={[
+                        styles.themeColorPreset,
+                        { backgroundColor: hex },
+                        editProfile.profileTheme === id && styles.themeColorPresetSelected,
+                      ]}
+                      onPress={() => setEditProfile({ ...editProfile, profileTheme: id })}
+                    >
+                      {editProfile.profileTheme === id && (
+                        <Feather name="check" size={16} color="#fff" />
+                      )}
+                    </Pressable>
+                  );
+                })}
               </View>
-              <View style={[styles.themePreviewBar, { backgroundColor: editProfile.profileTheme }]} />
+              <View
+                style={[
+                  styles.themePreviewBar,
+                  {
+                    backgroundColor: (COLOR_VALUES[editProfile.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[
+                      isDark ? "dark" : "light"
+                    ] ?? (isDark ? "#E8B930" : "#B38600"),
+                  },
+                ]}
+              />
             </View>
 
-            <Pressable onPress={handleSaveProfile} style={styles.saveButton} disabled={saving}>
-              {saving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Feather name="check" size={18} color="#FFFFFF" />
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                </>
-              )}
-            </Pressable>
           </ScrollView>
         </View>
       </View>
@@ -2878,7 +2872,7 @@ export default function PhotographerDashboardScreen() {
         }}
         onSave={handleSaveService}
         initialData={editingService}
-        brandColor={profile?.profileTheme || theme.primary}
+        brandColor={(COLOR_VALUES[profile?.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? theme.primary}
       />
 
       <RefundModal

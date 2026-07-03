@@ -81,6 +81,18 @@ export interface ApiBusinessDetail {
   facebook?: string;
   twitter?: string;
   brandColors?: string;
+  isMultiStaff?: boolean;
+}
+
+export interface ApiBusinessStaffMember {
+  id: string;
+  displayName: string;
+  bio?: string;
+  profileImageUrl?: string;
+  specialties?: string[];
+  serviceIds?: string[];
+  rating?: number;
+  reviewCount?: number;
 }
 
 export interface ApiConversation {
@@ -121,6 +133,7 @@ export interface ApiPost {
   mediaUrl?: string; // Added: alternative field name from backend (snake_case → camelCase)
   taggedBusinessId?: string;
   taggedPhotographerId?: string;
+  aspectRatio?: number;
   likesCount: number;
   commentsCount: number;
   isActive?: boolean;
@@ -804,6 +817,7 @@ export interface BusinessService {
 
 export interface ApiPhotographerDetail {
   id: string;
+  userId?: string;
   name: string;
   avatar?: string;
   coverImage?: string;
@@ -988,6 +1002,7 @@ export interface MobileSignupRequest {
   billingState?: string;
   billingZipCode?: string;
   isStartup?: boolean;
+  isMultiStaff?: boolean;
   yearsInBusiness?: string;
   employeeCount?: string;
   businessType?: string;
@@ -1038,6 +1053,7 @@ export interface VendorSignupRequest {
   businessDescription?: string;
   offerType: "products" | "services" | "both";
   isStartup?: boolean;
+  isMultiStaff?: boolean;
   yearsInBusiness?: string;
   employeeCount?: string;
   businessType?: string;
@@ -1444,6 +1460,7 @@ class ApiService {
         businessDescription: data.businessDescription,
         offerType: data.offerType || "both",
         isStartup: data.isStartup,
+        isMultiStaff: data.isMultiStaff,
         yearsInBusiness: data.yearsInBusiness,
         employeeCount: data.employeeCount,
         businessType: data.businessType,
@@ -1692,6 +1709,10 @@ class ApiService {
 
   async getBusinessPublicServices(businessId: string): Promise<{ services: VendorService[] }> {
     return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
+  }
+
+  async getBusinessPublicStaff(businessId: string): Promise<{ staff: ApiBusinessStaffMember[] }> {
+    return this.request<{ staff: ApiBusinessStaffMember[] }>(`/api/businesses/${businessId}/staff`);
   }
 
   async getConversations(authToken?: string | null): Promise<ApiConversation[]> {
@@ -2149,6 +2170,11 @@ class ApiService {
     );
   }
 
+  // GET /api/users/:id - Get public user profile by id
+  async getPublicUser(userId: string): Promise<{ user: Record<string, any> }> {
+    return this.request<{ user: Record<string, any> }>(`/api/users/${userId}`);
+  }
+
   // GET /api/photographers/me/stripe-status - Get Stripe onboarding status
   async getPhotographerStripeStatus(authToken: string): Promise<StripeOnboardingStatus> {
     return this.request<StripeOnboardingStatus>("/api/photographers/me/stripe-status", {
@@ -2420,6 +2446,7 @@ class ApiService {
   async createVendorProduct(authToken: string, data: VendorProductInput): Promise<{ product: VendorProduct }> {
     const { priceCents, ...rest } = data;
     const payload = { ...rest, price: priceCents };
+    delete payload.status;
     console.log("[createVendorProduct] raw form data:", JSON.stringify(data));
     console.log("[createVendorProduct] final payload:", JSON.stringify(payload));
     console.log("[createVendorProduct] typeof payload.price:", typeof payload.price);
@@ -2430,11 +2457,20 @@ class ApiService {
     });
   }
 
+  // POST /api/vendor/products/:id/go-live - Publish a product (creates Stripe product)
+  async goLiveVendorProduct(authToken: string, productId: string): Promise<{ product: VendorProduct; message?: string }> {
+    return this.request<{ product: VendorProduct; message?: string }>(`/api/vendor/products/${productId}/go-live`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // PATCH /api/vendor/products/:id - Update a product
   async updateVendorProduct(authToken: string, productId: string, data: Partial<VendorProductInput>): Promise<{ product: VendorProduct }> {
     const { priceCents, ...rest } = data;
     const priceField: { price: number } | Record<string, never> = priceCents !== undefined ? { price: priceCents } : {};
     const payload = { ...rest, ...priceField };
+    delete payload.status;
     console.log("[updateVendorProduct] raw form data:", JSON.stringify(data));
     console.log("[updateVendorProduct] final payload:", JSON.stringify(payload));
     console.log("[updateVendorProduct] typeof payload.price:", priceCents !== undefined ? typeof priceCents : "undefined");
@@ -2466,18 +2502,33 @@ class ApiService {
 
   // POST /api/vendor/services - Create a new service
   async createVendorService(authToken: string, data: VendorServiceInput): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const payload = { ...rest, price: priceCents };
+    delete payload.status; // backend create schema does not accept `status`
     return this.request<{ service: VendorService }>("/api/vendor/services", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/vendor/services/:id/go-live - Publish a service (creates Stripe product)
+  async goLiveVendorService(authToken: string, serviceId: string): Promise<{ service: VendorService; message?: string }> {
+    return this.request<{ service: VendorService; message?: string }>(`/api/vendor/services/${serviceId}/go-live`, {
+      method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
   // PATCH /api/vendor/services/:id - Update a service
   async updateVendorService(authToken: string, serviceId: string, data: Partial<VendorServiceInput>): Promise<{ service: VendorService }> {
+    const { priceCents, ...rest } = data;
+    const priceField: { price: number } | Record<string, never> = priceCents !== undefined ? { price: priceCents } : {};
+    const payload = { ...rest, ...priceField };
+    delete payload.status;
     return this.request<{ service: VendorService }>(`/api/vendor/services/${serviceId}`, {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -2914,7 +2965,7 @@ class ApiService {
 
   async checkFollowStatus(targetUserId: string): Promise<{ isFollowing: boolean }> {
     try {
-      return await this.request<{ isFollowing: boolean }>(`/api/follows/status/${targetUserId}`);
+      return await this.request<{ isFollowing: boolean }>(`/api/follows/check/${targetUserId}`);
     } catch {
       return { isFollowing: false };
     }
@@ -2939,6 +2990,42 @@ class ApiService {
       }>>("/api/notifications/follows");
     } catch {
       return [];
+    }
+  }
+
+  async getUserNotifications(authToken: string): Promise<{
+    notifications: Array<{
+      id: string;
+      type: string;
+      title: string;
+      message: string;
+      isRead: boolean;
+      referenceType?: string;
+      referenceId?: string;
+      metadata?: Record<string, any>;
+      createdAt: string;
+    }>;
+    unreadCount: number;
+  }> {
+    try {
+      return await this.request<{
+        notifications: Array<{
+          id: string;
+          type: string;
+          title: string;
+          message: string;
+          isRead: boolean;
+          referenceType?: string;
+          referenceId?: string;
+          metadata?: Record<string, any>;
+          createdAt: string;
+        }>;
+        unreadCount: number;
+      }>("/api/notifications", {
+        headers: { "Authorization": `Bearer ${authToken}` },
+      });
+    } catch {
+      return { notifications: [], unreadCount: 0 };
     }
   }
 
@@ -2999,6 +3086,7 @@ class ApiService {
     taggedPhotographerId?: string;
     photographerServiceId?: string;
     productId?: string;
+    serviceId?: string;
     displayLayout?: "pro" | "pulse";
     feedSurface?: "pro" | "pulse";
   }): Promise<{ post: ApiPost }> {
@@ -3057,11 +3145,29 @@ class ApiService {
     return this.request<{ posts: ApiPost[] }>(url, { headers });
   }
 
+  // GET /api/feed/:postId - Get a single post by id (public)
+  async getPost(postId: string, authToken?: string): Promise<{ post: ApiPost }> {
+    const headers: Record<string, string> = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    return this.request<{ post: ApiPost }>(`/api/feed/${postId}`, { headers });
+  }
+
   // DELETE /api/feed/:postId - Delete own post
   async deletePost(authToken: string, postId: string): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>(`/api/feed/${postId}`, {
       method: "DELETE",
       headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // PATCH /api/feed/:postId - Update own post's caption
+  async updatePostCaption(authToken: string, postId: string, content: string): Promise<{ post: ApiPost }> {
+    return this.request<{ post: ApiPost }>(`/api/feed/${postId}`, {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ content }),
     });
   }
 
@@ -3129,19 +3235,51 @@ class ApiService {
     }
     
     const response = await this.request<PulseFeedResponse>(url, { headers });
-    
+
+    // CHANGE 1 — diagnostic: log raw body before any key extraction
+    console.log('[API.getPulseFeed] RAW BODY:', JSON.stringify(response, null, 2));
+
+    // CHANGE 2 — unwrap the success/data envelope when present, then extract
+    const raw = response as any;
+    const container: any = (raw && raw.data && typeof raw.data === 'object')
+      ? raw.data
+      : raw;
+
+    // Resilient array extraction: check keys in priority order against container
+    let postsArray: ApiPost[] = [];
+    let matchedKeyName = 'none';
+    if (Array.isArray(container.videos)) {
+      postsArray = container.videos;
+      matchedKeyName = 'videos';
+    } else if (Array.isArray(container.posts)) {
+      postsArray = container.posts;
+      matchedKeyName = 'posts';
+    } else if (Array.isArray(container.feed)) {
+      postsArray = container.feed;
+      matchedKeyName = 'feed';
+    } else if (Array.isArray(container)) {
+      postsArray = container;
+      matchedKeyName = 'data (bare array)';
+    }
+    console.log('[API.getPulseFeed] matched key:', matchedKeyName, 'count:', postsArray.length);
+
+    // Pull pagination fields from the same container level as the posts array
+    const hasMore: boolean = container.hasMore ?? false;
+    const nextCursor: string | undefined =
+      container.nextCursor ?? container.nextOffset ?? undefined;
+
     // DEBUG: Log Pulse feed response
     console.log("[API.getPulseFeed] ===== PULSE FEED RESPONSE =====");
-    console.log("[API.getPulseFeed] Total posts:", response.posts?.length || 0);
-    if (response.posts?.length > 0) {
-      response.posts.slice(0, 3).forEach((post, i) => {
+    console.log("[API.getPulseFeed] Total posts:", postsArray.length);
+    if (postsArray.length > 0) {
+      postsArray.slice(0, 3).forEach((post, i) => {
         console.log(`[API.getPulseFeed] Post ${i}: id=${post.id}, videoUrl=${post.videoUrl}, feedSurface=${(post as any).feedSurface}`);
       });
     } else {
       console.log("[API.getPulseFeed] No posts returned from /api/pulse/feed");
     }
-    
-    return response;
+
+    return { posts: postsArray, hasMore, nextCursor };
   }
 
   // POST /api/pulse/engagement - Track engagement signals for Pulse ranking
@@ -3626,6 +3764,47 @@ class ApiService {
       }
     );
   }
+
+  // GET /api/users/:id — public user profile (consumers / any registered user)
+  async getPublicUser(userId: string): Promise<{
+    user: {
+      id: string;
+      userId?: string;
+      name?: string;
+      username?: string;
+      profileImageUrl?: string;
+      avatarUrl?: string;
+      coverMediaUrl?: string;
+      coverMediaType?: "image" | "video";
+      city?: string;
+      state?: string;
+      isVendor?: boolean;
+      isPhotographer?: boolean;
+      isInfluencer?: boolean;
+      followerCount?: number;
+      followingCount?: number;
+    };
+  }> {
+    return this.request<{
+      user: {
+        id: string;
+        userId?: string;
+        name?: string;
+        username?: string;
+        profileImageUrl?: string;
+        avatarUrl?: string;
+        coverMediaUrl?: string;
+        coverMediaType?: "image" | "video";
+        city?: string;
+        state?: string;
+        isVendor?: boolean;
+        isPhotographer?: boolean;
+        isInfluencer?: boolean;
+        followerCount?: number;
+        followingCount?: number;
+      };
+    }>(`/api/users/${userId}`);
+  }
 }
 
 // Availability Calendar types
@@ -3707,13 +3886,9 @@ export interface BookingConfirmResponse {
 
 export interface PulseEngagement {
   postId: string;
-  watchTimeSeconds?: number;
-  completionRate?: number;
+  watchTimeMs: number;
+  videoDurationMs: number;
   isRewatch?: boolean;
-  shared?: boolean;
-  saved?: boolean;
-  commented?: boolean;
-  liked?: boolean;
 }
 
 export interface PulseFeedResponse {

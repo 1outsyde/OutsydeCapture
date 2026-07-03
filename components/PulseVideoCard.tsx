@@ -10,6 +10,7 @@ import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
@@ -17,17 +18,19 @@ import { Post } from "@/context/DataContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
-export const PULSE_CARD_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
+export const PULSE_CARD_HEIGHT = SCREEN_HEIGHT;
 
 export interface PulseEngagementEvent {
-  watchTimeSeconds: number;
-  completionRate: number;
+  watchTimeMs: number;
+  videoDurationMs: number;
   isRewatch: boolean;
 }
 
 export interface PulseVideoCardProps {
   post: Post;
   isActive: boolean;
+  muted: boolean;
+  onToggleMute: () => void;
   isLiked?: boolean;
   isSaved?: boolean;
   onLike: (postId: string) => void;
@@ -43,11 +46,12 @@ interface VideoInnerProps {
   videoUrl: string;
   isActive: boolean;
   isPaused: boolean;
+  muted: boolean;
   postId: string;
   onEngagement?: (e: PulseEngagementEvent) => void;
 }
 
-function WebPulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: VideoInnerProps) {
+function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement }: VideoInnerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watchStartTime = useRef<number | null>(null);
   const totalWatchTime = useRef(0);
@@ -61,8 +65,8 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: V
     if (totalWatchTime.current < 1) return;
     const duration = videoRef.current?.duration ?? 30;
     onEngagement({
-      watchTimeSeconds: Math.round(totalWatchTime.current),
-      completionRate: Math.round(Math.min(totalWatchTime.current / duration, 1) * 100) / 100,
+      watchTimeMs: Math.round(totalWatchTime.current * 1000),
+      videoDurationMs: Math.round(duration * 1000),
       isRewatch: loopCount.current > 0,
     });
   }, [onEngagement]);
@@ -96,13 +100,21 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: V
     }
   }, []);
 
+  // React doesn't reactively update the `muted` DOM property on <video> via
+  // the JSX attribute, so we sync it imperatively whenever the prop changes.
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = muted;
+    }
+  }, [muted]);
+
   return (
     <View style={StyleSheet.absoluteFill}>
       <video
         ref={videoRef as any}
         src={videoUrl}
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        muted
+        muted={muted}
         playsInline
         onEnded={handleEnded}
       />
@@ -111,7 +123,7 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: V
 }
 
 // ─── Native video (expo-video) ───────────────────────────────────────────────
-function NativePulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }: VideoInnerProps) {
+function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement }: VideoInnerProps) {
   const watchStartTime = useRef<number | null>(null);
   const totalWatchTime = useRef(0);
   const loopCount = useRef(0);
@@ -120,8 +132,13 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = muted;
   });
+
+  // Keep mute state in sync whenever the shared toggle changes.
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
 
   const reportEngagement = useCallback(() => {
     if (!onEngagement || !watchStartTime.current) return;
@@ -131,8 +148,8 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }
     if (totalWatchTime.current < 1) return;
     const duration = videoDuration.current > 0 ? videoDuration.current : 30;
     onEngagement({
-      watchTimeSeconds: Math.round(totalWatchTime.current),
-      completionRate: Math.round(Math.min(totalWatchTime.current / duration, 1) * 100) / 100,
+      watchTimeMs: Math.round(totalWatchTime.current * 1000),
+      videoDurationMs: Math.round(duration * 1000),
       isRewatch: loopCount.current > 0,
     });
   }, [onEngagement]);
@@ -184,6 +201,8 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, postId, onEngagement }
 export default function PulseVideoCard({
   post,
   isActive,
+  muted,
+  onToggleMute,
   isLiked = false,
   isSaved = false,
   onLike,
@@ -194,7 +213,16 @@ export default function PulseVideoCard({
   onEngagement,
 }: PulseVideoCardProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [isPaused, setIsPaused] = useState(false);
+
+  // Floating tab bar overlays content rather than reserving layout space
+  // (see MainTabNavigator.tsx: height = 83 + insets.bottom / 2), so
+  // bottom-anchored elements here must add their own clearance.
+  const TAB_BAR_OVERLAY = 83 + insets.bottom / 2;
+  const soundLabelBottom = TAB_BAR_OVERLAY + 16;
+  const authorBlockBottom = soundLabelBottom + 20;
+  const actionBarBottom = authorBlockBottom + 60;
 
   // Reset pause state when card becomes inactive
   useEffect(() => {
@@ -228,6 +256,7 @@ export default function PulseVideoCard({
           videoUrl={post.videoUrl}
           isActive={isActive}
           isPaused={isPaused}
+          muted={muted}
           postId={post.id}
           onEngagement={handleEngagement}
         />
@@ -258,7 +287,7 @@ export default function PulseVideoCard({
       />
 
       {/* Right engagement stack — absolute, right:16, bottom:160 */}
-      <View style={styles.actionBar} pointerEvents="box-none">
+      <View style={[styles.actionBar, { bottom: actionBarBottom }]} pointerEvents="box-none">
         <Pressable
           onPress={() => onLike(post.id)}
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
@@ -276,7 +305,7 @@ export default function PulseVideoCard({
           <View style={styles.actionIcon}>
             <Feather name="message-circle" size={26} color="#FFFFFF" />
           </View>
-          <ThemedText style={styles.actionCount}>{post.comments.length}</ThemedText>
+          <ThemedText style={styles.actionCount}>{post.commentCount ?? post.comments.length}</ThemedText>
         </Pressable>
 
         <Pressable
@@ -295,13 +324,22 @@ export default function PulseVideoCard({
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
         >
           <View style={styles.actionIcon}>
-            <Feather name="bookmark" size={26} color={isSaved ? theme.primary : "#FFFFFF"} />
+            <Feather name="bookmark" size={26} color={isSaved ? theme.brandGold : "#FFFFFF"} />
+          </View>
+        </Pressable>
+
+        <Pressable
+          onPress={onToggleMute}
+          style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <View style={styles.actionIcon}>
+            <Feather name={muted ? "volume-x" : "volume-2"} size={26} color="#FFFFFF" />
           </View>
         </Pressable>
       </View>
 
       {/* Bottom-left author block — absolute, left:16, bottom:100 */}
-      <View style={styles.authorBlock} pointerEvents="box-none">
+      <View style={[styles.authorBlock, { bottom: authorBlockBottom }]} pointerEvents="box-none">
         <Pressable onPress={() => onAuthorPress(post)} style={styles.authorRow}>
           {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
             <Image
@@ -337,7 +375,7 @@ export default function PulseVideoCard({
             onPress={() => onActionPress(post)}
             style={({ pressed }) => [
               styles.commerceBtn,
-              { backgroundColor: theme.primary, opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: theme.brandPrimary, opacity: pressed ? 0.85 : 1 },
             ]}
           >
             <Feather
@@ -353,7 +391,7 @@ export default function PulseVideoCard({
       </View>
 
       {/* Bottom-right sound label — absolute, right:16, bottom:80 */}
-      <View style={styles.soundLabel} pointerEvents="none">
+      <View style={[styles.soundLabel, { bottom: soundLabelBottom }]} pointerEvents="none">
         <Feather name="music" size={12} color="rgba(255,255,255,0.8)" />
         <ThemedText style={styles.soundText} numberOfLines={1}>
           {soundName}
