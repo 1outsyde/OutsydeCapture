@@ -48,6 +48,12 @@ import apiClient, {
   VendorProduct,
   VendorService,
 } from "@/services/api";
+import { useTheme } from "@/hooks/useTheme";
+import {
+  BrandColorSpec,
+  resolveBrandColor,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 import { hoursObjectToArray } from "@/components/HoursEditor";
 import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
 import { RootStackParamList } from "@/navigation/types";
@@ -82,7 +88,7 @@ type ProfileTab =
   | "about";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
 
-type BrandColors = { primary?: string; accent?: string } | null;
+type BrandColors = BrandColorSpec | null;
 
 type ReviewItem = {
   id: string;
@@ -272,39 +278,8 @@ const getInitials = (name?: string): string => {
     .join("");
 };
 
-const safeJsonParse = (
-  value?: string | null,
-): Record<string, unknown> | null => {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "object" && parsed
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
-const parseBrandColors = (raw: unknown): BrandColors => {
-  if (!raw) return null;
-  if (typeof raw === "string") {
-    const parsed = safeJsonParse(raw);
-    if (!parsed) return null;
-    return {
-      primary: typeof parsed.primary === "string" ? parsed.primary : undefined,
-      accent: typeof parsed.accent === "string" ? parsed.accent : undefined,
-    };
-  }
-  if (typeof raw === "object") {
-    const casted = raw as { primary?: unknown; accent?: unknown };
-    return {
-      primary: typeof casted.primary === "string" ? casted.primary : undefined,
-      accent: typeof casted.accent === "string" ? casted.accent : undefined,
-    };
-  }
-  return null;
-};
+const parseBrandColors = (raw: unknown): BrandColors =>
+  parseBrandColorSpec(raw);
 
 const scoreToStars = (rating: number): number => {
   if (!Number.isFinite(rating) || rating <= 0) return 0;
@@ -518,6 +493,7 @@ export default function VendorDetailScreen({ route }: Props) {
   const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated } = useAuth();
+  const { isDark } = useTheme();
   const { vendorId, initialTab } = route.params;
 
   const [loading, setLoading] = useState(true);
@@ -549,14 +525,12 @@ export default function VendorDetailScreen({ route }: Props) {
     );
   }, [profile, user?.id]);
 
+  const colorMode = isDark ? "dark" : "light";
   const accentColor =
-    profile?.role === "business"
-      ? profile.brandColors?.primary || COLORS.gold
+    profile?.role === "business" || profile?.role === "photographer"
+      ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
-  const accentDimColor =
-    profile?.role === "business"
-      ? profile.brandColors?.accent || COLORS.goldDim
-      : COLORS.goldDim;
+  const accentDimColor = COLORS.goldDim;
   const pageBg = `${accentColor}28`;
 
   const loadProfile = useCallback(async () => {
