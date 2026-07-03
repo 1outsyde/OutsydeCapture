@@ -663,13 +663,19 @@ export default function AccountScreen() {
             "[AccountScreen] viewer-mode photographer: calling getPhotographer with user id:",
             routeUserId,
           );
-          const [photographer, rawServices, postResponse] = await Promise.all([
-            apiClient.getPhotographer(routeUserId),
+          const photographer = await apiClient.getPhotographer(routeUserId);
+          // getPhotographer requires the record id (routeUserId), but posts are
+          // keyed by authorId = userId, so the posts call must use the
+          // photographer's userId, not the record id. Mirrors VendorDetailScreen.tsx.
+          const photographerUserId =
+            photographer.userId ?? photographer.id ?? routeUserId;
+
+          const [rawServices, postResponse] = await Promise.all([
             apiClient
               .getPhotographerPublicServices(routeUserId)
               .catch(() => [] as VendorBookerPhotographerService[]),
             apiClient
-              .getProfilePosts(routeUserId, { limit: 60 })
+              .getProfilePosts(photographerUserId, { limit: 60 })
               .catch(() => ({ posts: [] })),
           ]);
 
@@ -715,7 +721,7 @@ export default function AccountScreen() {
 
           profileData = {
             id: String(photographer.id),
-            userId: routeUserId,
+            userId: photographerUserId,
             role: "photographer",
             name: displayName,
             handle: `@${(photographer as any).username || displayName.replace(/\s+/g, "").toLowerCase()}`,
@@ -1529,7 +1535,7 @@ export default function AccountScreen() {
                 ]}
                 onPress={() =>
                   navigation.navigate("PostDetail", {
-                    userId: routeUserId || String(user?.id),
+                    userId: profile?.userId || routeUserId || String(user?.id),
                     initialPostId: typedCell.id,
                   })
                 }
