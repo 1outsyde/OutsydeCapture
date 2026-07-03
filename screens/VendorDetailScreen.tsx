@@ -1679,56 +1679,11 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderBookingTab = () => {
-    if (profile?.isMultiStaff) {
-      if (staff.length === 0) {
-        return (
-          <View style={styles.tabContent}>
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>
-                No team members available to book yet
-              </Text>
-            </View>
-          </View>
-        );
-      }
+    const hasServices = services.length > 0;
+    const showTeam = Boolean(profile?.isMultiStaff);
 
-      return (
-        <View style={styles.tabContent}>
-          <Text
-            style={{
-              color: "rgba(255,255,255,0.5)",
-              fontSize: 11,
-              fontWeight: "600",
-              textTransform: "uppercase",
-              letterSpacing: 0.8,
-              marginBottom: 12,
-              paddingHorizontal: 4,
-            }}
-          >
-            Select a Team Member
-          </Text>
-          <StaffCardList
-            staff={staff}
-            accentColor={accentColor}
-            selectedStaffId={selectedStaffId}
-            onSelect={setSelectedStaffId}
-            onViewProfile={(staffId) => {
-              const member = staff.find((item) => item.id === staffId);
-              Alert.alert(
-                member?.displayName || "Team Member",
-                "Full staff profiles are coming soon.",
-              );
-            }}
-            onBook={(staffId) => {
-              setSelectedStaffId(staffId);
-              openBookingModal();
-            }}
-          />
-        </View>
-      );
-    }
-
-    if (services.length === 0) {
+    // Plain empty state: no services and not multi-staff (unchanged pre-fix path)
+    if (!hasServices && !showTeam) {
       return (
         <View style={styles.tabContent}>
           <View style={styles.emptyState}>
@@ -1738,113 +1693,183 @@ export default function VendorDetailScreen({ route }: Props) {
       );
     }
 
+    const sectionLabelStyle = {
+      color: "rgba(255,255,255,0.5)" as const,
+      fontSize: 11,
+      fontWeight: "600" as const,
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.8,
+      paddingHorizontal: 4,
+    };
+
     return (
       <View style={styles.tabContent}>
-        <Text
-          style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: 11,
-            fontWeight: "600",
-            textTransform: "uppercase",
-            letterSpacing: 0.8,
-            marginBottom: 12,
-            paddingHorizontal: 4,
-          }}
-        >
-          Select a Service
-        </Text>
-        {services.map((service) => (
-          <Pressable
-            key={service.id}
-            onPress={() =>
-              Alert.alert(
-                service.name,
-                `Duration: ${
-                  service.durationMinutes
-                    ? service.durationMinutes + " min"
-                    : "TBD"
-                }
+        {/* ── SERVICE LIST: renders unconditionally whenever services exist ── */}
+        {hasServices && (
+          <>
+            <Text style={[sectionLabelStyle, { marginBottom: 12 }]}>
+              Select a Service
+            </Text>
+            {services.map((service) => (
+              <Pressable
+                key={service.id}
+                onPress={() =>
+                  Alert.alert(
+                    service.name,
+                    `Duration: ${
+                      service.durationMinutes
+                        ? service.durationMinutes + " min"
+                        : "TBD"
+                    }
 
 Booking flow coming soon.`,
-              )
-            }
-            style={{
-              backgroundColor: "rgba(0,0,0,0.30)",
-              borderRadius: 14,
-              padding: 16,
-              marginBottom: 10,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
+                  )
+                }
                 style={{
-                  color: "#FFFFFF",
-                  fontSize: 15,
-                  fontWeight: "700",
-                  marginBottom: 4,
+                  backgroundColor: "rgba(0,0,0,0.30)",
+                  borderRadius: 14,
+                  padding: 16,
+                  marginBottom: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
               >
-                {service.name}
-              </Text>
-              {service.description ? (
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.55)",
-                    fontSize: 13,
-                    lineHeight: 18,
-                  }}
-                  numberOfLines={2}
-                >
-                  {service.description}
-                </Text>
-              ) : null}
-              {service.durationMinutes ? (
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: 12,
-                    marginTop: 6,
-                  }}
-                >
-                  {service.durationMinutes} min
-                </Text>
-              ) : null}
-            </View>
-            <View style={{ alignItems: "flex-end", marginLeft: 12 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "800",
-                  color: accentColor,
-                  marginBottom: 8,
-                }}
-              >
-                {formatCents(service.priceCents)}
-              </Text>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 15,
+                      fontWeight: "700",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {service.name}
+                  </Text>
+                  {service.description ? (
+                    <Text
+                      style={{
+                        color: "rgba(255,255,255,0.55)",
+                        fontSize: 13,
+                        lineHeight: 18,
+                      }}
+                      numberOfLines={2}
+                    >
+                      {service.description}
+                    </Text>
+                  ) : null}
+                  {service.durationMinutes ? (
+                    <Text
+                      style={{
+                        color: "rgba(255,255,255,0.4)",
+                        fontSize: 12,
+                        marginTop: 6,
+                      }}
+                    >
+                      {service.durationMinutes} min
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={{ alignItems: "flex-end", marginLeft: 12 }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "800",
+                      color: accentColor,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {formatCents(service.priceCents)}
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: accentColor,
+                      borderRadius: 20,
+                      paddingHorizontal: 16,
+                      paddingVertical: 7,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#000000",
+                        fontSize: 12,
+                        fontWeight: "800",
+                      }}
+                    >
+                      Book
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </>
+        )}
+
+        {/* ── TEAM SECTION: additive below service list when isMultiStaff ── */}
+        {showTeam && (
+          <>
+            {/* Section divider (with horizontal rules) when services are above;
+                plain label when the team section is the only content */}
+            {hasServices ? (
               <View
                 style={{
-                  backgroundColor: accentColor,
-                  borderRadius: 20,
-                  paddingHorizontal: 16,
-                  paddingVertical: 7,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginTop: 24,
+                  marginBottom: 12,
                 }}
               >
-                <Text
+                <View
                   style={{
-                    color: "#000000",
-                    fontSize: 12,
-                    fontWeight: "800",
+                    width: 20,
+                    height: 1,
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    marginRight: 8,
                   }}
-                >
-                  Book
+                />
+                <Text style={sectionLabelStyle}>Select a Team Member</Text>
+                <View
+                  style={{
+                    flex: 1,
+                    height: 1,
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    marginLeft: 8,
+                  }}
+                />
+              </View>
+            ) : (
+              <Text style={[sectionLabelStyle, { marginBottom: 12 }]}>
+                Select a Team Member
+              </Text>
+            )}
+
+            {staff.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>
+                  No team members available to book yet
                 </Text>
               </View>
-            </View>
-          </Pressable>
-        ))}
+            ) : (
+              <StaffCardList
+                staff={staff}
+                accentColor={accentColor}
+                selectedStaffId={selectedStaffId}
+                onSelect={setSelectedStaffId}
+                onViewProfile={(staffId) => {
+                  const member = staff.find((item) => item.id === staffId);
+                  Alert.alert(
+                    member?.displayName || "Team Member",
+                    "Full staff profiles are coming soon.",
+                  );
+                }}
+                onBook={(staffId) => {
+                  setSelectedStaffId(staffId);
+                  openBookingModal();
+                }}
+              />
+            )}
+          </>
+        )}
       </View>
     );
   };
