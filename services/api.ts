@@ -2431,6 +2431,25 @@ class ApiService {
     });
   }
 
+  // POST /api/vendor/staff/invites - Send a staff invite by email
+  async createStaffInvite(
+    authToken: string,
+    data: { email: string; role?: "staff" | "manager"; phone?: string },
+  ): Promise<{ invite: any }> {
+    return this.request<{ invite: any }>("/api/vendor/staff/invites", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/vendor/staff/invites - List invites for the authenticated business
+  async getStaffInvites(authToken: string): Promise<{ invites: any[] }> {
+    return this.request<{ invites: any[] }>("/api/vendor/staff/invites", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // ==========================================
   // VendorBooker Products CRUD
   // ==========================================
