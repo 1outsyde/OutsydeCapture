@@ -43,6 +43,7 @@ import SessionsScreen from "@/screens/SessionsScreen";
 import CreatePostScreen from "@/screens/CreatePostScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
+import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
 
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
@@ -672,6 +673,21 @@ export default function RootNavigator() {
         name="ResetPassword"
         component={ResetPasswordScreen}
         options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+      />
+
+      <Stack.Screen
+        name="StaffOnboarding"
+        component={StaffOnboardingStatusScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Staff Setup",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          gestureEnabled: false,
+        }}
       />
     </Stack.Navigator>
   );

@@ -50,7 +50,7 @@ export default function MainTabNavigator() {
   const { unreadCount } = useNotifications();
   console.log("[NOTIF-DEBUG] MainTabNavigator sees unreadCount =", unreadCount, "| totalUnreadCount =", totalUnreadCount);
   const combinedUnread = (unreadCount || 0) + (totalUnreadCount || 0);
-  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
+  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken, updateProfile } = useAuth();
   const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
 
@@ -61,6 +61,18 @@ export default function MainTabNavigator() {
       navigation.navigate("ResetPassword", pendingResetParams);
     }
   }, [pendingResetParams]);
+
+  // Route staff users directly to their onboarding/status screen
+  useEffect(() => {
+    if (user && !user.isGuest && user.role === "staff") {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 1,
+          routes: [{ name: "Main" }, { name: "StaffOnboarding" }],
+        })
+      );
+    }
+  }, [user?.role]);
 
   // Handle Stripe Connect return deep links (outsyde://stripe-return?status=...&type=...)
   useEffect(() => {
@@ -82,6 +94,7 @@ export default function MainTabNavigator() {
       vendor: "BusinessDashboard",
       business: "BusinessDashboard",
       influencer: "InfluencerDashboard",
+      staff: "StaffOnboarding",
     };
 
     const targetScreen = dashboardMap[type] ?? "Main";
@@ -105,13 +118,33 @@ export default function MainTabNavigator() {
     };
 
     if (status === "success") {
-      // Call backend to flip stripe_onboarding_complete flag
       const handleSuccess = async () => {
         try {
           const token = await getToken();
           if (token) {
-            const result = await api.completeStripeConnect(token);
-            console.log("[DeepLink] Completion result:", result);
+            if (type === "staff") {
+              // Refresh staff profile to pick up updated stripeOnboardingComplete
+              const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+                method: "GET",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`,
+                },
+              });
+              if (staffRes.ok) {
+                const staffJson = await staffRes.json();
+                const s = staffJson.staff || staffJson;
+                await updateProfile({
+                  staffStripeOnboardingComplete: s.stripeOnboardingComplete ?? true,
+                  staffStripeOnboardingUrl: s.stripeOnboardingUrl,
+                });
+                console.log("[DeepLink] Staff stripe status refreshed:", s.stripeOnboardingComplete);
+              }
+            } else {
+              // Call backend to flip stripe_onboarding_complete flag for other roles
+              const result = await api.completeStripeConnect(token);
+              console.log("[DeepLink] Completion result:", result);
+            }
           }
         } catch (err) {
           console.warn("[DeepLink] stripe/connect/complete call failed (non-critical):", err);

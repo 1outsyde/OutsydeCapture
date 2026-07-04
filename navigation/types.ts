@@ -42,6 +42,7 @@ export type RootStackParamList = {
   StorefrontEditor: undefined;
   SubscriptionPlan: undefined;
   ShootBooking: { businessId: string; creditBalance: number };
+  StaffOnboarding: undefined;
   ForgotPassword: undefined;
   ResetPassword: { token: string; email: string };
   TermsOfService: undefined;
