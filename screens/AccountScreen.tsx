@@ -42,6 +42,7 @@ import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
+import InviteTeamModal from "@/components/InviteTeamModal";
 import apiClient, {
   ApiPost,
   VendorProduct,
@@ -450,6 +451,9 @@ export default function AccountScreen() {
   );
   const [reviews, setReviews] = useState<ReviewCard[]>([]);
   const [ownerStaff, setOwnerStaff] = useState<OwnerStaffMember[]>([]);
+  const [ownerInvites, setOwnerInvites] = useState<any[]>([]);
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [teamRefreshKey, setTeamRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -487,12 +491,15 @@ export default function AccountScreen() {
 
   useEffect(() => {
     if (!profile?.isMultiStaff || !isOwner) return;
-    const loadOwnerStaff = async () => {
+    const loadTeam = async () => {
       try {
         const token = await getToken();
         if (!token) return;
-        const response = await apiClient.getVendorStaff(token);
-        const members: OwnerStaffMember[] = (response.staff || []).map(
+        const [staffRes, invitesRes] = await Promise.all([
+          apiClient.getVendorStaff(token),
+          apiClient.getStaffInvites(token),
+        ]);
+        const members: OwnerStaffMember[] = (staffRes.staff || []).map(
           (m: any) => ({
             id: String(m.id),
             displayName: m.displayName || m.name || "Team Member",
@@ -504,12 +511,13 @@ export default function AccountScreen() {
           }),
         );
         setOwnerStaff(members);
+        setOwnerInvites(invitesRes.invites || []);
       } catch (error) {
-        console.error("[AccountScreen] Failed to load owner staff:", error);
+        console.error("[AccountScreen] Failed to load team:", error);
       }
     };
-    loadOwnerStaff();
-  }, [profile?.isMultiStaff, isOwner]);
+    loadTeam();
+  }, [profile?.isMultiStaff, isOwner, teamRefreshKey]);
 
   const handleFollowToggle = useCallback(async () => {
     if (!profile || followBusy) return;
@@ -1844,12 +1852,7 @@ Booking flow coming soon.`,
                 />
                 {ownerStaff.length > 0 && (
                   <Pressable
-                    onPress={() =>
-                      Alert.alert(
-                        "Coming soon",
-                        "Staff invites are launching soon — check back shortly.",
-                      )
-                    }
+                    onPress={() => setInviteModalVisible(true)}
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
@@ -1887,12 +1890,7 @@ Booking flow coming soon.`,
                 <Text style={sectionLabelStyle}>Your Team</Text>
                 {ownerStaff.length > 0 && (
                   <Pressable
-                    onPress={() =>
-                      Alert.alert(
-                        "Coming soon",
-                        "Staff invites are launching soon — check back shortly.",
-                      )
-                    }
+                    onPress={() => setInviteModalVisible(true)}
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
@@ -1972,12 +1970,7 @@ Booking flow coming soon.`,
                   can book them individually instead of just the shop.
                 </Text>
                 <Pressable
-                  onPress={() =>
-                    Alert.alert(
-                      "Coming soon",
-                      "Staff invites are launching soon — check back shortly.",
-                    )
-                  }
+                  onPress={() => setInviteModalVisible(true)}
                   style={{
                     backgroundColor: accentColor,
                     borderRadius: 20,
@@ -2224,6 +2217,166 @@ Booking flow coming soon.`,
                     </View>
                   </View>
                 ))}
+              </>
+            )}
+
+            {/* ── PENDING INVITES (display-only) ── */}
+            {ownerInvites.filter((inv) => inv.status === "pending").length > 0 && (
+              <>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 20,
+                    marginBottom: 10,
+                  }}
+                >
+                  <View
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: "rgba(255,255,255,0.08)",
+                      marginRight: 8,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: "rgba(255,255,255,0.40)",
+                      fontSize: 11,
+                      fontWeight: "700",
+                      letterSpacing: 0.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Pending Invites
+                  </Text>
+                  <View
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: "rgba(255,255,255,0.08)",
+                      marginLeft: 8,
+                    }}
+                  />
+                </View>
+
+                {ownerInvites
+                  .filter((inv) => inv.status === "pending")
+                  .map((inv: any) => {
+                    const sentDate = inv.createdAt
+                      ? new Date(inv.createdAt).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : null;
+                    return (
+                      <View
+                        key={String(inv.id)}
+                        style={{
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: "rgba(255,255,255,0.08)",
+                          backgroundColor: "rgba(0,0,0,0.20)",
+                          padding: 12,
+                          marginBottom: 8,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        {/* Mail icon */}
+                        <View
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 19,
+                            backgroundColor: `${accentColor}18`,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Feather name="mail" size={16} color={accentColor} />
+                        </View>
+
+                        {/* Email + sent date */}
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              color: COLORS.white,
+                              fontSize: 13,
+                              fontWeight: "600",
+                            }}
+                            numberOfLines={1}
+                          >
+                            {inv.email}
+                          </Text>
+                          {sentDate ? (
+                            <Text
+                              style={{
+                                color: "rgba(255,255,255,0.40)",
+                                fontSize: 11,
+                                marginTop: 2,
+                              }}
+                            >
+                              Invited {sentDate}
+                            </Text>
+                          ) : null}
+                        </View>
+
+                        {/* Role + status badges */}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          {inv.role ? (
+                            <View
+                              style={{
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: `${accentColor}66`,
+                                backgroundColor: `${accentColor}18`,
+                                paddingHorizontal: 8,
+                                paddingVertical: 3,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: accentColor,
+                                  fontSize: 10,
+                                  fontWeight: "700",
+                                  textTransform: "capitalize",
+                                }}
+                              >
+                                {inv.role}
+                              </Text>
+                            </View>
+                          ) : null}
+                          <View
+                            style={{
+                              borderRadius: 10,
+                              backgroundColor: "rgba(255,200,0,0.15)",
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: "#FFC800",
+                                fontSize: 10,
+                                fontWeight: "700",
+                              }}
+                            >
+                              Pending
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
               </>
             )}
           </>
@@ -2523,6 +2676,13 @@ Booking flow coming soon.`,
         onEditProfile={
           isOwner && profile?.role !== "business" ? onEditProfilePress : undefined
         }
+      />
+
+      <InviteTeamModal
+        visible={inviteModalVisible}
+        onClose={() => setInviteModalVisible(false)}
+        onInviteSent={() => setTeamRefreshKey((k) => k + 1)}
+        brandColor={accentColor}
       />
 
     </SafeAreaView>
