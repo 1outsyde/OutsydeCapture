@@ -33,10 +33,15 @@ import { Image } from "expo-image";
 
 import apiClient from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { useTheme } from "@/hooks/useTheme";
+import {
+  BrandColorSpec,
+  resolveBrandColor,
+  parseBrandColorSpec,
+} from "@/constants/colorOptions";
 
 const COLORS = {
   black: "#0A0A0A",
-  gold: "#E8B930",
   cream: "#F5F0E6",
   gray: "#2A2A2A",
   grayMid: "#555555",
@@ -119,12 +124,16 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const { businessId, staffId } = route.params;
   const navigation = useNavigation<Props["navigation"]>();
   const insets = useSafeAreaInsets();
+  const { isDark } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffProfileViewModel | null>(null);
   const [businessName, setBusinessName] = useState<string>("");
+  const [brandColors, setBrandColors] = useState<BrandColorSpec | null>(null);
   const [services, setServices] = useState<StaffServiceCard[]>([]);
   const [activeTab, setActiveTab] = useState<StaffTab>("posts");
+
+  const accentColor = resolveBrandColor(brandColors, isDark ? "dark" : "light");
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -138,6 +147,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
       ]);
 
       if (businessResult?.name) setBusinessName(businessResult.name);
+      setBrandColors(parseBrandColorSpec((businessResult as any)?.brandColors));
 
       const member = (staffResult.staff || []).find(
         (item) => String(item.id) === String(staffId),
@@ -240,7 +250,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
 
   if (!staff) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
         <View style={[styles.headerRow, { paddingTop: insets.top + 6, paddingHorizontal: 14 }]}>
           <Pressable style={styles.headerButton} onPress={goBackToBusiness}>
             <Feather name="arrow-left" size={18} color={COLORS.white} />
@@ -288,10 +298,10 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                     ) : null}
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={styles.servicePrice}>
+                    <Text style={[styles.servicePrice, { color: accentColor }]}>
                       {formatCents(service.priceCents)}
                     </Text>
-                    <View style={styles.bookChip}>
+                    <View style={[styles.bookChip, { backgroundColor: accentColor }]}>
                       <Text style={styles.bookChipText}>Book</Text>
                     </View>
                   </View>
@@ -305,7 +315,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           <View style={styles.tabContent}>
             <View style={styles.reviewSummaryCard}>
               <Text style={styles.reviewScore}>{staff.rating.toFixed(1)}</Text>
-              <StarRow rating={staff.rating} color={COLORS.gold} />
+              <StarRow rating={staff.rating} color={accentColor} />
               <Text style={styles.reviewCountLabel}>
                 {staff.reviewCount} {staff.reviewCount === 1 ? "review" : "reviews"}
               </Text>
@@ -321,7 +331,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
               <Text style={styles.emptyTitle}>No bio yet</Text>
             )}
             <View style={styles.aboutRow}>
-              <Feather name="briefcase" size={14} color={COLORS.gold} />
+              <Feather name="briefcase" size={14} color={accentColor} />
               <Text style={styles.aboutLabel}>Business</Text>
               <Text style={styles.aboutValue}>{businessName || "Not listed"}</Text>
             </View>
@@ -341,7 +351,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={[styles.headerRow, { paddingTop: insets.top + 6, paddingHorizontal: 14 }]}>
         <Pressable style={styles.headerButton} onPress={goBackToBusiness}>
           <Feather name="arrow-left" size={18} color={COLORS.white} />
@@ -365,7 +375,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
       >
         <View style={styles.identityBlock}>
           <View style={styles.avatarActionRow}>
-            <View style={styles.avatarOuterRing}>
+            <View style={[styles.avatarOuterRing, { borderColor: accentColor }]}>
               {staff.profileImageUrl ? (
                 <Image
                   source={{ uri: staff.profileImageUrl }}
@@ -373,7 +383,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                   contentFit="cover"
                 />
               ) : (
-                <View style={styles.avatarFallback}>
+                <View style={[styles.avatarFallback, { backgroundColor: accentColor }]}>
                   <Text style={styles.avatarInitials}>
                     {getInitials(staff.displayName)}
                   </Text>
@@ -382,7 +392,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             </View>
             <View style={styles.actionsWrap}>
               <Pressable
-                style={styles.followButton}
+                style={[styles.followButton, { backgroundColor: accentColor }]}
                 onPress={() => handleInertAction("Follow")}
               >
                 <Text style={styles.followButtonText}>Follow</Text>
@@ -404,8 +414,15 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           </Text>
 
           <View style={styles.badgeRow}>
-            <View style={styles.workProfileBadge}>
-              <Text style={styles.workProfileBadgeText}>Work profile</Text>
+            <View
+              style={[
+                styles.workProfileBadge,
+                { backgroundColor: `${accentColor}28`, borderColor: accentColor },
+              ]}
+            >
+              <Text style={[styles.workProfileBadgeText, { color: accentColor }]}>
+                Work profile
+              </Text>
             </View>
             <View style={styles.affiliationBadge}>
               <Text style={styles.affiliationBadgeText}>{affiliationLabel}</Text>
@@ -458,6 +475,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                   style={[
                     styles.tabLabel,
                     activeTab === tab && styles.tabLabelActive,
+                    activeTab === tab && { color: accentColor },
                   ]}
                 >
                   {tabLabel(tab)}
@@ -465,7 +483,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                 <View
                   style={[
                     styles.tabUnderline,
-                    activeTab === tab && styles.tabUnderlineActive,
+                    activeTab === tab && { backgroundColor: accentColor },
                   ]}
                 />
               </Pressable>
@@ -485,7 +503,10 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           ) : (
             <View style={{ flex: 1 }} />
           )}
-          <Pressable style={styles.stickyButton} onPress={goToBookingEntryPoint}>
+          <Pressable
+            style={[styles.stickyButton, { backgroundColor: accentColor }]}
+            onPress={goToBookingEntryPoint}
+          >
             <Text style={styles.stickyButtonText}>Book {staff.displayName}</Text>
           </Pressable>
         </View>
@@ -513,10 +534,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   headerRow: {
-    height: 48,
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingBottom: 6,
   },
   headerButton: {
     width: 36,
@@ -546,7 +568,6 @@ const styles = StyleSheet.create({
     height: 88,
     borderRadius: 44,
     borderWidth: 3,
-    borderColor: COLORS.gold,
     overflow: "hidden",
   },
   avatarImage: {
@@ -557,7 +578,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.gold,
   },
   avatarInitials: {
     color: COLORS.black,
@@ -574,7 +594,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingHorizontal: 18,
     paddingVertical: 8,
-    backgroundColor: COLORS.gold,
   },
   followButtonText: {
     color: COLORS.black,
@@ -617,12 +636,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: "rgba(232,185,48,0.16)",
     borderWidth: 1,
-    borderColor: COLORS.gold,
   },
   workProfileBadgeText: {
-    color: COLORS.gold,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -715,7 +731,6 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     fontWeight: "700",
-    color: COLORS.gold,
   },
   tabUnderline: {
     height: 2,
@@ -723,9 +738,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     borderRadius: 1,
     backgroundColor: "transparent",
-  },
-  tabUnderlineActive: {
-    backgroundColor: COLORS.gold,
   },
   tabContent: {
     paddingHorizontal: 20,
@@ -774,11 +786,9 @@ const styles = StyleSheet.create({
   servicePrice: {
     fontSize: 16,
     fontWeight: "800",
-    color: COLORS.gold,
     marginBottom: 8,
   },
   bookChip: {
-    backgroundColor: COLORS.gold,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 7,
@@ -863,7 +873,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 14,
-    backgroundColor: COLORS.gold,
   },
   stickyButtonText: {
     color: COLORS.black,
