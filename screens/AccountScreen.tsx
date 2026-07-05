@@ -452,6 +452,11 @@ export default function AccountScreen() {
   const [reviews, setReviews] = useState<ReviewCard[]>([]);
   const [ownerStaff, setOwnerStaff] = useState<OwnerStaffMember[]>([]);
   const [ownerInvites, setOwnerInvites] = useState<any[]>([]);
+  const [seatStatus, setSeatStatus] = useState<{
+    activeCount: number;
+    maxStaff: number | null;
+    tierName: string;
+  } | null>(null);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [teamRefreshKey, setTeamRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
@@ -514,6 +519,16 @@ export default function AccountScreen() {
         setOwnerInvites(invitesRes.invites || []);
       } catch (error) {
         console.error("[AccountScreen] Failed to load team:", error);
+      }
+
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const seatRes = await apiClient.getStaffSeatStatus(token);
+        setSeatStatus(seatRes);
+      } catch (error) {
+        console.error("[AccountScreen] Failed to load seat status:", error);
+        setSeatStatus(null);
       }
     };
     loadTeam();
@@ -1913,6 +1928,43 @@ Booking flow coming soon.`,
                     </Text>
                   </Pressable>
                 )}
+              </View>
+            )}
+
+            {seatStatus && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 12,
+                }}
+              >
+                <Feather
+                  name="users"
+                  size={13}
+                  color={
+                    seatStatus.maxStaff !== null &&
+                    seatStatus.activeCount >= seatStatus.maxStaff
+                      ? "#FF3B30"
+                      : "rgba(255,255,255,0.55)"
+                  }
+                />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color:
+                      seatStatus.maxStaff !== null &&
+                      seatStatus.activeCount >= seatStatus.maxStaff
+                        ? "#FF3B30"
+                        : "rgba(255,255,255,0.55)",
+                  }}
+                >
+                  {seatStatus.maxStaff === null
+                    ? `${seatStatus.activeCount} seat${seatStatus.activeCount === 1 ? "" : "s"} used · Unlimited on ${seatStatus.tierName}`
+                    : `${seatStatus.activeCount} of ${seatStatus.maxStaff} seats used · ${seatStatus.tierName}`}
+                </Text>
               </View>
             )}
 

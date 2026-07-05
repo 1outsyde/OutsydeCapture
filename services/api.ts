@@ -2450,6 +2450,18 @@ class ApiService {
     });
   }
 
+  // GET /api/vendor/staff/seat-status - Get current seat usage for the authenticated business
+  async getStaffSeatStatus(
+    authToken: string,
+  ): Promise<{ activeCount: number; maxStaff: number | null; tierName: string }> {
+    return this.request<{ activeCount: number; maxStaff: number | null; tierName: string }>(
+      "/api/vendor/staff/seat-status",
+      {
+        headers: { "Authorization": `Bearer ${authToken}` },
+      },
+    );
+  }
+
   // GET /api/staff/me - Get the staff profile for the authenticated user (404 = not a staff member)
   async getStaffMe(authToken: string): Promise<{ staff: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } }> {
     return this.request<{ staff: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } }>("/api/staff/me", {
