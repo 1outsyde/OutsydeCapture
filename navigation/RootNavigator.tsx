@@ -13,6 +13,7 @@ import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
 import ChatScreen from "@/screens/ChatScreen";
 import VendorDetailScreen from "@/screens/VendorDetailScreen";
+import StaffWorkProfileScreen from "@/screens/StaffWorkProfileScreen";
 import PostDetailScreen from "@/screens/PostDetailScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
@@ -213,6 +214,17 @@ export default function RootNavigator() {
       <Stack.Screen
         name="VendorDetail"
         component={VendorDetailScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="StaffWorkProfile"
+        component={StaffWorkProfileScreen}
         options={{
           presentation: "modal",
           animation: "slide_from_bottom",
