@@ -26,6 +26,7 @@ interface PersonalSettingsMenuProps {
   onEditPhotos?: () => void;
   showLocationVisible?: boolean;
   onToggleLocationVisibility?: () => void;
+  isMultiStaff?: boolean;
 }
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -37,6 +38,7 @@ export function PersonalSettingsMenu({
   onEditPhotos,
   showLocationVisible,
   onToggleLocationVisibility,
+  isMultiStaff,
 }: PersonalSettingsMenuProps) {
   const { theme, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -226,6 +228,22 @@ export function PersonalSettingsMenu({
                   backgroundColor="#34C75910"
                   subtitle="Manage or upgrade your plan"
                 />
+                {isMultiStaff ? (
+                  <MenuItem
+                    icon="users"
+                    label="Staff"
+                    onPress={() => {
+                      onClose();
+                      navigation.navigate("Main", {
+                        screen: "AccountTab",
+                        params: { screen: "Account" },
+                      } as any);
+                    }}
+                    color="#34C759"
+                    backgroundColor="#34C75910"
+                    subtitle="Manage your team and seat usage"
+                  />
+                ) : null}
               </View>
             ) : null}
 
