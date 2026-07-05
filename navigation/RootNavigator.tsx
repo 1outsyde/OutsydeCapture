@@ -226,10 +226,9 @@ export default function RootNavigator() {
         name="StaffWorkProfile"
         component={StaffWorkProfileScreen}
         options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: false,
         }}
       />
 

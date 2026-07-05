@@ -2239,10 +2239,10 @@ Booking flow coming soon.`,
                       </Pressable>
                       <Pressable
                         onPress={() =>
-                          Alert.alert(
-                            "Coming soon",
-                            "Staff preview is launching soon — check back shortly.",
-                          )
+                          navigation.navigate("StaffWorkProfile", {
+                            businessId: String(profile!.id),
+                            staffId: member.id,
+                          })
                         }
                         style={{
                           flex: 1,
