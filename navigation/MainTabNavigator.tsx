@@ -62,17 +62,13 @@ export default function MainTabNavigator() {
     }
   }, [pendingResetParams]);
 
-  // Route staff users directly to their onboarding/status screen.
-  // IMPORTANT: the reset must NOT include { name: "Main" } in its route list.
-  // If "Main" were included, CommonActions.reset would generate a new route key for it on
-  // every call — React Navigation treats different keys as different component instances,
-  // so MainTabNavigator would unmount-and-remount each time, re-firing this effect on
-  // every mount (useEffect always runs on mount regardless of deps), causing an infinite loop.
-  // By resetting to only [StaffOnboarding], MainTabNavigator is removed from the stack
-  // entirely, breaking the cycle. The pendingStripeReturn deep-link for type=staff is
-  // consumed directly by StaffOnboardingStatusScreen, which is always mounted for staff.
+  // Route staff users with incomplete Stripe onboarding to their setup screen.
+  // Gate is on staffStripeOnboardingComplete !== true so that staff who have
+  // completed onboarding and navigate back to Main via "Continue to App" are
+  // not bounced back. The gate value is kept in sync by StaffOnboardingStatusScreen's
+  // useFocusEffect (which awaits updateProfile before showing the Continue button).
   useEffect(() => {
-    if (user && !user.isGuest && user.role === "staff") {
+    if (user && !user.isGuest && user.role === "staff" && user.staffStripeOnboardingComplete !== true) {
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
