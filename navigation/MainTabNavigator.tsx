@@ -50,7 +50,7 @@ export default function MainTabNavigator() {
   const { unreadCount } = useNotifications();
   console.log("[NOTIF-DEBUG] MainTabNavigator sees unreadCount =", unreadCount, "| totalUnreadCount =", totalUnreadCount);
   const combinedUnread = (unreadCount || 0) + (totalUnreadCount || 0);
-  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken, updateProfile } = useAuth();
+  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
   const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
 
@@ -62,13 +62,21 @@ export default function MainTabNavigator() {
     }
   }, [pendingResetParams]);
 
-  // Route staff users directly to their onboarding/status screen
+  // Route staff users directly to their onboarding/status screen.
+  // IMPORTANT: the reset must NOT include { name: "Main" } in its route list.
+  // If "Main" were included, CommonActions.reset would generate a new route key for it on
+  // every call — React Navigation treats different keys as different component instances,
+  // so MainTabNavigator would unmount-and-remount each time, re-firing this effect on
+  // every mount (useEffect always runs on mount regardless of deps), causing an infinite loop.
+  // By resetting to only [StaffOnboarding], MainTabNavigator is removed from the stack
+  // entirely, breaking the cycle. The pendingStripeReturn deep-link for type=staff is
+  // consumed directly by StaffOnboardingStatusScreen, which is always mounted for staff.
   useEffect(() => {
     if (user && !user.isGuest && user.role === "staff") {
       navigation.dispatch(
         CommonActions.reset({
-          index: 1,
-          routes: [{ name: "Main" }, { name: "StaffOnboarding" }],
+          index: 0,
+          routes: [{ name: "StaffOnboarding" }],
         })
       );
     }
@@ -94,7 +102,6 @@ export default function MainTabNavigator() {
       vendor: "BusinessDashboard",
       business: "BusinessDashboard",
       influencer: "InfluencerDashboard",
-      staff: "StaffOnboarding",
     };
 
     const targetScreen = dashboardMap[type] ?? "Main";
@@ -122,29 +129,9 @@ export default function MainTabNavigator() {
         try {
           const token = await getToken();
           if (token) {
-            if (type === "staff") {
-              // Refresh staff profile to pick up updated stripeOnboardingComplete
-              const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
-                method: "GET",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${token}`,
-                },
-              });
-              if (staffRes.ok) {
-                const staffJson = await staffRes.json();
-                const s = staffJson.staff || staffJson;
-                await updateProfile({
-                  staffStripeOnboardingComplete: s.stripeOnboardingComplete ?? true,
-                  staffStripeOnboardingUrl: s.stripeOnboardingUrl,
-                });
-                console.log("[DeepLink] Staff stripe status refreshed:", s.stripeOnboardingComplete);
-              }
-            } else {
-              // Call backend to flip stripe_onboarding_complete flag for other roles
-              const result = await api.completeStripeConnect(token);
-              console.log("[DeepLink] Completion result:", result);
-            }
+            // Call backend to flip stripe_onboarding_complete flag
+            const result = await api.completeStripeConnect(token);
+            console.log("[DeepLink] Completion result:", result);
           }
         } catch (err) {
           console.warn("[DeepLink] stripe/connect/complete call failed (non-critical):", err);

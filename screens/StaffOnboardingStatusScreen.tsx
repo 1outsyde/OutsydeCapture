@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
-  Pressable,
   ActivityIndicator,
   Alert,
   Linking,
@@ -19,15 +18,49 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import api from "@/services/api";
 
 const SUCCESS_COLOR = "#34C759";
-const STRIPE_RETURN_URL = "outsyde://stripe-return";
 
 export default function StaffOnboardingStatusScreen() {
   const { theme } = useTheme();
-  const { user, getToken } = useAuth();
+  const { user, getToken, updateProfile, pendingStripeReturn, clearPendingStripeReturn } = useAuth();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
   const isOnboardingComplete = user?.staffStripeOnboardingComplete === true;
+
+  // Consume outsyde://stripe-return?status=...&type=staff deep links.
+  // MainTabNavigator is not mounted for staff users (the reset that routes here removes it
+  // from the stack), so this screen is the correct owner of the type=staff Stripe return.
+  useEffect(() => {
+    if (!pendingStripeReturn || pendingStripeReturn.type !== "staff") return;
+    clearPendingStripeReturn();
+
+    const refreshStaffStatus = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+        if (staffRes.ok) {
+          const staffJson = await staffRes.json();
+          const s = staffJson.staff || staffJson;
+          await updateProfile({
+            staffStripeOnboardingComplete: s.stripeOnboardingComplete ?? true,
+            staffStripeOnboardingUrl: s.stripeOnboardingUrl,
+          });
+          console.log("[StaffOnboarding] Stripe status refreshed:", s.stripeOnboardingComplete);
+        }
+      } catch (err) {
+        console.warn("[StaffOnboarding] Staff status refresh failed (non-critical):", err);
+      }
+    };
+
+    refreshStaffStatus();
+  }, [pendingStripeReturn]);
 
   const handleCompleteStripeSetup = async () => {
     const token = await getToken();
