@@ -62,6 +62,22 @@ export default function MainTabNavigator() {
     }
   }, [pendingResetParams]);
 
+  // Route staff users with incomplete Stripe onboarding to their setup screen.
+  // Gate is on staffStripeOnboardingComplete !== true so that staff who have
+  // completed onboarding and navigate back to Main via "Continue to App" are
+  // not bounced back. The gate value is kept in sync by StaffOnboardingStatusScreen's
+  // useFocusEffect (which awaits updateProfile before showing the Continue button).
+  useEffect(() => {
+    if (user && !user.isGuest && user.role === "staff" && user.staffStripeOnboardingComplete !== true) {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "StaffOnboarding" }],
+        })
+      );
+    }
+  }, [user?.role]);
+
   // Handle Stripe Connect return deep links (outsyde://stripe-return?status=...&type=...)
   useEffect(() => {
     if (!pendingStripeReturn) return;
@@ -105,11 +121,11 @@ export default function MainTabNavigator() {
     };
 
     if (status === "success") {
-      // Call backend to flip stripe_onboarding_complete flag
       const handleSuccess = async () => {
         try {
           const token = await getToken();
           if (token) {
+            // Call backend to flip stripe_onboarding_complete flag
             const result = await api.completeStripeConnect(token);
             console.log("[DeepLink] Completion result:", result);
           }

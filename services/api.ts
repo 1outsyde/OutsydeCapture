@@ -2450,6 +2450,21 @@ class ApiService {
     });
   }
 
+  // GET /api/staff/me - Get the staff profile for the authenticated user (404 = not a staff member)
+  async getStaffMe(authToken: string): Promise<{ staff: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } }> {
+    return this.request<{ staff: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } }>("/api/staff/me", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/staff/stripe-onboarding/create-link - Start Stripe payout onboarding for a staff member
+  async startStaffStripeOnboarding(authToken: string): Promise<{ url: string }> {
+    return this.request<{ url: string }>("/api/staff/stripe-onboarding/create-link", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // ==========================================
   // VendorBooker Products CRUD
   // ==========================================

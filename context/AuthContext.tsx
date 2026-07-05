@@ -12,7 +12,7 @@ import {
   clearAuthStorage,
 } from "../utils/tokenStorage";
 
-export type UserRole = "consumer" | "business" | "photographer";
+export type UserRole = "consumer" | "business" | "photographer" | "staff";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
 
 export interface User {
@@ -51,6 +51,11 @@ export interface User {
   photographerId?: string;
   isInfluencer?: boolean;
   influencerStatus?: "pending" | "approved" | "rejected";
+  staffId?: string;
+  staffBusinessId?: string;
+  staffBusinessName?: string;
+  staffStripeOnboardingComplete?: boolean;
+  staffStripeOnboardingUrl?: string;
 }
 
 export interface SignupData {
@@ -389,6 +394,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role = "business";
       }
       
+      // Staff detection: GET /api/staff/me (404 = not staff, treat silently)
+      let staffData: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } | null = null;
+      if (role === "consumer" && response.accessToken) {
+        try {
+          const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${response.accessToken}`,
+            },
+          });
+          if (staffRes.ok) {
+            const staffJson = await staffRes.json();
+            const s = staffJson.staff || staffJson;
+            staffData = {
+              id: s.id,
+              businessId: s.businessId,
+              businessName: s.businessName || s.business?.name,
+              stripeOnboardingComplete: s.stripeOnboardingComplete ?? false,
+              stripeOnboardingUrl: s.stripeOnboardingUrl,
+            };
+            role = "staff";
+            console.log("[Auth] Staff profile found:", staffData.id);
+          }
+          // 404 = not a staff member — leave role as "consumer", no log
+        } catch (staffErr) {
+          console.warn("[Auth] Staff check failed (non-critical):", staffErr);
+        }
+      }
+      
       // Extract photographer data if present
       const photographerData = (response as any).photographer;
       
@@ -420,6 +455,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         businessId: (response as any).vendor?.id,
         photographerId: photographerData?.id,
         username: (backendUser as any).username,
+        staffId: staffData?.id,
+        staffBusinessId: staffData?.businessId,
+        staffBusinessName: staffData?.businessName,
+        staffStripeOnboardingComplete: staffData?.stripeOnboardingComplete,
+        staffStripeOnboardingUrl: staffData?.stripeOnboardingUrl,
       };
       console.log("[Auth] Login user constructed with username:", newUser.username);
 
@@ -478,6 +518,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role = "business";
       }
       
+      // Staff detection: GET /api/staff/me (404 = not staff, treat silently)
+      let staffData: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } | null = null;
+      if (role === "consumer" && response.accessToken) {
+        try {
+          const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${response.accessToken}`,
+            },
+          });
+          if (staffRes.ok) {
+            const staffJson = await staffRes.json();
+            const s = staffJson.staff || staffJson;
+            staffData = {
+              id: s.id,
+              businessId: s.businessId,
+              businessName: s.businessName || s.business?.name,
+              stripeOnboardingComplete: s.stripeOnboardingComplete ?? false,
+              stripeOnboardingUrl: s.stripeOnboardingUrl,
+            };
+            role = "staff";
+            console.log("[Auth] Google login — staff profile found:", staffData.id);
+          }
+          // 404 = not a staff member — leave role as "consumer", no log
+        } catch (staffErr) {
+          console.warn("[Auth] Google login — staff check failed (non-critical):", staffErr);
+        }
+      }
+      
       // Extract photographer data if present
       const photographerData = (response as any).photographer;
       
@@ -508,6 +578,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: backendUser.isAdmin || false,
         businessId: (response as any).vendor?.id,
         photographerId: photographerData?.id,
+        staffId: staffData?.id,
+        staffBusinessId: staffData?.businessId,
+        staffBusinessName: staffData?.businessName,
+        staffStripeOnboardingComplete: staffData?.stripeOnboardingComplete,
+        staffStripeOnboardingUrl: staffData?.stripeOnboardingUrl,
       };
 
       if (newUser.approvalStatus === "rejected") {
@@ -550,7 +625,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: data.password,
         firstName: data.firstName,
         lastName: data.lastName,
-        role: data.role,
+        role: data.role as "consumer" | "business" | "photographer",
         phone: data.phone,
         dateOfBirth: data.dateOfBirth,
         username: data.username,
