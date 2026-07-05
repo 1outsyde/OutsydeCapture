@@ -2728,6 +2728,7 @@ Booking flow coming soon.`,
         onEditProfile={
           isOwner && profile?.role !== "business" ? onEditProfilePress : undefined
         }
+        isMultiStaff={Boolean(profile?.isMultiStaff)}
       />
 
       <InviteTeamModal

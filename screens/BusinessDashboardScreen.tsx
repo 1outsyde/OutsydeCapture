@@ -82,6 +82,11 @@ export default function BusinessDashboardScreen() {
     profileViews: 0,
   });
   const [profile, setProfile] = useState<BusinessDashboardProfile | null>(null);
+  const [seatStatus, setSeatStatus] = useState<{
+    activeCount: number;
+    maxStaff: number | null;
+    tierName: string;
+  } | null>(null);
   const [billingAddress, setBillingAddress] = useState<BillingAddress>({
     addressLine1: "",
     addressLine2: "",
@@ -174,9 +179,22 @@ export default function BusinessDashboardScreen() {
         stripeConnected: business.stripeOnboardingComplete || false,
         businessType: businessTypeValue,
         autoAcceptBookings: (business as any).autoAcceptBookings ?? false,
+        isMultiStaff: Boolean((business as any).isMultiStaff),
       });
       setAutoAcceptBookings((business as any).autoAcceptBookings ?? false);
-      
+
+      if ((business as any).isMultiStaff) {
+        try {
+          const seatRes = await api.getStaffSeatStatus(token);
+          setSeatStatus(seatRes);
+        } catch (seatError) {
+          console.error("[Dashboard] Failed to load seat status:", seatError);
+          setSeatStatus(null);
+        }
+      } else {
+        setSeatStatus(null);
+      }
+
       setEditProfile({
         name: business.name || "",
         username: (business as any).username || "",
@@ -229,6 +247,7 @@ export default function BusinessDashboardScreen() {
         stripeConnected: false,
         businessType: "both",
       });
+      setSeatStatus(null);
     } finally {
       setLoading(false);
     }
@@ -1976,6 +1995,49 @@ export default function BusinessDashboardScreen() {
           </View>
         </View>
       </View>
+
+      {/* Team - Only show for multi-staff businesses (same isMultiStaff flag as AccountScreen's "Your Team") */}
+      {profile?.isMultiStaff && (
+        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>TEAM</Text>
+          </View>
+          <View style={styles.autoAcceptCard}>
+            <View style={styles.autoAcceptRow}>
+              <View style={styles.autoAcceptIcon}>
+                <Feather name="users" size={20} color={DASHBOARD_COLORS.gold} />
+              </View>
+              <View style={styles.autoAcceptTextWrap}>
+                <Text style={styles.autoAcceptTitle}>Staff Seats</Text>
+                <Text
+                  style={[
+                    styles.autoAcceptDescription,
+                    seatStatus &&
+                    seatStatus.maxStaff !== null &&
+                    seatStatus.activeCount >= seatStatus.maxStaff
+                      ? { color: "#FF3B30" }
+                      : null,
+                  ]}
+                >
+                  {seatStatus
+                    ? seatStatus.maxStaff === null
+                      ? `${seatStatus.activeCount} seat${seatStatus.activeCount === 1 ? "" : "s"} used · Unlimited on ${seatStatus.tierName}`
+                      : `${seatStatus.activeCount} of ${seatStatus.maxStaff} seats used · ${seatStatus.tierName}`
+                    : "Loading seat usage…"}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() =>
+                navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } })
+              }
+            >
+              <Text style={styles.setupLink}>Manage Team →</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {/* Booking Settings - Only show for service-based businesses */}
       {(businessType === "service" || businessType === "both") && (

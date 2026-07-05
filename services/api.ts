@@ -759,6 +759,7 @@ export interface BusinessDashboardProfile {
   subscriptionStatus?: string;
   subscriptionTier?: string;
   hasActiveSubscription?: boolean;
+  isMultiStaff?: boolean;
 }
 
 export interface BusinessOrder {
