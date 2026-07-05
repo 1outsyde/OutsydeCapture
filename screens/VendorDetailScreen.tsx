@@ -1856,11 +1856,10 @@ Booking flow coming soon.`,
                 selectedStaffId={selectedStaffId}
                 onSelect={setSelectedStaffId}
                 onViewProfile={(staffId) => {
-                  const member = staff.find((item) => item.id === staffId);
-                  Alert.alert(
-                    member?.displayName || "Team Member",
-                    "Full staff profiles are coming soon.",
-                  );
+                  navigation.navigate("StaffWorkProfile", {
+                    businessId: vendorId,
+                    staffId,
+                  });
                 }}
                 onBook={(staffId) => {
                   setSelectedStaffId(staffId);
