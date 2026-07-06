@@ -42,6 +42,7 @@ export type RootStackParamList = {
   ProfileCompletionGate: { dashboardType: "photographer" | "business" };
   StorefrontEditor: undefined;
   SubscriptionPlan: undefined;
+  StaffManagement: undefined;
   ShootBooking: { businessId: string; creditBalance: number };
   StaffOnboarding: undefined;
   ForgotPassword: undefined;

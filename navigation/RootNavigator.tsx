@@ -35,6 +35,7 @@ import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
 import SubscriptionPlanScreen from "@/screens/SubscriptionPlanScreen";
+import StaffManagementScreen from "@/screens/StaffManagementScreen";
 import ShootBookingScreen from "@/screens/ShootBookingScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
@@ -572,6 +573,21 @@ export default function RootNavigator() {
           animation: "slide_from_right",
           headerShown: true,
           headerTitle: "Subscription Plan",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="StaffManagement"
+        component={StaffManagementScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Staff & Invites",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },

@@ -232,13 +232,7 @@ export function PersonalSettingsMenu({
                   <MenuItem
                     icon="users"
                     label="Staff"
-                    onPress={() => {
-                      onClose();
-                      navigation.navigate("Main", {
-                        screen: "AccountTab",
-                        params: { screen: "Account" },
-                      } as any);
-                    }}
+                    onPress={() => handleNavigate("StaffManagement")}
                     color="#34C759"
                     backgroundColor="#34C75910"
                     subtitle="Manage your team and seat usage"
