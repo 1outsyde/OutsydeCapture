@@ -2028,11 +2028,7 @@ export default function BusinessDashboardScreen() {
                 </Text>
               </View>
             </View>
-            <Pressable
-              onPress={() =>
-                navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } })
-              }
-            >
+            <Pressable onPress={() => navigation.navigate("StaffManagement")}>
               <Text style={styles.setupLink}>Manage Team →</Text>
             </Pressable>
           </View>
