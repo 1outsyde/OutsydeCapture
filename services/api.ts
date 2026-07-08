@@ -87,6 +87,9 @@ export interface ApiBusinessDetail {
 export interface ApiBusinessStaffMember {
   id: string;
   displayName: string;
+  // Optional: not yet guaranteed on the wire everywhere — backend rollout in
+  // progress. Fall back to deriving a handle from displayName when absent.
+  username?: string | null;
   bio?: string;
   profileImageUrl?: string;
   specialties?: string[];
@@ -923,7 +926,7 @@ export interface UnifiedSearchItem {
   id: string;
   userId?: string;
   providerUserId?: string;
-  type: "business" | "photographer" | "product" | "service" | "consumer";
+  type: "business" | "photographer" | "product" | "service" | "consumer" | "staff";
   name?: string;
   title?: string;
   subtitle?: string;
@@ -969,7 +972,7 @@ export interface UnifiedSearchResponse {
   personalized: boolean;
 }
 
-export type SearchResultType = "business" | "photographer" | "product" | "service" | "consumer";
+export type SearchResultType = "business" | "photographer" | "product" | "service" | "consumer" | "staff";
 
 export interface MobileLoginRequest {
   email?: string;

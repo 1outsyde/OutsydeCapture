@@ -75,7 +75,7 @@ const HERO_HEIGHT = 300;
 const HORIZONTAL_PADDING = 20;
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
-type ProfileRole = "business" | "photographer" | "consumer";
+type ProfileRole = "business" | "photographer" | "consumer" | "staff";
 type ProfileTab =
   | "posts"
   | "shop"
@@ -484,6 +484,32 @@ export default function AccountScreen() {
       selfId: user?.id,
     });
   }, [viewerMode, isOwner, routeUserId, routeUserType, user?.id]);
+
+  // Staff self-view: AccountScreen has no staff-shaped profile of its own, so
+  // redirect straight to the real staff public profile instead of falling
+  // into the generic consumer branch.
+  useEffect(() => {
+    if (role !== "staff" || !isOwner || !isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const { staff } = await apiClient.getStaffMe(token);
+        if (!cancelled) {
+          navigation.replace("StaffWorkProfile", {
+            businessId: staff.businessId,
+            staffId: staff.id,
+          });
+        }
+      } catch (error) {
+        console.error("[AccountScreen] Failed to resolve staff self-profile:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [role, isOwner, isAuthenticated, getToken, navigation]);
 
   useEffect(() => {
     if (!profile || isOwner || !isAuthenticated) return;
@@ -1146,6 +1172,10 @@ export default function AccountScreen() {
             showWebsite: true,
             showStoreHours: true,
           };
+        } else if (role === "staff") {
+          // Staff self-view is redirected to StaffWorkProfile by a dedicated
+          // effect below — skip fetching/rendering the generic consumer shape.
+          return;
         } else {
           const [profilePosts, publicUserResult] = await Promise.all([
             apiClient

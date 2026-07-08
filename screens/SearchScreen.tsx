@@ -225,6 +225,17 @@ export default function SearchScreen() {
         userId: item.id,
         userType: "photographer",
       });
+    } else if (item.resultType === "staff") {
+      if (item.businessId) {
+        navigation.navigate("StaffWorkProfile", {
+          businessId: item.businessId,
+          staffId: item.id,
+        });
+      } else {
+        // Shouldn't happen — a staff result always carries its businessId —
+        // but fall back rather than navigate with a missing param.
+        navigation.navigate("UserProfile", { userId: item.userId || item.id, userType: "consumer" });
+      }
     } else {
       navigation.navigate("UserProfile", { userId: item.userId || item.id, userType: "consumer" });
     }

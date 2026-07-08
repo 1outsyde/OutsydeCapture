@@ -61,6 +61,7 @@ type StaffServiceCard = {
 type StaffProfileViewModel = {
   id: string;
   displayName: string;
+  username?: string | null;
   bio?: string;
   profileImageUrl?: string;
   specialties: string[];
@@ -178,6 +179,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
         setStaff({
           id: String(member.id),
           displayName: member.displayName || "Team Member",
+          username: member.username || undefined,
           bio: member.bio || undefined,
           profileImageUrl: member.profileImageUrl || undefined,
           specialties: Array.isArray(member.specialties)
@@ -473,7 +475,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             </Text>
           </View>
           <Text style={[styles.metaLine, { color: textMuted }]}>
-            @{slugify(staff.displayName)}
+            @{staff.username || slugify(staff.displayName)}
           </Text>
 
           <View style={styles.badgeRow}>
