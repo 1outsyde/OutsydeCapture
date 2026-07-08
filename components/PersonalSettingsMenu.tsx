@@ -193,6 +193,25 @@ export function PersonalSettingsMenu({
               </View>
             ) : null}
 
+            {user?.role === "staff" ? (
+              <View style={styles.section}>
+                <ThemedText
+                  type="small"
+                  style={[styles.sectionTitle, { color: theme.textSecondary }]}
+                >
+                  Staff
+                </ThemedText>
+                <MenuItem
+                  icon="briefcase"
+                  label="Staff Dashboard"
+                  onPress={() => handleNavigate("StaffDashboard")}
+                  color="#C9933A"
+                  backgroundColor="#C9933A10"
+                  subtitle="Manage bookings, hours, and earnings"
+                />
+              </View>
+            ) : null}
+
             {user?.role === "business" ? (
               <View style={styles.section}>
                 <ThemedText
