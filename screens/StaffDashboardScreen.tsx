@@ -40,6 +40,21 @@ const TIME_OPTIONS = [
   "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM",
 ];
 
+// Matches BusinessDashboardScreen.tsx's DASHBOARD_COLORS exactly (kept as a local,
+// self-contained copy per the earlier decision not to extract/import from or
+// touch BusinessDashboardScreen.tsx).
+const DASHBOARD_COLORS = {
+  background: "#080C08",
+  surface: "rgba(255,255,255,0.04)",
+  cardBorder: "rgba(255,255,255,0.08)",
+  greenBright: "#2D7A2D",
+  greenAccent: "#3A9E3A",
+  gold: "#C9933A",
+  goldLight: "#E8B86D",
+  cream: "#F0EAD6",
+  creamDim: "rgba(200,191,168,0.6)",
+};
+
 const convertTo24Hour = (time12: string): string => {
   const [time, period] = time12.split(" ");
   let [hours, minutes] = time.split(":").map(Number);
@@ -275,7 +290,7 @@ export default function StaffDashboardScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={DASHBOARD_COLORS.gold} />
       </View>
     );
   }
@@ -283,10 +298,10 @@ export default function StaffDashboardScreen() {
   if (!staff) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center", padding: Spacing.xl }]}>
-        <Text style={{ color: theme.text, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
+        <Text style={{ color: DASHBOARD_COLORS.cream, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
           Staff account not found
         </Text>
-        <Text style={{ color: theme.textSecondary, fontSize: 14, textAlign: "center", marginTop: 8 }}>
+        <Text style={{ color: DASHBOARD_COLORS.creamDim, fontSize: 14, textAlign: "center", marginTop: 8 }}>
           Please contact your business owner if you believe this is a mistake.
         </Text>
       </View>
@@ -298,12 +313,12 @@ export default function StaffDashboardScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <Pressable onPress={handleGoBack} style={styles.backButton}>
-            <Feather name="arrow-left" size={24} color={theme.text} />
+            <Feather name="arrow-left" size={24} color={DASHBOARD_COLORS.cream} />
           </Pressable>
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>{staff.displayName || "Staff Dashboard"}</Text>
@@ -312,18 +327,18 @@ export default function StaffDashboardScreen() {
             </Text>
           </View>
           <Pressable onPress={handleLogout} style={styles.logoutButton}>
-            <Feather name="log-out" size={22} color={theme.textSecondary} />
+            <Feather name="log-out" size={22} color={DASHBOARD_COLORS.creamDim} />
           </Pressable>
         </View>
 
         {!staff.stripeOnboardingComplete ? (
           <View style={styles.section}>
-            <View style={[styles.setupCard, { backgroundColor: theme.primary + "10", borderWidth: 1, borderColor: theme.primary + "30" }]}>
+            <View style={styles.setupCard}>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                <Feather name="credit-card" size={20} color={theme.primary} />
-                <Text style={[styles.sectionTitle, { marginLeft: 10 }]}>Connect Stripe</Text>
+                <Feather name="credit-card" size={20} color={DASHBOARD_COLORS.gold} />
+                <Text style={[styles.sectionTitle, { fontSize: 16, marginLeft: 10 }]}>Connect Stripe</Text>
               </View>
-              <Text style={{ color: theme.textSecondary, fontSize: 14 }}>
+              <Text style={{ color: DASHBOARD_COLORS.creamDim, fontSize: 13 }}>
                 Finish payout setup from the Stripe onboarding screen to receive direct payments for your bookings.
               </Text>
             </View>
@@ -331,62 +346,60 @@ export default function StaffDashboardScreen() {
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Overview</Text>
-          <View style={[styles.statsGrid, { marginTop: 12 }]}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>OVERVIEW</Text>
+          </View>
+          <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: "#34C75920" }]}>
-                  <Feather name="calendar" size={16} color="#34C759" />
-                </View>
-                <Text style={styles.statLabel}>Bookings</Text>
+              <View style={styles.statIcon}>
+                <Feather name="calendar" size={14} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.statValue}>{upcomingBookings.length}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Bookings</Text>
             </View>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: theme.primary + "20" }]}>
-                  <Feather name="dollar-sign" size={16} color={theme.primary} />
-                </View>
-                <Text style={styles.statLabel}>This Month</Text>
+              <View style={styles.statIcon}>
+                <Feather name="dollar-sign" size={14} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.statValue}>{formatCurrency(earnings.thisMonth)}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>This Month</Text>
             </View>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: "#FF950020" }]}>
-                  <Feather name="clock" size={16} color="#FF9500" />
-                </View>
-                <Text style={styles.statLabel}>Pending</Text>
+              <View style={styles.statIcon}>
+                <Feather name="clock" size={14} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.statValue}>{formatCurrency(earnings.pending)}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Pending</Text>
             </View>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: "#AF52DE20" }]}>
-                  <Feather name="star" size={16} color="#AF52DE" />
-                </View>
-                <Text style={styles.statLabel}>Rating</Text>
+              <View style={styles.statIcon}>
+                <Feather name="star" size={14} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.statValue}>
                 {staff.rating && staff.rating > 0 ? staff.rating.toFixed(1) : "N/A"}
               </Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={[styles.quickActionsRow, { marginTop: 12 }]}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>QUICK ACTIONS</Text>
+          </View>
+          <View style={styles.quickActionsRow}>
             <Pressable onPress={() => setActiveModal("bookings")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: "#34C75920" }]}>
-                <Feather name="calendar" size={22} color="#34C759" />
+              <View style={styles.quickActionIcon}>
+                <Feather name="calendar" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Bookings</Text>
               <Text style={styles.quickActionCount}>{bookings.length} total</Text>
             </Pressable>
             <Pressable onPress={() => setActiveModal("services")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: theme.primary + "20" }]}>
-                <Feather name="scissors" size={22} color={theme.primary} />
+              <View style={styles.quickActionIcon}>
+                <Feather name="scissors" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Services</Text>
               <Text style={styles.quickActionCount}>{services.length} assigned</Text>
@@ -394,15 +407,15 @@ export default function StaffDashboardScreen() {
           </View>
           <View style={[styles.quickActionsRow, { marginTop: 12 }]}>
             <Pressable onPress={() => setActiveModal("hours")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: "#007AFF20" }]}>
-                <Feather name="clock" size={22} color="#007AFF" />
+              <View style={styles.quickActionIcon}>
+                <Feather name="clock" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Base Hours</Text>
               <Text style={styles.quickActionCount}>{availableSlots.length} set</Text>
             </Pressable>
             <Pressable onPress={() => setActiveModal("blocked")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: "#FF3B3020" }]}>
-                <Feather name="x-circle" size={22} color="#FF3B30" />
+              <View style={styles.quickActionIcon}>
+                <Feather name="x-circle" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Block Dates</Text>
               <Text style={styles.quickActionCount}>{blockedSlots.length} blocked</Text>
@@ -411,7 +424,10 @@ export default function StaffDashboardScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Calendar</Text>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>CALENDAR</Text>
+          </View>
           <View style={{ marginTop: 12 }}>
             <ProviderCalendar
               bookings={calendarBookings}
@@ -671,9 +687,13 @@ export default function StaffDashboardScreen() {
 
 function createStyles(theme: any, insets: { top: number; bottom: number }) {
   return StyleSheet.create({
+    // Container/header/stat-card/section-header/quick-action styling below matches
+    // BusinessDashboardScreen.tsx's DASHBOARD_COLORS palette exactly (gold/cream on a
+    // warm dark background) — modal-internal styles further down stay theme-adaptive,
+    // since Business Dashboard has no equivalent modals to match against.
     container: {
       flex: 1,
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: DASHBOARD_COLORS.background,
     },
     scrollContent: {
       paddingBottom: insets.bottom + 24,
@@ -682,9 +702,9 @@ function createStyles(theme: any, insets: { top: number; bottom: number }) {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingTop: insets.top + 16,
-      paddingBottom: 20,
+      paddingHorizontal: 16,
+      paddingTop: insets.top + 12,
+      paddingBottom: 12,
     },
     backButton: {
       padding: 8,
@@ -697,64 +717,83 @@ function createStyles(theme: any, insets: { top: number; bottom: number }) {
       flex: 1,
     },
     headerTitle: {
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: "700",
-      color: theme.text,
-      letterSpacing: -0.5,
+      color: DASHBOARD_COLORS.cream,
     },
     headerSubtitle: {
       fontSize: 13,
-      color: theme.textSecondary,
-      marginTop: 4,
+      color: DASHBOARD_COLORS.creamDim,
+      marginTop: 2,
     },
     section: {
-      paddingHorizontal: 20,
+      paddingHorizontal: 16,
       marginBottom: 24,
     },
     sectionTitle: {
       fontSize: 17,
       fontWeight: "600",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
       letterSpacing: -0.3,
     },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+      gap: 8,
+    },
+    sectionHeaderAccent: {
+      width: 4,
+      height: 14,
+      borderRadius: 2,
+      backgroundColor: DASHBOARD_COLORS.gold,
+    },
+    sectionHeaderText: {
+      fontSize: 14,
+      letterSpacing: 1.5,
+      fontWeight: "700",
+      color: DASHBOARD_COLORS.cream,
+    },
     setupCard: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 16,
-      padding: 20,
+      backgroundColor: "rgba(201,147,58,0.08)",
+      borderRadius: 12,
+      borderLeftWidth: 3,
+      borderLeftColor: DASHBOARD_COLORS.gold,
+      padding: 16,
     },
     statsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 12,
+      gap: 10,
     },
     statCard: {
       width: "48%",
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 14,
+      backgroundColor: "#111411",
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
+      borderRadius: 16,
       padding: 16,
-    },
-    statHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 10,
+      alignItems: "flex-start",
     },
     statIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 10,
+      marginBottom: 6,
+      backgroundColor: "rgba(201,147,58,0.15)",
     },
     statLabel: {
-      fontSize: 13,
-      color: theme.textSecondary,
+      fontSize: 11,
+      color: DASHBOARD_COLORS.creamDim,
+      marginTop: 2,
+      textAlign: "left",
     },
     statValue: {
-      fontSize: 22,
+      fontSize: 24,
       fontWeight: "700",
-      color: theme.text,
-      letterSpacing: -0.5,
+      color: DASHBOARD_COLORS.cream,
     },
     quickActionsRow: {
       flexDirection: "row",
@@ -762,28 +801,31 @@ function createStyles(theme: any, insets: { top: number; bottom: number }) {
     },
     quickActionCard: {
       flex: 1,
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 14,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
+      borderRadius: 16,
       padding: 16,
       alignItems: "center",
     },
     quickActionIcon: {
       width: 44,
       height: 44,
-      borderRadius: 14,
+      borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 10,
+      backgroundColor: "rgba(201,147,58,0.15)",
     },
     quickActionLabel: {
       fontSize: 13,
       fontWeight: "500",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
       textAlign: "center",
     },
     quickActionCount: {
       fontSize: 11,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
     modalOverlay: {
