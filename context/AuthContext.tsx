@@ -195,6 +195,69 @@ function parseResetPasswordURL(url: string): { token: string; email: string } | 
   return null;
 }
 
+type StaffProfile = {
+  id: string;
+  businessId: string;
+  businessName?: string;
+  stripeOnboardingComplete: boolean;
+  stripeOnboardingUrl?: string;
+};
+
+// Staff detection at login: GET /api/staff/me.
+// - 404 = genuinely not a staff member — caller keeps role "consumer".
+// - 200 = single-business staff — use it directly.
+// - 409 = staff at 2+ businesses (backend returns `businesses`, sorted most-
+//   recently-active-first). Auto-select businesses[0] rather than dropping
+//   this person back to "consumer" — a 409 is NOT "not staff", it's "staff,
+//   ambiguous which business." Logged clearly since it's a silent choice.
+async function resolveStaffProfile(accessToken: string): Promise<StaffProfile | null> {
+  try {
+    const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+    });
+
+    if (staffRes.ok) {
+      const staffJson = await staffRes.json();
+      const s = staffJson.staff || staffJson;
+      return {
+        id: s.id,
+        businessId: s.businessId,
+        businessName: s.businessName || s.business?.name,
+        stripeOnboardingComplete: s.stripeOnboardingComplete ?? false,
+        stripeOnboardingUrl: s.stripeOnboardingUrl,
+      };
+    }
+
+    if (staffRes.status === 409) {
+      const body = await staffRes.json();
+      const businesses = body.businesses || [];
+      const chosen = businesses[0];
+      if (chosen) {
+        console.log(
+          `[Auth] Ambiguous staff account, auto-selected business ${chosen.businessId} (staffId ${chosen.staffId})`
+        );
+        return {
+          id: chosen.staffId,
+          businessId: chosen.businessId,
+          businessName: chosen.displayName,
+          stripeOnboardingComplete: false,
+          stripeOnboardingUrl: undefined,
+        };
+      }
+    }
+
+    // 404 (or any other non-ok, non-409 status) = not a staff member — leave role as "consumer"
+    return null;
+  } catch (staffErr) {
+    console.warn("[Auth] Staff check failed (non-critical):", staffErr);
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -394,36 +457,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role = "business";
       }
       
-      // Staff detection: GET /api/staff/me (404 = not staff, treat silently)
-      let staffData: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } | null = null;
+      // Staff detection: GET /api/staff/me (404 = not staff; 409 = staff at
+      // 2+ businesses, auto-selected — see resolveStaffProfile)
+      let staffData: StaffProfile | null = null;
       if (role === "consumer" && response.accessToken) {
-        try {
-          const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${response.accessToken}`,
-            },
-          });
-          if (staffRes.ok) {
-            const staffJson = await staffRes.json();
-            const s = staffJson.staff || staffJson;
-            staffData = {
-              id: s.id,
-              businessId: s.businessId,
-              businessName: s.businessName || s.business?.name,
-              stripeOnboardingComplete: s.stripeOnboardingComplete ?? false,
-              stripeOnboardingUrl: s.stripeOnboardingUrl,
-            };
-            role = "staff";
-            console.log("[Auth] Staff profile found:", staffData.id);
-          }
-          // 404 = not a staff member — leave role as "consumer", no log
-        } catch (staffErr) {
-          console.warn("[Auth] Staff check failed (non-critical):", staffErr);
+        staffData = await resolveStaffProfile(response.accessToken);
+        if (staffData) {
+          role = "staff";
+          console.log("[Auth] Staff profile found:", staffData.id);
         }
       }
-      
+
       // Extract photographer data if present
       const photographerData = (response as any).photographer;
       
@@ -518,36 +562,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role = "business";
       }
       
-      // Staff detection: GET /api/staff/me (404 = not staff, treat silently)
-      let staffData: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } | null = null;
+      // Staff detection: GET /api/staff/me (404 = not staff; 409 = staff at
+      // 2+ businesses, auto-selected — see resolveStaffProfile)
+      let staffData: StaffProfile | null = null;
       if (role === "consumer" && response.accessToken) {
-        try {
-          const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${response.accessToken}`,
-            },
-          });
-          if (staffRes.ok) {
-            const staffJson = await staffRes.json();
-            const s = staffJson.staff || staffJson;
-            staffData = {
-              id: s.id,
-              businessId: s.businessId,
-              businessName: s.businessName || s.business?.name,
-              stripeOnboardingComplete: s.stripeOnboardingComplete ?? false,
-              stripeOnboardingUrl: s.stripeOnboardingUrl,
-            };
-            role = "staff";
-            console.log("[Auth] Google login — staff profile found:", staffData.id);
-          }
-          // 404 = not a staff member — leave role as "consumer", no log
-        } catch (staffErr) {
-          console.warn("[Auth] Google login — staff check failed (non-critical):", staffErr);
+        staffData = await resolveStaffProfile(response.accessToken);
+        if (staffData) {
+          role = "staff";
+          console.log("[Auth] Google login — staff profile found:", staffData.id);
         }
       }
-      
+
       // Extract photographer data if present
       const photographerData = (response as any).photographer;
       
