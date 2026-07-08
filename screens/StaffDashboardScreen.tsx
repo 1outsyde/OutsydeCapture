@@ -105,18 +105,13 @@ export default function StaffDashboardScreen() {
         api.getStaffMyBookings(token, staffData.businessId).catch(() => ({ bookings: [] })),
         api.getStaffMyAvailability(token, undefined, undefined, staffData.businessId).catch(() => ({ availability: [] })),
         api.getStaffMyEarnings(token, staffData.businessId).catch(() => ({ total: 0, thisMonth: 0, pending: 0 })),
-        api.getBusinessPublicServices(staffData.businessId).catch(() => ({ services: [] })),
+        api.getStaffMyServices(token, staffData.businessId).catch(() => ({ services: [] })),
       ]);
 
       setBookings(bookingsRes.bookings || []);
       setAvailability(availabilityRes.availability || []);
       setEarnings(earningsRes);
-
-      const myServiceIds = new Set((staffData.serviceIds || []).map(String));
-      const resolvedServices = (servicesRes.services || []).filter(
-        (s) => myServiceIds.has(String(s.id)) && s.status === "live",
-      );
-      setServices(resolvedServices);
+      setServices(servicesRes.services || []);
     } catch (error) {
       console.error("[StaffDashboard] Failed to load:", error);
       Alert.alert("Unable to load dashboard", "Please try again.");

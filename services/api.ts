@@ -2586,6 +2586,16 @@ class ApiService {
     });
   }
 
+  // GET /api/staff/my-services - The staff member's own assigned services, already filtered
+  // server-side (live + assigned to this staff member) — no isBusinessVisibleToPublic gate,
+  // so this works even if the business hasn't finished onboarding (unlike getBusinessPublicServices).
+  async getStaffMyServices(authToken: string, businessId?: string): Promise<{ services: VendorService[] }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ services: VendorService[] }>(`/api/staff/my-services${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // POST /api/staff/stripe-onboarding/create-link - Start Stripe payout onboarding for a staff member
   async startStaffStripeOnboarding(authToken: string, businessId?: string): Promise<{ url: string }> {
     return this.request<{ url: string }>("/api/staff/stripe-onboarding/create-link", {
