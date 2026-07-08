@@ -42,6 +42,14 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // getBusinessOrders is a business-owner endpoint — calling it for
+    // staff/photographer/consumer roles 404s ("Business not found").
+    if (user.role !== "business") {
+      setOrders([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const token = await getToken();
