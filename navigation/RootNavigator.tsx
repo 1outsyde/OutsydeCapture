@@ -29,6 +29,7 @@ import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
 import AdminBusinessReviewScreen from "@/screens/AdminBusinessReviewScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
+import StaffDashboardScreen from "@/screens/StaffDashboardScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
 import InfluencerDashboardScreen from "@/screens/InfluencerDashboardScreen";
 import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
@@ -482,6 +483,21 @@ export default function RootNavigator() {
       <Stack.Screen
         name="BusinessDashboard"
         component={BusinessDashboardScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Dashboard",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="StaffDashboard"
+        component={StaffDashboardScreen}
         options={{
           presentation: "card",
           animation: "slide_from_right",

@@ -95,6 +95,59 @@ export interface ApiBusinessStaffMember {
   reviewCount?: number;
 }
 
+// The real staff_members row shape returned by GET /api/staff/me (server/storage.ts StaffMember).
+export interface StaffMemberProfile {
+  id: string;
+  businessId: string;
+  businessName?: string;
+  userId?: string;
+  displayName: string;
+  bio?: string | null;
+  profileImageUrl?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  serviceIds?: string[];
+  specialties?: string[] | null;
+  role: string;
+  status: string;
+  rating?: number;
+  reviewCount?: number;
+  stripeAccountId?: string | null;
+  stripeOnboardingComplete: boolean;
+  stripeOnboardingUrl?: string | null;
+}
+
+// Raw appointments row (no client/service name join server-side today —
+// resolve serviceName client-side against the business's services list).
+export interface StaffBooking {
+  id: string;
+  businessId: string;
+  clientId: string;
+  serviceId: string;
+  staffMemberId?: string | null;
+  appointmentDate: string;
+  appointmentTime: string;
+  appointmentEndTime?: string | null;
+  durationMinutes?: number | null;
+  totalPrice: number;
+  staffPayout?: number | null;
+  status: string;
+  createdAt?: string;
+}
+
+export interface StaffAvailabilitySlot {
+  id: string;
+  staffMemberId: string;
+  businessId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  slotType: "available" | "blocked" | "booked" | "break" | string;
+  title?: string | null;
+  notes?: string | null;
+  appointmentId?: string | null;
+}
+
 export interface ApiConversation {
   id: string;
   participantId: string;
@@ -2466,9 +2519,69 @@ class ApiService {
   // GET /api/staff/me - Get the staff profile for the authenticated user (404 = not a staff member).
   // businessId disambiguates for a user staffing 2+ businesses (see resolveStaffProfile in
   // AuthContext) — omit only when the caller knows the user has exactly one staff membership.
-  async getStaffMe(authToken: string, businessId?: string): Promise<{ staff: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } }> {
+  // Full shape of the real staff_members row the backend returns (server/storage.ts StaffMember) —
+  // wider than the original narrow inline type, needed for the Staff Dashboard build.
+  async getStaffMe(authToken: string, businessId?: string): Promise<{ staff: StaffMemberProfile }> {
     const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
-    return this.request<{ staff: { id: string; businessId: string; businessName?: string; stripeOnboardingComplete: boolean; stripeOnboardingUrl?: string } }>(`/api/staff/me${query}`, {
+    return this.request<{ staff: StaffMemberProfile }>(`/api/staff/me${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/staff/my-bookings - Appointments assigned to the authenticated staff member.
+  // businessId disambiguates for a user staffing 2+ businesses (same contract as getStaffMe).
+  async getStaffMyBookings(authToken: string, businessId?: string): Promise<{ bookings: StaffBooking[] }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ bookings: StaffBooking[] }>(`/api/staff/my-bookings${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/staff/my-availability - The staff member's own availability/blocked slots.
+  async getStaffMyAvailability(
+    authToken: string,
+    startDate?: string,
+    endDate?: string,
+    businessId?: string,
+  ): Promise<{ availability: StaffAvailabilitySlot[] }> {
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    if (businessId) params.set("businessId", businessId);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request<{ availability: StaffAvailabilitySlot[] }>(`/api/staff/my-availability${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/staff/my-availability - Create an "available" or "blocked" slot for a specific date.
+  async createStaffAvailability(
+    authToken: string,
+    data: { date: string; startTime: string; endTime: string; slotType?: "available" | "blocked"; businessId?: string },
+  ): Promise<{ availability: StaffAvailabilitySlot }> {
+    return this.request<{ availability: StaffAvailabilitySlot }>("/api/staff/my-availability", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(data),
+    });
+  }
+
+  // DELETE /api/staff/my-availability/:id - Remove one of the staff member's own slots.
+  async deleteStaffAvailability(authToken: string, id: string, businessId?: string): Promise<{ success: boolean }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ success: boolean }>(`/api/staff/my-availability/${id}${query}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/staff/my-earnings - Total/this-month/pending payout summary for the staff member.
+  async getStaffMyEarnings(
+    authToken: string,
+    businessId?: string,
+  ): Promise<{ total: number; thisMonth: number; pending: number }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ total: number; thisMonth: number; pending: number }>(`/api/staff/my-earnings${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
