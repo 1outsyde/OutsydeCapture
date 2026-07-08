@@ -63,7 +63,10 @@ export default function StaffOnboardingStatusScreen() {
           const token = await getToken();
           if (!token || cancelled) return;
 
-          const res = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+          const businessIdParam = user?.staffBusinessId
+            ? `?businessId=${encodeURIComponent(user.staffBusinessId)}`
+            : "";
+          const res = await fetch(`https://outsyde-backend.onrender.com/api/staff/me${businessIdParam}`, {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
@@ -113,7 +116,10 @@ export default function StaffOnboardingStatusScreen() {
       try {
         const token = await getToken();
         if (!token) return;
-        const res = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+        const businessIdParam = user?.staffBusinessId
+          ? `?businessId=${encodeURIComponent(user.staffBusinessId)}`
+          : "";
+        const res = await fetch(`https://outsyde-backend.onrender.com/api/staff/me${businessIdParam}`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -163,7 +169,7 @@ export default function StaffOnboardingStatusScreen() {
 
     try {
       setLoading(true);
-      const { url } = await api.startStaffStripeOnboarding(token);
+      const { url } = await api.startStaffStripeOnboarding(token, user?.staffBusinessId);
       if (url) {
         Linking.openURL(url);
       }
