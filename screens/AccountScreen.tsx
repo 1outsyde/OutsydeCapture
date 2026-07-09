@@ -312,7 +312,7 @@ const tabsForRole = (profile: ProfileData): ProfileTab[] => {
   }
 
   if (profile.role === "staff") {
-    return ["booking", "reviews", "about"];
+    return ["posts", "booking", "reviews", "about"];
   }
 
   return ["posts", "reviews"];
@@ -1298,7 +1298,9 @@ export default function AccountScreen() {
 
   const colorMode = isDark ? "dark" : "light";
   const accentColor =
-    profile?.role === "business" || profile?.role === "photographer"
+    profile?.role === "business" ||
+    profile?.role === "photographer" ||
+    profile?.role === "staff"
       ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
   const accentDimColor = COLORS.goldDim;
@@ -1717,6 +1719,16 @@ export default function AccountScreen() {
       </View>
     );
   };
+
+  // Staff has no post-creation backend yet (see StaffWorkProfileScreen's
+  // public-view equivalent) — static empty state only, no "Add Post" tile.
+  const renderStaffPostsTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>No work posts yet</Text>
+      </View>
+    </View>
+  );
 
   const renderShopTab = () => (
     <View style={styles.tabContent}>
@@ -2705,7 +2717,7 @@ Booking flow coming soon.`,
   const renderTabContent = () => {
     switch (activeTab) {
       case "posts":
-        return renderPostsTab();
+        return profile?.role === "staff" ? renderStaffPostsTab() : renderPostsTab();
       case "shop":
         return renderShopTab();
       case "booking":
