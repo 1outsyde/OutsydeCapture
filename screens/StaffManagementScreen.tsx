@@ -120,6 +120,94 @@ export default function StaffManagementScreen() {
     load();
   }, [load]);
 
+  // Tracks the staff/invite id currently mid-request so its action button can
+  // show a spinner and reject double-taps while the network call is in flight.
+  const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
+
+  const handleArchiveStaff = useCallback(
+    (member: StaffMemberRow) => {
+      Alert.alert(
+        "Archive team member?",
+        `${member.displayName} will be archived and won't show up for booking. This isn't permanent — inviting them again later reactivates their profile.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Archive",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                setActionInProgressId(member.id);
+                const token = await getToken();
+                if (!token) return;
+                await api.deleteStaffMember(token, member.id);
+                await load();
+              } catch (error) {
+                console.error("[StaffManagementScreen] Failed to archive staff member:", error);
+                Alert.alert("Something went wrong", "Failed to archive this team member. Please try again.");
+              } finally {
+                setActionInProgressId(null);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [getToken, load],
+  );
+
+  const handleCancelInvite = useCallback(
+    (invite: StaffInviteRow) => {
+      Alert.alert(
+        "Cancel invite?",
+        `This will cancel the invite sent to ${invite.email}.`,
+        [
+          { text: "Keep invite", style: "cancel" },
+          {
+            text: "Cancel invite",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                setActionInProgressId(invite.id);
+                const token = await getToken();
+                if (!token) return;
+                await api.deleteStaffInvite(token, invite.id);
+                await load();
+              } catch (error) {
+                console.error("[StaffManagementScreen] Failed to cancel invite:", error);
+                Alert.alert("Something went wrong", "Failed to cancel this invite. Please try again.");
+              } finally {
+                setActionInProgressId(null);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [getToken, load],
+  );
+
+  const handleResendInvite = useCallback(
+    async (invite: StaffInviteRow) => {
+      try {
+        setActionInProgressId(invite.id);
+        const token = await getToken();
+        if (!token) return;
+        await api.createStaffInvite(token, {
+          email: invite.email,
+          role: invite.role === "manager" ? "manager" : "staff",
+        });
+        await load();
+        Alert.alert("Invite resent", `A new invite has been sent to ${invite.email}.`);
+      } catch (error) {
+        console.error("[StaffManagementScreen] Failed to resend invite:", error);
+        Alert.alert("Something went wrong", "Failed to resend this invite. Please try again.");
+      } finally {
+        setActionInProgressId(null);
+      }
+    },
+    [getToken, load],
+  );
+
   const pendingInvites = invites.filter((inv) => inv.status === "pending");
   const expiredInvites = invites.filter((inv) => inv.status === "expired");
 
@@ -184,6 +272,28 @@ export default function StaffManagementScreen() {
             </Text>
           </View>
         </View>
+
+        <Pressable
+          onPress={() =>
+            variant === "pending" ? handleCancelInvite(invite) : handleResendInvite(invite)
+          }
+          disabled={actionInProgressId === invite.id}
+          hitSlop={8}
+          style={[
+            styles.inviteActionButton,
+            { borderColor: variant === "pending" ? "#FF3B30" : accentColor },
+          ]}
+        >
+          {actionInProgressId === invite.id ? (
+            <ActivityIndicator size="small" color={variant === "pending" ? "#FF3B30" : accentColor} />
+          ) : (
+            <Feather
+              name={variant === "pending" ? "x" : "refresh-cw"}
+              size={14}
+              color={variant === "pending" ? "#FF3B30" : accentColor}
+            />
+          )}
+        </Pressable>
       </View>
     );
   };
@@ -346,7 +456,7 @@ export default function StaffManagementScreen() {
                         styles.statusBadge,
                         {
                           backgroundColor:
-                            member.status === "inactive"
+                            member.status === "inactive" || member.status === "archived"
                               ? `${theme.textMuted}22`
                               : "rgba(52,199,89,0.15)",
                         },
@@ -356,7 +466,10 @@ export default function StaffManagementScreen() {
                         style={[
                           styles.statusBadgeText,
                           {
-                            color: member.status === "inactive" ? theme.textMuted : "#34C759",
+                            color:
+                              member.status === "inactive" || member.status === "archived"
+                                ? theme.textMuted
+                                : "#34C759",
                             textTransform: "capitalize",
                           },
                         ]}
@@ -397,6 +510,20 @@ export default function StaffManagementScreen() {
                     Preview
                   </Text>
                 </Pressable>
+                {member.status !== "archived" ? (
+                  <Pressable
+                    onPress={() => handleArchiveStaff(member)}
+                    disabled={actionInProgressId === member.id}
+                    hitSlop={8}
+                    style={[styles.archiveButton, { borderColor: theme.textMuted }]}
+                  >
+                    {actionInProgressId === member.id ? (
+                      <ActivityIndicator size="small" color={theme.textMuted} />
+                    ) : (
+                      <Feather name="archive" size={14} color={theme.textMuted} />
+                    )}
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           ))
@@ -611,6 +738,22 @@ const styles = StyleSheet.create({
   previewButtonText: {
     fontWeight: "700",
     fontSize: 13,
+  },
+  archiveButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inviteActionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   inviteCard: {
     borderRadius: 12,
