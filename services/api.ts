@@ -2519,6 +2519,23 @@ class ApiService {
     );
   }
 
+  // DELETE /api/vendor/staff/:staffId - Archive (soft-delete) a staff member. Re-inviting the
+  // same email later reactivates this row server-side rather than creating a new one.
+  async deleteStaffMember(authToken: string, staffId: string): Promise<{ staff?: any; message: string }> {
+    return this.request<{ staff?: any; message: string }>(`/api/vendor/staff/${staffId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/vendor/staff/invites/:inviteId - Revoke a pending staff invite.
+  async deleteStaffInvite(authToken: string, inviteId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/api/vendor/staff/invites/${inviteId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // GET /api/staff/me - Get the staff profile for the authenticated user (404 = not a staff member).
   // businessId disambiguates for a user staffing 2+ businesses (see resolveStaffProfile in
   // AuthContext) — omit only when the caller knows the user has exactly one staff membership.
