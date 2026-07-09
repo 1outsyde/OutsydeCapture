@@ -311,6 +311,10 @@ const tabsForRole = (profile: ProfileData): ProfileTab[] => {
     return tabs;
   }
 
+  if (profile.role === "staff") {
+    return ["booking", "reviews", "about"];
+  }
+
   return ["posts", "reviews"];
 };
 
@@ -484,35 +488,6 @@ export default function AccountScreen() {
       selfId: user?.id,
     });
   }, [viewerMode, isOwner, routeUserId, routeUserType, user?.id]);
-
-  // Staff self-view: AccountScreen has no staff-shaped profile of its own, so
-  // redirect to the staff self-service dashboard instead of falling into the
-  // generic consumer branch. Uses navigate (push), not replace — AccountScreen
-  // sits three navigators deep (Root → Main → MainTabNavigator → AccountTab →
-  // AccountStackNavigator), and neither StaffDashboard nor StaffWorkProfile is
-  // a screen in those nested navigators, so an unhandled replace() bubbles all
-  // the way to the root stack and replaces "Main" itself — wiping the tab bar
-  // with nothing behind it to go "back" to. navigate() leaves "Main" in the
-  // stack so the destination's own back button returns to this tab correctly.
-  useEffect(() => {
-    if (role !== "staff" || !isOwner || !isAuthenticated) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await getToken();
-        if (!token) return;
-        await apiClient.getStaffMe(token);
-        if (!cancelled) {
-          navigation.navigate("StaffDashboard");
-        }
-      } catch (error) {
-        console.error("[AccountScreen] Failed to resolve staff self-profile:", error);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [role, isOwner, isAuthenticated, getToken, navigation]);
 
   useEffect(() => {
     if (!profile || isOwner || !isAuthenticated) return;
@@ -1176,9 +1151,57 @@ export default function AccountScreen() {
             showStoreHours: true,
           };
         } else if (role === "staff") {
-          // Staff self-view is redirected to StaffWorkProfile by a dedicated
-          // effect below — skip fetching/rendering the generic consumer shape.
-          return;
+          const { staff } = await apiClient.getStaffMe(token);
+
+          const [businessResponse, servicesResponse] = await Promise.all([
+            apiClient.getBusiness(staff.businessId),
+            apiClient
+              .getStaffMyServices(token, staff.businessId)
+              .catch(() => ({ services: [] })),
+          ]);
+
+          const mappedServices = (servicesResponse.services || [])
+            .filter((item) => item.status === "live")
+            .map((item: VendorService) => ({
+              id: String(item.id),
+              name: item.name,
+              description: item.description || undefined,
+              priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
+              durationMinutes:
+                item.durationMinutes ||
+                (item as any).estimatedDurationMinutes ||
+                undefined,
+              rating: Number(item.rating ?? 0),
+            }));
+
+          resolvedServices = mappedServices;
+
+          profileData = {
+            id: String(staff.id),
+            userId: String(staff.userId || user?.id || ""),
+            role: "staff",
+            name: staff.displayName || "Team Member",
+            handle: `@${user?.username || staff.displayName?.replace(/\s+/g, "").toLowerCase() || "outsyde"}`,
+            avatarUrl: staff.profileImageUrl || undefined,
+            bio: staff.bio || undefined,
+            rating: Number(staff.rating ?? 0),
+            reviewCount: Number(staff.reviewCount ?? 0),
+            followerCount: 0,
+            followingCount: 0,
+            bookingsCount: 0,
+            shootsCount: 0,
+            postsCount: 0,
+            isVerified: false,
+            brandColors: parseBrandColors(businessResponse.brandColors),
+            hasProducts: false,
+            hasServices: mappedServices.length > 0,
+            specialties: Array.isArray(staff.specialties) ? staff.specialties : [],
+            minPrice: getMinimumPrice([], mappedServices),
+            showEmail: false,
+            showPhone: false,
+            showWebsite: false,
+            showStoreHours: false,
+          };
         } else {
           const [profilePosts, publicUserResult] = await Promise.all([
             apiClient
@@ -1311,6 +1334,10 @@ export default function AccountScreen() {
     }
     if (profile.role === "photographer") {
       navigation.navigate("PhotographerDashboard", { openModal: "profile" });
+      return;
+    }
+    if (profile.role === "staff") {
+      navigation.navigate("StaffDashboard");
       return;
     }
     (navigation as any).navigate("EditProfile");
