@@ -486,8 +486,14 @@ export default function AccountScreen() {
   }, [viewerMode, isOwner, routeUserId, routeUserType, user?.id]);
 
   // Staff self-view: AccountScreen has no staff-shaped profile of its own, so
-  // redirect straight to the real staff public profile instead of falling
-  // into the generic consumer branch.
+  // redirect to the staff self-service dashboard instead of falling into the
+  // generic consumer branch. Uses navigate (push), not replace — AccountScreen
+  // sits three navigators deep (Root → Main → MainTabNavigator → AccountTab →
+  // AccountStackNavigator), and neither StaffDashboard nor StaffWorkProfile is
+  // a screen in those nested navigators, so an unhandled replace() bubbles all
+  // the way to the root stack and replaces "Main" itself — wiping the tab bar
+  // with nothing behind it to go "back" to. navigate() leaves "Main" in the
+  // stack so the destination's own back button returns to this tab correctly.
   useEffect(() => {
     if (role !== "staff" || !isOwner || !isAuthenticated) return;
     let cancelled = false;
@@ -495,12 +501,9 @@ export default function AccountScreen() {
       try {
         const token = await getToken();
         if (!token) return;
-        const { staff } = await apiClient.getStaffMe(token);
+        await apiClient.getStaffMe(token);
         if (!cancelled) {
-          navigation.replace("StaffWorkProfile", {
-            businessId: staff.businessId,
-            staffId: staff.id,
-          });
+          navigation.navigate("StaffDashboard");
         }
       } catch (error) {
         console.error("[AccountScreen] Failed to resolve staff self-profile:", error);
