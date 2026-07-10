@@ -512,11 +512,9 @@ export default function VendorDetailScreen({ route }: Props) {
   const [followBusy, setFollowBusy] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
-  const [bookingSheetIndex, setBookingSheetIndex] = useState(-1);
   const [reviewSheetIndex, setReviewSheetIndex] = useState(-1);
 
   const scrollY = useRef(new Animated.Value(0)).current;
-  const bookingSnapPoints = useMemo(() => ["50%"], []);
   const reviewSnapPoints = useMemo(() => ["45%"], []);
 
   const isOwnProfile = useMemo(() => {
@@ -1177,6 +1175,10 @@ export default function VendorDetailScreen({ route }: Props) {
       .catch(() => setIsFollowing(false));
   }, [profile, isOwnProfile, isAuthenticated]);
 
+  useEffect(() => {
+    return () => setBookingFlowActive(false);
+  }, []);
+
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [120, 220],
     outputRange: [0, 1],
@@ -1227,13 +1229,7 @@ export default function VendorDetailScreen({ route }: Props) {
     }
   }, [followBusy, isFollowing, profile]);
 
-  const openBookingModal = useCallback(() => {
-    setReviewSheetIndex(-1);
-    setBookingSheetIndex(0);
-  }, []);
-
   const openReviewModal = useCallback(() => {
-    setBookingSheetIndex(-1);
     setReviewSheetIndex(0);
   }, []);
 
@@ -1270,14 +1266,18 @@ export default function VendorDetailScreen({ route }: Props) {
     if (profile.role === "photographer") {
       return {
         label: "Book Shoot →",
-        onPress: openBookingModal,
+        onPress: () =>
+          navigation.navigate("Booking", { photographerId: profile.id }),
       };
     }
     if (profile.role === "business") {
       if (profile.hasServices) {
         return {
           label: "Book Now →",
-          onPress: openBookingModal,
+          onPress: () => {
+            setActiveTab("booking");
+            setBookingFlowActive(true);
+          },
         };
       }
       if (profile.hasProducts) {
@@ -1295,7 +1295,7 @@ export default function VendorDetailScreen({ route }: Props) {
           "Messaging will be wired in a follow-up update.",
         ),
     };
-  }, [openBookingModal, profile]);
+  }, [navigation, profile]);
 
   const reviewBreakdown = useMemo(() => {
     if (reviews.length === 0) {
@@ -1527,7 +1527,10 @@ export default function VendorDetailScreen({ route }: Props) {
       {tabOrder.map((tab) => (
         <Pressable
           key={tab}
-          onPress={() => setActiveTab(tab)}
+          onPress={() => {
+              if (tab !== activeTab) setBookingFlowActive(false);
+              setActiveTab(tab);
+            }}
           style={{
             flex: 1,
             alignItems: "center",
@@ -1681,6 +1684,17 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderBookingTab = () => {
+    if (bookingFlowActive) {
+      return (
+        <BookingFlow
+          providerId={vendorId}
+          providerType="business"
+          providerName={profile?.name || ""}
+          staffMemberId={selectedStaffId}
+        />
+      );
+    }
+
     const hasServices = services.length > 0;
     const showTeam = Boolean(profile?.isMultiStaff);
 
@@ -1718,7 +1732,6 @@ export default function VendorDetailScreen({ route }: Props) {
                 onPress={() => {
                   setSelectedStaffId(null);
                   setBookingFlowActive(true);
-                  openBookingModal();
                 }}
                 style={{
                   backgroundColor: "rgba(0,0,0,0.30)",
@@ -1858,7 +1871,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 }}
                 onBook={(staffId) => {
                   setSelectedStaffId(staffId);
-                  openBookingModal();
+                  setBookingFlowActive(true);
                 }}
               />
             )}
@@ -1891,7 +1904,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 {isAvailable ? (
                   <Pressable
                     style={[styles.slotButton, { borderColor: accentColor }]}
-                    onPress={openBookingModal}
+                    onPress={() => setBookingFlowActive(true)}
                   >
                     <Text
                       style={[styles.slotButtonText, { color: accentColor }]}
@@ -2200,69 +2213,6 @@ export default function VendorDetailScreen({ route }: Props) {
           </View>
         </View>
       ) : null}
-
-      <BottomSheet
-        index={bookingSheetIndex}
-        snapPoints={bookingSnapPoints}
-        onChange={(index) => {
-          setBookingSheetIndex(index);
-          if (index === -1) setBookingFlowActive(false);
-        }}
-        enablePanDownToClose
-        animateOnMount={false}
-        backgroundStyle={{ backgroundColor: "#111111" }}
-        handleIndicatorStyle={{ backgroundColor: COLORS.gray }}
-      >
-        <BottomSheetView style={styles.sheetBody}>
-          {bookingFlowActive ? (
-            <BookingFlow
-              providerId={vendorId}
-              providerType="business"
-              providerName={profile.name}
-              staffMemberId={selectedStaffId}
-            />
-          ) : (
-            <>
-              <Text style={styles.sheetTitle}>Book with {profile.name}</Text>
-              <Text style={styles.sheetSubtitle}>
-                ⚡ {profile.responseTime || "Usually responds in 2h"}
-              </Text>
-              {(services.length
-                ? services.slice(0, 5).map((service) => service.name)
-                : ["Session", "Consultation"]
-              ).map((option) => (
-                <Pressable key={option} style={styles.sheetRow}>
-                  <Text style={styles.sheetRowText}>{option}</Text>
-                  <Feather
-                    name="chevron-right"
-                    size={16}
-                    color={COLORS.grayLight}
-                  />
-                </Pressable>
-              ))}
-              <Pressable
-                onPress={() => {
-                  if (profile.role === "photographer") {
-                    setBookingSheetIndex(-1);
-                    navigation.navigate("Booking", { photographerId: profile.id });
-                  } else {
-                    setBookingFlowActive(true);
-                  }
-                }}
-              >
-                <LinearGradient
-                  colors={[accentColor, accentDimColor]}
-                  style={styles.sheetCta}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.sheetCtaText}>Continue to Booking</Text>
-                </LinearGradient>
-              </Pressable>
-            </>
-          )}
-        </BottomSheetView>
-      </BottomSheet>
 
       <BottomSheet
         index={reviewSheetIndex}
