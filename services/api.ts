@@ -3761,8 +3761,8 @@ class ApiService {
     const endpoint = providerType === "photographer"
       ? `/api/photographers/${providerId}/services`
       : `/api/businesses/${providerId}/services`;
-    const response = await this.request<{ services: BookingService[] }>(endpoint);
-    return response.services || [];
+    const response = await this.request<{ services: Array<BookingService & { price?: number }> }>(endpoint);
+    return (response.services || []).map(s => ({ ...s, priceCents: s.price ?? s.priceCents ?? 0 }));
   }
 
   async validateBookingSlot(
