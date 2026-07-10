@@ -18,6 +18,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -43,6 +44,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import InviteTeamModal from "@/components/InviteTeamModal";
+import BookingFlow from "@/components/BookingFlow";
 import apiClient, {
   ApiPost,
   VendorProduct,
@@ -467,6 +469,9 @@ export default function AccountScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const [bookingFlowActive, setBookingFlowActive] = useState(false);
+  const [bookingProviderId, setBookingProviderId] = useState<string | null>(null);
+  const [bookingProviderName, setBookingProviderName] = useState<string>("");
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -1814,18 +1819,11 @@ export default function AccountScreen() {
             {services.map((service) => (
               <Pressable
                 key={service.id}
-                onPress={() =>
-                  Alert.alert(
-                    service.name,
-                    `Duration: ${
-                      service.durationMinutes
-                        ? service.durationMinutes + " min"
-                        : "TBD"
-                    }
-
-Booking flow coming soon.`,
-                  )
-                }
+                onPress={() => {
+                  setBookingProviderId(profile?.id ?? null);
+                  setBookingProviderName(profile?.name ?? "");
+                  setBookingFlowActive(true);
+                }}
                 style={{
                   backgroundColor: "rgba(0,0,0,0.30)",
                   borderRadius: 14,
@@ -2809,6 +2807,26 @@ Booking flow coming soon.`,
         onInviteSent={() => setTeamRefreshKey((k) => k + 1)}
         brandColor={accentColor}
       />
+
+      <Modal
+        visible={bookingFlowActive}
+        animationType="slide"
+        onRequestClose={() => setBookingFlowActive(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#111111" }}>
+          <Pressable
+            onPress={() => setBookingFlowActive(false)}
+            style={{ padding: 16, alignSelf: "flex-start" }}
+          >
+            <Feather name="x" size={24} color="#FFFFFF" />
+          </Pressable>
+          <BookingFlow
+            providerId={bookingProviderId || ""}
+            providerType="business"
+            providerName={bookingProviderName}
+          />
+        </SafeAreaView>
+      </Modal>
 
     </SafeAreaView>
   );
