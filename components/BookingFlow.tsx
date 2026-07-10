@@ -211,7 +211,7 @@ export default function BookingFlow({
     setLoadingCalendar(true);
     try {
       console.log("[BookingFlow] Fetching calendar for:", { providerId, providerType, year, month });
-      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month);
+      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month, selectedService?.durationMinutes ?? 60);
       console.log("[BookingFlow] Calendar response:", JSON.stringify(response, null, 2));
       setCalendarDays(response.days || []);
     } catch (err: any) {
