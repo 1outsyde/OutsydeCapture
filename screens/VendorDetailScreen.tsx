@@ -56,6 +56,7 @@ import {
 } from "@/constants/colorOptions";
 import { hoursObjectToArray } from "@/components/HoursEditor";
 import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
+import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -502,6 +503,7 @@ export default function VendorDetailScreen({ route }: Props) {
   const [services, setServices] = useState<ServiceCard[]>([]);
   const [staff, setStaff] = useState<StaffCardVM[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [bookingFlowActive, setBookingFlowActive] = useState(false);
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -1713,18 +1715,11 @@ export default function VendorDetailScreen({ route }: Props) {
             {services.map((service) => (
               <Pressable
                 key={service.id}
-                onPress={() =>
-                  Alert.alert(
-                    service.name,
-                    `Duration: ${
-                      service.durationMinutes
-                        ? service.durationMinutes + " min"
-                        : "TBD"
-                    }
-
-Booking flow coming soon.`,
-                  )
-                }
+                onPress={() => {
+                  setSelectedStaffId(null);
+                  setBookingFlowActive(true);
+                  openBookingModal();
+                }}
                 style={{
                   backgroundColor: "rgba(0,0,0,0.30)",
                   borderRadius: 14,
@@ -2209,50 +2204,63 @@ Booking flow coming soon.`,
       <BottomSheet
         index={bookingSheetIndex}
         snapPoints={bookingSnapPoints}
-        onChange={setBookingSheetIndex}
+        onChange={(index) => {
+          setBookingSheetIndex(index);
+          if (index === -1) setBookingFlowActive(false);
+        }}
         enablePanDownToClose
         animateOnMount={false}
         backgroundStyle={{ backgroundColor: "#111111" }}
         handleIndicatorStyle={{ backgroundColor: COLORS.gray }}
       >
         <BottomSheetView style={styles.sheetBody}>
-          <Text style={styles.sheetTitle}>Book with {profile.name}</Text>
-          <Text style={styles.sheetSubtitle}>
-            ⚡ {profile.responseTime || "Usually responds in 2h"}
-          </Text>
-          {(services.length
-            ? services.slice(0, 5).map((service) => service.name)
-            : ["Session", "Consultation"]
-          ).map((option) => (
-            <Pressable key={option} style={styles.sheetRow}>
-              <Text style={styles.sheetRowText}>{option}</Text>
-              <Feather
-                name="chevron-right"
-                size={16}
-                color={COLORS.grayLight}
-              />
-            </Pressable>
-          ))}
-          <Pressable
-            onPress={() => {
-              setBookingSheetIndex(-1);
-              if (profile.role === "photographer") {
-                navigation.navigate("Booking", { photographerId: profile.id });
-              } else {
-                navigation.navigate("CartOrders");
-              }
-              // TODO: Wire booking modal to existing booking flow screen
-            }}
-          >
-            <LinearGradient
-              colors={[accentColor, accentDimColor]}
-              style={styles.sheetCta}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <Text style={styles.sheetCtaText}>Continue to Booking</Text>
-            </LinearGradient>
-          </Pressable>
+          {bookingFlowActive ? (
+            <BookingFlow
+              providerId={vendorId}
+              providerType="business"
+              providerName={profile.name}
+              staffMemberId={selectedStaffId}
+            />
+          ) : (
+            <>
+              <Text style={styles.sheetTitle}>Book with {profile.name}</Text>
+              <Text style={styles.sheetSubtitle}>
+                ⚡ {profile.responseTime || "Usually responds in 2h"}
+              </Text>
+              {(services.length
+                ? services.slice(0, 5).map((service) => service.name)
+                : ["Session", "Consultation"]
+              ).map((option) => (
+                <Pressable key={option} style={styles.sheetRow}>
+                  <Text style={styles.sheetRowText}>{option}</Text>
+                  <Feather
+                    name="chevron-right"
+                    size={16}
+                    color={COLORS.grayLight}
+                  />
+                </Pressable>
+              ))}
+              <Pressable
+                onPress={() => {
+                  if (profile.role === "photographer") {
+                    setBookingSheetIndex(-1);
+                    navigation.navigate("Booking", { photographerId: profile.id });
+                  } else {
+                    setBookingFlowActive(true);
+                  }
+                }}
+              >
+                <LinearGradient
+                  colors={[accentColor, accentDimColor]}
+                  style={styles.sheetCta}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.sheetCtaText}>Continue to Booking</Text>
+                </LinearGradient>
+              </Pressable>
+            </>
+          )}
         </BottomSheetView>
       </BottomSheet>
 
