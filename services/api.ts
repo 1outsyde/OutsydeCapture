@@ -3804,6 +3804,27 @@ class ApiService {
     });
   }
 
+  async createHoldPaymentIntent(
+    holdId: string
+  ): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+    appointmentId: string;
+    captureMethod: "automatic" | "manual";
+    feeBreakdown?: {
+      subtotal: number;
+      consumerFee: number;
+      bookingFee: number;
+      vendorNet: number;
+      grossCharge: number;
+    };
+  }> {
+    return this.request(`/api/booking/${holdId}/create-payment-intent`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
   private normalizeVendorEligibility(response: any): VendorEligibility {
     const payload =
       response?.eligibility ??
