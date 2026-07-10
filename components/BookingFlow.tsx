@@ -130,8 +130,13 @@ export default function BookingFlow({
       isToday: boolean;
     }> = [];
 
+    // Leading offset cells: show real previous-month dates, dimmed and non-selectable
+    const prevMonthYear = month === 0 ? year - 1 : year;
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
     for (let i = 0; i < firstDay; i++) {
-      grid.push({ date: null, dayNum: null, status: null, isToday: false });
+      const prevDay = daysInPrevMonth - (firstDay - 1 - i);
+      grid.push({ date: null, dayNum: prevDay, status: "past", isToday: false });
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
@@ -144,6 +149,14 @@ export default function BookingFlow({
       const status = isPast ? "past" : calendarDay?.status || "unavailable";
 
       grid.push({ date: dateStr, dayNum: day, status, isToday });
+    }
+
+    // Trailing overflow cells: fill remainder of last row with next-month dates
+    const trailingCells = (firstDay + daysInMonth) % 7 === 0
+      ? 0
+      : 7 - ((firstDay + daysInMonth) % 7);
+    for (let i = 1; i <= trailingCells; i++) {
+      grid.push({ date: null, dayNum: i, status: "past", isToday: false });
     }
 
     return grid;
@@ -638,26 +651,49 @@ export default function BookingFlow({
             <ActivityIndicator size="large" color={accent} style={styles.loader} />
           ) : (
             <View style={styles.calendarGrid}>
-              {calendarGrid.map((cell, index) => (
-                <Pressable
-                  key={index}
-                  onPress={() => cell.date && cell.status && handleDateSelect(cell.date, cell.status)}
-                  disabled={!cell.date || cell.status === "past" || cell.status === "unavailable"}
-                  style={getDayStyle(cell.status, selectedDate === cell.date, cell.isToday)}
-                >
-                  {cell.dayNum && (
-                    <ThemedText
+              {calendarGrid.map((cell, index) => {
+                if (cell.date === null) {
+                  return (
+                    <View
+                      key={index}
+                      pointerEvents="none"
                       style={{
-                        color: getDayTextColor(cell.status, selectedDate === cell.date),
-                        fontWeight: cell.isToday ? "700" : "400",
-                        fontSize: FontSizes.sm,
+                        width: DAY_SIZE,
+                        height: DAY_SIZE,
+                        borderRadius: BorderRadius.sm,
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
-                      {cell.dayNum}
-                    </ThemedText>
-                  )}
-                </Pressable>
-              ))}
+                      {cell.dayNum !== null && (
+                        <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
+                          {cell.dayNum}
+                        </ThemedText>
+                      )}
+                    </View>
+                  );
+                }
+                return (
+                  <Pressable
+                    key={index}
+                    onPress={() => cell.date && cell.status && handleDateSelect(cell.date, cell.status)}
+                    disabled={!cell.date || cell.status === "past" || cell.status === "unavailable"}
+                    style={getDayStyle(cell.status, selectedDate === cell.date, cell.isToday)}
+                  >
+                    {cell.dayNum !== null && (
+                      <ThemedText
+                        style={{
+                          color: getDayTextColor(cell.status, selectedDate === cell.date),
+                          fontWeight: cell.isToday ? "700" : "400",
+                          fontSize: FontSizes.sm,
+                        }}
+                      >
+                        {cell.dayNum}
+                      </ThemedText>
+                    )}
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </View>
