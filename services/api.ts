@@ -3693,12 +3693,20 @@ class ApiService {
     providerId: string,
     providerType: "photographer" | "business",
     year: number,
-    month: number // 1-12
+    month: number, // 1-12
+    serviceDurationMinutes?: number
   ): Promise<AvailabilityCalendarResponse> {
     // Backend returns { days: [{ date, hasAvailability, totalSlots }] }
     // Frontend expects { days: [{ date, status, slotsAvailable, slotsTotal }] }
+    const params = new URLSearchParams({
+      providerType,
+      providerId,
+      year: year.toString(),
+      month: month.toString(),
+      ...(serviceDurationMinutes ? { serviceDurationMinutes: serviceDurationMinutes.toString() } : {}),
+    });
     const rawResponse = await this.request<{ days: Array<{ date: string; hasAvailability: boolean; totalSlots?: number }> }>(
-      `/api/availability/calendar?providerType=${providerType}&providerId=${providerId}&year=${year}&month=${month}`
+      `/api/availability/calendar?${params.toString()}`
     );
     
     // Transform backend format to frontend format
