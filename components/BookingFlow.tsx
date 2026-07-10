@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
   },
   weekdayRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: Spacing.xs,
     marginBottom: Spacing.xs,
   },
   weekdayCell: {
