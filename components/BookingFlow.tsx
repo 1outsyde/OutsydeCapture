@@ -19,7 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, Typography, FontSizes } from "@/constants/theme";
 import api, {
   BookingService,
   AvailabilityCalendarDay,
@@ -134,7 +134,7 @@ export default function BookingFlow({
       const dateObj = new Date(year, month, day);
       const isPast = dateObj < today;
       const isToday = dateObj.getTime() === today.getTime();
-      
+
       const calendarDay = calendarDays.find((d) => d.date === dateStr);
       const status = isPast ? "past" : calendarDay?.status || "unavailable";
 
@@ -243,7 +243,7 @@ export default function BookingFlow({
 
   const validateSlot = async (slot: AvailabilitySlot) => {
     if (!selectedService || !selectedDate) return;
-    
+
     const token = await getToken();
     if (!token) {
       setError("Please sign in to book");
@@ -278,7 +278,7 @@ export default function BookingFlow({
 
   const createHold = async (slot: AvailabilitySlot) => {
     if (!selectedService || !selectedDate) return;
-    
+
     const token = await getToken();
     if (!token) return;
 
@@ -323,14 +323,14 @@ export default function BookingFlow({
 
   const handleConfirmBooking = async () => {
     if (!hold) return;
-    
+
     const token = await getToken();
     if (!token) return;
 
     setConfirming(true);
     try {
-      const baseUrl = Platform.OS === "web" 
-        ? window.location.origin 
+      const baseUrl = Platform.OS === "web"
+        ? window.location.origin
         : "outsyde://";
       const successUrl = `${baseUrl}/booking-success`;
       const cancelUrl = `${baseUrl}/booking-cancel`;
@@ -362,7 +362,7 @@ export default function BookingFlow({
   const handleRequestAccommodation = () => {
     setShowIncompatibleModal(false);
     const message = `Hi! I'd like to book ${selectedService?.name} on ${selectedDateDisplay}. Is there any way to accommodate this service at a time that works?`;
-    
+
     navigation.dispatch(
       CommonActions.navigate({
         name: "Messages",
@@ -450,35 +450,35 @@ export default function BookingFlow({
     };
 
     if (isSelected) {
-      base.backgroundColor = theme.primary;
+      base.backgroundColor = theme.brandGold;
     } else if (status === "available") {
-      base.backgroundColor = theme.success + "30";
+      base.backgroundColor = theme.brandSuccess + "25";
     } else if (status === "partial") {
-      base.backgroundColor = theme.warning + "30";
+      base.backgroundColor = theme.brandGold + "25";
     } else if (status === "unavailable" || status === "past") {
-      base.backgroundColor = theme.backgroundSecondary;
+      base.backgroundColor = theme.brandSurfaceBorder;
     }
 
     if (isToday && !isSelected) {
       base.borderWidth = 2;
-      base.borderColor = theme.primary;
+      base.borderColor = theme.brandGold;
     }
 
     return base;
   };
 
   const getDayTextColor = (status: string | null, isSelected: boolean) => {
-    if (isSelected) return "#FFFFFF";
-    if (status === "past" || status === "unavailable") return theme.textMuted;
-    return theme.text;
+    if (isSelected) return theme.brandBg;
+    if (status === "past" || status === "unavailable") return theme.brandTextDim;
+    return theme.brandCream;
   };
 
   if (!isAuthenticated) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView style={[styles.container, { backgroundColor: theme.brandBg }]}>
         <View style={styles.authPrompt}>
-          <Feather name="lock" size={32} color={theme.textMuted} />
-          <ThemedText style={[styles.authText, { color: theme.textMuted }]}>
+          <Feather name="lock" size={32} color={theme.brandTextDim} />
+          <ThemedText style={[styles.authText, { color: theme.brandTextDim }]}>
             Sign in to book appointments
           </ThemedText>
         </View>
@@ -487,66 +487,72 @@ export default function BookingFlow({
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="h3" style={styles.header}>
-        Book Appointment
-      </ThemedText>
+    <ThemedView style={[styles.container, { backgroundColor: theme.brandBg }]}>
+      <View style={[styles.headerBar, { backgroundColor: theme.brandBgElevated, borderBottomColor: theme.brandSurfaceBorder }]}>
+        <ThemedText type="h3" style={{ color: theme.brandCream }}>
+          Book Appointment
+        </ThemedText>
+      </View>
 
-      <View style={styles.progressContainer}>
-        {[1, 2, 3, 4].map((s) => (
-          <View key={s} style={styles.progressItem}>
-            <View
-              style={[
-                styles.progressDot,
-                {
-                  backgroundColor: step >= s ? theme.primary : theme.backgroundSecondary,
-                  borderColor: step >= s ? theme.primary : theme.border,
-                },
-              ]}
-            >
-              {step > s ? (
-                <Feather name="check" size={12} color="#FFFFFF" />
-              ) : (
-                <ThemedText style={{ color: step >= s ? "#FFFFFF" : theme.textMuted, fontSize: 12 }}>
-                  {s}
-                </ThemedText>
-              )}
+      <View style={styles.stepperRow}>
+        {[1, 2, 3, 4].map((s, i) => (
+          <View key={s} style={styles.stepperItem}>
+            {i > 0 && (
+              <View style={[styles.stepConnector, { backgroundColor: theme.brandSurfaceBorder }]} />
+            )}
+            <View style={styles.stepDotWrap}>
+              <View
+                style={[
+                  styles.stepDot,
+                  {
+                    backgroundColor: step >= s ? theme.brandGold : theme.brandSurfaceBorder,
+                  },
+                ]}
+              >
+                {step > s ? (
+                  <Feather name="check" size={12} color={theme.brandBg} />
+                ) : (
+                  <ThemedText style={{ color: step >= s ? theme.brandBg : theme.brandTextDim, fontSize: FontSizes.xs, fontWeight: "700" }}>
+                    {s}
+                  </ThemedText>
+                )}
+              </View>
+              <ThemedText style={[styles.stepLabel, { color: step >= s ? theme.brandGold : theme.brandTextDim }]}>
+                {s === 1 ? "Service" : s === 2 ? "Date" : s === 3 ? "Time" : "Confirm"}
+              </ThemedText>
             </View>
-            <ThemedText style={[styles.progressLabel, { color: step >= s ? theme.text : theme.textMuted }]}>
-              {s === 1 ? "Service" : s === 2 ? "Date" : s === 3 ? "Time" : "Confirm"}
-            </ThemedText>
           </View>
         ))}
       </View>
 
       {step > 1 && !hold && (
         <Pressable onPress={goBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={20} color={theme.primary} />
-          <ThemedText style={{ color: theme.primary, marginLeft: Spacing.xs }}>Back</ThemedText>
+          <Feather name="arrow-left" size={20} color={theme.brandGold} />
+          <ThemedText style={{ color: theme.brandGold, marginLeft: Spacing.xs }}>Back</ThemedText>
         </Pressable>
       )}
 
       {error && (
-        <View style={[styles.errorBanner, { backgroundColor: theme.error + "20" }]}>
-          <Feather name="alert-circle" size={16} color={theme.error} />
-          <ThemedText style={[styles.errorText, { color: theme.error }]}>{error}</ThemedText>
+        <View style={[styles.errorBanner, { backgroundColor: theme.brandError + "20", borderColor: theme.brandError }]}>
+          <Feather name="alert-circle" size={16} color={theme.brandError} />
+          <ThemedText style={[styles.errorText, { color: theme.brandError }]}>{error}</ThemedText>
           <Pressable onPress={() => setError(null)}>
-            <Feather name="x" size={16} color={theme.error} />
+            <Feather name="x" size={16} color={theme.brandError} />
           </Pressable>
         </View>
       )}
 
       {step === 1 && (
         <View style={styles.stepContent}>
-          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
+          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Select a Service
           </ThemedText>
           {loadingServices ? (
-            <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
+            <ActivityIndicator size="large" color={theme.brandGold} style={styles.loader} />
           ) : services.length === 0 ? (
             <View style={styles.emptyState}>
-              <Feather name="calendar" size={32} color={theme.textMuted} />
-              <ThemedText style={{ color: theme.textMuted, marginTop: Spacing.sm }}>
+              <Feather name="calendar" size={32} color={theme.brandTextDim} />
+              <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
                 No services available
               </ThemedText>
             </View>
@@ -558,34 +564,34 @@ export default function BookingFlow({
                 style={[
                   styles.serviceCard,
                   {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
+                    backgroundColor: theme.brandBgElevated,
+                    borderColor: theme.brandSurfaceBorder,
                   },
                 ]}
               >
                 <View style={styles.serviceInfo}>
-                  <ThemedText type="body" style={{ fontWeight: "600" }}>
+                  <ThemedText style={[styles.serviceName, { color: theme.brandCream }]}>
                     {service.name}
                   </ThemedText>
                   {service.description ? (
-                    <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.xs }} numberOfLines={2}>
+                    <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.xs }} numberOfLines={2}>
                       {service.description}
                     </ThemedText>
                   ) : null}
                   <View style={styles.serviceMeta}>
                     <View style={styles.metaItem}>
-                      <Feather name="clock" size={14} color={theme.textSecondary} />
-                      <ThemedText style={{ color: theme.textSecondary, marginLeft: 4 }}>
+                      <Feather name="clock" size={14} color={theme.brandTextDim} />
+                      <ThemedText style={{ color: theme.brandTextDim, marginLeft: Spacing.xs }}>
                         {formatDuration(service.durationMinutes)}
                       </ThemedText>
                     </View>
                   </View>
                 </View>
                 <View style={styles.servicePrice}>
-                  <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary }}>
+                  <ThemedText style={[styles.priceText, { color: theme.brandGold }]}>
                     {formatPrice(service.priceCents)}
                   </ThemedText>
-                  <Feather name="chevron-right" size={20} color={theme.textMuted} />
+                  <Feather name="chevron-right" size={20} color={theme.brandTextDim} />
                 </View>
               </Pressable>
             ))
@@ -595,36 +601,36 @@ export default function BookingFlow({
 
       {step === 2 && (
         <View style={styles.stepContent}>
-          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
+          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Select a Date
           </ThemedText>
-          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.primaryTransparent }]}>
-            <ThemedText style={{ fontWeight: "600" }}>{selectedService?.name}</ThemedText>
-            <ThemedText style={{ color: theme.textSecondary }}>
+          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.brandGold + "15" }]}>
+            <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
+            <ThemedText style={{ color: theme.brandTextDim }}>
               {formatDuration(selectedService?.durationMinutes || 0)} • {formatPrice(selectedService?.priceCents || 0)}
             </ThemedText>
           </View>
 
           <View style={styles.monthNav}>
             <Pressable onPress={handlePrevMonth} hitSlop={12}>
-              <Feather name="chevron-left" size={24} color={theme.text} />
+              <Feather name="chevron-left" size={24} color={theme.brandCream} />
             </Pressable>
-            <ThemedText type="body" style={{ fontWeight: "600" }}>{monthDisplay}</ThemedText>
+            <ThemedText style={[styles.monthTitle, { color: theme.brandCream }]}>{monthDisplay}</ThemedText>
             <Pressable onPress={handleNextMonth} hitSlop={12}>
-              <Feather name="chevron-right" size={24} color={theme.text} />
+              <Feather name="chevron-right" size={24} color={theme.brandCream} />
             </Pressable>
           </View>
 
           <View style={styles.weekdayRow}>
             {WEEKDAYS.map((day) => (
               <View key={day} style={[styles.weekdayCell, { width: DAY_SIZE }]}>
-                <ThemedText style={[styles.weekdayText, { color: theme.textSecondary }]}>{day}</ThemedText>
+                <ThemedText style={[styles.weekdayText, { color: theme.brandTextDim }]}>{day}</ThemedText>
               </View>
             ))}
           </View>
 
           {loadingCalendar ? (
-            <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
+            <ActivityIndicator size="large" color={theme.brandGold} style={styles.loader} />
           ) : (
             <View style={styles.calendarGrid}>
               {calendarGrid.map((cell, index) => (
@@ -639,6 +645,7 @@ export default function BookingFlow({
                       style={{
                         color: getDayTextColor(cell.status, selectedDate === cell.date),
                         fontWeight: cell.isToday ? "700" : "400",
+                        fontSize: FontSizes.sm,
                       }}
                     >
                       {cell.dayNum}
@@ -653,27 +660,27 @@ export default function BookingFlow({
 
       {step === 3 && (
         <View style={styles.stepContent}>
-          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
+          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Select a Time
           </ThemedText>
-          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.primaryTransparent }]}>
-            <ThemedText style={{ fontWeight: "600" }}>{selectedService?.name}</ThemedText>
-            <ThemedText style={{ color: theme.textSecondary }}>
+          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.brandGold + "15" }]}>
+            <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
+            <ThemedText style={{ color: theme.brandTextDim }}>
               {selectedDateDisplay} • {formatPrice(selectedService?.priceCents || 0)}
             </ThemedText>
           </View>
 
           {loadingSlots || validating || creatingHold ? (
             <View style={styles.loader}>
-              <ActivityIndicator size="large" color={theme.primary} />
-              <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+              <ActivityIndicator size="large" color={theme.brandGold} />
+              <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
                 {validating ? "Validating..." : creatingHold ? "Holding slot..." : "Loading..."}
               </ThemedText>
             </View>
           ) : slots.length === 0 ? (
             <View style={styles.emptyState}>
-              <Feather name="clock" size={32} color={theme.textMuted} />
-              <ThemedText style={{ color: theme.textMuted, marginTop: Spacing.sm }}>
+              <Feather name="clock" size={32} color={theme.brandTextDim} />
+              <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
                 No available time slots
               </ThemedText>
             </View>
@@ -686,12 +693,12 @@ export default function BookingFlow({
                   style={[
                     styles.slotButton,
                     {
-                      backgroundColor: theme.success + "20",
-                      borderColor: theme.success,
+                      backgroundColor: theme.brandBgElevated,
+                      borderColor: theme.brandSurfaceBorder,
                     },
                   ]}
                 >
-                  <ThemedText style={{ fontWeight: "600" }}>{slot.startTime}</ThemedText>
+                  <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{slot.startTime}</ThemedText>
                 </Pressable>
               ))}
             </View>
@@ -700,19 +707,19 @@ export default function BookingFlow({
       )}
 
       {step === 4 && (
-        <View style={[styles.stepContent, { alignItems: "center", paddingVertical: Spacing.xl }]}>
-          <Feather name="check-circle" size={64} color={theme.success} />
-          <ThemedText type="body" style={{ fontWeight: "700", fontSize: 22, marginTop: Spacing.md, textAlign: "center" }}>
+        <View style={[styles.stepContent, styles.successContainer]}>
+          <Feather name="check-circle" size={64} color={theme.brandSuccess} />
+          <ThemedText style={[styles.successTitle, { color: theme.brandCream }]}>
             Booking confirmed!
           </ThemedText>
-          <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+          <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm, textAlign: "center" }}>
             Your appointment has been booked and payment processed.
           </ThemedText>
           <Pressable
             onPress={() => navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))}
-            style={[styles.confirmButton, { backgroundColor: theme.primary, marginTop: Spacing.xl }]}
+            style={[styles.primaryButton, { backgroundColor: theme.brandPrimary, marginTop: Spacing.xl }]}
           >
-            <ThemedText style={styles.confirmButtonText}>Done</ThemedText>
+            <ThemedText style={[styles.primaryButtonText, { color: theme.brandPrimaryText }]}>Done</ThemedText>
           </Pressable>
         </View>
       )}
@@ -723,27 +730,27 @@ export default function BookingFlow({
         animationType="fade"
         onRequestClose={() => setShowIncompatibleModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <Feather name="alert-circle" size={40} color={theme.warning} />
-            <ThemedText type="body" style={[styles.modalTitle, { fontWeight: "600" }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.brandBgElevated }]}>
+            <Feather name="alert-circle" size={40} color={theme.brandGold} />
+            <ThemedText type="body" style={[styles.modalTitle, { fontWeight: "600", color: theme.brandCream }]}>
               Slot Unavailable
             </ThemedText>
-            <ThemedText style={[styles.modalMessage, { color: theme.textSecondary }]}>
+            <ThemedText style={[styles.modalMessage, { color: theme.brandTextDim }]}>
               {incompatibleReason}
             </ThemedText>
             <View style={styles.modalButtons}>
               <Pressable
                 onPress={() => setShowIncompatibleModal(false)}
-                style={[styles.modalButton, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.modalButton, { backgroundColor: theme.brandSurfaceBorder }]}
               >
-                <ThemedText>Find Another Time</ThemedText>
+                <ThemedText style={{ color: theme.brandCream }}>Find Another Time</ThemedText>
               </Pressable>
               <Pressable
                 onPress={handleRequestAccommodation}
-                style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                style={[styles.modalButton, { backgroundColor: theme.brandPrimary }]}
               >
-                <ThemedText style={{ color: "#FFFFFF" }}>Request Accommodation</ThemedText>
+                <ThemedText style={{ color: theme.brandPrimaryText }}>Request Accommodation</ThemedText>
               </Pressable>
             </View>
           </View>
@@ -755,33 +762,45 @@ export default function BookingFlow({
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing.md,
   },
-  header: {
+  headerBar: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    marginHorizontal: -Spacing.md,
+    marginTop: -Spacing.md,
     marginBottom: Spacing.md,
   },
-  progressContainer: {
+  stepperRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.lg,
   },
-  progressItem: {
+  stepperItem: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
+  },
+  stepConnector: {
+    height: 2,
     flex: 1,
   },
-  progressDot: {
+  stepDotWrap: {
+    alignItems: "center",
+  },
+  stepDot: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: BorderRadius.round,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
   },
-  progressLabel: {
-    fontSize: 11,
-    marginTop: 4,
+  stepLabel: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xxs,
+    fontWeight: "600",
   },
   backButton: {
     flexDirection: "row",
@@ -793,17 +812,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
+    borderWidth: 1,
     marginBottom: Spacing.md,
     gap: Spacing.sm,
   },
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: FontSizes.sm,
   },
   stepContent: {
     minHeight: 200,
   },
   stepTitle: {
+    ...Typography.h4,
     marginBottom: Spacing.md,
   },
   loader: {
@@ -821,17 +842,21 @@ const styles = StyleSheet.create({
   },
   authText: {
     textAlign: "center",
+    ...Typography.body,
   },
   serviceCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     marginBottom: Spacing.sm,
   },
   serviceInfo: {
     flex: 1,
+  },
+  serviceName: {
+    ...Typography.h4,
   },
   serviceMeta: {
     flexDirection: "row",
@@ -846,6 +871,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: Spacing.xs,
   },
+  priceText: {
+    ...Typography.h4,
+    fontWeight: "700",
+  },
   selectedServiceSummary: {
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
@@ -858,6 +887,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     marginBottom: Spacing.sm,
   },
+  monthTitle: {
+    ...Typography.h3,
+  },
   weekdayRow: {
     flexDirection: "row",
     gap: Spacing.xs,
@@ -867,8 +899,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   weekdayText: {
-    fontSize: 12,
+    ...Typography.small,
     fontWeight: "600",
+    textTransform: "uppercase",
   },
   calendarGrid: {
     flexDirection: "row",
@@ -883,49 +916,31 @@ const styles = StyleSheet.create({
   slotButton: {
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
   },
-  holdBanner: {
-    flexDirection: "row",
+  successContainer: {
     alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.md,
+    paddingVertical: Spacing.xl,
   },
-  confirmationCard: {
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
+  successTitle: {
+    ...Typography.h3,
+    marginTop: Spacing.md,
+    textAlign: "center",
   },
-  confirmRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: Spacing.sm,
-  },
-  totalRow: {
-    borderTopWidth: 1,
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.md,
-  },
-  confirmButton: {
-    flexDirection: "row",
+  primaryButton: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing["2xl"],
     borderRadius: BorderRadius.full,
-    gap: Spacing.sm,
+    minHeight: Spacing.buttonHeight,
   },
-  confirmButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 16,
+  primaryButtonText: {
+    ...Typography.button,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.xl,
@@ -944,6 +959,7 @@ const styles = StyleSheet.create({
   modalMessage: {
     textAlign: "center",
     marginBottom: Spacing.lg,
+    ...Typography.body,
   },
   modalButtons: {
     width: "100%",
