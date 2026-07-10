@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useStripe } from "@stripe/stripe-react-native";
 import {
   StyleSheet,
   View,
@@ -70,6 +71,7 @@ export default function BookingFlow({
   const { theme } = useTheme();
   const { getToken, isAuthenticated } = useAuth();
   const navigation = useNavigation<NavigationProp>();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const [step, setStep] = useState<Step>(1);
   const [services, setServices] = useState<BookingService[]>([]);
@@ -293,6 +295,22 @@ export default function BookingFlow({
 
       if (response.success) {
         setHold(response);
+
+        const paymentData = await api.createHoldPaymentIntent(response.holdId);
+
+        const { error: initError } = await initPaymentSheet({
+          merchantDisplayName: "Outsyde",
+          paymentIntentClientSecret: paymentData.clientSecret,
+          defaultBillingDetails: { name: providerName },
+        });
+        if (initError) throw new Error(initError.message);
+
+        const { error: presentError } = await presentPaymentSheet();
+        if (presentError) {
+          if (presentError.code === "Canceled") return;
+          throw new Error(presentError.message);
+        }
+
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setStep(4);
       }
@@ -681,87 +699,20 @@ export default function BookingFlow({
         </View>
       )}
 
-      {step === 4 && hold && (
-        <View style={styles.stepContent}>
-          <View style={[styles.holdBanner, { backgroundColor: theme.warning + "20" }]}>
-            <Feather name="clock" size={16} color={theme.warning} />
-            <ThemedText style={{ color: theme.warning, marginLeft: Spacing.xs, fontWeight: "600" }}>
-              Slot held for {formatHoldTime(holdTimeRemaining)}
-            </ThemedText>
-          </View>
-
-          <ThemedText type="body" style={[styles.stepTitle, { fontWeight: "600" }]}>
-            Confirm Booking
+      {step === 4 && (
+        <View style={[styles.stepContent, { alignItems: "center", paddingVertical: Spacing.xl }]}>
+          <Feather name="check-circle" size={64} color={theme.success} />
+          <ThemedText type="body" style={{ fontWeight: "700", fontSize: 22, marginTop: Spacing.md, textAlign: "center" }}>
+            Booking confirmed!
           </ThemedText>
-
-          <View style={[styles.confirmationCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={styles.confirmRow}>
-              <ThemedText style={{ color: theme.textSecondary }}>Service</ThemedText>
-              <ThemedText style={{ fontWeight: "600" }}>{hold?.service?.name || selectedService?.name || "Service"}</ThemedText>
-            </View>
-            <View style={styles.confirmRow}>
-              <ThemedText style={{ color: theme.textSecondary }}>Duration</ThemedText>
-              <ThemedText>{formatDuration(hold?.service?.durationMinutes || selectedService?.durationMinutes || 60)}</ThemedText>
-            </View>
-            <View style={styles.confirmRow}>
-              <ThemedText style={{ color: theme.textSecondary }}>Date</ThemedText>
-              <ThemedText>{new Date((hold?.slot?.date || selectedDate || "") + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</ThemedText>
-            </View>
-            <View style={styles.confirmRow}>
-              <ThemedText style={{ color: theme.textSecondary }}>Time</ThemedText>
-              <ThemedText>{(hold?.slot?.startTime || selectedSlot?.startTime || "")} - {(hold?.slot?.endTime || selectedSlot?.endTime || "")}</ThemedText>
-            </View>
-            <View style={[styles.confirmRow, { borderTopColor: theme.border, borderTopWidth: 1, marginTop: Spacing.xs }]}>
-              <ThemedText style={{ color: theme.textSecondary }}>Subtotal</ThemedText>
-              <ThemedText>
-                {hold?.feeBreakdown
-                  ? formatAmount(hold.feeBreakdown.subtotalAmount)
-                  : formatPrice(hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
-              </ThemedText>
-            </View>
-            {hold?.feeBreakdown?.consumerServiceFeeAmount != null ? (
-              <View style={styles.confirmRow}>
-                <ThemedText style={{ color: theme.textSecondary }}>Outsyde Service Fee</ThemedText>
-                <ThemedText>{formatAmount(hold.feeBreakdown.consumerServiceFeeAmount)}</ThemedText>
-              </View>
-            ) : null}
-            {hold?.feeBreakdown?.taxAmount != null ? (
-              <View style={styles.confirmRow}>
-                <ThemedText style={{ color: theme.textSecondary }}>Sales Tax</ThemedText>
-                <ThemedText>{formatAmount(hold.feeBreakdown.taxAmount)}</ThemedText>
-              </View>
-            ) : null}
-            <View style={[styles.confirmRow, styles.totalRow, { borderTopColor: theme.border }]}>
-              <ThemedText type="body" style={{ fontWeight: "600" }}>Total</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary, fontSize: 18 }}>
-                {hold?.feeBreakdown
-                  ? formatAmount(hold.feeBreakdown.grossChargeAmount)
-                  : formatPrice(hold?.service?.priceCents ?? selectedService?.priceCents ?? 0)}
-              </ThemedText>
-            </View>
-          </View>
-
+          <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.sm, textAlign: "center" }}>
+            Your appointment has been booked and payment processed.
+          </ThemedText>
           <Pressable
-            onPress={handleConfirmBooking}
-            disabled={confirming || holdTimeRemaining <= 0}
-            style={[
-              styles.confirmButton,
-              {
-                backgroundColor: holdTimeRemaining <= 0 ? theme.textMuted : theme.primary,
-                opacity: confirming ? 0.7 : 1,
-              },
-            ]}
+            onPress={() => navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))}
+            style={[styles.confirmButton, { backgroundColor: theme.primary, marginTop: Spacing.xl }]}
           >
-            {confirming ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Feather name="credit-card" size={20} color="#FFFFFF" />
-                <ThemedText style={styles.confirmButtonText}>
-                  {holdTimeRemaining <= 0 ? "Hold Expired" : "Pay Now"}
-                </ThemedText>
-              </>
-            )}
+            <ThemedText style={styles.confirmButtonText}>Done</ThemedText>
           </Pressable>
         </View>
       )}
