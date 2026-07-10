@@ -41,6 +41,7 @@ interface BookingFlowProps {
   providerId: string;
   providerType: "photographer" | "business";
   providerName: string;
+  staffMemberId?: string | null;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -64,6 +65,7 @@ export default function BookingFlow({
   providerId,
   providerType,
   providerName,
+  staffMemberId,
 }: BookingFlowProps) {
   const { theme } = useTheme();
   const { getToken, isAuthenticated } = useAuth();
@@ -286,7 +288,8 @@ export default function BookingFlow({
         serviceId: selectedService.id,
         date: selectedDate,
         startTime: slot.startTime,
-      });
+        ...(staffMemberId ? { staffMemberId } : {}),
+      } as Parameters<typeof api.createBookingHold>[1]);
 
       if (response.success) {
         setHold(response);
