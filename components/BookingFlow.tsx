@@ -4,6 +4,7 @@ import {
   StyleSheet,
   View,
   Pressable,
+  ScrollView,
   ActivityIndicator,
   Dimensions,
   Modal,
@@ -61,6 +62,21 @@ const formatDuration = (minutes: number): string => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+};
+
+const formatTime = (time24: string): string => {
+  const [hourStr, minuteStr] = time24.split(":");
+  const hour = parseInt(hourStr, 10);
+  const minute = minuteStr;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return minute === "00" ? `${hour12}:00 ${period}` : `${hour12}:${minute} ${period}`;
+};
+
+const groupSlots = (slots: AvailabilitySlot[]) => {
+  const morning = slots.filter((s) => parseInt(s.startTime.split(":")[0], 10) < 12);
+  const afternoon = slots.filter((s) => parseInt(s.startTime.split(":")[0], 10) >= 12);
+  return { morning, afternoon };
 };
 
 export default function BookingFlow({
@@ -718,32 +734,137 @@ export default function BookingFlow({
                 {validating ? "Validating..." : creatingHold ? "Holding slot..." : "Loading..."}
               </ThemedText>
             </View>
-          ) : slots.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Feather name="clock" size={32} color={theme.brandTextDim} />
-              <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                No available time slots
-              </ThemedText>
-            </View>
-          ) : (
-            <View style={styles.slotsGrid}>
-              {slots.map((slot) => (
-                <Pressable
-                  key={slot.id}
-                  onPress={() => handleSlotSelect(slot)}
-                  style={[
-                    styles.slotButton,
-                    {
-                      backgroundColor: theme.brandBgElevated,
-                      borderColor: theme.brandSurfaceBorder,
-                    },
-                  ]}
-                >
-                  <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{slot.startTime}</ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          ) : (() => {
+            const displaySlots = slots.filter((slot) => {
+              const minutes = parseInt(slot.startTime.split(":")[1], 10);
+              return minutes === 0 || minutes === 30;
+            });
+            const { morning, afternoon } = groupSlots(displaySlots);
+            return (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                {morning.length > 0 && (
+                  <>
+                    <ThemedText style={[styles.slotGroupLabel, { color: theme.brandTextDim }]}>
+                      Morning
+                    </ThemedText>
+                    {morning.map((slot) => (
+                      <Pressable
+                        key={slot.id}
+                        onPress={() => handleSlotSelect(slot)}
+                        disabled={slot.status !== "available"}
+                        style={[
+                          styles.slotListRow,
+                          {
+                            backgroundColor: selectedSlot?.id === slot.id ? accentSoft : theme.brandBgElevated,
+                            borderColor: selectedSlot?.id === slot.id ? accent : theme.brandSurfaceBorder,
+                          },
+                          slot.status !== "available" && styles.slotListRowUnavailable,
+                        ]}
+                      >
+                        <View>
+                          <ThemedText
+                            style={[
+                              styles.slotListTime,
+                              { color: selectedSlot?.id === slot.id ? accent : theme.brandCream },
+                            ]}
+                          >
+                            {formatTime(slot.startTime)}
+                          </ThemedText>
+                          <ThemedText style={[styles.slotListEnd, { color: theme.brandTextDim }]}>
+                            → {formatTime(slot.endTime)}
+                          </ThemedText>
+                        </View>
+                        {selectedSlot?.id === slot.id ? (
+                          <View style={[styles.slotCheckCircle, { backgroundColor: accent }]}>
+                            <Feather name="check" size={12} color={theme.brandBg} />
+                          </View>
+                        ) : slot.status === "available" ? (
+                          <View style={[styles.slotDotOpen, { backgroundColor: theme.brandSuccess }]} />
+                        ) : (
+                          <View style={[styles.slotDotTaken, { backgroundColor: theme.brandSurfaceBorder }]} />
+                        )}
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+
+                {afternoon.length > 0 && (
+                  <>
+                    <ThemedText
+                      style={[styles.slotGroupLabel, { color: theme.brandTextDim, marginTop: Spacing.sm }]}
+                    >
+                      Afternoon
+                    </ThemedText>
+                    {afternoon.map((slot) => (
+                      <Pressable
+                        key={slot.id}
+                        onPress={() => handleSlotSelect(slot)}
+                        disabled={slot.status !== "available"}
+                        style={[
+                          styles.slotListRow,
+                          {
+                            backgroundColor: selectedSlot?.id === slot.id ? accentSoft : theme.brandBgElevated,
+                            borderColor: selectedSlot?.id === slot.id ? accent : theme.brandSurfaceBorder,
+                          },
+                          slot.status !== "available" && styles.slotListRowUnavailable,
+                        ]}
+                      >
+                        <View>
+                          <ThemedText
+                            style={[
+                              styles.slotListTime,
+                              { color: selectedSlot?.id === slot.id ? accent : theme.brandCream },
+                            ]}
+                          >
+                            {formatTime(slot.startTime)}
+                          </ThemedText>
+                          <ThemedText style={[styles.slotListEnd, { color: theme.brandTextDim }]}>
+                            → {formatTime(slot.endTime)}
+                          </ThemedText>
+                        </View>
+                        {selectedSlot?.id === slot.id ? (
+                          <View style={[styles.slotCheckCircle, { backgroundColor: accent }]}>
+                            <Feather name="check" size={12} color={theme.brandBg} />
+                          </View>
+                        ) : slot.status === "available" ? (
+                          <View style={[styles.slotDotOpen, { backgroundColor: theme.brandSuccess }]} />
+                        ) : (
+                          <View style={[styles.slotDotTaken, { backgroundColor: theme.brandSurfaceBorder }]} />
+                        )}
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+
+                {displaySlots.length === 0 && (
+                  <ThemedText style={[styles.slotEmptyText, { color: theme.brandTextDim }]}>
+                    No available times for this date.
+                  </ThemedText>
+                )}
+
+                {selectedSlot && (
+                  <Pressable
+                    onPress={() => handleSlotSelect(selectedSlot)}
+                    style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.lg }]}
+                  >
+                    <ThemedText style={[styles.primaryButtonText, { color: theme.brandBg }]}>
+                      {`Confirm ${formatTime(selectedSlot.startTime)} →`}
+                    </ThemedText>
+                  </Pressable>
+                )}
+                {!selectedSlot && displaySlots.length > 0 && (
+                  <Pressable
+                    disabled
+                    style={[styles.primaryButton, { backgroundColor: theme.brandSurfaceBorder, marginTop: Spacing.lg }]}
+                  >
+                    <ThemedText style={[styles.primaryButtonText, { color: theme.brandTextDim }]}>
+                      Select a time
+                    </ThemedText>
+                  </Pressable>
+                )}
+              </ScrollView>
+            );
+          })()}
         </View>
       )}
 
@@ -949,16 +1070,55 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: Spacing.xs,
   },
-  slotsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
+  slotGroupLabel: {
+    fontSize: FontSizes.xs,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.xs,
+    paddingLeft: 2,
   },
-  slotButton: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
+  slotListRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm + 4,
+    marginBottom: Spacing.xs + 2,
     borderWidth: 1,
+  },
+  slotListRowUnavailable: {
+    opacity: 0.28,
+  },
+  slotListTime: {
+    fontSize: FontSizes.md,
+    fontWeight: "500",
+  },
+  slotListEnd: {
+    fontSize: FontSizes.xs,
+    marginTop: 2,
+  },
+  slotCheckCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  slotDotOpen: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  slotDotTaken: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  slotEmptyText: {
+    fontSize: FontSizes.sm,
+    textAlign: "center",
+    marginTop: Spacing.xl,
   },
   successContainer: {
     alignItems: "center",
