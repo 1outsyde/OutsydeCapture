@@ -1691,6 +1691,7 @@ export default function VendorDetailScreen({ route }: Props) {
           providerType="business"
           providerName={profile?.name || ""}
           staffMemberId={selectedStaffId}
+          accentColor={accentColor}
         />
       );
     }

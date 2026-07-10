@@ -43,6 +43,7 @@ interface BookingFlowProps {
   providerType: "photographer" | "business";
   providerName: string;
   staffMemberId?: string | null;
+  accentColor?: string;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -67,8 +68,12 @@ export default function BookingFlow({
   providerType,
   providerName,
   staffMemberId,
+  accentColor,
 }: BookingFlowProps) {
   const { theme } = useTheme();
+  const accent = accentColor || theme.brandGold;
+  const accentDim = accentColor ? accentColor + "CC" : theme.brandGoldDim;
+  const accentSoft = accentColor ? accentColor + "25" : theme.brandGold + "25";
   const { getToken, isAuthenticated } = useAuth();
   const navigation = useNavigation<NavigationProp>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -450,18 +455,18 @@ export default function BookingFlow({
     };
 
     if (isSelected) {
-      base.backgroundColor = theme.brandGold;
+      base.backgroundColor = accent;
     } else if (status === "available") {
       base.backgroundColor = theme.brandSuccess + "25";
     } else if (status === "partial") {
-      base.backgroundColor = theme.brandGold + "25";
+      base.backgroundColor = accentSoft;
     } else if (status === "unavailable" || status === "past") {
       base.backgroundColor = theme.brandSurfaceBorder;
     }
 
     if (isToday && !isSelected) {
       base.borderWidth = 2;
-      base.borderColor = theme.brandGold;
+      base.borderColor = accent;
     }
 
     return base;
@@ -498,14 +503,14 @@ export default function BookingFlow({
         {[1, 2, 3, 4].map((s, i) => (
           <View key={s} style={styles.stepperItem}>
             {i > 0 && (
-              <View style={[styles.stepConnector, { backgroundColor: theme.brandSurfaceBorder }]} />
+              <View style={[styles.stepConnector, { backgroundColor: step >= s ? accentDim : theme.brandSurfaceBorder }]} />
             )}
             <View style={styles.stepDotWrap}>
               <View
                 style={[
                   styles.stepDot,
                   {
-                    backgroundColor: step >= s ? theme.brandGold : theme.brandSurfaceBorder,
+                    backgroundColor: step >= s ? accent : theme.brandSurfaceBorder,
                   },
                 ]}
               >
@@ -517,7 +522,7 @@ export default function BookingFlow({
                   </ThemedText>
                 )}
               </View>
-              <ThemedText style={[styles.stepLabel, { color: step >= s ? theme.brandGold : theme.brandTextDim }]}>
+              <ThemedText style={[styles.stepLabel, { color: step >= s ? accent : theme.brandTextDim }]}>
                 {s === 1 ? "Service" : s === 2 ? "Date" : s === 3 ? "Time" : "Confirm"}
               </ThemedText>
             </View>
@@ -527,8 +532,8 @@ export default function BookingFlow({
 
       {step > 1 && !hold && (
         <Pressable onPress={goBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={20} color={theme.brandGold} />
-          <ThemedText style={{ color: theme.brandGold, marginLeft: Spacing.xs }}>Back</ThemedText>
+          <Feather name="arrow-left" size={20} color={accent} />
+          <ThemedText style={{ color: accent, marginLeft: Spacing.xs }}>Back</ThemedText>
         </Pressable>
       )}
 
@@ -548,7 +553,7 @@ export default function BookingFlow({
             Select a Service
           </ThemedText>
           {loadingServices ? (
-            <ActivityIndicator size="large" color={theme.brandGold} style={styles.loader} />
+            <ActivityIndicator size="large" color={accent} style={styles.loader} />
           ) : services.length === 0 ? (
             <View style={styles.emptyState}>
               <Feather name="calendar" size={32} color={theme.brandTextDim} />
@@ -588,7 +593,7 @@ export default function BookingFlow({
                   </View>
                 </View>
                 <View style={styles.servicePrice}>
-                  <ThemedText style={[styles.priceText, { color: theme.brandGold }]}>
+                  <ThemedText style={[styles.priceText, { color: accent }]}>
                     {formatPrice(service.priceCents)}
                   </ThemedText>
                   <Feather name="chevron-right" size={20} color={theme.brandTextDim} />
@@ -604,7 +609,7 @@ export default function BookingFlow({
           <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Select a Date
           </ThemedText>
-          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.brandGold + "15" }]}>
+          <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft }]}>
             <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
             <ThemedText style={{ color: theme.brandTextDim }}>
               {formatDuration(selectedService?.durationMinutes || 0)} • {formatPrice(selectedService?.priceCents || 0)}
@@ -630,7 +635,7 @@ export default function BookingFlow({
           </View>
 
           {loadingCalendar ? (
-            <ActivityIndicator size="large" color={theme.brandGold} style={styles.loader} />
+            <ActivityIndicator size="large" color={accent} style={styles.loader} />
           ) : (
             <View style={styles.calendarGrid}>
               {calendarGrid.map((cell, index) => (
@@ -663,7 +668,7 @@ export default function BookingFlow({
           <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Select a Time
           </ThemedText>
-          <View style={[styles.selectedServiceSummary, { backgroundColor: theme.brandGold + "15" }]}>
+          <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft }]}>
             <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
             <ThemedText style={{ color: theme.brandTextDim }}>
               {selectedDateDisplay} • {formatPrice(selectedService?.priceCents || 0)}
@@ -672,7 +677,7 @@ export default function BookingFlow({
 
           {loadingSlots || validating || creatingHold ? (
             <View style={styles.loader}>
-              <ActivityIndicator size="large" color={theme.brandGold} />
+              <ActivityIndicator size="large" color={accent} />
               <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
                 {validating ? "Validating..." : creatingHold ? "Holding slot..." : "Loading..."}
               </ThemedText>
