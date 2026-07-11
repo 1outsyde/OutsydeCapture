@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { StyleSheet, View, Pressable, RefreshControl } from "react-native";
+import { Alert, StyleSheet, View, Pressable, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -15,7 +15,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
-import { getMyAppointments, BusinessAppointment } from "@/services/api";
+import api, { getMyAppointments, BusinessAppointment } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -341,10 +341,53 @@ export default function SessionsScreen() {
             <ThemedText type="h4" numberOfLines={1} style={styles.photographerName}>
               {appt.businessName ?? "Business"}
             </ThemedText>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
-              <ThemedText type="caption" style={{ color: statusColor }}>
-                {statusLabel}
-              </ThemedText>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
+                <ThemedText type="caption" style={{ color: statusColor }}>
+                  {statusLabel}
+                </ThemedText>
+              </View>
+              {appt.status === "confirmed" && (
+                <Pressable
+                  hitSlop={8}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    const doCancel = async () => {
+                      try {
+                        const token = await getToken();
+                        if (!token) return;
+                        const result = await api.cancelAppointment(token, appt.id);
+                        await fetchBusinessAppointments();
+                        const lines: string[] = [];
+                        if (result.refundAmountCents > 0) {
+                          lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
+                        }
+                        if (result.feeAmountCents > 0 && result.feeCharged) {
+                          lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
+                        } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
+                          lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the business will collect this separately`);
+                        }
+                        Alert.alert(
+                          "Appointment canceled",
+                          lines.length > 0 ? lines.join("\n") : "Appointment canceled",
+                        );
+                      } catch (error: any) {
+                        Alert.alert("Error", error.message || "Failed to cancel appointment");
+                      }
+                    };
+                    Alert.alert(
+                      "Cancel this appointment?",
+                      "Depending on this business's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
+                      [
+                        { text: "Keep appointment", style: "cancel" },
+                        { text: "Cancel appointment", style: "destructive", onPress: doCancel },
+                      ],
+                    );
+                  }}
+                >
+                  <Feather name="x-circle" size={18} color={theme.textSecondary} />
+                </Pressable>
+              )}
             </View>
           </View>
           {appt.staffDisplayName ? (
