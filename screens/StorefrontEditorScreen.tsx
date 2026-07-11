@@ -254,6 +254,13 @@ export default function StorefrontEditorScreen() {
     priceCents: 0,
     durationMinutes: 60,
     status: "draft",
+    fullRefundWindow: undefined,
+    hasPartialRefund: false,
+    partialRefundWindow: undefined,
+    partialRefundPercentage: null,
+    hasCancellationFee: false,
+    cancellationFeeType: null,
+    cancellationFeeAmount: null,
   });
 
   const fetchData = useCallback(async () => {
@@ -640,6 +647,7 @@ export default function StorefrontEditorScreen() {
 
   const openServiceForm = (service?: VendorService) => {
     if (service) {
+      const s = service as any;
       setEditingService(service);
       setServiceForm({
         name: service.name,
@@ -647,8 +655,16 @@ export default function StorefrontEditorScreen() {
         priceCents: service.priceCents,
         durationMinutes: service.durationMinutes || 60,
         status: service.status,
+        fullRefundWindow: s.fullRefundWindow ?? undefined,
+        hasPartialRefund: s.hasPartialRefund ?? false,
+        partialRefundWindow: s.partialRefundWindow ?? undefined,
+        partialRefundPercentage: s.partialRefundPercentage ?? null,
+        hasCancellationFee: s.hasCancellationFee ?? false,
+        cancellationFeeType: s.cancellationFeeType ?? null,
+        cancellationFeeAmount: s.cancellationFeeAmount ?? null,
       });
     } else {
+      const biz = business as any;
       setEditingService(null);
       setServiceForm({
         name: "",
@@ -656,6 +672,13 @@ export default function StorefrontEditorScreen() {
         priceCents: 0,
         durationMinutes: 60,
         status: "draft",
+        fullRefundWindow: biz?.fullRefundWindow ?? undefined,
+        hasPartialRefund: biz?.hasPartialRefund ?? false,
+        partialRefundWindow: biz?.partialRefundWindow ?? undefined,
+        partialRefundPercentage: biz?.partialRefundPercentage ?? null,
+        hasCancellationFee: biz?.hasCancellationFee ?? false,
+        cancellationFeeType: biz?.cancellationFeeType ?? null,
+        cancellationFeeAmount: biz?.cancellationFeeAmount ?? null,
       });
     }
     setServiceModalVisible(true);
@@ -2149,6 +2172,207 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
           />
+
+          {/* ── Cancellation Policy ── */}
+          <Text style={[styles.inputLabel, { marginTop: 8 }]}>Cancellation Policy</Text>
+
+          <Text style={{ fontSize: 13, color: theme.brandTextDim, marginBottom: 8 }}>
+            Full refund until
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {([ ['1_week', '1 week'], ['48_hours', '48 hours'], ['24_hours', '24 hours'], ['1_hour', '1 hour'], ['never', 'Never'] ] as const).map(([val, label]) => {
+              const selected = serviceForm.fullRefundWindow === val;
+              return (
+                <Pressable
+                  key={val}
+                  onPress={() => setServiceForm({ ...serviceForm, fullRefundWindow: val })}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 8,
+                    borderWidth: 1.5,
+                    borderColor: selected ? theme.brandGold : theme.brandSurface,
+                    backgroundColor: selected ? theme.brandGold + "22" : theme.brandSurface,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: selected ? theme.brandGold : theme.brandTextDim, fontWeight: selected ? "600" : "400" }}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.switchRow}>
+            <Text style={styles.inputLabel}>Offer partial refund after that?</Text>
+            <Switch
+              value={serviceForm.hasPartialRefund ?? false}
+              onValueChange={(v) => setServiceForm({ ...serviceForm, hasPartialRefund: v })}
+              trackColor={{ true: theme.brandGold }}
+            />
+          </View>
+
+          {serviceForm.hasPartialRefund && (
+            <>
+              <Text style={{ fontSize: 13, color: theme.brandTextDim, marginBottom: 8 }}>
+                Partial refund until
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                {([ ['1_week', '1 week'], ['48_hours', '48 hours'], ['24_hours', '24 hours'], ['1_hour', '1 hour'], ['never', 'Never'] ] as const).map(([val, label]) => {
+                  const selected = serviceForm.partialRefundWindow === val;
+                  return (
+                    <Pressable
+                      key={val}
+                      onPress={() => setServiceForm({ ...serviceForm, partialRefundWindow: val })}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: 8,
+                        borderWidth: 1.5,
+                        borderColor: selected ? theme.brandGold : theme.brandSurface,
+                        backgroundColor: selected ? theme.brandGold + "22" : theme.brandSurface,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, color: selected ? theme.brandGold : theme.brandTextDim, fontWeight: selected ? "600" : "400" }}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.inputLabel}>Refund percentage</Text>
+              <TextInput
+                style={styles.input}
+                value={serviceForm.partialRefundPercentage != null ? serviceForm.partialRefundPercentage.toString() : ""}
+                onChangeText={(v) =>
+                  setServiceForm({
+                    ...serviceForm,
+                    partialRefundPercentage: v ? parseInt(v, 10) : null,
+                  })
+                }
+                placeholder="e.g. 50"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+              />
+            </>
+          )}
+
+          <View style={styles.switchRow}>
+            <Text style={styles.inputLabel}>Cancellation fee?</Text>
+            <Switch
+              value={serviceForm.hasCancellationFee ?? false}
+              onValueChange={(v) => setServiceForm({ ...serviceForm, hasCancellationFee: v })}
+              trackColor={{ true: theme.brandGold }}
+            />
+          </View>
+
+          {serviceForm.hasCancellationFee && (
+            <>
+              <Text style={{ fontSize: 13, color: theme.brandTextDim, marginBottom: 8 }}>
+                Fee type
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                {([ ['flat', 'Flat amount'], ['percentage', 'Percentage of revenue'] ] as const).map(([val, label]) => {
+                  const selected = serviceForm.cancellationFeeType === val;
+                  return (
+                    <Pressable
+                      key={val}
+                      onPress={() => setServiceForm({ ...serviceForm, cancellationFeeType: val })}
+                      style={{
+                        flex: 1,
+                        paddingHorizontal: 10,
+                        paddingVertical: 7,
+                        borderRadius: 8,
+                        borderWidth: 1.5,
+                        borderColor: selected ? theme.brandGold : theme.brandSurface,
+                        backgroundColor: selected ? theme.brandGold + "22" : theme.brandSurface,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, color: selected ? theme.brandGold : theme.brandTextDim, fontWeight: selected ? "600" : "400", textAlign: "center" }}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.inputLabel}>
+                {serviceForm.cancellationFeeType === "flat" ? "Fee amount (in dollars)" : "Fee percentage"}
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={
+                  serviceForm.cancellationFeeType === "flat"
+                    ? serviceForm.cancellationFeeAmount != null
+                      ? (serviceForm.cancellationFeeAmount / 100).toString()
+                      : ""
+                    : serviceForm.cancellationFeeAmount != null
+                      ? serviceForm.cancellationFeeAmount.toString()
+                      : ""
+                }
+                onChangeText={(v) => {
+                  if (serviceForm.cancellationFeeType === "flat") {
+                    setServiceForm({ ...serviceForm, cancellationFeeAmount: v ? Math.round(parseFloat(v) * 100) : null });
+                  } else {
+                    setServiceForm({ ...serviceForm, cancellationFeeAmount: v ? parseInt(v, 10) : null });
+                  }
+                }}
+                placeholder={serviceForm.cancellationFeeType === "flat" ? "0.00" : "e.g. 10"}
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="decimal-pad"
+              />
+            </>
+          )}
+
+          {editingService && (
+            <Pressable
+              onPress={async () => {
+                const doApply = async () => {
+                  try {
+                    const token = await getToken();
+                    if (!token) return;
+                    const result = await api.applyCancellationPolicyToAll(token, editingService.id);
+                    fetchData();
+                    if (result.updatedCount === 0) {
+                      Alert.alert("Done", "This is now your default for new services.");
+                    } else {
+                      Alert.alert("Done", `Applied to ${result.updatedCount} other service(s).`);
+                    }
+                  } catch (error: any) {
+                    Alert.alert("Error", error.message || "Failed to apply policy");
+                  }
+                };
+
+                if (services.length > 1) {
+                  Alert.alert(
+                    "Apply to all services?",
+                    "This will overwrite the cancellation policy on ALL your other existing services with this one's settings. This can't be undone.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Confirm", style: "destructive", onPress: doApply },
+                    ],
+                  );
+                } else {
+                  doApply();
+                }
+              }}
+              style={{
+                borderWidth: 1.5,
+                borderColor: theme.brandGold,
+                borderRadius: 8,
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Text style={{ color: theme.brandGold, fontSize: 14, fontWeight: "600" }}>
+                Apply to all services
+              </Text>
+            </Pressable>
+          )}
 
           {renderPublishGateWarning()}
 

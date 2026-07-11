@@ -510,6 +510,13 @@ export interface VendorServiceInput {
   priceCents: number;
   durationMinutes?: number;
   status?: ItemStatus;
+  fullRefundWindow?: '1_week' | '48_hours' | '24_hours' | '1_hour' | 'never';
+  hasPartialRefund?: boolean;
+  partialRefundWindow?: '1_week' | '48_hours' | '24_hours' | '1_hour' | 'never' | null;
+  partialRefundPercentage?: number | null;
+  hasCancellationFee?: boolean;
+  cancellationFeeType?: 'flat' | 'percentage' | null;
+  cancellationFeeAmount?: number | null;
 }
 
 export interface AdminStats {
@@ -2749,6 +2756,17 @@ class ApiService {
       body: JSON.stringify(payload),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+  }
+
+  // POST /api/vendor/services/:id/apply-cancellation-policy-to-all
+  async applyCancellationPolicyToAll(authToken: string, serviceId: string): Promise<{ success: boolean; updatedCount: number }> {
+    return this.request<{ success: boolean; updatedCount: number }>(
+      `/api/vendor/services/${serviceId}/apply-cancellation-policy-to-all`,
+      {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${authToken}` },
+      },
+    );
   }
 
   // DELETE /api/vendor/services/:id - Delete a service
