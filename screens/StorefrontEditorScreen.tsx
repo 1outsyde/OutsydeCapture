@@ -112,6 +112,7 @@ export default function StorefrontEditorScreen() {
   const [showPhone, setShowPhone] = useState(true);
   const [showWebsite, setShowWebsite] = useState(true);
   const [showStoreHours, setShowStoreHours] = useState(true);
+  const [hasPhysicalLocation, setHasPhysicalLocation] = useState(true);
   const [responseTimeValue, setResponseTimeValue] = useState(2);
   const [responseTimeUnit, setResponseTimeUnit] =
     useState<ResponseTimeUnit>("hours");
@@ -333,6 +334,7 @@ export default function StorefrontEditorScreen() {
       setShowPhone((biz as any).showPhone !== false);
       setShowWebsite((biz as any).showWebsite !== false);
       setShowStoreHours((biz as any).showStoreHours !== false);
+      setHasPhysicalLocation((biz as any).hasPhysicalLocation !== false);
       setResponseTimeValue(Number((biz as any).responseTimeValue ?? 2));
       setResponseTimeUnit(
         ((biz as any).responseTimeUnit || "hours") as ResponseTimeUnit,
@@ -418,6 +420,7 @@ export default function StorefrontEditorScreen() {
         showPhone,
         showWebsite,
         showStoreHours,
+        hasPhysicalLocation,
         responseTimeValue,
         responseTimeUnit,
         address: profileAddress || undefined,
@@ -1675,7 +1678,16 @@ export default function StorefrontEditorScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Location</Text>
-          <Text style={styles.inputLabel}>Address</Text>
+          <View style={styles.visibilityLabelRow}>
+            <Text style={styles.inputLabel}>Physical Location</Text>
+            {renderVisibilityToggle(hasPhysicalLocation, () =>
+              setHasPhysicalLocation((v) => !v),
+            )}
+          </View>
+          <Text style={styles.visibilityHelp}>
+            Controls whether your business address appears publicly.
+          </Text>
+          <Text style={[styles.inputLabel, { marginTop: 12 }]}>Address</Text>
           <TextInput
             style={styles.input}
             value={profileAddress}
