@@ -843,7 +843,7 @@ export interface BusinessBooking {
   date: string;
   time: string;
   serviceName: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
   amount: number;
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
@@ -2905,6 +2905,19 @@ class ApiService {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ amount }),
+    });
+  }
+
+  // Cancel a confirmed appointment as no-show without issuing a refund
+  async cancelBookingNoRefund(
+    authToken: string,
+    appointmentId: string,
+    reason?: string
+  ): Promise<{ success: boolean; appointment?: any }> {
+    return this.request(`/api/bookings/appointments/${appointmentId}/cancel-no-refund`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ reason }),
     });
   }
 
