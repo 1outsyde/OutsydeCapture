@@ -4,6 +4,7 @@ import {
   storeTokens,
   clearAuthStorage,
 } from "@/utils/tokenStorage";
+import { apiGet } from "@/api/client";
 
 export const API_BASE_URL = "https://outsyde-backend.onrender.com";
 
@@ -4203,4 +4204,30 @@ export function canChangeUsername(user: { username_updated_at?: string | null })
   const daysSinceUpdate =
     (Date.now() - new Date(user.username_updated_at).getTime()) / (1000 * 60 * 60 * 24);
   return daysSinceUpdate >= 14;
+}
+
+export interface BusinessAppointment {
+  id: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  appointmentEndTime: string | null;
+  totalPrice: number;
+  status: string;
+  businessId: string;
+  serviceId: string;
+  staffMemberId: string | null;
+  businessName: string | null;
+  businessLogoImage: string | null;
+  businessCity: string | null;
+  businessState: string | null;
+  businessAddress: string | null;
+  serviceName: string | null;
+  serviceDurationMinutes: number | null;
+  staffDisplayName: string | null;
+  staffProfileImageUrl: string | null;
+}
+
+export async function getMyAppointments(token: string): Promise<BusinessAppointment[]> {
+  const response: any = await apiGet("/api/my-appointments", token);
+  return Array.isArray(response?.appointments) ? response.appointments : [];
 }
