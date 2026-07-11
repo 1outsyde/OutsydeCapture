@@ -15,6 +15,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
+import { getMyAppointments, BusinessAppointment } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -28,6 +29,17 @@ interface Order {
   expectedDate?: string;
 }
 
+type CombinedItem =
+  | { kind: "photographer"; data: Session }
+  | { kind: "business"; data: BusinessAppointment };
+
+const BUSINESS_UPCOMING_STATUSES = new Set(["confirmed", "pending_provider"]);
+const BUSINESS_PAST_STATUSES = new Set(["completed", "canceled", "no_show", "declined", "expired"]);
+
+function getItemDate(item: CombinedItem): string {
+  return item.kind === "photographer" ? item.data.date : item.data.appointmentDate;
+}
+
 export default function SessionsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -38,10 +50,26 @@ export default function SessionsScreen() {
   const [countdown, setCountdown] = useState<string>("");
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [businessAppointments, setBusinessAppointments] = useState<BusinessAppointment[]>([]);
 
   const upcomingSessions = getUpcomingSessions();
   const pastSessions = getPastSessions();
-  const displayedSessions = filter === "upcoming" ? upcomingSessions : pastSessions;
+
+  const upcomingCombined: CombinedItem[] = [
+    ...upcomingSessions.map((s): CombinedItem => ({ kind: "photographer", data: s })),
+    ...businessAppointments
+      .filter((a) => BUSINESS_UPCOMING_STATUSES.has(a.status))
+      .map((a): CombinedItem => ({ kind: "business", data: a })),
+  ].sort((a, b) => getItemDate(a).localeCompare(getItemDate(b)));
+
+  const pastCombined: CombinedItem[] = [
+    ...pastSessions.map((s): CombinedItem => ({ kind: "photographer", data: s })),
+    ...businessAppointments
+      .filter((a) => BUSINESS_PAST_STATUSES.has(a.status))
+      .map((a): CombinedItem => ({ kind: "business", data: a })),
+  ].sort((a, b) => getItemDate(b).localeCompare(getItemDate(a)));
+
+  const displayedItems = filter === "upcoming" ? upcomingCombined : pastCombined;
   const nextSession = upcomingSessions[0];
 
   const fetchActiveOrders = useCallback(async () => {
@@ -100,6 +128,25 @@ export default function SessionsScreen() {
     }
   }, [getToken, isAuthenticated]);
 
+  const fetchBusinessAppointments = useCallback(async () => {
+    if (!isAuthenticated) {
+      setBusinessAppointments([]);
+      return;
+    }
+    try {
+      const token = await getToken();
+      if (!token) {
+        setBusinessAppointments([]);
+        return;
+      }
+      const appts = await getMyAppointments(token);
+      setBusinessAppointments(appts);
+    } catch (error) {
+      console.warn("Failed to fetch business appointments:", error);
+      setBusinessAppointments([]);
+    }
+  }, [getToken, isAuthenticated]);
+
   useEffect(() => {
     if (!nextSession) {
       setCountdown("");
@@ -136,13 +183,14 @@ export default function SessionsScreen() {
 
   useEffect(() => {
     fetchActiveOrders();
-  }, [fetchActiveOrders]);
+    fetchBusinessAppointments();
+  }, [fetchActiveOrders, fetchBusinessAppointments]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refreshSessions(), fetchActiveOrders()]);
+    await Promise.all([refreshSessions(), fetchActiveOrders(), fetchBusinessAppointments()]);
     setRefreshing(false);
-  }, [refreshSessions, fetchActiveOrders]);
+  }, [refreshSessions, fetchActiveOrders, fetchBusinessAppointments]);
 
   const handleSessionPress = (session: Session) => {
     navigation.navigate("SessionDetail", { sessionId: session.id });
@@ -181,72 +229,158 @@ export default function SessionsScreen() {
     }
   };
 
-  const renderSessionCard = (session: Session) => (
-    <Pressable
-      key={session.id}
-      onPress={() => handleSessionPress(session)}
-      style={({ pressed }) => [
-        styles.sessionCard,
-        {
-          backgroundColor: theme.backgroundDefault,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
-        },
-      ]}
-    >
-      <Image
-        source={{ uri: session.photographerAvatar }}
-        style={styles.photographerAvatar}
-        contentFit="cover"
-      />
-      <View style={styles.sessionInfo}>
-        <View style={styles.sessionHeader}>
-          <ThemedText type="h4" numberOfLines={1} style={styles.photographerName}>
-            {session.photographerName}
+  const getBusinessStatusColor = (status: string) => {
+    if (BUSINESS_UPCOMING_STATUSES.has(status)) return theme.success;
+    if (status === "completed") return "#007AFF";
+    if (BUSINESS_PAST_STATUSES.has(status)) return theme.error;
+    return theme.textSecondary;
+  };
+
+  const formatTimeStr = (time: string) => {
+    const [hours, minutes] = time.split(":");
+    const h = parseInt(hours);
+    return `${h % 12 || 12}:${minutes} ${h >= 12 ? "PM" : "AM"}`;
+  };
+
+  const renderCombinedCard = (item: CombinedItem) => {
+    if (item.kind === "photographer") {
+      const session = item.data;
+      const statusColor = getStatusColor(session.status);
+      return (
+        <Pressable
+          key={`photographer-${session.id}`}
+          onPress={() => handleSessionPress(session)}
+          style={({ pressed }) => [
+            styles.sessionCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+        >
+          <Image
+            source={{ uri: session.photographerAvatar }}
+            style={styles.photographerAvatar}
+            contentFit="cover"
+          />
+          <View style={styles.sessionInfo}>
+            <View style={styles.sessionHeader}>
+              <ThemedText type="h4" numberOfLines={1} style={styles.photographerName}>
+                {session.photographerName}
+              </ThemedText>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
+                <ThemedText type="caption" style={{ color: statusColor }}>
+                  {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
+                </ThemedText>
+              </View>
+            </View>
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              {CATEGORY_LABELS[session.sessionType as PhotographyCategory] || session.sessionType}
+            </ThemedText>
+            <View style={styles.sessionMeta}>
+              <View style={styles.metaItem}>
+                <Feather name="calendar" size={14} color={theme.textSecondary} />
+                <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
+                  {formatDate(session.date)}
+                </ThemedText>
+              </View>
+              <View style={styles.metaItem}>
+                <Feather name="clock" size={14} color={theme.textSecondary} />
+                <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
+                  {session.time}
+                </ThemedText>
+              </View>
+            </View>
+            <View style={styles.locationRow}>
+              <Feather name="map-pin" size={14} color={theme.textSecondary} />
+              <ThemedText type="caption" numberOfLines={1} style={{ color: theme.textSecondary, marginLeft: Spacing.xs, flex: 1 }}>
+                {session.location}
+              </ThemedText>
+            </View>
+          </View>
+        </Pressable>
+      );
+    }
+
+    // kind === "business"
+    const appt = item.data;
+    const statusColor = getBusinessStatusColor(appt.status);
+    const statusLabel = appt.status === "pending_provider" ? "Pending" : appt.status.charAt(0).toUpperCase() + appt.status.slice(1);
+    const locationStr = (appt.businessCity && appt.businessState)
+      ? `${appt.businessCity}, ${appt.businessState}`
+      : appt.businessCity || appt.businessState || appt.businessAddress || "";
+    const timeStr = appt.appointmentEndTime
+      ? formatTime(appt.appointmentTime, appt.appointmentEndTime)
+      : formatTimeStr(appt.appointmentTime);
+    const initials = (appt.businessName ?? "?").slice(0, 2).toUpperCase();
+
+    return (
+      <Pressable
+        key={`business-${appt.id}`}
+        onPress={() => {/* future: navigate to business appointment detail */}}
+        style={[
+          styles.sessionCard,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
+        {appt.businessLogoImage ? (
+          <Image
+            source={{ uri: appt.businessLogoImage }}
+            style={styles.photographerAvatar}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[styles.photographerAvatar, styles.initialsCircle, { backgroundColor: theme.primary + "30" }]}>
+            <ThemedText type="caption" style={{ color: theme.primary, fontWeight: "700" }}>
+              {initials}
+            </ThemedText>
+          </View>
+        )}
+        <View style={styles.sessionInfo}>
+          <View style={styles.sessionHeader}>
+            <ThemedText type="h4" numberOfLines={1} style={styles.photographerName}>
+              {appt.businessName ?? "Business"}
+            </ThemedText>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
+              <ThemedText type="caption" style={{ color: statusColor }}>
+                {statusLabel}
+              </ThemedText>
+            </View>
+          </View>
+          {appt.staffDisplayName ? (
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              with {appt.staffDisplayName}
+            </ThemedText>
+          ) : null}
+          <ThemedText type="small" style={{ color: theme.textSecondary }}>
+            {appt.serviceName ?? "Service"}
           </ThemedText>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(session.status) + "20" },
-            ]}
-          >
-            <ThemedText
-              type="caption"
-              style={{ color: getStatusColor(session.status) }}
-            >
-              {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
-            </ThemedText>
+          <View style={styles.sessionMeta}>
+            <View style={styles.metaItem}>
+              <Feather name="calendar" size={14} color={theme.textSecondary} />
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
+                {formatDate(appt.appointmentDate)}
+              </ThemedText>
+            </View>
+            <View style={styles.metaItem}>
+              <Feather name="clock" size={14} color={theme.textSecondary} />
+              <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
+                {timeStr}
+              </ThemedText>
+            </View>
           </View>
+          {locationStr ? (
+            <View style={styles.locationRow}>
+              <Feather name="map-pin" size={14} color={theme.textSecondary} />
+              <ThemedText type="caption" numberOfLines={1} style={{ color: theme.textSecondary, marginLeft: Spacing.xs, flex: 1 }}>
+                {locationStr}
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
-        <ThemedText type="small" style={{ color: theme.textSecondary }}>
-          {CATEGORY_LABELS[session.sessionType as PhotographyCategory] || session.sessionType}
-        </ThemedText>
-        <View style={styles.sessionMeta}>
-          <View style={styles.metaItem}>
-            <Feather name="calendar" size={14} color={theme.textSecondary} />
-            <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
-              {formatDate(session.date)}
-            </ThemedText>
-          </View>
-          <View style={styles.metaItem}>
-            <Feather name="clock" size={14} color={theme.textSecondary} />
-            <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: Spacing.xs }}>
-              {session.time}
-            </ThemedText>
-          </View>
-        </View>
-        <View style={styles.locationRow}>
-          <Feather name="map-pin" size={14} color={theme.textSecondary} />
-          <ThemedText
-            type="caption"
-            numberOfLines={1}
-            style={{ color: theme.textSecondary, marginLeft: Spacing.xs, flex: 1 }}
-          >
-            {session.location}
-          </ThemedText>
-        </View>
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
 
   if (!isAuthenticated) {
     return (
@@ -377,7 +511,7 @@ export default function SessionsScreen() {
         </Pressable>
       </View>
 
-      {displayedSessions.length === 0 ? (
+      {displayedItems.length === 0 ? (
         <View style={styles.emptyState}>
           <Feather
             name={filter === "upcoming" ? "calendar" : "archive"}
@@ -389,12 +523,12 @@ export default function SessionsScreen() {
           </ThemedText>
           <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
             {filter === "upcoming"
-              ? "Book a photographer to get started"
+              ? "Book a photographer or business to get started"
               : "Your completed sessions will appear here"}
           </ThemedText>
         </View>
       ) : (
-        displayedSessions.map(renderSessionCard)
+        displayedItems.map(renderCombinedCard)
       )}
     </ScreenScrollView>
   );
@@ -522,5 +656,9 @@ const styles = StyleSheet.create({
   },
   orderInfo: {
     flex: 1,
+  },
+  initialsCircle: {
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
