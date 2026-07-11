@@ -161,7 +161,19 @@ export default function BusinessDashboardScreen() {
         reviewCount: business.reviewCount || 0,
         profileViews: 0,
       });
-      
+
+      try {
+        const { stats: businessStats } = await api.getBusinessStats(token);
+        setStats((prev) => ({
+          ...prev,
+          earnings: businessStats.monthlyRevenueCents / 100,
+          upcomingOrders: businessStats.orderCount,
+          upcomingBookings: businessStats.bookingCount,
+        }));
+      } catch (statsError) {
+        console.warn("[Dashboard] Failed to load business stats:", statsError);
+      }
+
       const businessTypeValue = business.hasProducts && business.hasServices 
         ? "both" 
         : business.hasProducts 

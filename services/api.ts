@@ -2430,6 +2430,29 @@ class ApiService {
     });
   }
 
+  // GET /api/business/stats - Summary stats for the authenticated business owner
+  async getBusinessStats(authToken: string): Promise<{
+    stats: {
+      orderCount: number;
+      bookingCount: number;
+      monthlyRevenueCents: number;
+      reviewCount: number;
+      averageRating: number;
+    };
+  }> {
+    return this.request<{
+      stats: {
+        orderCount: number;
+        bookingCount: number;
+        monthlyRevenueCents: number;
+        reviewCount: number;
+        averageRating: number;
+      };
+    }>("/api/business/stats", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // PATCH /api/vendor/my-business - Update business profile
   async updateVendorMyBusiness(authToken: string, data: Partial<BusinessOnboardingData>): Promise<{ business: VendorBookerBusiness }> {
     console.log("[API] updateVendorMyBusiness RAW input:", JSON.stringify(data, null, 2));
