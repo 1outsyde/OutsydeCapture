@@ -1,6 +1,7 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
 import { GoogleProfile } from "@/context/AuthContext";
+import { BusinessAppointment } from "@/services/api";
 
 
 export type RootStackParamList = {
@@ -20,6 +21,7 @@ export type RootStackParamList = {
   PostDetail: { userId: string; initialPostId: string };
   UserProfile: { userId: string; userType?: "business" | "photographer" | "consumer" };
   SessionDetail: { sessionId: string };
+  AppointmentDetail: { appointment: BusinessAppointment };
   PhotoGallery: { sessionId: string; initialIndex?: number };
   Conversation: { conversationId: string };
   Chat: {

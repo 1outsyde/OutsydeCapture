@@ -43,6 +43,7 @@ import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
+import AppointmentDetailScreen from "@/screens/AppointmentDetailScreen";
 import CreatePostScreen from "@/screens/CreatePostScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
@@ -264,6 +265,26 @@ export default function RootNavigator() {
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Session Details",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
+      />
+
+      <Stack.Screen
+        name="AppointmentDetail"
+        component={AppointmentDetailScreen}
+        options={({ navigation }) => ({
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Appointment Details",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },

@@ -4297,6 +4297,14 @@ export interface BusinessAppointment {
   serviceDurationMinutes: number | null;
   staffDisplayName: string | null;
   staffProfileImageUrl: string | null;
+  businessHasPhysicalLocation?: boolean | null;
+  serviceFullRefundWindow?: string | null;
+  serviceHasPartialRefund?: boolean | null;
+  servicePartialRefundWindow?: string | null;
+  servicePartialRefundPercentage?: number | null;
+  serviceHasCancellationFee?: boolean | null;
+  serviceCancellationFeeType?: string | null;
+  serviceCancellationFeeAmount?: number | null;
 }
 
 export async function getMyAppointments(token: string): Promise<BusinessAppointment[]> {
