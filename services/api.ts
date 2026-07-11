@@ -2926,6 +2926,24 @@ class ApiService {
     });
   }
 
+  // Consumer-initiated cancel — applies the service's cancellation policy
+  async cancelAppointment(
+    authToken: string,
+    appointmentId: string
+  ): Promise<{
+    success: boolean;
+    refundTier: string;
+    refundAmountCents: number;
+    feeAmountCents: number;
+    feeCharged: boolean;
+    feeNeedsManualCollection: boolean;
+  }> {
+    return this.request(`/api/bookings/appointments/${appointmentId}/cancel`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // Cancel a confirmed appointment as no-show without issuing a refund
   async cancelBookingNoRefund(
     authToken: string,
