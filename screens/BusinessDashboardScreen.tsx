@@ -1355,7 +1355,7 @@ export default function BusinessDashboardScreen() {
       case "delivered":
       case "completed": return { bg: theme.primary + "20", text: theme.primary };
       case "cancelled": return { bg: "#FF3B3020", text: "#FF3B30" };
-      case "no_show": return { bg: "#FF950020", text: "#FF9500" };
+      case "no_show": return { bg: "#8E8E9320", text: "#8E8E93" };
       default: return { bg: theme.backgroundSecondary, text: theme.textSecondary };
     }
   };
@@ -1570,9 +1570,9 @@ export default function BusinessDashboardScreen() {
                     ]
                   );
                 }}
-                style={[styles.actionButton, { backgroundColor: "#FF950015", borderWidth: 1, borderColor: "#FF9500", flex: 1 }]}
+                style={[styles.actionButton, { backgroundColor: "#8E8E9315", borderWidth: 1, borderColor: "#8E8E93", flex: 1 }]}
               >
-                <Text style={[styles.actionButtonText, { color: "#FF9500" }]}>Cancel (No Show)</Text>
+                <Text style={[styles.actionButtonText, { color: "#8E8E93" }]}>Cancel (No Show)</Text>
               </Pressable>
             </View>
           )}
@@ -2134,7 +2134,7 @@ export default function BusinessDashboardScreen() {
               startTime: b.time || "9:00 AM",
               clientName: b.customerName,
               serviceName: b.serviceName,
-              status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined" | "no_show",
+              status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined",
               amount: b.amount,
             }))}
             blockedDates={[]}
