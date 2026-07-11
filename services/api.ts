@@ -371,6 +371,7 @@ export interface BusinessOnboardingData {
   numberOfEmployees?: number;
   businessStructure?: string; // LLC, Sole Proprietor, Corporation, etc.
   hasPhysicalLocation?: boolean;
+  showAddress?: boolean;
   isOnlineOnly?: boolean;
   address?: string;
   contactEmail?: string;

@@ -165,6 +165,8 @@ type ProfileViewModel = {
   showResponseTime?: boolean;
   availabilitySummary?: string;
   address?: string;
+  hasPhysicalLocation?: boolean;
+  showAddress?: boolean;
   contactEmail?: string;
   contactPhone?: string;
   websiteUrl?: string;
@@ -666,6 +668,8 @@ export default function VendorDetailScreen({ route }: Props) {
           websiteUrl:
             (business as any).websiteUrl || business.website || undefined,
           hoursOfOperation: (business as any).hoursOfOperation ?? undefined,
+          hasPhysicalLocation: (business as any).hasPhysicalLocation !== false,
+          showAddress: (business as any).showAddress !== false,
           showEmail: (business as any).showEmail !== false,
           showPhone: (business as any).showPhone !== false,
           showWebsite: (business as any).showWebsite !== false,
@@ -2019,13 +2023,17 @@ export default function VendorDetailScreen({ route }: Props) {
     return (
       <View style={styles.tabContent}>
         {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
-        <View style={styles.aboutRow}>
-          <Feather name="map-pin" size={14} color={accentColor} />
-          <Text style={styles.aboutLabel}>Location</Text>
-          <Text style={styles.aboutValue}>
-            {profile.location || "Not listed"}
-          </Text>
-        </View>
+        {profile?.hasPhysicalLocation !== false ? (
+          <View style={styles.aboutRow}>
+            <Feather name="map-pin" size={14} color={accentColor} />
+            <Text style={styles.aboutLabel}>Location</Text>
+            <Text style={styles.aboutValue}>
+              {profile?.showAddress !== false && profile?.address
+                ? [profile.address, profile.location].filter(Boolean).join(", ")
+                : profile.location || "Not listed"}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.aboutRow}>
           <Feather name="grid" size={14} color={accentColor} />
           <Text style={styles.aboutLabel}>Category</Text>
