@@ -385,7 +385,7 @@ export default function SessionsScreen() {
                     );
                   }}
                 >
-                  <Feather name="x-circle" size={18} color={theme.textSecondary} />
+                  <Feather name="x-circle" size={18} color={theme.error} />
                 </Pressable>
               )}
             </View>
