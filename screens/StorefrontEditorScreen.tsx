@@ -113,6 +113,7 @@ export default function StorefrontEditorScreen() {
   const [showWebsite, setShowWebsite] = useState(true);
   const [showStoreHours, setShowStoreHours] = useState(true);
   const [hasPhysicalLocation, setHasPhysicalLocation] = useState(true);
+  const [showAddress, setShowAddress] = useState(true);
   const [responseTimeValue, setResponseTimeValue] = useState(2);
   const [responseTimeUnit, setResponseTimeUnit] =
     useState<ResponseTimeUnit>("hours");
@@ -335,6 +336,7 @@ export default function StorefrontEditorScreen() {
       setShowWebsite((biz as any).showWebsite !== false);
       setShowStoreHours((biz as any).showStoreHours !== false);
       setHasPhysicalLocation((biz as any).hasPhysicalLocation !== false);
+      setShowAddress((biz as any).showAddress !== false);
       setResponseTimeValue(Number((biz as any).responseTimeValue ?? 2));
       setResponseTimeUnit(
         ((biz as any).responseTimeUnit || "hours") as ResponseTimeUnit,
@@ -421,6 +423,7 @@ export default function StorefrontEditorScreen() {
         showWebsite,
         showStoreHours,
         hasPhysicalLocation,
+        showAddress,
         responseTimeValue,
         responseTimeUnit,
         address: profileAddress || undefined,
@@ -1687,6 +1690,20 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.visibilityHelp}>
             Controls whether your business address appears publicly.
           </Text>
+          {hasPhysicalLocation && (
+            <>
+              <View style={[styles.visibilityLabelRow, { marginTop: 12 }]}>
+                <Text style={styles.inputLabel}>Show Address Publicly</Text>
+                {renderVisibilityToggle(showAddress, () =>
+                  setShowAddress((v) => !v),
+                )}
+              </View>
+              <Text style={styles.visibilityHelp}>
+                When on, your full address is visible to anyone browsing. When
+                off, only your city/state show.
+              </Text>
+            </>
+          )}
           <Text style={[styles.inputLabel, { marginTop: 12 }]}>Address</Text>
           <TextInput
             style={styles.input}
