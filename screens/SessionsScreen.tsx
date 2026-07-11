@@ -231,7 +231,7 @@ export default function SessionsScreen() {
 
   const getBusinessStatusColor = (status: string) => {
     if (BUSINESS_UPCOMING_STATUSES.has(status)) return theme.success;
-    if (status === "completed") return "#007AFF";
+    if (status === "completed") return theme.primary;
     if (BUSINESS_PAST_STATUSES.has(status)) return theme.error;
     return theme.textSecondary;
   };

@@ -14,6 +14,7 @@ import {
   AppStateStatus,
   Switch,
 } from "react-native";
+import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -1460,7 +1461,15 @@ export default function BusinessDashboardScreen() {
           <View style={styles.bookingHeader}>
             <View style={styles.bookingClient}>
               <View style={styles.bookingAvatar}>
-                <Feather name="user" size={16} color={theme.primary} />
+                {booking.customerAvatar ? (
+                  <Image
+                    source={{ uri: booking.customerAvatar }}
+                    style={{ width: 32, height: 32, borderRadius: 16 }}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Feather name="user" size={16} color={theme.primary} />
+                )}
               </View>
               <View>
                 <Text style={styles.bookingName}>{booking.customerName}</Text>
