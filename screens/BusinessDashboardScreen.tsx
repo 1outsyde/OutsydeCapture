@@ -1355,6 +1355,7 @@ export default function BusinessDashboardScreen() {
       case "delivered":
       case "completed": return { bg: theme.primary + "20", text: theme.primary };
       case "cancelled": return { bg: "#FF3B3020", text: "#FF3B30" };
+      case "no_show": return { bg: "#8E8E9320", text: "#8E8E93" };
       default: return { bg: theme.backgroundSecondary, text: theme.textSecondary };
     }
   };
@@ -1490,7 +1491,7 @@ export default function BusinessDashboardScreen() {
             </View>
             <View style={[styles.bookingStatus, { backgroundColor: statusColor.bg }]}>
               <Text style={[styles.bookingStatusText, { color: statusColor.text }]}>
-                {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                {booking.status === "no_show" ? "No Show" : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
               </Text>
             </View>
           </View>
@@ -1544,6 +1545,34 @@ export default function BusinessDashboardScreen() {
                 style={[styles.actionButton, { backgroundColor: "#FF3B3015", borderWidth: 1, borderColor: "#FF3B30", flex: 1 }]}
               >
                 <Text style={[styles.actionButtonText, { color: "#FF3B30" }]}>Issue Refund</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Alert.alert(
+                    "Cancel without refund?",
+                    "This marks the booking as a no-show. The customer will NOT be refunded. This can't be undone.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Confirm",
+                        style: "destructive",
+                        onPress: async () => {
+                          try {
+                            const token = await getToken();
+                            if (!token) throw new Error("Not authenticated");
+                            await api.cancelBookingNoRefund(token, booking.id);
+                            fetchTabData();
+                          } catch (err: any) {
+                            Alert.alert("Error", err?.message || "Failed to cancel booking");
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+                style={[styles.actionButton, { backgroundColor: "#8E8E9315", borderWidth: 1, borderColor: "#8E8E93", flex: 1 }]}
+              >
+                <Text style={[styles.actionButtonText, { color: "#8E8E93" }]}>Cancel (No Show)</Text>
               </Pressable>
             </View>
           )}
