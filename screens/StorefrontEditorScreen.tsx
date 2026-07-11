@@ -341,6 +341,7 @@ export default function StorefrontEditorScreen() {
       setResponseTimeUnit(
         ((biz as any).responseTimeUnit || "hours") as ResponseTimeUnit,
       );
+      setProfileAddress(biz.address || "");
       setProfileCity(biz.city || "");
       setProfileState(biz.state || "");
 
