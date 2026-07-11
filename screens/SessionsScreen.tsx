@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { Alert, StyleSheet, View, Pressable, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ScreenScrollView } from "@/components/ScreenScrollView";
@@ -186,6 +186,12 @@ export default function SessionsScreen() {
     fetchBusinessAppointments();
   }, [fetchActiveOrders, fetchBusinessAppointments]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchBusinessAppointments();
+    }, [fetchBusinessAppointments]),
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([refreshSessions(), fetchActiveOrders(), fetchBusinessAppointments()]);
@@ -317,7 +323,7 @@ export default function SessionsScreen() {
     return (
       <Pressable
         key={`business-${appt.id}`}
-        onPress={() => {/* future: navigate to business appointment detail */}}
+        onPress={() => navigation.navigate("AppointmentDetail", { appointment: appt })}
         style={[
           styles.sessionCard,
           { backgroundColor: theme.backgroundDefault },
