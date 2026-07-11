@@ -231,7 +231,7 @@ export default function SessionsScreen() {
 
   const getBusinessStatusColor = (status: string) => {
     if (BUSINESS_UPCOMING_STATUSES.has(status)) return theme.success;
-    if (status === "completed") return theme.primary;
+    if (status === "completed") return theme.brandGold;
     if (BUSINESS_PAST_STATUSES.has(status)) return theme.error;
     return theme.textSecondary;
   };
@@ -330,8 +330,8 @@ export default function SessionsScreen() {
             contentFit="cover"
           />
         ) : (
-          <View style={[styles.photographerAvatar, styles.initialsCircle, { backgroundColor: theme.primary + "30" }]}>
-            <ThemedText type="caption" style={{ color: theme.primary, fontWeight: "700" }}>
+          <View style={[styles.photographerAvatar, styles.initialsCircle, { backgroundColor: theme.brandGold + "30" }]}>
+            <ThemedText type="caption" style={{ color: theme.brandGold, fontWeight: "700" }}>
               {initials}
             </ThemedText>
           </View>
@@ -405,7 +405,7 @@ export default function SessionsScreen() {
       }
     >
       {nextSession && filter === "upcoming" ? (
-        <View style={[styles.countdownCard, { backgroundColor: theme.primary }]}>
+        <View style={[styles.countdownCard, { backgroundColor: theme.brandGold }]}>
           <View style={styles.countdownHeader}>
             <ThemedText type="small" style={styles.countdownLabel}>
               Next Session
@@ -429,7 +429,7 @@ export default function SessionsScreen() {
       {filter === "upcoming" ? (
         <View style={styles.ordersSection}>
           <View style={styles.sectionHeader}>
-            <Feather name="package" size={18} color={theme.primary} />
+            <Feather name="package" size={18} color={theme.brandGold} />
             <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
               Orders In Progress
             </ThemedText>
@@ -480,7 +480,7 @@ export default function SessionsScreen() {
           style={({ pressed }) => [
             styles.filterButton,
             {
-              backgroundColor: filter === "upcoming" ? theme.primary : theme.backgroundDefault,
+              backgroundColor: filter === "upcoming" ? theme.brandGold : theme.backgroundDefault,
               opacity: pressed ? 0.8 : 1,
             },
           ]}
@@ -497,7 +497,7 @@ export default function SessionsScreen() {
           style={({ pressed }) => [
             styles.filterButton,
             {
-              backgroundColor: filter === "past" ? theme.primary : theme.backgroundDefault,
+              backgroundColor: filter === "past" ? theme.brandGold : theme.backgroundDefault,
               opacity: pressed ? 0.8 : 1,
             },
           ]}
