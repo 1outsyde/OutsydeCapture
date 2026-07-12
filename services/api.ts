@@ -519,11 +519,12 @@ export interface VendorServiceInput {
   hasCancellationFee?: boolean;
   cancellationFeeType?: 'flat' | 'percentage' | null;
   cancellationFeeAmount?: number | null;
-  serviceLocationType?: 'business' | 'alternate' | 'customer';
+  serviceLocationType?: 'business' | 'alternate' | 'customer' | 'virtual';
   alternateAddress?: string | null;
   alternateCity?: string | null;
   alternateState?: string | null;
   alternateZipCode?: string | null;
+  virtualLink?: string | null;
 }
 
 export interface AdminStats {

@@ -269,6 +269,7 @@ export default function StorefrontEditorScreen() {
     alternateCity: null,
     alternateState: null,
     alternateZipCode: null,
+    virtualLink: null,
   });
 
   const fetchData = useCallback(async () => {
@@ -682,6 +683,7 @@ export default function StorefrontEditorScreen() {
         alternateCity: s.alternateCity ?? null,
         alternateState: s.alternateState ?? null,
         alternateZipCode: s.alternateZipCode ?? null,
+        virtualLink: s.virtualLink ?? null,
       });
     } else {
       const biz = business as any;
@@ -704,6 +706,7 @@ export default function StorefrontEditorScreen() {
         alternateCity: null,
         alternateState: null,
         alternateZipCode: null,
+        virtualLink: null,
       });
     }
     setServiceModalVisible(true);
@@ -1702,9 +1705,12 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.cardTitle}>Location</Text>
           <View style={styles.visibilityLabelRow}>
             <Text style={styles.inputLabel}>Physical Location</Text>
-            {renderVisibilityToggle(hasPhysicalLocation, () =>
-              setHasPhysicalLocation((v) => !v),
-            )}
+            {renderVisibilityToggle(hasPhysicalLocation, () => {
+              if (hasPhysicalLocation && defaultServiceLocationType === 'business') {
+                setDefaultServiceLocationType('alternate');
+              }
+              setHasPhysicalLocation((v) => !v);
+            })}
           </View>
           <Text style={styles.visibilityHelp}>
             Controls whether your business address appears publicly.
@@ -1728,7 +1734,7 @@ export default function StorefrontEditorScreen() {
             Where your services take place by default. Can be overridden per service.
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-            {((!hasPhysicalLocation ? [['alternate', 'Alternate address'], ['customer', "Customer's location"]] : [['business', 'At my location'], ['alternate', 'Alternate address'], ['customer', "Customer's location"]]) as [string, string][]).map(([val, label]) => {
+            {((!hasPhysicalLocation ? [['alternate', 'Alternate address'], ['customer', "Customer's location"], ['virtual', 'Virtual']] : [['business', 'At my location'], ['alternate', 'Alternate address'], ['customer', "Customer's location"], ['virtual', 'Virtual']]) as [string, string][]).map(([val, label]) => {
               const selected = defaultServiceLocationType === val;
               return (
                 <Pressable
@@ -2252,12 +2258,12 @@ export default function StorefrontEditorScreen() {
           {/* ── Service Location ── */}
           <Text style={[styles.inputLabel, { marginTop: 8 }]}>Where does this service take place?</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 4 }}>
-            {(!hasPhysicalLocation ? [['alternate', 'Alternate address'], ['customer', "Customer's location"]] : [['business', 'At my location'], ['alternate', 'Alternate address'], ['customer', "Customer's location"]] as const).map(([val, label]) => {
+            {(!hasPhysicalLocation ? [['alternate', 'Alternate address'], ['customer', "Customer's location"], ['virtual', 'Virtual']] : [['business', 'At my location'], ['alternate', 'Alternate address'], ['customer', "Customer's location"], ['virtual', 'Virtual']] as const).map(([val, label]) => {
               const selected = serviceForm.serviceLocationType === val;
               return (
                 <Pressable
                   key={val}
-                  onPress={() => setServiceForm({ ...serviceForm, serviceLocationType: val as 'business' | 'alternate' | 'customer', alternateAddress: null, alternateCity: null, alternateState: null, alternateZipCode: null })}
+                  onPress={() => setServiceForm({ ...serviceForm, serviceLocationType: val as 'business' | 'alternate' | 'customer' | 'virtual', alternateAddress: null, alternateCity: null, alternateState: null, alternateZipCode: null, virtualLink: null })}
                   style={{
                     paddingHorizontal: 12,
                     paddingVertical: 7,
@@ -2320,6 +2326,21 @@ export default function StorefrontEditorScreen() {
                 placeholder="12345"
                 placeholderTextColor={theme.brandTextDim}
                 keyboardType="number-pad"
+              />
+            </>
+          )}
+
+          {serviceForm.serviceLocationType === 'virtual' && (
+            <>
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Meeting Link</Text>
+              <TextInput
+                style={styles.input}
+                value={serviceForm.virtualLink || ""}
+                onChangeText={(v) => setServiceForm({ ...serviceForm, virtualLink: v || null })}
+                placeholder="https://zoom.us/j/..."
+                placeholderTextColor={theme.brandTextDim}
+                autoCapitalize="none"
+                keyboardType="url"
               />
             </>
           )}
