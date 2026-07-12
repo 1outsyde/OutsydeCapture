@@ -483,40 +483,40 @@ export default function BookingScreen() {
 
     setIsConfirming(true);
     try {
-      let confirmResponse;
-      
-      // Create PaymentIntent and get clientSecret
+      // Create PaymentIntent and get clientSecret + captureMethod.
+      // captureMethod reflects photographer.autoAcceptBookings:
+      //   "automatic" → webhook will CONFIRM immediately
+      //   "manual"    → webhook sets PENDING_PROVIDER until photographer accepts
       const paymentResponse = await api.createBookingPaymentIntent(
         token,
         "photographer",
         bookingDraft.id
       );
-      
+
+      const isPending = paymentResponse.captureMethod === "manual";
+
       // Handle paused payment mode (dev-only: PAYMENTS_ENABLED=false)
       if ((paymentResponse as any).paymentStatus === "paused") {
         console.log("[DEV] Payments paused - skipping Stripe flow");
         if ((paymentResponse as any).message) {
           console.log("[DEV]", (paymentResponse as any).message);
         }
-        // Skip Stripe, confirm the draft booking directly
-        confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
+        // No PaymentSheet in dev mode; webhook won't fire either.
       } else {
         // Native: Use Stripe PaymentSheet (in-app)
-        // Initialize PaymentSheet with clientSecret
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: paymentResponse.clientSecret,
           merchantDisplayName: "Outsyde",
           allowsDelayedPaymentMethods: false,
         });
-        
+
         if (initError) {
           console.error("PaymentSheet init error:", initError);
           throw new Error(initError.message || "Failed to initialize payment");
         }
-        
-        // Present PaymentSheet to user
+
         const { error: presentError } = await presentPaymentSheet();
-        
+
         if (presentError) {
           // User cancelled or payment failed
           if (presentError.code === "Canceled") {
@@ -526,20 +526,15 @@ export default function BookingScreen() {
           }
           throw new Error(presentError.message || "Payment failed");
         }
-        
-        // Payment succeeded - confirm the draft booking with backend
-        confirmResponse = await api.confirmBookingDraft(token, bookingDraft.id);
+        // PaymentSheet succeeded. Booking confirmation comes from the webhook
+        // (payment_intent.succeeded → handlePaymentIntentSucceeded on backend).
+        // No client-side confirm-payment call needed.
       }
-      
+
       if (countdownRef.current) {
         clearInterval(countdownRef.current);
       }
 
-      // Check booking status from backend response
-      // captureMethod: "automatic" + autoAcceptBookings=true → CONFIRMED
-      // captureMethod: "manual" + autoAcceptBookings=false → PENDING_PROVIDER (24h)
-      const bookingStatus = (confirmResponse.booking?.status as string) || "confirmed";
-      const isPending = bookingStatus === "pending" || bookingStatus === "pending_approval" || bookingStatus === "pending_provider";
       setBookingPending(isPending);
 
       const session = await addSession({
