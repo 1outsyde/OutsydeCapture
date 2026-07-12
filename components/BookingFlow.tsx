@@ -44,6 +44,9 @@ interface BookingFlowProps {
   providerId: string;
   providerType: "photographer" | "business";
   providerName: string;
+  providerAddress?: string | null;
+  providerCity?: string | null;
+  providerState?: string | null;
   staffMemberId?: string | null;
   accentColor?: string;
 }
@@ -84,6 +87,9 @@ export default function BookingFlow({
   providerId,
   providerType,
   providerName,
+  providerAddress,
+  providerCity,
+  providerState,
   staffMemberId,
   accentColor,
 }: BookingFlowProps) {
@@ -122,11 +128,13 @@ export default function BookingFlow({
   const [incompatibleReason, setIncompatibleReason] = useState<string>("");
 
   // Review step state
+  const [businessLocationAcknowledged, setBusinessLocationAcknowledged] = useState(false);
   const [alternateAcknowledged, setAlternateAcknowledged] = useState(false);
   const [customerServiceAddress, setCustomerServiceAddress] = useState("");
   const [customerServiceCity, setCustomerServiceCity] = useState("");
   const [customerServiceState, setCustomerServiceState] = useState("");
   const [customerServiceZipCode, setCustomerServiceZipCode] = useState("");
+  const [customerReadinessConfirmed, setCustomerReadinessConfirmed] = useState(false);
 
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -479,7 +487,9 @@ export default function BookingFlow({
       setSelectedDate(null);
       setSlots([]);
     } else if (step === 4) {
+      setBusinessLocationAcknowledged(false);
       setAlternateAcknowledged(false);
+      setCustomerReadinessConfirmed(false);
       setStep(3);
     }
   };
@@ -904,9 +914,30 @@ export default function BookingFlow({
             <ThemedText style={[styles.reviewLabel, { color: theme.brandTextDim }]}>Location</ThemedText>
 
             {(!selectedService.serviceLocationType || selectedService.serviceLocationType === 'business') && (
-              <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
-                This appointment takes place at {providerName}'s location.
-              </ThemedText>
+              <>
+                <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
+                  {[
+                    providerAddress,
+                    providerCity && providerState
+                      ? `${providerCity}, ${providerState}`
+                      : providerCity || providerState,
+                  ].filter(Boolean).join(" · ") || `${providerName}'s location`}
+                </ThemedText>
+                <Pressable
+                  onPress={() => setBusinessLocationAcknowledged(!businessLocationAcknowledged)}
+                  style={styles.checkboxRow}
+                >
+                  <View style={[styles.checkbox, {
+                    borderColor: businessLocationAcknowledged ? accent : theme.brandTextDim,
+                    backgroundColor: businessLocationAcknowledged ? accentSoft : "transparent",
+                  }]}>
+                    {businessLocationAcknowledged && <Feather name="check" size={13} color={accent} />}
+                  </View>
+                  <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
+                    I understand this appointment takes place at the address above
+                  </ThemedText>
+                </Pressable>
+              </>
             )}
 
             {selectedService.serviceLocationType === 'virtual' && (
@@ -989,6 +1020,20 @@ export default function BookingFlow({
                     maxLength={10}
                   />
                 </View>
+                <Pressable
+                  onPress={() => setCustomerReadinessConfirmed(!customerReadinessConfirmed)}
+                  style={styles.checkboxRow}
+                >
+                  <View style={[styles.checkbox, {
+                    borderColor: customerReadinessConfirmed ? accent : theme.brandTextDim,
+                    backgroundColor: customerReadinessConfirmed ? accentSoft : "transparent",
+                  }]}>
+                    {customerReadinessConfirmed && <Feather name="check" size={13} color={accent} />}
+                  </View>
+                  <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
+                    I confirm I will be ready for this service at the scheduled appointment time
+                  </ThemedText>
+                </Pressable>
               </>
             )}
           </View>
@@ -1002,12 +1047,14 @@ export default function BookingFlow({
           ) : (() => {
             const locType = selectedService.serviceLocationType;
             const disabled =
+              (!locType || locType === 'business') ? !businessLocationAcknowledged :
               locType === 'alternate' ? !alternateAcknowledged :
               locType === 'customer' ? (
                 !customerServiceAddress.trim() ||
                 !customerServiceCity.trim() ||
                 !customerServiceState.trim() ||
-                !customerServiceZipCode.trim()
+                !customerServiceZipCode.trim() ||
+                !customerReadinessConfirmed
               ) : false;
             return (
               <Pressable
