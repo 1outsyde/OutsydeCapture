@@ -9,6 +9,7 @@ import {
   Dimensions,
   Modal,
   Platform,
+  TextInput,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -47,7 +48,7 @@ interface BookingFlowProps {
   accentColor?: string;
 }
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const formatPrice = (cents: number): string => {
   return `$${(cents / 100).toFixed(2)}`;
@@ -119,6 +120,13 @@ export default function BookingFlow({
 
   const [showIncompatibleModal, setShowIncompatibleModal] = useState(false);
   const [incompatibleReason, setIncompatibleReason] = useState<string>("");
+
+  // Review step state
+  const [alternateAcknowledged, setAlternateAcknowledged] = useState(false);
+  const [customerServiceAddress, setCustomerServiceAddress] = useState("");
+  const [customerServiceCity, setCustomerServiceCity] = useState("");
+  const [customerServiceState, setCustomerServiceState] = useState("");
+  const [customerServiceZipCode, setCustomerServiceZipCode] = useState("");
 
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -297,7 +305,7 @@ export default function BookingFlow({
       if (response.valid) {
         setSelectedSlot(slot);
         setValidatedEndTime(response.endTime || null);
-        await createHold(slot);
+        setStep(4);
       } else {
         setIncompatibleReason(response.reason || "This service requires more time than this slot allows.");
         setShowIncompatibleModal(true);
@@ -330,7 +338,16 @@ export default function BookingFlow({
       if (response.success) {
         setHold(response);
 
-        const paymentData = await api.createHoldPaymentIntent(response.holdId);
+        const customerAddress = selectedService.serviceLocationType === 'customer'
+          ? {
+              customerServiceAddress,
+              customerServiceCity,
+              customerServiceState,
+              customerServiceZipCode,
+            }
+          : undefined;
+
+        const paymentData = await api.createHoldPaymentIntent(response.holdId, customerAddress);
 
         const { error: initError } = await initPaymentSheet({
           merchantDisplayName: "Outsyde",
@@ -346,7 +363,7 @@ export default function BookingFlow({
         }
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setStep(4);
+        setStep(5);
       }
     } catch (err: any) {
       setError(err.message || "Failed to hold slot");
@@ -461,9 +478,8 @@ export default function BookingFlow({
       setStep(2);
       setSelectedDate(null);
       setSlots([]);
-    } else if (step === 4 && hold) {
-      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
-      setHold(null);
+    } else if (step === 4) {
+      setAlternateAcknowledged(false);
       setStep(3);
     }
   };
@@ -529,7 +545,7 @@ export default function BookingFlow({
       </View>
 
       <View style={styles.stepperRow}>
-        {[1, 2, 3, 4].map((s, i) => (
+        {[1, 2, 3, 4, 5].map((s, i) => (
           <View key={s} style={styles.stepperItem}>
             {i > 0 && (
               <View style={[styles.stepConnector, { backgroundColor: step >= s ? accentDim : theme.brandSurfaceBorder }]} />
@@ -552,7 +568,7 @@ export default function BookingFlow({
                 )}
               </View>
               <ThemedText style={[styles.stepLabel, { color: step >= s ? accent : theme.brandTextDim }]}>
-                {s === 1 ? "Service" : s === 2 ? "Date" : s === 3 ? "Time" : "Confirm"}
+                {s === 1 ? "Service" : s === 2 ? "Date" : s === 3 ? "Time" : s === 4 ? "Review" : "Confirm"}
               </ThemedText>
             </View>
           </View>
@@ -727,11 +743,11 @@ export default function BookingFlow({
             </ThemedText>
           </View>
 
-          {loadingSlots || validating || creatingHold ? (
+          {loadingSlots || validating ? (
             <View style={styles.loader}>
               <ActivityIndicator size="large" color={accent} />
               <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                {validating ? "Validating..." : creatingHold ? "Holding slot..." : "Loading..."}
+                {validating ? "Validating..." : "Loading..."}
               </ThemedText>
             </View>
           ) : (() => {
@@ -868,7 +884,150 @@ export default function BookingFlow({
         </View>
       )}
 
-      {step === 4 && (
+      {step === 4 && selectedSlot && selectedService && (
+        <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
+          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
+            Review & Confirm
+          </ThemedText>
+
+          {/* Booking summary */}
+          <View style={[styles.reviewSection, { backgroundColor: accentSoft, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md }]}>
+            <ThemedText style={[styles.reviewLabel, { color: theme.brandTextDim }]}>Service</ThemedText>
+            <ThemedText style={[styles.reviewValue, { color: theme.brandCream, fontWeight: "600" }]}>{selectedService.name}</ThemedText>
+            <ThemedText style={{ color: theme.brandTextDim, marginTop: 2 }}>
+              {selectedDateDisplay} at {formatTime(selectedSlot.startTime)} · {formatDuration(selectedService.durationMinutes)} · {formatPrice(selectedService.priceCents)}
+            </ThemedText>
+          </View>
+
+          {/* Location section */}
+          <View style={[styles.reviewSection, { backgroundColor: theme.brandBgElevated, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: theme.brandSurfaceBorder }]}>
+            <ThemedText style={[styles.reviewLabel, { color: theme.brandTextDim }]}>Location</ThemedText>
+
+            {(!selectedService.serviceLocationType || selectedService.serviceLocationType === 'business') && (
+              <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
+                This appointment takes place at {providerName}'s location.
+              </ThemedText>
+            )}
+
+            {selectedService.serviceLocationType === 'virtual' && (
+              <>
+                <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
+                  You'll join this meeting link at your appointment time:
+                </ThemedText>
+                <ThemedText style={{ color: accent, marginTop: Spacing.xs, fontWeight: "500" }}>
+                  {selectedService.virtualLink || "Meeting link not set"}
+                </ThemedText>
+              </>
+            )}
+
+            {selectedService.serviceLocationType === 'alternate' && (
+              <>
+                <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
+                  {[
+                    selectedService.alternateAddress,
+                    selectedService.alternateCity && selectedService.alternateState
+                      ? `${selectedService.alternateCity}, ${selectedService.alternateState}`
+                      : selectedService.alternateCity || selectedService.alternateState,
+                    selectedService.alternateZipCode,
+                  ].filter(Boolean).join(" · ")}
+                </ThemedText>
+                <Pressable
+                  onPress={() => setAlternateAcknowledged(!alternateAcknowledged)}
+                  style={styles.checkboxRow}
+                >
+                  <View style={[styles.checkbox, {
+                    borderColor: alternateAcknowledged ? accent : theme.brandTextDim,
+                    backgroundColor: alternateAcknowledged ? accentSoft : "transparent",
+                  }]}>
+                    {alternateAcknowledged && <Feather name="check" size={13} color={accent} />}
+                  </View>
+                  <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
+                    I understand this service takes place at the address above
+                  </ThemedText>
+                </Pressable>
+              </>
+            )}
+
+            {selectedService.serviceLocationType === 'customer' && (
+              <>
+                <ThemedText style={{ color: theme.brandTextDim, marginBottom: Spacing.sm }}>
+                  Where should this service take place?
+                </ThemedText>
+                <TextInput
+                  style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg }]}
+                  placeholder="Street address"
+                  placeholderTextColor={theme.brandTextDim}
+                  value={customerServiceAddress}
+                  onChangeText={setCustomerServiceAddress}
+                  autoCapitalize="words"
+                />
+                <TextInput
+                  style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg }]}
+                  placeholder="City"
+                  placeholderTextColor={theme.brandTextDim}
+                  value={customerServiceCity}
+                  onChangeText={setCustomerServiceCity}
+                  autoCapitalize="words"
+                />
+                <View style={{ flexDirection: "row", gap: Spacing.sm }}>
+                  <TextInput
+                    style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg, flex: 1 }]}
+                    placeholder="State"
+                    placeholderTextColor={theme.brandTextDim}
+                    value={customerServiceState}
+                    onChangeText={setCustomerServiceState}
+                    autoCapitalize="characters"
+                    maxLength={2}
+                  />
+                  <TextInput
+                    style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg, flex: 2 }]}
+                    placeholder="ZIP code"
+                    placeholderTextColor={theme.brandTextDim}
+                    value={customerServiceZipCode}
+                    onChangeText={setCustomerServiceZipCode}
+                    keyboardType="numeric"
+                    maxLength={10}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* Confirm & Pay button */}
+          {creatingHold ? (
+            <View style={[styles.loader, { paddingVertical: Spacing.md }]}>
+              <ActivityIndicator size="small" color={accent} />
+              <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.xs }}>Holding slot...</ThemedText>
+            </View>
+          ) : (() => {
+            const locType = selectedService.serviceLocationType;
+            const disabled =
+              locType === 'alternate' ? !alternateAcknowledged :
+              locType === 'customer' ? (
+                !customerServiceAddress.trim() ||
+                !customerServiceCity.trim() ||
+                !customerServiceState.trim() ||
+                !customerServiceZipCode.trim()
+              ) : false;
+            return (
+              <Pressable
+                onPress={() => !disabled && createHold(selectedSlot)}
+                disabled={disabled}
+                style={[
+                  styles.primaryButton,
+                  { backgroundColor: disabled ? theme.brandSurfaceBorder : accent, marginTop: Spacing.lg, marginBottom: Spacing.xl },
+                ]}
+              >
+                <ThemedText style={[styles.primaryButtonText, { color: disabled ? theme.brandTextDim : theme.brandBg }]}>
+                  Confirm & Pay
+                </ThemedText>
+              </Pressable>
+            );
+          })()}
+        </ScrollView>
+      )}
+
+      {step === 5 && (
         <View style={[styles.stepContent, styles.successContainer]}>
           <Feather name="check-circle" size={64} color={theme.brandSuccess} />
           <ThemedText style={[styles.successTitle, { color: theme.brandCream }]}>
@@ -1170,5 +1329,41 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: "center",
+  },
+  reviewSection: {
+    marginBottom: Spacing.md,
+  },
+  reviewLabel: {
+    fontSize: FontSizes.xs,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: Spacing.xs,
+    fontWeight: "600",
+  },
+  reviewValue: {
+    fontSize: FontSizes.md,
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: FontSizes.md,
+    marginBottom: Spacing.sm,
+    minHeight: 44,
   },
 });
