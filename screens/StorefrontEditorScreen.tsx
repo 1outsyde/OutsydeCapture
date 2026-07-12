@@ -115,6 +115,7 @@ export default function StorefrontEditorScreen() {
   const [hasPhysicalLocation, setHasPhysicalLocation] = useState(true);
   const [showAddress, setShowAddress] = useState(true);
   const [defaultServiceLocationType, setDefaultServiceLocationType] = useState('business');
+  const [vendorTermsAndConditions, setVendorTermsAndConditions] = useState("");
   const [responseTimeValue, setResponseTimeValue] = useState(2);
   const [responseTimeUnit, setResponseTimeUnit] =
     useState<ResponseTimeUnit>("hours");
@@ -345,6 +346,7 @@ export default function StorefrontEditorScreen() {
       setHasPhysicalLocation((biz as any).hasPhysicalLocation !== false);
       setShowAddress((biz as any).showAddress !== false);
       setDefaultServiceLocationType((biz as any).defaultServiceLocationType || 'business');
+      setVendorTermsAndConditions((biz as any).vendorTermsAndConditions || "");
       setResponseTimeValue(Number((biz as any).responseTimeValue ?? 2));
       setResponseTimeUnit(
         ((biz as any).responseTimeUnit || "hours") as ResponseTimeUnit,
@@ -434,6 +436,7 @@ export default function StorefrontEditorScreen() {
         hasPhysicalLocation,
         showAddress,
         defaultServiceLocationType,
+        vendorTermsAndConditions: vendorTermsAndConditions || undefined,
         responseTimeValue,
         responseTimeUnit,
         address: profileAddress || undefined,
@@ -2552,6 +2555,20 @@ export default function StorefrontEditorScreen() {
               </Text>
             </Pressable>
           )}
+
+          {/* ── Business Terms & Conditions ── */}
+          <Text style={[styles.inputLabel, { marginTop: 8 }]}>Business Terms & Conditions</Text>
+          <Text style={{ color: theme.brandTextDim, fontSize: 12, marginBottom: 8, marginTop: -4 }}>
+            Applies to all your services, not just this one. Customers will be asked to acknowledge these terms when booking.
+          </Text>
+          <TextInput
+            style={[styles.input, styles.textArea, { minHeight: 120 }]}
+            value={vendorTermsAndConditions}
+            onChangeText={setVendorTermsAndConditions}
+            placeholder="e.g. cancellation windows, late arrival policy, photo/video release, etc."
+            placeholderTextColor={theme.brandTextDim}
+            multiline
+          />
 
           {renderPublishGateWarning()}
 
