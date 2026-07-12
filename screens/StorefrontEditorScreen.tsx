@@ -1705,12 +1705,16 @@ export default function StorefrontEditorScreen() {
           <Text style={styles.cardTitle}>Location</Text>
           <View style={styles.visibilityLabelRow}>
             <Text style={styles.inputLabel}>Physical Location</Text>
-            {renderVisibilityToggle(hasPhysicalLocation, () => {
-              if (hasPhysicalLocation && defaultServiceLocationType === 'business') {
-                setDefaultServiceLocationType('virtual');
-              }
-              setHasPhysicalLocation((v) => !v);
-            })}
+            <Switch
+              value={hasPhysicalLocation}
+              onValueChange={(v) => {
+                if (!v && defaultServiceLocationType === 'business') {
+                  setDefaultServiceLocationType('virtual');
+                }
+                setHasPhysicalLocation(v);
+              }}
+              trackColor={{ true: theme.brandGold }}
+            />
           </View>
           <Text style={styles.visibilityHelp}>
             Do you have a primary place customers can visit for this service?
