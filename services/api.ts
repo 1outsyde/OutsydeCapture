@@ -3894,7 +3894,13 @@ class ApiService {
   }
 
   async createHoldPaymentIntent(
-    holdId: string
+    holdId: string,
+    customerAddress?: {
+      customerServiceAddress?: string;
+      customerServiceCity?: string;
+      customerServiceState?: string;
+      customerServiceZipCode?: string;
+    }
   ): Promise<{
     clientSecret: string;
     paymentIntentId: string;
@@ -3910,7 +3916,7 @@ class ApiService {
   }> {
     return this.request(`/api/booking/${holdId}/create-payment-intent`, {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify(customerAddress ?? {}),
     });
   }
 
@@ -4145,6 +4151,19 @@ export interface BookingService {
   durationMinutes: number;
   priceCents: number;
   status?: "live" | "active" | "draft" | "archived";
+  serviceLocationType?: 'business' | 'alternate' | 'customer' | 'virtual';
+  alternateAddress?: string | null;
+  alternateCity?: string | null;
+  alternateState?: string | null;
+  alternateZipCode?: string | null;
+  virtualLink?: string | null;
+  fullRefundWindow?: string | null;
+  hasPartialRefund?: boolean | null;
+  partialRefundWindow?: string | null;
+  partialRefundPercentage?: number | null;
+  hasCancellationFee?: boolean | null;
+  cancellationFeeType?: string | null;
+  cancellationFeeAmount?: number | null;
 }
 
 export interface BookingValidationResponse {
