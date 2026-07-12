@@ -2332,7 +2332,7 @@ export default function StorefrontEditorScreen() {
 
           {serviceForm.serviceLocationType === 'virtual' && (
             <>
-              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Meeting Link</Text>
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Meeting Room Link</Text>
               <TextInput
                 style={styles.input}
                 value={serviceForm.virtualLink || ""}
@@ -2342,6 +2342,9 @@ export default function StorefrontEditorScreen() {
                 autoCapitalize="none"
                 keyboardType="url"
               />
+              <Text style={styles.visibilityHelp}>
+                Use your permanent Zoom/Meet room — not a one-time scheduled link. Customers will join this same link at their booked appointment time.
+              </Text>
             </>
           )}
 
