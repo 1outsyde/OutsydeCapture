@@ -85,6 +85,109 @@ const groupSlots = (slots: AvailabilitySlot[]) => {
   return { morning, afternoon };
 };
 
+// ─── Cancellation-policy helpers (local, mirrors AppointmentDetailScreen) ────
+
+const CANCELLATION_WINDOW_HOURS: Record<string, number> = {
+  "1_week": 168,
+  "48_hours": 48,
+  "24_hours": 24,
+  "1_hour": 1,
+};
+
+function cancellationWindowLabel(w: string): string {
+  switch (w) {
+    case "1_week": return "1 week";
+    case "48_hours": return "48 hours";
+    case "24_hours": return "24 hours";
+    case "1_hour": return "1 hour";
+    default: return w;
+  }
+}
+
+function cancellationFeeLabel(type?: string | null, amount?: number | null): string {
+  if (!type || amount == null) return "a cancellation fee";
+  if (type === "flat") {
+    const dollars = amount / 100;
+    return `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`;
+  }
+  return `${amount}% of the booking total`;
+}
+
+function formatCancellationCutoff(apptDate: string, apptTime: string, windowHours: number): string {
+  const timeStr = apptTime.length === 5 ? `${apptTime}:00` : apptTime;
+  const apptMs = new Date(`${apptDate}T${timeStr}`).getTime();
+  return new Date(apptMs - windowHours * 3_600_000).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function describeCancellationPolicyForService(
+  service: BookingService,
+  selectedDate: string,
+  slotStartTime: string
+): string {
+  const fullWindow = service.fullRefundWindow ?? "never";
+  const hasPartial = !!service.hasPartialRefund;
+  const hasFee = !!service.hasCancellationFee;
+  const fee = hasFee ? cancellationFeeLabel(service.cancellationFeeType, service.cancellationFeeAmount) : null;
+
+  if (fullWindow === "never") {
+    return hasFee
+      ? `This booking is non-refundable. A ${fee} cancellation fee applies if you cancel.`
+      : "This booking is non-refundable.";
+  }
+
+  const fullHours = CANCELLATION_WINDOW_HOURS[fullWindow] ?? 0;
+  const fullCutoff = formatCancellationCutoff(selectedDate, slotStartTime, fullHours);
+
+  if (hasPartial && service.partialRefundWindow && service.partialRefundPercentage != null) {
+    const partHours = CANCELLATION_WINDOW_HOURS[service.partialRefundWindow] ?? 0;
+    const partCutoff = formatCancellationCutoff(selectedDate, slotStartTime, partHours);
+    const pct = service.partialRefundPercentage;
+    if (hasFee) {
+      return (
+        `Full refund until ${cancellationWindowLabel(fullWindow)} before your appointment (by ${fullCutoff}). ` +
+        `Between then and ${cancellationWindowLabel(service.partialRefundWindow)} before, you'll receive a ${pct}% refund — ` +
+        `a ${fee} cancellation fee applies once you're past the full-refund window. ` +
+        `No refund after ${partCutoff}, and the ${fee} fee still applies.`
+      );
+    }
+    return (
+      `Full refund until ${cancellationWindowLabel(fullWindow)} before your appointment (by ${fullCutoff}). ` +
+      `Between then and ${cancellationWindowLabel(service.partialRefundWindow)} before (by ${partCutoff}), ` +
+      `you'll receive a ${pct}% refund. No refund after that.`
+    );
+  }
+
+  if (hasFee) {
+    return (
+      `Free cancellation until ${cancellationWindowLabel(fullWindow)} before your appointment (by ${fullCutoff}). ` +
+      `After that, a ${fee} cancellation fee applies and no refund is given.`
+    );
+  }
+  return (
+    `Free cancellation until ${cancellationWindowLabel(fullWindow)} before your appointment (by ${fullCutoff}). ` +
+    `No refund after that.`
+  );
+}
+
+function shortCancellationSummary(service: BookingService): string {
+  const fullWindow = service.fullRefundWindow ?? "never";
+  const hasFee = !!service.hasCancellationFee;
+  if (fullWindow === "never") {
+    return hasFee ? "Non-refundable · cancellation fee applies" : "Non-refundable";
+  }
+  const label = cancellationWindowLabel(fullWindow);
+  return hasFee
+    ? `Free cancellation until ${label} before · fee after`
+    : `Free cancellation until ${label} before appointment`;
+}
+
 export default function BookingFlow({
   providerId,
   providerType,
@@ -139,6 +242,12 @@ export default function BookingFlow({
   const [customerServiceState, setCustomerServiceState] = useState("");
   const [customerServiceZipCode, setCustomerServiceZipCode] = useState("");
   const [customerReadinessConfirmed, setCustomerReadinessConfirmed] = useState(false);
+  const [virtualLinkAcknowledged, setVirtualLinkAcknowledged] = useState(false);
+  const [cancellationPolicyAcknowledged, setCancellationPolicyAcknowledged] = useState(false);
+  const [platformTermsAcknowledged, setPlatformTermsAcknowledged] = useState(false);
+  const [vendorTermsAcknowledged, setVendorTermsAcknowledged] = useState(false);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [showVendorTermsModal, setShowVendorTermsModal] = useState(false);
 
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -494,6 +603,10 @@ export default function BookingFlow({
       setBusinessLocationAcknowledged(false);
       setAlternateAcknowledged(false);
       setCustomerReadinessConfirmed(false);
+      setVirtualLinkAcknowledged(false);
+      setCancellationPolicyAcknowledged(false);
+      setPlatformTermsAcknowledged(false);
+      setVendorTermsAcknowledged(false);
       setStep(3);
     }
   };
@@ -1061,6 +1174,139 @@ export default function BookingFlow({
             )}
           </View>
 
+          {/* ── Grouped acknowledgment card ── */}
+          {(() => {
+            const locType = selectedService.serviceLocationType;
+            const hasCancellationPolicy = !!selectedService.fullRefundWindow;
+            const hasVendorTerms = !!(providerVendorTerms && providerVendorTerms.trim());
+
+            const rows: React.ReactElement[] = [];
+
+            // Virtual link row — only for virtual services
+            if (locType === 'virtual') {
+              rows.push(
+                <Pressable
+                  key="virtual"
+                  onPress={() => setVirtualLinkAcknowledged(!virtualLinkAcknowledged)}
+                  style={styles.checkboxRow}
+                >
+                  <View style={[styles.checkbox, {
+                    borderColor: virtualLinkAcknowledged ? accent : theme.brandTextDim,
+                    backgroundColor: virtualLinkAcknowledged ? accent : "transparent",
+                  }]}>
+                    {virtualLinkAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                  </View>
+                  <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
+                    I understand I will join this meeting link at my scheduled appointment time.
+                  </ThemedText>
+                </Pressable>
+              );
+            }
+
+            // Cancellation policy row — shown when service has a policy
+            if (hasCancellationPolicy) {
+              rows.push(
+                <View key="cancellation">
+                  {rows.length > 0 && <View style={{ height: 1, backgroundColor: theme.brandSurfaceBorder, marginVertical: Spacing.sm }} />}
+                  <Pressable
+                    onPress={() => setCancellationPolicyAcknowledged(!cancellationPolicyAcknowledged)}
+                    style={styles.checkboxRow}
+                  >
+                    <View style={[styles.checkbox, {
+                      borderColor: cancellationPolicyAcknowledged ? accent : theme.brandTextDim,
+                      backgroundColor: cancellationPolicyAcknowledged ? accent : "transparent",
+                    }]}>
+                      {cancellationPolicyAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                    </View>
+                    <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
+                      {"I agree to the "}
+                      <ThemedText
+                        onPress={() => setShowCancellationModal(true)}
+                        style={{ color: accent, textDecorationLine: "underline" }}
+                      >
+                        Cancellation Policy
+                      </ThemedText>
+                    </ThemedText>
+                  </Pressable>
+                  <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs, marginTop: 4, marginLeft: 22 + Spacing.sm }}>
+                    {shortCancellationSummary(selectedService)}
+                  </ThemedText>
+                </View>
+              );
+            }
+
+            // Platform T&C row — always shown
+            {
+              rows.push(
+                <View key="platform">
+                  {rows.length > 0 && <View style={{ height: 1, backgroundColor: theme.brandSurfaceBorder, marginVertical: Spacing.sm }} />}
+                  <Pressable
+                    onPress={() => setPlatformTermsAcknowledged(!platformTermsAcknowledged)}
+                    style={styles.checkboxRow}
+                  >
+                    <View style={[styles.checkbox, {
+                      borderColor: platformTermsAcknowledged ? accent : theme.brandTextDim,
+                      backgroundColor: platformTermsAcknowledged ? accent : "transparent",
+                    }]}>
+                      {platformTermsAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                    </View>
+                    <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
+                      {"I agree to the "}
+                      <ThemedText
+                        onPress={() => navigation.navigate("TermsOfService")}
+                        style={{ color: accent, textDecorationLine: "underline" }}
+                      >
+                        Terms and Conditions
+                      </ThemedText>
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              );
+            }
+
+            // Vendor T&C row — only when vendor has set terms
+            if (hasVendorTerms) {
+              rows.push(
+                <View key="vendorterms">
+                  {<View style={{ height: 1, backgroundColor: theme.brandSurfaceBorder, marginVertical: Spacing.sm }} />}
+                  <Pressable
+                    onPress={() => setVendorTermsAcknowledged(!vendorTermsAcknowledged)}
+                    style={styles.checkboxRow}
+                  >
+                    <View style={[styles.checkbox, {
+                      borderColor: vendorTermsAcknowledged ? accent : theme.brandTextDim,
+                      backgroundColor: vendorTermsAcknowledged ? accent : "transparent",
+                    }]}>
+                      {vendorTermsAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                    </View>
+                    <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
+                      {"I agree to "}
+                      <ThemedText
+                        onPress={() => setShowVendorTermsModal(true)}
+                        style={{ color: accent, textDecorationLine: "underline" }}
+                      >
+                        {`${providerName}'s Terms and Conditions`}
+                      </ThemedText>
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              );
+            }
+
+            return rows.length > 0 ? (
+              <View style={[styles.reviewSection, {
+                backgroundColor: theme.brandBgElevated,
+                borderRadius: BorderRadius.md,
+                padding: Spacing.md,
+                borderWidth: 1,
+                borderColor: theme.brandSurfaceBorder,
+                marginTop: Spacing.sm,
+              }]}>
+                {rows}
+              </View>
+            ) : null;
+          })()}
+
           {/* Confirm & Pay button */}
           {creatingHold ? (
             <View style={[styles.loader, { paddingVertical: Spacing.md }]}>
@@ -1069,29 +1315,47 @@ export default function BookingFlow({
             </View>
           ) : (() => {
             const locType = selectedService.serviceLocationType;
-            const disabled =
-              (!locType || locType === 'business') ? !businessLocationAcknowledged :
-              locType === 'alternate' ? !alternateAcknowledged :
+            const hasCancellationPolicy = !!selectedService.fullRefundWindow;
+            const hasVendorTerms = !!(providerVendorTerms && providerVendorTerms.trim());
+
+            const universalReady =
+              (!hasCancellationPolicy || cancellationPolicyAcknowledged) &&
+              platformTermsAcknowledged &&
+              (!hasVendorTerms || vendorTermsAcknowledged);
+
+            const locationReady =
+              (!locType || locType === 'business') ? businessLocationAcknowledged :
+              locType === 'alternate' ? alternateAcknowledged :
               locType === 'customer' ? (
-                !customerServiceAddress.trim() ||
-                !customerServiceCity.trim() ||
-                !customerServiceState.trim() ||
-                !customerServiceZipCode.trim() ||
-                !customerReadinessConfirmed
-              ) : false;
+                customerServiceAddress.trim().length > 0 &&
+                customerServiceCity.trim().length > 0 &&
+                customerServiceState.trim().length > 0 &&
+                customerServiceZipCode.trim().length > 0 &&
+                customerReadinessConfirmed
+              ) : locType === 'virtual' ? virtualLinkAcknowledged : true;
+
+            const disabled = !locationReady || !universalReady;
             return (
-              <Pressable
-                onPress={() => !disabled && createHold(selectedSlot)}
-                disabled={disabled}
-                style={[
-                  styles.primaryButton,
-                  { backgroundColor: disabled ? theme.brandSurfaceBorder : accent, marginTop: Spacing.lg, marginBottom: Spacing.xl },
-                ]}
-              >
-                <ThemedText style={[styles.primaryButtonText, { color: disabled ? theme.brandTextDim : theme.brandBg }]}>
-                  Confirm & Pay
-                </ThemedText>
-              </Pressable>
+              <>
+                <Pressable
+                  onPress={() => !disabled && createHold(selectedSlot)}
+                  disabled={disabled}
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: disabled ? theme.brandSurfaceBorder : accent, marginTop: Spacing.lg },
+                  ]}
+                >
+                  <ThemedText style={[styles.primaryButtonText, { color: disabled ? theme.brandTextDim : theme.brandBg }]}>
+                    Confirm & Pay
+                  </ThemedText>
+                </Pressable>
+                {disabled && (
+                  <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs, textAlign: "center", marginTop: Spacing.sm, marginBottom: Spacing.xl }}>
+                    Complete all required items above to continue
+                  </ThemedText>
+                )}
+                {!disabled && <View style={{ marginBottom: Spacing.xl }} />}
+              </>
             );
           })()}
         </ScrollView>
@@ -1114,6 +1378,59 @@ export default function BookingFlow({
           </Pressable>
         </View>
       )}
+
+      {/* Cancellation policy detail modal */}
+      <Modal
+        visible={showCancellationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCancellationModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.brandBgElevated, maxWidth: 360 }]}>
+            <ThemedText type="body" style={[styles.modalTitle, { fontWeight: "600", color: theme.brandCream }]}>
+              Cancellation Policy
+            </ThemedText>
+            <ThemedText style={[styles.modalMessage, { color: theme.brandTextDim, textAlign: "left" }]}>
+              {selectedService && selectedDate && selectedSlot
+                ? describeCancellationPolicyForService(selectedService, selectedDate, selectedSlot.startTime)
+                : ""}
+            </ThemedText>
+            <Pressable
+              onPress={() => setShowCancellationModal(false)}
+              style={[styles.modalButton, { backgroundColor: theme.brandSurfaceBorder, width: "100%" }]}
+            >
+              <ThemedText style={{ color: theme.brandCream }}>Got it</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Vendor terms detail modal */}
+      <Modal
+        visible={showVendorTermsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowVendorTermsModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay, justifyContent: "flex-end", padding: 0 }]}>
+          <View style={{ backgroundColor: theme.brandBgElevated, borderTopLeftRadius: BorderRadius.lg, borderTopRightRadius: BorderRadius.lg, padding: Spacing.xl, maxHeight: "70%" }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
+              <ThemedText style={{ color: theme.brandCream, fontWeight: "600", fontSize: FontSizes.md }}>
+                {`${providerName}'s Terms & Conditions`}
+              </ThemedText>
+              <Pressable onPress={() => setShowVendorTermsModal(false)}>
+                <Feather name="x" size={22} color={theme.brandTextDim} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator>
+              <ThemedText style={{ color: theme.brandTextDim, lineHeight: 22 }}>
+                {providerVendorTerms || ""}
+              </ThemedText>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showIncompatibleModal}
