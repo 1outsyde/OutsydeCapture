@@ -114,6 +114,7 @@ export default function StorefrontEditorScreen() {
   const [showStoreHours, setShowStoreHours] = useState(true);
   const [hasPhysicalLocation, setHasPhysicalLocation] = useState(true);
   const [showAddress, setShowAddress] = useState(true);
+  const [defaultServiceLocationType, setDefaultServiceLocationType] = useState('business');
   const [responseTimeValue, setResponseTimeValue] = useState(2);
   const [responseTimeUnit, setResponseTimeUnit] =
     useState<ResponseTimeUnit>("hours");
@@ -263,6 +264,11 @@ export default function StorefrontEditorScreen() {
     hasCancellationFee: false,
     cancellationFeeType: null,
     cancellationFeeAmount: null,
+    serviceLocationType: 'business',
+    alternateAddress: null,
+    alternateCity: null,
+    alternateState: null,
+    alternateZipCode: null,
   });
 
   const fetchData = useCallback(async () => {
@@ -337,6 +343,7 @@ export default function StorefrontEditorScreen() {
       setShowStoreHours((biz as any).showStoreHours !== false);
       setHasPhysicalLocation((biz as any).hasPhysicalLocation !== false);
       setShowAddress((biz as any).showAddress !== false);
+      setDefaultServiceLocationType((biz as any).defaultServiceLocationType || 'business');
       setResponseTimeValue(Number((biz as any).responseTimeValue ?? 2));
       setResponseTimeUnit(
         ((biz as any).responseTimeUnit || "hours") as ResponseTimeUnit,
@@ -425,6 +432,7 @@ export default function StorefrontEditorScreen() {
         showStoreHours,
         hasPhysicalLocation,
         showAddress,
+        defaultServiceLocationType,
         responseTimeValue,
         responseTimeUnit,
         address: profileAddress || undefined,
@@ -669,6 +677,11 @@ export default function StorefrontEditorScreen() {
         hasCancellationFee: s.hasCancellationFee ?? false,
         cancellationFeeType: s.cancellationFeeType ?? null,
         cancellationFeeAmount: s.cancellationFeeAmount ?? null,
+        serviceLocationType: s.serviceLocationType ?? 'business',
+        alternateAddress: s.alternateAddress ?? null,
+        alternateCity: s.alternateCity ?? null,
+        alternateState: s.alternateState ?? null,
+        alternateZipCode: s.alternateZipCode ?? null,
       });
     } else {
       const biz = business as any;
@@ -686,6 +699,11 @@ export default function StorefrontEditorScreen() {
         hasCancellationFee: biz?.hasCancellationFee ?? false,
         cancellationFeeType: biz?.cancellationFeeType ?? null,
         cancellationFeeAmount: biz?.cancellationFeeAmount ?? null,
+        serviceLocationType: 'business',
+        alternateAddress: null,
+        alternateCity: null,
+        alternateState: null,
+        alternateZipCode: null,
       });
     }
     setServiceModalVisible(true);
@@ -1705,6 +1723,34 @@ export default function StorefrontEditorScreen() {
               </Text>
             </>
           )}
+          <Text style={[styles.inputLabel, { marginTop: 12 }]}>Default Service Location</Text>
+          <Text style={[styles.visibilityHelp, { marginBottom: 8 }]}>
+            Where your services take place by default. Can be overridden per service.
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {((!hasPhysicalLocation ? [['alternate', 'Alternate address'], ['customer', "Customer's location"]] : [['business', 'At my location'], ['alternate', 'Alternate address'], ['customer', "Customer's location"]]) as [string, string][]).map(([val, label]) => {
+              const selected = defaultServiceLocationType === val;
+              return (
+                <Pressable
+                  key={val}
+                  onPress={() => setDefaultServiceLocationType(val)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 8,
+                    borderWidth: 1.5,
+                    borderColor: selected ? theme.brandGold : theme.brandSurface,
+                    backgroundColor: selected ? theme.brandGold + "22" : theme.brandSurface,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: selected ? theme.brandGold : theme.brandTextDim, fontWeight: selected ? "600" : "400" }}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <Text style={[styles.inputLabel, { marginTop: 12 }]}>Address</Text>
           <TextInput
             style={styles.input}
@@ -2202,6 +2248,81 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
           />
+
+          {/* ── Service Location ── */}
+          <Text style={[styles.inputLabel, { marginTop: 8 }]}>Where does this service take place?</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 4 }}>
+            {(!hasPhysicalLocation ? [['alternate', 'Alternate address'], ['customer', "Customer's location"]] : [['business', 'At my location'], ['alternate', 'Alternate address'], ['customer', "Customer's location"]] as const).map(([val, label]) => {
+              const selected = serviceForm.serviceLocationType === val;
+              return (
+                <Pressable
+                  key={val}
+                  onPress={() => setServiceForm({ ...serviceForm, serviceLocationType: val as 'business' | 'alternate' | 'customer', alternateAddress: null, alternateCity: null, alternateState: null, alternateZipCode: null })}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 8,
+                    borderWidth: 1.5,
+                    borderColor: selected ? theme.brandGold : theme.brandSurface,
+                    backgroundColor: selected ? theme.brandGold + "22" : theme.brandSurface,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: selected ? theme.brandGold : theme.brandTextDim, fontWeight: selected ? "600" : "400" }}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {!hasPhysicalLocation && (
+            <Text style={{ fontSize: 12, color: theme.brandTextDim, marginBottom: 8 }}>
+              Add a physical location in your Profile to enable "At my location".
+            </Text>
+          )}
+
+          {serviceForm.serviceLocationType === 'alternate' && (
+            <>
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Address</Text>
+              <TextInput
+                style={styles.input}
+                value={serviceForm.alternateAddress || ""}
+                onChangeText={(v) => setServiceForm({ ...serviceForm, alternateAddress: v || null })}
+                placeholder="123 Main Street"
+                placeholderTextColor={theme.brandTextDim}
+              />
+              <View style={styles.row}>
+                <View style={styles.flex1}>
+                  <Text style={styles.inputLabel}>City</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={serviceForm.alternateCity || ""}
+                    onChangeText={(v) => setServiceForm({ ...serviceForm, alternateCity: v || null })}
+                    placeholder="City"
+                    placeholderTextColor={theme.brandTextDim}
+                  />
+                </View>
+                <View style={styles.flex1}>
+                  <Text style={styles.inputLabel}>State</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={serviceForm.alternateState || ""}
+                    onChangeText={(v) => setServiceForm({ ...serviceForm, alternateState: v || null })}
+                    placeholder="State"
+                    placeholderTextColor={theme.brandTextDim}
+                  />
+                </View>
+              </View>
+              <Text style={styles.inputLabel}>ZIP Code</Text>
+              <TextInput
+                style={styles.input}
+                value={serviceForm.alternateZipCode || ""}
+                onChangeText={(v) => setServiceForm({ ...serviceForm, alternateZipCode: v || null })}
+                placeholder="12345"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+              />
+            </>
+          )}
 
           {/* ── Cancellation Policy ── */}
           <Text style={[styles.inputLabel, { marginTop: 8 }]}>Cancellation Policy</Text>

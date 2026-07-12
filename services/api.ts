@@ -372,6 +372,7 @@ export interface BusinessOnboardingData {
   businessStructure?: string; // LLC, Sole Proprietor, Corporation, etc.
   hasPhysicalLocation?: boolean;
   showAddress?: boolean;
+  defaultServiceLocationType?: string;
   isOnlineOnly?: boolean;
   address?: string;
   contactEmail?: string;
@@ -518,6 +519,11 @@ export interface VendorServiceInput {
   hasCancellationFee?: boolean;
   cancellationFeeType?: 'flat' | 'percentage' | null;
   cancellationFeeAmount?: number | null;
+  serviceLocationType?: 'business' | 'alternate' | 'customer';
+  alternateAddress?: string | null;
+  alternateCity?: string | null;
+  alternateState?: string | null;
+  alternateZipCode?: string | null;
 }
 
 export interface AdminStats {
