@@ -47,6 +47,7 @@ interface BookingFlowProps {
   providerAddress?: string | null;
   providerCity?: string | null;
   providerState?: string | null;
+  providerShowAddress?: boolean;
   staffMemberId?: string | null;
   accentColor?: string;
 }
@@ -90,6 +91,7 @@ export default function BookingFlow({
   providerAddress,
   providerCity,
   providerState,
+  providerShowAddress,
   staffMemberId,
   accentColor,
 }: BookingFlowProps) {
@@ -915,14 +917,31 @@ export default function BookingFlow({
 
             {(!selectedService.serviceLocationType || selectedService.serviceLocationType === 'business') && (
               <>
-                <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
-                  {[
-                    providerAddress,
-                    providerCity && providerState
-                      ? `${providerCity}, ${providerState}`
-                      : providerCity || providerState,
-                  ].filter(Boolean).join(" · ") || `${providerName}'s location`}
-                </ThemedText>
+                {providerShowAddress !== false && providerAddress ? (
+                  <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
+                    {[
+                      providerAddress,
+                      providerCity && providerState
+                        ? `${providerCity}, ${providerState}`
+                        : providerCity || providerState,
+                    ].filter(Boolean).join(" · ")}
+                  </ThemedText>
+                ) : providerShowAddress === false ? (
+                  <>
+                    <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
+                      {providerCity && providerState
+                        ? `${providerCity}, ${providerState}`
+                        : providerCity || providerState || `${providerName}'s location`}
+                    </ThemedText>
+                    <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.xs, fontSize: FontSizes.xs }}>
+                      The exact address will be provided once your booking is confirmed.
+                    </ThemedText>
+                  </>
+                ) : (
+                  <ThemedText style={[styles.reviewValue, { color: theme.brandCream }]}>
+                    {`${providerName}'s location`}
+                  </ThemedText>
+                )}
                 <Pressable
                   onPress={() => setBusinessLocationAcknowledged(!businessLocationAcknowledged)}
                   style={styles.checkboxRow}
@@ -934,7 +953,9 @@ export default function BookingFlow({
                     {businessLocationAcknowledged && <Feather name="check" size={13} color={accent} />}
                   </View>
                   <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
-                    I understand this appointment takes place at the address above
+                    {providerShowAddress === false
+                      ? "I understand this appointment takes place in the listed city"
+                      : "I understand this appointment takes place at the address above"}
                   </ThemedText>
                 </Pressable>
               </>
