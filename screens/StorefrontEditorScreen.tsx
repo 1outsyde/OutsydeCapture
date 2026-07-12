@@ -1707,13 +1707,13 @@ export default function StorefrontEditorScreen() {
             <Text style={styles.inputLabel}>Physical Location</Text>
             {renderVisibilityToggle(hasPhysicalLocation, () => {
               if (hasPhysicalLocation && defaultServiceLocationType === 'business') {
-                setDefaultServiceLocationType('alternate');
+                setDefaultServiceLocationType('virtual');
               }
               setHasPhysicalLocation((v) => !v);
             })}
           </View>
           <Text style={styles.visibilityHelp}>
-            Controls whether your business address appears publicly.
+            Do you have a primary place customers can visit for this service?
           </Text>
           {hasPhysicalLocation && (
             <>
@@ -1724,8 +1724,8 @@ export default function StorefrontEditorScreen() {
                 )}
               </View>
               <Text style={styles.visibilityHelp}>
-                When on, your full address is visible to anyone browsing. When
-                off, only your city/state show.
+                When on, your exact address is visible to anyone browsing. When
+                off, only your city/state show until a customer books.
               </Text>
             </>
           )}
@@ -2332,7 +2332,7 @@ export default function StorefrontEditorScreen() {
 
           {serviceForm.serviceLocationType === 'virtual' && (
             <>
-              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Meeting Link</Text>
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Meeting Room Link</Text>
               <TextInput
                 style={styles.input}
                 value={serviceForm.virtualLink || ""}
@@ -2342,6 +2342,9 @@ export default function StorefrontEditorScreen() {
                 autoCapitalize="none"
                 keyboardType="url"
               />
+              <Text style={styles.visibilityHelp}>
+                Use your permanent Zoom/Meet room — not a one-time scheduled link. Customers will join this same link at their booked appointment time.
+              </Text>
             </>
           )}
 
