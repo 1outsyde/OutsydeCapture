@@ -1694,6 +1694,10 @@ export default function VendorDetailScreen({ route }: Props) {
           providerId={vendorId}
           providerType="business"
           providerName={profile?.name || ""}
+          providerAddress={profile?.address}
+          providerCity={profile?.city}
+          providerState={profile?.state}
+          providerShowAddress={profile?.showAddress}
           staffMemberId={selectedStaffId}
           accentColor={accentColor}
         />
