@@ -48,6 +48,7 @@ interface BookingFlowProps {
   providerCity?: string | null;
   providerState?: string | null;
   providerShowAddress?: boolean;
+  providerVendorTerms?: string | null;
   staffMemberId?: string | null;
   accentColor?: string;
 }
@@ -92,6 +93,7 @@ export default function BookingFlow({
   providerCity,
   providerState,
   providerShowAddress,
+  providerVendorTerms,
   staffMemberId,
   accentColor,
 }: BookingFlowProps) {

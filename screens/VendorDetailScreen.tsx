@@ -674,6 +674,7 @@ export default function VendorDetailScreen({ route }: Props) {
           showPhone: (business as any).showPhone !== false,
           showWebsite: (business as any).showWebsite !== false,
           showStoreHours: (business as any).showStoreHours !== false,
+          vendorTermsAndConditions: (business as any).vendorTermsAndConditions || null,
         };
 
         resolvedProducts = liveProducts;
@@ -1698,6 +1699,7 @@ export default function VendorDetailScreen({ route }: Props) {
           providerCity={profile?.city}
           providerState={profile?.state}
           providerShowAddress={profile?.showAddress}
+          providerVendorTerms={profile?.vendorTermsAndConditions}
           staffMemberId={selectedStaffId}
           accentColor={accentColor}
         />
