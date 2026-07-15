@@ -8,6 +8,7 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  Switch,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,6 +36,21 @@ const PRICING_MODELS = [
   { value: "hourly", label: "Hourly Rate" },
 ];
 
+const LOCATION_TYPES = [
+  { value: "business", label: "At my location" },
+  { value: "alternate", label: "Alternate address" },
+  { value: "customer", label: "Customer's location" },
+  { value: "virtual", label: "Virtual" },
+] as const;
+
+const REFUND_WINDOWS = [
+  { value: "1_week", label: "1 week" },
+  { value: "48_hours", label: "48 hours" },
+  { value: "24_hours", label: "24 hours" },
+  { value: "1_hour", label: "1 hour" },
+  { value: "never", label: "Never" },
+] as const;
+
 export interface ServiceFormData {
   id?: string;
   name: string;
@@ -45,6 +61,19 @@ export interface ServiceFormData {
   duration: string;
   packageHours?: string;
   status?: string;
+  serviceLocationType?: "business" | "alternate" | "customer" | "virtual";
+  alternateAddress?: string | null;
+  alternateCity?: string | null;
+  alternateState?: string | null;
+  alternateZipCode?: string | null;
+  virtualLink?: string | null;
+  fullRefundWindow?: "1_week" | "48_hours" | "24_hours" | "1_hour" | "never";
+  hasPartialRefund?: boolean;
+  partialRefundWindow?: "1_week" | "48_hours" | "24_hours" | "1_hour" | "never" | null;
+  partialRefundPercentage?: number | null;
+  hasCancellationFee?: boolean;
+  cancellationFeeType?: "flat" | "percentage" | null;
+  cancellationFeeAmount?: number | null;
 }
 
 interface ServiceEditorModalProps {
@@ -54,6 +83,29 @@ interface ServiceEditorModalProps {
   initialData?: ServiceFormData | null;
   brandColor?: string;
 }
+
+const EMPTY_FORM: ServiceFormData = {
+  name: "",
+  description: "",
+  category: "Portrait",
+  pricingModel: "package",
+  price: "",
+  duration: "60",
+  packageHours: "",
+  serviceLocationType: "business",
+  alternateAddress: null,
+  alternateCity: null,
+  alternateState: null,
+  alternateZipCode: null,
+  virtualLink: null,
+  fullRefundWindow: undefined,
+  hasPartialRefund: false,
+  partialRefundWindow: null,
+  partialRefundPercentage: null,
+  hasCancellationFee: false,
+  cancellationFeeType: null,
+  cancellationFeeAmount: null,
+};
 
 export default function ServiceEditorModal({
   visible,
@@ -67,15 +119,7 @@ export default function ServiceEditorModal({
   const [saving, setSaving] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
-  const [formData, setFormData] = useState<ServiceFormData>({
-    name: "",
-    description: "",
-    category: "Portrait",
-    pricingModel: "package",
-    price: "",
-    duration: "60",
-    packageHours: "",
-  });
+  const [formData, setFormData] = useState<ServiceFormData>(EMPTY_FORM);
 
   useEffect(() => {
     if (initialData) {
@@ -89,17 +133,22 @@ export default function ServiceEditorModal({
         duration: initialData.duration || "60",
         packageHours: initialData.packageHours || "",
         status: initialData.status,
+        serviceLocationType: initialData.serviceLocationType ?? "business",
+        alternateAddress: initialData.alternateAddress ?? null,
+        alternateCity: initialData.alternateCity ?? null,
+        alternateState: initialData.alternateState ?? null,
+        alternateZipCode: initialData.alternateZipCode ?? null,
+        virtualLink: initialData.virtualLink ?? null,
+        fullRefundWindow: initialData.fullRefundWindow ?? undefined,
+        hasPartialRefund: initialData.hasPartialRefund ?? false,
+        partialRefundWindow: initialData.partialRefundWindow ?? null,
+        partialRefundPercentage: initialData.partialRefundPercentage ?? null,
+        hasCancellationFee: initialData.hasCancellationFee ?? false,
+        cancellationFeeType: initialData.cancellationFeeType ?? null,
+        cancellationFeeAmount: initialData.cancellationFeeAmount ?? null,
       });
     } else {
-      setFormData({
-        name: "",
-        description: "",
-        category: "Portrait",
-        pricingModel: "package",
-        price: "",
-        duration: "60",
-        packageHours: "",
-      });
+      setFormData(EMPTY_FORM);
     }
   }, [initialData, visible]);
 
@@ -123,6 +172,21 @@ export default function ServiceEditorModal({
   };
 
   const isEditing = Boolean(initialData?.id);
+
+  const chipStyle = (selected: boolean) => ({
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: selected ? brandColor : theme.border,
+    backgroundColor: selected ? brandColor + "22" : theme.card,
+  });
+
+  const chipTextStyle = (selected: boolean) => ({
+    fontSize: 13,
+    color: selected ? brandColor : theme.textSecondary,
+    fontWeight: (selected ? "600" : "400") as "600" | "400",
+  });
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -148,6 +212,7 @@ export default function ServiceEditorModal({
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {/* ── Basic Info ── */}
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Service Name *</Text>
               <TextInput
@@ -320,6 +385,219 @@ export default function ServiceEditorModal({
               </View>
             </View>
 
+            {/* ── Service Location ── */}
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: theme.text }]}>Where does this service take place?</Text>
+              <View style={styles.chipRow}>
+                {LOCATION_TYPES.map(({ value, label }) => {
+                  const selected = formData.serviceLocationType === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      style={chipStyle(selected)}
+                      onPress={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          serviceLocationType: value,
+                          alternateAddress: null,
+                          alternateCity: null,
+                          alternateState: null,
+                          alternateZipCode: null,
+                          virtualLink: null,
+                        }))
+                      }
+                    >
+                      <Text style={chipTextStyle(selected)}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {formData.serviceLocationType === "alternate" && (
+              <>
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: theme.text }]}>Address</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                    value={formData.alternateAddress || ""}
+                    onChangeText={(v) => setFormData((prev) => ({ ...prev, alternateAddress: v || null }))}
+                    placeholder="123 Main Street"
+                    placeholderTextColor={theme.textSecondary}
+                  />
+                </View>
+                <View style={styles.row}>
+                  <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+                    <Text style={[styles.label, { color: theme.text }]}>City</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                      value={formData.alternateCity || ""}
+                      onChangeText={(v) => setFormData((prev) => ({ ...prev, alternateCity: v || null }))}
+                      placeholder="City"
+                      placeholderTextColor={theme.textSecondary}
+                    />
+                  </View>
+                  <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+                    <Text style={[styles.label, { color: theme.text }]}>State</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                      value={formData.alternateState || ""}
+                      onChangeText={(v) => setFormData((prev) => ({ ...prev, alternateState: v || null }))}
+                      placeholder="State"
+                      placeholderTextColor={theme.textSecondary}
+                    />
+                  </View>
+                </View>
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: theme.text }]}>ZIP Code</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                    value={formData.alternateZipCode || ""}
+                    onChangeText={(v) => setFormData((prev) => ({ ...prev, alternateZipCode: v || null }))}
+                    placeholder="12345"
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </>
+            )}
+
+            {formData.serviceLocationType === "virtual" && (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: theme.text }]}>Meeting Room Link</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                  value={formData.virtualLink || ""}
+                  onChangeText={(v) => setFormData((prev) => ({ ...prev, virtualLink: v || null }))}
+                  placeholder="https://zoom.us/j/..."
+                  placeholderTextColor={theme.textSecondary}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+              </View>
+            )}
+
+            {/* ── Cancellation Policy ── */}
+            <View style={styles.sectionDivider} />
+            <Text style={[styles.label, { color: theme.text, marginBottom: 12 }]}>Cancellation Policy</Text>
+
+            <Text style={[styles.subLabel, { color: theme.textSecondary }]}>Full refund until</Text>
+            <View style={[styles.chipRow, { marginBottom: 20 }]}>
+              {REFUND_WINDOWS.map(({ value, label }) => {
+                const selected = formData.fullRefundWindow === value;
+                return (
+                  <Pressable
+                    key={value}
+                    style={chipStyle(selected)}
+                    onPress={() => setFormData((prev) => ({ ...prev, fullRefundWindow: value }))}
+                  >
+                    <Text style={chipTextStyle(selected)}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.switchRow}>
+              <Text style={[styles.label, { color: theme.text, marginBottom: 0 }]}>Offer partial refund after that?</Text>
+              <Switch
+                value={formData.hasPartialRefund ?? false}
+                onValueChange={(v) => setFormData((prev) => ({ ...prev, hasPartialRefund: v }))}
+                trackColor={{ true: brandColor }}
+              />
+            </View>
+
+            {formData.hasPartialRefund && (
+              <>
+                <Text style={[styles.subLabel, { color: theme.textSecondary }]}>Partial refund until</Text>
+                <View style={[styles.chipRow, { marginBottom: 16 }]}>
+                  {REFUND_WINDOWS.map(({ value, label }) => {
+                    const selected = formData.partialRefundWindow === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        style={chipStyle(selected)}
+                        onPress={() => setFormData((prev) => ({ ...prev, partialRefundWindow: value }))}
+                      >
+                        <Text style={chipTextStyle(selected)}>{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: theme.text }]}>Refund percentage</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                    value={formData.partialRefundPercentage != null ? formData.partialRefundPercentage.toString() : ""}
+                    onChangeText={(v) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        partialRefundPercentage: v ? parseInt(v, 10) : null,
+                      }))
+                    }
+                    placeholder="e.g. 50"
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </>
+            )}
+
+            <View style={styles.switchRow}>
+              <Text style={[styles.label, { color: theme.text, marginBottom: 0 }]}>Cancellation fee?</Text>
+              <Switch
+                value={formData.hasCancellationFee ?? false}
+                onValueChange={(v) => setFormData((prev) => ({ ...prev, hasCancellationFee: v }))}
+                trackColor={{ true: brandColor }}
+              />
+            </View>
+
+            {formData.hasCancellationFee && (
+              <>
+                <Text style={[styles.subLabel, { color: theme.textSecondary }]}>Fee type</Text>
+                <View style={[styles.chipRow, { marginBottom: 16 }]}>
+                  {([["flat", "Flat amount"], ["percentage", "Percentage of revenue"]] as const).map(([value, label]) => {
+                    const selected = formData.cancellationFeeType === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        style={[chipStyle(selected), { flex: 1 }]}
+                        onPress={() => setFormData((prev) => ({ ...prev, cancellationFeeType: value }))}
+                      >
+                        <Text style={[chipTextStyle(selected), { textAlign: "center" }]}>{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: theme.text }]}>
+                    {formData.cancellationFeeType === "flat" ? "Fee amount (in dollars)" : "Fee percentage"}
+                  </Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                    value={
+                      formData.cancellationFeeType === "flat"
+                        ? formData.cancellationFeeAmount != null
+                          ? (formData.cancellationFeeAmount / 100).toString()
+                          : ""
+                        : formData.cancellationFeeAmount != null
+                        ? formData.cancellationFeeAmount.toString()
+                        : ""
+                    }
+                    onChangeText={(v) => {
+                      if (formData.cancellationFeeType === "flat") {
+                        setFormData((prev) => ({ ...prev, cancellationFeeAmount: v ? Math.round(parseFloat(v) * 100) : null }));
+                      } else {
+                        setFormData((prev) => ({ ...prev, cancellationFeeAmount: v ? parseInt(v, 10) : null }));
+                      }
+                    }}
+                    placeholder={formData.cancellationFeeType === "flat" ? "e.g. 50" : "e.g. 20"}
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              </>
+            )}
+
             {isEditing && formData.status && (
               <View style={styles.field}>
                 <Text style={[styles.label, { color: theme.text }]}>Current Status</Text>
@@ -354,6 +632,8 @@ export default function ServiceEditorModal({
                 </View>
               </View>
             )}
+
+            <View style={{ height: 16 }} />
           </ScrollView>
 
           <View style={[styles.footer, { borderTopColor: theme.border }]}>
@@ -426,6 +706,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 8,
   },
+  subLabel: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
   input: {
     height: 48,
     borderRadius: 12,
@@ -481,6 +765,21 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  sectionDivider: {
+    height: 1,
+    marginVertical: 20,
+  },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
   },
   statusBadge: {
     alignSelf: "flex-start",
