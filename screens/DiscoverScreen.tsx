@@ -154,7 +154,7 @@ export default function DiscoverScreen() {
       serviceId: apiPost.photographerServiceId || apiPost.serviceId,
       productId: apiPost.productId,
       providerId,
-      photographerId: apiPost.authorType === "photographer" ? userId : undefined,
+      photographerId: apiPost.authorType === "photographer" ? (providerId || userId) : undefined,
       photographerName: apiPost.authorType === "photographer" ? displayName : undefined,
     };
   }, []);
