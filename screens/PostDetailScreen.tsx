@@ -82,7 +82,7 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     serviceId: apiPost.photographerServiceId || apiPost.serviceId,
     productId: apiPost.productId,
     providerId,
-    photographerId: postType === "photographer" ? userId : undefined,
+    photographerId: postType === "photographer" ? (providerId || userId) : undefined,
     photographerName: postType === "photographer" ? displayName : undefined,
   };
 }
