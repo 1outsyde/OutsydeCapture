@@ -408,6 +408,19 @@ export interface VendorBookerPhotographerService {
   status: string;
   createdAt?: string;
   updatedAt?: string;
+  serviceLocationType?: 'business' | 'alternate' | 'customer' | 'virtual';
+  alternateAddress?: string | null;
+  alternateCity?: string | null;
+  alternateState?: string | null;
+  alternateZipCode?: string | null;
+  virtualLink?: string | null;
+  fullRefundWindow?: '1_week' | '48_hours' | '24_hours' | '1_hour' | 'never';
+  hasPartialRefund?: boolean;
+  partialRefundWindow?: '1_week' | '48_hours' | '24_hours' | '1_hour' | 'never' | null;
+  partialRefundPercentage?: number | null;
+  hasCancellationFee?: boolean;
+  cancellationFeeType?: 'flat' | 'percentage' | null;
+  cancellationFeeAmount?: number | null;
 }
 
 // Photographer availability slot

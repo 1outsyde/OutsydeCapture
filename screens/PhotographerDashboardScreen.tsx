@@ -872,6 +872,19 @@ export default function PhotographerDashboardScreen() {
       duration: service.duration.toString(),
       packageHours: rawService?.packageHours?.toString() || "",
       status: rawService?.status || "draft",
+      serviceLocationType: rawService?.serviceLocationType ?? "business",
+      alternateAddress: rawService?.alternateAddress ?? null,
+      alternateCity: rawService?.alternateCity ?? null,
+      alternateState: rawService?.alternateState ?? null,
+      alternateZipCode: rawService?.alternateZipCode ?? null,
+      virtualLink: rawService?.virtualLink ?? null,
+      fullRefundWindow: rawService?.fullRefundWindow ?? undefined,
+      hasPartialRefund: rawService?.hasPartialRefund ?? false,
+      partialRefundWindow: rawService?.partialRefundWindow ?? null,
+      partialRefundPercentage: rawService?.partialRefundPercentage ?? null,
+      hasCancellationFee: rawService?.hasCancellationFee ?? false,
+      cancellationFeeType: rawService?.cancellationFeeType ?? null,
+      cancellationFeeAmount: rawService?.cancellationFeeAmount ?? null,
     });
     setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
   };
@@ -888,6 +901,19 @@ export default function PhotographerDashboardScreen() {
         pricingModel: data.pricingModel || "package",
         priceCents: Math.round(parseFloat(data.price) * 100),
         estimatedDurationMinutes: parseInt(data.duration) || 60,
+        serviceLocationType: data.serviceLocationType,
+        alternateAddress: data.alternateAddress,
+        alternateCity: data.alternateCity,
+        alternateState: data.alternateState,
+        alternateZipCode: data.alternateZipCode,
+        virtualLink: data.virtualLink,
+        fullRefundWindow: data.fullRefundWindow,
+        hasPartialRefund: data.hasPartialRefund,
+        partialRefundWindow: data.partialRefundWindow,
+        partialRefundPercentage: data.partialRefundPercentage,
+        hasCancellationFee: data.hasCancellationFee,
+        cancellationFeeType: data.cancellationFeeType,
+        cancellationFeeAmount: data.cancellationFeeAmount,
       };
 
       if (data.pricingModel === "hourly" && data.packageHours) {
