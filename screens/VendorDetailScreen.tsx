@@ -1693,7 +1693,7 @@ export default function VendorDetailScreen({ route }: Props) {
       return (
         <BookingFlow
           providerId={vendorId}
-          providerType="business"
+          providerType={profile?.role === "photographer" ? "photographer" : "business"}
           providerName={profile?.name || ""}
           providerAddress={profile?.address}
           providerCity={profile?.city}
