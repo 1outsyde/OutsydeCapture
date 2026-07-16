@@ -40,6 +40,12 @@ function getItemDate(item: CombinedItem): string {
   return item.kind === "photographer" ? item.data.date : item.data.appointmentDate;
 }
 
+function isPastDate(dateStr: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr) < today;
+}
+
 export default function SessionsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -58,14 +64,14 @@ export default function SessionsScreen() {
   const upcomingCombined: CombinedItem[] = [
     ...upcomingSessions.map((s): CombinedItem => ({ kind: "photographer", data: s })),
     ...businessAppointments
-      .filter((a) => BUSINESS_UPCOMING_STATUSES.has(a.status))
+      .filter((a) => BUSINESS_UPCOMING_STATUSES.has(a.status) && !isPastDate(a.appointmentDate))
       .map((a): CombinedItem => ({ kind: "business", data: a })),
   ].sort((a, b) => getItemDate(a).localeCompare(getItemDate(b)));
 
   const pastCombined: CombinedItem[] = [
     ...pastSessions.map((s): CombinedItem => ({ kind: "photographer", data: s })),
     ...businessAppointments
-      .filter((a) => BUSINESS_PAST_STATUSES.has(a.status))
+      .filter((a) => BUSINESS_PAST_STATUSES.has(a.status) || isPastDate(a.appointmentDate))
       .map((a): CombinedItem => ({ kind: "business", data: a })),
   ].sort((a, b) => getItemDate(b).localeCompare(getItemDate(a)));
 
@@ -275,10 +281,53 @@ export default function SessionsScreen() {
               <ThemedText type="h4" numberOfLines={1} style={styles.photographerName}>
                 {session.photographerName}
               </ThemedText>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
-                <ThemedText type="caption" style={{ color: statusColor }}>
-                  {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
-                </ThemedText>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
+                  <ThemedText type="caption" style={{ color: statusColor }}>
+                    {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
+                  </ThemedText>
+                </View>
+                {session.status === "upcoming" && (
+                  <Pressable
+                    hitSlop={8}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      const doCancel = async () => {
+                        try {
+                          const token = await getToken();
+                          if (!token) return;
+                          const result = await api.cancelShootBooking(token, session.id);
+                          await refreshSessions();
+                          const lines: string[] = [];
+                          if (result.refundAmountCents > 0) {
+                            lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
+                          }
+                          if (result.feeAmountCents > 0 && result.feeCharged) {
+                            lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
+                          } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
+                            lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the photographer will collect this separately`);
+                          }
+                          Alert.alert(
+                            "Session canceled",
+                            lines.length > 0 ? lines.join("\n") : "Session canceled",
+                          );
+                        } catch (error: any) {
+                          Alert.alert("Error", error.message || "Failed to cancel session");
+                        }
+                      };
+                      Alert.alert(
+                        "Cancel this session?",
+                        "Depending on the photographer's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
+                        [
+                          { text: "Keep session", style: "cancel" },
+                          { text: "Cancel session", style: "destructive", onPress: doCancel },
+                        ],
+                      );
+                    }}
+                  >
+                    <Feather name="x-circle" size={18} color={theme.error} />
+                  </Pressable>
+                )}
               </View>
             </View>
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
