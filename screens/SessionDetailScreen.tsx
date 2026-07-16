@@ -115,6 +115,12 @@ function describeCancellationPolicy(session: Session): string {
 
 // ─── Date/time helpers ─────────────────────────────────────────────────────────
 
+function isPastDate(dateStr: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr) < today;
+}
+
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
     weekday: "long",
@@ -321,8 +327,8 @@ export default function SessionDetailScreen() {
         </ThemedText>
       </View>
 
-      {/* Cancel button — only when upcoming */}
-      {session.status === "upcoming" ? (
+      {/* Cancel button — only when upcoming and not yet past */}
+      {session.status === "upcoming" && !isPastDate(session.date) ? (
         <Pressable
           onPress={handleCancel}
           style={({ pressed }) => [

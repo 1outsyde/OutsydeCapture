@@ -104,6 +104,12 @@ function describeCancellationPolicy(appt: BusinessAppointment): string {
 
 // ─── Date/time helpers ─────────────────────────────────────────────────────────
 
+function isPastDate(dateStr: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr) < today;
+}
+
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
     weekday: "long",
@@ -282,8 +288,8 @@ export default function AppointmentDetailScreen() {
         </ThemedText>
       </View>
 
-      {/* Cancel button — only when confirmed */}
-      {appt.status === "confirmed" ? (
+      {/* Cancel button — only when confirmed and not yet past */}
+      {appt.status === "confirmed" && !isPastDate(appt.appointmentDate) ? (
         <Pressable
           onPress={handleCancel}
           style={({ pressed }) => [

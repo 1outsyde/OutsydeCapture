@@ -258,7 +258,13 @@ export default function SessionsScreen() {
   const renderCombinedCard = (item: CombinedItem) => {
     if (item.kind === "photographer") {
       const session = item.data;
-      const statusColor = getStatusColor(session.status);
+      const isOverride = isPastDate(session.date);
+      const statusColor = (isOverride && session.status === "upcoming")
+        ? getStatusColor("completed")
+        : getStatusColor(session.status);
+      const statusLabel = (isOverride && session.status === "upcoming")
+        ? "Completed"
+        : session.status.charAt(0).toUpperCase() + session.status.slice(1);
       return (
         <Pressable
           key={`photographer-${session.id}`}
@@ -284,10 +290,10 @@ export default function SessionsScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
                   <ThemedText type="caption" style={{ color: statusColor }}>
-                    {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
+                    {statusLabel}
                   </ThemedText>
                 </View>
-                {session.status === "upcoming" && (
+                {session.status === "upcoming" && !isOverride && (
                   <Pressable
                     hitSlop={8}
                     onPress={(e) => {
@@ -360,8 +366,13 @@ export default function SessionsScreen() {
 
     // kind === "business"
     const appt = item.data;
-    const statusColor = getBusinessStatusColor(appt.status);
-    const statusLabel = appt.status === "pending_provider" ? "Pending" : appt.status.charAt(0).toUpperCase() + appt.status.slice(1);
+    const isOverride = isPastDate(appt.appointmentDate);
+    const statusColor = (isOverride && BUSINESS_UPCOMING_STATUSES.has(appt.status))
+      ? getBusinessStatusColor("completed")
+      : getBusinessStatusColor(appt.status);
+    const statusLabel = (isOverride && BUSINESS_UPCOMING_STATUSES.has(appt.status))
+      ? "Completed"
+      : appt.status === "pending_provider" ? "Pending" : appt.status.charAt(0).toUpperCase() + appt.status.slice(1);
     const locationStr = (appt.businessCity && appt.businessState)
       ? `${appt.businessCity}, ${appt.businessState}`
       : appt.businessCity || appt.businessState || appt.businessAddress || "";
@@ -403,7 +414,7 @@ export default function SessionsScreen() {
                   {statusLabel}
                 </ThemedText>
               </View>
-              {appt.status === "confirmed" && (
+              {appt.status === "confirmed" && !isOverride && (
                 <Pressable
                   hitSlop={8}
                   onPress={(e) => {
