@@ -82,6 +82,17 @@ export interface Session {
   photos?: string[];
   calendarEventId?: string;
   calendarSynced?: boolean;
+  // Service info from backend
+  serviceName?: string | null;
+  serviceDurationMinutes?: number | null;
+  // Cancellation policy fields
+  serviceFullRefundWindow?: string | null;
+  serviceHasPartialRefund?: boolean | null;
+  servicePartialRefundWindow?: string | null;
+  servicePartialRefundPercentage?: number | null;
+  serviceHasCancellationFee?: boolean | null;
+  serviceCancellationFeeType?: string | null;
+  serviceCancellationFeeAmount?: number | null;
 }
 
 export interface Comment {

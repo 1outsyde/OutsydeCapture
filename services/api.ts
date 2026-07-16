@@ -2970,6 +2970,24 @@ class ApiService {
     });
   }
 
+  // Consumer-initiated cancel for a photographer shoot booking
+  async cancelShootBooking(
+    authToken: string,
+    bookingId: string
+  ): Promise<{
+    success: boolean;
+    refundTier: string;
+    refundAmountCents: number;
+    feeAmountCents: number;
+    feeCharged: boolean;
+    feeNeedsManualCollection: boolean;
+  }> {
+    return this.request(`/api/bookings/shoot/${bookingId}/cancel`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // Cancel a confirmed appointment as no-show without issuing a refund
   async cancelBookingNoRefund(
     authToken: string,
