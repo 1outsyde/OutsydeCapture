@@ -494,6 +494,19 @@ export default function AccountScreen() {
     });
   }, [viewerMode, isOwner, routeUserId, routeUserType, user?.id]);
 
+  // Photographer and business profiles belong in VendorDetailScreen, not here.
+  // Redirect immediately so any stale navigation call that still points at
+  // "UserProfile" for a vendor lands on the correct public-profile screen.
+  useEffect(() => {
+    if (
+      viewerMode &&
+      routeUserId &&
+      (routeUserType === "photographer" || routeUserType === "business")
+    ) {
+      navigation.replace("VendorDetail", { vendorId: routeUserId });
+    }
+  }, []);
+
   useEffect(() => {
     if (!profile || isOwner || !isAuthenticated) return;
     const targetId = profile.userId || profile.id;
