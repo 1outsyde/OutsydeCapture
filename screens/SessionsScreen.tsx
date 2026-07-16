@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Alert, StyleSheet, View, Pressable, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -52,6 +52,7 @@ export default function SessionsScreen() {
   const { getUpcomingSessions, getPastSessions, refreshSessions, isLoading } = useData();
   const { isAuthenticated, getToken } = useAuth();
   const [filter, setFilter] = useState<FilterType>("upcoming");
+  const cancelPreviewingIds = useRef(new Set<string>());
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
@@ -296,39 +297,68 @@ export default function SessionsScreen() {
                 {session.status === "upcoming" && !isOverride && (
                   <Pressable
                     hitSlop={8}
-                    onPress={(e) => {
+                    onPress={async (e) => {
                       e.stopPropagation();
-                      const doCancel = async () => {
-                        try {
-                          const token = await getToken();
-                          if (!token) return;
-                          const result = await api.cancelShootBooking(token, session.id);
-                          await refreshSessions();
-                          const lines: string[] = [];
-                          if (result.refundAmountCents > 0) {
-                            lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
-                          }
-                          if (result.feeAmountCents > 0 && result.feeCharged) {
-                            lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
-                          } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
-                            lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the photographer will collect this separately`);
-                          }
-                          Alert.alert(
-                            "Session canceled",
-                            lines.length > 0 ? lines.join("\n") : "Session canceled",
-                          );
-                        } catch (error: any) {
-                          Alert.alert("Error", error.message || "Failed to cancel session");
+                      if (cancelPreviewingIds.current.has(session.id)) return;
+                      cancelPreviewingIds.current.add(session.id);
+                      try {
+                        const token = await getToken();
+                        if (!token) return;
+                        const preview = await api.getShootCancelPreview(token, session.id);
+                        if (!preview.cancellable) {
+                          Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
+                          return;
                         }
-                      };
-                      Alert.alert(
-                        "Cancel this session?",
-                        "Depending on the photographer's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
-                        [
-                          { text: "Keep session", style: "cancel" },
-                          { text: "Cancel session", style: "destructive", onPress: doCancel },
-                        ],
-                      );
+                        const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+                        const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
+                        let msg: string;
+                        if (preview.refundTier === "full") {
+                          msg = svcFee > 0
+                            ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
+                            : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
+                        } else if (preview.refundTier === "partial") {
+                          msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
+                          if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
+                        } else {
+                          msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
+                          if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
+                        }
+                        const doCancel = async () => {
+                          try {
+                            const t = await getToken();
+                            if (!t) return;
+                            const result = await api.cancelShootBooking(t, session.id);
+                            await refreshSessions();
+                            const lines: string[] = [];
+                            if (result.refundAmountCents > 0) {
+                              lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
+                            }
+                            if (result.feeAmountCents > 0 && result.feeCharged) {
+                              lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
+                            } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
+                              lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the photographer will collect this separately`);
+                            }
+                            Alert.alert(
+                              "Session canceled",
+                              lines.length > 0 ? lines.join("\n") : "Session canceled",
+                            );
+                          } catch (err: any) {
+                            Alert.alert("Error", err.message || "Failed to cancel session");
+                          }
+                        };
+                        Alert.alert(
+                          "Cancel this session?",
+                          `${msg} This can't be undone.`,
+                          [
+                            { text: "Keep session", style: "cancel" },
+                            { text: "Cancel session", style: "destructive", onPress: doCancel },
+                          ],
+                        );
+                      } catch (error: any) {
+                        Alert.alert("Error", error.message || "Failed to check cancellation terms");
+                      } finally {
+                        cancelPreviewingIds.current.delete(session.id);
+                      }
                     }}
                   >
                     <Feather name="x-circle" size={18} color={theme.error} />
@@ -417,39 +447,68 @@ export default function SessionsScreen() {
               {appt.status === "confirmed" && !isOverride && (
                 <Pressable
                   hitSlop={8}
-                  onPress={(e) => {
+                  onPress={async (e) => {
                     e.stopPropagation();
-                    const doCancel = async () => {
-                      try {
-                        const token = await getToken();
-                        if (!token) return;
-                        const result = await api.cancelAppointment(token, appt.id);
-                        await fetchBusinessAppointments();
-                        const lines: string[] = [];
-                        if (result.refundAmountCents > 0) {
-                          lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
-                        }
-                        if (result.feeAmountCents > 0 && result.feeCharged) {
-                          lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
-                        } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
-                          lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the business will collect this separately`);
-                        }
-                        Alert.alert(
-                          "Appointment canceled",
-                          lines.length > 0 ? lines.join("\n") : "Appointment canceled",
-                        );
-                      } catch (error: any) {
-                        Alert.alert("Error", error.message || "Failed to cancel appointment");
+                    if (cancelPreviewingIds.current.has(appt.id)) return;
+                    cancelPreviewingIds.current.add(appt.id);
+                    try {
+                      const token = await getToken();
+                      if (!token) return;
+                      const preview = await api.getAppointmentCancelPreview(token, appt.id);
+                      if (!preview.cancellable) {
+                        Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
+                        return;
                       }
-                    };
-                    Alert.alert(
-                      "Cancel this appointment?",
-                      "Depending on this business's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
-                      [
-                        { text: "Keep appointment", style: "cancel" },
-                        { text: "Cancel appointment", style: "destructive", onPress: doCancel },
-                      ],
-                    );
+                      const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+                      const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
+                      let msg: string;
+                      if (preview.refundTier === "full") {
+                        msg = svcFee > 0
+                          ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
+                          : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
+                      } else if (preview.refundTier === "partial") {
+                        msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
+                        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
+                      } else {
+                        msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
+                        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
+                      }
+                      const doCancel = async () => {
+                        try {
+                          const t = await getToken();
+                          if (!t) return;
+                          const result = await api.cancelAppointment(t, appt.id);
+                          await fetchBusinessAppointments();
+                          const lines: string[] = [];
+                          if (result.refundAmountCents > 0) {
+                            lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
+                          }
+                          if (result.feeAmountCents > 0 && result.feeCharged) {
+                            lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
+                          } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
+                            lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the business will collect this separately`);
+                          }
+                          Alert.alert(
+                            "Appointment canceled",
+                            lines.length > 0 ? lines.join("\n") : "Appointment canceled",
+                          );
+                        } catch (err: any) {
+                          Alert.alert("Error", err.message || "Failed to cancel appointment");
+                        }
+                      };
+                      Alert.alert(
+                        "Cancel this appointment?",
+                        `${msg} This can't be undone.`,
+                        [
+                          { text: "Keep appointment", style: "cancel" },
+                          { text: "Cancel appointment", style: "destructive", onPress: doCancel },
+                        ],
+                      );
+                    } catch (error: any) {
+                      Alert.alert("Error", error.message || "Failed to check cancellation terms");
+                    } finally {
+                      cancelPreviewingIds.current.delete(appt.id);
+                    }
                   }}
                 >
                   <Feather name="x-circle" size={18} color={theme.error} />

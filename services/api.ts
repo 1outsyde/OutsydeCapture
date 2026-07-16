@@ -2988,6 +2988,32 @@ class ApiService {
     });
   }
 
+  // Read-only preview of what would happen if the consumer cancels right now.
+  // No side effects — safe to call repeatedly or without following up with a real cancel.
+  async getAppointmentCancelPreview(
+    authToken: string,
+    appointmentId: string
+  ): Promise<
+    | { cancellable: true; refundTier: "full" | "partial" | "none"; refundAmountCents: number; feeAmountCents: number; feeWouldBeCharged: boolean; feeNeedsManualCollection: boolean; subtotalCents: number; grossChargeAmountCents: number }
+    | { cancellable: false; reason: string; currentStatus: string }
+  > {
+    return this.request(`/api/bookings/appointments/${appointmentId}/cancel-preview`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getShootCancelPreview(
+    authToken: string,
+    bookingId: string
+  ): Promise<
+    | { cancellable: true; refundTier: "full" | "partial" | "none"; refundAmountCents: number; feeAmountCents: number; feeWouldBeCharged: boolean; feeNeedsManualCollection: boolean; subtotalCents: number; grossChargeAmountCents: number }
+    | { cancellable: false; reason: string; currentStatus: string }
+  > {
+    return this.request(`/api/bookings/shoot/${bookingId}/cancel-preview`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // Cancel a confirmed appointment as no-show without issuing a refund
   async cancelBookingNoRefund(
     authToken: string,
