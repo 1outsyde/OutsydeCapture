@@ -221,9 +221,8 @@ export default function SearchScreen() {
         vendorId: item.id,
       });
     } else if (item.resultType === "photographer") {
-      navigation.navigate("UserProfile", {
-        userId: item.id,
-        userType: "photographer",
+      navigation.navigate("VendorDetail", {
+        vendorId: item.id,
       });
     } else if (item.resultType === "staff") {
       if (item.businessId) {
