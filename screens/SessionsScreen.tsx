@@ -188,8 +188,9 @@ export default function SessionsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      refreshSessions();
       fetchBusinessAppointments();
-    }, [fetchBusinessAppointments]),
+    }, [refreshSessions, fetchBusinessAppointments]),
   );
 
   const onRefresh = useCallback(async () => {

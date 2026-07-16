@@ -191,7 +191,7 @@ export default function BookingScreen() {
   const route = useRoute<RouteType>();
   const { photographer: routePhotographer, photographerId, preselectedServiceId } = route.params;
   const { getToken } = useAuth();
-  const { addSession } = useData();
+  const { refreshSessions } = useData();
   const { addNotification, sendBookingConfirmation, scheduleBookingReminders } = useNotifications();
   const insets = useSafeAreaInsets();
   const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
@@ -576,20 +576,7 @@ export default function BookingScreen() {
       const formattedTime = selectedSlot.startTime;
 
       try {
-        const session = await addSession({
-          photographerId: photographer.id,
-          photographerName: photographer.name || "Photographer",
-          photographerAvatar: photographer.avatar || "",
-          date: selectedDate,
-          time: selectedSlot.startTime,
-          endTime,
-          location: locationStr,
-          sessionType: (selectedService as any).category || "portrait",
-          notes: "",
-          status: "upcoming",
-          price,
-        });
-        setBookedSessionId(session.id);
+        await refreshSessions();
 
         await addNotification({
           type: "booking",

@@ -21,6 +21,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { useData } from "@/context/DataContext";
 import { Spacing, BorderRadius, Typography, FontSizes } from "@/constants/theme";
 import api, {
   BookingService,
@@ -205,6 +206,7 @@ export default function BookingFlow({
   const accentDim = accentColor ? accentColor + "CC" : theme.brandGoldDim;
   const accentSoft = accentColor ? accentColor + "25" : theme.brandGold + "25";
   const { getToken, isAuthenticated } = useAuth();
+  const { refreshSessions } = useData();
   const navigation = useNavigation<NavigationProp>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
@@ -484,6 +486,7 @@ export default function BookingFlow({
         }
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        refreshSessions().catch(() => {});
         setStep(5);
       }
     } catch (err: any) {
