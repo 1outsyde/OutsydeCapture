@@ -927,6 +927,11 @@ export interface ApiPhotographerDetail {
   twitter?: string;
   brandColors?: string;
   stripeOnboardingComplete?: boolean; // Whether photographer can accept bookings
+  studioAddress?: string | null;
+  vendorTermsAndConditions?: string | null;
+  autoAcceptBookings?: boolean;
+  displayName?: string;
+  logoImage?: string;
 }
 
 export interface SearchResponse {
