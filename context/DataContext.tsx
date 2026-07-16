@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import { useAuth } from "./AuthContext";
 import { fetchPhotographers } from "@/api/photographers";
-import api from "@/services/api";
+import api, { getMyShootBookings } from "@/services/api";
 
 export type PhotographyCategory = "portrait" | "wedding" | "events" | "product" | "nature" | "fashion";
 
@@ -1008,39 +1008,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setBusinesses([]);
       }
 
-      if (storedSessions) {
-        setSessions(JSON.parse(storedSessions));
-      } else {
-        const mockCompletedSessions: Session[] = [
-          {
-            id: "demo_session_1",
-            photographerId: "p1",
-            photographerName: "Sarah Mitchell",
-            photographerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
-            date: "2024-12-15",
-            time: "10:00 AM",
-            location: "Central Park, New York",
-            sessionType: "Portrait Session",
-            status: "completed",
-            price: 200,
-            photos: [],
-          },
-          {
-            id: "demo_session_2",
-            photographerId: "p2",
-            photographerName: "James Chen",
-            photographerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
-            date: "2024-12-10",
-            time: "2:00 PM",
-            location: "Malibu Beach, CA",
-            sessionType: "Wedding Photos",
-            status: "completed",
-            price: 350,
-            photos: [],
-          },
-        ];
-        setSessions(mockCompletedSessions);
-        await AsyncStorage.setItem(getSessionsKey(user.id), JSON.stringify(mockCompletedSessions));
+      try {
+        const token = await getToken();
+        if (token) {
+          const backendSessions = await getMyShootBookings(token);
+          setSessions(backendSessions);
+        } else if (storedSessions) {
+          setSessions(JSON.parse(storedSessions));
+        }
+      } catch {
+        if (storedSessions) {
+          setSessions(JSON.parse(storedSessions));
+        }
       }
     } catch (err) {
       console.error("Failed to load data:", err);
@@ -1078,9 +1057,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const refreshSessions = async () => {
     if (!user) return;
     try {
-      const stored = await AsyncStorage.getItem(getSessionsKey(user.id));
-      if (stored) {
-        setSessions(JSON.parse(stored));
+      const token = await getToken();
+      if (token) {
+        const backendSessions = await getMyShootBookings(token);
+        setSessions(backendSessions);
       }
     } catch (err) {
       console.error("Failed to refresh sessions:", err);

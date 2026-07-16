@@ -4356,3 +4356,8 @@ export async function getMyAppointments(token: string): Promise<BusinessAppointm
   const response: any = await apiGet("/api/my-appointments", token);
   return Array.isArray(response?.appointments) ? response.appointments : [];
 }
+
+export async function getMyShootBookings(token: string): Promise<any[]> {
+  const response: any = await apiGet("/api/my-shoot-bookings", token);
+  return Array.isArray(response?.sessions) ? response.sessions : [];
+}
