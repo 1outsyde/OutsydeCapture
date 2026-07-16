@@ -1094,11 +1094,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const getPhotographer = (id: string) => photographers.find((p) => p.id === id);
 
-  const getUpcomingSessions = () =>
-    sessions.filter((s) => s.status === "upcoming").sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const getUpcomingSessions = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return sessions
+      .filter((s) => s.status === "upcoming" && new Date(s.date) >= today)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  };
 
-  const getPastSessions = () =>
-    sessions.filter((s) => s.status === "completed" || s.status === "cancelled").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const getPastSessions = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return sessions
+      .filter((s) => s.status === "completed" || s.status === "cancelled" || new Date(s.date) < today)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
 
   const hasCompletedSessionWith = useCallback((photographerId: string, photographerName?: string): boolean => {
     return sessions.some((session) => {
