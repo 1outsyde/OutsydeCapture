@@ -10,26 +10,18 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 import { useStripePayment } from "@/hooks/useStripePayment";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import api from "@/services/api";
 import { apiGet, apiPost } from "@/api/client";
-
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  vendorId: string;
-  vendorStripeAccountId: string;
-}
 
 interface ShippingAddress {
   line1: string;
@@ -64,14 +56,11 @@ interface Order {
 export default function CartOrdersScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
-  const route = useRoute();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
+  const { items: cart, updateQuantity: ctxUpdateQuantity, clearCart, subtotal } = useCart();
   const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
 
-  const routeCartItems = ((route.params as { cartItems?: CartItem[] } | undefined)?.cartItems ?? []);
-
-  const [cart, setCart] = useState<CartItem[]>(routeCartItems.length > 0 ? routeCartItems : []);
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,17 +79,14 @@ export default function CartOrdersScreen() {
     shippingAddress.state.trim().length > 0 &&
     shippingAddress.zipCode.trim().length > 0;
 
-  const subtotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cart]
-  );
-  const clientServiceFee = useMemo(() => subtotal * 0.04, [subtotal]);
-  const clientTotal = useMemo(() => subtotal * 1.04, [subtotal]);
+  // subtotal from CartContext is in cents (price stored as priceCents)
+  const clientServiceFee = useMemo(() => (subtotal / 100) * 0.08, [subtotal]);
+  const clientTotal = useMemo(() => (subtotal / 100) * 1.08, [subtotal]);
   const clientPoints = useMemo(() => Math.round(clientServiceFee * 100), [clientServiceFee]);
 
   const displayedSubtotal = backendFeeBreakdown
     ? backendFeeBreakdown.basePriceCents / 100
-    : subtotal;
+    : subtotal / 100;
   const displayedServiceFee = backendFeeBreakdown
     ? backendFeeBreakdown.consumerUpchargeCents / 100
     : clientServiceFee;
@@ -172,16 +158,11 @@ export default function CartOrdersScreen() {
     setRefreshing(false);
   };
 
-  const updateQuantity = (itemId: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((item) =>
-          item.id === itemId
-            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
+  const updateQuantity = (productId: string, delta: number) => {
+    const item = cart.find((i) => i.productId === productId);
+    if (item) {
+      ctxUpdateQuantity(productId, item.quantity + delta);
+    }
   };
 
   const checkoutDisabled =
@@ -201,10 +182,9 @@ export default function CartOrdersScreen() {
         "/api/cart/payment-intent",
         {
           items: cart.map((item) => ({
-            productId: item.id,
+            productId: item.productId,
             vendorId: item.vendorId,
-            vendorStripeAccountId: item.vendorStripeAccountId,
-            priceCents: Math.round(item.price * 100),
+            priceCents: item.price,
             quantity: item.quantity,
             name: item.name,
           })),
@@ -251,7 +231,7 @@ export default function CartOrdersScreen() {
       Alert.alert(
         `Order placed successfully! You earned ${feeBreakdown?.outsydePointsEarned ?? 0} Outsyde Points.`
       );
-      setCart([]);
+      clearCart();
       setBackendFeeBreakdown(null);
     } catch (error: any) {
       const message = String(error?.message || "");
@@ -444,7 +424,7 @@ export default function CartOrdersScreen() {
         ) : (
           <>
             {cart.map((item) => (
-              <View key={item.id} style={styles.cartItem}>
+              <View key={item.productId} style={styles.cartItem}>
                 <View style={styles.cartIcon}>
                   <Feather name="package" size={20} color={theme.brandGold} />
                 </View>
@@ -453,12 +433,12 @@ export default function CartOrdersScreen() {
                     {item.name}
                   </ThemedText>
                   <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
-                    ${item.price.toFixed(2)} each
+                    ${(item.price / 100).toFixed(2)} each
                   </ThemedText>
                 </View>
                 <View style={styles.quantityControls}>
                   <Pressable
-                    onPress={() => updateQuantity(item.id, -1)}
+                    onPress={() => updateQuantity(item.productId, -1)}
                     style={styles.quantityBtn}
                   >
                     <Feather name="minus" size={14} color={theme.brandCream} />
@@ -467,7 +447,7 @@ export default function CartOrdersScreen() {
                     {item.quantity}
                   </ThemedText>
                   <Pressable
-                    onPress={() => updateQuantity(item.id, 1)}
+                    onPress={() => updateQuantity(item.productId, 1)}
                     style={styles.quantityBtn}
                   >
                     <Feather name="plus" size={14} color={theme.brandCream} />
@@ -517,7 +497,7 @@ export default function CartOrdersScreen() {
               </View>
               <View style={styles.row}>
                 <ThemedText type="body" style={{ color: theme.brandTextDim }}>
-                  Outsyde Service Fee (+4%)
+                  Outsyde Service Fee (+8%)
                 </ThemedText>
                 <ThemedText type="body">${displayedServiceFee.toFixed(2)}</ThemedText>
               </View>
