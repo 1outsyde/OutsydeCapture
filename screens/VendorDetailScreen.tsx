@@ -1391,6 +1391,21 @@ export default function VendorDetailScreen({ route }: Props) {
           {profile?.name || "Profile"}
         </Animated.Text>
         <View style={styles.headerRight}>
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => navigation.navigate("CartOrders")}
+          >
+            <View>
+              <Feather name="shopping-bag" size={18} color={COLORS.white} />
+              {itemCount > 0 && (
+                <View style={styles.headerCartBadge}>
+                  <Text style={styles.headerCartBadgeText}>
+                    {itemCount > 99 ? "99+" : String(itemCount)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Pressable>
           <Pressable style={styles.headerButton}>
             <Feather name="bell" size={18} color={COLORS.white} />
           </Pressable>
@@ -2405,6 +2420,23 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  headerCartBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#E53E3E",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  headerCartBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 8,
+    fontWeight: "800",
   },
   coverHero: {
     height: HERO_HEIGHT,
