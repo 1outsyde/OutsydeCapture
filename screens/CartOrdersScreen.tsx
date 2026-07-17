@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -20,8 +21,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useStripePayment } from "@/hooks/useStripePayment";
 import { BorderRadius, Spacing } from "@/constants/theme";
-import api from "@/services/api";
 import { apiGet, apiPost } from "@/api/client";
+import { RootStackParamList } from "@/navigation/types";
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 interface ShippingAddress {
   line1: string;
@@ -46,18 +49,18 @@ interface OrderItem {
 
 interface Order {
   id: string;
-  date: string;
-  status: string;
-  total: number;
-  vendorName?: string;
-  items: OrderItem[];
+  vendorName: string;
+  status: "pending" | "paid";
+  itemCount: number;
+  expectedDate?: string;
+  createdAt: string;
 }
 
 export default function CartOrdersScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { getToken } = useAuth();
+  const { getToken, isAuthenticated } = useAuth();
   const { items: cart, updateQuantity: ctxUpdateQuantity, clearCart, subtotal } = useCart();
   const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
 
@@ -102,6 +105,10 @@ export default function CartOrdersScreen() {
   };
 
   const fetchOrders = useCallback(async () => {
+    if (!isAuthenticated) {
+      setOrders([]);
+      return;
+    }
     const token = await getToken();
     if (!token) {
       setOrders([]);
@@ -109,44 +116,46 @@ export default function CartOrdersScreen() {
     }
     setOrdersLoading(true);
     try {
-      let response: any;
-      if (typeof (api as any).getOrders === "function") {
-        response = await (api as any).getOrders(token);
-      } else {
-        response = await apiGet("/api/orders", token);
-      }
+      const response: any = await apiGet("/api/my-orders", token);
       const ordersPayload = Array.isArray(response)
         ? response
         : Array.isArray(response?.orders)
           ? response.orders
           : [];
-      const normalizedOrders: Order[] = ordersPayload.map((order: any) => ({
-        id: order.id,
-        date: order.date || order.createdAt || new Date().toISOString(),
-        status: order.status || "processing",
-        total:
-          typeof order.total === "number"
-            ? order.total
-            : typeof order.totalAmount === "number"
-              ? order.totalAmount
-              : 0,
-        vendorName: order.vendorName || order.vendor?.name || order.businessName,
-        items: Array.isArray(order.items)
-          ? order.items.map((item: any) => ({
-              name: item.name || "Item",
-              quantity: Number(item.quantity) || 1,
-            }))
-          : [],
-      }));
-      setOrders(normalizedOrders);
+
+      const normalized: Order[] = ordersPayload.map((order: any, index: number) => {
+        const status: "pending" | "paid" = order?.status === "paid" ? "paid" : "pending";
+
+        const itemCount = Array.isArray(order?.items)
+          ? order.items.reduce(
+              (sum: number, item: any) => sum + (Number(item?.quantity) || 1),
+              0
+            )
+          : Number(order?.itemCount) || 0;
+
+        return {
+          id: String(order?.id ?? `order-${index}`),
+          vendorName: order?.vendorName || order?.vendor?.name || order?.businessName || "Order",
+          status,
+          itemCount,
+          expectedDate: order?.expectedDate || order?.estimatedDeliveryDate,
+          createdAt: order?.createdAt || new Date(0).toISOString(),
+        };
+      });
+
+      // Sort newest first by createdAt
+      normalized.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      setOrders(normalized);
     } catch (error: any) {
-      // Endpoint may not exist yet; required fallback is empty state.
-      console.warn("Unable to fetch orders, showing empty state:", error?.message || error);
+      console.warn("Failed to fetch orders:", error?.message || error);
       setOrders([]);
     } finally {
       setOrdersLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, isAuthenticated]);
 
   useEffect(() => {
     fetchOrders();
@@ -233,6 +242,8 @@ export default function CartOrdersScreen() {
       );
       clearCart();
       setBackendFeeBreakdown(null);
+      // Refresh orders list after successful checkout
+      fetchOrders();
     } catch (error: any) {
       const message = String(error?.message || "");
       const code = String(error?.code || "");
@@ -249,13 +260,19 @@ export default function CartOrdersScreen() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const normalized = status.toLowerCase();
-    if (normalized.includes("processing") || normalized.includes("pending")) return theme.brandPending;
-    if (normalized.includes("shipped")) return theme.brandInfo;
-    if (normalized.includes("delivered") || normalized.includes("completed")) return theme.brandSuccess;
-    if (normalized.includes("cancelled") || normalized.includes("failed")) return theme.brandError;
-    return theme.brandTextDim;
+  const getOrderStatusConfig = (status: "pending" | "paid") => {
+    if (status === "paid") {
+      return {
+        label: "Confirmed",
+        icon: "check-circle" as const,
+        color: "#34C759",
+      };
+    }
+    return {
+      label: "Processing",
+      icon: "clock" as const,
+      color: "#FF9500",
+    };
   };
 
   const styles = StyleSheet.create({
@@ -367,26 +384,25 @@ export default function CartOrdersScreen() {
       justifyContent: "center",
     },
     orderCard: {
-      borderRadius: BorderRadius.lg,
+      flexDirection: "row",
+      alignItems: "center",
       padding: Spacing.md,
-      marginBottom: Spacing.md,
+      borderRadius: BorderRadius.lg,
+      marginBottom: Spacing.sm,
       backgroundColor: theme.brandSurface,
       borderWidth: 1,
       borderColor: theme.brandSurfaceBorder,
     },
-    orderHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: Spacing.sm,
-    },
-    statusBadge: {
-      flexDirection: "row",
+    orderIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       alignItems: "center",
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: Spacing.xs,
-      borderRadius: BorderRadius.full,
-      gap: 4,
+      justifyContent: "center",
+      marginRight: Spacing.md,
+    },
+    orderInfo: {
+      flex: 1,
     },
   });
 
@@ -539,7 +555,7 @@ export default function CartOrdersScreen() {
       </View>
 
       <View style={styles.section}>
-        <View style={styles.sectionTitle}>
+        <View style={[styles.sectionTitle, { marginBottom: Spacing.md }]}>
           <Feather name="package" size={20} color={theme.brandGold} />
           <ThemedText type="h3" style={{ marginLeft: Spacing.sm }}>
             Recent Orders
@@ -557,35 +573,45 @@ export default function CartOrdersScreen() {
             </ThemedText>
           </View>
         ) : (
-          orders.map((order) => (
-            <Pressable key={order.id} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <View style={{ flex: 1 }}>
-                  <ThemedText type="h4">{order.vendorName || "Order"}</ThemedText>
+          orders.map((order) => {
+            const statusConfig = getOrderStatusConfig(order.status);
+            return (
+              <Pressable
+                key={order.id}
+                onPress={() =>
+                  navigation.navigate("ProductOrderDetail", {
+                    orderId: order.id,
+                    vendorName: order.vendorName,
+                    status: order.status,
+                    itemCount: order.itemCount,
+                    expectedDate: order.expectedDate,
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.orderCard,
+                  { opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.orderIcon,
+                    { backgroundColor: statusConfig.color + "20" },
+                  ]}
+                >
+                  <Feather name={statusConfig.icon} size={18} color={statusConfig.color} />
+                </View>
+                <View style={styles.orderInfo}>
+                  <ThemedText type="body" numberOfLines={1}>
+                    {order.vendorName}
+                  </ThemedText>
                   <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
-                    {new Date(order.date).toLocaleDateString()}
+                    {order.itemCount} item{order.itemCount !== 1 ? "s" : ""} · {statusConfig.label}
                   </ThemedText>
                 </View>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + "20" }]}>
-                  <Feather name="circle" size={10} color={getStatusColor(order.status)} />
-                  <ThemedText type="small" style={{ color: getStatusColor(order.status), textTransform: "capitalize" }}>
-                    {order.status}
-                  </ThemedText>
-                </View>
-              </View>
-              {order.items.map((item, idx) => (
-                <ThemedText key={`${order.id}-${idx}`} type="caption" style={{ color: theme.brandTextDim }}>
-                  {item.quantity}x {item.name}
-                </ThemedText>
-              ))}
-              <View style={[styles.row, { marginTop: Spacing.sm, marginBottom: 0 }]}>
-                <ThemedText type="body">Order Total</ThemedText>
-                <ThemedText type="h4" style={{ color: theme.brandGold }}>
-                  ${order.total.toFixed(2)}
-                </ThemedText>
-              </View>
-            </Pressable>
-          ))
+                <Feather name="chevron-right" size={18} color={theme.brandTextDim} />
+              </Pressable>
+            );
+          })
         )}
       </View>
     </ScrollView>
