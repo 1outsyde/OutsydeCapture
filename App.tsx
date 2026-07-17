@@ -16,6 +16,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { PaymentProvider } from "@/context/PaymentContext";
 import { LoyaltyProvider } from "@/context/LoyaltyContext";
 import { OrdersProvider } from "@/context/OrdersContext";
+import { CartProvider } from "@/context/CartContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { HealthCheckProvider } from "@/context/HealthCheckContext";
 import { CalendarProvider } from "@/context/CalendarContext";
@@ -30,25 +31,27 @@ function AppContent() {
         <AuthProvider>
           <DataProvider>
             <OrdersProvider>
-              <FavoritesProvider>
-                <PaymentProvider>
-                  <LoyaltyProvider>
-                    <NotificationProvider>
-                      <MessagingProvider>
-                        <HealthCheckProvider>
-                          <CalendarProvider>
-                            <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}>
-                              <NavigationContainer>
-                                <RootNavigator />
-                              </NavigationContainer>
-                            </StripeProvider>
-                          </CalendarProvider>
-                        </HealthCheckProvider>
-                      </MessagingProvider>
-                    </NotificationProvider>
-                  </LoyaltyProvider>
-                </PaymentProvider>
-              </FavoritesProvider>
+              <CartProvider>
+                <FavoritesProvider>
+                  <PaymentProvider>
+                    <LoyaltyProvider>
+                      <NotificationProvider>
+                        <MessagingProvider>
+                          <HealthCheckProvider>
+                            <CalendarProvider>
+                              <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}>
+                                <NavigationContainer>
+                                  <RootNavigator />
+                                </NavigationContainer>
+                              </StripeProvider>
+                            </CalendarProvider>
+                          </HealthCheckProvider>
+                        </MessagingProvider>
+                      </NotificationProvider>
+                    </LoyaltyProvider>
+                  </PaymentProvider>
+                </FavoritesProvider>
+              </CartProvider>
             </OrdersProvider>
           </DataProvider>
         </AuthProvider>
