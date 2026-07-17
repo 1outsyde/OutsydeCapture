@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Alert, StyleSheet, View, Pressable, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -168,6 +168,8 @@ export default function SessionDetailScreen() {
   const { getToken } = useAuth();
   const { sessions, refreshSessions } = useData();
 
+  const [isPreviewing, setIsPreviewing] = useState(false);
+
   const { sessionId } = route.params;
   const session = sessions.find((s) => s.id === sessionId);
 
@@ -187,6 +189,8 @@ export default function SessionDetailScreen() {
   const statusColor = getStatusColor(session.status, theme);
   const statusLabel = session.status.charAt(0).toUpperCase() + session.status.slice(1);
   const initials = (session.photographerName ?? "?").slice(0, 2).toUpperCase();
+  const subtotalCents = Math.round(session.price * 100);
+  const grossCents = subtotalCents + Math.round(subtotalCents * 0.03);
   const timeStr = session.endTime
     ? `${formatTimeStr(session.time)} – ${formatTimeStr(session.endTime)}`
     : formatTimeStr(session.time);
@@ -219,15 +223,43 @@ export default function SessionDetailScreen() {
     }
   };
 
-  const handleCancel = () => {
-    Alert.alert(
-      "Cancel this session?",
-      "Depending on the photographer's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
-      [
-        { text: "Keep session", style: "cancel" },
-        { text: "Cancel session", style: "destructive", onPress: doCancel },
-      ],
-    );
+  const handleCancel = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      setIsPreviewing(true);
+      const preview = await api.getShootCancelPreview(token, session.id);
+      if (!preview.cancellable) {
+        Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
+        return;
+      }
+      const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+      const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
+      let msg: string;
+      if (preview.refundTier === "full") {
+        msg = svcFee > 0
+          ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
+          : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
+      } else if (preview.refundTier === "partial") {
+        msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
+        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
+      } else {
+        msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
+        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
+      }
+      Alert.alert(
+        "Cancel this session?",
+        `${msg} This can't be undone.`,
+        [
+          { text: "Keep session", style: "cancel" },
+          { text: "Cancel session", style: "destructive", onPress: doCancel },
+        ],
+      );
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to check cancellation terms");
+    } finally {
+      setIsPreviewing(false);
+    }
   };
 
   return (
@@ -271,7 +303,7 @@ export default function SessionDetailScreen() {
         <Row icon="calendar" label={formatDate(session.date)} />
         <Row icon="clock" label={timeStr} />
         <Row icon="map-pin" label={session.location} />
-        <Row icon="dollar-sign" label={`$${Number(session.price).toFixed(2)}`} />
+        <Row icon="dollar-sign" label={`Amount paid: $${(grossCents / 100).toFixed(2)}`} />
       </View>
 
       {/* Notes */}
@@ -330,10 +362,11 @@ export default function SessionDetailScreen() {
       {/* Cancel button — only when upcoming and not yet past */}
       {session.status === "upcoming" && !isPastDate(session.date) ? (
         <Pressable
+          disabled={isPreviewing}
           onPress={handleCancel}
           style={({ pressed }) => [
             styles.cancelButton,
-            { borderColor: theme.error, opacity: pressed ? 0.7 : 1 },
+            { borderColor: theme.error, opacity: isPreviewing || pressed ? 0.5 : 1 },
           ]}
         >
           <Feather name="x-circle" size={18} color={theme.error} style={{ marginRight: Spacing.sm }} />
