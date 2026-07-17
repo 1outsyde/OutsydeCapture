@@ -556,7 +556,13 @@ export default function SessionsScreen() {
             activeOrders.map((order) => (
               <Pressable
                 key={order.id}
-                onPress={() => navigation.navigate("CartOrders")}
+                onPress={() => navigation.navigate("ProductOrderDetail", {
+                  orderId: order.id,
+                  vendorName: order.vendorName,
+                  status: order.status,
+                  itemCount: order.itemCount,
+                  expectedDate: order.expectedDate,
+                })}
                 style={({ pressed }) => [
                   styles.orderCard,
                   { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
