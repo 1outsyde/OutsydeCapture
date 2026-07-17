@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
   RefreshControl,
   Linking,
   AppState,
@@ -105,6 +106,12 @@ export default function BusinessDashboardScreen() {
   const [autoAcceptLoading, setAutoAcceptLoading] = useState(false);
   const [refundModalVisible, setRefundModalVisible] = useState(false);
   const [selectedBookingForRefund, setSelectedBookingForRefund] = useState<BusinessBooking | null>(null);
+
+  const [shipModalVisible, setShipModalVisible] = useState(false);
+  const [shipOrderId, setShipOrderId] = useState<string>("");
+  const [shipCarrier, setShipCarrier] = useState("");
+  const [shipTracking, setShipTracking] = useState("");
+  const [shipSubmitting, setShipSubmitting] = useState(false);
 
   const [editProfile, setEditProfile] = useState({
     name: "",
@@ -557,10 +564,33 @@ export default function BusinessDashboardScreen() {
 
     try {
       await api.updateOrderStatus(token, orderId, status);
-      Alert.alert("Success", `Order updated successfully`);
+      Alert.alert("Success", "Order updated successfully");
       fetchTabData();
-    } catch (error) {
-      Alert.alert("Error", "Failed to update order");
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "Failed to update order");
+    }
+  };
+
+  const handleShipOrder = async () => {
+    if (!shipCarrier.trim() || !shipTracking.trim()) return;
+    const token = await getToken();
+    if (!token) return;
+    setShipSubmitting(true);
+    try {
+      await api.updateOrderStatus(token, shipOrderId, "shipped", {
+        carrier: shipCarrier.trim(),
+        trackingNumber: shipTracking.trim(),
+      });
+      setShipModalVisible(false);
+      setShipCarrier("");
+      setShipTracking("");
+      setShipOrderId("");
+      Alert.alert("Success", "Order marked as shipped");
+      fetchTabData();
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "Failed to update order");
+    } finally {
+      setShipSubmitting(false);
     }
   };
 
@@ -1344,11 +1374,68 @@ export default function BusinessDashboardScreen() {
       fontSize: 11,
       fontWeight: "700",
     },
+    shipModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+    },
+    shipModalCard: {
+      width: "100%",
+      backgroundColor: "#1A1A1A",
+      borderRadius: 16,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.1)",
+    },
+    shipModalTitle: {
+      color: "#F5F0E6",
+      fontSize: 18,
+      fontWeight: "700",
+      marginBottom: 20,
+    },
+    shipModalLabel: {
+      color: "#999",
+      fontSize: 12,
+      fontWeight: "600",
+      marginBottom: 6,
+      marginTop: 12,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    shipModalInput: {
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.12)",
+      color: "#F5F0E6",
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
+    },
+    shipModalActions: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 24,
+    },
+    shipModalBtn: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    shipModalBtnText: {
+      fontSize: 15,
+      fontWeight: "700",
+    },
   });
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending": return { bg: "#FF950020", text: "#FF9500" };
+      case "paid": return { bg: "#34C75920", text: "#34C759" };
       case "processing": return { bg: "#007AFF20", text: "#007AFF" };
       case "confirmed": return { bg: "#34C75920", text: "#34C759" };
       case "shipped": return { bg: "#5856D620", text: "#5856D6" };
@@ -1431,17 +1518,35 @@ export default function BusinessDashboardScreen() {
             {order.status === "pending" && (
               <View style={styles.orderActions}>
                 <Pressable
-                  onPress={() => handleOrderAction(order.id, "processing")}
-                  style={[styles.actionButton, { backgroundColor: "#34C759" }]}
+                  onPress={() =>
+                    Alert.alert(
+                      "Cancel this order?",
+                      "This cannot be undone.",
+                      [
+                        { text: "Keep", style: "cancel" },
+                        {
+                          text: "Cancel Order",
+                          style: "destructive",
+                          onPress: () => handleOrderAction(order.id, "cancelled"),
+                        },
+                      ]
+                    )
+                  }
+                  style={[styles.actionButton, { backgroundColor: "#FF3B30" }]}
                 >
-                  <Text style={[styles.actionButtonText, { color: "#FFFFFF" }]}>Process</Text>
+                  <Text style={[styles.actionButtonText, { color: "#FFFFFF" }]}>Cancel</Text>
                 </Pressable>
               </View>
             )}
-            {order.status === "processing" && (
+            {order.status === "paid" && (
               <View style={styles.orderActions}>
                 <Pressable
-                  onPress={() => handleOrderAction(order.id, "shipped")}
+                  onPress={() => {
+                    setShipOrderId(order.id);
+                    setShipCarrier("");
+                    setShipTracking("");
+                    setShipModalVisible(true);
+                  }}
                   style={[styles.actionButton, { backgroundColor: "#5856D6" }]}
                 >
                   <Text style={[styles.actionButtonText, { color: "#FFFFFF" }]}>Ship</Text>
@@ -2190,6 +2295,64 @@ export default function BusinessDashboardScreen() {
         clientName={selectedBookingForRefund?.customerName || ""}
         serviceName={selectedBookingForRefund?.serviceName || ""}
       />
+
+      <Modal
+        visible={shipModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShipModalVisible(false)}
+      >
+        <View style={styles.shipModalOverlay}>
+          <View style={styles.shipModalCard}>
+            <Text style={styles.shipModalTitle}>Ship Order</Text>
+            <Text style={styles.shipModalLabel}>Carrier</Text>
+            <TextInput
+              style={styles.shipModalInput}
+              placeholder="e.g. UPS, FedEx, USPS"
+              placeholderTextColor="#666"
+              value={shipCarrier}
+              onChangeText={setShipCarrier}
+              autoCapitalize="words"
+            />
+            <Text style={styles.shipModalLabel}>Tracking Number</Text>
+            <TextInput
+              style={styles.shipModalInput}
+              placeholder="Enter tracking number"
+              placeholderTextColor="#666"
+              value={shipTracking}
+              onChangeText={setShipTracking}
+              autoCapitalize="characters"
+            />
+            <View style={styles.shipModalActions}>
+              <Pressable
+                onPress={() => setShipModalVisible(false)}
+                style={[styles.shipModalBtn, { backgroundColor: "rgba(255,255,255,0.08)" }]}
+              >
+                <Text style={[styles.shipModalBtnText, { color: "#CCC" }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleShipOrder}
+                disabled={!shipCarrier.trim() || !shipTracking.trim() || shipSubmitting}
+                style={[
+                  styles.shipModalBtn,
+                  {
+                    backgroundColor:
+                      !shipCarrier.trim() || !shipTracking.trim() || shipSubmitting
+                        ? "#5856D640"
+                        : "#5856D6",
+                  },
+                ]}
+              >
+                {shipSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={[styles.shipModalBtnText, { color: "#FFF" }]}>Submit</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <BusinessEligibilityGate
         eligibility={eligibility}

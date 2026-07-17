@@ -47,6 +47,8 @@ export type RootStackParamList = {
     status: string;
     itemCount: number;
     expectedDate?: string;
+    carrier?: string;
+    trackingNumber?: string;
   };
   Favorites: undefined;
   AdminDashboard: undefined;
