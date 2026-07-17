@@ -558,9 +558,9 @@ export default function StorefrontEditorScreen() {
     if (
       !priceInput.trim() ||
       !Number.isFinite(parsedDollars) ||
-      parsedDollars <= 0
+      parsedDollars < 7
     ) {
-      Alert.alert("Error", "Please enter a valid price greater than zero.");
+      Alert.alert("Invalid Price", "Price must be at least $7.00");
       return;
     }
     const priceCentsValue = Math.round(parsedDollars * 100);
@@ -721,6 +721,11 @@ export default function StorefrontEditorScreen() {
 
     if (!serviceForm.name.trim()) {
       Alert.alert("Error", "Service name is required");
+      return;
+    }
+
+    if (!serviceForm.priceCents || serviceForm.priceCents < 700) {
+      Alert.alert("Invalid Price", "Price must be at least $7.00");
       return;
     }
 
