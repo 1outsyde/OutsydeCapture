@@ -17,6 +17,7 @@ import StaffWorkProfileScreen from "@/screens/StaffWorkProfileScreen";
 import PostDetailScreen from "@/screens/PostDetailScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
+import ProductOrderDetailScreen from "@/screens/ProductOrderDetailScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
 import PhotographerOnboardingScreen from "@/screens/PhotographerOnboardingScreen";
@@ -693,6 +694,16 @@ export default function RootNavigator() {
         component={ProfileFeedScreen}
         options={{
           presentation: "card",
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="ProductOrderDetail"
+        component={ProductOrderDetailScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
           headerShown: false,
         }}
       />
