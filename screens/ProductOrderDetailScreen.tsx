@@ -12,9 +12,11 @@ import { RootStackParamList } from "@/navigation/types";
 type Route = RouteProp<RootStackParamList, "ProductOrderDetail">;
 
 const STATUS_CONFIG: Record<string, { label: string; icon: "clock" | "truck" | "check-circle"; color: string }> = {
-  processing: { label: "Processing", icon: "clock",        color: "#FF9500" },
-  shipped:    { label: "Shipped",    icon: "truck",         color: "#007AFF" },
-  delivered:  { label: "Delivered", icon: "check-circle",  color: "#34C759" },
+  pending:    { label: "Payment Processing", icon: "clock",        color: "#FF9500" },
+  paid:       { label: "Confirmed",          icon: "check-circle", color: "#34C759" },
+  processing: { label: "Processing",         icon: "clock",        color: "#FF9500" },
+  shipped:    { label: "Shipped",            icon: "truck",        color: "#007AFF" },
+  delivered:  { label: "Delivered",          icon: "check-circle", color: "#34C759" },
 };
 
 export default function ProductOrderDetailScreen() {
@@ -23,7 +25,7 @@ export default function ProductOrderDetailScreen() {
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
 
-  const { orderId, vendorName, status, itemCount, expectedDate } = route.params;
+  const { orderId, vendorName, status, itemCount, expectedDate, carrier, trackingNumber } = route.params;
   const statusConfig = STATUS_CONFIG[status] ?? STATUS_CONFIG.processing;
 
   return (
@@ -87,6 +89,28 @@ export default function ProductOrderDetailScreen() {
                 {status === "shipped" ? "Estimated Arrival" : "Expected"}
               </ThemedText>
               <ThemedText type="body">{expectedDate}</ThemedText>
+            </View>
+          </>
+        )}
+
+        {carrier && (
+          <>
+            <View style={[styles.divider, { backgroundColor: theme.brandSurfaceBorder }]} />
+            <View style={styles.row}>
+              <ThemedText type="caption" style={{ color: theme.brandTextDim }}>Carrier</ThemedText>
+              <ThemedText type="body">{carrier}</ThemedText>
+            </View>
+          </>
+        )}
+
+        {trackingNumber && (
+          <>
+            <View style={[styles.divider, { backgroundColor: theme.brandSurfaceBorder }]} />
+            <View style={styles.row}>
+              <ThemedText type="caption" style={{ color: theme.brandTextDim }}>Tracking</ThemedText>
+              <ThemedText type="caption" numberOfLines={1} style={{ flex: 1, textAlign: "right" }}>
+                {trackingNumber}
+              </ThemedText>
             </View>
           </>
         )}

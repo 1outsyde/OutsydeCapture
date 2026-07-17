@@ -2895,10 +2895,15 @@ class ApiService {
     });
   }
 
-  async updateOrderStatus(authToken: string, orderId: string, status: string): Promise<void> {
-    await this.request<void>(`/api/business/orders/${orderId}/status`, {
-      method: "PUT",
-      body: JSON.stringify({ status }),
+  async updateOrderStatus(
+    authToken: string,
+    orderId: string,
+    status: string,
+    shipment?: { trackingNumber: string; carrier: string }
+  ): Promise<void> {
+    await this.request<void>(`/api/business/orders/${orderId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, ...shipment }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

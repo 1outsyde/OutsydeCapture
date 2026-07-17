@@ -54,6 +54,8 @@ interface Order {
   itemCount: number;
   expectedDate?: string;
   createdAt: string;
+  carrier?: string;
+  trackingNumber?: string;
 }
 
 export default function CartOrdersScreen() {
@@ -140,6 +142,8 @@ export default function CartOrdersScreen() {
           itemCount,
           expectedDate: order?.expectedDate || order?.estimatedDeliveryDate,
           createdAt: order?.createdAt || new Date(0).toISOString(),
+          carrier: order?.shipment?.carrier,
+          trackingNumber: order?.shipment?.trackingNumber,
         };
       });
 
@@ -585,6 +589,8 @@ export default function CartOrdersScreen() {
                     status: order.status,
                     itemCount: order.itemCount,
                     expectedDate: order.expectedDate,
+                    carrier: order.carrier,
+                    trackingNumber: order.trackingNumber,
                   })
                 }
                 style={({ pressed }) => [
