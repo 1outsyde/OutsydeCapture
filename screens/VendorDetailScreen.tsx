@@ -1708,10 +1708,15 @@ export default function VendorDetailScreen({ route }: Props) {
               <Pressable
                 style={styles.productCard}
                 onPress={() =>
-                  Alert.alert(
-                    "Product details",
-                    "Product detail view will be available soon.",
-                  )
+                  navigation.navigate("ProductDetail", {
+                    id: String(product.id),
+                    businessId: product.businessId,
+                    name: product.name,
+                    description: product.description,
+                    priceCents: product.priceCents,
+                    imageUrl: product.imageUrl,
+                    inventory: product.inventory,
+                  })
                 }
               >
                 <View style={styles.productImageWrap}>
