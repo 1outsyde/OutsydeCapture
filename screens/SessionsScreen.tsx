@@ -10,7 +10,6 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
-import { apiGet } from "@/api/client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
@@ -20,14 +19,6 @@ import api, { getMyAppointments, BusinessAppointment } from "@/services/api";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type FilterType = "upcoming" | "past";
-
-interface Order {
-  id: string;
-  vendorName: string;
-  status: "processing" | "shipped" | "delivered";
-  itemCount: number;
-  expectedDate?: string;
-}
 
 type CombinedItem =
   | { kind: "photographer"; data: Session }
@@ -54,8 +45,6 @@ export default function SessionsScreen() {
   const [filter, setFilter] = useState<FilterType>("upcoming");
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
-  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
   const [businessAppointments, setBusinessAppointments] = useState<BusinessAppointment[]>([]);
 
   const upcomingSessions = getUpcomingSessions();
@@ -77,62 +66,6 @@ export default function SessionsScreen() {
 
   const displayedItems = filter === "upcoming" ? upcomingCombined : pastCombined;
   const nextSession = upcomingSessions[0];
-
-  const fetchActiveOrders = useCallback(async () => {
-    if (!isAuthenticated) {
-      setActiveOrders([]);
-      return;
-    }
-
-    setOrdersLoading(true);
-    try {
-      const token = await getToken();
-      if (!token) {
-        setActiveOrders([]);
-        return;
-      }
-
-      const response: any = await apiGet("/api/my-orders", token);
-      const ordersPayload = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.orders)
-          ? response.orders
-          : [];
-
-      const normalized = ordersPayload
-        .map((order: any, index: number): Order => {
-          const normalizedStatus =
-            order?.status === "shipped"
-              ? "shipped"
-              : order?.status === "delivered"
-                ? "delivered"
-                : "processing";
-
-          const itemCount = Array.isArray(order?.items)
-            ? order.items.reduce(
-                (sum: number, item: any) => sum + (Number(item?.quantity) || 1),
-                0
-              )
-            : Number(order?.itemCount) || 0;
-
-          return {
-            id: String(order?.id ?? `order-${index}`),
-            vendorName: order?.vendorName || order?.vendor?.name || order?.businessName || "Order",
-            status: normalizedStatus,
-            itemCount,
-            expectedDate: order?.expectedDate || order?.estimatedDeliveryDate,
-          };
-        })
-        .filter((order: Order) => order.status === "processing" || order.status === "shipped");
-
-      setActiveOrders(normalized);
-    } catch (error) {
-      console.warn("Failed to fetch active orders:", error);
-      setActiveOrders([]);
-    } finally {
-      setOrdersLoading(false);
-    }
-  }, [getToken, isAuthenticated]);
 
   const fetchBusinessAppointments = useCallback(async () => {
     if (!isAuthenticated) {
@@ -188,9 +121,8 @@ export default function SessionsScreen() {
   }, [nextSession]);
 
   useEffect(() => {
-    fetchActiveOrders();
     fetchBusinessAppointments();
-  }, [fetchActiveOrders, fetchBusinessAppointments]);
+  }, [fetchBusinessAppointments]);
 
   useFocusEffect(
     useCallback(() => {
@@ -201,9 +133,9 @@ export default function SessionsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refreshSessions(), fetchActiveOrders(), fetchBusinessAppointments()]);
+    await Promise.all([refreshSessions(), fetchBusinessAppointments()]);
     setRefreshing(false);
-  }, [refreshSessions, fetchActiveOrders, fetchBusinessAppointments]);
+  }, [refreshSessions, fetchBusinessAppointments]);
 
   const handleSessionPress = (session: Session) => {
     navigation.navigate("SessionDetail", { sessionId: session.id });
@@ -535,61 +467,6 @@ export default function SessionsScreen() {
         </View>
       ) : null}
 
-      {/* Active Orders Section */}
-      {filter === "upcoming" ? (
-        <View style={styles.ordersSection}>
-          <View style={styles.sectionHeader}>
-            <Feather name="package" size={18} color={theme.brandGold} />
-            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
-              Orders In Progress
-            </ThemedText>
-          </View>
-          {ordersLoading ? (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              Loading orders...
-            </ThemedText>
-          ) : activeOrders.length === 0 ? (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              No orders yet
-            </ThemedText>
-          ) : (
-            activeOrders.map((order) => (
-              <Pressable
-                key={order.id}
-                onPress={() => navigation.navigate("ProductOrderDetail", {
-                  orderId: order.id,
-                  vendorName: order.vendorName,
-                  status: order.status,
-                  itemCount: order.itemCount,
-                  expectedDate: order.expectedDate,
-                })}
-                style={({ pressed }) => [
-                  styles.orderCard,
-                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <View style={[styles.orderIcon, { backgroundColor: order.status === "shipped" ? "#007AFF20" : "#FF950020" }]}>
-                  <Feather
-                    name={order.status === "shipped" ? "truck" : "clock"}
-                    size={18}
-                    color={order.status === "shipped" ? "#007AFF" : "#FF9500"}
-                  />
-                </View>
-                <View style={styles.orderInfo}>
-                  <ThemedText type="body" numberOfLines={1}>
-                    {order.vendorName}
-                  </ThemedText>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    {order.itemCount} item{order.itemCount > 1 ? "s" : ""} - {order.status === "shipped" ? `Arrives ${order.expectedDate || "soon"}` : "Processing"}
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-              </Pressable>
-            ))
-          )}
-        </View>
-      ) : null}
-
       <View style={styles.filterContainer}>
         <Pressable
           onPress={() => setFilter("upcoming")}
@@ -746,32 +623,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
     textAlign: "center",
-  },
-  ordersSection: {
-    marginBottom: Spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  orderCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-  },
-  orderIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  orderInfo: {
-    flex: 1,
   },
   initialsCircle: {
     alignItems: "center",
