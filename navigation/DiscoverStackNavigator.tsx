@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, View, StyleSheet } from "react-native";
+import { Pressable, Text, View, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -10,6 +10,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
 import { DiscoverStackParamList, RootStackParamList } from "@/navigation/types";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { useCart } from "@/context/CartContext";
 
 const Stack = createNativeStackNavigator<DiscoverStackParamList>();
 
@@ -38,12 +39,12 @@ function UpcomingChip() {
 function HeaderRightButtons() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { itemCount } = useCart();
 
   return (
     <View style={styles.headerRightContainer}>
       <UpcomingChip />
       {/* Bell/Notifications relocated to the bottom-nav Inbox tab (Commit 3) */}
-      {/* TODO: shopping-bag presence dot once a cart-item-count signal exists */}
       <Pressable
         onPress={() => navigation.navigate("CartOrders")}
         style={({ pressed }) => ({
@@ -51,7 +52,16 @@ function HeaderRightButtons() {
           padding: Spacing.sm,
         })}
       >
-        <Feather name="shopping-bag" size={22} color={theme.brandGold} />
+        <View>
+          <Feather name="shopping-bag" size={22} color={theme.brandGold} />
+          {itemCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>
+                {itemCount > 99 ? "99+" : String(itemCount)}
+              </Text>
+            </View>
+          )}
+        </View>
       </Pressable>
     </View>
   );
@@ -95,5 +105,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: BorderRadius.round,
     borderWidth: 1,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#E53E3E",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  cartBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
   },
 });
