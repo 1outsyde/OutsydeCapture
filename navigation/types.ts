@@ -32,6 +32,15 @@ export type RootStackParamList = {
     participantType: "business" | "photographer" | "consumer";
   };
   CartOrders: undefined;
+  ProductDetail: {
+    id: string;
+    businessId: string;
+    name: string;
+    description?: string | null;
+    priceCents: number;
+    imageUrl?: string | null;
+    inventory?: number | null;
+  };
   ProductOrderDetail: {
     orderId: string;
     vendorName: string;
