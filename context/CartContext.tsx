@@ -6,7 +6,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   vendorId: string;
-  vendorStripeAccountId: string;
+  vendorStripeAccountId?: string;
   imageUrl?: string;
 }
 

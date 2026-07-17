@@ -59,6 +59,7 @@ import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
 import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -518,6 +519,52 @@ export default function VendorDetailScreen({ route }: Props) {
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const reviewSnapPoints = useMemo(() => ["45%"], []);
+
+  // Cart
+  const { addItem, itemCount } = useCart();
+  const cardAnims = useRef<Map<string, Animated.Value>>(new Map());
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const [toastVisible, setToastVisible] = useState(false);
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const getCardAnim = useCallback((productId: string): Animated.Value => {
+    if (!cardAnims.current.has(productId)) {
+      cardAnims.current.set(productId, new Animated.Value(1));
+    }
+    return cardAnims.current.get(productId)!;
+  }, []);
+
+  const handleAddToCart = useCallback((product: VendorProduct) => {
+    addItem({
+      productId: String(product.id),
+      name: product.name,
+      price: product.priceCents,
+      quantity: 1,
+      vendorId: product.businessId,
+      imageUrl: product.imageUrl ?? undefined,
+    });
+    console.log(`[Cart] Added "${product.name}" | cart itemCount was ${itemCount}, will be ${itemCount + 1}`);
+
+    // Card highlight: quick scale pulse
+    const anim = getCardAnim(String(product.id));
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 0.93, duration: 120, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
+
+    // Toast: fade in → hold → fade out
+    if (toastTimeout.current) clearTimeout(toastTimeout.current);
+    setToastVisible(true);
+    toastAnim.stopAnimation();
+    toastAnim.setValue(0);
+    Animated.timing(toastAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start(() => {
+      toastTimeout.current = setTimeout(() => {
+        Animated.timing(toastAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+          setToastVisible(false);
+        });
+      }, 1200);
+    });
+  }, [addItem, getCardAnim, itemCount, toastAnim]);
 
   const isOwnProfile = useMemo(() => {
     if (!profile || !user?.id) return false;
@@ -1639,49 +1686,55 @@ export default function VendorDetailScreen({ route }: Props) {
       ) : (
         <View style={styles.productGrid}>
           {products.map((product) => (
-            <Pressable
+            <Animated.View
               key={String(product.id)}
-              style={styles.productCard}
-              onPress={() =>
-                Alert.alert(
-                  "Product details",
-                  "Product detail view will be available soon.",
-                )
-              }
+              style={{ transform: [{ scale: getCardAnim(String(product.id)) }] }}
             >
-              <View style={styles.productImageWrap}>
-                {product.imageUrl ? (
-                  <Image
-                    source={{ uri: product.imageUrl }}
-                    style={StyleSheet.absoluteFillObject}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={["#2a2a2a", "#111111"]}
-                    style={StyleSheet.absoluteFillObject}
-                  />
-                )}
-              </View>
-              <View style={styles.productInfo}>
-                <Text style={styles.productName} numberOfLines={1}>
-                  {product.name}
-                </Text>
-                <Text style={[styles.productPrice, { color: accentColor }]}>
-                  {formatCents(product.priceCents)}
-                </Text>
-                <View
-                  style={[
-                    styles.productAddButton,
-                    { borderColor: accentColor },
-                  ]}
-                >
-                  <Text style={[styles.productAddText, { color: accentColor }]}>
-                    Add
-                  </Text>
+              <Pressable
+                style={styles.productCard}
+                onPress={() =>
+                  Alert.alert(
+                    "Product details",
+                    "Product detail view will be available soon.",
+                  )
+                }
+              >
+                <View style={styles.productImageWrap}>
+                  {product.imageUrl ? (
+                    <Image
+                      source={{ uri: product.imageUrl }}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={["#2a2a2a", "#111111"]}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  )}
                 </View>
-              </View>
-            </Pressable>
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName} numberOfLines={1}>
+                    {product.name}
+                  </Text>
+                  <Text style={[styles.productPrice, { color: accentColor }]}>
+                    {formatCents(product.priceCents)}
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.productAddButton,
+                      { borderColor: accentColor },
+                    ]}
+                    onPress={() => handleAddToCart(product)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Text style={[styles.productAddText, { color: accentColor }]}>
+                      Add
+                    </Text>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Animated.View>
           ))}
         </View>
       )}
@@ -2274,6 +2327,26 @@ export default function VendorDetailScreen({ route }: Props) {
           </Pressable>
         </BottomSheetView>
       </BottomSheet>
+
+      {toastVisible && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            bottom: insets.bottom + 90,
+            alignSelf: "center",
+            backgroundColor: "rgba(0,0,0,0.88)",
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            borderRadius: 20,
+            opacity: toastAnim,
+          }}
+        >
+          <Text style={{ color: COLORS.cream, fontWeight: "700", fontSize: 14 }}>
+            Added to Cart
+          </Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
