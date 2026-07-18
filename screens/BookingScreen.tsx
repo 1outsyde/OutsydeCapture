@@ -13,6 +13,7 @@ import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import AddressAutocompleteInput from "@/components/AddressAutocompleteInput";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
@@ -1033,42 +1034,20 @@ export default function BookingScreen() {
             <ThemedText style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
               Where should this service take place?
             </ThemedText>
-            <TextInput
-              style={[styles.reviewInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
-              placeholder="Street address"
-              placeholderTextColor={theme.textSecondary}
-              value={customerServiceAddress}
-              onChangeText={setCustomerServiceAddress}
-              autoCapitalize="words"
+            <AddressAutocompleteInput
+              line1={customerServiceAddress}
+              city={customerServiceCity}
+              state={customerServiceState}
+              zipCode={customerServiceZipCode}
+              onChange={(f) => {
+                setCustomerServiceAddress(f.line1);
+                setCustomerServiceCity(f.city);
+                setCustomerServiceState(f.state);
+                setCustomerServiceZipCode(f.zipCode);
+              }}
+              label="Service Address"
+              required
             />
-            <TextInput
-              style={[styles.reviewInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
-              placeholder="City"
-              placeholderTextColor={theme.textSecondary}
-              value={customerServiceCity}
-              onChangeText={setCustomerServiceCity}
-              autoCapitalize="words"
-            />
-            <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-              <TextInput
-                style={[styles.reviewInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background, flex: 1 }]}
-                placeholder="State"
-                placeholderTextColor={theme.textSecondary}
-                value={customerServiceState}
-                onChangeText={setCustomerServiceState}
-                autoCapitalize="characters"
-                maxLength={2}
-              />
-              <TextInput
-                style={[styles.reviewInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background, flex: 2 }]}
-                placeholder="ZIP code"
-                placeholderTextColor={theme.textSecondary}
-                value={customerServiceZipCode}
-                onChangeText={setCustomerServiceZipCode}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-            </View>
             <Pressable
               onPress={() => setCustomerReadinessConfirmed(!customerReadinessConfirmed)}
               style={styles.checkboxRow}
