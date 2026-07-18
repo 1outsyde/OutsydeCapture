@@ -19,6 +19,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import AddressAutocompleteInput from "@/components/AddressAutocompleteInput";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
@@ -1123,42 +1124,20 @@ export default function BookingFlow({
                 <ThemedText style={{ color: theme.brandTextDim, marginBottom: Spacing.sm }}>
                   Where should this service take place?
                 </ThemedText>
-                <TextInput
-                  style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg }]}
-                  placeholder="Street address"
-                  placeholderTextColor={theme.brandTextDim}
-                  value={customerServiceAddress}
-                  onChangeText={setCustomerServiceAddress}
-                  autoCapitalize="words"
+                <AddressAutocompleteInput
+                  line1={customerServiceAddress}
+                  city={customerServiceCity}
+                  state={customerServiceState}
+                  zipCode={customerServiceZipCode}
+                  onChange={(f) => {
+                    setCustomerServiceAddress(f.line1);
+                    setCustomerServiceCity(f.city);
+                    setCustomerServiceState(f.state);
+                    setCustomerServiceZipCode(f.zipCode);
+                  }}
+                  label="Service Address"
+                  required
                 />
-                <TextInput
-                  style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg }]}
-                  placeholder="City"
-                  placeholderTextColor={theme.brandTextDim}
-                  value={customerServiceCity}
-                  onChangeText={setCustomerServiceCity}
-                  autoCapitalize="words"
-                />
-                <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-                  <TextInput
-                    style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg, flex: 1 }]}
-                    placeholder="State"
-                    placeholderTextColor={theme.brandTextDim}
-                    value={customerServiceState}
-                    onChangeText={setCustomerServiceState}
-                    autoCapitalize="characters"
-                    maxLength={2}
-                  />
-                  <TextInput
-                    style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg, flex: 2 }]}
-                    placeholder="ZIP code"
-                    placeholderTextColor={theme.brandTextDim}
-                    value={customerServiceZipCode}
-                    onChangeText={setCustomerServiceZipCode}
-                    keyboardType="numeric"
-                    maxLength={10}
-                  />
-                </View>
                 <Pressable
                   onPress={() => setCustomerReadinessConfirmed(!customerReadinessConfirmed)}
                   style={styles.checkboxRow}
