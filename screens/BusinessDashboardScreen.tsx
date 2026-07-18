@@ -1016,9 +1016,7 @@ export default function BusinessDashboardScreen() {
       color: theme.textSecondary,
     },
     orderFooter: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
+      gap: 8,
     },
     orderTotal: {
       fontSize: 14,
@@ -1028,6 +1026,7 @@ export default function BusinessDashboardScreen() {
     orderActions: {
       flexDirection: "row",
       gap: 8,
+      justifyContent: "flex-end",
     },
     actionButton: {
       paddingVertical: 6,
