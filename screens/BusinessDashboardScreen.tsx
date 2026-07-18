@@ -1541,13 +1541,32 @@ export default function BusinessDashboardScreen() {
             {order.status === "paid" && (
               <View style={styles.orderActions}>
                 <Pressable
+                  onPress={() =>
+                    Alert.alert(
+                      "Cancel this order?",
+                      "This will refund the customer. This cannot be undone.",
+                      [
+                        { text: "Keep", style: "cancel" },
+                        {
+                          text: "Cancel Order",
+                          style: "destructive",
+                          onPress: () => handleOrderAction(order.id, "cancelled"),
+                        },
+                      ]
+                    )
+                  }
+                  style={[styles.actionButton, { backgroundColor: "#FF3B3015", borderWidth: 1, borderColor: "#FF3B30", flex: 1 }]}
+                >
+                  <Text style={[styles.actionButtonText, { color: "#FF3B30" }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
                   onPress={() => {
                     setShipOrderId(order.id);
                     setShipCarrier("");
                     setShipTracking("");
                     setShipModalVisible(true);
                   }}
-                  style={[styles.actionButton, { backgroundColor: "#5856D6" }]}
+                  style={[styles.actionButton, { backgroundColor: "#5856D6", flex: 1 }]}
                 >
                   <Text style={[styles.actionButtonText, { color: "#FFFFFF" }]}>Ship</Text>
                 </Pressable>
