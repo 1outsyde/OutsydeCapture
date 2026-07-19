@@ -937,6 +937,7 @@ export interface ApiPhotographerDetail {
 export interface SearchResponse {
   businesses: ApiBusiness[];
   photographers: ApiPhotographer[];
+  staff?: ApiBusinessStaffMember[];
 }
 
 export interface SearchParams {
@@ -3284,6 +3285,23 @@ class ApiService {
           description: description,
           subscriptionTier: p.subscriptionTier,
           resultType: "photographer",
+        });
+      });
+    }
+
+    if (response.staff && Array.isArray(response.staff)) {
+      response.staff.forEach(s => {
+        results.push({
+          id: s.id,
+          name: s.displayName || "Team Member",
+          avatar: s.profileImageUrl || "",
+          city: "Unknown",
+          state: "",
+          rating: s.rating || 0,
+          priceRange: "",
+          category: s.specialties?.[0] || "Staff",
+          description: s.bio || "",
+          resultType: "staff",
         });
       });
     }

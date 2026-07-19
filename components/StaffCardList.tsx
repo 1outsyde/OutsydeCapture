@@ -81,9 +81,8 @@ export default function StaffCardList({
       {staff.map((member) => {
         const isSelected = selectedStaffId === member.id;
         return (
-          <Pressable
+          <View
             key={member.id}
-            onPress={() => onSelect?.(member.id)}
             style={[
               styles.card,
               isSelected && {
@@ -200,7 +199,7 @@ export default function StaffCardList({
                 <Text style={styles.bookButtonText}>Book</Text>
               </Pressable>
             </View>
-          </Pressable>
+          </View>
         );
       })}
     </View>
