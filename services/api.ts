@@ -540,6 +540,29 @@ export interface VendorServiceInput {
   virtualLink?: string | null;
 }
 
+export interface StaffServiceInput {
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  pricingModel?: "package" | "hourly";
+  priceCents: number;
+  durationMinutes: number;
+  packageHours?: number;
+  serviceLocationType?: "business" | "alternate" | "customer" | "virtual";
+  alternateAddress?: string | null;
+  alternateCity?: string | null;
+  alternateState?: string | null;
+  alternateZipCode?: string | null;
+  virtualLink?: string | null;
+  fullRefundWindow?: "1_week" | "48_hours" | "24_hours" | "1_hour" | "never";
+  hasPartialRefund?: boolean;
+  partialRefundWindow?: "1_week" | "48_hours" | "24_hours" | "1_hour" | "never" | null;
+  partialRefundPercentage?: number | null;
+  hasCancellationFee?: boolean;
+  cancellationFeeType?: "flat" | "percentage" | null;
+  cancellationFeeAmount?: number | null;
+}
+
 export interface AdminStats {
   users: number;
   businesses: number;
@@ -2679,6 +2702,52 @@ class ApiService {
   async getStaffMyServices(authToken: string, businessId?: string): Promise<{ services: VendorService[] }> {
     const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
     return this.request<{ services: VendorService[] }>(`/api/staff/my-services${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/staff/services - Create a new staff-owned service (always starts as draft)
+  async createStaffService(authToken: string, data: StaffServiceInput, businessId?: string): Promise<{ service: VendorService }> {
+    return this.request<{ service: VendorService }>("/api/staff/services", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(businessId ? { ...data, businessId } : data),
+    });
+  }
+
+  // PATCH /api/staff/services/:id - Update an existing staff-owned service
+  async updateStaffService(authToken: string, serviceId: string, data: Partial<StaffServiceInput>, businessId?: string): Promise<{ service: VendorService }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ service: VendorService }>(`/api/staff/services/${serviceId}${query}`, {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(data),
+    });
+  }
+
+  // DELETE /api/staff/services/:id - Delete a staff-owned service
+  async deleteStaffService(authToken: string, serviceId: string, businessId?: string): Promise<void> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    await this.request<void>(`/api/staff/services/${serviceId}${query}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/staff/services/:id/go-live - Publish a staff-owned service
+  async goLiveStaffService(authToken: string, serviceId: string, businessId?: string): Promise<{ service: VendorService }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ service: VendorService }>(`/api/staff/services/${serviceId}/go-live${query}`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/staff/services/:id/archive - Archive a staff-owned service
+  async archiveStaffService(authToken: string, serviceId: string, businessId?: string): Promise<{ service: VendorService }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ service: VendorService }>(`/api/staff/services/${serviceId}/archive${query}`, {
+      method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
