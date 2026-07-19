@@ -32,6 +32,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 
 import apiClient from "@/services/api";
+import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -137,8 +138,10 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const [staff, setStaff] = useState<StaffProfileViewModel | null>(null);
   const [businessName, setBusinessName] = useState<string>("");
   const [brandColors, setBrandColors] = useState<BrandColorSpec | null>(null);
+  const [businessMeta, setBusinessMeta] = useState<{ address?: string | null; city?: string | null; state?: string | null } | null>(null);
   const [services, setServices] = useState<StaffServiceCard[]>([]);
   const [activeTab, setActiveTab] = useState<StaffTab>("posts");
+  const [bookingFlowActive, setBookingFlowActive] = useState(false);
 
   const accentColor = resolveBrandColor(brandColors, isDark ? "dark" : "light");
 
@@ -170,6 +173,11 @@ export default function StaffWorkProfileScreen({ route }: Props) {
 
       if (businessResult?.name) setBusinessName(businessResult.name);
       setBrandColors(parseBrandColorSpec((businessResult as any)?.brandColors));
+      setBusinessMeta({
+        address: businessResult?.address,
+        city: businessResult?.city,
+        state: businessResult?.state,
+      });
 
       const member = (staffResult.staff || []).find(
         (item) => String(item.id) === String(staffId),
@@ -231,11 +239,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   }, [staff]);
 
   const goToBookingEntryPoint = useCallback(() => {
-    navigation.navigate("VendorDetail", {
-      vendorId: businessId,
-      initialTab: "services",
-    });
-  }, [navigation, businessId]);
+    setBookingFlowActive(true);
+  }, []);
 
   const handleInertAction = useCallback((label: string) => {
     Alert.alert("Coming soon", `${label} will be wired in a follow-up update.`);
@@ -281,6 +286,34 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             Team member not found.
           </Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (bookingFlowActive) {
+    return (
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: pageBg }]}
+        edges={["left", "right", "bottom"]}
+      >
+        <View style={[styles.headerRow, { paddingTop: insets.top + 6, paddingHorizontal: 14 }]}>
+          <Pressable
+            style={[styles.headerButton, { backgroundColor: headerButtonBg }]}
+            onPress={() => setBookingFlowActive(false)}
+          >
+            <Feather name="arrow-left" size={18} color={textPrimary} />
+          </Pressable>
+        </View>
+        <BookingFlow
+          providerId={businessId}
+          providerType="business"
+          providerName={businessName}
+          providerAddress={businessMeta?.address}
+          providerCity={businessMeta?.city}
+          providerState={businessMeta?.state}
+          staffMemberId={staffId}
+          accentColor={accentColor}
+        />
       </SafeAreaView>
     );
   }
