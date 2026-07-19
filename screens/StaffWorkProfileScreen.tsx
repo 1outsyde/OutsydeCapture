@@ -224,8 +224,12 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   }, [loadProfile]);
 
   const goBackToBusiness = useCallback(() => {
-    navigation.navigate("VendorDetail", { vendorId: businessId });
-  }, [navigation, businessId]);
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+    }
+  }, [navigation]);
 
   const handleShare = useCallback(async () => {
     if (!staff) return;
@@ -399,13 +403,16 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             ) : (
               <Text style={[styles.emptyTitle, { color: textMuted }]}>No bio yet</Text>
             )}
-            <View style={[styles.aboutRow, { borderBottomColor: hairline }]}>
+            <Pressable
+              style={[styles.aboutRow, { borderBottomColor: hairline }]}
+              onPress={() => navigation.navigate("VendorDetail", { vendorId: businessId })}
+            >
               <Feather name="briefcase" size={14} color={accentColor} />
               <Text style={[styles.aboutLabel, { color: textMuted }]}>Business</Text>
               <Text style={[styles.aboutValue, { color: textSecondary }]}>
                 {businessName || "Not listed"}
               </Text>
-            </View>
+            </Pressable>
           </View>
         );
       case "posts":
@@ -511,16 +518,17 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                 Work profile
               </Text>
             </View>
-            <View
+            <Pressable
               style={[
                 styles.affiliationBadge,
                 { backgroundColor: chipBg, borderColor: chipBorder },
               ]}
+              onPress={() => navigation.navigate("VendorDetail", { vendorId: businessId })}
             >
               <Text style={[styles.affiliationBadgeText, { color: textSecondary }]}>
                 {affiliationLabel}
               </Text>
-            </View>
+            </Pressable>
           </View>
 
           {staff.specialties.length > 0 ? (
