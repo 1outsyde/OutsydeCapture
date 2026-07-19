@@ -164,7 +164,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
         apiClient.getBusiness(businessId).catch(() => null),
         apiClient.getBusinessPublicStaff(businessId).catch(() => ({ staff: [] })),
         apiClient
-          .getBusinessPublicServices(businessId)
+          .getStaffPublicServices(businessId, staffId)
           .catch(() => ({ services: [] })),
       ]);
 
@@ -192,25 +192,14 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           reviewCount: Number(member.reviewCount ?? 0),
         });
 
-        const memberServiceIds = new Set(
-          (Array.isArray(member.serviceIds) ? member.serviceIds : []).map(
-            String,
-          ),
-        );
-        const liveMemberServices = (serviceResult.services || [])
-          .filter(
-            (service) =>
-              service.status === "live" &&
-              memberServiceIds.has(String(service.id)),
-          )
-          .map((service) => ({
-            id: String(service.id),
-            name: service.name,
-            description: service.description || undefined,
-            priceCents: Number(service.priceCents ?? 0),
-            durationMinutes: service.durationMinutes || undefined,
-          }));
-        setServices(liveMemberServices);
+        const liveStaffServices = (serviceResult.services || []).map((service) => ({
+          id: String(service.id),
+          name: service.name,
+          description: service.description || undefined,
+          priceCents: Number(service.priceCents ?? 0),
+          durationMinutes: service.durationMinutes || undefined,
+        }));
+        setServices(liveStaffServices);
       } else {
         setStaff(null);
       }

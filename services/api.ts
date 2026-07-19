@@ -1803,6 +1803,15 @@ class ApiService {
     return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
   }
 
+  async getStaffPublicServices(businessId: string, staffId: string): Promise<{ services: BookingService[] }> {
+    const response = await this.request<{ services: Array<BookingService & { price?: number }> }>(
+      `/api/businesses/${businessId}/staff/${staffId}/services`
+    );
+    return {
+      services: (response.services || []).map(s => ({ ...s, priceCents: s.price ?? s.priceCents ?? 0 })),
+    };
+  }
+
   async getBusinessPublicStaff(businessId: string): Promise<{ staff: ApiBusinessStaffMember[] }> {
     return this.request<{ staff: ApiBusinessStaffMember[] }>(`/api/businesses/${businessId}/staff`);
   }
