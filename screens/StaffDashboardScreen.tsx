@@ -31,6 +31,7 @@ import ProviderCalendar, {
   DayAvailability,
 } from "@/components/ProviderCalendar";
 import DateBlocker, { BlockedDate } from "@/components/DateBlocker";
+import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | null;
 
@@ -93,6 +94,9 @@ export default function StaffDashboardScreen() {
   const [availability, setAvailability] = useState<StaffAvailabilitySlot[]>([]);
   const [services, setServices] = useState<VendorService[]>([]);
   const [earnings, setEarnings] = useState({ total: 0, thisMonth: 0, pending: 0 });
+
+  const [showServiceEditor, setShowServiceEditor] = useState(false);
+  const [editingStaffService, setEditingStaffService] = useState<ServiceFormData | null>(null);
 
   // "Base Hours" add-slot form state (a specific date marked available — this
   // backend has no weekly-recurring hours concept for staff, unlike the
@@ -285,6 +289,89 @@ export default function StaffDashboardScreen() {
     }
   };
 
+  const handleSaveStaffService = async (data: ServiceFormData) => {
+    const token = await getToken();
+    if (!token || !businessId) return;
+
+    const payload = {
+      name: data.name,
+      description: data.description || null,
+      category: data.category || null,
+      pricingModel: data.pricingModel || "package",
+      priceCents: Math.round(parseFloat(data.price) * 100),
+      durationMinutes: parseInt(data.duration) || 60,
+      packageHours: data.packageHours ? parseInt(data.packageHours) : undefined,
+      serviceLocationType: data.serviceLocationType,
+      alternateAddress: data.alternateAddress,
+      alternateCity: data.alternateCity,
+      alternateState: data.alternateState,
+      alternateZipCode: data.alternateZipCode,
+      virtualLink: data.virtualLink,
+      fullRefundWindow: data.fullRefundWindow,
+      hasPartialRefund: data.hasPartialRefund,
+      partialRefundWindow: data.partialRefundWindow,
+      partialRefundPercentage: data.partialRefundPercentage,
+      hasCancellationFee: data.hasCancellationFee,
+      cancellationFeeType: data.cancellationFeeType,
+      cancellationFeeAmount: data.cancellationFeeAmount,
+    };
+
+    try {
+      if (data.id) {
+        await api.updateStaffService(token, data.id, payload, businessId);
+        Alert.alert("Success", "Service updated");
+      } else {
+        await api.createStaffService(token, payload, businessId);
+        Alert.alert("Success", "Service created");
+      }
+      setShowServiceEditor(false);
+      setEditingStaffService(null);
+      load();
+    } catch (error: any) {
+      console.error("[StaffDashboard] Failed to save service:", error);
+      Alert.alert("Error", error.message || "Failed to save service");
+      throw error;
+    }
+  };
+
+  const handleDeleteStaffService = (serviceId: string, serviceName: string) => {
+    Alert.alert(
+      "Delete Service",
+      `Are you sure you want to delete "${serviceName}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
+            try {
+              await api.deleteStaffService(token, serviceId, businessId);
+              load();
+              Alert.alert("Success", "Service deleted");
+            } catch (error: any) {
+              console.error("[StaffDashboard] Failed to delete service:", error);
+              Alert.alert("Error", error.message || "Failed to delete service");
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleGoLiveStaffService = async (serviceId: string) => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      await api.goLiveStaffService(token, serviceId, businessId);
+      load();
+    } catch (error: any) {
+      console.error("[StaffDashboard] Failed to go live:", error);
+      Alert.alert("Error", error.message || "Failed to publish service");
+    }
+  };
+
   const styles = createStyles(theme, insets);
 
   if (loading) {
@@ -402,7 +489,7 @@ export default function StaffDashboardScreen() {
                 <Feather name="scissors" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Services</Text>
-              <Text style={styles.quickActionCount}>{services.length} assigned</Text>
+              <Text style={styles.quickActionCount}>{services.length} total</Text>
             </Pressable>
           </View>
           <View style={[styles.quickActionsRow, { marginTop: 12 }]}>
@@ -492,7 +579,7 @@ export default function StaffDashboardScreen() {
         </View>
       </Modal>
 
-      {/* Services modal (read-only) */}
+      {/* Services modal — full management flow */}
       <Modal
         visible={activeModal === "services"}
         animationType="slide"
@@ -501,7 +588,7 @@ export default function StaffDashboardScreen() {
       >
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg }]}>
+          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg, maxHeight: "85%" }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>My Services</Text>
@@ -510,22 +597,104 @@ export default function StaffDashboardScreen() {
               </Pressable>
             </View>
             <ScrollView style={{ paddingHorizontal: Spacing.xl }}>
+              <Pressable
+                style={[styles.addButton, { marginBottom: Spacing.lg }]}
+                onPress={() => {
+                  setEditingStaffService(null);
+                  setActiveModal(null);
+                  setTimeout(() => setShowServiceEditor(true), 100);
+                }}
+              >
+                <Feather name="plus" size={18} color="#FFFFFF" />
+                <Text style={styles.addButtonText}>Add Service</Text>
+              </Pressable>
+
               {services.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  No services assigned yet — ask your business owner to assign services to your profile.
-                </Text>
+                <Text style={styles.emptyText}>No services yet — tap Add Service to create one.</Text>
               ) : (
-                services.map((service) => (
-                  <View key={service.id} style={styles.listRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.listRowTitle}>{service.name}</Text>
-                      {service.durationMinutes ? (
-                        <Text style={styles.listRowSubtitle}>{service.durationMinutes} min</Text>
-                      ) : null}
+                services.map((service) => {
+                  const status = service.status || "draft";
+                  const statusColor =
+                    status === "live" ? "#34C759"
+                    : status === "archived" ? "#8E8E93"
+                    : "#FF9500";
+                  return (
+                    <View key={service.id} style={styles.listRow}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <Text style={styles.listRowTitle}>{service.name}</Text>
+                          <View style={{
+                            backgroundColor: statusColor + "22",
+                            paddingHorizontal: 7,
+                            paddingVertical: 2,
+                            borderRadius: 6,
+                          }}>
+                            <Text style={{ color: statusColor, fontSize: 11, fontWeight: "600", textTransform: "capitalize" }}>
+                              {status}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.listRowSubtitle}>
+                          {formatCurrency(service.priceCents)}
+                          {service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        {status === "draft" && (
+                          <Pressable
+                            onPress={() => handleGoLiveStaffService(service.id)}
+                            style={{ padding: 8 }}
+                            hitSlop={8}
+                          >
+                            <Feather name="zap" size={18} color="#34C759" />
+                          </Pressable>
+                        )}
+                        <Pressable
+                          onPress={() => {
+                            const formData: ServiceFormData = {
+                              id: service.id,
+                              name: service.name,
+                              description: service.description || "",
+                              category: (service as any).category || "Portrait",
+                              pricingModel: (service as any).pricingModel || "package",
+                              price: (service.priceCents / 100).toFixed(2),
+                              duration: String(service.durationMinutes || 60),
+                              packageHours: (service as any).packageHours ? String((service as any).packageHours) : "",
+                              status: service.status,
+                              serviceLocationType: (service as any).serviceLocationType ?? "business",
+                              alternateAddress: (service as any).alternateAddress ?? null,
+                              alternateCity: (service as any).alternateCity ?? null,
+                              alternateState: (service as any).alternateState ?? null,
+                              alternateZipCode: (service as any).alternateZipCode ?? null,
+                              virtualLink: (service as any).virtualLink ?? null,
+                              fullRefundWindow: (service as any).fullRefundWindow ?? undefined,
+                              hasPartialRefund: (service as any).hasPartialRefund ?? false,
+                              partialRefundWindow: (service as any).partialRefundWindow ?? null,
+                              partialRefundPercentage: (service as any).partialRefundPercentage ?? null,
+                              hasCancellationFee: (service as any).hasCancellationFee ?? false,
+                              cancellationFeeType: (service as any).cancellationFeeType ?? null,
+                              cancellationFeeAmount: (service as any).cancellationFeeAmount ?? null,
+                            };
+                            setEditingStaffService(formData);
+                            setActiveModal(null);
+                            setTimeout(() => setShowServiceEditor(true), 100);
+                          }}
+                          style={{ padding: 8 }}
+                          hitSlop={8}
+                        >
+                          <Feather name="edit-2" size={18} color={theme.text} />
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleDeleteStaffService(service.id, service.name)}
+                          style={{ padding: 8 }}
+                          hitSlop={8}
+                        >
+                          <Feather name="trash-2" size={18} color="#FF3B30" />
+                        </Pressable>
+                      </View>
                     </View>
-                    <Text style={styles.listRowTitle}>{formatCurrency(service.priceCents)}</Text>
-                  </View>
-                ))
+                  );
+                })
               )}
             </ScrollView>
           </View>
@@ -681,6 +850,17 @@ export default function StaffDashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      <ServiceEditorModal
+        visible={showServiceEditor}
+        onClose={() => {
+          setShowServiceEditor(false);
+          setEditingStaffService(null);
+        }}
+        onSave={handleSaveStaffService}
+        initialData={editingStaffService}
+        brandColor={DASHBOARD_COLORS.gold}
+      />
     </>
   );
 }
