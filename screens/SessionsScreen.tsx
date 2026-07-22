@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Alert, StyleSheet, View, Pressable, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -10,7 +10,6 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useData } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
-import { apiGet } from "@/api/client";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
@@ -20,14 +19,6 @@ import api, { getMyAppointments, BusinessAppointment } from "@/services/api";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type FilterType = "upcoming" | "past";
-
-interface Order {
-  id: string;
-  vendorName: string;
-  status: "processing" | "shipped" | "delivered";
-  itemCount: number;
-  expectedDate?: string;
-}
 
 type CombinedItem =
   | { kind: "photographer"; data: Session }
@@ -52,10 +43,9 @@ export default function SessionsScreen() {
   const { getUpcomingSessions, getPastSessions, refreshSessions, isLoading } = useData();
   const { isAuthenticated, getToken } = useAuth();
   const [filter, setFilter] = useState<FilterType>("upcoming");
+  const cancelPreviewingIds = useRef(new Set<string>());
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
-  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
   const [businessAppointments, setBusinessAppointments] = useState<BusinessAppointment[]>([]);
 
   const upcomingSessions = getUpcomingSessions();
@@ -77,62 +67,6 @@ export default function SessionsScreen() {
 
   const displayedItems = filter === "upcoming" ? upcomingCombined : pastCombined;
   const nextSession = upcomingSessions[0];
-
-  const fetchActiveOrders = useCallback(async () => {
-    if (!isAuthenticated) {
-      setActiveOrders([]);
-      return;
-    }
-
-    setOrdersLoading(true);
-    try {
-      const token = await getToken();
-      if (!token) {
-        setActiveOrders([]);
-        return;
-      }
-
-      const response: any = await apiGet("/api/my-orders", token);
-      const ordersPayload = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.orders)
-          ? response.orders
-          : [];
-
-      const normalized = ordersPayload
-        .map((order: any, index: number): Order => {
-          const normalizedStatus =
-            order?.status === "shipped"
-              ? "shipped"
-              : order?.status === "delivered"
-                ? "delivered"
-                : "processing";
-
-          const itemCount = Array.isArray(order?.items)
-            ? order.items.reduce(
-                (sum: number, item: any) => sum + (Number(item?.quantity) || 1),
-                0
-              )
-            : Number(order?.itemCount) || 0;
-
-          return {
-            id: String(order?.id ?? `order-${index}`),
-            vendorName: order?.vendorName || order?.vendor?.name || order?.businessName || "Order",
-            status: normalizedStatus,
-            itemCount,
-            expectedDate: order?.expectedDate || order?.estimatedDeliveryDate,
-          };
-        })
-        .filter((order: Order) => order.status === "processing" || order.status === "shipped");
-
-      setActiveOrders(normalized);
-    } catch (error) {
-      console.warn("Failed to fetch active orders:", error);
-      setActiveOrders([]);
-    } finally {
-      setOrdersLoading(false);
-    }
-  }, [getToken, isAuthenticated]);
 
   const fetchBusinessAppointments = useCallback(async () => {
     if (!isAuthenticated) {
@@ -188,9 +122,8 @@ export default function SessionsScreen() {
   }, [nextSession]);
 
   useEffect(() => {
-    fetchActiveOrders();
     fetchBusinessAppointments();
-  }, [fetchActiveOrders, fetchBusinessAppointments]);
+  }, [fetchBusinessAppointments]);
 
   useFocusEffect(
     useCallback(() => {
@@ -201,9 +134,9 @@ export default function SessionsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refreshSessions(), fetchActiveOrders(), fetchBusinessAppointments()]);
+    await Promise.all([refreshSessions(), fetchBusinessAppointments()]);
     setRefreshing(false);
-  }, [refreshSessions, fetchActiveOrders, fetchBusinessAppointments]);
+  }, [refreshSessions, fetchBusinessAppointments]);
 
   const handleSessionPress = (session: Session) => {
     navigation.navigate("SessionDetail", { sessionId: session.id });
@@ -296,39 +229,68 @@ export default function SessionsScreen() {
                 {session.status === "upcoming" && !isOverride && (
                   <Pressable
                     hitSlop={8}
-                    onPress={(e) => {
+                    onPress={async (e) => {
                       e.stopPropagation();
-                      const doCancel = async () => {
-                        try {
-                          const token = await getToken();
-                          if (!token) return;
-                          const result = await api.cancelShootBooking(token, session.id);
-                          await refreshSessions();
-                          const lines: string[] = [];
-                          if (result.refundAmountCents > 0) {
-                            lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
-                          }
-                          if (result.feeAmountCents > 0 && result.feeCharged) {
-                            lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
-                          } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
-                            lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the photographer will collect this separately`);
-                          }
-                          Alert.alert(
-                            "Session canceled",
-                            lines.length > 0 ? lines.join("\n") : "Session canceled",
-                          );
-                        } catch (error: any) {
-                          Alert.alert("Error", error.message || "Failed to cancel session");
+                      if (cancelPreviewingIds.current.has(session.id)) return;
+                      cancelPreviewingIds.current.add(session.id);
+                      try {
+                        const token = await getToken();
+                        if (!token) return;
+                        const preview = await api.getShootCancelPreview(token, session.id);
+                        if (!preview.cancellable) {
+                          Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
+                          return;
                         }
-                      };
-                      Alert.alert(
-                        "Cancel this session?",
-                        "Depending on the photographer's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
-                        [
-                          { text: "Keep session", style: "cancel" },
-                          { text: "Cancel session", style: "destructive", onPress: doCancel },
-                        ],
-                      );
+                        const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+                        const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
+                        let msg: string;
+                        if (preview.refundTier === "full") {
+                          msg = svcFee > 0
+                            ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
+                            : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
+                        } else if (preview.refundTier === "partial") {
+                          msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
+                          if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
+                        } else {
+                          msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
+                          if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
+                        }
+                        const doCancel = async () => {
+                          try {
+                            const t = await getToken();
+                            if (!t) return;
+                            const result = await api.cancelShootBooking(t, session.id);
+                            await refreshSessions();
+                            const lines: string[] = [];
+                            if (result.refundAmountCents > 0) {
+                              lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
+                            }
+                            if (result.feeAmountCents > 0 && result.feeCharged) {
+                              lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
+                            } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
+                              lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the photographer will collect this separately`);
+                            }
+                            Alert.alert(
+                              "Session canceled",
+                              lines.length > 0 ? lines.join("\n") : "Session canceled",
+                            );
+                          } catch (err: any) {
+                            Alert.alert("Error", err.message || "Failed to cancel session");
+                          }
+                        };
+                        Alert.alert(
+                          "Cancel this session?",
+                          `${msg} This can't be undone.`,
+                          [
+                            { text: "Keep session", style: "cancel" },
+                            { text: "Cancel session", style: "destructive", onPress: doCancel },
+                          ],
+                        );
+                      } catch (error: any) {
+                        Alert.alert("Error", error.message || "Failed to check cancellation terms");
+                      } finally {
+                        cancelPreviewingIds.current.delete(session.id);
+                      }
                     }}
                   >
                     <Feather name="x-circle" size={18} color={theme.error} />
@@ -417,39 +379,68 @@ export default function SessionsScreen() {
               {appt.status === "confirmed" && !isOverride && (
                 <Pressable
                   hitSlop={8}
-                  onPress={(e) => {
+                  onPress={async (e) => {
                     e.stopPropagation();
-                    const doCancel = async () => {
-                      try {
-                        const token = await getToken();
-                        if (!token) return;
-                        const result = await api.cancelAppointment(token, appt.id);
-                        await fetchBusinessAppointments();
-                        const lines: string[] = [];
-                        if (result.refundAmountCents > 0) {
-                          lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
-                        }
-                        if (result.feeAmountCents > 0 && result.feeCharged) {
-                          lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
-                        } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
-                          lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the business will collect this separately`);
-                        }
-                        Alert.alert(
-                          "Appointment canceled",
-                          lines.length > 0 ? lines.join("\n") : "Appointment canceled",
-                        );
-                      } catch (error: any) {
-                        Alert.alert("Error", error.message || "Failed to cancel appointment");
+                    if (cancelPreviewingIds.current.has(appt.id)) return;
+                    cancelPreviewingIds.current.add(appt.id);
+                    try {
+                      const token = await getToken();
+                      if (!token) return;
+                      const preview = await api.getAppointmentCancelPreview(token, appt.id);
+                      if (!preview.cancellable) {
+                        Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
+                        return;
                       }
-                    };
-                    Alert.alert(
-                      "Cancel this appointment?",
-                      "Depending on this business's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
-                      [
-                        { text: "Keep appointment", style: "cancel" },
-                        { text: "Cancel appointment", style: "destructive", onPress: doCancel },
-                      ],
-                    );
+                      const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+                      const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
+                      let msg: string;
+                      if (preview.refundTier === "full") {
+                        msg = svcFee > 0
+                          ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
+                          : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
+                      } else if (preview.refundTier === "partial") {
+                        msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
+                        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
+                      } else {
+                        msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
+                        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
+                      }
+                      const doCancel = async () => {
+                        try {
+                          const t = await getToken();
+                          if (!t) return;
+                          const result = await api.cancelAppointment(t, appt.id);
+                          await fetchBusinessAppointments();
+                          const lines: string[] = [];
+                          if (result.refundAmountCents > 0) {
+                            lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
+                          }
+                          if (result.feeAmountCents > 0 && result.feeCharged) {
+                            lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
+                          } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
+                            lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the business will collect this separately`);
+                          }
+                          Alert.alert(
+                            "Appointment canceled",
+                            lines.length > 0 ? lines.join("\n") : "Appointment canceled",
+                          );
+                        } catch (err: any) {
+                          Alert.alert("Error", err.message || "Failed to cancel appointment");
+                        }
+                      };
+                      Alert.alert(
+                        "Cancel this appointment?",
+                        `${msg} This can't be undone.`,
+                        [
+                          { text: "Keep appointment", style: "cancel" },
+                          { text: "Cancel appointment", style: "destructive", onPress: doCancel },
+                        ],
+                      );
+                    } catch (error: any) {
+                      Alert.alert("Error", error.message || "Failed to check cancellation terms");
+                    } finally {
+                      cancelPreviewingIds.current.delete(appt.id);
+                    }
                   }}
                 >
                   <Feather name="x-circle" size={18} color={theme.error} />
@@ -532,55 +523,6 @@ export default function SessionsScreen() {
               {formatDate(nextSession.date)} at {nextSession.time}
             </ThemedText>
           </View>
-        </View>
-      ) : null}
-
-      {/* Active Orders Section */}
-      {filter === "upcoming" ? (
-        <View style={styles.ordersSection}>
-          <View style={styles.sectionHeader}>
-            <Feather name="package" size={18} color={theme.brandGold} />
-            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
-              Orders In Progress
-            </ThemedText>
-          </View>
-          {ordersLoading ? (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              Loading orders...
-            </ThemedText>
-          ) : activeOrders.length === 0 ? (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              No orders yet
-            </ThemedText>
-          ) : (
-            activeOrders.map((order) => (
-              <Pressable
-                key={order.id}
-                onPress={() => navigation.navigate("CartOrders")}
-                style={({ pressed }) => [
-                  styles.orderCard,
-                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <View style={[styles.orderIcon, { backgroundColor: order.status === "shipped" ? "#007AFF20" : "#FF950020" }]}>
-                  <Feather
-                    name={order.status === "shipped" ? "truck" : "clock"}
-                    size={18}
-                    color={order.status === "shipped" ? "#007AFF" : "#FF9500"}
-                  />
-                </View>
-                <View style={styles.orderInfo}>
-                  <ThemedText type="body" numberOfLines={1}>
-                    {order.vendorName}
-                  </ThemedText>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    {order.itemCount} item{order.itemCount > 1 ? "s" : ""} - {order.status === "shipped" ? `Arrives ${order.expectedDate || "soon"}` : "Processing"}
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-              </Pressable>
-            ))
-          )}
         </View>
       ) : null}
 
@@ -740,32 +682,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
     textAlign: "center",
-  },
-  ordersSection: {
-    marginBottom: Spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  orderCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-  },
-  orderIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  orderInfo: {
-    flex: 1,
   },
   initialsCircle: {
     alignItems: "center",

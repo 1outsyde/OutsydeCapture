@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Alert, StyleSheet, View, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -158,8 +158,10 @@ export default function AppointmentDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteType>();
   const { getToken } = useAuth();
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const appt = route.params.appointment;
 
+  const grossCents = appt.totalPrice + Math.round(appt.totalPrice * 0.03);
   const statusColor = getBusinessStatusColor(appt.status, theme);
   const statusLabel =
     appt.status === "pending_provider"
@@ -197,15 +199,43 @@ export default function AppointmentDetailScreen() {
     }
   };
 
-  const handleCancel = () => {
-    Alert.alert(
-      "Cancel this appointment?",
-      "Depending on this business's cancellation policy, you may be charged a fee or receive a partial/no refund. This can't be undone.",
-      [
-        { text: "Keep appointment", style: "cancel" },
-        { text: "Cancel appointment", style: "destructive", onPress: doCancel },
-      ],
-    );
+  const handleCancel = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      setIsPreviewing(true);
+      const preview = await api.getAppointmentCancelPreview(token, appt.id);
+      if (!preview.cancellable) {
+        Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
+        return;
+      }
+      const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+      const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
+      let msg: string;
+      if (preview.refundTier === "full") {
+        msg = svcFee > 0
+          ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
+          : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
+      } else if (preview.refundTier === "partial") {
+        msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
+        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
+      } else {
+        msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
+        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
+      }
+      Alert.alert(
+        "Cancel this appointment?",
+        `${msg} This can't be undone.`,
+        [
+          { text: "Keep appointment", style: "cancel" },
+          { text: "Cancel appointment", style: "destructive", onPress: doCancel },
+        ],
+      );
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to check cancellation terms");
+    } finally {
+      setIsPreviewing(false);
+    }
   };
 
   return (
@@ -251,7 +281,7 @@ export default function AppointmentDetailScreen() {
         ) : null}
         <Row icon="calendar" label={formatDate(appt.appointmentDate)} />
         <Row icon="clock" label={timeStr} />
-        <Row icon="dollar-sign" label={`$${(appt.totalPrice / 100).toFixed(2)}`} />
+        <Row icon="dollar-sign" label={`Amount paid: $${(grossCents / 100).toFixed(2)}`} />
       </View>
 
       {/* Location */}
@@ -291,10 +321,11 @@ export default function AppointmentDetailScreen() {
       {/* Cancel button — only when confirmed and not yet past */}
       {appt.status === "confirmed" && !isPastDate(appt.appointmentDate) ? (
         <Pressable
+          disabled={isPreviewing}
           onPress={handleCancel}
           style={({ pressed }) => [
             styles.cancelButton,
-            { borderColor: theme.error, opacity: pressed ? 0.7 : 1 },
+            { borderColor: theme.error, opacity: isPreviewing || pressed ? 0.5 : 1 },
           ]}
         >
           <Feather name="x-circle" size={18} color={theme.error} style={{ marginRight: Spacing.sm }} />

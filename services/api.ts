@@ -540,6 +540,29 @@ export interface VendorServiceInput {
   virtualLink?: string | null;
 }
 
+export interface StaffServiceInput {
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  pricingModel?: "package" | "hourly";
+  priceCents: number;
+  durationMinutes: number;
+  packageHours?: number;
+  serviceLocationType?: "business" | "alternate" | "customer" | "virtual";
+  alternateAddress?: string | null;
+  alternateCity?: string | null;
+  alternateState?: string | null;
+  alternateZipCode?: string | null;
+  virtualLink?: string | null;
+  fullRefundWindow?: "1_week" | "48_hours" | "24_hours" | "1_hour" | "never";
+  hasPartialRefund?: boolean;
+  partialRefundWindow?: "1_week" | "48_hours" | "24_hours" | "1_hour" | "never" | null;
+  partialRefundPercentage?: number | null;
+  hasCancellationFee?: boolean;
+  cancellationFeeType?: "flat" | "percentage" | null;
+  cancellationFeeAmount?: number | null;
+}
+
 export interface AdminStats {
   users: number;
   businesses: number;
@@ -862,6 +885,8 @@ export interface BusinessOrder {
   vendorNetAmount?: number;
   isInfluencerAttributed?: boolean;
   attributedInfluencerId?: string;
+  // JSON-encoded {line1, city, state, zipCode} — parse before rendering; null for pre-fix orders
+  shippingAddress?: string | null;
 }
 
 export interface BusinessBooking {
@@ -937,6 +962,7 @@ export interface ApiPhotographerDetail {
 export interface SearchResponse {
   businesses: ApiBusiness[];
   photographers: ApiPhotographer[];
+  staff?: ApiBusinessStaffMember[];
 }
 
 export interface SearchParams {
@@ -1800,6 +1826,15 @@ class ApiService {
 
   async getBusinessPublicServices(businessId: string): Promise<{ services: VendorService[] }> {
     return this.request<{ services: VendorService[] }>(`/api/businesses/${businessId}/services`);
+  }
+
+  async getStaffPublicServices(businessId: string, staffId: string): Promise<{ services: BookingService[] }> {
+    const response = await this.request<{ services: Array<BookingService & { price?: number }> }>(
+      `/api/businesses/${businessId}/staff/${staffId}/services`
+    );
+    return {
+      services: (response.services || []).map(s => ({ ...s, priceCents: s.price ?? s.priceCents ?? 0 })),
+    };
   }
 
   async getBusinessPublicStaff(businessId: string): Promise<{ staff: ApiBusinessStaffMember[] }> {
@@ -2673,6 +2708,80 @@ class ApiService {
     });
   }
 
+  // POST /api/staff/services - Create a new staff-owned service (always starts as draft)
+  async createStaffService(authToken: string, data: StaffServiceInput, businessId?: string): Promise<{ service: VendorService }> {
+    return this.request<{ service: VendorService }>("/api/staff/services", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(businessId ? { ...data, businessId } : data),
+    });
+  }
+
+  // PATCH /api/staff/services/:id - Update an existing staff-owned service
+  async updateStaffService(authToken: string, serviceId: string, data: Partial<StaffServiceInput>, businessId?: string): Promise<{ service: VendorService }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ service: VendorService }>(`/api/staff/services/${serviceId}${query}`, {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(data),
+    });
+  }
+
+  // DELETE /api/staff/services/:id - Delete a staff-owned service
+  async deleteStaffService(authToken: string, serviceId: string, businessId?: string): Promise<void> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    await this.request<void>(`/api/staff/services/${serviceId}${query}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/staff/services/:id/go-live - Publish a staff-owned service
+  async goLiveStaffService(authToken: string, serviceId: string, businessId?: string): Promise<{ service: VendorService }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ service: VendorService }>(`/api/staff/services/${serviceId}/go-live${query}`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/staff/services/:id/archive - Archive a staff-owned service
+  async archiveStaffService(authToken: string, serviceId: string, businessId?: string): Promise<{ service: VendorService }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ service: VendorService }>(`/api/staff/services/${serviceId}/archive${query}`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/staff/me/weekly-availability — Fetch the staff member's recurring weekly schedule
+  async getStaffWeeklyAvailability(
+    authToken: string,
+    businessId?: string,
+  ): Promise<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }>(
+      `/api/staff/me/weekly-availability${query}`,
+      { headers: { "Authorization": `Bearer ${authToken}` } },
+    );
+  }
+
+  // PUT /api/staff/me/weekly-availability — Replace the staff member's recurring weekly schedule
+  async setStaffWeeklyAvailability(
+    authToken: string,
+    businessId: string,
+    slots: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }>,
+  ): Promise<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }> {
+    return this.request<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }>(
+      `/api/staff/me/weekly-availability?businessId=${encodeURIComponent(businessId)}`,
+      {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${authToken}` },
+        body: JSON.stringify({ slots }),
+      },
+    );
+  }
+
   // POST /api/staff/stripe-onboarding/create-link - Start Stripe payout onboarding for a staff member
   async startStaffStripeOnboarding(authToken: string, businessId?: string): Promise<{ url: string }> {
     return this.request<{ url: string }>("/api/staff/stripe-onboarding/create-link", {
@@ -2895,10 +3004,15 @@ class ApiService {
     });
   }
 
-  async updateOrderStatus(authToken: string, orderId: string, status: string): Promise<void> {
-    await this.request<void>(`/api/business/orders/${orderId}/status`, {
-      method: "PUT",
-      body: JSON.stringify({ status }),
+  async updateOrderStatus(
+    authToken: string,
+    orderId: string,
+    status: string,
+    shipment?: { trackingNumber: string; carrier: string }
+  ): Promise<void> {
+    await this.request<void>(`/api/business/orders/${orderId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, ...shipment }),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -2984,6 +3098,32 @@ class ApiService {
   }> {
     return this.request(`/api/bookings/shoot/${bookingId}/cancel`, {
       method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Read-only preview of what would happen if the consumer cancels right now.
+  // No side effects — safe to call repeatedly or without following up with a real cancel.
+  async getAppointmentCancelPreview(
+    authToken: string,
+    appointmentId: string
+  ): Promise<
+    | { cancellable: true; refundTier: "full" | "partial" | "none"; refundAmountCents: number; feeAmountCents: number; feeWouldBeCharged: boolean; feeNeedsManualCollection: boolean; subtotalCents: number; grossChargeAmountCents: number }
+    | { cancellable: false; reason: string; currentStatus: string }
+  > {
+    return this.request(`/api/bookings/appointments/${appointmentId}/cancel-preview`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getShootCancelPreview(
+    authToken: string,
+    bookingId: string
+  ): Promise<
+    | { cancellable: true; refundTier: "full" | "partial" | "none"; refundAmountCents: number; feeAmountCents: number; feeWouldBeCharged: boolean; feeNeedsManualCollection: boolean; subtotalCents: number; grossChargeAmountCents: number }
+    | { cancellable: false; reason: string; currentStatus: string }
+  > {
+    return this.request(`/api/bookings/shoot/${bookingId}/cancel-preview`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -3253,6 +3393,23 @@ class ApiService {
           description: description,
           subscriptionTier: p.subscriptionTier,
           resultType: "photographer",
+        });
+      });
+    }
+
+    if (response.staff && Array.isArray(response.staff)) {
+      response.staff.forEach(s => {
+        results.push({
+          id: s.id,
+          name: s.displayName || "Team Member",
+          avatar: s.profileImageUrl || "",
+          city: "Unknown",
+          state: "",
+          rating: s.rating || 0,
+          priceRange: "",
+          category: s.specialties?.[0] || "Staff",
+          description: s.bio || "",
+          resultType: "staff",
         });
       });
     }
@@ -3811,7 +3968,8 @@ class ApiService {
     providerType: "photographer" | "business",
     year: number,
     month: number, // 1-12
-    serviceDurationMinutes?: number
+    serviceDurationMinutes?: number,
+    staffMemberId?: string
   ): Promise<AvailabilityCalendarResponse> {
     // Backend returns { days: [{ date, hasAvailability, totalSlots }] }
     // Frontend expects { days: [{ date, status, slotsAvailable, slotsTotal }] }
@@ -3821,6 +3979,7 @@ class ApiService {
       year: year.toString(),
       month: month.toString(),
       ...(serviceDurationMinutes ? { serviceDurationMinutes: serviceDurationMinutes.toString() } : {}),
+      ...(staffMemberId ? { staffMemberId } : {}),
     });
     const rawResponse = await this.request<{ days: Array<{ date: string; hasAvailability: boolean; totalSlots?: number }> }>(
       `/api/availability/calendar?${params.toString()}`
@@ -3844,16 +4003,24 @@ class ApiService {
     providerId: string,
     providerType: "photographer" | "business",
     date: string, // Format: YYYY-MM-DD
-    serviceDurationMinutes: number = 60 // Default to 60 minutes if not provided
+    serviceDurationMinutes: number = 60, // Default to 60 minutes if not provided
+    staffMemberId?: string
   ): Promise<AvailabilitySlotResponse> {
     // Backend returns { date, slots: [{ startTime, endTime, available }], totalAvailable }
     // Frontend expects { date, slots: [{ id, startTime, endTime, status }] }
+    const slotsParams = new URLSearchParams({
+      providerId,
+      providerType,
+      date,
+      serviceDurationMinutes: serviceDurationMinutes.toString(),
+      ...(staffMemberId ? { staffMemberId } : {}),
+    });
     const rawResponse = await this.request<{
       date: string;
       slots: Array<{ startTime: string; endTime: string; available: boolean }>;
       totalAvailable?: number;
     }>(
-      `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}&serviceDurationMinutes=${serviceDurationMinutes}`
+      `/api/availability/slots?${slotsParams.toString()}`
     );
     
     // Transform backend format to frontend format
@@ -3890,6 +4057,7 @@ class ApiService {
       serviceId: string;
       date: string;
       startTime: string;
+      staffMemberId?: string;
     }
   ): Promise<BookingValidationResponse> {
     return this.request<BookingValidationResponse>("/api/booking/validate", {

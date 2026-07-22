@@ -188,12 +188,15 @@ export default function SearchScreen() {
 
   const handleCardPress = (item: UnifiedSearchResult) => {
     if (item.resultType === "product") {
-      // Navigate to business detail with products tab and highlight the product
-      const businessId = item.businessId || item.userId || item.id;
-      navigation.navigate("VendorDetail", { 
-        vendorId: businessId,
-        initialTab: "products",
-        productId: item.id,
+      navigation.navigate("ProductDetail", {
+        id: item.id,
+        businessId: item.businessId ?? "",
+        name: item.name,
+        description: item.description,
+        priceCents: item.price ?? 0,
+        imageUrl: item.productImage || item.avatar,
+        // inventory intentionally omitted — not present on search results;
+        // ProductDetailScreen treats undefined as untracked/uncapped
       });
     } else if (item.resultType === "service") {
       // Navigate directly to booking flow with service preselected

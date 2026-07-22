@@ -32,6 +32,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 
 import apiClient from "@/services/api";
+import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -137,8 +138,10 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const [staff, setStaff] = useState<StaffProfileViewModel | null>(null);
   const [businessName, setBusinessName] = useState<string>("");
   const [brandColors, setBrandColors] = useState<BrandColorSpec | null>(null);
+  const [businessMeta, setBusinessMeta] = useState<{ address?: string | null; city?: string | null; state?: string | null } | null>(null);
   const [services, setServices] = useState<StaffServiceCard[]>([]);
   const [activeTab, setActiveTab] = useState<StaffTab>("posts");
+  const [bookingFlowActive, setBookingFlowActive] = useState(false);
 
   const accentColor = resolveBrandColor(brandColors, isDark ? "dark" : "light");
 
@@ -164,12 +167,17 @@ export default function StaffWorkProfileScreen({ route }: Props) {
         apiClient.getBusiness(businessId).catch(() => null),
         apiClient.getBusinessPublicStaff(businessId).catch(() => ({ staff: [] })),
         apiClient
-          .getBusinessPublicServices(businessId)
+          .getStaffPublicServices(businessId, staffId)
           .catch(() => ({ services: [] })),
       ]);
 
       if (businessResult?.name) setBusinessName(businessResult.name);
       setBrandColors(parseBrandColorSpec((businessResult as any)?.brandColors));
+      setBusinessMeta({
+        address: businessResult?.address,
+        city: businessResult?.city,
+        state: businessResult?.state,
+      });
 
       const member = (staffResult.staff || []).find(
         (item) => String(item.id) === String(staffId),
@@ -192,25 +200,14 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           reviewCount: Number(member.reviewCount ?? 0),
         });
 
-        const memberServiceIds = new Set(
-          (Array.isArray(member.serviceIds) ? member.serviceIds : []).map(
-            String,
-          ),
-        );
-        const liveMemberServices = (serviceResult.services || [])
-          .filter(
-            (service) =>
-              service.status === "live" &&
-              memberServiceIds.has(String(service.id)),
-          )
-          .map((service) => ({
-            id: String(service.id),
-            name: service.name,
-            description: service.description || undefined,
-            priceCents: Number(service.priceCents ?? 0),
-            durationMinutes: service.durationMinutes || undefined,
-          }));
-        setServices(liveMemberServices);
+        const liveStaffServices = (serviceResult.services || []).map((service) => ({
+          id: String(service.id),
+          name: service.name,
+          description: service.description || undefined,
+          priceCents: Number(service.priceCents ?? 0),
+          durationMinutes: service.durationMinutes || undefined,
+        }));
+        setServices(liveStaffServices);
       } else {
         setStaff(null);
       }
@@ -227,8 +224,12 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   }, [loadProfile]);
 
   const goBackToBusiness = useCallback(() => {
-    navigation.navigate("VendorDetail", { vendorId: businessId });
-  }, [navigation, businessId]);
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+    }
+  }, [navigation]);
 
   const handleShare = useCallback(async () => {
     if (!staff) return;
@@ -242,11 +243,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   }, [staff]);
 
   const goToBookingEntryPoint = useCallback(() => {
-    navigation.navigate("VendorDetail", {
-      vendorId: businessId,
-      initialTab: "services",
-    });
-  }, [navigation, businessId]);
+    setBookingFlowActive(true);
+  }, []);
 
   const handleInertAction = useCallback((label: string) => {
     Alert.alert("Coming soon", `${label} will be wired in a follow-up update.`);
@@ -292,6 +290,34 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             Team member not found.
           </Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (bookingFlowActive) {
+    return (
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: pageBg }]}
+        edges={["left", "right", "bottom"]}
+      >
+        <View style={[styles.headerRow, { paddingTop: insets.top + 6, paddingHorizontal: 14 }]}>
+          <Pressable
+            style={[styles.headerButton, { backgroundColor: headerButtonBg }]}
+            onPress={() => setBookingFlowActive(false)}
+          >
+            <Feather name="arrow-left" size={18} color={textPrimary} />
+          </Pressable>
+        </View>
+        <BookingFlow
+          providerId={businessId}
+          providerType="business"
+          providerName={businessName}
+          providerAddress={businessMeta?.address}
+          providerCity={businessMeta?.city}
+          providerState={businessMeta?.state}
+          staffMemberId={staffId}
+          accentColor={accentColor}
+        />
       </SafeAreaView>
     );
   }
@@ -377,13 +403,16 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             ) : (
               <Text style={[styles.emptyTitle, { color: textMuted }]}>No bio yet</Text>
             )}
-            <View style={[styles.aboutRow, { borderBottomColor: hairline }]}>
+            <Pressable
+              style={[styles.aboutRow, { borderBottomColor: hairline }]}
+              onPress={() => navigation.navigate("VendorDetail", { vendorId: businessId })}
+            >
               <Feather name="briefcase" size={14} color={accentColor} />
               <Text style={[styles.aboutLabel, { color: textMuted }]}>Business</Text>
               <Text style={[styles.aboutValue, { color: textSecondary }]}>
                 {businessName || "Not listed"}
               </Text>
-            </View>
+            </Pressable>
           </View>
         );
       case "posts":
@@ -489,16 +518,17 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                 Work profile
               </Text>
             </View>
-            <View
+            <Pressable
               style={[
                 styles.affiliationBadge,
                 { backgroundColor: chipBg, borderColor: chipBorder },
               ]}
+              onPress={() => navigation.navigate("VendorDetail", { vendorId: businessId })}
             >
               <Text style={[styles.affiliationBadgeText, { color: textSecondary }]}>
                 {affiliationLabel}
               </Text>
-            </View>
+            </Pressable>
           </View>
 
           {staff.specialties.length > 0 ? (

@@ -19,6 +19,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import AddressAutocompleteInput from "@/components/AddressAutocompleteInput";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
@@ -352,7 +353,13 @@ export default function BookingFlow({
     setLoadingServices(true);
     setError(null);
     try {
-      const data = await api.getProviderServices(providerId, providerType);
+      let data: BookingService[];
+      if (staffMemberId) {
+        const result = await api.getStaffPublicServices(providerId, staffMemberId);
+        data = result.services || [];
+      } else {
+        data = await api.getProviderServices(providerId, providerType);
+      }
       const activeServices = data.filter((s) => s.status === "live" || s.status === "active" || !s.status);
       setServices(activeServices);
     } catch (err: any) {
@@ -376,7 +383,7 @@ export default function BookingFlow({
     setLoadingCalendar(true);
     try {
       console.log("[BookingFlow] Fetching calendar for:", { providerId, providerType, year, month });
-      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month, selectedService?.durationMinutes ?? 60);
+      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month, selectedService?.durationMinutes ?? 60, staffMemberId ?? undefined);
       console.log("[BookingFlow] Calendar response:", JSON.stringify(response, null, 2));
       setCalendarDays(response.days || []);
     } catch (err: any) {
@@ -393,7 +400,7 @@ export default function BookingFlow({
     try {
       const serviceDuration = selectedService.durationMinutes || 60;
       console.log("[BookingFlow] Fetching slots for:", { providerId, providerType, selectedDate, serviceDuration });
-      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate, serviceDuration);
+      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate, serviceDuration, staffMemberId ?? undefined);
       console.log("[BookingFlow] Slots response:", JSON.stringify(response, null, 2));
       const availableSlots = response.slots?.filter((s) => s.status === "available") || [];
       console.log("[BookingFlow] Available slots count:", availableSlots.length);
@@ -423,6 +430,7 @@ export default function BookingFlow({
         serviceId: selectedService.id,
         date: selectedDate,
         startTime: slot.startTime,
+        ...(staffMemberId ? { staffMemberId } : {}),
       });
 
       if (response.valid) {
@@ -1123,42 +1131,20 @@ export default function BookingFlow({
                 <ThemedText style={{ color: theme.brandTextDim, marginBottom: Spacing.sm }}>
                   Where should this service take place?
                 </ThemedText>
-                <TextInput
-                  style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg }]}
-                  placeholder="Street address"
-                  placeholderTextColor={theme.brandTextDim}
-                  value={customerServiceAddress}
-                  onChangeText={setCustomerServiceAddress}
-                  autoCapitalize="words"
+                <AddressAutocompleteInput
+                  line1={customerServiceAddress}
+                  city={customerServiceCity}
+                  state={customerServiceState}
+                  zipCode={customerServiceZipCode}
+                  onChange={(f) => {
+                    setCustomerServiceAddress(f.line1);
+                    setCustomerServiceCity(f.city);
+                    setCustomerServiceState(f.state);
+                    setCustomerServiceZipCode(f.zipCode);
+                  }}
+                  label="Service Address"
+                  required
                 />
-                <TextInput
-                  style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg }]}
-                  placeholder="City"
-                  placeholderTextColor={theme.brandTextDim}
-                  value={customerServiceCity}
-                  onChangeText={setCustomerServiceCity}
-                  autoCapitalize="words"
-                />
-                <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-                  <TextInput
-                    style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg, flex: 1 }]}
-                    placeholder="State"
-                    placeholderTextColor={theme.brandTextDim}
-                    value={customerServiceState}
-                    onChangeText={setCustomerServiceState}
-                    autoCapitalize="characters"
-                    maxLength={2}
-                  />
-                  <TextInput
-                    style={[styles.reviewInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg, flex: 2 }]}
-                    placeholder="ZIP code"
-                    placeholderTextColor={theme.brandTextDim}
-                    value={customerServiceZipCode}
-                    onChangeText={setCustomerServiceZipCode}
-                    keyboardType="numeric"
-                    maxLength={10}
-                  />
-                </View>
                 <Pressable
                   onPress={() => setCustomerReadinessConfirmed(!customerReadinessConfirmed)}
                   style={styles.checkboxRow}
@@ -1532,6 +1518,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
   },
   stepContent: {
+    flex: 1,
     minHeight: 200,
   },
   stepTitle: {

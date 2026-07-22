@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Switch,
+  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -156,7 +157,8 @@ export default function ServiceEditorModal({
     if (!formData.name.trim()) {
       return;
     }
-    if (!formData.price || parseFloat(formData.price) <= 0) {
+    if (!formData.price || parseFloat(formData.price) < 7) {
+      Alert.alert("Invalid Price", "Price must be at least $7.00");
       return;
     }
 

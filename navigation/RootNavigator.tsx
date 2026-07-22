@@ -17,6 +17,9 @@ import StaffWorkProfileScreen from "@/screens/StaffWorkProfileScreen";
 import PostDetailScreen from "@/screens/PostDetailScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
+import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
+import ProductDetailScreen from "@/screens/ProductDetailScreen";
+import ProductOrderDetailScreen from "@/screens/ProductOrderDetailScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
 import PhotographerOnboardingScreen from "@/screens/PhotographerOnboardingScreen";
@@ -229,8 +232,10 @@ export default function RootNavigator() {
         name="StaffWorkProfile"
         component={StaffWorkProfileScreen}
         options={{
-          presentation: "card",
-          animation: "slide_from_right",
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
           headerShown: false,
         }}
       />
@@ -364,6 +369,12 @@ export default function RootNavigator() {
             </Pressable>
           ),
         })}
+      />
+
+      <Stack.Screen
+        name="CartCheckout"
+        component={CartCheckoutScreen}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
 
       <Stack.Screen
@@ -693,6 +704,26 @@ export default function RootNavigator() {
         component={ProfileFeedScreen}
         options={{
           presentation: "card",
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="ProductDetail"
+        component={ProductDetailScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="ProductOrderDetail"
+        component={ProductOrderDetailScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
           headerShown: false,
         }}
       />
