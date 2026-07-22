@@ -19,6 +19,7 @@ import { OrdersProvider } from "@/context/OrdersContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { HealthCheckProvider } from "@/context/HealthCheckContext";
 import { CalendarProvider } from "@/context/CalendarContext";
+import { CartProvider } from "@/context/CartContext";
 import { ThemeProvider, useThemeContext } from "@/context/ThemeContext";
 
 function AppContent() {
@@ -30,6 +31,7 @@ function AppContent() {
         <AuthProvider>
           <DataProvider>
             <OrdersProvider>
+              <CartProvider>
               <FavoritesProvider>
                 <PaymentProvider>
                   <LoyaltyProvider>
@@ -52,6 +54,7 @@ function AppContent() {
                   </LoyaltyProvider>
                 </PaymentProvider>
               </FavoritesProvider>
+              </CartProvider>
             </OrdersProvider>
           </DataProvider>
         </AuthProvider>

@@ -52,7 +52,7 @@ export default function CartCheckoutScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
-  const { items: cart, clearCart, subtotal } = useCart();
+  const { items: cart, removeVendorItems, subtotal } = useCart();
   const { confirmPayment, confirmSetupIntent } = useStripe();
 
   // ─── Saved cards ──────────────────────────────────────────────────────────
@@ -294,7 +294,7 @@ export default function CartCheckoutScreen() {
       }
 
       Alert.alert(`Order placed successfully! You earned ${feeBreakdown?.outsydePointsEarned ?? 0} Outsyde Points.`);
-      clearCart();
+      removeVendorItems(cart[0]?.vendorId ?? "");
       setBackendFeeBreakdown(null);
       navigation.navigate("CartOrders", { openTab: "orders", _ts: Date.now() });
     } catch (error: any) {
