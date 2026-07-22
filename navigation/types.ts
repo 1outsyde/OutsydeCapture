@@ -31,7 +31,8 @@ export type RootStackParamList = {
     participantAvatar?: string;
     participantType: "business" | "photographer" | "consumer";
   };
-  CartOrders: undefined;
+  CartOrders: { openTab?: "cart" | "bookings" | "orders"; _ts?: number } | undefined;
+  CartCheckout: undefined;
   ProductDetail: {
     id: string;
     businessId: string;
