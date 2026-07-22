@@ -37,7 +37,10 @@ function AppContent() {
                       <MessagingProvider>
                         <HealthCheckProvider>
                           <CalendarProvider>
-                            <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}>
+                            <StripeProvider
+                publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}
+                urlScheme="outsyde"
+              >
                               <NavigationContainer>
                                 <RootNavigator />
                               </NavigationContainer>

@@ -4,7 +4,7 @@ import {
   storeTokens,
   clearAuthStorage,
 } from "@/utils/tokenStorage";
-import { apiGet } from "@/api/client";
+import { apiGet, apiPost, apiPatch, apiDelete } from "@/api/client";
 
 export const API_BASE_URL = "https://outsyde-backend.onrender.com";
 
@@ -4378,4 +4378,75 @@ export async function getMyAppointments(token: string): Promise<BusinessAppointm
 export async function getMyShootBookings(token: string): Promise<any[]> {
   const response: any = await apiGet("/api/my-shoot-bookings", token);
   return Array.isArray(response?.sessions) ? response.sessions : [];
+}
+
+// ==========================================
+// Saved Payment Methods
+// ==========================================
+
+export interface SavedCard {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  isDefault: boolean;
+}
+
+export interface SavedAddress {
+  id: string;
+  label?: string;
+  line1: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isDefault: boolean;
+}
+
+export interface SavedAddressInput {
+  label?: string;
+  line1: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  isDefault?: boolean;
+}
+
+export async function getPaymentMethods(token: string): Promise<{ paymentMethods: SavedCard[]; defaultPaymentMethodId: string | null }> {
+  const response: any = await apiGet("/api/me/payment-methods", token);
+  const raw = Array.isArray(response?.paymentMethods) ? response.paymentMethods : [];
+  const defaultId: string | null = response?.defaultPaymentMethodId ?? null;
+  const cards: SavedCard[] = raw.map((pm: any) => ({
+    id: pm.id,
+    brand: pm.card?.brand ?? "card",
+    last4: pm.card?.last4 ?? "????",
+    expMonth: pm.card?.exp_month ?? 0,
+    expYear: pm.card?.exp_year ?? 0,
+    isDefault: pm.id === defaultId,
+  }));
+  return { paymentMethods: cards, defaultPaymentMethodId: defaultId };
+}
+
+export async function createSetupIntent(token: string): Promise<{ clientSecret: string }> {
+  return apiPost("/api/me/payment-methods/setup-intent", undefined, token) as Promise<{ clientSecret: string }>;
+}
+
+export async function deletePaymentMethod(token: string, paymentMethodId: string): Promise<{ success: boolean }> {
+  return apiDelete(`/api/me/payment-methods/${paymentMethodId}`, token) as Promise<{ success: boolean }>;
+}
+
+export async function setDefaultPaymentMethod(token: string, paymentMethodId: string): Promise<{ success: boolean }> {
+  return apiPatch("/api/me/payment-methods/default", { paymentMethodId }, token) as Promise<{ success: boolean }>;
+}
+
+// ==========================================
+// Saved Addresses
+// ==========================================
+
+export async function getSavedAddresses(token: string): Promise<{ addresses: SavedAddress[] }> {
+  return apiGet("/api/me/addresses", token) as Promise<{ addresses: SavedAddress[] }>;
+}
+
+export async function createSavedAddress(token: string, data: SavedAddressInput): Promise<{ address: SavedAddress }> {
+  return apiPost("/api/me/addresses", data, token) as Promise<{ address: SavedAddress }>;
 }
