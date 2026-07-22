@@ -3966,7 +3966,8 @@ class ApiService {
     providerType: "photographer" | "business",
     year: number,
     month: number, // 1-12
-    serviceDurationMinutes?: number
+    serviceDurationMinutes?: number,
+    staffMemberId?: string
   ): Promise<AvailabilityCalendarResponse> {
     // Backend returns { days: [{ date, hasAvailability, totalSlots }] }
     // Frontend expects { days: [{ date, status, slotsAvailable, slotsTotal }] }
@@ -3976,6 +3977,7 @@ class ApiService {
       year: year.toString(),
       month: month.toString(),
       ...(serviceDurationMinutes ? { serviceDurationMinutes: serviceDurationMinutes.toString() } : {}),
+      ...(staffMemberId ? { staffMemberId } : {}),
     });
     const rawResponse = await this.request<{ days: Array<{ date: string; hasAvailability: boolean; totalSlots?: number }> }>(
       `/api/availability/calendar?${params.toString()}`
@@ -3999,16 +4001,24 @@ class ApiService {
     providerId: string,
     providerType: "photographer" | "business",
     date: string, // Format: YYYY-MM-DD
-    serviceDurationMinutes: number = 60 // Default to 60 minutes if not provided
+    serviceDurationMinutes: number = 60, // Default to 60 minutes if not provided
+    staffMemberId?: string
   ): Promise<AvailabilitySlotResponse> {
     // Backend returns { date, slots: [{ startTime, endTime, available }], totalAvailable }
     // Frontend expects { date, slots: [{ id, startTime, endTime, status }] }
+    const slotsParams = new URLSearchParams({
+      providerId,
+      providerType,
+      date,
+      serviceDurationMinutes: serviceDurationMinutes.toString(),
+      ...(staffMemberId ? { staffMemberId } : {}),
+    });
     const rawResponse = await this.request<{
       date: string;
       slots: Array<{ startTime: string; endTime: string; available: boolean }>;
       totalAvailable?: number;
     }>(
-      `/api/availability/slots?providerId=${providerId}&providerType=${providerType}&date=${date}&serviceDurationMinutes=${serviceDurationMinutes}`
+      `/api/availability/slots?${slotsParams.toString()}`
     );
     
     // Transform backend format to frontend format
@@ -4045,6 +4055,7 @@ class ApiService {
       serviceId: string;
       date: string;
       startTime: string;
+      staffMemberId?: string;
     }
   ): Promise<BookingValidationResponse> {
     return this.request<BookingValidationResponse>("/api/booking/validate", {
