@@ -383,7 +383,7 @@ export default function BookingFlow({
     setLoadingCalendar(true);
     try {
       console.log("[BookingFlow] Fetching calendar for:", { providerId, providerType, year, month });
-      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month, selectedService?.durationMinutes ?? 60);
+      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month, selectedService?.durationMinutes ?? 60, staffMemberId ?? undefined);
       console.log("[BookingFlow] Calendar response:", JSON.stringify(response, null, 2));
       setCalendarDays(response.days || []);
     } catch (err: any) {
@@ -400,7 +400,7 @@ export default function BookingFlow({
     try {
       const serviceDuration = selectedService.durationMinutes || 60;
       console.log("[BookingFlow] Fetching slots for:", { providerId, providerType, selectedDate, serviceDuration });
-      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate, serviceDuration);
+      const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate, serviceDuration, staffMemberId ?? undefined);
       console.log("[BookingFlow] Slots response:", JSON.stringify(response, null, 2));
       const availableSlots = response.slots?.filter((s) => s.status === "available") || [];
       console.log("[BookingFlow] Available slots count:", availableSlots.length);
@@ -430,6 +430,7 @@ export default function BookingFlow({
         serviceId: selectedService.id,
         date: selectedDate,
         startTime: slot.startTime,
+        ...(staffMemberId ? { staffMemberId } : {}),
       });
 
       if (response.valid) {
