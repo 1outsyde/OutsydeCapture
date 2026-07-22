@@ -40,6 +40,7 @@ import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
+import OrderCard from "@/components/OrderCard";
 
 type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile" | "credits";
@@ -1459,122 +1460,19 @@ export default function BusinessDashboardScreen() {
       );
     }
 
-    return orders.map(order => {
-      const statusColor = getStatusColor(order.status);
-      return (
-        <View key={order.id} style={styles.orderCard}>
-          <View style={styles.orderHeader}>
-            <View style={styles.orderCustomer}>
-              <View style={styles.orderAvatar}>
-                <Feather name="user" size={16} color={theme.primary} />
-              </View>
-              <View>
-                <Text style={styles.orderName}>{order.customerName}</Text>
-                <Text style={styles.orderDate}>{order.orderDate}</Text>
-              </View>
-            </View>
-            <View style={[styles.orderStatus, { backgroundColor: statusColor.bg }]}>
-              <Text style={[styles.orderStatusText, { color: statusColor.text }]}>
-                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.orderItems}>
-            {order.items.slice(0, 2).map((item: any, i: number) => (
-              <Text key={i} style={styles.orderItem}>
-                {item.quantity}x {item.name} - ${item.price}
-              </Text>
-            ))}
-            {order.items.length > 2 && (
-              <Text style={styles.orderItem}>+{order.items.length - 2} more items</Text>
-            )}
-          </View>
-          <View style={styles.orderFooter}>
-            <View>
-              {order.subtotalAmount != null ? (
-                <Text style={[styles.orderTotal, { color: theme.textSecondary, fontSize: 12 }]}>
-                  Subtotal: ${typeof order.subtotalAmount === 'number' ? order.subtotalAmount.toFixed(2) : order.subtotalAmount}
-                </Text>
-              ) : null}
-              {order.platformFeeAmount != null ? (
-                <Text style={[styles.orderTotal, { color: theme.textSecondary, fontSize: 12 }]}>
-                  Platform Fee: -${order.platformFeeAmount.toFixed(2)}
-                </Text>
-              ) : null}
-              {order.isInfluencerAttributed && order.influencerCommissionAmount != null ? (
-                <Text style={[styles.orderTotal, { color: theme.textSecondary, fontSize: 12 }]}>
-                  Influencer Commission: -${order.influencerCommissionAmount.toFixed(2)}
-                </Text>
-              ) : null}
-              {order.vendorNetAmount != null ? (
-                <Text style={[styles.orderTotal, { fontWeight: "700" }]}>
-                  You Earn: ${order.vendorNetAmount.toFixed(2)}
-                </Text>
-              ) : (
-                <Text style={styles.orderTotal}>Total: ${order.totalAmount}</Text>
-              )}
-            </View>
-            {order.status === "pending" && (
-              <View style={styles.orderActions}>
-                <Pressable
-                  onPress={() =>
-                    Alert.alert(
-                      "Cancel this order?",
-                      "This cannot be undone.",
-                      [
-                        { text: "Keep", style: "cancel" },
-                        {
-                          text: "Cancel Order",
-                          style: "destructive",
-                          onPress: () => handleOrderAction(order.id, "cancelled"),
-                        },
-                      ]
-                    )
-                  }
-                  style={[styles.actionButton, { backgroundColor: "#FF3B30" }]}
-                >
-                  <Text style={[styles.actionButtonText, { color: "#FFFFFF" }]}>Cancel</Text>
-                </Pressable>
-              </View>
-            )}
-            {order.status === "paid" && (
-              <View style={styles.orderActions}>
-                <Pressable
-                  onPress={() =>
-                    Alert.alert(
-                      "Cancel this order?",
-                      "This will refund the customer. This cannot be undone.",
-                      [
-                        { text: "Keep", style: "cancel" },
-                        {
-                          text: "Cancel Order",
-                          style: "destructive",
-                          onPress: () => handleOrderAction(order.id, "cancelled"),
-                        },
-                      ]
-                    )
-                  }
-                  style={[styles.actionButton, { backgroundColor: "#FF3B3015", borderWidth: 1, borderColor: "#FF3B30", flex: 1 }]}
-                >
-                  <Text style={[styles.actionButtonText, { color: "#FF3B30" }]}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setShipOrderId(order.id);
-                    setShipCarrier("");
-                    setShipTracking("");
-                    setShipModalVisible(true);
-                  }}
-                  style={[styles.actionButton, { backgroundColor: "#5856D6", flex: 1 }]}
-                >
-                  <Text style={[styles.actionButtonText, { color: "#FFFFFF" }]}>Ship</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        </View>
-      );
-    });
+    return orders.map(order => (
+      <OrderCard
+        key={order.id}
+        order={order}
+        onCancelOrder={handleOrderAction}
+        onShipPress={(orderId) => {
+          setShipOrderId(orderId);
+          setShipCarrier("");
+          setShipTracking("");
+          setShipModalVisible(true);
+        }}
+      />
+    ));
   };
 
   const renderBookingsTab = () => {
