@@ -1518,6 +1518,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
   },
   stepContent: {
+    flex: 1,
     minHeight: 200,
   },
   stepTitle: {
