@@ -32,8 +32,9 @@ import ProviderCalendar, {
 } from "@/components/ProviderCalendar";
 import DateBlocker, { BlockedDate } from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
+import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
 
-type ModalType = "bookings" | "services" | "hours" | "blocked" | null;
+type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
 
 const TIME_OPTIONS = [
   "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
@@ -98,6 +99,9 @@ export default function StaffDashboardScreen() {
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [editingStaffService, setEditingStaffService] = useState<ServiceFormData | null>(null);
 
+  const [weeklyHours, setWeeklyHours] = useState<DayHours[]>(getDefaultHours());
+  const [savingWeeklyHours, setSavingWeeklyHours] = useState(false);
+
   // "Base Hours" add-slot form state (a specific date marked available — this
   // backend has no weekly-recurring hours concept for staff, unlike the
   // business/photographer HoursEditor, so this is a simple per-date add).
@@ -120,17 +124,35 @@ export default function StaffDashboardScreen() {
       const staffData = staffRes.staff;
       setStaff(staffData);
 
-      const [bookingsRes, availabilityRes, earningsRes, servicesRes] = await Promise.all([
+      const [bookingsRes, availabilityRes, earningsRes, servicesRes, weeklyAvailRes] = await Promise.all([
         api.getStaffMyBookings(token, staffData.businessId).catch(() => ({ bookings: [] })),
         api.getStaffMyAvailability(token, undefined, undefined, staffData.businessId).catch(() => ({ availability: [] })),
         api.getStaffMyEarnings(token, staffData.businessId).catch(() => ({ total: 0, thisMonth: 0, pending: 0 })),
         api.getStaffMyServices(token, staffData.businessId).catch(() => ({ services: [] })),
+        api.getStaffWeeklyAvailability(token, staffData.businessId).catch(() => ({ availability: [] })),
       ]);
 
       setBookings(bookingsRes.bookings || []);
       setAvailability(availabilityRes.availability || []);
       setEarnings(earningsRes);
       setServices(servicesRes.services || []);
+
+      const rawWeekly = weeklyAvailRes.availability || [];
+      if (rawWeekly.length > 0) {
+        const loadedMap = new Map(rawWeekly.map((s) => [s.dayOfWeek, s]));
+        setWeeklyHours(getDefaultHours().map((d) => {
+          const slot = loadedMap.get(d.dayOfWeek);
+          if (slot) {
+            return {
+              dayOfWeek: d.dayOfWeek,
+              isAvailable: slot.isActive,
+              startTime: convertTo12Hour(slot.startTime),
+              endTime: convertTo12Hour(slot.endTime),
+            };
+          }
+          return d;
+        }));
+      }
     } catch (error) {
       console.error("[StaffDashboard] Failed to load:", error);
       Alert.alert("Unable to load dashboard", "Please try again.");
@@ -372,6 +394,30 @@ export default function StaffDashboardScreen() {
     }
   };
 
+  const handleSaveWeeklyHours = async () => {
+    const token = await getToken();
+    if (!token || !businessId) return;
+    setSavingWeeklyHours(true);
+    try {
+      const slots = weeklyHours
+        .filter((h: DayHours) => h.isAvailable)
+        .map((h: DayHours) => ({
+          dayOfWeek: h.dayOfWeek,
+          startTime: convertTo24Hour(h.startTime),
+          endTime: convertTo24Hour(h.endTime),
+          isActive: true as const,
+        }));
+      await api.setStaffWeeklyAvailability(token, businessId, slots);
+      Alert.alert("Success", "Weekly hours saved");
+      setActiveModal(null);
+    } catch (error: any) {
+      console.error("[StaffDashboard] Failed to save weekly hours:", error);
+      Alert.alert("Error", error.message || "Failed to save weekly hours");
+    } finally {
+      setSavingWeeklyHours(false);
+    }
+  };
+
   const styles = createStyles(theme, insets);
 
   if (loading) {
@@ -506,6 +552,15 @@ export default function StaffDashboardScreen() {
               </View>
               <Text style={styles.quickActionLabel}>Block Dates</Text>
               <Text style={styles.quickActionCount}>{blockedSlots.length} blocked</Text>
+            </Pressable>
+          </View>
+          <View style={[styles.quickActionsRow, { marginTop: 12 }]}>
+            <Pressable onPress={() => setActiveModal("weeklyHours")} style={styles.quickActionCard}>
+              <View style={styles.quickActionIcon}>
+                <Feather name="repeat" size={22} color={DASHBOARD_COLORS.gold} />
+              </View>
+              <Text style={styles.quickActionLabel}>Weekly Hours</Text>
+              <Text style={styles.quickActionCount}>Recurring schedule</Text>
             </Pressable>
           </View>
         </View>
@@ -845,6 +900,38 @@ export default function StaffDashboardScreen() {
                 onAdd={handleAddBlockedDate}
                 onRemove={handleRemoveBlockedDate}
                 isSaving={savingBlocked}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Weekly Hours modal */}
+      <Modal
+        visible={activeModal === "weeklyHours"}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
+          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg, maxHeight: "90%" }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Weekly Hours</Text>
+              <Pressable onPress={() => setActiveModal(null)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ paddingHorizontal: Spacing.xl }}>
+              <HoursEditor
+                hours={weeklyHours}
+                onChange={setWeeklyHours}
+                onSave={handleSaveWeeklyHours}
+                isSaving={savingWeeklyHours}
+                title="Weekly Hours"
+                description="Set your recurring weekly availability for client bookings."
+                showSaveButton
               />
             </ScrollView>
           </View>

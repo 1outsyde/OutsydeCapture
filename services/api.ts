@@ -2752,6 +2752,34 @@ class ApiService {
     });
   }
 
+  // GET /api/staff/me/weekly-availability — Fetch the staff member's recurring weekly schedule
+  async getStaffWeeklyAvailability(
+    authToken: string,
+    businessId?: string,
+  ): Promise<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }> {
+    const query = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    return this.request<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }>(
+      `/api/staff/me/weekly-availability${query}`,
+      { headers: { "Authorization": `Bearer ${authToken}` } },
+    );
+  }
+
+  // PUT /api/staff/me/weekly-availability — Replace the staff member's recurring weekly schedule
+  async setStaffWeeklyAvailability(
+    authToken: string,
+    businessId: string,
+    slots: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }>,
+  ): Promise<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }> {
+    return this.request<{ availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: boolean }> }>(
+      `/api/staff/me/weekly-availability?businessId=${encodeURIComponent(businessId)}`,
+      {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${authToken}` },
+        body: JSON.stringify({ slots }),
+      },
+    );
+  }
+
   // POST /api/staff/stripe-onboarding/create-link - Start Stripe payout onboarding for a staff member
   async startStaffStripeOnboarding(authToken: string, businessId?: string): Promise<{ url: string }> {
     return this.request<{ url: string }>("/api/staff/stripe-onboarding/create-link", {
