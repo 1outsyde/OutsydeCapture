@@ -374,7 +374,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="CartCheckout"
         component={CartCheckoutScreen}
-        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
 
       <Stack.Screen
