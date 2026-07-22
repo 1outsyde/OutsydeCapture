@@ -17,6 +17,7 @@ import StaffWorkProfileScreen from "@/screens/StaffWorkProfileScreen";
 import PostDetailScreen from "@/screens/PostDetailScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
+import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
 import ProductDetailScreen from "@/screens/ProductDetailScreen";
 import ProductOrderDetailScreen from "@/screens/ProductOrderDetailScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
@@ -368,6 +369,12 @@ export default function RootNavigator() {
             </Pressable>
           ),
         })}
+      />
+
+      <Stack.Screen
+        name="CartCheckout"
+        component={CartCheckoutScreen}
+        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
       />
 
       <Stack.Screen

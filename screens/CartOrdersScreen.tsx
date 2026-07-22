@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -6,12 +6,11 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -21,34 +20,18 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useData } from "@/context/DataContext";
-import { useStripePayment } from "@/hooks/useStripePayment";
 import { BorderRadius, Spacing } from "@/constants/theme";
-import { apiGet, apiPost } from "@/api/client";
+import { apiGet } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
 import api, { getMyAppointments, BusinessAppointment } from "@/services/api";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type CartOrdersRouteProp = RouteProp<RootStackParamList, "CartOrders">;
 type ActiveTab = "cart" | "bookings" | "orders";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
-
-interface ShippingAddress {
-  line1: string;
-  city: string;
-  state: string;
-  zipCode: string;
-}
-
-interface FeeBreakdown {
-  basePriceCents: number;
-  consumerUpchargeCents: number;
-  vendorPayoutCents: number;
-  platformFeeCents: number;
-  totalChargedToConsumerCents: number;
-  outsydePointsEarned: number;
-}
 
 interface Order {
   id: string;
@@ -83,11 +66,11 @@ function isPastDate(dateStr: string): boolean {
 export default function CartOrdersScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<CartOrdersRouteProp>();
   const insets = useSafeAreaInsets();
   const { getToken, isAuthenticated } = useAuth();
-  const { items: cart, updateQuantity: ctxUpdateQuantity, clearCart, subtotal } = useCart();
+  const { items: cart, updateQuantity: ctxUpdateQuantity } = useCart();
   const { getUpcomingSessions, getPastSessions, refreshSessions } = useData();
-  const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("cart");
 
@@ -95,35 +78,11 @@ export default function CartOrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [backendFeeBreakdown, setBackendFeeBreakdown] = useState<FeeBreakdown | null>(null);
-  const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
-    line1: "",
-    city: "",
-    state: "",
-    zipCode: "",
-  });
 
   // ─── Bookings state ───────────────────────────────────────────────────────
   const [bookingsFilter, setBookingsFilter] = useState<"upcoming" | "past">("upcoming");
   const [businessAppointments, setBusinessAppointments] = useState<BusinessAppointment[]>([]);
   const cancelPreviewingIds = useRef(new Set<string>());
-
-  // ─── Cart computations ────────────────────────────────────────────────────
-  const hasShippingAddress =
-    shippingAddress.line1.trim().length > 0 &&
-    shippingAddress.city.trim().length > 0 &&
-    shippingAddress.state.trim().length > 0 &&
-    shippingAddress.zipCode.trim().length > 0;
-
-  const clientServiceFee = useMemo(() => (subtotal / 100) * 0.08, [subtotal]);
-  const clientTotal = useMemo(() => (subtotal / 100) * 1.08, [subtotal]);
-  const clientPoints = useMemo(() => Math.round(clientServiceFee * 100), [clientServiceFee]);
-
-  const displayedSubtotal = backendFeeBreakdown ? backendFeeBreakdown.basePriceCents / 100 : subtotal / 100;
-  const displayedServiceFee = backendFeeBreakdown ? backendFeeBreakdown.consumerUpchargeCents / 100 : clientServiceFee;
-  const displayedTotal = backendFeeBreakdown ? backendFeeBreakdown.totalChargedToConsumerCents / 100 : clientTotal;
-  const displayedPoints = backendFeeBreakdown ? backendFeeBreakdown.outsydePointsEarned : clientPoints;
 
   // ─── Bookings computations ────────────────────────────────────────────────
   const upcomingSessions = getUpcomingSessions();
@@ -223,76 +182,20 @@ export default function CartOrdersScreen() {
     setRefreshing(false);
   };
 
+  // ─── Switch to Orders tab when CartCheckoutScreen navigates back with openTab ──
+  useEffect(() => {
+    const tab = route.params?.openTab;
+    if (tab) {
+      setActiveTab(tab);
+      if (tab === "orders") fetchOrders();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?._ts]);
+
   // ─── Cart actions ─────────────────────────────────────────────────────────
   const updateQuantity = (productId: string, delta: number) => {
     const item = cart.find((i) => i.productId === productId);
     if (item) ctxUpdateQuantity(productId, item.quantity + delta);
-  };
-
-  const checkoutDisabled = cart.length === 0 || !hasShippingAddress || checkoutLoading;
-
-  const handleCheckout = async () => {
-    if (checkoutDisabled) return;
-    const token = await getToken();
-    if (!token) { Alert.alert("Checkout failed. Please try again."); return; }
-    setCheckoutLoading(true);
-    try {
-      const paymentIntentResponse = await apiPost(
-        "/api/cart/payment-intent",
-        {
-          items: cart.map((item) => ({
-            productId: item.productId,
-            vendorId: item.vendorId,
-            priceCents: item.price,
-            quantity: item.quantity,
-            name: item.name,
-          })),
-          shippingAddress: {
-            line1: shippingAddress.line1.trim(),
-            city: shippingAddress.city.trim(),
-            state: shippingAddress.state.trim(),
-            zipCode: shippingAddress.zipCode.trim(),
-          },
-        },
-        token
-      ) as { clientSecret?: string; feeBreakdown?: FeeBreakdown };
-
-      const clientSecret = paymentIntentResponse?.clientSecret;
-      const feeBreakdown = paymentIntentResponse?.feeBreakdown || null;
-      setBackendFeeBreakdown(feeBreakdown);
-      if (!clientSecret) throw new Error("Missing clientSecret");
-
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: clientSecret,
-        merchantDisplayName: "Outsyde",
-      });
-      if (initError) {
-        if ((initError as any)?.code === "Canceled") { Alert.alert("Payment cancelled."); return; }
-        throw initError;
-      }
-
-      const { error: presentError } = await presentPaymentSheet();
-      if (presentError) {
-        if ((presentError as any)?.code === "Canceled") { Alert.alert("Payment cancelled."); return; }
-        throw presentError;
-      }
-
-      Alert.alert(`Order placed successfully! You earned ${feeBreakdown?.outsydePointsEarned ?? 0} Outsyde Points.`);
-      clearCart();
-      setBackendFeeBreakdown(null);
-      fetchOrders();
-      setActiveTab("orders");
-    } catch (error: any) {
-      const message = String(error?.message || "");
-      const code = String(error?.code || "");
-      if (code === "MULTI_VENDOR_NOT_SUPPORTED" || message.includes("MULTI_VENDOR_NOT_SUPPORTED")) {
-        Alert.alert("Please checkout one vendor at a time.");
-      } else {
-        Alert.alert("Checkout failed. Please try again.");
-      }
-    } finally {
-      setCheckoutLoading(false);
-    }
   };
 
   const getOrderStatusConfig = (status: "pending" | "paid") => {
@@ -428,32 +331,7 @@ export default function CartOrdersScreen() {
       backgroundColor: theme.brandSurface,
     },
     quantityText: { minWidth: 20, textAlign: "center" },
-    shippingCard: {
-      padding: Spacing.md,
-      borderRadius: BorderRadius.lg,
-      backgroundColor: theme.brandSurface,
-      borderWidth: 1,
-      borderColor: theme.brandSurfaceBorder,
-      gap: Spacing.sm,
-      marginTop: Spacing.sm,
-    },
-    input: {
-      height: 44,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
-      borderColor: theme.brandSurfaceBorder,
-      backgroundColor: theme.brandBgElevated,
-      color: theme.brandCream,
-      paddingHorizontal: Spacing.md,
-      fontSize: 15,
-    },
-    row: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: Spacing.xs,
-    },
-    checkoutButton: {
+    proceedButton: {
       marginTop: Spacing.md,
       flexDirection: "row",
       alignItems: "center",
@@ -819,75 +697,19 @@ export default function CartOrdersScreen() {
             </View>
           ))}
 
-          <View style={styles.shippingCard}>
-            <ThemedText type="body">Shipping Address</ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder="Address Line 1"
-              placeholderTextColor={theme.brandTextDim}
-              value={shippingAddress.line1}
-              onChangeText={(v) => updateShippingAddress("line1", v)}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="City"
-              placeholderTextColor={theme.brandTextDim}
-              value={shippingAddress.city}
-              onChangeText={(v) => updateShippingAddress("city", v)}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="State"
-              placeholderTextColor={theme.brandTextDim}
-              value={shippingAddress.state}
-              onChangeText={(v) => updateShippingAddress("state", v)}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Zip Code"
-              placeholderTextColor={theme.brandTextDim}
-              value={shippingAddress.zipCode}
-              onChangeText={(v) => updateShippingAddress("zipCode", v)}
-            />
-          </View>
-
-          <View style={[styles.shippingCard, { marginTop: Spacing.md }]}>
-            <View style={styles.row}>
-              <ThemedText type="body" style={{ color: theme.brandTextDim }}>Subtotal</ThemedText>
-              <ThemedText type="body">${displayedSubtotal.toFixed(2)}</ThemedText>
-            </View>
-            <View style={styles.row}>
-              <ThemedText type="body" style={{ color: theme.brandTextDim }}>Outsyde Service Fee (+8%)</ThemedText>
-              <ThemedText type="body">${displayedServiceFee.toFixed(2)}</ThemedText>
-            </View>
-            <View style={[styles.row, { marginBottom: 0 }]}>
-              <ThemedText type="h4">Total</ThemedText>
-              <ThemedText type="h4" style={{ color: theme.brandGold }}>${displayedTotal.toFixed(2)}</ThemedText>
-            </View>
-            <ThemedText type="body" style={{ color: theme.brandSuccess, marginTop: Spacing.xs }}>
-              You'll earn {displayedPoints} Outsyde Points
-            </ThemedText>
-          </View>
-
           <Pressable
-            onPress={handleCheckout}
-            disabled={checkoutDisabled}
+            onPress={() => navigation.navigate("CartCheckout")}
+            disabled={cart.length === 0}
             style={({ pressed }) => [
-              styles.checkoutButton,
+              styles.proceedButton,
               {
-                backgroundColor: checkoutDisabled ? theme.brandPrimary + "66" : theme.brandPrimary,
+                backgroundColor: cart.length === 0 ? theme.brandPrimary + "66" : theme.brandPrimary,
                 opacity: pressed ? 0.85 : 1,
               },
             ]}
           >
-            {checkoutLoading ? (
-              <ActivityIndicator size="small" color={theme.brandPrimaryText} />
-            ) : (
-              <>
-                <Feather name="credit-card" size={18} color={theme.brandPrimaryText} />
-                <ThemedText type="body" style={{ color: theme.brandPrimaryText }}>Proceed to Checkout</ThemedText>
-              </>
-            )}
+            <Feather name="credit-card" size={18} color={theme.brandPrimaryText} />
+            <ThemedText type="body" style={{ color: theme.brandPrimaryText }}>Proceed to Checkout</ThemedText>
           </Pressable>
         </>
       )}
