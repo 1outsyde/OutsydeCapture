@@ -885,6 +885,8 @@ export interface BusinessOrder {
   vendorNetAmount?: number;
   isInfluencerAttributed?: boolean;
   attributedInfluencerId?: string;
+  // JSON-encoded {line1, city, state, zipCode} — parse before rendering; null for pre-fix orders
+  shippingAddress?: string | null;
 }
 
 export interface BusinessBooking {
