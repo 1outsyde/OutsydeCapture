@@ -27,6 +27,7 @@ import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -485,6 +486,10 @@ export default function PostDetailScreen() {
             <TouchableWithoutFeedback>
               <View style={[styles.editPanel, { backgroundColor: theme.card ?? theme.backgroundRoot }]}>
                 <ThemedText style={styles.editTitle}>Edit Caption</ThemedText>
+                <ScreenKeyboardAwareScrollView
+                  contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}
+                  keyboardShouldPersistTaps="handled"
+                >
                 <TextInput
                   value={editedCaption}
                   onChangeText={setEditedCaption}
@@ -505,6 +510,7 @@ export default function PostDetailScreen() {
                     </ThemedText>
                   </Pressable>
                 </View>
+                </ScreenKeyboardAwareScrollView>
               </View>
             </TouchableWithoutFeedback>
           </View>
