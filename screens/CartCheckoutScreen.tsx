@@ -648,6 +648,20 @@ export default function CartCheckoutScreen() {
           </ThemedText>
         </View>
 
+        {/* Refund policy disclosure */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: Spacing.md }}>
+          <ThemedText type="small" style={{ color: theme.brandTextDim }}>
+            {"Orders can be cancelled for a full refund before shipment. Once shipped, all sales are final unless the item arrives damaged or not as described. To report an issue contact info@goutsyde.com within 7 days of delivery. See our full "}
+          </ThemedText>
+          {/* TODO: Replace with navigation.navigate("RefundPolicyScreen") once that screen is created */}
+          <Pressable onPress={() => navigation.navigate("PrivacyPolicy")}>
+            <ThemedText type="small" style={{ color: theme.brandPrimary }}>
+              {"Refund Policy"}
+            </ThemedText>
+          </Pressable>
+          <ThemedText type="small" style={{ color: theme.brandTextDim }}>{"."}</ThemedText>
+        </View>
+
         {/* Confirm & Pay */}
         <Pressable
           onPress={handleCheckout}
