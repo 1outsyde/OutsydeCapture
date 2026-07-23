@@ -6,7 +6,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -161,7 +161,7 @@ export default function OrderSuccessScreen() {
             <Pressable
               style={({ pressed }) => [styles.primaryBtn, { opacity: pressed ? 0.85 : 1 }]}
               onPress={() =>
-                navigation.navigate("CartOrders", { openTab: "orders", _ts: Date.now() })
+                navigation.reset({ index: 1, routes: [{ name: "Main" }, { name: "CartOrders", params: { openTab: "orders", _ts: Date.now() } }] })
               }
             >
               <Feather name="package" size={16} color={theme.brandPrimaryText} />
@@ -170,7 +170,7 @@ export default function OrderSuccessScreen() {
 
             <Pressable
               style={({ pressed }) => [styles.secondaryBtn, { opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => navigation.navigate("Main", { screen: "Home" })}
+              onPress={() => navigation.reset({ index: 0, routes: [{ name: "Main" }] })}
             >
               <Feather name="compass" size={16} color={theme.brandCream} />
               <ThemedText type="body" style={{ color: theme.brandCream }}>Continue Shopping</ThemedText>

@@ -10,7 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
@@ -245,7 +245,7 @@ export default function BusinessOnboardingScreen() {
         await WebBrowser.openBrowserAsync(url);
       }
       
-      navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to start Stripe onboarding");
     } finally {
@@ -254,7 +254,7 @@ export default function BusinessOnboardingScreen() {
   };
 
   const handleSkipStripe = () => {
-    navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } });
+    navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
   };
 
   if (loading) {

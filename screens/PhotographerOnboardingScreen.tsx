@@ -10,7 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
@@ -234,7 +234,7 @@ export default function PhotographerOnboardingScreen() {
         await WebBrowser.openBrowserAsync(url);
       }
       
-      navigation.navigate("PhotographerDashboard");
+      navigation.dispatch(CommonActions.reset({ index: 1, routes: [{ name: "Main" }, { name: "PhotographerDashboard" }] }));
     } catch (error: any) {
       const errorMessage = error.message || "Failed to connect Stripe. Please try again from your dashboard.";
       setStripeError(errorMessage);
@@ -244,7 +244,7 @@ export default function PhotographerOnboardingScreen() {
   };
 
   const handleSkipStripe = () => {
-    navigation.navigate("PhotographerDashboard");
+    navigation.dispatch(CommonActions.reset({ index: 1, routes: [{ name: "Main" }, { name: "PhotographerDashboard" }] }));
   };
 
   if (loading) {

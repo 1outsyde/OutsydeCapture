@@ -372,7 +372,7 @@ export default function BusinessSignupScreen() {
       if (result.isPending) {
         setShowPending(true);
       } else {
-        navigation.goBack();
+        navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
       }
     } else {
       const msg = result.errorMessage || "";
