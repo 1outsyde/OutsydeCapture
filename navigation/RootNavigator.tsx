@@ -729,8 +729,8 @@ export default function RootNavigator() {
         name="ProductOrderDetail"
         component={ProductOrderDetailScreen}
         options={{
-          presentation: "card",
-          animation: "slide_from_right",
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
           headerShown: false,
         }}
       />
