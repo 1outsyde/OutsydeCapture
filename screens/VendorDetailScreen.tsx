@@ -2310,6 +2310,8 @@ export default function VendorDetailScreen({ route }: Props) {
         animateOnMount={false}
         backgroundStyle={{ backgroundColor: "#111111" }}
         handleIndicatorStyle={{ backgroundColor: COLORS.gray }}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
       >
         <BottomSheetView style={styles.sheetBody}>
           <Text style={styles.sheetTitle}>Rate {profile.name}</Text>
