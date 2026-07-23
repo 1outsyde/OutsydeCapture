@@ -252,6 +252,7 @@ export function ProFeedCard({
             source={{ uri: post.authorAvatar }}
             style={styles.avatar}
             contentFit="cover"
+            onError={() => {}}
           />
         ) : (
           <View

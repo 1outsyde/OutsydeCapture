@@ -161,6 +161,11 @@ export interface ApiConversation {
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount?: number;
+  otherParticipant?: {
+    id: string;
+    profileImageUrl?: string | null;
+    avatar?: string | null;
+  };
 }
 
 export interface ApiMessage {
@@ -211,9 +216,13 @@ export interface ApiPost {
     id: string;
     name: string;
     username?: string;
-    profileImageUrl?: string;
+    profilePhotoUrl?: string | null;
+    profileImageUrl?: string | null;
     businessId?: string;
     photographerId?: string;
+    displayName?: string;
+    role?: string;
+    userId?: string;
   };
   taggedBusiness?: {
     id: string;
