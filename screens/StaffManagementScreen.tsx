@@ -62,9 +62,13 @@ export default function StaffManagementScreen() {
   const [invites, setInvites] = useState<StaffInviteRow[]>([]);
   const [seatStatus, setSeatStatus] = useState<{
     activeCount: number;
+    pendingCount: number;
+    usedSeats: number;
     maxStaff: number | null;
     tierName: string;
   } | null>(null);
+  const atCap = seatStatus !== null && seatStatus.maxStaff !== null && seatStatus.usedSeats >= seatStatus.maxStaff;
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
@@ -336,6 +340,16 @@ export default function StaffManagementScreen() {
           </View>
         ) : null}
 
+        {/* At-cap amber banner */}
+        {atCap ? (
+          <View style={styles.atCapBanner}>
+            <Feather name="alert-triangle" size={12} color="#F59E0B" />
+            <Text style={styles.atCapText}>
+              {`You're at your seat limit for ${seatStatus!.tierName}. Upgrade to add more staff.`}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Seat usage + Add button */}
         <View style={styles.headerRow}>
           {seatStatus ? (
@@ -344,7 +358,7 @@ export default function StaffManagementScreen() {
                 name="users"
                 size={13}
                 color={
-                  seatStatus.maxStaff !== null && seatStatus.activeCount >= seatStatus.maxStaff
+                  seatStatus.maxStaff !== null && seatStatus.usedSeats >= seatStatus.maxStaff
                     ? "#FF3B30"
                     : theme.textSecondary
                 }
@@ -354,15 +368,15 @@ export default function StaffManagementScreen() {
                   styles.seatText,
                   {
                     color:
-                      seatStatus.maxStaff !== null && seatStatus.activeCount >= seatStatus.maxStaff
+                      seatStatus.maxStaff !== null && seatStatus.usedSeats >= seatStatus.maxStaff
                         ? "#FF3B30"
                         : theme.textSecondary,
                   },
                 ]}
               >
                 {seatStatus.maxStaff === null
-                  ? `${seatStatus.activeCount} seat${seatStatus.activeCount === 1 ? "" : "s"} used · Unlimited on ${seatStatus.tierName}`
-                  : `${seatStatus.activeCount} of ${seatStatus.maxStaff} seats used · ${seatStatus.tierName}`}
+                  ? `${seatStatus.usedSeats} seat${seatStatus.usedSeats === 1 ? "" : "s"} used · Unlimited on ${seatStatus.tierName}`
+                  : `${seatStatus.usedSeats} of ${seatStatus.maxStaff} seats used · ${seatStatus.tierName}`}
               </Text>
             </View>
           ) : (
@@ -553,6 +567,7 @@ export default function StaffManagementScreen() {
         onClose={() => setInviteModalVisible(false)}
         onInviteSent={() => load()}
         brandColor={accentColor}
+        seatStatus={seatStatus}
       />
     </View>
   );
@@ -803,5 +818,20 @@ const styles = StyleSheet.create({
   statusBadgeText: {
     fontSize: 10,
     fontWeight: "700",
+  },
+  atCapBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  atCapText: {
+    color: "#F59E0B",
+    fontSize: 12,
+    flex: 1,
   },
 });

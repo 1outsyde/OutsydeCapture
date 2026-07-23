@@ -23,6 +23,7 @@ interface InviteTeamModalProps {
   onClose: () => void;
   onInviteSent: () => void;
   brandColor?: string;
+  seatStatus?: { activeCount: number; pendingCount: number; usedSeats: number; maxStaff: number | null; tierName: string } | null;
 }
 
 export default function InviteTeamModal({
@@ -30,6 +31,7 @@ export default function InviteTeamModal({
   onClose,
   onInviteSent,
   brandColor = "#D4A84B",
+  seatStatus,
 }: InviteTeamModalProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -81,11 +83,14 @@ export default function InviteTeamModal({
         payload.phone = trimmedPhone;
       }
 
-      await apiClient.createStaffInvite(token, payload);
+      const result = await apiClient.createStaffInvite(token, payload);
 
       onClose();
       onInviteSent();
       Alert.alert("Invite sent", `An invite has been sent to ${trimmedEmail}.`);
+      if (result.seatWarning) {
+        Alert.alert("Seat limit notice", result.seatWarning);
+      }
     } catch (err: any) {
       // Surface the API's specific error message (e.g. duplicate invite)
       const message =
@@ -127,6 +132,16 @@ export default function InviteTeamModal({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Seat cap warning */}
+            {seatStatus != null && seatStatus.maxStaff !== null && seatStatus.usedSeats >= seatStatus.maxStaff ? (
+              <View style={styles.seatCapBanner}>
+                <Feather name="alert-triangle" size={14} color="#F59E0B" />
+                <Text style={styles.seatCapText}>
+                  {`You've used all ${seatStatus.maxStaff} seats on ${seatStatus.tierName}. Upgrade to add more team members.`}
+                </Text>
+              </View>
+            ) : null}
+
             {/* Email */}
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>
@@ -374,5 +389,20 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  seatCapBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  seatCapText: {
+    color: "#F59E0B",
+    fontSize: 13,
+    flex: 1,
   },
 });
