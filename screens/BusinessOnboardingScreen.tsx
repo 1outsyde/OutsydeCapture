@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 
 import { ThemedView } from "@/components/ThemedView";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
@@ -696,13 +697,12 @@ export default function BusinessOnboardingScreen() {
         )}
       </View>
 
-      <ScrollView
+      <ScreenKeyboardAwareScrollView
         style={styles.scrollContent}
         contentContainerStyle={styles.scrollContentContainer}
-        keyboardShouldPersistTaps="handled"
       >
         {renderStep()}
-      </ScrollView>
+      </ScreenKeyboardAwareScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
         {step < 5 && (
@@ -771,6 +771,7 @@ const styles = StyleSheet.create({
   },
   scrollContentContainer: {
     paddingHorizontal: Spacing.lg,
+    paddingTop: 0,
     paddingBottom: Spacing.xl,
   },
   stepContent: {
