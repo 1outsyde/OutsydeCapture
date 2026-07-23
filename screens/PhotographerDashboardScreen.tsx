@@ -49,6 +49,7 @@ import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
 const SPECIALTIES = [
   "Portraits", "Weddings", "Events", "Products",
@@ -1726,7 +1727,7 @@ export default function PhotographerDashboardScreen() {
               )}
             </Pressable>
           </View>
-          <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+          <ScreenKeyboardAwareScrollView style={styles.modalScroll} contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Banner Editor */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Profile Banner</Text>
@@ -2128,7 +2129,7 @@ export default function PhotographerDashboardScreen() {
               />
             </View>
 
-          </ScrollView>
+          </ScreenKeyboardAwareScrollView>
         </View>
       </View>
     </Modal>

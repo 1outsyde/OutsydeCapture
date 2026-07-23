@@ -33,6 +33,7 @@ import ProviderCalendar, {
 import DateBlocker, { BlockedDate } from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
 
@@ -773,7 +774,7 @@ export default function StaffDashboardScreen() {
                 <Feather name="x" size={24} color={theme.text} />
               </Pressable>
             </View>
-            <ScrollView style={{ paddingHorizontal: Spacing.xl }}>
+            <ScreenKeyboardAwareScrollView style={{ paddingHorizontal: Spacing.xl }} contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.modalDescription}>
                 Add the specific dates you're available for bookings.
               </Text>
@@ -872,7 +873,7 @@ export default function StaffDashboardScreen() {
                   </View>
                 ))
               )}
-            </ScrollView>
+            </ScreenKeyboardAwareScrollView>
           </View>
         </View>
       </Modal>
