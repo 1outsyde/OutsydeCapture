@@ -103,6 +103,7 @@ export default function BusinessSignupScreen() {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [showFormError, setShowFormError] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
     if (prefillName) {
@@ -242,6 +243,7 @@ export default function BusinessSignupScreen() {
 
   const handleNext = () => {
     if (currentStep === 1) {
+      if (!agreedToTerms) { Alert.alert("Required", "Please agree to the Terms of Service and Privacy Policy to continue."); return; }
       const allTouched = { firstName: true, lastName: true, username: true, email: true, phone: true, password: true };
       setTouched(allTouched);
       const step1Valid =
@@ -536,6 +538,34 @@ export default function BusinessSignupScreen() {
               {touched.password && getFieldError("password") ? (
                 <ThemedText style={styles.fieldError}>{getFieldError("password")}</ThemedText>
               ) : null}
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "flex-start", marginTop: Spacing.md, marginBottom: Spacing.lg }}>
+              <Pressable onPress={() => setAgreedToTerms(v => !v)}>
+                <Feather
+                  name={agreedToTerms ? "check-square" : "square"}
+                  size={20}
+                  color={agreedToTerms ? theme.primary : theme.textSecondary}
+                />
+              </Pressable>
+              <ThemedText type="small" style={{ color: theme.text, marginLeft: Spacing.sm, flex: 1 }}>
+                {"I agree to the "}
+                <ThemedText
+                  type="small"
+                  onPress={() => navigation.navigate("TermsOfService")}
+                  style={{ color: theme.primary }}
+                >
+                  {"Terms of Service"}
+                </ThemedText>
+                {" and "}
+                <ThemedText
+                  type="small"
+                  onPress={() => navigation.navigate("PrivacyPolicy")}
+                  style={{ color: theme.primary }}
+                >
+                  {"Privacy Policy"}
+                </ThemedText>
+              </ThemedText>
             </View>
           </View>
         );
@@ -1037,6 +1067,7 @@ export default function BusinessSignupScreen() {
             <Button
               onPress={handleNext}
               style={[styles.nextButton, { backgroundColor: "#2D7A2D" }]}
+              disabled={currentStep === 1 && !agreedToTerms}
             >
               Continue
             </Button>

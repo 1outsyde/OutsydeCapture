@@ -42,117 +42,217 @@ export default function PrivacyPolicyScreen() {
   const renderPrivacyPolicy = () => (
     <>
       <ThemedText type="small" style={[styles.lastUpdated, { color: theme.textSecondary }]}>
-        Last Updated: 01/23/2026
+        Last Updated: July 23, 2026
       </ThemedText>
 
       <Paragraph>
-        Outsyde ("Outsyde," "we," "our," or "us") values your privacy. This Privacy Policy explains how we collect, use, disclose, and protect personal information when you use the Outsyde mobile application, website, and related services (collectively, the "Platform").
+        Welcome to Outsyde LLC ("Outsyde," "we," "our," or "us"). Outsyde values your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, store, and protect information when you use the Outsyde mobile application, website, and related services (collectively, the "Platform").
       </Paragraph>
-
       <Paragraph>
-        By using Outsyde, you consent to the practices described in this Privacy Policy.
+        By creating an account or using the Platform, you agree to this Privacy Policy.
       </Paragraph>
 
       <Section title="1. Information We Collect">
-        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>
-          A. Information You Provide
-        </ThemedText>
-        <Paragraph>We may collect personal information you provide, including:</Paragraph>
-        <BulletPoint>Name</BulletPoint>
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>A. Account Information (All Users)</ThemedText>
+        <Paragraph>When creating an account, we collect:</Paragraph>
+        <BulletPoint>Full name (first and last)</BulletPoint>
+        <BulletPoint>Username (public handle)</BulletPoint>
         <BulletPoint>Email address</BulletPoint>
         <BulletPoint>Phone number</BulletPoint>
-        <BulletPoint>Profile information (photos, bios, business details)</BulletPoint>
-        <BulletPoint>Booking details and communications</BulletPoint>
-        <BulletPoint>Content you upload (images, videos, text)</BulletPoint>
+        <BulletPoint>Password (encrypted; never stored in plaintext)</BulletPoint>
+        <BulletPoint>Profile photo</BulletPoint>
+        <BulletPoint>Date of birth</BulletPoint>
+        <BulletPoint>Gender (optional)</BulletPoint>
+        <BulletPoint>Ethnicity (optional)</BulletPoint>
+        <BulletPoint>Shopping frequency and lifestyle preferences (optional)</BulletPoint>
 
-        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>
-          B. Payment Information
-        </ThemedText>
-        <Paragraph>All payments are processed through third-party payment processors, such as Stripe.</Paragraph>
-        <Paragraph>Outsyde does not store your full credit card or banking information. Payment processors collect and store this information in accordance with their own privacy policies.</Paragraph>
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>B. Consumer-Specific Information</ThemedText>
+        <Paragraph>In addition to account information, consumers may provide:</Paragraph>
+        <BulletPoint>Home address: Street address, apartment/unit, city, state, ZIP code, and country</BulletPoint>
+        <BulletPoint>Billing address: Separate billing address if different from home address</BulletPoint>
+        <BulletPoint>Shipping addresses: Saved for order delivery</BulletPoint>
+        <BulletPoint>Selected industries, niches, and values: Used to personalize your experience</BulletPoint>
+        <BulletPoint>Household size, income range, education level, and occupation (optional)</BulletPoint>
 
-        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>
-          C. Automatically Collected Information
-        </ThemedText>
-        <Paragraph>When you use Outsyde, we may automatically collect:</Paragraph>
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>C. Business (Vendor) Information</ThemedText>
+        <Paragraph>If you register as a business or service provider, we collect:</Paragraph>
+        <BulletPoint>Business name, category, tagline, and description</BulletPoint>
+        <BulletPoint>Business address, city, state, ZIP code, and country</BulletPoint>
+        <BulletPoint>Business type, years in business, and employee count</BulletPoint>
+        <BulletPoint>Whether you have a physical location</BulletPoint>
+        <BulletPoint>Website URL and social media handles</BulletPoint>
+        <BulletPoint>Billing address</BulletPoint>
+        <BulletPoint>Service listings, product listings, hours of operation</BulletPoint>
+        <BulletPoint>Brand colors, logo, cover images, and cover videos</BulletPoint>
+        <BulletPoint>Stripe Connect account status and onboarding information</BulletPoint>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>D. Photographer-Specific Information</ThemedText>
+        <Paragraph>Photographers additionally provide:</Paragraph>
+        <BulletPoint>Display name and biography</BulletPoint>
+        <BulletPoint>Studio name and address (if applicable)</BulletPoint>
+        <BulletPoint>Shoot location type, travel radius, and pricing</BulletPoint>
+        <BulletPoint>Specialties, equipment level, and experience level</BulletPoint>
+        <BulletPoint>Portfolio URL, portfolio images and videos</BulletPoint>
+        <BulletPoint>Delivery turnaround time</BulletPoint>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>E. Payment and Financial Information</ThemedText>
+        <Paragraph>Payments are processed by Stripe. Outsyde does not store full credit card numbers, CVV codes, or bank account credentials. We store:</Paragraph>
+        <BulletPoint>Stripe Customer ID — a token reference for saved payment methods</BulletPoint>
+        <BulletPoint>Stripe Payment Method ID — a token reference for your default saved card</BulletPoint>
+        <BulletPoint>Stripe Connect Account ID — for businesses, photographers, staff, and influencers who receive payouts</BulletPoint>
+        <BulletPoint>Payment Intent IDs — references linking transactions to bookings or orders</BulletPoint>
+        <BulletPoint>Computed fee breakdowns — platform fee, vendor net, and payout amounts</BulletPoint>
+        <Paragraph>Stripe may collect additional identity and financial verification information through their hosted onboarding flow, governed by Stripe's Privacy Policy (stripe.com/privacy).</Paragraph>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>F. Booking Information</ThemedText>
+        <Paragraph>When using booking services we collect:</Paragraph>
+        <BulletPoint>Appointment dates, times, and duration</BulletPoint>
+        <BulletPoint>Selected services and assigned staff members</BulletPoint>
+        <BulletPoint>Booking status and history (confirmed, cancelled, rescheduled)</BulletPoint>
+        <BulletPoint>Cancellation and refund history</BulletPoint>
+        <BulletPoint>Notes associated with appointments</BulletPoint>
+        <BulletPoint>Customer service address (when service is performed at your location)</BulletPoint>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>G. Order Information</ThemedText>
+        <Paragraph>For marketplace purchases we collect:</Paragraph>
+        <BulletPoint>Products purchased and quantities</BulletPoint>
+        <BulletPoint>Order history and transaction amounts</BulletPoint>
+        <BulletPoint>Shipping address at time of order</BulletPoint>
+        <BulletPoint>Carrier, tracking, delivery, and fulfillment status</BulletPoint>
+        <BulletPoint>Refund and return status</BulletPoint>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>H. Location Information</ThemedText>
+        <Paragraph>With your permission, Outsyde may collect location data to display nearby businesses, pre-fill forms, improve discovery, and record service locations for bookings. We collect:</Paragraph>
+        <BulletPoint>GPS coordinates (latitude and longitude) — when you use location-enabled features</BulletPoint>
+        <BulletPoint>Address-derived coordinates — geocoded via Google Places API when you enter an address</BulletPoint>
+        <BulletPoint>City and state — reverse-geocoded from GPS during signup for form pre-fill</BulletPoint>
+        <Paragraph>Location permissions may be disabled at any time through your device settings.</Paragraph>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>I. Media and Uploaded Files</ThemedText>
+        <Paragraph>We collect images and videos you upload, including profile photos, cover photos, business logos, product images, portfolio media, and feed posts.</Paragraph>
+        <Paragraph>Images are stored by Cloudflare R2. Videos are hosted and streamed by Mux. When you delete a video, we instruct Mux to delete the asset from their servers.</Paragraph>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>J. Staff Member Information</ThemedText>
+        <Paragraph>Staff members of a business provide: display name, biography, profile photo, email, phone, assigned services, role, availability, and Stripe Connect account information for direct payouts.</Paragraph>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>K. Influencer Information</ThemedText>
+        <Paragraph>Influencer Program applicants provide: Instagram and TikTok handles, total follower count, and a biography.</Paragraph>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>L. Messaging</ThemedText>
+        <Paragraph>Messages exchanged through the Platform are stored in plaintext in our database. Messages are not end-to-end encrypted. Users should avoid sharing passwords, financial details, or government IDs through Platform messaging.</Paragraph>
+
+        <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>M. Automatically Collected Information</ThemedText>
+        <Paragraph>When you use Outsyde we automatically collect:</Paragraph>
         <BulletPoint>Device type and operating system</BulletPoint>
         <BulletPoint>IP address</BulletPoint>
-        <BulletPoint>App usage data</BulletPoint>
-        <BulletPoint>Log data and performance analytics</BulletPoint>
-        <BulletPoint>Cookies or similar technologies (for web use)</BulletPoint>
+        <BulletPoint>App usage sessions and timestamps</BulletPoint>
+        <BulletPoint>Expo push notification token (device-level identifier)</BulletPoint>
+        <BulletPoint>Log files and error reports</BulletPoint>
+        <BulletPoint>Behavioral engagement data (watch time, completion rate, share rate, save rate, comment rate, like rate) — used solely to personalize your feed; retained for up to your last 100 interactions; not sold to advertisers</BulletPoint>
       </Section>
 
-      <Section title="2. How We Use Information">
+      <Section title="2. How We Use Your Information">
         <Paragraph>We use your information to:</Paragraph>
-        <BulletPoint>Operate and improve the Platform</BulletPoint>
-        <BulletPoint>Facilitate bookings, payments, and transactions</BulletPoint>
+        <BulletPoint>Create and manage your account</BulletPoint>
+        <BulletPoint>Process bookings, marketplace purchases, and payments</BulletPoint>
+        <BulletPoint>Facilitate vendor and staff payouts via Stripe Connect</BulletPoint>
+        <BulletPoint>Deliver orders and provide shipping updates</BulletPoint>
+        <BulletPoint>Provide customer support and resolve disputes</BulletPoint>
         <BulletPoint>Verify accounts and prevent fraud</BulletPoint>
-        <BulletPoint>Communicate with users</BulletPoint>
-        <BulletPoint>Provide customer support</BulletPoint>
-        <BulletPoint>Enforce our Terms of Service</BulletPoint>
-        <BulletPoint>Comply with legal obligations</BulletPoint>
-        <Paragraph>Outsyde does not sell your personal information.</Paragraph>
+        <BulletPoint>Personalize your discovery feed and recommendations</BulletPoint>
+        <BulletPoint>Operate loyalty and rewards programs (Outsyde Points)</BulletPoint>
+        <BulletPoint>Send transactional communications and push notifications</BulletPoint>
+        <BulletPoint>Sync booking events to your Google Calendar (if you connect it)</BulletPoint>
+        <BulletPoint>Improve Platform performance and search functionality</BulletPoint>
+        <BulletPoint>Generate analytics for vendors about their own business performance</BulletPoint>
+        <BulletPoint>Enforce our Terms of Service and comply with legal obligations</BulletPoint>
       </Section>
 
-      <Section title="3. Sharing of Information">
-        <Paragraph>We may share information with:</Paragraph>
-        <BulletPoint>Service providers (e.g., payment processors, hosting providers)</BulletPoint>
-        <BulletPoint>Other users, as necessary for bookings or transactions</BulletPoint>
-        <BulletPoint>Legal authorities, if required by law</BulletPoint>
-        <BulletPoint>Parties involved in business transfers (e.g., merger or acquisition)</BulletPoint>
-        <Paragraph>Only the minimum necessary information is shared.</Paragraph>
+      <Section title="3. Push Notifications">
+        <Paragraph>If enabled, Outsyde may send push notifications regarding bookings, orders, messages, promotions, and security alerts.</Paragraph>
+        <Paragraph>Push notifications are delivered via Expo's push notification infrastructure. Your device's Expo push token is stored in our database and transmitted to Expo's servers solely to deliver notifications to your device.</Paragraph>
+        <Paragraph>You may disable notifications at any time through your device settings.</Paragraph>
       </Section>
 
-      <Section title="4. User-to-User Visibility">
-        <Paragraph>Certain information may be visible to other users, including:</Paragraph>
-        <BulletPoint>Profile names, photos, and business details</BulletPoint>
-        <BulletPoint>Public listings and uploaded content</BulletPoint>
-        <BulletPoint>Reviews or ratings</BulletPoint>
-        <Paragraph>You control what information is publicly visible through your account settings.</Paragraph>
+      <Section title="4. Third-Party Services">
+        <Paragraph>Outsyde integrates with the following third-party service providers. Each provider maintains its own privacy practices.</Paragraph>
+        <BulletPoint>Stripe — Payment processing, saved cards, vendor/staff payouts (Stripe Connect), KYC onboarding</BulletPoint>
+        <BulletPoint>Mux — Video hosting and streaming</BulletPoint>
+        <BulletPoint>Cloudflare R2 — Image storage (profile photos, banners, product images, post images)</BulletPoint>
+        <BulletPoint>Resend — Transactional email delivery (booking confirmations, invites, password resets)</BulletPoint>
+        <BulletPoint>Expo Push Notifications — Mobile push notification delivery (uses your Expo push token)</BulletPoint>
+        <BulletPoint>Google Places API — Address autocomplete and geocoding (coordinates stored in our database)</BulletPoint>
+        <BulletPoint>Google OAuth — Sign-in with Google (name, email, profile photo URL, and Google account ID)</BulletPoint>
+        <BulletPoint>Apple Sign-In — Sign-in with Apple (Apple ID, name if provided, and email address)</BulletPoint>
+        <BulletPoint>Google Calendar API — Booking calendar sync for providers (booking details written to your connected calendar)</BulletPoint>
+        <BulletPoint>Neon — Managed PostgreSQL database hosting (all user data stored in our database is hosted on Neon's infrastructure)</BulletPoint>
+        <BulletPoint>Render — Backend server hosting (all server traffic passes through Render's infrastructure)</BulletPoint>
       </Section>
 
-      <Section title="5. Data Security">
-        <Paragraph>Outsyde implements reasonable administrative, technical, and physical safeguards to protect your information.</Paragraph>
-        <Paragraph>However, no system is completely secure. You acknowledge that data transmission over the internet is not guaranteed to be 100% secure.</Paragraph>
+      <Section title="5. Sharing Your Information">
+        <Paragraph>We may share your information with:</Paragraph>
+        <BulletPoint>Service Providers — The third-party services listed in Section 4, as necessary to operate the Platform</BulletPoint>
+        <BulletPoint>Vendors and Service Providers on the Platform — When you place an order or booking, relevant details (name, shipping address, contact) are shared with the fulfilling party</BulletPoint>
+        <BulletPoint>Other Users — Public information such as your name, username, profile photo, bio, reviews, ratings, and public listings</BulletPoint>
+        <BulletPoint>Legal Authorities — When required by law, legal process, or governmental request</BulletPoint>
+        <BulletPoint>Business Transfers — In connection with a merger, acquisition, financing, or sale of assets</BulletPoint>
       </Section>
 
-      <Section title="6. Data Retention">
-        <Paragraph>We retain personal information only as long as necessary to:</Paragraph>
-        <BulletPoint>Provide services</BulletPoint>
-        <BulletPoint>Comply with legal obligations</BulletPoint>
-        <BulletPoint>Resolve disputes</BulletPoint>
-        <BulletPoint>Enforce agreements</BulletPoint>
-        <Paragraph>You may request account deletion, subject to legal and contractual requirements.</Paragraph>
+      <Section title="6. Reviews and Ratings">
+        <Paragraph>Reviews you submit may become publicly visible on vendor or staff profiles. Vendors and staff may respond to reviews. We reserve the right to remove reviews that violate our policies.</Paragraph>
       </Section>
 
-      <Section title="7. Your Rights & Choices">
-        <Paragraph>Depending on your location, you may have the right to:</Paragraph>
+      <Section title="7. Influencer Referral Tracking">
+        <Paragraph>If you use an influencer referral or promo code, Outsyde records the referral event including the associated click, purchase, and revenue attributed to that code. This data is used to calculate influencer commissions.</Paragraph>
+      </Section>
+
+      <Section title="8. Data Security">
+        <Paragraph>We implement administrative, technical, and physical safeguards designed to protect your information, including encrypted credential storage and PCI-compliant payment processing via Stripe.</Paragraph>
+        <Paragraph>No internet transmission or electronic storage system can be guaranteed completely secure. We encourage you to use a strong, unique password and contact us immediately if you suspect unauthorized access.</Paragraph>
+      </Section>
+
+      <Section title="9. Data Retention">
+        <Paragraph>We retain your information only as long as necessary to provide our services, resolve disputes, detect fraud, meet legal and tax obligations, and enforce our agreements.</Paragraph>
+        <Paragraph>Some financial and transaction records may be retained as required by law even after account deletion.</Paragraph>
+      </Section>
+
+      <Section title="10. Account Deletion">
+        <Paragraph>You may request deletion of your account through the Platform settings or by contacting us at info@goutsyde.com.</Paragraph>
+        <Paragraph>Following deletion, personal information will be deleted or anonymized where reasonably possible. Certain records may be retained for tax compliance, fraud prevention, legal obligations, or dispute resolution.</Paragraph>
+      </Section>
+
+      <Section title="11. Your Rights">
+        <Paragraph>Depending on your jurisdiction, you may have the right to:</Paragraph>
         <BulletPoint>Access your personal information</BulletPoint>
         <BulletPoint>Correct inaccurate information</BulletPoint>
-        <BulletPoint>Request deletion of your data</BulletPoint>
-        <BulletPoint>Opt out of certain communications</BulletPoint>
-        <Paragraph>Requests may be submitted to info@goutsyde.com.</Paragraph>
+        <BulletPoint>Request deletion of your personal information</BulletPoint>
+        <BulletPoint>Restrict or object to certain processing</BulletPoint>
+        <BulletPoint>Export your information where applicable</BulletPoint>
+        <BulletPoint>Opt out of certain marketing communications</BulletPoint>
+        <Paragraph>To exercise any of these rights, contact us at info@goutsyde.com.</Paragraph>
       </Section>
 
-      <Section title="8. Children's Privacy">
-        <Paragraph>Outsyde is not intended for individuals under the age of 18.</Paragraph>
-        <Paragraph>We do not knowingly collect personal information from minors. If such data is identified, it will be deleted promptly.</Paragraph>
+      <Section title="12. Children's Privacy">
+        <Paragraph>Outsyde is not intended for individuals under 18 years of age. We do not knowingly collect personal information from minors. If we become aware that such information has been collected, we will take appropriate steps to delete it promptly.</Paragraph>
       </Section>
 
-      <Section title="9. New York SHIELD Act Compliance">
-        <Paragraph>For users located in New York, Outsyde complies with the New York SHIELD Act and maintains reasonable safeguards to protect private information.</Paragraph>
+      <Section title="13. Sensitive Personal Information">
+        <Paragraph>During signup, consumers may optionally provide gender, ethnicity, and demographic information. This information is used solely to personalize your experience and generate aggregate, anonymized platform insights. We do not sell this information or use it for targeted advertising.</Paragraph>
       </Section>
 
-      <Section title="10. Third-Party Links & Services">
-        <Paragraph>The Platform may contain links to third-party websites or services.</Paragraph>
-        <Paragraph>Outsyde is not responsible for the privacy practices or content of third parties. Use them at your own discretion.</Paragraph>
+      <Section title="14. Cookies and Tracking Technologies">
+        <Paragraph>Our website may use cookies and similar technologies to remember preferences, maintain sessions, analyze traffic, and improve performance. Users may manage cookie preferences through their browser settings.</Paragraph>
       </Section>
 
-      <Section title="11. Changes to This Policy">
-        <Paragraph>Outsyde may update this Privacy Policy at any time. Continued use of the Platform constitutes acceptance of the revised policy.</Paragraph>
+      <Section title="15. New York SHIELD Act">
+        <Paragraph>For users located in New York, Outsyde maintains reasonable administrative, technical, and physical safeguards designed to protect private information in compliance with the New York SHIELD Act.</Paragraph>
       </Section>
 
-      <Section title="12. Contact Information">
+      <Section title="16. Changes to This Privacy Policy">
+        <Paragraph>We may update this Privacy Policy periodically. When material changes occur, we will update the "Last Updated" date and, where appropriate, notify users through the Platform. Continued use of Outsyde after changes become effective constitutes acceptance of the updated Privacy Policy.</Paragraph>
+      </Section>
+
+      <Section title="17. Contact Information">
         <Paragraph>Outsyde LLC</Paragraph>
         <Paragraph>Email: info@goutsyde.com</Paragraph>
         <Paragraph>Website: https://goutsyde.com</Paragraph>
