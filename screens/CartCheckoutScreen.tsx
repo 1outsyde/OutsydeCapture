@@ -298,17 +298,11 @@ export default function CartCheckoutScreen() {
       const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
       const totalCharged = feeBreakdown?.totalChargedToConsumerCents ?? 0;
       const pointsEarned = feeBreakdown?.outsydePointsEarned ?? 0;
-      removeVendorItems(cart[0]?.vendorId ?? "");
+      Array.from(new Set(cart.map(i => i.vendorId))).forEach(vid => removeVendorItems(vid));
       setBackendFeeBreakdown(null);
       navigation.navigate("OrderSuccess", { itemCount, totalCharged, pointsEarned });
-    } catch (error: any) {
-      const message = String(error?.message || "");
-      const code = String(error?.code || "");
-      if (code === "MULTI_VENDOR_NOT_SUPPORTED" || message.includes("MULTI_VENDOR_NOT_SUPPORTED")) {
-        Alert.alert("Please checkout one vendor at a time.");
-      } else {
-        Alert.alert("Checkout failed. Please try again.");
-      }
+    } catch {
+      Alert.alert("Checkout failed. Please try again.");
     } finally {
       setCheckoutLoading(false);
     }
