@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/services/api";
@@ -289,27 +290,29 @@ export default function CreatePostScreen() {
             )}
           </View>
 
-          <TextInput
-            style={[styles.captionInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder }]}
-            placeholder="Write a caption..."
-            placeholderTextColor={theme.brandTextDim}
-            value={postCaption}
-            onChangeText={setPostCaption}
-            multiline
-          />
+          <ScreenKeyboardAwareScrollView contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}>
+            <TextInput
+              style={[styles.captionInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder }]}
+              placeholder="Write a caption..."
+              placeholderTextColor={theme.brandTextDim}
+              value={postCaption}
+              onChangeText={setPostCaption}
+              multiline
+            />
 
-          {canAttach ? (
-            <Pressable
-              onPress={() => setStep(3)}
-              style={[styles.footerButton, { backgroundColor: theme.brandPrimary }]}
-            >
-              <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
-                Next
-              </ThemedText>
-            </Pressable>
-          ) : (
-            renderShareButton()
-          )}
+            {canAttach ? (
+              <Pressable
+                onPress={() => setStep(3)}
+                style={[styles.footerButton, { backgroundColor: theme.brandPrimary }]}
+              >
+                <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
+                  Next
+                </ThemedText>
+              </Pressable>
+            ) : (
+              renderShareButton()
+            )}
+          </ScreenKeyboardAwareScrollView>
         </>
       )}
 
