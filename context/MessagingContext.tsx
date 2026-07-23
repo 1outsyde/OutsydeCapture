@@ -41,7 +41,7 @@ function mapApiConversation(conv: ApiConversation): Conversation {
     id: conv.id,
     participantId: conv.participantId,
     participantName: conv.participantName,
-    participantAvatar: conv.participantAvatar,
+    participantAvatar: conv.otherParticipant?.profileImageUrl || conv.otherParticipant?.avatar || conv.participantAvatar || undefined,
     participantType: conv.participantType,
     lastMessage: conv.lastMessage,
     lastMessageAt: conv.lastMessageAt,

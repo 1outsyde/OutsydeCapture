@@ -96,6 +96,7 @@ function ConversationItem({
           style={styles.avatar}
           contentFit="cover"
           transition={200}
+          onError={() => {}}
         />
       ) : (
         <View style={[styles.avatar, { backgroundColor: theme.brandSurface }]}>

@@ -346,6 +346,7 @@ export default function PulseVideoCard({
               source={{ uri: post.authorAvatar }}
               style={styles.avatar}
               contentFit="cover"
+              onError={() => {}}
             />
           ) : (
             <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: theme.primary }]}>

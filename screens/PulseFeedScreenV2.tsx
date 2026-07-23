@@ -42,12 +42,12 @@ const VIEWABILITY_CONFIG = {
 
 function convertApiPost(apiPost: ApiPost): Post {
   const displayName =
-    (apiPost.author as any)?.displayName || apiPost.author?.name || "Unknown";
+    apiPost.author?.displayName || apiPost.author?.name || "Unknown";
   const authorAvatar =
-    (apiPost.author as any)?.profilePhotoUrl || apiPost.author?.profileImageUrl || "";
-  const userId = apiPost.userId || (apiPost.author as any)?.userId || apiPost.author?.id;
+    apiPost.author?.profilePhotoUrl || apiPost.author?.profileImageUrl || "";
+  const userId = apiPost.userId || apiPost.author?.userId || apiPost.author?.id;
   const username = apiPost.author?.username;
-  const authorRole = (apiPost.author as any)?.role;
+  const authorRole = apiPost.author?.role;
 
   let postType: Post["type"] = "user";
   if (apiPost.authorType === "photographer" || authorRole === "photographer") {
