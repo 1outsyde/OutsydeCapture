@@ -14,6 +14,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import AddressAutocompleteInput from "@/components/AddressAutocompleteInput";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
@@ -1288,9 +1289,9 @@ export default function BookingScreen() {
 
       {renderStepIndicator()}
 
-      <ScrollView
+      <ScreenKeyboardAwareScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={{ paddingTop: 0 }}
         showsVerticalScrollIndicator={false}
       >
         {step === 1 ? renderServiceStep() : null}
@@ -1298,7 +1299,7 @@ export default function BookingScreen() {
         {step === 3 ? renderSlotStep() : null}
         {step === 4 ? renderReviewStep() : null}
         {step === 5 ? renderStep5() : null}
-      </ScrollView>
+      </ScreenKeyboardAwareScrollView>
 
       {/* Cancellation policy modal */}
       <Modal
