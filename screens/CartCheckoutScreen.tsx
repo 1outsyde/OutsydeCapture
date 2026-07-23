@@ -295,10 +295,12 @@ export default function CartCheckoutScreen() {
         }).catch(() => {});
       }
 
-      Alert.alert(`Order placed successfully! You earned ${feeBreakdown?.outsydePointsEarned ?? 0} Outsyde Points.`);
+      const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+      const totalCharged = feeBreakdown?.totalChargedToConsumerCents ?? 0;
+      const pointsEarned = feeBreakdown?.outsydePointsEarned ?? 0;
       removeVendorItems(cart[0]?.vendorId ?? "");
       setBackendFeeBreakdown(null);
-      navigation.navigate("CartOrders", { openTab: "orders", _ts: Date.now() });
+      navigation.navigate("OrderSuccess", { itemCount, totalCharged, pointsEarned });
     } catch (error: any) {
       const message = String(error?.message || "");
       const code = String(error?.code || "");

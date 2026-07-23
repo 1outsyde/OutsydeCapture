@@ -23,26 +23,13 @@ import { useData } from "@/context/DataContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { apiGet } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
-import api, { getMyAppointments, BusinessAppointment } from "@/services/api";
+import api, { getMyAppointments, BusinessAppointment, ConsumerOrder } from "@/services/api";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type CartOrdersRouteProp = RouteProp<RootStackParamList, "CartOrders">;
 type ActiveTab = "cart" | "bookings" | "orders";
-
-// ─── Interfaces ───────────────────────────────────────────────────────────────
-
-interface Order {
-  id: string;
-  vendorName: string;
-  status: "pending" | "paid";
-  itemCount: number;
-  expectedDate?: string;
-  createdAt: string;
-  carrier?: string;
-  trackingNumber?: string;
-}
 
 type CombinedItem =
   | { kind: "photographer"; data: Session }
@@ -75,7 +62,7 @@ export default function CartOrdersScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("cart");
 
   // ─── Cart state ──────────────────────────────────────────────────────────
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<ConsumerOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -125,20 +112,34 @@ export default function CartOrdersScreen() {
         ? response
         : Array.isArray(response?.orders) ? response.orders : [];
 
-      const normalized: Order[] = ordersPayload.map((order: any, index: number) => {
-        const status: "pending" | "paid" = order?.status === "paid" ? "paid" : "pending";
-        const itemCount = Array.isArray(order?.items)
-          ? order.items.reduce((sum: number, item: any) => sum + (Number(item?.quantity) || 1), 0)
-          : Number(order?.itemCount) || 0;
+      const normalized: ConsumerOrder[] = ordersPayload.map((order: any, index: number) => {
+        const validStatuses = new Set(["pending", "paid", "shipped", "delivered", "cancelled"]);
+        const status = validStatuses.has(order?.status) ? order.status : "pending";
+        const items = Array.isArray(order?.items)
+          ? order.items.map((item: any) => ({
+              productId: String(item?.productId ?? ""),
+              name: String(item?.name ?? ""),
+              quantity: Number(item?.quantity) || 1,
+              price: Number(item?.price) || 0,
+              imageUrl: item?.imageUrl ?? null,
+            }))
+          : [];
+        const itemCount = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
         return {
           id: String(order?.id ?? `order-${index}`),
           vendorName: order?.vendorName || order?.vendor?.name || order?.businessName || "Order",
+          businessId: String(order?.businessId ?? ""),
           status,
+          items,
           itemCount,
-          expectedDate: order?.expectedDate || order?.estimatedDeliveryDate,
+          totalAmount: Number(order?.total ?? order?.totalAmount) || 0,
+          grossChargeAmount: order?.grossChargeAmount ?? null,
+          shippingAddress: order?.shippingAddress ?? null,
           createdAt: order?.createdAt || new Date(0).toISOString(),
-          carrier: order?.shipment?.carrier,
-          trackingNumber: order?.shipment?.trackingNumber,
+          carrier: order?.shipment?.carrier ?? null,
+          trackingNumber: order?.shipment?.trackingNumber ?? null,
+          estimatedDelivery: order?.shipment?.estimatedDelivery ?? null,
+          shipmentStatus: order?.shipment?.status ?? null,
         };
       });
       normalized.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -198,8 +199,11 @@ export default function CartOrdersScreen() {
     if (item) ctxUpdateQuantity(productId, item.quantity + delta);
   };
 
-  const getOrderStatusConfig = (status: "pending" | "paid") => {
+  const getOrderStatusConfig = (status: ConsumerOrder["status"]) => {
     if (status === "paid") return { label: "Confirmed", icon: "check-circle" as const, color: "#34C759" };
+    if (status === "shipped") return { label: "Shipped", icon: "truck" as const, color: "#007AFF" };
+    if (status === "delivered") return { label: "Delivered", icon: "check-circle" as const, color: "#34C759" };
+    if (status === "cancelled") return { label: "Cancelled", icon: "x-circle" as const, color: "#FF3B30" };
     return { label: "Processing", icon: "clock" as const, color: "#FF9500" };
   };
 
@@ -790,10 +794,15 @@ export default function CartOrdersScreen() {
                   orderId: order.id,
                   vendorName: order.vendorName,
                   status: order.status,
-                  itemCount: order.itemCount,
-                  expectedDate: order.expectedDate,
+                  items: order.items,
+                  totalAmount: order.totalAmount,
+                  grossChargeAmount: order.grossChargeAmount,
+                  shippingAddress: order.shippingAddress,
+                  createdAt: order.createdAt,
                   carrier: order.carrier,
                   trackingNumber: order.trackingNumber,
+                  estimatedDelivery: order.estimatedDelivery,
+                  shipmentStatus: order.shipmentStatus,
                 })
               }
               style={({ pressed }) => [styles.orderCard, { opacity: pressed ? 0.8 : 1 }]}

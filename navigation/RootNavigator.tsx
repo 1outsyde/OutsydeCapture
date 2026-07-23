@@ -20,6 +20,7 @@ import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
 import ProductDetailScreen from "@/screens/ProductDetailScreen";
 import ProductOrderDetailScreen from "@/screens/ProductOrderDetailScreen";
+import OrderSuccessScreen from "@/screens/OrderSuccessScreen";
 import FavoritesScreen from "@/screens/FavoritesScreen";
 import BusinessOnboardingScreen from "@/screens/BusinessOnboardingScreen";
 import PhotographerOnboardingScreen from "@/screens/PhotographerOnboardingScreen";
@@ -374,6 +375,12 @@ export default function RootNavigator() {
       <Stack.Screen
         name="CartCheckout"
         component={CartCheckoutScreen}
+        options={{ headerShown: false, presentation: "fullScreenModal" }}
+      />
+
+      <Stack.Screen
+        name="OrderSuccess"
+        component={OrderSuccessScreen}
         options={{ headerShown: false, presentation: "fullScreenModal" }}
       />
 
