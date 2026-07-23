@@ -2593,8 +2593,8 @@ class ApiService {
   async createStaffInvite(
     authToken: string,
     data: { email: string; role?: "staff" | "manager"; phone?: string },
-  ): Promise<{ invite: any }> {
-    return this.request<{ invite: any }>("/api/vendor/staff/invites", {
+  ): Promise<{ invite: any; sent: boolean; seatWarning: string | null }> {
+    return this.request<{ invite: any; sent: boolean; seatWarning: string | null }>("/api/vendor/staff/invites", {
       method: "POST",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },

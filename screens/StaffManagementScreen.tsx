@@ -65,6 +65,8 @@ export default function StaffManagementScreen() {
     maxStaff: number | null;
     tierName: string;
   } | null>(null);
+  const atCap = seatStatus !== null && seatStatus.maxStaff !== null && seatStatus.activeCount >= seatStatus.maxStaff;
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
@@ -369,13 +371,23 @@ export default function StaffManagementScreen() {
             <View />
           )}
 
-          <Pressable
-            onPress={() => setInviteModalVisible(true)}
-            style={[styles.addButton, { backgroundColor: `${accentColor}22` }]}
-          >
-            <Feather name="user-plus" size={12} color={accentColor} />
-            <Text style={[styles.addButtonText, { color: accentColor }]}>+ Add</Text>
-          </Pressable>
+          <View>
+            {atCap ? (
+              <View style={styles.atCapBanner}>
+                <Feather name="alert-triangle" size={12} color="#F59E0B" />
+                <Text style={styles.atCapText}>
+                  {`You're at your seat limit for ${seatStatus!.tierName}. Upgrade to add more staff.`}
+                </Text>
+              </View>
+            ) : null}
+            <Pressable
+              onPress={() => setInviteModalVisible(true)}
+              style={[styles.addButton, { backgroundColor: `${accentColor}22` }]}
+            >
+              <Feather name="user-plus" size={12} color={accentColor} />
+              <Text style={[styles.addButtonText, { color: accentColor }]}>+ Add</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Active Staff */}
@@ -553,6 +565,7 @@ export default function StaffManagementScreen() {
         onClose={() => setInviteModalVisible(false)}
         onInviteSent={() => load()}
         brandColor={accentColor}
+        seatStatus={seatStatus}
       />
     </View>
   );
@@ -599,6 +612,21 @@ const styles = StyleSheet.create({
   seatText: {
     fontSize: 12,
     fontWeight: "600",
+  },
+  atCapBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 6,
+  },
+  atCapText: {
+    color: "#F59E0B",
+    fontSize: 11,
+    flex: 1,
   },
   addButton: {
     flexDirection: "row",
