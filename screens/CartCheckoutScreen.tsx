@@ -62,6 +62,7 @@ export default function CartCheckoutScreen() {
   const [useNewCard, setUseNewCard] = useState(false);
   const [isNewCardComplete, setIsNewCardComplete] = useState(false);
   const [saveNewCard, setSaveNewCard] = useState(true);
+  const [cardholderName, setCardholderName] = useState("");
 
   // ─── Saved addresses ──────────────────────────────────────────────────────
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
@@ -139,7 +140,7 @@ export default function CartCheckoutScreen() {
 
   const hasPaymentMethod =
     (!useNewCard && selectedCardId !== null) ||
-    (useNewCard && isNewCardComplete);
+    (useNewCard && isNewCardComplete && cardholderName.trim().length > 0);
 
   const confirmDisabled =
     cart.length === 0 ||
@@ -253,16 +254,17 @@ export default function CartCheckoutScreen() {
         }).catch(() => {});
       }
 
+      const billingDetails = { name: cardholderName.trim() };
       const paymentData: any = resolvedPaymentMethodId
         ? {
             paymentMethodType: "Card",
-            paymentMethodData: { paymentMethodId: resolvedPaymentMethodId },
+            paymentMethodData: { paymentMethodId: resolvedPaymentMethodId, billingDetails },
           }
         : useNewCard
-        ? { paymentMethodType: "Card" }
+        ? { paymentMethodType: "Card", paymentMethodData: { billingDetails } }
         : {
             paymentMethodType: "Card",
-            paymentMethodData: { paymentMethodId: selectedCardId! },
+            paymentMethodData: { paymentMethodId: selectedCardId!, billingDetails },
           };
 
       const { paymentIntent, error: piError } = await confirmPayment(
@@ -612,6 +614,8 @@ export default function CartCheckoutScreen() {
                 onCardComplete={setIsNewCardComplete}
                 saveCard={saveNewCard}
                 onSaveToggle={setSaveNewCard}
+                cardholderName={cardholderName}
+                onCardholderNameChange={setCardholderName}
               />
             </>
           )}
