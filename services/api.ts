@@ -4618,3 +4618,32 @@ export async function getSavedAddresses(token: string): Promise<{ addresses: Sav
 export async function createSavedAddress(token: string, data: SavedAddressInput): Promise<{ address: SavedAddress }> {
   return apiPost("/api/me/addresses", data, token) as Promise<{ address: SavedAddress }>;
 }
+
+// ==========================================
+// Consumer Orders
+// ==========================================
+
+export interface ConsumerOrderItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  imageUrl?: string | null;
+}
+
+export interface ConsumerOrder {
+  id: string;
+  vendorName: string;
+  businessId: string;
+  status: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
+  items: ConsumerOrderItem[];
+  itemCount: number;
+  totalAmount: number;
+  grossChargeAmount?: number | null;
+  shippingAddress?: string | null;
+  createdAt: string;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  estimatedDelivery?: string | null;
+  shipmentStatus?: string | null;
+}

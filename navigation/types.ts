@@ -1,7 +1,7 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
 import { GoogleProfile } from "@/context/AuthContext";
-import { BusinessAppointment } from "@/services/api";
+import { BusinessAppointment, ConsumerOrderItem } from "@/services/api";
 
 
 export type RootStackParamList = {
@@ -46,10 +46,22 @@ export type RootStackParamList = {
     orderId: string;
     vendorName: string;
     status: string;
+    items: ConsumerOrderItem[];
+    totalAmount: number;
+    grossChargeAmount?: number | null;
+    shippingAddress?: string | null;
+    createdAt: string;
+    carrier?: string | null;
+    trackingNumber?: string | null;
+    estimatedDelivery?: string | null;
+    shipmentStatus?: string | null;
+  };
+  OrderSuccess: {
+    vendorName?: string;
     itemCount: number;
-    expectedDate?: string;
-    carrier?: string;
-    trackingNumber?: string;
+    totalCharged: number;
+    pointsEarned: number;
+    orderId?: string;
   };
   Favorites: undefined;
   AdminDashboard: undefined;
