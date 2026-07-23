@@ -37,12 +37,18 @@ interface MessagingContextType {
 const MessagingContext = createContext<MessagingContextType | undefined>(undefined);
 
 function mapApiConversation(conv: ApiConversation): Conversation {
+  const otherP = conv.otherParticipant;
+  // Derive type: prefer otherParticipant.type (set by backend), then conv.participantType, else "consumer"
+  const participantType: Conversation["participantType"] =
+    (otherP?.type as Conversation["participantType"]) ||
+    (conv.participantType as Conversation["participantType"]) ||
+    "consumer";
   return {
     id: conv.id,
-    participantId: conv.participantId,
-    participantName: conv.participantName,
-    participantAvatar: conv.participantAvatar,
-    participantType: conv.participantType,
+    participantId: otherP?.id || conv.participantId,
+    participantName: otherP?.displayName || conv.participantName,
+    participantAvatar: otherP?.profileImageUrl || otherP?.avatar || conv.participantAvatar || undefined,
+    participantType,
     lastMessage: conv.lastMessage,
     lastMessageAt: conv.lastMessageAt,
     unreadCount: conv.unreadCount || 0,

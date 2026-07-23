@@ -64,6 +64,7 @@ function ConversationItem({
   onPress: () => void;
 }) {
   const { theme } = useTheme();
+  const [avatarError, setAvatarError] = React.useState(false);
   const hasUnread = conversation.unreadCount > 0;
   const unreadCount = conversation.unreadCount || 0;
 
@@ -82,6 +83,8 @@ function ConversationItem({
     messagePreview = "";
   }
 
+  const showAvatar = !!conversation.participantAvatar && !avatarError;
+
   return (
     <Pressable
       onPress={onPress}
@@ -90,12 +93,13 @@ function ConversationItem({
         { backgroundColor: pressed ? theme.brandSurface : "transparent" },
       ]}
     >
-      {conversation.participantAvatar ? (
+      {showAvatar ? (
         <Image
           source={{ uri: conversation.participantAvatar }}
           style={styles.avatar}
           contentFit="cover"
           transition={200}
+          onError={() => setAvatarError(true)}
         />
       ) : (
         <View style={[styles.avatar, { backgroundColor: theme.brandSurface }]}>
@@ -407,7 +411,12 @@ export default function MessagesScreen() {
 
     try {
       const participantId = selectedUser.userId || selectedUser.id;
-      const participantType = selectedUser.type === "business" ? "business" : "photographer";
+      const participantType: "business" | "photographer" | "consumer" =
+        selectedUser.type === "business"
+          ? "business"
+          : selectedUser.type === "photographer"
+            ? "photographer"
+            : "consumer";
 
       const conversation = await createOrGetConversation({
         participantId,

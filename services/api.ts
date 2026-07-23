@@ -157,10 +157,17 @@ export interface ApiConversation {
   participantId: string;
   participantName: string;
   participantAvatar?: string;
-  participantType: "business" | "photographer";
+  participantType: "business" | "photographer" | "consumer";
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount?: number;
+  otherParticipant?: {
+    id: string;
+    displayName?: string | null;
+    profileImageUrl?: string | null;
+    avatar?: string | null;
+    type?: "business" | "photographer" | "consumer" | null;
+  };
 }
 
 export interface ApiMessage {
@@ -227,7 +234,7 @@ export interface ApiPost {
 
 export interface CreateConversationRequest {
   participantId: string;
-  participantType: "business" | "photographer";
+  participantType: "business" | "photographer" | "consumer";
   participantName: string;
   participantAvatar?: string;
 }
@@ -1829,11 +1836,34 @@ class ApiService {
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    return this.request<ApiConversation>("/api/conversations", {
+    const response = await this.request<any>("/api/conversations", {
       method: "POST",
       body: JSON.stringify(data),
       headers,
     });
+    // Backend returns { conversation: {...}, otherParticipant: { id, name, displayName, avatar, type } }
+    // Normalize to ApiConversation shape expected by mapApiConversation
+    if (response && response.conversation) {
+      const convo = response.conversation;
+      const otherP = response.otherParticipant || {};
+      return {
+        id: convo.id,
+        participantId: otherP.id || data.participantId,
+        participantName: otherP.displayName || otherP.name || data.participantName,
+        participantAvatar: otherP.avatar || data.participantAvatar,
+        participantType: (otherP.type || data.participantType || "consumer") as ApiConversation["participantType"],
+        lastMessage: convo.lastMessagePreview || "",
+        lastMessageAt: convo.lastMessageAt || convo.createdAt || "",
+        unreadCount: 0,
+        otherParticipant: {
+          id: otherP.id || data.participantId,
+          displayName: otherP.displayName || otherP.name || data.participantName,
+          avatar: otherP.avatar || null,
+          type: (otherP.type || data.participantType || "consumer") as ApiConversation["participantType"],
+        },
+      };
+    }
+    return response as ApiConversation;
   }
 
   async getMessages(conversationId: string, authToken?: string | null): Promise<ApiMessage[]> {
