@@ -41,6 +41,7 @@ import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability
 import { availabilityEvents } from "@/services/availabilityEvents";
 import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
 import OrderCard from "@/components/OrderCard";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
 type BusinessType = "service" | "product" | "both";
 type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile" | "credits";
@@ -1993,8 +1994,9 @@ export default function BusinessDashboardScreen() {
       : "Starter";
 
   return (
-    <ScrollView
+    <ScreenKeyboardAwareScrollView
       style={styles.container}
+      contentContainerStyle={{ paddingTop: 0, paddingBottom: 0, paddingHorizontal: 0 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
     >
       <View style={styles.header}>
@@ -2221,6 +2223,11 @@ export default function BusinessDashboardScreen() {
         <View style={styles.shipModalOverlay}>
           <View style={styles.shipModalCard}>
             <Text style={styles.shipModalTitle}>Ship Order</Text>
+            <ScreenKeyboardAwareScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}
+              style={{ backgroundColor: "transparent" }}
+            >
             <Text style={styles.shipModalLabel}>Carrier</Text>
             <TextInput
               style={styles.shipModalInput}
@@ -2266,6 +2273,7 @@ export default function BusinessDashboardScreen() {
                 )}
               </Pressable>
             </View>
+            </ScreenKeyboardAwareScrollView>
           </View>
         </View>
       </Modal>
@@ -2274,6 +2282,6 @@ export default function BusinessDashboardScreen() {
         eligibility={eligibility}
         onRefreshEligibility={fetchEligibility}
       />
-    </ScrollView>
+    </ScreenKeyboardAwareScrollView>
   );
 }
