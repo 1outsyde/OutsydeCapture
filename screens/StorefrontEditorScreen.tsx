@@ -47,6 +47,7 @@ import ImageUploader from "@/components/ImageUploader";
 import MediaUploader from "@/components/MediaUploader";
 import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
 type TabType = "branding" | "profile" | "hours" | "products" | "services";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
@@ -1491,7 +1492,7 @@ export default function StorefrontEditorScreen() {
   );
 
   const renderProfileTab = () => (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+    <ScreenKeyboardAwareScrollView style={styles.content} contentContainerStyle={{ paddingTop: 0 }} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Business Info</Text>
@@ -1822,7 +1823,7 @@ export default function StorefrontEditorScreen() {
           )}
         </Pressable>
       </View>
-    </ScrollView>
+    </ScreenKeyboardAwareScrollView>
   );
 
   const renderHoursTab = () => (
@@ -2037,7 +2038,7 @@ export default function StorefrontEditorScreen() {
             )}
           </Pressable>
         </View>
-        <ScrollView style={styles.modalContent}>
+        <ScreenKeyboardAwareScrollView style={styles.modalContent} contentContainerStyle={{ paddingTop: 0 }} keyboardShouldPersistTaps="handled">
           <Text style={styles.inputLabel}>Product Name *</Text>
           <TextInput
             style={styles.input}
@@ -2186,7 +2187,7 @@ export default function StorefrontEditorScreen() {
             </View>
           </View>
           </View>
-        </ScrollView>
+        </ScreenKeyboardAwareScrollView>
       </View>
     </Modal>
   );
@@ -2211,7 +2212,7 @@ export default function StorefrontEditorScreen() {
             )}
           </Pressable>
         </View>
-        <ScrollView style={styles.modalContent}>
+        <ScreenKeyboardAwareScrollView style={styles.modalContent} contentContainerStyle={{ paddingTop: 0 }} keyboardShouldPersistTaps="handled">
           <Text style={styles.inputLabel}>Service Name *</Text>
           <TextInput
             style={styles.input}
@@ -2658,7 +2659,7 @@ export default function StorefrontEditorScreen() {
             </View>
           </View>
           </View>
-        </ScrollView>
+        </ScreenKeyboardAwareScrollView>
       </View>
     </Modal>
   );
