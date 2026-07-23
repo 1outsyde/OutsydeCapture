@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView, Switch, Image } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Switch, Image } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -1014,13 +1015,12 @@ export default function BusinessSignupScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+      <ScreenKeyboardAwareScrollView
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
         {renderStepContent()}
-      </ScrollView>
+      </ScreenKeyboardAwareScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md, backgroundColor: theme.background }]}>
         {currentStep === 7 ? (
@@ -1183,10 +1183,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
