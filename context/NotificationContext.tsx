@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { useAuth } from "./AuthContext";
 import api from "@/services/api";
+import { apiPost } from "@/api/client";
 import {
   registerForPushNotificationsAsync,
   scheduleBookingConfirmationNotification,
@@ -115,6 +116,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (token) {
         setPushToken(token);
         console.log("[NotificationContext] Push token obtained:", token);
+        // Register token with backend so push notifications can be delivered
+        try {
+          const authToken = await getToken();
+          if (authToken) {
+            await apiPost("/api/push/expo-token", { expoPushToken: token }, authToken);
+          }
+        } catch (err) {
+          console.warn("[Push] Failed to register token with backend:", err);
+        }
       }
 
       notificationListenerRef.current = addNotificationReceivedListener(notification => {
