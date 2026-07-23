@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedView } from "@/components/ThemedView";
+import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
@@ -74,7 +75,7 @@ export default function InfluencerApplicationScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}>
+      <ScreenKeyboardAwareScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing.xl }]}>
         <View style={[styles.infoCard, { backgroundColor: theme.primary + "15" }]}>
           <Feather name="star" size={24} color={theme.primary} />
           <View style={styles.infoContent}>
@@ -150,7 +151,7 @@ export default function InfluencerApplicationScreen() {
         <Button onPress={handleSubmit} disabled={isSubmitting} style={styles.submitButton}>
           {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : "Submit Application"}
         </Button>
-      </View>
+      </ScreenKeyboardAwareScrollView>
     </ThemedView>
   );
 }
@@ -172,9 +173,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: Spacing.lg,
+    paddingTop: 0,
   },
   infoCard: {
     flexDirection: "row",
