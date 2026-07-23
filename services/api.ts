@@ -2593,8 +2593,8 @@ class ApiService {
   async createStaffInvite(
     authToken: string,
     data: { email: string; role?: "staff" | "manager"; phone?: string },
-  ): Promise<{ invite: any }> {
-    return this.request<{ invite: any }>("/api/vendor/staff/invites", {
+  ): Promise<{ invite: any; sent: boolean; seatWarning: string | null }> {
+    return this.request<{ invite: any; sent: boolean; seatWarning: string | null }>("/api/vendor/staff/invites", {
       method: "POST",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
@@ -2611,8 +2611,8 @@ class ApiService {
   // GET /api/vendor/staff/seat-status - Get current seat usage for the authenticated business
   async getStaffSeatStatus(
     authToken: string,
-  ): Promise<{ activeCount: number; maxStaff: number | null; tierName: string }> {
-    return this.request<{ activeCount: number; maxStaff: number | null; tierName: string }>(
+  ): Promise<{ activeCount: number; pendingCount: number; usedSeats: number; maxStaff: number | null; tierName: string }> {
+    return this.request<{ activeCount: number; pendingCount: number; usedSeats: number; maxStaff: number | null; tierName: string }>(
       "/api/vendor/staff/seat-status",
       {
         headers: { "Authorization": `Bearer ${authToken}` },
