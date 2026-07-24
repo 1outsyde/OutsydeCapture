@@ -56,6 +56,8 @@ export interface User {
   staffBusinessName?: string;
   staffStripeOnboardingComplete?: boolean;
   staffStripeOnboardingUrl?: string;
+  deletionStatus?: "active" | "pending_deletion" | "deleted";
+  scheduledDeletionAt?: string | null;
 }
 
 export interface SignupData {

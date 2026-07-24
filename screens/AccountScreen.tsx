@@ -2795,6 +2795,43 @@ export default function AccountScreen() {
         )}
         scrollEventThrottle={16}
       >
+        {isOwner && user?.deletionStatus === "pending_deletion" && (
+          <View style={{ backgroundColor: "#7c2d12", padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Account deletion scheduled</Text>
+              <Text style={{ color: "#fca5a5", marginTop: 2, fontSize: 12 }}>
+                {user.scheduledDeletionAt
+                  ? `Deletes on ${new Date(user.scheduledDeletionAt).toLocaleDateString()}`
+                  : "Deletes in 30 days"}
+              </Text>
+            </View>
+            <Pressable
+              onPress={async () => {
+                try {
+                  const token = await getToken();
+                  const res = await fetch(
+                    `${require("@/constants/config").BASE_URL}/api/account/cancel-deletion`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
+                    }
+                  );
+                  if (res.ok) {
+                    Alert.alert("Deletion cancelled", "Your account will remain active.");
+                  }
+                } catch {
+                  Alert.alert("Error", "Could not cancel deletion. Please try again.");
+                }
+              }}
+              style={{ backgroundColor: "#fff", borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6 }}
+            >
+              <Text style={{ color: "#7c2d12", fontWeight: "700", fontSize: 12 }}>Cancel</Text>
+            </Pressable>
+          </View>
+        )}
         <CoverMediaHero
           profile={profile}
           primaryColor={accentColor}
