@@ -1427,6 +1427,31 @@ export default function BusinessDashboardScreen() {
       paddingVertical: 10,
       fontSize: 15,
     },
+    shipCarrierRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    shipCarrierChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.15)",
+      backgroundColor: "#2A2A2A",
+    },
+    shipCarrierChipSelected: {
+      borderColor: "#E8B930",
+      backgroundColor: "#E8B93015",
+    },
+    shipCarrierChipText: {
+      fontSize: 13,
+      fontWeight: "600" as const,
+      color: "#888",
+    },
+    shipCarrierChipTextSelected: {
+      color: "#E8B930",
+    },
     shipModalActions: {
       flexDirection: "row",
       gap: 12,
@@ -2236,57 +2261,77 @@ export default function BusinessDashboardScreen() {
         <View style={styles.shipModalOverlay}>
           <View style={styles.shipModalCard}>
             <Text style={styles.shipModalTitle}>Ship Order</Text>
-            <ScreenKeyboardAwareScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}
-              style={{ backgroundColor: "transparent" }}
-            >
+
+            {/* Carrier selector */}
             <Text style={styles.shipModalLabel}>Carrier</Text>
+            <View style={styles.shipCarrierRow}>
+              {(["UPS", "FedEx", "USPS", "DHL", "Other"] as const).map((c) => {
+                const selected = shipCarrier === c;
+                return (
+                  <Pressable
+                    key={c}
+                    onPress={() => setShipCarrier(c)}
+                    style={[
+                      styles.shipCarrierChip,
+                      selected && styles.shipCarrierChipSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.shipCarrierChipText,
+                        selected && styles.shipCarrierChipTextSelected,
+                      ]}
+                    >
+                      {c}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Tracking number input */}
+            <Text style={[styles.shipModalLabel, { marginTop: 16 }]}>Tracking Number</Text>
             <TextInput
-              style={styles.shipModalInput}
-              placeholder="e.g. UPS, FedEx, USPS"
-              placeholderTextColor="#666"
-              value={shipCarrier}
-              onChangeText={setShipCarrier}
-              autoCapitalize="words"
-            />
-            <Text style={styles.shipModalLabel}>Tracking Number</Text>
-            <TextInput
-              style={styles.shipModalInput}
+              style={[styles.shipModalInput, { fontFamily: "monospace" }]}
               placeholder="Enter tracking number"
-              placeholderTextColor="#666"
+              placeholderTextColor="#555"
               value={shipTracking}
               onChangeText={setShipTracking}
-              autoCapitalize="characters"
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
             />
+
+            {/* Action buttons */}
             <View style={styles.shipModalActions}>
               <Pressable
-                onPress={() => setShipModalVisible(false)}
+                onPress={() => {
+                  setShipModalVisible(false);
+                  setShipCarrier("");
+                  setShipTracking("");
+                }}
                 style={[styles.shipModalBtn, { backgroundColor: "rgba(255,255,255,0.08)" }]}
               >
                 <Text style={[styles.shipModalBtnText, { color: "#CCC" }]}>Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={handleShipOrder}
-                disabled={!shipCarrier.trim() || !shipTracking.trim() || shipSubmitting}
+                disabled={!shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting}
                 style={[
                   styles.shipModalBtn,
                   {
-                    backgroundColor:
-                      !shipCarrier.trim() || !shipTracking.trim() || shipSubmitting
-                        ? "#5856D640"
-                        : "#5856D6",
+                    backgroundColor: "#1A3C34",
+                    opacity: !shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting ? 0.5 : 1,
                   },
                 ]}
               >
                 {shipSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                  <ActivityIndicator size="small" color="#E8B930" />
                 ) : (
-                  <Text style={[styles.shipModalBtnText, { color: "#FFF" }]}>Submit</Text>
+                  <Text style={[styles.shipModalBtnText, { color: "#E8B930" }]}>Confirm Shipment</Text>
                 )}
               </Pressable>
             </View>
-            </ScreenKeyboardAwareScrollView>
           </View>
         </View>
       </Modal>
