@@ -449,6 +449,19 @@ export default function DiscoverScreen() {
     }
   };
 
+  const handleBlockAuthor = async (authorId: string) => {
+    try {
+      const token = await getToken();
+      if (!token) { Alert.alert("Error", "You must be logged in to block users."); return; }
+      await api.blockUser(token, authorId);
+      setFeedPosts((prev) => prev.filter((p) => (p.userId || p.authorId) !== authorId));
+      Alert.alert("Blocked", "You will no longer see content from this user.");
+    } catch (err) {
+      console.error("Error blocking user:", err);
+      Alert.alert("Error", "Failed to block user. Please try again.");
+    }
+  };
+
   // ─── Pro feed render item ──────────────────────────────────────────────────
   const renderProFeedItem = ({ item: post, index }: { item: Post; index: number }) => {
     const isVendor = post.type === "vendor";
@@ -465,6 +478,7 @@ export default function DiscoverScreen() {
         onActionPress={handleActionPress}
         onDelete={handleDeletePost}
         onReport={handleReportPost}
+        onBlock={handleBlockAuthor}
         isSaved={isSaved}
         currentUserId={user?.id}
         isAdmin={user?.isAdmin}

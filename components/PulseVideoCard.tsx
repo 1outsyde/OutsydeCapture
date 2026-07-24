@@ -5,6 +5,8 @@ import {
   Pressable,
   Dimensions,
   Platform,
+  ActionSheetIOS,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -39,6 +41,9 @@ export interface PulseVideoCardProps {
   onAuthorPress: (post: Post) => void;
   onActionPress: (post: Post) => void;
   onEngagement: (postId: string, e: PulseEngagementEvent) => void;
+  onReport?: (post: Post) => void;
+  onBlock?: (post: Post) => void;
+  currentUserId?: string;
 }
 
 // ─── Web video (HTML element) ────────────────────────────────────────────────
@@ -211,6 +216,9 @@ export default function PulseVideoCard({
   onAuthorPress,
   onActionPress,
   onEngagement,
+  onReport,
+  onBlock,
+  currentUserId,
 }: PulseVideoCardProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -336,6 +344,38 @@ export default function PulseVideoCard({
             <Feather name={muted ? "volume-x" : "volume-2"} size={26} color="#FFFFFF" />
           </View>
         </Pressable>
+
+        {currentUserId && currentUserId !== (post.userId || post.authorId) && (onReport || onBlock) && (
+          <Pressable
+            onPress={() => {
+              const authorName = post.displayName || post.authorName || "User";
+              if (Platform.OS === "ios") {
+                ActionSheetIOS.showActionSheetWithOptions(
+                  {
+                    options: [`Report ${authorName}`, `Block ${authorName}`, "Cancel"],
+                    cancelButtonIndex: 2,
+                    destructiveButtonIndex: 1,
+                  },
+                  (index: number) => {
+                    if (index === 0) onReport?.(post);
+                    else if (index === 1) onBlock?.(post);
+                  }
+                );
+              } else {
+                Alert.alert("More options", undefined, [
+                  { text: `Report ${authorName}`, onPress: () => onReport?.(post) },
+                  { text: `Block ${authorName}`, style: "destructive", onPress: () => onBlock?.(post) },
+                  { text: "Cancel", style: "cancel" },
+                ]);
+              }
+            }}
+            style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <View style={styles.actionIcon}>
+              <Feather name="more-horizontal" size={26} color="#FFFFFF" />
+            </View>
+          </Pressable>
+        )}
       </View>
 
       {/* Bottom-left author block — absolute, left:16, bottom:100 */}

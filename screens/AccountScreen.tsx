@@ -54,6 +54,7 @@ import apiClient, {
 } from "@/services/api";
 import { feedEvents } from "@/services/feedEvents";
 import { useTheme } from "@/hooks/useTheme";
+import { showReportBlockMenu } from "@/utils/moderationActions";
 import {
   BrandColorSpec,
   resolveBrandColor,
@@ -1418,6 +1419,24 @@ export default function AccountScreen() {
               ) : null}
             </Pressable>
           ) : null}
+          {!isOwner && isAuthenticated && profile && (
+            <Pressable
+              style={styles.headerButton}
+              onPress={async () => {
+                const token = await getToken();
+                if (!token) return;
+                const targetId = String(profile.userId || profile.id || "");
+                const targetName = profile.name || "User";
+                showReportBlockMenu({
+                  authToken: token,
+                  currentUserId: String(user?.id || ""),
+                  target: { type: "user", userId: targetId, userName: targetName },
+                });
+              }}
+            >
+              <Feather name="more-horizontal" size={18} color={COLORS.white} />
+            </Pressable>
+          )}
           <Pressable style={styles.headerButton} onPress={shareProfile}>
             <Feather name="share-2" size={18} color={COLORS.white} />
           </Pressable>
