@@ -98,7 +98,7 @@ export default function BusinessDashboardScreen() {
     state: "",
     zipCode: "",
   });
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<BusinessOrder[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
@@ -293,8 +293,8 @@ export default function BusinessDashboardScreen() {
     try {
       switch (activeTab) {
         case "orders":
-          const ordersResponse = await api.getBusinessOrders(token) as any;
-          setOrders(Array.isArray(ordersResponse) ? ordersResponse : ordersResponse?.orders || []);
+          const ordersResponse = await api.getBusinessOrders(token);
+          setOrders(ordersResponse.orders);
           break;
         case "bookings":
           const bookingsResponse = await api.getBusinessBookings(token) as any;
