@@ -172,7 +172,7 @@ export default function OrderCard({ order, onCancelOrder, onShipPress }: OrderCa
             <Feather name="user" size={16} color={theme.primary} />
           </View>
           <View>
-            <Text style={styles.name}>{order.customerName}</Text>
+            <Text style={styles.name}>{order.customerName || "Customer"}</Text>
             <Text style={styles.date}>{order.orderDate}</Text>
           </View>
         </View>
