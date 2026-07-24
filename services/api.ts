@@ -896,6 +896,14 @@ export interface BusinessOrder {
   attributedInfluencerId?: string;
   // JSON-encoded {line1, city, state, zipCode} — parse before rendering; null for pre-fix orders
   shippingAddress?: string | null;
+  shipment?: {
+    id: string;
+    carrier: string;
+    trackingNumber: string;
+    status: string;
+    shippedAt?: string;
+    deliveredAt?: string;
+  } | null;
 }
 
 export interface BusinessBooking {
@@ -3022,6 +3030,25 @@ class ApiService {
     await this.request<void>(`/api/business/orders/${orderId}`, {
       method: "PATCH",
       body: JSON.stringify({ status, ...shipment }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async updateShipmentStatus(
+    authToken: string,
+    shipmentId: string,
+    status: string
+  ): Promise<void> {
+    await this.request<void>(`/api/shipments/${shipmentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async confirmDelivery(authToken: string, orderId: string): Promise<void> {
+    await this.request<void>(`/api/orders/${orderId}/confirm-delivery`, {
+      method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

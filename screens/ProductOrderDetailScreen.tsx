@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { useAuth } from "@/context/AuthContext";
+import { api } from "@/services/api";
 
 type Route = RouteProp<RootStackParamList, "ProductOrderDetail">;
 
@@ -49,11 +52,21 @@ function parseShippingAddress(raw: string | null | undefined) {
   return null;
 }
 
+const CARRIER_TRACKING_URLS: Record<string, (n: string) => string> = {
+  UPS:   n => `https://www.ups.com/track?tracknum=${n}`,
+  FedEx: n => `https://www.fedex.com/fedextrack/?trknbr=${n}`,
+  USPS:  n => `https://tools.usps.com/go/TrackConfirmAction?tLabels=${n}`,
+  DHL:   n => `https://www.dhl.com/en/express/tracking.html?AWB=${n}`,
+};
+
 export default function ProductOrderDetailScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(route.params.status);
 
   const {
     orderId,
@@ -70,7 +83,7 @@ export default function ProductOrderDetailScreen() {
     shipmentStatus,
   } = route.params;
 
-  const statusConfig = STATUS_CONFIG[status] ?? STATUS_CONFIG.processing;
+  const statusConfig = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.processing;
 
   const subtotalCents = totalAmount ?? 0;
   const totalCents = grossChargeAmount != null ? grossChargeAmount : subtotalCents;
@@ -296,6 +309,34 @@ export default function ProductOrderDetailScreen() {
                     </Pressable>
                   </View>
                 </View>
+                {/* Phase 3a: Track Package button */}
+                <View style={styles.divider} />
+                <Pressable
+                  style={({ pressed }) => ({
+                    margin: Spacing.md,
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                    backgroundColor: pressed ? "#142d28" : "#1A3C34",
+                    alignItems: "center" as const,
+                  })}
+                  onPress={async () => {
+                    const urlFn = carrier ? CARRIER_TRACKING_URLS[carrier] : undefined;
+                    const url = urlFn
+                      ? urlFn(trackingNumber)
+                      : `https://google.com/search?q=${encodeURIComponent((carrier ?? '') + ' tracking ' + trackingNumber)}`;
+                    const supported = await Linking.canOpenURL(url);
+                    if (supported) {
+                      await Linking.openURL(url);
+                    } else {
+                      await Clipboard.setStringAsync(trackingNumber);
+                      Alert.alert("Copied", "Tracking number copied — carrier site unavailable.");
+                    }
+                  }}
+                >
+                  <ThemedText type="caption" style={{ color: "#E8B930", fontWeight: "700" }}>
+                    Track Package →
+                  </ThemedText>
+                </Pressable>
               </>
             )}
             {estimatedDelivery && (
@@ -316,6 +357,53 @@ export default function ProductOrderDetailScreen() {
                 </View>
               </>
             )}
+          </View>
+        )}
+
+        {/* Phase 3b: Confirm Delivery button */}
+        {currentStatus === "shipped" && (
+          <View style={{ marginHorizontal: Spacing.lg, marginBottom: Spacing.lg }}>
+            <Pressable
+              disabled={confirmingDelivery}
+              style={({ pressed }) => ({
+                paddingVertical: 14,
+                borderRadius: 10,
+                backgroundColor: pressed || confirmingDelivery ? "#142d28" : "#1A3C34",
+                alignItems: "center" as const,
+                borderWidth: 1,
+                borderColor: "#E8B930",
+              })}
+              onPress={() =>
+                Alert.alert(
+                  "Confirm Delivery?",
+                  "Mark this order as delivered? This can't be undone.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Confirm",
+                      onPress: async () => {
+                        setConfirmingDelivery(true);
+                        try {
+                          const token = await getToken();
+                          if (!token) throw new Error("Not authenticated");
+                          await api.confirmDelivery(token, orderId);
+                          setCurrentStatus("delivered");
+                          Alert.alert("Delivered", "Your order has been marked as delivered.");
+                        } catch (err: any) {
+                          Alert.alert("Error", err?.message || "Failed to confirm delivery.");
+                        } finally {
+                          setConfirmingDelivery(false);
+                        }
+                      },
+                    },
+                  ]
+                )
+              }
+            >
+              <ThemedText type="body" style={{ color: "#E8B930", fontWeight: "700" }}>
+                {confirmingDelivery ? "Confirming…" : "Confirm Delivery"}
+              </ThemedText>
+            </Pressable>
           </View>
         )}
 

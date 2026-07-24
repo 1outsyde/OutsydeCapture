@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { BusinessOrder } from "@/services/api";
@@ -8,6 +9,7 @@ interface OrderCardProps {
   order: BusinessOrder;
   onCancelOrder: (orderId: string, status: string) => void;
   onShipPress: (orderId: string) => void;
+  onMarkDelivered?: (orderId: string, shipmentId: string) => void;
 }
 
 const CARD = {
@@ -50,7 +52,7 @@ function parseAddress(
   }
 }
 
-export default function OrderCard({ order, onCancelOrder, onShipPress }: OrderCardProps) {
+export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDelivered }: OrderCardProps) {
   const { theme } = useTheme();
   const sc = statusColor(order.status, theme.primary, theme.backgroundSecondary, theme.textSecondary);
   const address = parseAddress(order.shippingAddress);
@@ -147,6 +149,29 @@ export default function OrderCard({ order, onCancelOrder, onShipPress }: OrderCa
       fontStyle: "italic" as const,
       opacity: 0.6,
     },
+    trackingBlock: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: CARD.border,
+      marginBottom: 8,
+    },
+    trackingLabel: {
+      fontSize: 11,
+      fontWeight: "600" as const,
+      color: "#E8B930",
+      textTransform: "uppercase" as const,
+      letterSpacing: 0.5,
+      marginRight: 2,
+    },
+    trackingNumber: {
+      fontSize: 12,
+      color: theme.text,
+      fontFamily: "monospace",
+      flex: 1,
+    },
     actions: {
       flexDirection: "row",
       gap: 8,
@@ -235,6 +260,21 @@ export default function OrderCard({ order, onCancelOrder, onShipPress }: OrderCa
         )}
       </View>
 
+      {/* Tracking row — shown when shipment exists */}
+      {order.shipment && (
+        <Pressable
+          style={styles.trackingBlock}
+          onPress={() => Clipboard.setStringAsync(order.shipment!.trackingNumber)}
+        >
+          <Feather name="package" size={12} color="#E8B930" />
+          <Text style={styles.trackingLabel}>{order.shipment.carrier}</Text>
+          <Text style={styles.trackingNumber} numberOfLines={1}>
+            {order.shipment.trackingNumber}
+          </Text>
+          <Feather name="copy" size={12} color={theme.textSecondary} />
+        </Pressable>
+      )}
+
       {/* Action row */}
       {order.status === "pending" && (
         <View style={styles.actions}>
@@ -284,6 +324,28 @@ export default function OrderCard({ order, onCancelOrder, onShipPress }: OrderCa
             style={[styles.btn, { backgroundColor: "#5856D6", flex: 1 }]}
           >
             <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Ship</Text>
+          </Pressable>
+        </View>
+      )}
+      {order.status === "shipped" && onMarkDelivered && order.shipment && (
+        <View style={styles.actions}>
+          <Pressable
+            onPress={() =>
+              Alert.alert(
+                "Mark as Delivered?",
+                "Confirm this order has been delivered to the customer.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Mark Delivered",
+                    onPress: () => onMarkDelivered(order.id, order.shipment!.id),
+                  },
+                ]
+              )
+            }
+            style={[styles.btn, { backgroundColor: "#1A3C34", flex: 1 }]}
+          >
+            <Text style={[styles.btnText, { color: "#E8B930" }]}>Mark Delivered</Text>
           </Pressable>
         </View>
       )}

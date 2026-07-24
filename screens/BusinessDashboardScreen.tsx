@@ -596,6 +596,18 @@ export default function BusinessDashboardScreen() {
     }
   };
 
+  const handleMarkDelivered = async (orderId: string, shipmentId: string) => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      await api.updateShipmentStatus(token, shipmentId, "delivered");
+      Alert.alert("Success", "Order marked as delivered");
+      fetchTabData();
+    } catch (error: any) {
+      Alert.alert("Error", error?.message || "Failed to mark as delivered");
+    }
+  };
+
   const handleBookingAction = async (bookingId: string, action: "confirm" | "cancel") => {
     const token = await getToken();
     if (!token) return;
@@ -1472,6 +1484,7 @@ export default function BusinessDashboardScreen() {
           setShipTracking("");
           setShipModalVisible(true);
         }}
+        onMarkDelivered={handleMarkDelivered}
       />
     ));
   };
