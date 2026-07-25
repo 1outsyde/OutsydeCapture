@@ -452,6 +452,7 @@ export default function PhotographerDashboardScreen() {
 
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
+  const [loadingPayoutLink, setLoadingPayoutLink] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   
   const STRIPE_RETURN_URL = "outsyde://stripe-return";
@@ -531,16 +532,34 @@ export default function PhotographerDashboardScreen() {
     }
   };
 
+  const handleManagePayouts = async () => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      setLoadingPayoutLink(true);
+      const { url } = await api.getPhotographerStripeDashboardLink(token);
+      Linking.openURL(url);
+    } catch (error: any) {
+      if (error?.status === 403 && error?.body?.requiresOnboarding) {
+        Alert.alert("Stripe Setup Required", "Please complete your Stripe setup before accessing payouts");
+      } else {
+        Alert.alert("Error", "Unable to open payout dashboard. Please try again.");
+      }
+    } finally {
+      setLoadingPayoutLink(false);
+    }
+  };
+
   const handleSaveUsername = async () => {
     const token = await getToken();
     if (!token) return;
-    
+
     const newUsername = editProfile.username.trim().toLowerCase();
     if (newUsername === originalUsername) {
       Alert.alert("No Changes", "Username is the same as before.");
       return;
     }
-    
+
     if (!newUsername) {
       Alert.alert("Invalid Username", "Username cannot be empty.");
       return;
@@ -2702,6 +2721,37 @@ export default function PhotographerDashboardScreen() {
                 )}
               </Pressable>
             </View>
+          </View>
+        )}
+
+        {/* Manage Payouts - show when Stripe is connected */}
+        {hasStripeConnected && (
+          <View style={styles.section}>
+            <Pressable
+              onPress={handleManagePayouts}
+              disabled={loadingPayoutLink}
+              style={({ pressed }) => [{
+                backgroundColor: theme.primary,
+                paddingVertical: 14,
+                paddingHorizontal: 20,
+                borderRadius: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed || loadingPayoutLink ? 0.7 : 1,
+              }]}
+            >
+              {loadingPayoutLink ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <>
+                  <Feather name="dollar-sign" size={18} color="#000" />
+                  <Text style={{ color: "#000", fontWeight: "600", fontSize: 16, marginLeft: 8 }}>
+                    Manage Payouts
+                  </Text>
+                </>
+              )}
+            </Pressable>
           </View>
         )}
 
