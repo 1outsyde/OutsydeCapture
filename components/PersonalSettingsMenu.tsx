@@ -6,6 +6,7 @@ import {
   Pressable,
   Alert,
   ScrollView,
+  Linking,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -299,11 +300,33 @@ export function PersonalSettingsMenu({
                 />
                 <MenuItem
                   icon="credit-card"
-                  label="Subscription Plan"
-                  onPress={() => handleNavigate("SubscriptionPlan")}
+                  label="Manage Subscription"
+                  onPress={async () => {
+                    onClose();
+                    try {
+                      const token = await getToken();
+                      const url = token
+                        ? `https://goutsyde.com/subscription/manage?from=app&token=${encodeURIComponent(token)}`
+                        : "https://goutsyde.com/subscription/manage?from=app";
+                      await Linking.openURL(url);
+                    } catch {
+                      Alert.alert("Error", "Could not open subscription page.");
+                    }
+                  }}
                   color="#34C759"
                   backgroundColor="#34C75910"
-                  subtitle="Manage or upgrade your plan"
+                  subtitle="Change plan, update billing, or cancel"
+                />
+                <MenuItem
+                  icon="zap"
+                  label="View Plans"
+                  onPress={() => {
+                    onClose();
+                    Linking.openURL("https://goutsyde.com/subscription");
+                  }}
+                  color="#34C759"
+                  backgroundColor="#34C75910"
+                  subtitle="Compare all subscription tiers"
                 />
                 {isMultiStaff ? (
                   <MenuItem
