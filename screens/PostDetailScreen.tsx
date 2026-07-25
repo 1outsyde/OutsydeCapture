@@ -362,7 +362,7 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        <View style={{ height: PULSE_CARD_HEIGHT, paddingTop: NAV_BAR_HEIGHT }}>
+        <View style={{ height: PULSE_CARD_HEIGHT - NAV_BAR_HEIGHT, marginTop: NAV_BAR_HEIGHT }}>
           <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
