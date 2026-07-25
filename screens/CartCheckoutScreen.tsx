@@ -152,8 +152,9 @@ export default function CartCheckoutScreen() {
 
   // ─── Price computation ────────────────────────────────────────────────────
   const clientServiceFee = useMemo(() => (subtotal / 100) * 0.08, [subtotal]);
-  const clientTotal = useMemo(() => (subtotal / 100) * 1.08, [subtotal]);
-  const clientPoints = useMemo(() => Math.round(clientServiceFee * 100), [clientServiceFee]);
+const clientTotal = useMemo(() => (subtotal / 100) * 1.08, [subtotal]);
+const clientPointsRate = 0.04; // matches backend points-earning rate, separate from the 8% consumer fee
+const clientPoints = useMemo(() => Math.round((subtotal / 100) * clientPointsRate * 100), [subtotal]);
 
   const displayedSubtotal = backendFeeBreakdown ? backendFeeBreakdown.basePriceCents / 100 : subtotal / 100;
   const displayedServiceFee = backendFeeBreakdown ? backendFeeBreakdown.consumerUpchargeCents / 100 : clientServiceFee;
