@@ -713,7 +713,7 @@ export default function ConsumerSignupScreen() {
                 <ThemedText type="small" style={{ color: theme.text }}>{"I agree to the "}</ThemedText>
                 <ThemedText
                   type="small"
-                  onPress={() => navigation.navigate("TermsOfService")}
+                  onPress={() => Linking.openURL("https://www.goutsyde.com/terms")}
                   style={{ color: theme.primary, textDecorationLine: "underline" }}
                 >
                   {"Terms of Service"}
@@ -721,7 +721,7 @@ export default function ConsumerSignupScreen() {
                 <ThemedText type="small" style={{ color: theme.text }}>{" and "}</ThemedText>
                 <ThemedText
                   type="small"
-                  onPress={() => navigation.navigate("PrivacyPolicy")}
+                  onPress={() => Linking.openURL("https://www.goutsyde.com/privacy")}
                   style={{ color: theme.primary, textDecorationLine: "underline" }}
                 >
                   {"Privacy Policy"}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Image } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Image, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
@@ -555,7 +555,7 @@ export default function PhotographerSignupScreen() {
                 <ThemedText type="small" style={{ color: theme.text }}>{"I agree to the "}</ThemedText>
                 <ThemedText
                   type="small"
-                  onPress={() => navigation.navigate("TermsOfService")}
+                  onPress={() => Linking.openURL("https://www.goutsyde.com/terms")}
                   style={{ color: theme.primary, textDecorationLine: "underline" }}
                 >
                   {"Terms of Service"}
@@ -563,7 +563,7 @@ export default function PhotographerSignupScreen() {
                 <ThemedText type="small" style={{ color: theme.text }}>{" and "}</ThemedText>
                 <ThemedText
                   type="small"
-                  onPress={() => navigation.navigate("PrivacyPolicy")}
+                  onPress={() => Linking.openURL("https://www.goutsyde.com/privacy")}
                   style={{ color: theme.primary, textDecorationLine: "underline" }}
                 >
                   {"Privacy Policy"}
