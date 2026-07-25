@@ -242,7 +242,10 @@ export default function AuthScreen() {
         keyboardVerticalOffset={60}
       >
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -466,7 +469,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 40,
   },
 
   // ── Header ────────────────────────────────────────────────────────────────
