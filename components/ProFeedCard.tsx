@@ -388,7 +388,7 @@ export function ProFeedCard({
           >
             <Feather name="send" size={24} color={theme.text} />
           </Pressable>
-          {onRate && post.type !== "user" && (
+          {onRate && hasCommerce && (
             <Pressable
               onPress={() => onRate(post)}
               style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
