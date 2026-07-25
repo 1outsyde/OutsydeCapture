@@ -553,7 +553,7 @@ export default function BusinessSignupScreen() {
                 <ThemedText
                   type="small"
                   onPress={() => navigation.navigate("TermsOfService")}
-                  style={{ color: theme.primary }}
+                  style={{ color: theme.primary, textDecorationLine: "underline" }}
                 >
                   {"Terms of Service"}
                 </ThemedText>
@@ -561,7 +561,7 @@ export default function BusinessSignupScreen() {
                 <ThemedText
                   type="small"
                   onPress={() => navigation.navigate("PrivacyPolicy")}
-                  style={{ color: theme.primary }}
+                  style={{ color: theme.primary, textDecorationLine: "underline" }}
                 >
                   {"Privacy Policy"}
                 </ThemedText>
