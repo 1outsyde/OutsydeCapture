@@ -252,19 +252,19 @@ export function ProFeedCard({
               {post.displayName || post.authorName}
             </ThemedText>
             {post.type !== "user" && (
-              <>
-                <View style={[styles.badge, { backgroundColor: theme.brandGold }]}>
-                  <ThemedText style={styles.badgeText}>
-                    {post.type === "photographer" ? "Photographer" : "Business"}
-                  </ThemedText>
-                </View>
-                <View style={styles.ratingInline}>
-                  <Feather name="star" size={12} color="#FFD700" />
-                  <ThemedText style={[styles.ratingText, { color: theme.textSecondary }]}>
-                    {((post as any).author?.rating ?? post.rating ?? 0).toFixed(1)}
-                  </ThemedText>
-                </View>
-              </>
+              <View style={[styles.badge, { backgroundColor: theme.brandGold }]}>
+                <ThemedText style={styles.badgeText}>
+                  {post.type === "photographer" ? "Photographer" : "Business"}
+                </ThemedText>
+              </View>
+            )}
+            {hasCommerce && (
+              <View style={styles.ratingInline}>
+                <Feather name="star" size={12} color="#FFD700" />
+                <ThemedText style={[styles.ratingText, { color: theme.textSecondary }]}>
+                  {((post as any).author?.rating ?? post.rating ?? 0).toFixed(1)}
+                </ThemedText>
+              </View>
             )}
           </View>
         </View>
