@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { getAccessToken } from "@/utils/tokenStorage";
+import { BASE_URL } from "@/constants/config";
 import { useAuth } from "@/context/AuthContext";
 
 export interface PointsTransaction {
@@ -21,7 +22,21 @@ interface LoyaltyContextType {
 
 const LoyaltyContext = createContext<LoyaltyContextType | undefined>(undefined);
 
-const STORAGE_KEY_PREFIX = "@outsyde_loyalty_";
+// Map backend transaction types to the UI's "earned" | "redeemed" display type.
+// Backend types: 'earn' | 'redeem' | 'reversal'
+function toDisplayType(backendType: string): "earned" | "redeemed" {
+  return backendType === "earn" ? "earned" : "redeemed";
+}
+
+async function fetchWithAuth(path: string): Promise<Response> {
+  const token = await getAccessToken();
+  return fetch(`${BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+}
 
 export function LoyaltyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -29,18 +44,8 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const getStorageKey = () => {
-    if (!user) return null;
-    return `${STORAGE_KEY_PREFIX}${user.id}`;
-  };
-
-  useEffect(() => {
-    loadLoyaltyData();
-  }, [user]);
-
-  const loadLoyaltyData = async () => {
-    const key = getStorageKey();
-    if (!key) {
+  const loadFromBackend = useCallback(async () => {
+    if (!user) {
       setPoints(0);
       setTransactions([]);
       setIsLoading(false);
@@ -49,50 +54,41 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true);
     try {
-      const storedData = await AsyncStorage.getItem(key);
-      if (storedData) {
-        const data = JSON.parse(storedData);
-        setPoints(data.points || 0);
-        setTransactions(data.transactions || []);
-      } else {
-        const initialPoints = 250;
-        const initialTransactions: PointsTransaction[] = [
-          {
-            id: "welcome_bonus",
-            type: "earned",
-            amount: 250,
-            description: "Welcome bonus",
-            date: new Date().toISOString(),
-          },
-        ];
-        await saveLoyaltyData(initialPoints, initialTransactions);
-        setPoints(initialPoints);
-        setTransactions(initialTransactions);
+      const [balRes, histRes] = await Promise.all([
+        fetchWithAuth("/api/points/balance"),
+        fetchWithAuth("/api/points/history"),
+      ]);
+
+      if (balRes.ok) {
+        const balData = await balRes.json();
+        setPoints(balData.balance ?? 0);
+      }
+
+      if (histRes.ok) {
+        const histData = await histRes.json();
+        const raw: any[] = histData.transactions || histData || [];
+        const mapped: PointsTransaction[] = raw.map((tx) => ({
+          id: String(tx.id),
+          type: toDisplayType(tx.type),
+          // points field is negative for reversals; store absolute value for display
+          amount: Math.abs(tx.points ?? 0),
+          description: tx.description || tx.type,
+          date: tx.createdAt || new Date().toISOString(),
+        }));
+        setTransactions(mapped);
       }
     } catch (error) {
-      console.error("Failed to load loyalty data:", error);
+      console.error("[Loyalty] Failed to load from backend:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
-  const saveLoyaltyData = async (newPoints: number, newTransactions: PointsTransaction[]) => {
-    const key = getStorageKey();
-    if (!key) return;
+  useEffect(() => {
+    loadFromBackend();
+  }, [loadFromBackend]);
 
-    try {
-      await AsyncStorage.setItem(
-        key,
-        JSON.stringify({
-          points: newPoints,
-          transactions: newTransactions,
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save loyalty data:", error);
-    }
-  };
-
+  // Optimistic local add — a subsequent refreshPoints() will sync with server truth.
   const addPoints = async (amount: number, description: string) => {
     const newTransaction: PointsTransaction = {
       id: `earn_${Date.now()}`,
@@ -101,19 +97,13 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
       description,
       date: new Date().toISOString(),
     };
-    const newPoints = points + amount;
-    const newTransactions = [newTransaction, ...transactions];
-    
-    setPoints(newPoints);
-    setTransactions(newTransactions);
-    await saveLoyaltyData(newPoints, newTransactions);
+    setPoints((prev: number) => prev + amount);
+    setTransactions((prev: PointsTransaction[]) => [newTransaction, ...prev]);
   };
 
+  // Optimistic local redeem — a subsequent refreshPoints() will sync with server truth.
   const redeemPoints = async (amount: number, description: string): Promise<boolean> => {
-    if (amount > points) {
-      return false;
-    }
-
+    if (amount > points) return false;
     const newTransaction: PointsTransaction = {
       id: `redeem_${Date.now()}`,
       type: "redeemed",
@@ -121,29 +111,18 @@ export function LoyaltyProvider({ children }: { children: ReactNode }) {
       description,
       date: new Date().toISOString(),
     };
-    const newPoints = points - amount;
-    const newTransactions = [newTransaction, ...transactions];
-    
-    setPoints(newPoints);
-    setTransactions(newTransactions);
-    await saveLoyaltyData(newPoints, newTransactions);
+    setPoints((prev: number) => prev - amount);
+    setTransactions((prev: PointsTransaction[]) => [newTransaction, ...prev]);
     return true;
   };
 
-  const refreshPoints = async () => {
-    await loadLoyaltyData();
-  };
+  const refreshPoints = useCallback(async () => {
+    await loadFromBackend();
+  }, [loadFromBackend]);
 
   return (
     <LoyaltyContext.Provider
-      value={{
-        points,
-        transactions,
-        isLoading,
-        addPoints,
-        redeemPoints,
-        refreshPoints,
-      }}
+      value={{ points, transactions, isLoading, addPoints, redeemPoints, refreshPoints }}
     >
       {children}
     </LoyaltyContext.Provider>
