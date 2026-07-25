@@ -630,7 +630,7 @@ export default function CartCheckoutScreen() {
             <ThemedText type="body">${displayedSubtotal.toFixed(2)}</ThemedText>
           </View>
           <View style={styles.row}>
-            <ThemedText type="body" style={{ color: theme.brandTextDim }}>Outsyde Service Fee (+8%)</ThemedText>
+            <ThemedText type="body" style={{ color: theme.brandTextDim }}>Outsyde Service Fee</ThemedText>
             <ThemedText type="body">${displayedServiceFee.toFixed(2)}</ThemedText>
           </View>
           <View style={[styles.row, { marginBottom: 0 }]}>
