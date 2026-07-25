@@ -349,16 +349,6 @@ export default function PrivacyPolicyScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Feather name="arrow-left" size={24} color={theme.text} />
-        </Pressable>
-        <ThemedText type="h2">Legal</ThemedText>
-        <View style={{ width: 40 }} />
-      </View>
 
       <View style={styles.tabContainer}>
         <Pressable
