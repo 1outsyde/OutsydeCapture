@@ -2339,6 +2339,12 @@ class ApiService {
     });
   }
 
+  async getPhotographerStripeDashboardLink(authToken: string): Promise<{ url: string }> {
+    return this.request<{ url: string }>("/api/photographers/me/stripe-dashboard-link", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // GET /api/photographers/me/services - Get photographer's services
   async getPhotographerMeServices(authToken: string): Promise<{ services: VendorBookerPhotographerService[] }> {
     return this.request<{ services: VendorBookerPhotographerService[] }>("/api/photographers/me/services", {
@@ -2579,6 +2585,12 @@ class ApiService {
   // GET /api/vendor/stripe-onboarding/status - Get vendor Stripe status
   async getVendorStripeStatus(authToken: string): Promise<StripeOnboardingStatus & { hasStripeAccount: boolean; onboardingComplete: boolean }> {
     return this.request<StripeOnboardingStatus & { hasStripeAccount: boolean; onboardingComplete: boolean }>("/api/vendor/stripe-onboarding/status", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getVendorStripeDashboardLink(authToken: string): Promise<{ url: string }> {
+    return this.request<{ url: string }>("/api/vendor/stripe-dashboard-link", {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

@@ -434,6 +434,26 @@ export default function BusinessDashboardScreen() {
     }
   };
 
+  const [loadingPayoutLink, setLoadingPayoutLink] = useState(false);
+
+  const handleManagePayouts = async () => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      setLoadingPayoutLink(true);
+      const { url } = await api.getVendorStripeDashboardLink(token);
+      Linking.openURL(url);
+    } catch (error: any) {
+      if (error?.status === 403 && error?.body?.requiresOnboarding) {
+        Alert.alert("Stripe Setup Required", "Please complete your Stripe setup before accessing payouts");
+      } else {
+        Alert.alert("Error", "Unable to open payout dashboard. Please try again.");
+      }
+    } finally {
+      setLoadingPayoutLink(false);
+    }
+  };
+
   const handleSaveUsername = async () => {
     const token = await getToken();
     if (!token) return;
@@ -2063,6 +2083,27 @@ export default function BusinessDashboardScreen() {
             <Text style={styles.setupLink}>Get Started →</Text>
           </View>
         </View>
+      )}
+
+      {profile?.stripeConnected && (
+        <Pressable
+          onPress={handleManagePayouts}
+          disabled={loadingPayoutLink}
+          style={[styles.stripeCard, { opacity: loadingPayoutLink ? 0.7 : 1 }]}
+        >
+          <View style={styles.stripeIcon}>
+            <Feather name="dollar-sign" size={20} color={DASHBOARD_COLORS.gold} />
+          </View>
+          <View style={styles.stripeContent}>
+            <Text style={styles.stripeTitle}>Manage Payouts</Text>
+            <Text style={styles.stripeDescription}>View your balance and payout history</Text>
+          </View>
+          {loadingPayoutLink ? (
+            <ActivityIndicator size="small" color={DASHBOARD_COLORS.gold} />
+          ) : (
+            <Feather name="chevron-right" size={20} color={DASHBOARD_COLORS.gold} />
+          )}
+        </Pressable>
       )}
 
       <View style={styles.statsRow}>
