@@ -18,6 +18,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { CATEGORY_LABELS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
+import { showReportBlockMenu } from "@/utils/moderationActions";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "PhotographerDetail">;
@@ -411,6 +412,29 @@ export default function PhotographerDetailScreen() {
                 color={isPhotographerSaved ? theme.primary : "#FFFFFF"}
               />
             </Pressable>
+            {isAuthenticated && !isOwner && photographerAuthUserId && (
+              <Pressable
+                onPress={async () => {
+                  const token = await getToken();
+                  if (!token) return;
+                  showReportBlockMenu({
+                    authToken: token,
+                    currentUserId: String(user?.id || ""),
+                    target: {
+                      type: "user",
+                      userId: photographerAuthUserId,
+                      userName: photographer.name || "Photographer",
+                    },
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.backButton,
+                  { backgroundColor: "rgba(0,0,0,0.3)", opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <Feather name="more-horizontal" size={24} color="#FFFFFF" />
+              </Pressable>
+            )}
           </View>
         </View>
 

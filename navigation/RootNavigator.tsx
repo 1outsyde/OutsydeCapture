@@ -44,6 +44,7 @@ import StaffManagementScreen from "@/screens/StaffManagementScreen";
 import ShootBookingScreen from "@/screens/ShootBookingScreen";
 import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
+import BlockedUsersScreen from "@/screens/BlockedUsersScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
@@ -679,6 +680,21 @@ export default function RootNavigator() {
           animation: "slide_from_right",
           headerShown: true,
           headerTitle: "Privacy Policy",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="BlockedUsers"
+        component={BlockedUsersScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Blocked Users",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },

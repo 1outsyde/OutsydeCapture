@@ -488,6 +488,16 @@ export function PersonalSettingsMenu({
                 type="small"
                 style={[styles.sectionTitle, { color: theme.textSecondary }]}
               >
+                Privacy
+              </ThemedText>
+              <MenuItem icon="slash" label="Blocked Users" onPress={() => handleNavigate("BlockedUsers")} />
+            </View>
+
+            <View style={styles.section}>
+              <ThemedText
+                type="small"
+                style={[styles.sectionTitle, { color: theme.textSecondary }]}
+              >
                 Support
               </ThemedText>
               <MenuItem icon="help-circle" label="Help Center" onPress={() => {}} />

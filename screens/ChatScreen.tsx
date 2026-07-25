@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
+  ActionSheetIOS,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -23,6 +25,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { ApiMessage, ApiError } from "@/services/api";
+import { showReportBlockMenu } from "@/utils/moderationActions";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Chat">;
@@ -189,23 +192,44 @@ export default function ChatScreen() {
           </ThemedText>
         </View>
       ),
-      // Only show View Profile button if NOT a self-conversation
+      // Only show View Profile + More buttons if NOT a self-conversation
       headerRight: isSelfConversation ? undefined : () => (
-        <Pressable
-          onPress={handleViewProfile}
-          style={({ pressed }) => [
-            styles.viewProfileButton,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <ThemedText type="small" style={{ color: theme.brandGold }}>
-            View Profile
-          </ThemedText>
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            onPress={handleViewProfile}
+            style={({ pressed }) => [
+              styles.viewProfileButton,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <ThemedText type="small" style={{ color: theme.brandGold }}>
+              View Profile
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={async () => {
+              const token = await getToken();
+              if (!token) return;
+              showReportBlockMenu({
+                authToken: token,
+                currentUserId: String(user?.id || ""),
+                target: {
+                  type: "user",
+                  userId: String(participantId),
+                  userName: participantName,
+                },
+              });
+            }}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Feather name="more-vertical" size={20} color={theme.text} />
+          </Pressable>
+        </View>
       ),
     });
-  }, [participantName, participantAvatar, theme, handleViewProfile, isSelfConversation]);
+  }, [participantName, participantAvatar, participantId, theme, handleViewProfile, isSelfConversation, getToken, user?.id]);
 
   const fetchMessages = useCallback(async () => {
     // GUARD: Never fetch if conversationId is undefined

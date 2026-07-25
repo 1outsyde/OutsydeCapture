@@ -60,6 +60,7 @@ import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { showReportBlockMenu } from "@/utils/moderationActions";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -496,7 +497,7 @@ const CoverMediaHero = ({
 export default function VendorDetailScreen({ route }: Props) {
   const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, getToken } = useAuth();
   const { isDark } = useTheme();
   const { vendorId, initialTab } = route.params;
 
@@ -651,7 +652,7 @@ export default function VendorDetailScreen({ route }: Props) {
 
         resolvedProfile = {
           id: String(business.id ?? vendorId),
-          userId: String((business as any).userId ?? ""),
+          userId: postOwnerId,
           role: "business",
           name: business.name || "Business",
           handle: `@${
@@ -1412,6 +1413,24 @@ export default function VendorDetailScreen({ route }: Props) {
           <Pressable style={styles.headerButton} onPress={handleShare}>
             <Feather name="share-2" size={18} color={COLORS.white} />
           </Pressable>
+          {isAuthenticated && profile && (
+            <Pressable
+              style={styles.headerButton}
+              onPress={async () => {
+                const token = await getToken();
+                if (!token) return;
+                const targetId = String(profile.userId || profile.id || "");
+                const targetName = profile.name || "User";
+                showReportBlockMenu({
+                  authToken: token,
+                  currentUserId: String(user?.id || ""),
+                  target: { type: "user", userId: targetId, userName: targetName },
+                });
+              }}
+            >
+              <Feather name="more-horizontal" size={18} color={COLORS.white} />
+            </Pressable>
+          )}
         </View>
       </View>
     </Animated.View>

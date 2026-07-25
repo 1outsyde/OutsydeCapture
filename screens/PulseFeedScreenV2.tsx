@@ -29,6 +29,7 @@ import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost, PulseEngagement } from "@/services/api";
 import { feedEvents } from "@/services/feedEvents";
 import PulseVideoCard, { PULSE_CARD_HEIGHT, PulseEngagementEvent } from "@/components/PulseVideoCard";
+import { showReportBlockMenu, promptForReportReason } from "@/utils/moderationActions";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -120,7 +121,7 @@ export default function PulseFeedScreenV2() {
   const insets = useSafeAreaInsets();
   const { getPhotographer } = useData();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
 
   // Feed state
   const [posts, setPosts] = useState<Post[]>([]);
@@ -384,6 +385,35 @@ export default function PulseFeedScreenV2() {
     }
   }, [navigation, getPhotographer]);
 
+  // ─── Moderation ────────────────────────────────────────────────────────────
+  const handleReportPost = useCallback(async (post: Post) => {
+    const token = await getToken();
+    if (!token) return;
+    promptForReportReason(async (reason) => {
+      try {
+        await api.reportPost(token, post.id, reason);
+        Alert.alert("Reported", "Thank you. We'll review this content.");
+      } catch {
+        Alert.alert("Error", "Could not submit report. Please try again.");
+      }
+    });
+  }, [getToken]);
+
+  const handleBlockFromPost = useCallback(async (post: Post) => {
+    const token = await getToken();
+    if (!token) return;
+    const authorId = post.userId || post.authorId || "";
+    const authorName = post.displayName || post.authorName || "User";
+    showReportBlockMenu({
+      authToken: token,
+      currentUserId: String(user?.id || ""),
+      target: { type: "user", userId: authorId, userName: authorName },
+      onBlocked: (blockedId) => {
+        setPosts((prev) => prev.filter((p) => (p.userId || p.authorId) !== blockedId));
+      },
+    });
+  }, [getToken, user?.id]);
+
   // ─── Render ─────────────────────────────────────────────────────────────────
   const renderItem = useCallback(
     ({ item, index }: { item: Post; index: number }) => {
@@ -404,6 +434,9 @@ export default function PulseFeedScreenV2() {
           onAuthorPress={handleAuthorPress}
           onActionPress={handleActionPress}
           onEngagement={handleEngagement}
+          onReport={handleReportPost}
+          onBlock={handleBlockFromPost}
+          currentUserId={String(user?.id || "")}
         />
       );
     },
@@ -412,12 +445,15 @@ export default function PulseFeedScreenV2() {
       muted,
       likedIds,
       isFavorite,
+      user?.id,
       handleLike,
       handleComment,
       handleBookmark,
       handleAuthorPress,
       handleActionPress,
       handleEngagement,
+      handleReportPost,
+      handleBlockFromPost,
     ]
   );
 

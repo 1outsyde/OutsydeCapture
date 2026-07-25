@@ -83,6 +83,7 @@ export type RootStackParamList = {
   ResetPassword: { token: string; email: string };
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
+  BlockedUsers: undefined;
   Notifications: undefined;
   ProfileFeed: {
     profileId: string;

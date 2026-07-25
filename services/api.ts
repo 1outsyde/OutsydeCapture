@@ -3716,6 +3716,65 @@ class ApiService {
     });
   }
 
+  // POST /api/users/:userId/block - Block a user
+  async blockUser(
+    authToken: string,
+    userId: string,
+    reason?: string
+  ): Promise<{ success: boolean; block: { id: string; blockerId: string; blockedId: string; reason: string | null; createdAt: string } }> {
+    return this.request(`/api/users/${userId}/block`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // DELETE /api/users/:userId/block - Unblock a user
+  async unblockUser(
+    authToken: string,
+    userId: string
+  ): Promise<{ success: boolean }> {
+    return this.request(`/api/users/${userId}/block`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/users/blocked - Get list of blocked users
+  async getBlockedUsers(
+    authToken: string
+  ): Promise<{ blockedUsers: Array<{ id: string; blockerId: string; blockedId: string; reason: string | null; createdAt: string }> }> {
+    return this.request(`/api/users/blocked`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/moderation/flag - Report a user
+  async reportUser(
+    authToken: string,
+    targetId: string,
+    reason: string
+  ): Promise<{ success: boolean; message: string }> {
+    return this.request(`/api/moderation/flag`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ targetType: "user", targetId, reason }),
+    });
+  }
+
+  // POST /api/messages/:messageId/report - Report a chat message
+  async reportMessage(
+    authToken: string,
+    messageId: string,
+    reason: string
+  ): Promise<{ success: boolean; report: { id: string; reporterId: string; messageId: string; reason: string; createdAt: string } }> {
+    return this.request(`/api/messages/${messageId}/report`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   // GET /api/feed/:postId/comments - Get comments on a post
   async getPostComments(postId: string): Promise<{ comments: any[] }> {
     return this.request<{ comments: any[] }>(`/api/feed/${postId}/comments`);

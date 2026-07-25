@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Post } from "@/context/DataContext";
 import { sendClickEvent } from "@/services/referral";
+import { promptForReportReason } from "@/utils/moderationActions";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 1.25;
@@ -22,6 +23,7 @@ interface ProFeedCardProps {
   onActionPress: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onReport?: (postId: string, reason: string) => void;
+  onBlock?: (authorId: string) => void;
   onEdit?: (postId: string) => void;
   isSaved: boolean;
   currentUserId?: string;
@@ -115,6 +117,7 @@ export function ProFeedCard({
   onActionPress,
   onDelete,
   onReport,
+  onBlock,
   onEdit,
   isSaved,
   currentUserId,
@@ -131,13 +134,16 @@ export function ProFeedCard({
   const isOwner = currentUserId && (post.userId === currentUserId || post.authorId === currentUserId);
   const canDelete = isOwner || isAdmin;
 
+  const authorId = post.userId || post.authorId || "";
+  const authorName = post.displayName || post.authorName || "User";
+
   const handleMenuPress = () => {
     if (Platform.OS === "ios") {
       const options = canDelete
         ? ["Edit Caption", "Delete Post", "Cancel"]
-        : ["Report Post", "Cancel"];
-      const destructiveIndex = canDelete ? 1 : undefined;
-      const cancelIndex = canDelete ? 2 : 1;
+        : ["Report Post", `Block ${authorName}`, "Cancel"];
+      const destructiveIndex = canDelete ? 1 : 1;
+      const cancelIndex = canDelete ? 2 : 2;
 
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -161,8 +167,10 @@ export function ProFeedCard({
                 }
               ]
             );
-          } else if (!canDelete && buttonIndex === 0 && onReport) {
+          } else if (!canDelete && buttonIndex === 0) {
             showReportDialog();
+          } else if (!canDelete && buttonIndex === 1 && onBlock) {
+            onBlock(authorId);
           }
         }
       );
@@ -172,43 +180,12 @@ export function ProFeedCard({
   };
 
   const showReportDialog = () => {
-    if (Platform.OS === "ios" && Alert.prompt) {
-      Alert.prompt(
-        "Report Post",
-        "Please describe why you're reporting this post:",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Submit Report",
-            onPress: (reason: string | undefined) => {
-              if (reason && onReport) {
-                onReport(post.id, reason);
-              }
-            }
-          }
-        ],
-        "plain-text"
-      );
-    } else {
-      Alert.alert(
-        "Report Post",
-        "This post will be reported to our admin team for review.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Report",
-            onPress: () => {
-              if (onReport) {
-                onReport(post.id, "Reported by user");
-              }
-            }
-          }
-        ]
-      );
-    }
+    promptForReportReason((reason) => {
+      if (onReport) onReport(post.id, reason);
+    });
   };
 
-  const handleAndroidMenuAction = (action: "edit" | "delete" | "report") => {
+  const handleAndroidMenuAction = (action: "edit" | "delete" | "report" | "block") => {
     setMenuVisible(false);
     if (action === "edit") {
       onEdit?.(post.id);
@@ -218,8 +195,8 @@ export function ProFeedCard({
         "Are you sure you want to delete this post? This action cannot be undone.",
         [
           { text: "Cancel", style: "cancel" },
-          { 
-            text: "Delete", 
+          {
+            text: "Delete",
             style: "destructive",
             onPress: () => onDelete(post.id)
           }
@@ -227,6 +204,8 @@ export function ProFeedCard({
       );
     } else if (action === "report") {
       showReportDialog();
+    } else if (action === "block" && onBlock) {
+      onBlock(authorId);
     }
   };
 
@@ -333,13 +312,26 @@ export function ProFeedCard({
                     </Pressable>
                   </>
                 ) : (
-                  <Pressable
-                    onPress={() => handleAndroidMenuAction("report")}
-                    style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
-                  >
-                    <Feather name="flag" size={18} color={theme.text} />
-                    <ThemedText style={styles.menuItemText}>Report Post</ThemedText>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      onPress={() => handleAndroidMenuAction("report")}
+                      style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Feather name="flag" size={18} color={theme.text} />
+                      <ThemedText style={styles.menuItemText}>Report Post</ThemedText>
+                    </Pressable>
+                    {onBlock && (
+                      <Pressable
+                        onPress={() => handleAndroidMenuAction("block")}
+                        style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                      >
+                        <Feather name="slash" size={18} color="#FF3B30" />
+                        <ThemedText style={[styles.menuItemText, { color: "#FF3B30" }]}>
+                          Block {authorName}
+                        </ThemedText>
+                      </Pressable>
+                    )}
+                  </>
                 )}
                 <Pressable
                   onPress={() => setMenuVisible(false)}
