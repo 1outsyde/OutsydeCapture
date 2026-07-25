@@ -479,12 +479,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   wordmark: {
-  marginLeft: 10,
-  fontSize: 28,
-  lineHeight: 36,
-  fontWeight: "800",
-  color: "#F0EAD6",
-},
+    marginLeft: 10,
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: "800",
+    color: "#F0EAD6",
   },
   headline: {
     fontSize: 32,
