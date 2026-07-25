@@ -441,7 +441,7 @@ export default function AccountScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<RouteProp<AccountStackParamList, "Account"> | RouteProp<RootStackParamList, "UserProfile">>();
   const insets = useSafeAreaInsets();
-  const { user, isAuthenticated, getToken } = useAuth();
+  const { user, isAuthenticated, getToken, refreshUser } = useAuth();
   const { unreadCount } = useNotifications();
   const { isDark } = useTheme();
   console.log("[NOTIF-DEBUG] AccountScreen bell sees unreadCount =", unreadCount);
@@ -2820,6 +2820,7 @@ export default function AccountScreen() {
                     }
                   );
                   if (res.ok) {
+                    await refreshUser();
                     Alert.alert("Deletion cancelled", "Your account will remain active.");
                   }
                 } catch {
