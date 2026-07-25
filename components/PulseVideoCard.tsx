@@ -316,16 +316,18 @@ export default function PulseVideoCard({
           <ThemedText style={styles.actionCount}>{post.commentCount ?? post.comments.length}</ThemedText>
         </Pressable>
 
-        <Pressable
-          style={[styles.actionItem, { opacity: 0.7 }]}
-        >
-          <View style={styles.actionIcon}>
-            <Feather name="star" size={26} color="#FFFFFF" />
-          </View>
-          <ThemedText style={styles.actionCount}>
-            {post.rating > 0 ? post.rating.toFixed(1) : "—"}
-          </ThemedText>
-        </Pressable>
+        {hasCommerce && (
+          <Pressable
+            style={[styles.actionItem, { opacity: 0.7 }]}
+          >
+            <View style={styles.actionIcon}>
+              <Feather name="star" size={26} color="#FFFFFF" />
+            </View>
+            <ThemedText style={styles.actionCount}>
+              {post.rating > 0 ? post.rating.toFixed(1) : "—"}
+            </ThemedText>
+          </Pressable>
+        )}
 
         <Pressable
           onPress={() => onBookmark(post)}
