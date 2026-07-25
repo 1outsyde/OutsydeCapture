@@ -412,7 +412,7 @@ export default function PhotographerDetailScreen() {
                 color={isPhotographerSaved ? theme.primary : "#FFFFFF"}
               />
             </Pressable>
-            {isAuthenticated && (
+            {isAuthenticated && !isOwner && photographerAuthUserId && (
               <Pressable
                 onPress={async () => {
                   const token = await getToken();
@@ -422,7 +422,7 @@ export default function PhotographerDetailScreen() {
                     currentUserId: String(user?.id || ""),
                     target: {
                       type: "user",
-                      userId: String(photographer.userId || photographer.id || ""),
+                      userId: photographerAuthUserId,
                       userName: photographer.name || "Photographer",
                     },
                   });

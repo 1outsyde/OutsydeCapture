@@ -652,7 +652,7 @@ export default function VendorDetailScreen({ route }: Props) {
 
         resolvedProfile = {
           id: String(business.id ?? vendorId),
-          userId: String((business as any).userId ?? ""),
+          userId: postOwnerId,
           role: "business",
           name: business.name || "Business",
           handle: `@${
