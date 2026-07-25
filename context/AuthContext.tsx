@@ -56,6 +56,8 @@ export interface User {
   staffBusinessName?: string;
   staffStripeOnboardingComplete?: boolean;
   staffStripeOnboardingUrl?: string;
+  deletionStatus?: "active" | "pending_deletion" | "deleted";
+  scheduledDeletionAt?: string | null;
 }
 
 export interface SignupData {
@@ -388,6 +390,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               profileImageUrl: backendUser.profileImageUrl || parsed.profileImageUrl,
               coverMediaUrl: backendUser.coverMediaUrl || parsed.coverMediaUrl,
               coverMediaType: backendUser.coverMediaType || parsed.coverMediaType,
+              deletionStatus: backendUser.deletionStatus ?? parsed.deletionStatus,
+              scheduledDeletionAt: backendUser.scheduledDeletionAt ?? parsed.scheduledDeletionAt,
             };
             await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
             await storeUserData(updated);
@@ -892,6 +896,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         specialties: isPhotographer ? data.photographer?.specialties : undefined,
         businessName: data.vendor?.businessName,
         businessCategory: data.vendor?.businessCategory,
+        deletionStatus: userData.deletionStatus,
+        scheduledDeletionAt: userData.scheduledDeletionAt,
       };
       
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
@@ -946,6 +952,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           city: backendUser.city ?? user.city,
           state: backendUser.state ?? user.state,
           bio: backendUser.bio ?? user.bio,
+          deletionStatus: backendUser.deletionStatus ?? user.deletionStatus,
+          scheduledDeletionAt: backendUser.scheduledDeletionAt ?? user.scheduledDeletionAt,
         };
         
         console.log("[Auth] User refreshed - username:", updatedUser.username, "displayName:", updatedUser.displayName, "bio:", updatedUser.bio);

@@ -43,7 +43,7 @@ export function PersonalSettingsMenu({
   const { theme, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { user, logout } = useAuth();
+  const { user, logout, getToken } = useAuth();
 
   const handleToggleTheme = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -71,6 +71,64 @@ export function PersonalSettingsMenu({
   const handleNavigate = (screen: keyof RootStackParamList) => {
     onClose();
     (navigation as any).navigate(screen);
+  };
+
+  const handleDeleteAccount = () => {
+    onClose();
+    Alert.alert(
+      "Delete Account",
+      "This will permanently delete your account and data after a 30-day grace period. You can cancel anytime before then.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Are you sure?",
+              "This action cannot be undone after 30 days. Your account will be deleted permanently.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete Account",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      const token = await getToken();
+                      const res = await fetch(
+                        `${require("@/constants/config").BASE_URL}/api/account/delete-request`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                          },
+                        }
+                      );
+                      const data = await res.json();
+                      if (data.blocked) {
+                        Alert.alert("Can't delete yet", data.reason);
+                        return;
+                      }
+                      const dateStr = data.scheduledDeletionAt
+                        ? new Date(data.scheduledDeletionAt).toLocaleDateString()
+                        : "30 days from now";
+                      Alert.alert(
+                        "Deletion scheduled",
+                        `Your account will be permanently deleted on ${dateStr}. You've been logged out.`
+                      );
+                      await logout();
+                    } catch {
+                      Alert.alert("Error", "Something went wrong. Please try again.");
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   const MenuItem = ({
@@ -435,6 +493,15 @@ export function PersonalSettingsMenu({
               <MenuItem icon="help-circle" label="Help Center" onPress={() => {}} />
               <MenuItem icon="file-text" label="Terms of Service" onPress={() => handleNavigate("TermsOfService")} />
               <MenuItem icon="shield" label="Privacy Policy" onPress={() => handleNavigate("PrivacyPolicy")} />
+            </View>
+
+            <View style={styles.section}>
+              <MenuItem
+                icon="trash-2"
+                label="Delete Account"
+                onPress={handleDeleteAccount}
+                color={theme.error}
+              />
             </View>
 
             <View style={styles.section}>
