@@ -551,8 +551,8 @@ export default function PhotographerSignupScreen() {
                   color={agreedToTerms ? theme.primary : theme.textSecondary}
                 />
               </Pressable>
-              <ThemedText type="small" style={{ color: theme.text, marginLeft: Spacing.sm, flex: 1 }}>
-                {"I agree to the "}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", marginLeft: Spacing.sm, flex: 1 }}>
+                <ThemedText type="small" style={{ color: theme.text }}>{"I agree to the "}</ThemedText>
                 <ThemedText
                   type="small"
                   onPress={() => navigation.navigate("TermsOfService")}
@@ -560,7 +560,7 @@ export default function PhotographerSignupScreen() {
                 >
                   {"Terms of Service"}
                 </ThemedText>
-                {" and "}
+                <ThemedText type="small" style={{ color: theme.text }}>{" and "}</ThemedText>
                 <ThemedText
                   type="small"
                   onPress={() => navigation.navigate("PrivacyPolicy")}
@@ -568,7 +568,7 @@ export default function PhotographerSignupScreen() {
                 >
                   {"Privacy Policy"}
                 </ThemedText>
-              </ThemedText>
+              </View>
             </View>
           </View>
         );
