@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useLayoutEffect } from "react";
+import React, { useState, useCallback, useLayoutEffect, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,10 @@ import { uploadImage } from "@/services/mediaUpload";
 
 type NavigationProp = NativeStackNavigationProp<AccountStackParamList>;
 
+const USERNAME_REGEX = /^[a-zA-Z0-9_.]{3,30}$/;
+
+type UsernameCheckState = "idle" | "checking" | "available" | "taken" | "invalid";
+
 export default function ConsumerEditProfileScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -42,6 +46,7 @@ export default function ConsumerEditProfileScreen() {
     user?.displayName ||
     `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
   const origBio = user?.bio || "";
+  const origUsername = user?.username || "";
 
   // ─── Local editable state seeded from current user ───────────────────────
   const [profileImageUrl, setProfileImageUrl] = useState<string>(origProfileImageUrl);
@@ -49,9 +54,76 @@ export default function ConsumerEditProfileScreen() {
   const [coverMediaType, setCoverMediaType] = useState<"image" | "video">(origCoverMediaType);
   const [displayName, setDisplayName] = useState<string>(origDisplayName);
   const [bio, setBio] = useState<string>(origBio);
+  const [username, setUsername] = useState<string>(origUsername);
 
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // ─── Identity change cooldown status ──────────────────────────────────────
+  const [canChangeUsername, setCanChangeUsername] = useState(true);
+  const [canChangeDisplayName, setCanChangeDisplayName] = useState(true);
+  const [usernameCooldownDays, setUsernameCooldownDays] = useState<number | undefined>(undefined);
+  const [displayNameCooldownDays, setDisplayNameCooldownDays] = useState<number | undefined>(undefined);
+  const [statusLoading, setStatusLoading] = useState(true);
+
+  // ─── Username availability check state ────────────────────────────────────
+  const [usernameCheck, setUsernameCheck] = useState<UsernameCheckState>("idle");
+  const usernameCheckSeq = useRef(0);
+
+  useEffect(() => {
+    (async () => {
+      const token = await getToken();
+      if (!token) {
+        setStatusLoading(false);
+        return;
+      }
+      try {
+        const status = await api.getUserIdentityStatus(token);
+        setCanChangeUsername(status.canChangeUsername);
+        setCanChangeDisplayName(status.canChangeDisplayName);
+        setUsernameCooldownDays(status.usernameCooldownDays);
+        setDisplayNameCooldownDays(status.displayNameCooldownDays);
+      } catch (error) {
+        console.warn("[ConsumerEditProfile] Failed to load identity status:", error);
+        // Fail open — allow edits if status check fails, backend still enforces the rule
+      } finally {
+        setStatusLoading(false);
+      }
+    })();
+  }, [getToken]);
+
+  // ─── Debounced username availability check ────────────────────────────────
+  useEffect(() => {
+    const trimmed = username.trim();
+
+    if (trimmed === origUsername) {
+      setUsernameCheck("idle");
+      return;
+    }
+    if (trimmed.length === 0) {
+      setUsernameCheck("idle");
+      return;
+    }
+    if (!USERNAME_REGEX.test(trimmed)) {
+      setUsernameCheck("invalid");
+      return;
+    }
+
+    setUsernameCheck("checking");
+    const seq = ++usernameCheckSeq.current;
+    const timeout = setTimeout(async () => {
+      try {
+        const result = await api.checkUsernameAvailable(trimmed);
+        if (usernameCheckSeq.current !== seq) return; // stale response
+        setUsernameCheck(result.available ? "available" : "taken");
+      } catch {
+        if (usernameCheckSeq.current !== seq) return;
+        setUsernameCheck("idle");
+      }
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [username, origUsername]);
 
   // ─── Avatar: pick via ImageUploader → upload to R2 "profiles" folder ──────
   const handleAvatarSelected = useCallback(
@@ -78,7 +150,7 @@ export default function ConsumerEditProfileScreen() {
   );
 
   // ─── Save: route fields to the correct endpoints ─────────────────────────
-  // displayName → PATCH /api/users/identity  (updateUserMe silently drops it)
+  // displayName, username → PATCH /api/users/identity  (updateUserMe silently drops them)
   // bio, avatar, cover → PATCH /api/users/me
   const handleSave = useCallback(async () => {
     const token = await getToken();
@@ -87,7 +159,40 @@ export default function ConsumerEditProfileScreen() {
       return;
     }
 
+    const trimmedUsername = username.trim();
     const displayNameChanged = displayName.trim() !== origDisplayName.trim();
+    const usernameChanged = trimmedUsername !== origUsername;
+
+    if (usernameChanged && !canChangeUsername) {
+      Alert.alert(
+        "Username Locked",
+        usernameCooldownDays
+          ? `You can change your username again in ${usernameCooldownDays} day${usernameCooldownDays === 1 ? "" : "s"}.`
+          : "You recently changed your username. Please try again later.",
+      );
+      return;
+    }
+    if (displayNameChanged && !canChangeDisplayName) {
+      Alert.alert(
+        "Display Name Locked",
+        displayNameCooldownDays
+          ? `You can change your display name again in ${displayNameCooldownDays} day${displayNameCooldownDays === 1 ? "" : "s"}.`
+          : "You recently changed your display name. Please try again later.",
+      );
+      return;
+    }
+    if (usernameChanged && usernameCheck === "invalid") {
+      Alert.alert("Invalid Username", "Usernames must be 3–30 characters and can only contain letters, numbers, periods, and underscores.");
+      return;
+    }
+    if (usernameChanged && usernameCheck === "taken") {
+      Alert.alert("Username Unavailable", "That username is already taken. Please choose another.");
+      return;
+    }
+    if (usernameChanged && usernameCheck === "checking") {
+      Alert.alert("Please Wait", "Still checking username availability.");
+      return;
+    }
 
     const mePayload: Parameters<typeof api.updateUserMe>[1] = {};
     if (profileImageUrl !== origProfileImageUrl) {
@@ -103,7 +208,11 @@ export default function ConsumerEditProfileScreen() {
       mePayload.bio = bio.trim();
     }
 
-    const hasIdentityChange = displayNameChanged;
+    const identityPayload: { username?: string; displayName?: string } = {};
+    if (displayNameChanged) identityPayload.displayName = displayName.trim();
+    if (usernameChanged) identityPayload.username = trimmedUsername;
+
+    const hasIdentityChange = Object.keys(identityPayload).length > 0;
     const hasMeChange = Object.keys(mePayload).length > 0;
 
     if (!hasIdentityChange && !hasMeChange) {
@@ -113,13 +222,13 @@ export default function ConsumerEditProfileScreen() {
 
     try {
       setSaving(true);
-      console.log("[ConsumerEditProfile] identity payload:", displayNameChanged ? { displayName: displayName.trim() } : "no change");
+      console.log("[ConsumerEditProfile] identity payload:", hasIdentityChange ? JSON.stringify(identityPayload) : "no change");
       console.log("[ConsumerEditProfile] me payload:", JSON.stringify(mePayload, null, 2));
 
       // Run both calls (whichever are needed) before refreshing
       const calls: Promise<any>[] = [];
-      if (displayNameChanged) {
-        calls.push(api.updateUserIdentity(token, { displayName: displayName.trim() }));
+      if (hasIdentityChange) {
+        calls.push(api.updateUserIdentity(token, identityPayload));
       }
       if (hasMeChange) {
         calls.push(api.updateUserMe(token, mePayload));
@@ -144,11 +253,18 @@ export default function ConsumerEditProfileScreen() {
     coverMediaType,
     displayName,
     bio,
+    username,
+    usernameCheck,
+    canChangeUsername,
+    canChangeDisplayName,
+    usernameCooldownDays,
+    displayNameCooldownDays,
     origProfileImageUrl,
     origCoverMediaUrl,
     origCoverMediaType,
     origDisplayName,
     origBio,
+    origUsername,
     refreshUser,
     navigation,
   ]);
@@ -169,6 +285,46 @@ export default function ConsumerEditProfileScreen() {
       ),
     });
   }, [navigation, handleSave, busy, theme]);
+
+  const usernameHint = (() => {
+    if (statusLoading) return null;
+    if (!canChangeUsername) {
+      return usernameCooldownDays
+        ? `You can change your username again in ${usernameCooldownDays} day${usernameCooldownDays === 1 ? "" : "s"}.`
+        : "You recently changed your username. Please try again later.";
+    }
+    switch (usernameCheck) {
+      case "checking":
+        return "Checking availability…";
+      case "available":
+        return "Username is available";
+      case "taken":
+        return "That username is already taken";
+      case "invalid":
+        return "3–30 characters: letters, numbers, periods, underscores only";
+      default:
+        return "Your unique @handle shown on your profile and posts";
+    }
+  })();
+
+  const usernameHintColor = (() => {
+    if (!canChangeUsername) return theme.brandTextDim;
+    switch (usernameCheck) {
+      case "available":
+        return "#3DBB6B";
+      case "taken":
+      case "invalid":
+        return "#E5484D";
+      default:
+        return theme.brandTextDim;
+    }
+  })();
+
+  const displayNameHint = !statusLoading && !canChangeDisplayName
+    ? (displayNameCooldownDays
+        ? `You can change your display name again in ${displayNameCooldownDays} day${displayNameCooldownDays === 1 ? "" : "s"}.`
+        : "You recently changed your display name. Please try again later.")
+    : null;
 
   return (
     <KeyboardAvoidingView
@@ -262,6 +418,7 @@ export default function ConsumerEditProfileScreen() {
                 backgroundColor: theme.brandBgElevated,
                 color: theme.brandCream,
                 borderColor: theme.brandSurfaceBorder,
+                opacity: !statusLoading && !canChangeDisplayName ? 0.5 : 1,
               },
             ]}
             value={displayName}
@@ -271,7 +428,52 @@ export default function ConsumerEditProfileScreen() {
             maxLength={60}
             returnKeyType="next"
             autoCapitalize="words"
+            editable={statusLoading || canChangeDisplayName}
           />
+          {displayNameHint ? (
+            <Text style={[styles.fieldHint, { color: theme.brandTextDim }]}>
+              {displayNameHint}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* ── Username ─────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+            USERNAME
+          </Text>
+          <View style={styles.usernameInputWrap}>
+            <Text style={[styles.usernamePrefix, { color: theme.brandTextDim }]}>@</Text>
+            <TextInput
+              style={[
+                styles.input,
+                styles.usernameInput,
+                {
+                  backgroundColor: theme.brandBgElevated,
+                  color: theme.brandCream,
+                  borderColor: theme.brandSurfaceBorder,
+                  opacity: !statusLoading && !canChangeUsername ? 0.5 : 1,
+                },
+              ]}
+              value={username}
+              onChangeText={(text) => setUsername(text.replace(/\s/g, ""))}
+              placeholder="username"
+              placeholderTextColor={theme.brandTextDim}
+              maxLength={30}
+              returnKeyType="next"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={statusLoading || canChangeUsername}
+            />
+            {usernameCheck === "checking" ? (
+              <ActivityIndicator size="small" color={theme.brandTextDim} style={styles.usernameSpinner} />
+            ) : null}
+          </View>
+          {usernameHint ? (
+            <Text style={[styles.fieldHint, { color: usernameHintColor }]}>
+              {usernameHint}
+            </Text>
+          ) : null}
         </View>
 
         {/* ── Bio ──────────────────────────────────────────────────────── */}
@@ -332,6 +534,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     lineHeight: 18,
   },
+  fieldHint: {
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 16,
+  },
   avatarRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -356,6 +563,26 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     marginTop: 4,
+  },
+  usernameInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  usernamePrefix: {
+    position: "absolute",
+    left: 14,
+    top: 16,
+    fontSize: 15,
+    zIndex: 1,
+  },
+  usernameInput: {
+    flex: 1,
+    paddingLeft: 26,
+  },
+  usernameSpinner: {
+    position: "absolute",
+    right: 14,
+    top: 16,
   },
   bioInput: {
     minHeight: 100,
