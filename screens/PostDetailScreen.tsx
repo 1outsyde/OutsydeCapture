@@ -355,8 +355,8 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        <View style={{ height: PULSE_CARD_HEIGHT }}>
-          <ProFeedCard
+  <View style={{ height: PULSE_CARD_HEIGHT, backgroundColor: "#000" }}>
+    <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
             isSaved={isSaved}
