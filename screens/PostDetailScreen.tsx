@@ -25,7 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import { ProFeedCard, PRO_FEED_CARD_HEIGHT } from "@/components/ProFeedCard";
+import { ProFeedCard } from "@/components/ProFeedCard";
 import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
@@ -322,30 +322,15 @@ export default function PostDetailScreen() {
     }
   ).current;
 
-  // Each item height depends on its type: pulse videos use PULSE_CARD_HEIGHT,
-  // pro photo cards use PRO_FEED_CARD_HEIGHT.
-  const getItemHeight = useCallback(
-    (index: number) => {
-      const post = posts[index];
-      return post?.displayLayout === "pulse" ? PULSE_CARD_HEIGHT : PRO_FEED_CARD_HEIGHT;
-    },
-    [posts]
-  );
-
-  // Pre-compute cumulative offsets so getItemLayout is accurate for mixed heights.
   const getItemLayout = useCallback(
-    (_: any, index: number) => {
-      let offset = 0;
-      for (let i = 0; i < index; i++) {
-        offset += getItemHeight(i);
-      }
-      return { length: getItemHeight(index), offset, index };
-    },
-    [getItemHeight]
+    (_: any, index: number) => ({
+      length: PULSE_CARD_HEIGHT,
+      offset: PULSE_CARD_HEIGHT * index,
+      index,
+    }),
+    []
   );
 
-  // Snap interval isn't a single value when heights differ, so we disable it
-  // and rely on pagingEnabled per-item via getItemLayout instead.
   const renderItem = useCallback(
     ({ item, index }: { item: Post; index: number }) => {
       const isVendor = item.type === "vendor";
@@ -353,7 +338,6 @@ export default function PostDetailScreen() {
       const isVideo = item.displayLayout === "pulse";
 
       return isVideo ? (
-        // Pulse video card — keeps its own height; overlay pushed lower via pulseOverlayOffset
         <View style={{ height: PULSE_CARD_HEIGHT }}>
           <PulseVideoCard
             post={item}
@@ -368,13 +352,10 @@ export default function PostDetailScreen() {
             onAuthorPress={handleAuthorPress}
             onActionPress={handleActionPress}
             onEngagement={() => {}}
-            // Push caption + profile avatar lower so they don't crowd the middle
-            overlayBottomOffset={insets.bottom + 80}
           />
         </View>
       ) : (
-        // Pro photo card — sized to PRO_FEED_CARD_HEIGHT, not the full screen
-        <View style={{ height: PRO_FEED_CARD_HEIGHT }}>
+        <View style={{ height: PULSE_CARD_HEIGHT }}>
           <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
@@ -399,7 +380,6 @@ export default function PostDetailScreen() {
       activeIndex,
       muted,
       isFavorite,
-      insets.bottom,
       handleLike,
       handleComment,
       handleSave,
@@ -409,6 +389,7 @@ export default function PostDetailScreen() {
       handleReport,
       handleEdit,
       user,
+      NAV_BAR_HEIGHT,
     ]
   );
 
@@ -436,6 +417,8 @@ export default function PostDetailScreen() {
           keyExtractor={(item) => `post-detail-${item.id}`}
           pagingEnabled
           horizontal={false}
+          snapToInterval={PULSE_CARD_HEIGHT}
+          decelerationRate="fast"
           showsVerticalScrollIndicator={false}
           getItemLayout={getItemLayout}
           initialScrollIndex={initialIndexRef.current}
