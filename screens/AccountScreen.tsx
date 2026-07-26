@@ -1323,7 +1323,7 @@ export default function AccountScreen() {
       ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
   const accentDimColor = COLORS.goldDim;
-  const pageBg = `${accentColor}28`;
+ const pageBg = profile?.role === "staff" && isOwner ? COLORS.black : `${accentColor}28`;
 
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [120, 220],
