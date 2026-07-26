@@ -239,7 +239,7 @@ export function PersonalSettingsMenu({
           <View style={styles.handle} />
 
           <View style={styles.header}>
-            <ThemedText type="h3">Settings</ThemedText>
+           <ThemedText type="h3">Menu</ThemedText>
             <Pressable onPress={onClose} style={styles.closeButton}>
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
