@@ -59,6 +59,13 @@ const DASHBOARD_COLORS = {
   creamDim: "rgba(200,191,168,0.6)",
 };
 
+const convertTo12Hour = (time24: string): string => {
+  const [h, m] = time24.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, "0")} ${period}`;
+};
+
 export default function BusinessDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -235,6 +242,29 @@ export default function BusinessDashboardScreen() {
       } catch (err) {
         console.log("[Dashboard] Could not fetch identity status:", err);
       }
+
+      // Load weekly hours to power the calendar
+      try {
+        const weeklyRes = await api.getWeeklyAvailability(token, "business");
+        const rawWeekly: any[] = (weeklyRes as any)?.availability || (Array.isArray(weeklyRes) ? weeklyRes : []);
+        if (rawWeekly.length > 0) {
+          const loadedMap = new Map(rawWeekly.map((s: any) => [s.dayOfWeek, s]));
+          setHours(getDefaultHours().map((d) => {
+            const slot = loadedMap.get(d.dayOfWeek) as any;
+            if (slot) {
+              return {
+                dayOfWeek: d.dayOfWeek,
+                isAvailable: slot.isActive,
+                startTime: convertTo12Hour(slot.startTime),
+                endTime: convertTo12Hour(slot.endTime),
+              };
+            }
+            return d;
+          }));
+        }
+      } catch (hoursErr) {
+        console.warn("[Dashboard] Could not load weekly hours for calendar:", hoursErr);
+      }
       
       const tabs = getAvailableTabs();
       if (!tabs.includes(activeTab)) {
@@ -354,6 +384,22 @@ export default function BusinessDashboardScreen() {
       fetchTabData();
     }
   }, [activeTab, profile?.id]);
+
+  // Also load bookings on mount so the calendar is populated immediately
+  useEffect(() => {
+    if (!hasFetchedRef.current || !profile?.id) return;
+    const loadBookingsForCalendar = async () => {
+      const token = await getToken();
+      if (!token) return;
+      try {
+        const bookingsResponse = await api.getBusinessBookings(token) as any;
+        setBookings(Array.isArray(bookingsResponse) ? bookingsResponse : bookingsResponse?.bookings || []);
+      } catch (err) {
+        console.warn("[Dashboard] Could not preload bookings for calendar:", err);
+      }
+    };
+    loadBookingsForCalendar();
+  }, [profile?.id]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -2051,6 +2097,24 @@ export default function BusinessDashboardScreen() {
       ? "Growth"
       : "Starter";
 
+  // Build typed calendar props from live bookings state
+  const calendarBookings: CalendarBooking[] = bookings.map((b) => ({
+    id: b.id,
+    date: b.date,
+    startTime: b.time || "9:00 AM",
+    endTime: undefined,
+    clientName: b.customerName || "Client",
+    serviceName: b.serviceName || "Service",
+    status: b.status as CalendarBooking["status"],
+    amount: b.amount,
+  }));
+
+  const calendarWeeklyAvailability: DayAvailability[] = hours.map((h, idx) => ({
+    dayOfWeek: idx,
+    isAvailable: h.isAvailable,
+    windows: h.isAvailable ? [{ startTime: h.startTime, endTime: h.endTime }] : [],
+  }));
+
   return (
     <ScreenKeyboardAwareScrollView
       style={styles.container}
@@ -2148,7 +2212,7 @@ export default function BusinessDashboardScreen() {
         </View>
       </View>
 
-      {/* Team - Only show for multi-staff businesses (same isMultiStaff flag as AccountScreen's "Your Team") */}
+      {/* Team - Only show for multi-staff businesses */}
       {profile?.isMultiStaff && (
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
           <View style={styles.sectionHeaderRow}>
@@ -2230,26 +2294,12 @@ export default function BusinessDashboardScreen() {
             <Text style={styles.sectionHeaderText}>CALENDAR</Text>
           </View>
           <ProviderCalendar
-            bookings={bookings.map(b => ({
-              id: b.id,
-              date: b.date,
-              startTime: b.time || "9:00 AM",
-              clientName: b.customerName,
-              serviceName: b.serviceName,
-              status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined",
-              amount: b.amount,
-            }))}
+            bookings={calendarBookings}
             blockedDates={[]}
-            weeklyAvailability={hours.map((h, idx) => ({
-              dayOfWeek: idx,
-              isAvailable: h.isAvailable,
-              windows: h.isAvailable ? [{ startTime: h.startTime, endTime: h.endTime }] : [],
-            }))}
+            weeklyAvailability={calendarWeeklyAvailability}
             onBlockDate={() => {}}
             onUnblockDate={() => {}}
-            onBookingPress={(booking) => {
-              setActiveTab("bookings");
-            }}
+            onBookingPress={() => setActiveTab("bookings")}
             monthsAhead={3}
           />
         </View>
@@ -2303,7 +2353,6 @@ export default function BusinessDashboardScreen() {
           <View style={styles.shipModalCard}>
             <Text style={styles.shipModalTitle}>Ship Order</Text>
 
-            {/* Carrier selector */}
             <Text style={styles.shipModalLabel}>Carrier</Text>
             <View style={styles.shipCarrierRow}>
               {(["UPS", "FedEx", "USPS", "DHL", "Other"] as const).map((c) => {
@@ -2330,7 +2379,6 @@ export default function BusinessDashboardScreen() {
               })}
             </View>
 
-            {/* Tracking number input */}
             <Text style={[styles.shipModalLabel, { marginTop: 16 }]}>Tracking Number</Text>
             <TextInput
               style={[styles.shipModalInput, { fontFamily: "monospace" }]}
@@ -2343,7 +2391,6 @@ export default function BusinessDashboardScreen() {
               spellCheck={false}
             />
 
-            {/* Action buttons */}
             <View style={styles.shipModalActions}>
               <Pressable
                 onPress={() => {
