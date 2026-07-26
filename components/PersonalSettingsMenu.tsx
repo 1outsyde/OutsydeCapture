@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -19,6 +19,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import * as Haptics from "expo-haptics";
+import api from "@/services/api";
 
 interface PersonalSettingsMenuProps {
   visible: boolean;
@@ -46,6 +47,24 @@ export function PersonalSettingsMenu({
   const navigation = useNavigation<NavigationProp>();
   const { user, logout, getToken } = useAuth();
 
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+
+  // Fetch subscription status when menu opens so we can route correctly
+  useEffect(() => {
+    if (!visible || user?.role !== "business") return;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await api.getCurrentSubscription(token);
+        const sub = res?.subscription;
+        setHasActiveSubscription(!!sub && sub.status === "active");
+      } catch {
+        setHasActiveSubscription(false);
+      }
+    })();
+  }, [visible]);
+
   const handleToggleTheme = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleTheme();
@@ -72,6 +91,21 @@ export function PersonalSettingsMenu({
   const handleNavigate = (screen: keyof RootStackParamList) => {
     onClose();
     (navigation as any).navigate(screen);
+  };
+
+  const handleManageSubscription = async () => {
+    onClose();
+    try {
+      const token = await getToken();
+      // First-timers go to /subscription to purchase; existing subscribers go to /manage
+      const path = hasActiveSubscription ? "/subscription/manage" : "/subscription";
+      const url = token
+        ? `https://goutsyde.com${path}?from=app&token=${encodeURIComponent(token)}`
+        : `https://goutsyde.com${path}?from=app`;
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Error", "Could not open subscription page.");
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -300,33 +334,15 @@ export function PersonalSettingsMenu({
                 />
                 <MenuItem
                   icon="credit-card"
-                  label="Manage Subscription"
-                  onPress={async () => {
-                    onClose();
-                    try {
-                      const token = await getToken();
-                      const url = token
-                        ? `https://goutsyde.com/subscription/manage?from=app&token=${encodeURIComponent(token)}`
-                        : "https://goutsyde.com/subscription/manage?from=app";
-                      await Linking.openURL(url);
-                    } catch {
-                      Alert.alert("Error", "Could not open subscription page.");
-                    }
-                  }}
+                  label={hasActiveSubscription ? "Manage Subscription" : "View Plans"}
+                  onPress={handleManageSubscription}
                   color="#34C759"
                   backgroundColor="#34C75910"
-                  subtitle="Change plan, update billing, or cancel"
-                />
-                <MenuItem
-                  icon="zap"
-                  label="View Plans"
-                  onPress={() => {
-                    onClose();
-                    Linking.openURL("https://goutsyde.com/subscription");
-                  }}
-                  color="#34C759"
-                  backgroundColor="#34C75910"
-                  subtitle="Compare all subscription tiers"
+                  subtitle={
+                    hasActiveSubscription
+                      ? "Change plan, update billing, or cancel"
+                      : "Choose a plan to start selling"
+                  }
                 />
                 {isMultiStaff ? (
                   <MenuItem
