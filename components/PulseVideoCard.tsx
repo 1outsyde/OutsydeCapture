@@ -227,10 +227,10 @@ export default function PulseVideoCard({
   // Floating tab bar overlays content rather than reserving layout space
   // (see MainTabNavigator.tsx: height = 83 + insets.bottom / 2), so
   // bottom-anchored elements here must add their own clearance.
-  const TAB_BAR_OVERLAY = 83 + insets.bottom / 2;
-  const soundLabelBottom = TAB_BAR_OVERLAY + 16;
-  const authorBlockBottom = soundLabelBottom + 20;
-  const actionBarBottom = authorBlockBottom + 60;
+ const TAB_BAR_OVERLAY = insets.bottom + 16;
+const soundLabelBottom = TAB_BAR_OVERLAY + 16;
+const authorBlockBottom = soundLabelBottom + 20;
+const actionBarBottom = authorBlockBottom + 60;
 
   // Reset pause state when card becomes inactive
   useEffect(() => {
