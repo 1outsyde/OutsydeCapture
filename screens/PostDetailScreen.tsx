@@ -338,7 +338,8 @@ export default function PostDetailScreen() {
       const isVideo = item.displayLayout === "pulse";
 
       return isVideo ? (
-        <View style={{ height: PULSE_CARD_HEIGHT }}>
+        // Pulse video: add paddingTop so content clears the floating nav bar
+        <View style={{ height: PULSE_CARD_HEIGHT, paddingTop: NAV_BAR_HEIGHT, backgroundColor: "#000" }}>
           <PulseVideoCard
             post={item}
             isActive={index === activeIndex}
@@ -355,8 +356,9 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-  <View style={{ height: PULSE_CARD_HEIGHT, backgroundColor: "#000" }}>
-    <ProFeedCard
+        // Pro card: add paddingTop so header clears the floating nav bar
+        <View style={{ height: PULSE_CARD_HEIGHT, paddingTop: NAV_BAR_HEIGHT, backgroundColor: "#000" }}>
+          <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
             isSaved={isSaved}
