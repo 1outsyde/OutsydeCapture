@@ -242,16 +242,16 @@ export default function RootNavigator() {
         }}
       />
 
-      <Stack.Screen
-        name="PostDetail"
-        component={PostDetailScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-        }}
-      />
+     <Stack.Screen
+  name="PostDetail"
+  component={PostDetailScreen}
+  options={{
+    presentation: "fullScreenModal",
+    animation: "slide_from_bottom",
+    gestureEnabled: true,
+    fullScreenGestureEnabled: true,
+  }}
+/>
 
       <Stack.Screen
         name="UserProfile"
