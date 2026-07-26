@@ -2101,7 +2101,7 @@ export default function BusinessDashboardScreen() {
   const calendarBookings: CalendarBooking[] = bookings.map((b) => ({
     id: b.id,
     date: b.date,
-    startTime: b.time || "9:00 AM",
+    startTime: b.time ? convertTo12Hour(b.time) : "9:00 AM",
     endTime: undefined,
     clientName: b.customerName || "Client",
     serviceName: b.serviceName || "Service",
