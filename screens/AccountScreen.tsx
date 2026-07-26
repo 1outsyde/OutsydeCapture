@@ -444,7 +444,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, getToken, refreshUser } = useAuth();
   const { unreadCount } = useNotifications();
-  const { isDark } = useTheme();
+  const { isDark, theme } = useTheme();
   console.log("[NOTIF-DEBUG] AccountScreen bell sees unreadCount =", unreadCount);
 
   const [loading, setLoading] = useState(true);
@@ -1323,7 +1323,7 @@ export default function AccountScreen() {
       ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
   const accentDimColor = COLORS.goldDim;
- const pageBg = profile?.role === "staff" && isOwner ? COLORS.black : `${accentColor}28`;
+ const pageBg = profile?.role === "staff" && isOwner ? theme.backgroundDefault : `${accentColor}28`;
 
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [120, 220],
