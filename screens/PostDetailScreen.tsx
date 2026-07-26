@@ -34,7 +34,6 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 type PostDetailRouteProp = RouteProp<RootStackParamList, "PostDetail">;
 type PostDetailNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Must be defined outside component to prevent "Changing viewabilityConfig on the fly" error
 const VIEWABILITY_CONFIG = {
   itemVisiblePercentThreshold: 80,
   minimumViewTime: 100,
@@ -148,7 +147,6 @@ export default function PostDetailScreen() {
     };
   }, [userId, initialPostId]);
 
-  // ─── Like ───────────────────────────────────────────────────────────────────
   const handleLike = useCallback(
     async (postId: string) => {
       const current = posts.find((p) => p.id === postId);
@@ -193,7 +191,6 @@ export default function PostDetailScreen() {
     [posts, getToken]
   );
 
-  // ─── Save / bookmark ────────────────────────────────────────────────────────
   const handleSave = useCallback(
     (post: Post) => {
       const favoriteType = post.type === "vendor" ? "product" : "photographer";
@@ -211,12 +208,10 @@ export default function PostDetailScreen() {
     [toggleFavorite]
   );
 
-  // ─── Comment (stub for this build) ──────────────────────────────────────────
   const handleComment = useCallback((_post: Post) => {
     // No-op for this build — full comments modal is a follow-up.
   }, []);
 
-  // ─── Navigation ─────────────────────────────────────────────────────────────
   const handleAuthorPress = useCallback(
     (post: Post) => {
       const vendorId = post.providerId || post.userId;
@@ -248,7 +243,6 @@ export default function PostDetailScreen() {
     [navigation, getPhotographer]
   );
 
-  // ─── Owner actions: delete / edit / report ──────────────────────────────────
   const handleDelete = useCallback(
     async (postId: string) => {
       try {
@@ -320,7 +314,6 @@ export default function PostDetailScreen() {
     [getToken]
   );
 
-  // ─── Viewability ────────────────────────────────────────────────────────────
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
       if (viewableItems.length > 0 && viewableItems[0].index !== null) {
@@ -362,7 +355,7 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        <View style={{ height: PULSE_CARD_HEIGHT - NAV_BAR_HEIGHT, marginTop: NAV_BAR_HEIGHT }}>
+        <View style={{ height: PULSE_CARD_HEIGHT }}>
           <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
@@ -452,7 +445,6 @@ export default function PostDetailScreen() {
 
       {showCommentBar && (
         <View style={[styles.commentBar, { paddingBottom: insets.bottom + Spacing.sm }]}>
-          {/* Visual anchor — live comment posting wired in follow-up. */}
           {user?.avatar || user?.profileImageUrl ? (
             <Image
               source={{ uri: user?.avatar || user?.profileImageUrl }}
