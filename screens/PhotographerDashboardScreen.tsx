@@ -13,6 +13,7 @@ import {
   TextInput,
   AppState,
   AppStateStatus,
+  Switch,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -278,21 +279,75 @@ export default function PhotographerDashboardScreen() {
 
       try {
         const { bookings: bookingsData } = await api.getPhotographerMeBookings(token);
-        const mappedBookings = bookingsData.map((b: any) => ({
-          id: b.id,
-          clientName: b.customerName || b.clientName || "Client",
-          clientAvatar: b.customerAvatar || b.clientAvatar,
-          date: b.date,
-          time: b.startTime || b.time,
-          sessionType: b.serviceName || b.sessionType || "Session",
-          status: b.status,
-          amount: b.totalAmount ? b.totalAmount / 100 : (b.amount || 0),
-          subtotalAmount: b.subtotalAmount ?? undefined,
-          bookingFeeAmount: b.bookingFeeAmount ?? undefined,
-          vendorNetAmount: b.vendorNetAmount ?? undefined,
-          influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
-          isInfluencerAttributed: b.isInfluencerAttributed ?? false,
-        }));
+        const mappedBookings = bookingsData.map((b: any) => {
+          // The /api/photographers/me/bookings endpoint returns booking RECORDS
+          // with different field names than the generic PhotographerBooking type.
+          // Field mapping (backend field → what we need):
+          //   recordId        → id
+          //   firstName/lastName → clientName (must be concatenated)
+          //   bookingDateTime → split into date + time (format: "YYYY-MM-DD HH:mm")
+          //   totalPaid       → amount (already in DOLLARS, not cents)
+          //   vendorNet       → vendorNetAmount (already in DOLLARS)
+          //   platformFee     → bookingFeeAmount (already in DOLLARS)
+          //   shootType/serviceName → sessionType
+
+          // Support both the booking-record shape AND the legacy generic shape
+          const id = b.recordId || b.id || "";
+          const firstName = b.firstName || "";
+          const lastName = b.lastName || "";
+          const clientName =
+            b.clientName ||
+            b.customerName ||
+            (firstName || lastName ? `${firstName} ${lastName}`.trim() : "Client");
+
+          // bookingDateTime is "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DD HH:mm"
+          const bookingDateTime: string = b.bookingDateTime || "";
+          const datePart = b.date || bookingDateTime.split(" ")[0] || "";
+          const timePart = b.startTime || b.time || bookingDateTime.split(" ")[1] || "";
+
+          // Amount fields — backend returns DOLLARS for booking records,
+          // but may return CENTS (divided by 100) for the legacy shape.
+          // Heuristic: if totalPaid > 0, it's in dollars; totalAmount is in cents.
+          const amount =
+            typeof b.totalPaid === "number" && b.totalPaid > 0
+              ? b.totalPaid
+              : b.totalAmount
+              ? b.totalAmount / 100
+              : b.amount || 0;
+
+          const vendorNetAmount =
+            typeof b.vendorNet === "number"
+              ? b.vendorNet
+              : typeof b.vendorNetAmount === "number"
+              ? b.vendorNetAmount
+              : undefined;
+
+          const bookingFeeAmount =
+            typeof b.platformFee === "number"
+              ? b.platformFee
+              : typeof b.bookingFeeAmount === "number"
+              ? b.bookingFeeAmount
+              : undefined;
+
+          const sessionType =
+            b.serviceName || b.sessionType || b.shootType || "Session";
+
+          return {
+            id,
+            clientName,
+            clientAvatar: b.customerAvatar || b.clientAvatar,
+            date: datePart,
+            time: timePart,
+            sessionType,
+            status: b.status || "pending",
+            amount,
+            subtotalAmount: b.subtotalAmount ?? undefined,
+            bookingFeeAmount,
+            vendorNetAmount,
+            influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
+            isInfluencerAttributed: b.isInfluencerAttributed ?? false,
+          };
+        });
         setBookings(mappedBookings);
 
         // Derive all stats from real booking data — never rely on totalEarnings from profile
@@ -2789,18 +2844,91 @@ export default function PhotographerDashboardScreen() {
             <View style={styles.sectionHeaderAccent} />
             <Text style={styles.sectionHeaderText}>BOOKING SETTINGS</Text>
           </View>
+          {/* Inline booking toggle — matches dark palette; replaces AutoAcceptToggle
+              which uses theme.card (white in dark mode) internally */}
           <View style={{
             backgroundColor: DASHBOARD_COLORS.surface,
             borderColor: DASHBOARD_COLORS.cardBorder,
             borderWidth: 1,
             borderRadius: 16,
-            padding: 14,
+            overflow: "hidden",
           }}>
-            <AutoAcceptToggle
-              value={autoAcceptBookings}
-              onChange={handleAutoAcceptChange}
-              loading={autoAcceptLoading}
-            />
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 14,
+              gap: 12,
+            }}>
+              <View style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                backgroundColor: autoAcceptBookings
+                  ? "rgba(52,199,89,0.15)"
+                  : "rgba(201,147,58,0.15)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <Feather
+                  name={autoAcceptBookings ? "check-circle" : "clock"}
+                  size={20}
+                  color={autoAcceptBookings ? "#34C759" : DASHBOARD_COLORS.gold}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  color: DASHBOARD_COLORS.cream,
+                  fontSize: 15,
+                  fontWeight: "600",
+                  marginBottom: 2,
+                }}>
+                  Auto-Accept Bookings
+                </Text>
+                <Text style={{
+                  color: DASHBOARD_COLORS.creamDim,
+                  fontSize: 12,
+                  lineHeight: 17,
+                }}>
+                  {autoAcceptBookings
+                    ? "New bookings are confirmed immediately after payment"
+                    : "New bookings require your approval within 24 hours"}
+                </Text>
+              </View>
+              {autoAcceptLoading ? (
+                <ActivityIndicator size="small" color={DASHBOARD_COLORS.gold} />
+              ) : (
+                <Switch
+                  value={autoAcceptBookings}
+                  onValueChange={handleAutoAcceptChange}
+                  trackColor={{
+                    false: "rgba(255,255,255,0.2)",
+                    true: "rgba(52,199,89,0.55)",
+                  }}
+                  thumbColor={autoAcceptBookings ? "#34C759" : DASHBOARD_COLORS.creamDim}
+                />
+              )}
+            </View>
+            {!autoAcceptBookings && (
+              <View style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                gap: 6,
+                backgroundColor: "rgba(201,147,58,0.08)",
+                borderTopWidth: 1,
+                borderTopColor: DASHBOARD_COLORS.cardBorder,
+              }}>
+                <Feather name="alert-circle" size={13} color={DASHBOARD_COLORS.gold} />
+                <Text style={{
+                  color: DASHBOARD_COLORS.gold,
+                  fontSize: 12,
+                  flex: 1,
+                }}>
+                  Pending bookings expire after 24 hours if not accepted
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
