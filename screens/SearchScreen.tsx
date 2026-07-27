@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator, Switch } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
@@ -15,6 +16,9 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+
+const SEARCH_HISTORY_KEY = "@search_history";
+const MAX_HISTORY = 5;
 
 type TabType = "all" | "consumer" | "business" | "photographer" | "product" | "service";
 
@@ -100,9 +104,51 @@ export default function SearchScreen() {
   const [isPersonalizedResults, setIsPersonalizedResults] = useState(false);
   const [activeCity, setActiveCity] = useState<CityData | null>(null);
 
+  // Search history state
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
   const isAuthenticated = !!user && !user.isGuest;
-  const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" || 
-                  user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
+  const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" ||
+    user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
+
+  // Load search history from AsyncStorage on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(SEARCH_HISTORY_KEY);
+        if (stored) setSearchHistory(JSON.parse(stored));
+      } catch (e) {
+        // ignore
+      }
+    };
+    loadHistory();
+  }, []);
+
+  const saveToHistory = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setSearchHistory(prev => {
+      const filtered = prev.filter(h => h.toLowerCase() !== trimmed.toLowerCase());
+      const updated = [trimmed, ...filtered].slice(0, MAX_HISTORY);
+      AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, []);
+
+  const removeFromHistory = useCallback((query: string) => {
+    setSearchHistory(prev => {
+      const updated = prev.filter(h => h !== query);
+      AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, []);
+
+  const clearAllHistory = useCallback(async () => {
+    setSearchHistory([]);
+    await AsyncStorage.removeItem(SEARCH_HISTORY_KEY).catch(() => {});
+  }, []);
 
   const getSearchScope = useCallback((tab: TabType): "all" | "consumers" | "businesses" | "photographers" | "products" | "services" | undefined => {
     switch (tab) {
@@ -119,12 +165,11 @@ export default function SearchScreen() {
   const fetchSearchResults = useCallback(async (query?: string, tab?: TabType, cityFilter?: CityData | null) => {
     setIsLoading(true);
     setError(null);
-
     try {
       const authToken = isAuthenticated ? await getToken() : null;
       const scope = getSearchScope(tab || activeTab);
       const response = await api.unifiedSearch(
-        { 
+        {
           q: query || undefined,
           city: cityFilter?.city,
           personalized: isAuthenticated && personalized,
@@ -134,10 +179,7 @@ export default function SearchScreen() {
         authToken,
         isAdmin
       );
-      console.log("[SearchScreen] Search query:", query, "City:", cityFilter?.city, "Scope:", scope, "Total results:", response.total);
-      console.log("[SearchScreen] Raw result types:", response.results.map(r => `${r.type}: ${r.name} (@${r.username || "no-username"})`));
       const normalized = api.normalizeUnifiedResults(response);
-      console.log("[SearchScreen] Normalized results:", normalized.map(r => `${r.resultType}: ${r.name} (@${r.username || "no-username"})`));
       setResults(normalized);
       setIsPersonalizedResults(response.personalized);
     } catch (err) {
@@ -162,9 +204,30 @@ export default function SearchScreen() {
         fetchSearchResults(undefined, activeTab, activeCity);
       }
     }, 300);
-
     return () => clearTimeout(timeoutId);
   }, [searchQuery, activeTab, activeCity, fetchSearchResults]);
+
+  const handleSearchSubmit = useCallback(() => {
+    if (searchQuery.trim()) {
+      saveToHistory(searchQuery.trim());
+      setIsInputFocused(false);
+      inputRef.current?.blur();
+    }
+  }, [searchQuery, saveToHistory]);
+
+  const handleHistorySelect = useCallback((query: string) => {
+    setSearchQuery(query);
+    setIsInputFocused(false);
+    inputRef.current?.blur();
+    saveToHistory(query);
+    fetchSearchResults(query, activeTab, activeCity);
+  }, [activeTab, activeCity, fetchSearchResults, saveToHistory]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("");
+    setIsInputFocused(false);
+    inputRef.current?.blur();
+  }, []);
 
   const handleCitySelect = useCallback((city: CityData) => {
     setActiveCity(city);
@@ -199,35 +262,19 @@ export default function SearchScreen() {
     } else if (item.resultType === "service") {
       const providerId = item.providerId || item.userId;
       if (item.providerType === "photographer" && providerId) {
-        navigation.navigate("Booking", { 
-          photographerId: providerId,
-          preselectedServiceId: item.id,
-        });
+        navigation.navigate("Booking", { photographerId: providerId, preselectedServiceId: item.id });
       } else if (item.businessId) {
-        navigation.navigate("VendorDetail", { 
-          vendorId: item.businessId,
-          initialTab: "services",
-        });
+        navigation.navigate("VendorDetail", { vendorId: item.businessId, initialTab: "services" });
       } else {
-        navigation.navigate("VendorDetail", { 
-          vendorId: providerId || item.id,
-          initialTab: "services",
-        });
+        navigation.navigate("VendorDetail", { vendorId: providerId || item.id, initialTab: "services" });
       }
     } else if (item.resultType === "business") {
-      navigation.navigate("VendorDetail", {
-        vendorId: item.id,
-      });
+      navigation.navigate("VendorDetail", { vendorId: item.id });
     } else if (item.resultType === "photographer") {
-      navigation.navigate("VendorDetail", {
-        vendorId: item.id,
-      });
+      navigation.navigate("VendorDetail", { vendorId: item.id });
     } else if (item.resultType === "staff") {
       if (item.businessId) {
-        navigation.navigate("StaffWorkProfile", {
-          businessId: item.businessId,
-          staffId: item.id,
-        });
+        navigation.navigate("StaffWorkProfile", { businessId: item.businessId, staffId: item.id });
       } else {
         navigation.navigate("UserProfile", { userId: item.userId || item.id, userType: "consumer" });
       }
@@ -237,9 +284,7 @@ export default function SearchScreen() {
   };
 
   const filteredResults = useMemo(() => {
-    if (activeTab === "all") {
-      return results;
-    }
+    if (activeTab === "all") return results;
     return results.filter(r => r.resultType === activeTab);
   }, [results, activeTab]);
 
@@ -252,21 +297,25 @@ export default function SearchScreen() {
       product: 0,
       service: 0,
     };
-
     results.forEach(r => {
       const type = r.resultType as TabType;
-      if (type in counts) {
-        counts[type]++;
-      }
+      if (type in counts) counts[type]++;
     });
-
     return counts;
   }, [results]);
+
+  // Filtered history suggestions while typing
+  const historySuggestions = useMemo(() => {
+    if (!searchQuery.trim()) return searchHistory;
+    return searchHistory.filter(h => h.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [searchQuery, searchHistory]);
+
+  const showDropdown = isInputFocused && historySuggestions.length > 0;
+  const showHistorySection = !searchQuery.trim() && !isInputFocused && searchHistory.length > 0;
 
   const renderTab = (tab: typeof TABS[0]) => {
     const isActive = activeTab === tab.id;
     const count = tabCounts[tab.id];
-
     return (
       <Pressable
         key={tab.id}
@@ -287,24 +336,12 @@ export default function SearchScreen() {
         />
         <ThemedText
           type="body"
-          style={{
-            color: isActive ? "#0A0A0A" : theme.textSecondary,
-            marginLeft: Spacing.xs,
-            fontWeight: isActive ? "600" : "400",
-          }}
+          style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, marginLeft: Spacing.xs, fontWeight: isActive ? "600" : "400" }}
         >
           {tab.label}
         </ThemedText>
-        <View
-          style={[
-            styles.countBadge,
-            { backgroundColor: isActive ? "rgba(10,10,10,0.12)" : theme.backgroundSecondary },
-          ]}
-        >
-          <ThemedText
-            type="small"
-            style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, fontWeight: "600" }}
-          >
+        <View style={[styles.countBadge, { backgroundColor: isActive ? "rgba(10,10,10,0.12)" : theme.backgroundSecondary }]}>
+          <ThemedText type="small" style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, fontWeight: "600" }}>
             {count}
           </ThemedText>
         </View>
@@ -313,16 +350,10 @@ export default function SearchScreen() {
   };
 
   const renderEntityCard = (item: UnifiedSearchResult) => {
-    const tierConfig = item.subscriptionTier ? TIER_CONFIG[item.subscriptionTier] : null;
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
     const hasValidAvatar = isValidImageUrl(item.avatar);
-
-    const displayLabel =
-      item.displayName ||
-      (item.username ? `@${item.username}` : null) ||
-      "Unknown";
-
+    const displayLabel = item.displayName || (item.username ? `@${item.username}` : null) || "Unknown";
     const typeColors: Record<string, string> = {
       photographer: "#E8B930",
       business: "#4ADE80",
@@ -346,23 +377,9 @@ export default function SearchScreen() {
         ]}
       >
         {hasValidAvatar ? (
-          <Image
-            source={{ uri: item.avatar }}
-            style={styles.resultImage}
-            contentFit="cover"
-            transition={200}
-          />
+          <Image source={{ uri: item.avatar }} style={styles.resultImage} contentFit="cover" transition={200} />
         ) : (
-          <View
-            style={[
-              styles.resultImage,
-              {
-                backgroundColor: theme.backgroundSecondary,
-                alignItems: "center",
-                justifyContent: "center",
-              },
-            ]}
-          >
+          <View style={[styles.resultImage, { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }]}>
             <ThemedText type="h2" style={{ color: "#E8B930", fontWeight: "700" }}>
               {getInitials(displayLabel)}
             </ThemedText>
@@ -375,47 +392,22 @@ export default function SearchScreen() {
                 {displayLabel}
               </ThemedText>
               {item.username && !displayLabel.startsWith("@") && (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  @{item.username}
-                </ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>@{item.username}</ThemedText>
               )}
             </View>
-            <Pressable
-              onPress={() => handleSaveResult(item)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}
-            >
-              <Feather
-                name="bookmark"
-                size={16}
-                color={isSaved ? "#E8B930" : theme.textSecondary}
-              />
+            <Pressable onPress={() => handleSaveResult(item)} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}>
+              <Feather name="bookmark" size={16} color={isSaved ? "#E8B930" : theme.textSecondary} />
             </Pressable>
           </View>
 
           <View style={[styles.typeRow, { marginTop: 4 }]}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: accentColor + "18",
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-                borderRadius: 20,
-                alignSelf: "flex-start",
-              }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: accentColor + "18", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, alignSelf: "flex-start" }}>
               <Feather name={typeIcon} size={11} color={accentColor} />
-              <ThemedText
-                type="small"
-                style={{ color: accentColor, marginLeft: 4, fontSize: 11, fontWeight: "600" }}
-              >
+              <ThemedText type="small" style={{ color: accentColor, marginLeft: 4, fontSize: 11, fontWeight: "600" }}>
                 {RESULT_TYPE_LABELS[item.resultType]}
               </ThemedText>
               {item.category && item.category !== item.resultType && (
-                <ThemedText
-                  type="small"
-                  style={{ color: accentColor + "AA", marginLeft: 4, fontSize: 11 }}
-                >
+                <ThemedText type="small" style={{ color: accentColor + "AA", marginLeft: 4, fontSize: 11 }}>
                   · {item.category}
                 </ThemedText>
               )}
@@ -441,13 +433,7 @@ export default function SearchScreen() {
             )}
           </View>
 
-          <Pressable
-            onPress={() => handleCardPress(item)}
-            style={[
-              styles.viewProfileButton,
-              { backgroundColor: "#E8B930", marginTop: 8 },
-            ]}
-          >
+          <Pressable onPress={() => handleCardPress(item)} style={[styles.viewProfileButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
             <Feather name="user" size={12} color="#0A0A0A" />
             <ThemedText type="small" style={[styles.viewProfileText, { color: "#0A0A0A", fontSize: 12 }]}>
               View Profile
@@ -461,26 +447,16 @@ export default function SearchScreen() {
   const renderServiceCard = (item: UnifiedSearchResult) => {
     const priceDisplay = item.priceFormatted || item.priceRange ||
       (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
-
     return (
       <Pressable
         onPress={() => handleCardPress(item)}
         style={({ pressed }) => [
           styles.serviceCard,
-          {
-            backgroundColor: theme.backgroundDefault,
-            borderColor: pressed ? "#E8B930" : theme.border,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-          },
+          { backgroundColor: theme.backgroundDefault, borderColor: pressed ? "#E8B930" : theme.border, transform: [{ scale: pressed ? 0.98 : 1 }] },
         ]}
       >
         <View style={styles.serviceIconContainer}>
-          <View
-            style={[
-              styles.serviceIcon,
-              { backgroundColor: theme.backgroundSecondary },
-            ]}
-          >
+          <View style={[styles.serviceIcon, { backgroundColor: theme.backgroundSecondary }]}>
             <Feather name="scissors" size={22} color="#E8B930" />
           </View>
         </View>
@@ -488,32 +464,18 @@ export default function SearchScreen() {
           <ThemedText type="h4" numberOfLines={1} style={[styles.serviceName, { color: theme.text }]}>
             {item.name || "Unnamed Service"}
           </ThemedText>
-          {item.providerName && (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              by {item.providerName}
-            </ThemedText>
-          )}
+          {item.providerName && <ThemedText type="small" style={{ color: theme.textSecondary }}>by {item.providerName}</ThemedText>}
           {item.description && (
-            <ThemedText
-              type="caption"
-              numberOfLines={2}
-              style={{ color: theme.textSecondary, marginTop: 4, fontSize: 12 }}
-            >
+            <ThemedText type="caption" numberOfLines={2} style={{ color: theme.textSecondary, marginTop: 4, fontSize: 12 }}>
               {item.description}
             </ThemedText>
           )}
         </View>
         <View style={styles.serviceRight}>
-          {priceDisplay ? (
-            <ThemedText type="h4" style={{ color: "#E8B930", fontWeight: "700" }}>
-              {priceDisplay}
-            </ThemedText>
-          ) : null}
+          {priceDisplay ? <ThemedText type="h4" style={{ color: "#E8B930", fontWeight: "700" }}>{priceDisplay}</ThemedText> : null}
           <View style={[styles.bookButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
             <Feather name="calendar" size={13} color="#0A0A0A" />
-            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>
-              Book
-            </ThemedText>
+            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>Book</ThemedText>
           </View>
         </View>
       </Pressable>
@@ -525,33 +487,18 @@ export default function SearchScreen() {
     const imageUrl = item.productImage || item.avatar;
     const priceDisplay = item.priceFormatted || item.priceRange ||
       (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
-
     return (
       <Pressable
         onPress={() => handleCardPress(item)}
         style={({ pressed }) => [
           styles.productCard,
-          {
-            backgroundColor: theme.backgroundDefault,
-            borderColor: pressed ? "#E8B930" : theme.border,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-          },
+          { backgroundColor: theme.backgroundDefault, borderColor: pressed ? "#E8B930" : theme.border, transform: [{ scale: pressed ? 0.98 : 1 }] },
         ]}
       >
         {hasProductImage ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.productImage}
-            contentFit="cover"
-            transition={200}
-          />
+          <Image source={{ uri: imageUrl }} style={styles.productImage} contentFit="cover" transition={200} />
         ) : (
-          <View
-            style={[
-              styles.productImage,
-              { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" },
-            ]}
-          >
+          <View style={[styles.productImage, { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }]}>
             <Feather name="shopping-bag" size={28} color="#E8B930" />
           </View>
         )}
@@ -559,24 +506,11 @@ export default function SearchScreen() {
           <ThemedText type="h4" numberOfLines={2} style={[styles.productName, { color: theme.text }]}>
             {item.name || "Unnamed Product"}
           </ThemedText>
-          {item.businessName && (
-            <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              by {item.businessName}
-            </ThemedText>
-          )}
-          {priceDisplay ? (
-            <ThemedText
-              type="h4"
-              style={{ color: "#E8B930", fontWeight: "700", marginTop: 4 }}
-            >
-              {priceDisplay}
-            </ThemedText>
-          ) : null}
+          {item.businessName && <ThemedText type="small" style={{ color: theme.textSecondary }}>by {item.businessName}</ThemedText>}
+          {priceDisplay ? <ThemedText type="h4" style={{ color: "#E8B930", fontWeight: "700", marginTop: 4 }}>{priceDisplay}</ThemedText> : null}
           <View style={[styles.buyButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
             <Feather name="shopping-bag" size={13} color="#0A0A0A" />
-            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>
-              View
-            </ThemedText>
+            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>View</ThemedText>
           </View>
         </View>
       </Pressable>
@@ -584,47 +518,93 @@ export default function SearchScreen() {
   };
 
   const renderResultItem = ({ item }: { item: UnifiedSearchResult }) => {
-    if (item.resultType === "service") {
-      return renderServiceCard(item);
-    }
-    if (item.resultType === "product") {
-      return renderProductCard(item);
-    }
+    if (item.resultType === "service") return renderServiceCard(item);
+    if (item.resultType === "product") return renderProductCard(item);
     return renderEntityCard(item);
+  };
+
+  const renderDropdown = () => {
+    if (!showDropdown) return null;
+    return (
+      <View style={[styles.dropdown, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+        {historySuggestions.map((item, index) => (
+          <Pressable
+            key={item}
+            onPress={() => handleHistorySelect(item)}
+            style={({ pressed }) => [
+              styles.dropdownItem,
+              {
+                borderBottomWidth: index < historySuggestions.length - 1 ? 1 : 0,
+                borderBottomColor: theme.border,
+                backgroundColor: pressed ? theme.backgroundSecondary : "transparent",
+              },
+            ]}
+          >
+            <Feather name="clock" size={14} color={theme.textSecondary} />
+            <ThemedText type="body" style={{ flex: 1, marginLeft: Spacing.sm, color: theme.text }}>
+              {item}
+            </ThemedText>
+            <Pressable onPress={(e) => { e.stopPropagation(); removeFromHistory(item); }} hitSlop={8}>
+              <Feather name="x" size={14} color={theme.textSecondary} />
+            </Pressable>
+          </Pressable>
+        ))}
+      </View>
+    );
   };
 
   const ListHeader = () => (
     <View>
+      {showHistorySection && (
+        <View style={styles.historySection}>
+          <View style={styles.historySectionHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Feather name="clock" size={16} color={theme.primary} />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Recent Searches</ThemedText>
+            </View>
+            <Pressable onPress={clearAllHistory} hitSlop={8}>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>Clear all</ThemedText>
+            </Pressable>
+          </View>
+          <View style={styles.historyChips}>
+            {searchHistory.map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => handleHistorySelect(item)}
+                style={({ pressed }) => [
+                  styles.historyChip,
+                  { backgroundColor: pressed ? theme.backgroundSecondary : theme.backgroundDefault, borderColor: theme.border },
+                ]}
+              >
+                <Feather name="clock" size={12} color={theme.textSecondary} />
+                <ThemedText type="small" style={{ color: theme.text, marginLeft: 6, marginRight: 4 }}>{item}</ThemedText>
+                <Pressable onPress={(e) => { e.stopPropagation(); removeFromHistory(item); }} hitSlop={6}>
+                  <Feather name="x" size={11} color={theme.textSecondary} />
+                </Pressable>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
       {!searchQuery.trim() && !activeCity ? (
         <View style={styles.cityDiscoverySection}>
           <View style={styles.sectionHeader}>
             <Feather name="map-pin" size={18} color={theme.primary} />
-            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>
-              Discover by City
-            </ThemedText>
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Discover by City</ThemedText>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.cityCardsRow}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cityCardsRow}>
             {DISCOVERY_CITIES.map((city) => (
               <Pressable
                 key={city.displayName}
                 onPress={() => handleCitySelect(city)}
                 style={({ pressed }) => [
                   styles.cityCard,
-                  { 
-                    backgroundColor: theme.backgroundDefault, 
-                    borderColor: theme.border,
-                    opacity: pressed ? 0.8 : 1,
-                  },
+                  { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.8 : 1 },
                 ]}
               >
                 <Feather name="map-pin" size={14} color={theme.primary} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.xs, fontWeight: "500" }}>
-                  {city.displayName}
-                </ThemedText>
+                <ThemedText type="body" style={{ marginLeft: Spacing.xs, fontWeight: "500" }}>{city.displayName}</ThemedText>
               </Pressable>
             ))}
           </ScrollView>
@@ -641,25 +621,16 @@ export default function SearchScreen() {
           </View>
           <Pressable
             onPress={handleClearCity}
-            style={({ pressed }) => [
-              styles.clearCityButton,
-              { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.8 : 1 },
-            ]}
+            style={({ pressed }) => [styles.clearCityButton, { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.8 : 1 }]}
           >
             <Feather name="x" size={14} color={theme.textSecondary} />
-            <ThemedText type="caption" style={{ marginLeft: 4, color: theme.textSecondary }}>
-              Clear
-            </ThemedText>
+            <ThemedText type="caption" style={{ marginLeft: 4, color: theme.textSecondary }}>Clear</ThemedText>
           </Pressable>
         </View>
       ) : null}
 
       <View style={styles.tabsContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsRow}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
           {TABS.map(renderTab)}
         </ScrollView>
       </View>
@@ -671,19 +642,8 @@ export default function SearchScreen() {
         </ThemedText>
         {isAuthenticated ? (
           <View style={styles.personalizedToggle}>
-            <Feather 
-              name="sliders" 
-              size={14} 
-              color={isPersonalizedResults ? theme.primary : theme.textSecondary} 
-            />
-            <ThemedText 
-              type="caption" 
-              style={{ 
-                color: isPersonalizedResults ? theme.primary : theme.textSecondary,
-                marginLeft: 4,
-                marginRight: 8,
-              }}
-            >
+            <Feather name="sliders" size={14} color={isPersonalizedResults ? theme.primary : theme.textSecondary} />
+            <ThemedText type="caption" style={{ color: isPersonalizedResults ? theme.primary : theme.textSecondary, marginLeft: 4, marginRight: 8 }}>
               For You
             </ThemedText>
             <Switch
@@ -705,59 +665,41 @@ export default function SearchScreen() {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
-            Searching...
-          </ThemedText>
+          <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>Searching...</ThemedText>
         </View>
       );
     }
-
     if (error) {
       return (
         <View style={styles.emptyState}>
           <Feather name="alert-circle" size={48} color={theme.error} />
-          <ThemedText type="h4" style={styles.emptyTitle}>
-            Connection Error
-          </ThemedText>
-          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-            {error}
-          </ThemedText>
+          <ThemedText type="h4" style={styles.emptyTitle}>Connection Error</ThemedText>
+          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>{error}</ThemedText>
           <Pressable
             onPress={() => fetchSearchResults(searchQuery || undefined, activeTab, activeCity)}
-            style={({ pressed }) => [
-              styles.retryButton,
-              { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
-            ]}
+            style={({ pressed }) => [styles.retryButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
           >
             <Feather name="refresh-cw" size={16} color="#FFFFFF" />
-            <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
-              Try Again
-            </ThemedText>
+            <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>Try Again</ThemedText>
           </Pressable>
         </View>
       );
     }
-
     if (activeCity) {
       return (
         <View style={styles.emptyState}>
           <Feather name="map-pin" size={48} color={theme.textSecondary} />
-          <ThemedText type="h4" style={styles.emptyTitle}>
-            No discoverable users found
-          </ThemedText>
+          <ThemedText type="h4" style={styles.emptyTitle}>No discoverable users found</ThemedText>
           <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
             No discoverable users found in {activeCity.displayName} yet
           </ThemedText>
         </View>
       );
     }
-
     return (
       <View style={styles.emptyState}>
         <Feather name="search" size={48} color={theme.textSecondary} />
-        <ThemedText type="h4" style={styles.emptyTitle}>
-          No results found
-        </ThemedText>
+        <ThemedText type="h4" style={styles.emptyTitle}>No results found</ThemedText>
         <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
           {searchQuery
             ? `No ${activeTab === "all" ? "results" : activeTab + "s"} match "${searchQuery}"`
@@ -773,15 +715,19 @@ export default function SearchScreen() {
         <View style={[styles.searchInputContainer, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
           <Feather name="search" size={20} color={theme.textSecondary} />
           <TextInput
+            ref={inputRef}
             style={[styles.searchInput, { color: theme.text }]}
             placeholder="Search businesses, photographers..."
             placeholderTextColor={theme.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setTimeout(() => setIsInputFocused(false), 150)}
+            onSubmitEditing={handleSearchSubmit}
             returnKeyType="search"
           />
           {searchQuery ? (
-            <Pressable onPress={() => setSearchQuery("")}>
+            <Pressable onPress={handleClearSearch}>
               <Feather name="x-circle" size={20} color={theme.textSecondary} />
             </Pressable>
           ) : null}
@@ -789,6 +735,7 @@ export default function SearchScreen() {
             <ActivityIndicator size="small" color={theme.primary} style={{ marginLeft: Spacing.sm }} />
           ) : null}
         </View>
+        {renderDropdown()}
       </View>
 
       <ScreenFlatList
@@ -805,12 +752,11 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   searchContainer: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.md,
+    zIndex: 10,
   },
   searchInputContainer: {
     flexDirection: "row",
@@ -825,13 +771,51 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
     fontSize: Typography.body.fontSize,
   },
-  tabsContainer: {
+  dropdown: {
+    position: "absolute",
+    top: 56,
+    left: 0,
+    right: 0,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    overflow: "hidden",
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  historySection: {
     marginBottom: Spacing.lg,
   },
-  tabsRow: {
+  historySectionHeader: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  historyChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
+  historyChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  tabsContainer: { marginBottom: Spacing.lg },
+  tabsRow: { flexDirection: "row", gap: Spacing.sm },
   tab: {
     flexDirection: "row",
     alignItems: "center",
@@ -852,16 +836,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.lg,
   },
-  resultsTitle: {
-    flex: 1,
-  },
-  personalizedToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  listContent: {
-    paddingTop: Spacing.lg,
-  },
+  resultsTitle: { flex: 1 },
+  personalizedToggle: { flexDirection: "row", alignItems: "center" },
+  listContent: { paddingTop: Spacing.lg },
   loadingContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -873,63 +850,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: Spacing.lg,
   },
-  resultImage: {
-    width: 100,
-    height: 120,
-  },
-  resultInfo: {
-    flex: 1,
-    padding: Spacing.md,
-    justifyContent: "center",
-  },
-  resultHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  resultName: {
-    flex: 1,
-    marginRight: Spacing.sm,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tierBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  typeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  resultMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: Spacing.xs,
-  },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  locationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing["3xl"],
-  },
-  emptyTitle: {
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
+  resultImage: { width: 100, height: 120 },
+  resultInfo: { flex: 1, padding: Spacing.md, justifyContent: "center" },
+  resultHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  resultName: { flex: 1, marginRight: Spacing.sm },
+  headerRight: { flexDirection: "row", alignItems: "center" },
+  tierBadge: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  typeRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  resultMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: Spacing.xs },
+  ratingContainer: { flexDirection: "row", alignItems: "center" },
+  locationContainer: { flexDirection: "row", alignItems: "center" },
+  emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: Spacing["3xl"] },
+  emptyTitle: { marginTop: Spacing.lg, marginBottom: Spacing.sm },
   retryButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -949,10 +881,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     gap: 4,
   },
-  viewProfileText: {
-    color: "#000000",
-    fontWeight: "600",
-  },
+  viewProfileText: { color: "#000000", fontWeight: "600" },
   serviceCard: {
     flexDirection: "row",
     borderRadius: BorderRadius.md,
@@ -961,26 +890,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     alignItems: "center",
   },
-  serviceIconContainer: {
-    marginRight: Spacing.md,
-  },
-  serviceIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  serviceInfo: {
-    flex: 1,
-  },
-  serviceName: {
-    marginBottom: 2,
-  },
-  serviceRight: {
-    alignItems: "flex-end",
-    marginLeft: Spacing.md,
-  },
+  serviceIconContainer: { marginRight: Spacing.md },
+  serviceIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  serviceInfo: { flex: 1 },
+  serviceName: { marginBottom: 2 },
+  serviceRight: { alignItems: "flex-end", marginLeft: Spacing.md },
   bookButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -996,18 +910,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: Spacing.md,
   },
-  productImage: {
-    width: 100,
-    height: 120,
-  },
-  productInfo: {
-    flex: 1,
-    padding: Spacing.md,
-    justifyContent: "space-between",
-  },
-  productName: {
-    marginBottom: 4,
-  },
+  productImage: { width: 100, height: 120 },
+  productInfo: { flex: 1, padding: Spacing.md, justifyContent: "space-between" },
+  productName: { marginBottom: 4 },
   buyButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1017,19 +922,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     alignSelf: "flex-start",
   },
-  cityDiscoverySection: {
-    marginBottom: Spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  cityCardsRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    paddingRight: Spacing.md,
-  },
+  cityDiscoverySection: { marginBottom: Spacing.lg },
+  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.md },
+  cityCardsRow: { flexDirection: "row", gap: Spacing.sm, paddingRight: Spacing.md },
   cityCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1044,10 +939,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: Spacing.md,
   },
-  discoveryContext: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  discoveryContext: { flexDirection: "row", alignItems: "center" },
   clearCityButton: {
     flexDirection: "row",
     alignItems: "center",
