@@ -791,7 +791,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         "@outsyde_refresh_token",
         "@outsyde_favorites",
         "@outsyde_notifications",
-        "@outsyde_cart",
       ]);
       
       setUser(null);
