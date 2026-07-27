@@ -70,6 +70,7 @@ export type RootStackParamList = {
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
   StaffDashboard: undefined;
+  EditStaffProfile: undefined;
   InfluencerApplication: undefined;
   InfluencerDashboard: undefined;
   InfluencerOnboarding: undefined;

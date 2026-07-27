@@ -34,6 +34,7 @@ import AdminBusinessReviewScreen from "@/screens/AdminBusinessReviewScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import StaffDashboardScreen from "@/screens/StaffDashboardScreen";
+import EditStaffProfileScreen from "@/screens/EditStaffProfileScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
 import InfluencerDashboardScreen from "@/screens/InfluencerDashboardScreen";
 import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
@@ -547,6 +548,16 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="EditStaffProfile"
+        component={EditStaffProfileScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: false,
         }}
       />
 

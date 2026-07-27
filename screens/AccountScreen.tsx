@@ -1358,7 +1358,7 @@ export default function AccountScreen() {
       return;
     }
     if (profile.role === "staff") {
-      navigation.navigate("StaffDashboard");
+      navigation.navigate("EditStaffProfile");
       return;
     }
     (navigation as any).navigate("EditProfile");

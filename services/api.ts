@@ -2669,6 +2669,15 @@ class ApiService {
     });
   }
 
+  // PATCH /api/staff/me - Update the authenticated staff member's own profile.
+  async updateStaffMe(token: string, payload: Record<string, any>) {
+    return this.request('/api/staff/me', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+  }
+
   // GET /api/staff/my-bookings - Appointments assigned to the authenticated staff member.
   // businessId disambiguates for a user staffing 2+ businesses (same contract as getStaffMe).
   async getStaffMyBookings(authToken: string, businessId?: string): Promise<{ bookings: StaffBooking[] }> {
