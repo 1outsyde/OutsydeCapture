@@ -1041,6 +1041,8 @@ export interface UnifiedSearchItem {
   businessName?: string;
   price?: number;
   productImage?: string;
+  // vendor_products.is_featured / vendor_services.is_featured
+  is_featured?: boolean;
 }
 
 export interface UnifiedSearchResponse {
@@ -1256,6 +1258,7 @@ export interface UnifiedSearchResult {
   price?: number;
   priceFormatted?: string;
   productImage?: string;
+  isFeatured?: boolean;
 }
 
 class ApiService {
@@ -1822,6 +1825,7 @@ class ApiService {
           ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}`
           : undefined,
         productImage: isValidImageUrl(item.productImage) || undefined,
+        isFeatured: item.is_featured ?? false,
       };
     });
   }
