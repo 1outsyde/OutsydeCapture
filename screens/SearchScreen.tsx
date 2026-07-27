@@ -333,15 +333,9 @@ export default function SearchScreen() {
     ).slice(0, 6);
   }, [results]);
 
-  // Split filteredResults into entity cards and transaction (product/service) cards
-  const entityResults = useMemo(() =>
-    filteredResults.filter(r => r.resultType !== "product" && r.resultType !== "service"),
-    [filteredResults]
-  );
-  const transactionResults = useMemo(() =>
-    filteredResults.filter(r => r.resultType === "product" || r.resultType === "service"),
-    [filteredResults]
-  );
+  // Split filteredResults into left/right columns for unified masonry
+  const leftCol = filteredResults.filter((_, i) => i % 2 === 0);
+  const rightCol = filteredResults.filter((_, i) => i % 2 !== 0);
 
   const renderTab = (tab: typeof TABS[0]) => {
     const isActive = activeTab === tab.id;
@@ -379,11 +373,12 @@ export default function SearchScreen() {
     );
   };
 
-  const renderMasonryCard = (item: UnifiedSearchResult) => {
+  const renderCard = (item: UnifiedSearchResult) => {
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
-    const hasValidAvatar = isValidImageUrl(item.avatar);
-    const displayLabel = item.displayName || (item.username ? `@${item.username}` : null) || "Unknown";
+    const displayLabel = item.resultType === "product" || item.resultType === "service"
+      ? (item.name || "Unknown")
+      : (item.displayName || (item.username ? `@${item.username}` : null) || "Unknown");
     const typeColors: Record<string, string> = {
       photographer: "#E8B930",
       business: "#4ADE80",
@@ -392,6 +387,26 @@ export default function SearchScreen() {
       service: "#E8B930",
     };
     const accentColor = typeColors[item.resultType] || "#E8B930";
+
+    const imageUrl = item.resultType === "product"
+      ? (item.productImage || item.avatar)
+      : item.avatar;
+    const hasImage = isValidImageUrl(imageUrl);
+
+    const fallbackGradientColors: [string, string] =
+      item.resultType === "product"
+        ? ["#2C2A1B", "#141310"]
+        : item.resultType === "service"
+        ? ["#1B2530", "#0F1316"]
+        : ["#1C1C1E", "#0A0A0A"];
+
+    const fallbackIcon: keyof typeof Feather.glyphMap | null =
+      item.resultType === "product" ? "shopping-bag"
+      : item.resultType === "service" ? "scissors"
+      : null;
+
+    const priceDisplay = item.priceFormatted || item.priceRange ||
+      (item.price ? `$${((item.price) / 100).toFixed(0)}` : "");
 
     return (
       <Pressable
@@ -408,11 +423,11 @@ export default function SearchScreen() {
           },
         ]}
       >
-        <View style={{ height: 160, position: "relative" }}>
-          {hasValidAvatar ? (
+        <View style={{ height: 160, position: "relative", overflow: "hidden" }}>
+          {hasImage ? (
             <>
               <Image
-                source={{ uri: item.avatar }}
+                source={{ uri: imageUrl }}
                 style={{ width: "100%", height: 160 }}
                 contentFit="cover"
                 transition={200}
@@ -425,12 +440,26 @@ export default function SearchScreen() {
               />
             </>
           ) : (
-            <View style={{ flex: 1, backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }}>
-              <ThemedText style={{ color: "#E8B930", fontSize: 22, fontWeight: "700" }}>
-                {getInitials(displayLabel)}
-              </ThemedText>
-            </View>
+            <>
+              <LinearGradient
+                colors={fallbackGradientColors}
+                style={{ width: "100%", height: 160, alignItems: "center", justifyContent: "center" }}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <View style={{ position: "absolute", alignItems: "center", justifyContent: "center", width: "100%", height: 160 }}>
+                {fallbackIcon ? (
+                  <Feather name={fallbackIcon} size={32} color="#E8B930" />
+                ) : (
+                  <ThemedText style={{ color: "#E8B930", fontSize: 22, fontWeight: "700" }}>
+                    {getInitials(displayLabel)}
+                  </ThemedText>
+                )}
+              </View>
+            </>
           )}
+
+          {/* Bookmark — top right */}
           <Pressable
             onPress={() => handleSaveResult(item)}
             style={({ pressed }) => [{
@@ -448,6 +477,23 @@ export default function SearchScreen() {
           >
             <Feather name="bookmark" size={13} color={isSaved ? "#E8B930" : "#FFFFFF"} />
           </Pressable>
+
+          {/* Price badge — top left for products and services */}
+          {(item.resultType === "product" || item.resultType === "service") && priceDisplay ? (
+            <View style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              backgroundColor: "#E8B930",
+              paddingHorizontal: 7,
+              paddingVertical: 3,
+              borderRadius: 8,
+            }}>
+              <ThemedText style={{ color: "#0A0A0A", fontSize: 11, fontWeight: "700" }}>
+                {priceDisplay}
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
 
         <View style={{ padding: 10 }}>
@@ -472,7 +518,14 @@ export default function SearchScreen() {
             </View>
           </View>
 
-          {item.city && item.city !== "Unknown" && (
+          {/* Provider/business name for products and services */}
+          {(item.resultType === "product" || item.resultType === "service") && (item.providerName || item.businessName) ? (
+            <ThemedText numberOfLines={1} style={{ color: theme.textSecondary, fontSize: 11, marginTop: 3 }}>
+              by {item.providerName || item.businessName}
+            </ThemedText>
+          ) : null}
+
+          {item.city && item.city !== "Unknown" && item.resultType !== "product" && item.resultType !== "service" && (
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 5 }}>
               <Feather name="map-pin" size={10} color={theme.textSecondary} />
               <ThemedText numberOfLines={1} style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 3 }}>
@@ -489,6 +542,23 @@ export default function SearchScreen() {
               </ThemedText>
             </View>
           )}
+
+          {/* Action button for services and products */}
+          {item.resultType === "service" ? (
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+              <View style={{ backgroundColor: "#E8B930", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Feather name="calendar" size={10} color="#0A0A0A" />
+                <ThemedText style={{ color: "#0A0A0A", fontSize: 10, fontWeight: "700" }}>Book</ThemedText>
+              </View>
+            </View>
+          ) : item.resultType === "product" ? (
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+              <View style={{ backgroundColor: "#E8B930", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Feather name="shopping-bag" size={10} color="#0A0A0A" />
+                <ThemedText style={{ color: "#0A0A0A", fontSize: 10, fontWeight: "700" }}>View</ThemedText>
+              </View>
+            </View>
+          ) : null}
         </View>
       </Pressable>
     );
@@ -559,81 +629,6 @@ export default function SearchScreen() {
     );
   };
 
-  const renderServiceCard = (item: UnifiedSearchResult) => {
-    const priceDisplay = item.priceFormatted || item.priceRange ||
-      (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
-    return (
-      <Pressable
-        key={item.id}
-        onPress={() => handleCardPress(item)}
-        style={({ pressed }) => [
-          styles.serviceCard,
-          { backgroundColor: theme.backgroundDefault, borderColor: pressed ? "#E8B930" : theme.border, transform: [{ scale: pressed ? 0.98 : 1 }] },
-        ]}
-      >
-        <View style={styles.serviceIconContainer}>
-          <View style={[styles.serviceIcon, { backgroundColor: theme.backgroundSecondary }]}>
-            <Feather name="scissors" size={22} color="#E8B930" />
-          </View>
-        </View>
-        <View style={styles.serviceInfo}>
-          <ThemedText type="h4" numberOfLines={1} style={[styles.serviceName, { color: theme.text }]}>
-            {item.name || "Unnamed Service"}
-          </ThemedText>
-          {item.providerName && <ThemedText type="small" style={{ color: theme.textSecondary }}>by {item.providerName}</ThemedText>}
-          {item.description && (
-            <ThemedText type="caption" numberOfLines={2} style={{ color: theme.textSecondary, marginTop: 4, fontSize: 12 }}>
-              {item.description}
-            </ThemedText>
-          )}
-        </View>
-        <View style={styles.serviceRight}>
-          {priceDisplay ? <ThemedText type="h4" style={{ color: "#E8B930", fontWeight: "700" }}>{priceDisplay}</ThemedText> : null}
-          <View style={[styles.bookButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
-            <Feather name="calendar" size={13} color="#0A0A0A" />
-            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>Book</ThemedText>
-          </View>
-        </View>
-      </Pressable>
-    );
-  };
-
-  const renderProductCard = (item: UnifiedSearchResult) => {
-    const hasProductImage = isValidImageUrl(item.productImage || item.avatar);
-    const imageUrl = item.productImage || item.avatar;
-    const priceDisplay = item.priceFormatted || item.priceRange ||
-      (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
-    return (
-      <Pressable
-        key={item.id}
-        onPress={() => handleCardPress(item)}
-        style={({ pressed }) => [
-          styles.productCard,
-          { backgroundColor: theme.backgroundDefault, borderColor: pressed ? "#E8B930" : theme.border, transform: [{ scale: pressed ? 0.98 : 1 }] },
-        ]}
-      >
-        {hasProductImage ? (
-          <Image source={{ uri: imageUrl }} style={styles.productImage} contentFit="cover" transition={200} />
-        ) : (
-          <View style={[styles.productImage, { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }]}>
-            <Feather name="shopping-bag" size={28} color="#E8B930" />
-          </View>
-        )}
-        <View style={styles.productInfo}>
-          <ThemedText type="h4" numberOfLines={2} style={[styles.productName, { color: theme.text }]}>
-            {item.name || "Unnamed Product"}
-          </ThemedText>
-          {item.businessName && <ThemedText type="small" style={{ color: theme.textSecondary }}>by {item.businessName}</ThemedText>}
-          {priceDisplay ? <ThemedText type="h4" style={{ color: "#E8B930", fontWeight: "700", marginTop: 4 }}>{priceDisplay}</ThemedText> : null}
-          <View style={[styles.buyButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
-            <Feather name="shopping-bag" size={13} color="#0A0A0A" />
-            <ThemedText type="small" style={{ color: "#0A0A0A", fontWeight: "700", marginLeft: 4, fontSize: 12 }}>View</ThemedText>
-          </View>
-        </View>
-      </Pressable>
-    );
-  };
-
   const renderResultItem = () => null;
 
   const renderDropdown = () => {
@@ -665,9 +660,6 @@ export default function SearchScreen() {
       </View>
     );
   };
-
-  const leftColEntities = entityResults.filter((_, i) => i % 2 === 0);
-  const rightColEntities = entityResults.filter((_, i) => i % 2 !== 0);
 
   const ListHeader = () => (
     <View>
@@ -851,23 +843,14 @@ export default function SearchScreen() {
         </View>
       ) : null}
 
-      {/* Transaction (service/product) results — full width */}
-      {transactionResults.length > 0 ? (
-        <View style={styles.transactionSection}>
-          {transactionResults.map(item =>
-            item.resultType === "service" ? renderServiceCard(item) : renderProductCard(item)
-          )}
-        </View>
-      ) : null}
-
-      {/* Entity results — 2-column masonry */}
-      {entityResults.length > 0 ? (
+      {/* All results — unified 2-column masonry */}
+      {filteredResults.length > 0 ? (
         <View style={styles.masonryGrid}>
           <View style={{ flex: 1 }}>
-            {leftColEntities.map(item => renderMasonryCard(item))}
+            {leftCol.map(item => renderCard(item))}
           </View>
           <View style={{ flex: 1 }}>
-            {rightColEntities.map(item => renderMasonryCard(item))}
+            {rightCol.map(item => renderCard(item))}
           </View>
         </View>
       ) : null}
@@ -1080,46 +1063,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     marginTop: Spacing.lg,
   },
-  serviceCard: {
-    flexDirection: "row",
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    alignItems: "center",
-  },
-  serviceIconContainer: { marginRight: Spacing.md },
-  serviceIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  serviceInfo: { flex: 1 },
-  serviceName: { marginBottom: 2 },
-  serviceRight: { alignItems: "flex-end", marginLeft: Spacing.md },
-  bookButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.sm,
-  },
-  productCard: {
-    flexDirection: "row",
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: Spacing.md,
-  },
-  productImage: { width: 100, height: 120 },
-  productInfo: { flex: 1, padding: Spacing.md, justifyContent: "space-between" },
-  productName: { marginBottom: 4 },
-  buyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.sm,
-    alignSelf: "flex-start",
-  },
   cityDiscoverySection: { marginBottom: Spacing.lg },
   sectionHeader: { marginBottom: Spacing.md },
   cityCardsScroll: { marginHorizontal: -Spacing.xl },
@@ -1143,7 +1086,6 @@ const styles = StyleSheet.create({
   featuredSection: { marginBottom: Spacing.lg },
   featuredCardsScroll: { marginHorizontal: -Spacing.xl },
   featuredCardsRow: { flexDirection: "row", paddingHorizontal: Spacing.xl, paddingRight: Spacing.xl },
-  transactionSection: { marginBottom: Spacing.sm },
   masonryGrid: {
     flexDirection: "row",
     gap: 12,
