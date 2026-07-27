@@ -41,7 +41,7 @@ const VIEWABILITY_CONFIG = {
 
 function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
   const displayName = author.name || author.username || "Unknown";
-  const authorAvatar = author.avatarUrl || author.profileImageUrl || "";
+  const authorAvatar = author.profilePhotoUrl || author.avatarUrl || author.profileImageUrl || "";
   const userId = author.userId || author.id;
   const username = author.username;
 
