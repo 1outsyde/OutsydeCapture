@@ -281,8 +281,8 @@ export default function SearchScreen() {
         style={({ pressed }) => [
           styles.tab,
           {
-            backgroundColor: isActive ? "#E8B930" : "#111111",
-            borderColor: isActive ? "#E8B930" : "#1E1E1E",
+            backgroundColor: isActive ? "#E8B930" : theme.backgroundDefault,
+borderColor: isActive ? "#E8B930" : theme.border,
             opacity: pressed ? 0.8 : 1,
           },
         ]}
@@ -345,9 +345,9 @@ export default function SearchScreen() {
         style={({ pressed }) => [
           styles.resultCard,
           {
-            backgroundColor: "#111111",
-            borderWidth: 1,
-            borderColor: pressed ? "#E8B930" : "#1E1E1E",
+            backgroundColor: theme.backgroundDefault,
+borderWidth: 1,
+borderColor: pressed ? "#E8B930" : theme.border,
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
@@ -364,7 +364,7 @@ export default function SearchScreen() {
             style={[
               styles.resultImage,
               {
-                backgroundColor: "#1A3C34",
+               backgroundColor: theme.backgroundSecondary,
                 alignItems: "center",
                 justifyContent: "center",
               },
@@ -777,7 +777,7 @@ export default function SearchScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.searchContainer, { paddingTop: insets.top + Spacing.sm }]}>
-        <View style={styles.searchInputContainer}>
+        <View style={[styles.searchInputContainer, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
           <Feather name="search" size={20} color={theme.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
@@ -825,11 +825,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     height: 48,
     borderRadius: BorderRadius.full,
-    backgroundColor: "#111111",
-    borderWidth: 1,
-    borderColor: "#1E1E1E",
+  backgroundColor: "#111111",
+borderWidth: 1,
+borderColor: "#1E1E1E",
   },
-  searchInput: {
+  searchInput:
     flex: 1,
     marginLeft: Spacing.sm,
     fontSize: Typography.body.fontSize,
