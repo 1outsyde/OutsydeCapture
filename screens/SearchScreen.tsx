@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
@@ -85,6 +86,17 @@ const DISCOVERY_CITIES: CityData[] = [
   { city: "Dallas", state: "TX", displayName: "Dallas, TX" },
   { city: "Phoenix", state: "AZ", displayName: "Phoenix, AZ" },
 ];
+
+const CITY_GRADIENTS: Record<string, { colors: [string, string]; accentColor: string }> = {
+  "New York, NY": { colors: ["#2C2A1B", "#141310"], accentColor: "#E8B930" },
+  "Atlanta, GA": { colors: ["#1B2530", "#0F1316"], accentColor: "#4A9EE8" },
+  "Miami, FL": { colors: ["#2A1B24", "#120E12"], accentColor: "#E84A80" },
+  "Los Angeles, CA": { colors: ["#182A22", "#0E1512"], accentColor: "#4AE880" },
+  "Chicago, IL": { colors: ["#241E33", "#110E18"], accentColor: "#9B4AE8" },
+  "Houston, TX": { colors: ["#2A1E14", "#120E08"], accentColor: "#E87B4A" },
+  "Dallas, TX": { colors: ["#1A2028", "#0C0F14"], accentColor: "#4A7BE8" },
+  "Phoenix, AZ": { colors: ["#2A1A18", "#120B0A"], accentColor: "#E8634A" },
+};
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -313,6 +325,24 @@ export default function SearchScreen() {
   const showDropdown = isInputFocused && historySuggestions.length > 0;
   const showHistorySection = !searchQuery.trim() && !isInputFocused && searchHistory.length > 0;
 
+  // Featured items derived from results (products or services with isFeatured=true)
+  const featuredItems = useMemo(() => {
+    return results.filter(r =>
+      (r.resultType === "product" || r.resultType === "service") &&
+      r.isFeatured === true
+    ).slice(0, 6);
+  }, [results]);
+
+  // Split filteredResults into entity cards and transaction (product/service) cards
+  const entityResults = useMemo(() =>
+    filteredResults.filter(r => r.resultType !== "product" && r.resultType !== "service"),
+    [filteredResults]
+  );
+  const transactionResults = useMemo(() =>
+    filteredResults.filter(r => r.resultType === "product" || r.resultType === "service"),
+    [filteredResults]
+  );
+
   const renderTab = (tab: typeof TABS[0]) => {
     const isActive = activeTab === tab.id;
     const count = tabCounts[tab.id];
@@ -331,17 +361,17 @@ export default function SearchScreen() {
       >
         <Feather
           name={tab.icon as keyof typeof Feather.glyphMap}
-          size={16}
+          size={14}
           color={isActive ? "#0A0A0A" : theme.textSecondary}
         />
         <ThemedText
           type="body"
-          style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, marginLeft: Spacing.xs, fontWeight: isActive ? "600" : "400" }}
+          style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, marginLeft: 6, fontWeight: isActive ? "700" : "400", fontSize: 13 }}
         >
           {tab.label}
         </ThemedText>
-        <View style={[styles.countBadge, { backgroundColor: isActive ? "rgba(10,10,10,0.12)" : theme.backgroundSecondary }]}>
-          <ThemedText type="small" style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, fontWeight: "600" }}>
+        <View style={[styles.countBadge, { backgroundColor: isActive ? "rgba(10,10,10,0.15)" : theme.backgroundSecondary }]}>
+          <ThemedText type="small" style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, fontWeight: "600", fontSize: 11 }}>
             {count}
           </ThemedText>
         </View>
@@ -349,7 +379,7 @@ export default function SearchScreen() {
     );
   };
 
-  const renderEntityCard = (item: UnifiedSearchResult) => {
+  const renderMasonryCard = (item: UnifiedSearchResult) => {
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
     const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
     const hasValidAvatar = isValidImageUrl(item.avatar);
@@ -365,80 +395,165 @@ export default function SearchScreen() {
 
     return (
       <Pressable
+        key={item.id}
         onPress={() => handleCardPress(item)}
         style={({ pressed }) => [
-          styles.resultCard,
           {
             backgroundColor: theme.backgroundDefault,
+            borderRadius: 16,
             borderWidth: 1,
             borderColor: pressed ? "#E8B930" : theme.border,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
+            marginBottom: 12,
+            overflow: "hidden" as const,
           },
         ]}
       >
-        {hasValidAvatar ? (
-          <Image source={{ uri: item.avatar }} style={styles.resultImage} contentFit="cover" transition={200} />
-        ) : (
-          <View style={[styles.resultImage, { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }]}>
-            <ThemedText type="h2" style={{ color: "#E8B930", fontWeight: "700" }}>
-              {getInitials(displayLabel)}
-            </ThemedText>
-          </View>
-        )}
-        <View style={styles.resultInfo}>
-          <View style={styles.resultHeader}>
-            <View style={{ flex: 1 }}>
-              <ThemedText type="h4" numberOfLines={1} style={[styles.resultName, { color: theme.text }]}>
-                {displayLabel}
+        <View style={{ height: 160, position: "relative" }}>
+          {hasValidAvatar ? (
+            <>
+              <Image
+                source={{ uri: item.avatar }}
+                style={{ width: "100%", height: 160 }}
+                contentFit="cover"
+                transition={200}
+              />
+              <LinearGradient
+                colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.5)"]}
+                style={StyleSheet.absoluteFillObject}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+              />
+            </>
+          ) : (
+            <View style={{ flex: 1, backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" }}>
+              <ThemedText style={{ color: "#E8B930", fontSize: 22, fontWeight: "700" }}>
+                {getInitials(displayLabel)}
               </ThemedText>
-              {item.username && !displayLabel.startsWith("@") && (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>@{item.username}</ThemedText>
-              )}
             </View>
-            <Pressable onPress={() => handleSaveResult(item)} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, marginLeft: Spacing.sm }]}>
-              <Feather name="bookmark" size={16} color={isSaved ? "#E8B930" : theme.textSecondary} />
-            </Pressable>
-          </View>
+          )}
+          <Pressable
+            onPress={() => handleSaveResult(item)}
+            style={({ pressed }) => [{
+              position: "absolute" as const,
+              top: 8,
+              right: 8,
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: "rgba(0,0,0,0.4)",
+              alignItems: "center" as const,
+              justifyContent: "center" as const,
+              opacity: pressed ? 0.7 : 1,
+            }]}
+          >
+            <Feather name="bookmark" size={13} color={isSaved ? "#E8B930" : "#FFFFFF"} />
+          </Pressable>
+        </View>
 
-          <View style={[styles.typeRow, { marginTop: 4 }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: accentColor + "18", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, alignSelf: "flex-start" }}>
-              <Feather name={typeIcon} size={11} color={accentColor} />
-              <ThemedText type="small" style={{ color: accentColor, marginLeft: 4, fontSize: 11, fontWeight: "600" }}>
+        <View style={{ padding: 10 }}>
+          <ThemedText numberOfLines={1} style={{ color: theme.text, fontSize: 13, fontWeight: "700" }}>
+            {displayLabel}
+          </ThemedText>
+
+          <View style={{ flexDirection: "row", marginTop: 4 }}>
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: accentColor + "26",
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              borderRadius: 20,
+              alignSelf: "flex-start",
+            }}>
+              <Feather name={typeIcon} size={9} color={accentColor} />
+              <ThemedText style={{ color: accentColor, fontSize: 10, fontWeight: "600", marginLeft: 3 }}>
                 {RESULT_TYPE_LABELS[item.resultType]}
               </ThemedText>
-              {item.category && item.category !== item.resultType && (
-                <ThemedText type="small" style={{ color: accentColor + "AA", marginLeft: 4, fontSize: 11 }}>
-                  · {item.category}
-                </ThemedText>
-              )}
             </View>
           </View>
 
-          <View style={[styles.resultMeta, { marginTop: 6 }]}>
-            {item.rating > 0 && (
-              <View style={styles.ratingContainer}>
-                <Feather name="star" size={12} color="#E8B930" />
-                <ThemedText type="small" style={{ color: "#E8B930", marginLeft: 3, fontSize: 12 }}>
-                  {item.rating.toFixed(1)}
-                </ThemedText>
-              </View>
-            )}
-            {item.city && item.city !== "Unknown" && (
-              <View style={styles.locationContainer}>
-                <Feather name="map-pin" size={12} color={theme.textSecondary} />
-                <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: 3, fontSize: 12 }}>
-                  {item.city}{item.state ? `, ${item.state}` : ""}
-                </ThemedText>
-              </View>
-            )}
-          </View>
+          {item.city && item.city !== "Unknown" && (
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 5 }}>
+              <Feather name="map-pin" size={10} color={theme.textSecondary} />
+              <ThemedText numberOfLines={1} style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 3 }}>
+                {item.city}{item.state ? `, ${item.state}` : ""}
+              </ThemedText>
+            </View>
+          )}
 
-          <Pressable onPress={() => handleCardPress(item)} style={[styles.viewProfileButton, { backgroundColor: "#E8B930", marginTop: 8 }]}>
-            <Feather name="user" size={12} color="#0A0A0A" />
-            <ThemedText type="small" style={[styles.viewProfileText, { color: "#0A0A0A", fontSize: 12 }]}>
-              View Profile
+          {item.rating > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+              <Feather name="star" size={10} color="#E8B930" />
+              <ThemedText style={{ color: "#E8B930", fontSize: 11, marginLeft: 3, fontWeight: "600" }}>
+                {item.rating.toFixed(1)}
+              </ThemedText>
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  };
+
+  const renderSpotlightCard = (item: UnifiedSearchResult) => {
+    const imageUrl = item.productImage || item.avatar;
+    const hasImage = isValidImageUrl(imageUrl);
+    const label = item.resultType === "service" ? "Service" : "Featured";
+
+    return (
+      <Pressable
+        key={item.id}
+        onPress={() => handleCardPress(item)}
+        style={({ pressed }) => [{
+          width: 200,
+          height: 130,
+          borderRadius: 18,
+          overflow: "hidden" as const,
+          backgroundColor: theme.backgroundSecondary,
+          marginRight: 12,
+          opacity: pressed ? 0.85 : 1,
+        }]}
+      >
+        {hasImage ? (
+          <>
+            <Image
+              source={{ uri: imageUrl }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              transition={200}
+            />
+            <LinearGradient
+              colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.82)"]}
+              style={StyleSheet.absoluteFillObject}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+            />
+          </>
+        ) : (
+          <LinearGradient
+            colors={["#2C2A1B", "#141310"]}
+            style={StyleSheet.absoluteFillObject}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        )}
+
+        <View style={{ position: "absolute", top: 8, left: 8 }}>
+          <View style={{ backgroundColor: "#E8B930", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+            <ThemedText style={{ color: "#0A0A0A", fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              {label}
             </ThemedText>
-          </Pressable>
+          </View>
+        </View>
+
+        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 10 }}>
+          <ThemedText numberOfLines={1} style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "700" }}>
+            {item.name}
+          </ThemedText>
+          {(item.category || RESULT_TYPE_LABELS[item.resultType]) ? (
+            <ThemedText style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 2 }}>
+              {item.category || RESULT_TYPE_LABELS[item.resultType]}
+            </ThemedText>
+          ) : null}
         </View>
       </Pressable>
     );
@@ -449,6 +564,7 @@ export default function SearchScreen() {
       (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
     return (
       <Pressable
+        key={item.id}
         onPress={() => handleCardPress(item)}
         style={({ pressed }) => [
           styles.serviceCard,
@@ -489,6 +605,7 @@ export default function SearchScreen() {
       (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : "");
     return (
       <Pressable
+        key={item.id}
         onPress={() => handleCardPress(item)}
         style={({ pressed }) => [
           styles.productCard,
@@ -520,7 +637,7 @@ export default function SearchScreen() {
   const renderResultItem = ({ item }: { item: UnifiedSearchResult }) => {
     if (item.resultType === "service") return renderServiceCard(item);
     if (item.resultType === "product") return renderProductCard(item);
-    return renderEntityCard(item);
+    return null;
   };
 
   const renderDropdown = () => {
@@ -553,17 +670,33 @@ export default function SearchScreen() {
     );
   };
 
+  const leftColEntities = entityResults.filter((_, i) => i % 2 === 0);
+  const rightColEntities = entityResults.filter((_, i) => i % 2 !== 0);
+
   const ListHeader = () => (
     <View>
+      {/* Recent Searches history section */}
       {showHistorySection && (
         <View style={styles.historySection}>
           <View style={styles.historySectionHeader}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Feather name="clock" size={16} color={theme.primary} />
-              <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Recent Searches</ThemedText>
+              <Feather name="clock" size={13} color={theme.textSecondary} />
+              <ThemedText
+                type="small"
+                style={{
+                  marginLeft: 6,
+                  color: theme.textSecondary,
+                  fontSize: 11,
+                  fontWeight: "600",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.8,
+                }}
+              >
+                Recent Searches
+              </ThemedText>
             </View>
             <Pressable onPress={clearAllHistory} hitSlop={8}>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>Clear all</ThemedText>
+              <ThemedText type="caption" style={{ color: theme.textSecondary, fontSize: 12 }}>Clear all</ThemedText>
             </Pressable>
           </View>
           <View style={styles.historyChips}>
@@ -573,11 +706,11 @@ export default function SearchScreen() {
                 onPress={() => handleHistorySelect(item)}
                 style={({ pressed }) => [
                   styles.historyChip,
-                  { backgroundColor: pressed ? theme.backgroundSecondary : theme.backgroundDefault, borderColor: theme.border },
+                  { backgroundColor: pressed ? theme.backgroundSecondary : theme.backgroundSecondary, borderColor: theme.border },
                 ]}
               >
-                <Feather name="clock" size={12} color={theme.textSecondary} />
-                <ThemedText type="small" style={{ color: theme.text, marginLeft: 6, marginRight: 4 }}>{item}</ThemedText>
+                <Feather name="clock" size={11} color={theme.textSecondary} />
+                <ThemedText type="small" style={{ color: theme.text, marginLeft: 6, marginRight: 4, fontSize: 13 }}>{item}</ThemedText>
                 <Pressable onPress={(e) => { e.stopPropagation(); removeFromHistory(item); }} hitSlop={6}>
                   <Feather name="x" size={11} color={theme.textSecondary} />
                 </Pressable>
@@ -587,69 +720,116 @@ export default function SearchScreen() {
         </View>
       )}
 
+      {/* City Discovery Rail */}
       {!searchQuery.trim() && !activeCity ? (
         <View style={styles.cityDiscoverySection}>
           <View style={styles.sectionHeader}>
-            <Feather name="map-pin" size={18} color={theme.primary} />
-            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Discover by City</ThemedText>
+            <ThemedText style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>
+              📍  Discover by City
+            </ThemedText>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cityCardsRow}>
-            {DISCOVERY_CITIES.map((city) => (
-              <Pressable
-                key={city.displayName}
-                onPress={() => handleCitySelect(city)}
-                style={({ pressed }) => [
-                  styles.cityCard,
-                  { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <Feather name="map-pin" size={14} color={theme.primary} />
-                <ThemedText type="body" style={{ marginLeft: Spacing.xs, fontWeight: "500" }}>{city.displayName}</ThemedText>
-              </Pressable>
-            ))}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.cityCardsRow}
+            style={styles.cityCardsScroll}
+          >
+            {DISCOVERY_CITIES.map((city) => {
+              const gradient = CITY_GRADIENTS[city.displayName] ?? { colors: ["#1A1A1A", "#0A0A0A"] as [string, string], accentColor: "#E8B930" };
+              return (
+                <Pressable
+                  key={city.displayName}
+                  onPress={() => handleCitySelect(city)}
+                  style={({ pressed }) => [
+                    styles.cityCard,
+                    {
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                      opacity: pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={gradient.colors}
+                    style={StyleSheet.absoluteFillObject}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
+                  {/* Accent radial highlight overlay */}
+                  <View
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      {
+                        backgroundColor: gradient.accentColor,
+                        opacity: 0.1,
+                        borderRadius: 16,
+                      },
+                    ]}
+                  />
+                  <View style={{ flex: 1, justifyContent: "flex-end", padding: 10 }}>
+                    <ThemedText style={{ color: "#E8B930", fontSize: 10, marginBottom: 3 }}>●</ThemedText>
+                    <ThemedText style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }} numberOfLines={1}>
+                      {city.displayName}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
       ) : null}
 
+      {/* Active City Context Banner */}
       {activeCity ? (
-        <View style={styles.discoveryContextRow}>
-          <View style={styles.discoveryContext}>
-            <Feather name="map-pin" size={16} color={theme.primary} />
-            <ThemedText type="body" style={{ marginLeft: Spacing.sm, fontWeight: "600" }}>
-              Discovering in {activeCity.displayName}
-            </ThemedText>
-          </View>
+        <View
+          style={[
+            styles.activeCityBanner,
+            {
+              backgroundColor: "rgba(232,185,48,0.12)",
+              borderColor: "rgba(232,185,48,0.3)",
+            },
+          ]}
+        >
+          <Feather name="map-pin" size={15} color="#E8B930" />
+          <ThemedText
+            style={{ color: theme.text, fontWeight: "700", marginLeft: 8, flex: 1, fontSize: 14 }}
+          >
+            Discovering in {activeCity.displayName}
+          </ThemedText>
           <Pressable
             onPress={handleClearCity}
-            style={({ pressed }) => [styles.clearCityButton, { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.8 : 1 }]}
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, flexDirection: "row", alignItems: "center" }]}
+            hitSlop={8}
           >
-            <Feather name="x" size={14} color={theme.textSecondary} />
-            <ThemedText type="caption" style={{ marginLeft: 4, color: theme.textSecondary }}>Clear</ThemedText>
+            <Feather name="x" size={13} color={theme.textSecondary} />
+            <ThemedText style={{ color: theme.textSecondary, marginLeft: 4, fontSize: 13 }}>Clear</ThemedText>
           </Pressable>
         </View>
       ) : null}
 
+      {/* Filter Tabs */}
       <View style={styles.tabsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
           {TABS.map(renderTab)}
         </ScrollView>
       </View>
 
+      {/* Results Header Row */}
       <View style={styles.resultsHeaderRow}>
-        <ThemedText type="h4" style={styles.resultsTitle}>
+        <ThemedText style={{ color: theme.text, fontSize: 15, fontWeight: "700", flex: 1 }}>
           {filteredResults.length} {filteredResults.length === 1 ? "Result" : "Results"}
           {activeTab !== "all" ? ` in ${TABS.find(t => t.id === activeTab)?.label}` : ""}
         </ThemedText>
         {isAuthenticated ? (
           <View style={styles.personalizedToggle}>
-            <Feather name="sliders" size={14} color={isPersonalizedResults ? theme.primary : theme.textSecondary} />
-            <ThemedText type="caption" style={{ color: isPersonalizedResults ? theme.primary : theme.textSecondary, marginLeft: 4, marginRight: 8 }}>
+            <Feather name="sliders" size={14} color={isPersonalizedResults ? "#E8B930" : theme.textSecondary} />
+            <ThemedText type="caption" style={{ color: isPersonalizedResults ? "#E8B930" : theme.textSecondary, marginLeft: 4, marginRight: 8 }}>
               For You
             </ThemedText>
             <Switch
               value={personalized}
               onValueChange={setPersonalized}
-              trackColor={{ false: theme.border, true: theme.primary }}
+              trackColor={{ false: theme.border, true: "#E8B930" }}
               thumbColor="#FFFFFF"
               ios_backgroundColor={theme.border}
               style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
@@ -657,62 +837,113 @@ export default function SearchScreen() {
           </View>
         ) : null}
       </View>
-    </View>
-  );
 
-  const ListEmpty = () => {
-    if (isLoading) {
-      return (
+      {/* Featured Spotlight Rail */}
+      {featuredItems.length > 0 && !isLoading ? (
+        <View style={styles.featuredSection}>
+          <ThemedText style={{ color: theme.text, fontSize: 15, fontWeight: "700", marginBottom: 12 }}>
+            ✦ Featured this week
+          </ThemedText>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.featuredCardsRow}
+            style={styles.featuredCardsScroll}
+          >
+            {featuredItems.map(renderSpotlightCard)}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {/* Transaction (service/product) results — full width */}
+      {transactionResults.length > 0 ? (
+        <View style={styles.transactionSection}>
+          {transactionResults.map(item =>
+            item.resultType === "service" ? renderServiceCard(item) : renderProductCard(item)
+          )}
+        </View>
+      ) : null}
+
+      {/* Entity results — 2-column masonry */}
+      {entityResults.length > 0 ? (
+        <View style={styles.masonryGrid}>
+          <View style={{ flex: 1 }}>
+            {leftColEntities.map(item => renderMasonryCard(item))}
+          </View>
+          <View style={{ flex: 1 }}>
+            {rightColEntities.map(item => renderMasonryCard(item))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Empty / Error / Loading state */}
+      {!isLoading && filteredResults.length === 0 ? (
+        error ? (
+          <View style={styles.emptyState}>
+            <Feather name="alert-circle" size={44} color={theme.textSecondary} />
+            <ThemedText style={{ color: theme.text, fontSize: 17, fontWeight: "700", marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+              Connection Error
+            </ThemedText>
+            <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center", fontSize: 14 }}>{error}</ThemedText>
+            <Pressable
+              onPress={() => fetchSearchResults(searchQuery || undefined, activeTab, activeCity)}
+              style={({ pressed }) => [styles.retryButton, { backgroundColor: "#E8B930", opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Feather name="refresh-cw" size={16} color="#0A0A0A" />
+              <ThemedText type="body" style={{ color: "#0A0A0A", marginLeft: Spacing.sm, fontWeight: "700" }}>Try Again</ThemedText>
+            </Pressable>
+          </View>
+        ) : activeCity ? (
+          <View style={styles.emptyState}>
+            <Feather name="map-pin" size={44} color={theme.textSecondary} />
+            <ThemedText style={{ color: theme.text, fontSize: 17, fontWeight: "700", marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+              No discoverable users found
+            </ThemedText>
+            <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center", fontSize: 14 }}>
+              No discoverable users found in {activeCity.displayName} yet
+            </ThemedText>
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Feather name="search" size={44} color={theme.textSecondary} />
+            <ThemedText style={{ color: theme.text, fontSize: 17, fontWeight: "700", marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+              No results found
+            </ThemedText>
+            <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center", fontSize: 14 }}>
+              {searchQuery
+                ? `No ${activeTab === "all" ? "results" : activeTab + "s"} match "${searchQuery}"`
+                : `No ${activeTab === "all" ? "results" : activeTab + "s"} available`}
+            </ThemedText>
+          </View>
+        )
+      ) : null}
+
+      {/* Loading indicator */}
+      {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <ActivityIndicator size="large" color="#E8B930" />
           <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>Searching...</ThemedText>
         </View>
-      );
-    }
-    if (error) {
-      return (
-        <View style={styles.emptyState}>
-          <Feather name="alert-circle" size={48} color={theme.error} />
-          <ThemedText type="h4" style={styles.emptyTitle}>Connection Error</ThemedText>
-          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>{error}</ThemedText>
-          <Pressable
-            onPress={() => fetchSearchResults(searchQuery || undefined, activeTab, activeCity)}
-            style={({ pressed }) => [styles.retryButton, { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 }]}
-          >
-            <Feather name="refresh-cw" size={16} color="#FFFFFF" />
-            <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>Try Again</ThemedText>
-          </Pressable>
-        </View>
-      );
-    }
-    if (activeCity) {
-      return (
-        <View style={styles.emptyState}>
-          <Feather name="map-pin" size={48} color={theme.textSecondary} />
-          <ThemedText type="h4" style={styles.emptyTitle}>No discoverable users found</ThemedText>
-          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-            No discoverable users found in {activeCity.displayName} yet
-          </ThemedText>
-        </View>
-      );
-    }
-    return (
-      <View style={styles.emptyState}>
-        <Feather name="search" size={48} color={theme.textSecondary} />
-        <ThemedText type="h4" style={styles.emptyTitle}>No results found</ThemedText>
-        <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-          {searchQuery
-            ? `No ${activeTab === "all" ? "results" : activeTab + "s"} match "${searchQuery}"`
-            : `No ${activeTab === "all" ? "results" : activeTab + "s"} available`}
-        </ThemedText>
-      </View>
-    );
-  };
+      ) : null}
+    </View>
+  );
 
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.searchContainer, { paddingTop: insets.top + Spacing.sm }]}>
-        <View style={[styles.searchInputContainer, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.searchInputContainer,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+              shadowColor: "#000",
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 2,
+            },
+          ]}
+        >
           <Feather name="search" size={20} color={theme.textSecondary} />
           <TextInput
             ref={inputRef}
@@ -732,18 +963,17 @@ export default function SearchScreen() {
             </Pressable>
           ) : null}
           {isLoading && searchQuery ? (
-            <ActivityIndicator size="small" color={theme.primary} style={{ marginLeft: Spacing.sm }} />
+            <ActivityIndicator size="small" color="#E8B930" style={{ marginLeft: Spacing.sm }} />
           ) : null}
         </View>
         {renderDropdown()}
       </View>
 
       <ScreenFlatList
-        data={filteredResults}
+        data={[] as UnifiedSearchResult[]}
         renderItem={renderResultItem}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={ListHeader}
-        ListEmptyComponent={ListEmpty}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
@@ -762,9 +992,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    height: 48,
+    height: 50,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
   },
   searchInput: {
     flex: 1,
@@ -773,7 +1004,7 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     position: "absolute",
-    top: 56,
+    top: 58,
     left: 0,
     right: 0,
     borderRadius: BorderRadius.md,
@@ -810,7 +1041,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.xs + 2,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
@@ -819,13 +1050,14 @@ const styles = StyleSheet.create({
   tab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 14,
     paddingVertical: Spacing.sm,
+    height: 36,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
   countBadge: {
-    marginLeft: Spacing.xs,
+    marginLeft: 6,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
@@ -836,7 +1068,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.lg,
   },
-  resultsTitle: { flex: 1 },
   personalizedToggle: { flexDirection: "row", alignItems: "center" },
   listContent: { paddingTop: Spacing.lg },
   loadingContainer: {
@@ -844,24 +1075,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: Spacing["3xl"],
   },
-  resultCard: {
-    flexDirection: "row",
-    borderRadius: BorderRadius.md,
-    overflow: "hidden",
-    marginBottom: Spacing.lg,
-  },
-  resultImage: { width: 100, height: 120 },
-  resultInfo: { flex: 1, padding: Spacing.md, justifyContent: "center" },
-  resultHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  resultName: { flex: 1, marginRight: Spacing.sm },
-  headerRight: { flexDirection: "row", alignItems: "center" },
-  tierBadge: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  typeRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  resultMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: Spacing.xs },
-  ratingContainer: { flexDirection: "row", alignItems: "center" },
-  locationContainer: { flexDirection: "row", alignItems: "center" },
   emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: Spacing["3xl"] },
-  emptyTitle: { marginTop: Spacing.lg, marginBottom: Spacing.sm },
   retryButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -870,18 +1084,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     marginTop: Spacing.lg,
   },
-  viewProfileButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.sm,
-    alignSelf: "flex-start",
-    gap: 4,
-  },
-  viewProfileText: { color: "#000000", fontWeight: "600" },
   serviceCard: {
     flexDirection: "row",
     borderRadius: BorderRadius.md,
@@ -923,28 +1125,31 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   cityDiscoverySection: { marginBottom: Spacing.lg },
-  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.md },
-  cityCardsRow: { flexDirection: "row", gap: Spacing.sm, paddingRight: Spacing.md },
+  sectionHeader: { marginBottom: Spacing.md },
+  cityCardsScroll: { marginHorizontal: -Spacing.xl },
+  cityCardsRow: { flexDirection: "row", paddingHorizontal: Spacing.xl, paddingRight: Spacing.xl * 2 },
   cityCard: {
+    width: 110,
+    height: 68,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginRight: Spacing.sm,
+  },
+  activeCityBanner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
     borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
   },
-  discoveryContextRow: {
+  featuredSection: { marginBottom: Spacing.lg },
+  featuredCardsScroll: { marginHorizontal: -Spacing.xl },
+  featuredCardsRow: { flexDirection: "row", paddingHorizontal: Spacing.xl, paddingRight: Spacing.xl },
+  transactionSection: { marginBottom: Spacing.sm },
+  masonryGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  discoveryContext: { flexDirection: "row", alignItems: "center" },
-  clearCityButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
+    gap: 12,
   },
 });
