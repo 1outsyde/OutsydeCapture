@@ -634,11 +634,7 @@ export default function SearchScreen() {
     );
   };
 
-  const renderResultItem = ({ item }: { item: UnifiedSearchResult }) => {
-    if (item.resultType === "service") return renderServiceCard(item);
-    if (item.resultType === "product") return renderProductCard(item);
-    return null;
-  };
+  const renderResultItem = () => null;
 
   const renderDropdown = () => {
     if (!showDropdown) return null;
