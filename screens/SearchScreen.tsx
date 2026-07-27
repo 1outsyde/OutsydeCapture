@@ -195,11 +195,8 @@ export default function SearchScreen() {
         description: item.description,
         priceCents: item.price ?? 0,
         imageUrl: item.productImage || item.avatar,
-        // inventory intentionally omitted — not present on search results;
-        // ProductDetailScreen treats undefined as untracked/uncapped
       });
     } else if (item.resultType === "service") {
-      // Navigate directly to booking flow with service preselected
       const providerId = item.providerId || item.userId;
       if (item.providerType === "photographer" && providerId) {
         navigation.navigate("Booking", { 
@@ -207,13 +204,11 @@ export default function SearchScreen() {
           preselectedServiceId: item.id,
         });
       } else if (item.businessId) {
-        // Business service - go to business detail with services tab
         navigation.navigate("VendorDetail", { 
           vendorId: item.businessId,
           initialTab: "services",
         });
       } else {
-        // Fallback to VendorDetail
         navigation.navigate("VendorDetail", { 
           vendorId: providerId || item.id,
           initialTab: "services",
@@ -234,8 +229,6 @@ export default function SearchScreen() {
           staffId: item.id,
         });
       } else {
-        // Shouldn't happen — a staff result always carries its businessId —
-        // but fall back rather than navigate with a missing param.
         navigation.navigate("UserProfile", { userId: item.userId || item.id, userType: "consumer" });
       }
     } else {
@@ -282,7 +275,7 @@ export default function SearchScreen() {
           styles.tab,
           {
             backgroundColor: isActive ? "#E8B930" : theme.backgroundDefault,
-borderColor: isActive ? "#E8B930" : theme.border,
+            borderColor: isActive ? "#E8B930" : theme.border,
             opacity: pressed ? 0.8 : 1,
           },
         ]}
@@ -290,12 +283,12 @@ borderColor: isActive ? "#E8B930" : theme.border,
         <Feather
           name={tab.icon as keyof typeof Feather.glyphMap}
           size={16}
-          color={isActive ? "#0A0A0A" : "#888888"}
+          color={isActive ? "#0A0A0A" : theme.textSecondary}
         />
         <ThemedText
           type="body"
           style={{
-            color: isActive ? "#0A0A0A" : "#888888",
+            color: isActive ? "#0A0A0A" : theme.textSecondary,
             marginLeft: Spacing.xs,
             fontWeight: isActive ? "600" : "400",
           }}
@@ -305,12 +298,12 @@ borderColor: isActive ? "#E8B930" : theme.border,
         <View
           style={[
             styles.countBadge,
-            { backgroundColor: isActive ? "rgba(10,10,10,0.12)" : "#1A1A1A" },
+            { backgroundColor: isActive ? "rgba(10,10,10,0.12)" : theme.backgroundSecondary },
           ]}
         >
           <ThemedText
             type="small"
-            style={{ color: isActive ? "#0A0A0A" : "#888888", fontWeight: "600" }}
+            style={{ color: isActive ? "#0A0A0A" : theme.textSecondary, fontWeight: "600" }}
           >
             {count}
           </ThemedText>
@@ -346,8 +339,8 @@ borderColor: isActive ? "#E8B930" : theme.border,
           styles.resultCard,
           {
             backgroundColor: theme.backgroundDefault,
-borderWidth: 1,
-borderColor: pressed ? "#E8B930" : theme.border,
+            borderWidth: 1,
+            borderColor: pressed ? "#E8B930" : theme.border,
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
@@ -364,7 +357,7 @@ borderColor: pressed ? "#E8B930" : theme.border,
             style={[
               styles.resultImage,
               {
-               backgroundColor: theme.backgroundSecondary,
+                backgroundColor: theme.backgroundSecondary,
                 alignItems: "center",
                 justifyContent: "center",
               },
@@ -378,11 +371,11 @@ borderColor: pressed ? "#E8B930" : theme.border,
         <View style={styles.resultInfo}>
           <View style={styles.resultHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText type="h4" numberOfLines={1} style={[styles.resultName, { color: "#F5F0E6" }]}>
+              <ThemedText type="h4" numberOfLines={1} style={[styles.resultName, { color: theme.text }]}>
                 {displayLabel}
               </ThemedText>
               {item.username && !displayLabel.startsWith("@") && (
-                <ThemedText type="small" style={{ color: "#666666" }}>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
                   @{item.username}
                 </ThemedText>
               )}
@@ -394,7 +387,7 @@ borderColor: pressed ? "#E8B930" : theme.border,
               <Feather
                 name="bookmark"
                 size={16}
-                color={isSaved ? "#E8B930" : "#444444"}
+                color={isSaved ? "#E8B930" : theme.textSecondary}
               />
             </Pressable>
           </View>
@@ -440,8 +433,8 @@ borderColor: pressed ? "#E8B930" : theme.border,
             )}
             {item.city && item.city !== "Unknown" && (
               <View style={styles.locationContainer}>
-                <Feather name="map-pin" size={12} color="#555555" />
-                <ThemedText type="caption" style={{ color: "#666666", marginLeft: 3, fontSize: 12 }}>
+                <Feather name="map-pin" size={12} color={theme.textSecondary} />
+                <ThemedText type="caption" style={{ color: theme.textSecondary, marginLeft: 3, fontSize: 12 }}>
                   {item.city}{item.state ? `, ${item.state}` : ""}
                 </ThemedText>
               </View>
@@ -475,8 +468,8 @@ borderColor: pressed ? "#E8B930" : theme.border,
         style={({ pressed }) => [
           styles.serviceCard,
           {
-            backgroundColor: "#111111",
-            borderColor: pressed ? "#E8B930" : "#1E1E1E",
+            backgroundColor: theme.backgroundDefault,
+            borderColor: pressed ? "#E8B930" : theme.border,
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
@@ -485,18 +478,18 @@ borderColor: pressed ? "#E8B930" : theme.border,
           <View
             style={[
               styles.serviceIcon,
-              { backgroundColor: "#1A3C34" },
+              { backgroundColor: theme.backgroundSecondary },
             ]}
           >
             <Feather name="scissors" size={22} color="#E8B930" />
           </View>
         </View>
         <View style={styles.serviceInfo}>
-          <ThemedText type="h4" numberOfLines={1} style={[styles.serviceName, { color: "#F5F0E6" }]}>
+          <ThemedText type="h4" numberOfLines={1} style={[styles.serviceName, { color: theme.text }]}>
             {item.name || "Unnamed Service"}
           </ThemedText>
           {item.providerName && (
-            <ThemedText type="small" style={{ color: "#666666" }}>
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
               by {item.providerName}
             </ThemedText>
           )}
@@ -504,7 +497,7 @@ borderColor: pressed ? "#E8B930" : theme.border,
             <ThemedText
               type="caption"
               numberOfLines={2}
-              style={{ color: "#555555", marginTop: 4, fontSize: 12 }}
+              style={{ color: theme.textSecondary, marginTop: 4, fontSize: 12 }}
             >
               {item.description}
             </ThemedText>
@@ -539,8 +532,8 @@ borderColor: pressed ? "#E8B930" : theme.border,
         style={({ pressed }) => [
           styles.productCard,
           {
-            backgroundColor: "#111111",
-            borderColor: pressed ? "#E8B930" : "#1E1E1E",
+            backgroundColor: theme.backgroundDefault,
+            borderColor: pressed ? "#E8B930" : theme.border,
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
@@ -556,18 +549,18 @@ borderColor: pressed ? "#E8B930" : theme.border,
           <View
             style={[
               styles.productImage,
-              { backgroundColor: "#1A3C34", alignItems: "center", justifyContent: "center" },
+              { backgroundColor: theme.backgroundSecondary, alignItems: "center", justifyContent: "center" },
             ]}
           >
             <Feather name="shopping-bag" size={28} color="#E8B930" />
           </View>
         )}
         <View style={styles.productInfo}>
-          <ThemedText type="h4" numberOfLines={2} style={[styles.productName, { color: "#F5F0E6" }]}>
+          <ThemedText type="h4" numberOfLines={2} style={[styles.productName, { color: theme.text }]}>
             {item.name || "Unnamed Product"}
           </ThemedText>
           {item.businessName && (
-            <ThemedText type="small" style={{ color: "#666666" }}>
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
               by {item.businessName}
             </ThemedText>
           )}
@@ -825,11 +818,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     height: 48,
     borderRadius: BorderRadius.full,
-  backgroundColor: "#111111",
-borderWidth: 1,
-borderColor: "#1E1E1E",
+    borderWidth: 1,
   },
-  searchInput:
+  searchInput: {
     flex: 1,
     marginLeft: Spacing.sm,
     fontSize: Typography.body.fontSize,
