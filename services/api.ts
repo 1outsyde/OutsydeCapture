@@ -218,6 +218,8 @@ export interface ApiPost {
     username?: string;
     profilePhotoUrl?: string | null;
     profileImageUrl?: string | null;
+    logoImage?: string | null;
+    avatarUrl?: string | null;
     businessId?: string;
     photographerId?: string;
     displayName?: string;

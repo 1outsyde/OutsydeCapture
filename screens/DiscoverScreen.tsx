@@ -104,7 +104,13 @@ export default function DiscoverScreen() {
     const displayName =
       apiPost.author?.displayName || apiPost.author?.name || "Unknown";
     const authorAvatar =
-      apiPost.author?.profilePhotoUrl || apiPost.author?.profileImageUrl || "";
+      apiPost.author?.profilePhotoUrl ||
+      apiPost.author?.logoImage ||
+      apiPost.author?.avatarUrl ||
+      apiPost.author?.profileImageUrl ||
+      (apiPost as any).authorAvatar ||
+      (apiPost as any).authorProfilePhoto ||
+      "";
     const userId =
       apiPost.userId || apiPost.author?.userId || apiPost.author?.id;
     const username = apiPost.author?.username;
