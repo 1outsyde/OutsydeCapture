@@ -51,6 +51,19 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
+// Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
+const DASHBOARD_COLORS = {
+  background: "#080C08",
+  surface: "rgba(255,255,255,0.04)",
+  cardBorder: "rgba(255,255,255,0.08)",
+  greenBright: "#2D7A2D",
+  greenAccent: "#3A9E3A",
+  gold: "#C9933A",
+  goldLight: "#E8B86D",
+  cream: "#F0EAD6",
+  creamDim: "rgba(200,191,168,0.6)",
+};
+
 const SPECIALTIES = [
   "Portraits", "Weddings", "Events", "Products",
   "Fashion", "Real Estate", "Concerts", "Sports",
@@ -203,15 +216,12 @@ export default function PhotographerDashboardScreen() {
       // Store raw response for accurate comparison in handleSaveProfile
       setRawPhotographer(photographer);
       
-      setStats({
-        earnings: photographer.totalEarnings || 0,
-        upcomingBookings: 0,
-        unreadMessages: 0,
+      setStats((prev) => ({
+        ...prev,
         rating: photographer.rating || 0,
         reviewCount: photographer.reviewCount || 0,
-        profileViews: 0,
         completedShoots: photographer.completedShoots || 0,
-      });
+      }));
       
       // Parse brandColors — new shape { type, id }
       const parsedBrandColors = parseBrandColorSpec(photographer.brandColors);
@@ -268,7 +278,7 @@ export default function PhotographerDashboardScreen() {
 
       try {
         const { bookings: bookingsData } = await api.getPhotographerMeBookings(token);
-        setBookings(bookingsData.map((b: any) => ({
+        const mappedBookings = bookingsData.map((b: any) => ({
           id: b.id,
           clientName: b.customerName || b.clientName || "Client",
           clientAvatar: b.customerAvatar || b.clientAvatar,
@@ -282,7 +292,29 @@ export default function PhotographerDashboardScreen() {
           vendorNetAmount: b.vendorNetAmount ?? undefined,
           influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
           isInfluencerAttributed: b.isInfluencerAttributed ?? false,
-        })));
+        }));
+        setBookings(mappedBookings);
+
+        // Derive all stats from real booking data — never rely on totalEarnings from profile
+        const confirmedOrCompleted = mappedBookings.filter(
+          (b) => b.status === "confirmed" || b.status === "completed",
+        );
+        const totalEarnings = confirmedOrCompleted.reduce(
+          (sum, b) => sum + (b.vendorNetAmount ?? b.amount ?? 0),
+          0,
+        );
+        const activeBookingCount = mappedBookings.filter(
+          (b) => b.status !== "cancelled" && b.status !== "declined",
+        ).length;
+
+        setStats((prev) => ({
+          ...prev,
+          earnings: totalEarnings,
+          upcomingBookings: activeBookingCount,
+          completedShoots: confirmedOrCompleted.length,
+          rating: photographer.rating || prev.rating,
+          reviewCount: photographer.reviewCount || prev.reviewCount,
+        }));
       } catch {
         setBookings([]);
       }
@@ -1180,64 +1212,63 @@ export default function PhotographerDashboardScreen() {
   const statusColor = allSetupComplete ? "#34C759" : "#FF9500";
 
   const styles = StyleSheet.create({
+    // ── Layout ────────────────────────────────────────────────────────────
     container: {
       flex: 1,
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: DASHBOARD_COLORS.background,
     },
     scrollContent: {
       paddingBottom: insets.bottom + 24,
     },
+
+    // ── Header ────────────────────────────────────────────────────────────
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingTop: insets.top + 16,
-      paddingBottom: 20,
+      paddingHorizontal: 16,
+      paddingTop: insets.top + 12,
+      paddingBottom: 12,
     },
-    headerLeft: {
-      flex: 1,
-    },
+    headerLeft: { flex: 1 },
     headerTitle: {
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: "700",
-      color: theme.text,
-      letterSpacing: -0.5,
+      color: DASHBOARD_COLORS.cream,
+      letterSpacing: -0.3,
     },
     headerRow: {
       flexDirection: "row",
       alignItems: "center",
-      marginTop: 6,
+      marginTop: 4,
     },
     statusPill: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: statusColor + "20",
+      backgroundColor: "rgba(52,199,89,0.15)",
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 12,
+      alignSelf: "flex-start",
     },
     statusDot: {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: statusColor,
+      backgroundColor: "#34C759",
       marginRight: 6,
     },
     statusText: {
       fontSize: 12,
       fontWeight: "600",
-      color: statusColor,
+      color: "#34C759",
     },
-    backButton: {
-      padding: 8,
-      marginRight: 8,
-    },
-    logoutButton: {
-      padding: 8,
-    },
+    backButton: { padding: 8, marginRight: 8 },
+    logoutButton: { padding: 8 },
+
+    // ── Section headers (gold accent bar — matches Business/Staff) ─────────
     section: {
-      paddingHorizontal: 20,
+      paddingHorizontal: 16,
       marginBottom: 24,
     },
     sectionHeader: {
@@ -1246,32 +1277,52 @@ export default function PhotographerDashboardScreen() {
       justifyContent: "space-between",
       marginBottom: 12,
     },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+      gap: 8,
+    },
+    sectionHeaderAccent: {
+      width: 4,
+      height: 14,
+      borderRadius: 2,
+      backgroundColor: DASHBOARD_COLORS.gold,
+    },
+    sectionHeaderText: {
+      fontSize: 14,
+      letterSpacing: 1.5,
+      fontWeight: "700",
+      color: DASHBOARD_COLORS.cream,
+    },
     sectionTitle: {
       fontSize: 17,
       fontWeight: "600",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
       letterSpacing: -0.3,
     },
     sectionSubtitle: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
+
+    // ── Stripe card (matches Business) ────────────────────────────────────
     setupCard: {
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: "rgba(201,147,58,0.08)",
       borderRadius: 16,
       padding: 20,
+      borderLeftWidth: 3,
+      borderLeftColor: DASHBOARD_COLORS.gold,
     },
     setupItem: {
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 14,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border + "40",
+      borderBottomColor: "rgba(255,255,255,0.06)",
     },
-    setupItemLast: {
-      borderBottomWidth: 0,
-    },
+    setupItemLast: { borderBottomWidth: 0 },
     setupIcon: {
       width: 24,
       height: 24,
@@ -1280,32 +1331,47 @@ export default function PhotographerDashboardScreen() {
       justifyContent: "center",
       marginRight: 14,
     },
-    setupIconComplete: {
-      backgroundColor: "#34C75920",
-    },
+    setupIconComplete: { backgroundColor: "rgba(52,199,89,0.15)" },
     setupIconIncomplete: {
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: "rgba(255,255,255,0.06)",
       borderWidth: 2,
-      borderColor: theme.border,
+      borderColor: "rgba(255,255,255,0.12)",
     },
     setupLabel: {
       flex: 1,
       fontSize: 15,
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
     },
-    setupLabelComplete: {
-      color: theme.textSecondary,
-    },
+    setupLabelComplete: { color: DASHBOARD_COLORS.creamDim },
+
+    // ── Stats grid (matches Business/Staff) ───────────────────────────────
     statsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 12,
     },
+    statsRow: {
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      gap: 10,
+    },
+    statsRowTop: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 10,
+    },
+    statsRowBottom: {
+      flexDirection: "row",
+      gap: 10,
+    },
     statCard: {
-      width: "48%",
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 14,
+      flex: 1,
+      backgroundColor: "#111411",
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
+      borderRadius: 16,
       padding: 16,
+      alignItems: "flex-start",
     },
     statHeader: {
       flexDirection: "row",
@@ -1313,126 +1379,133 @@ export default function PhotographerDashboardScreen() {
       marginBottom: 10,
     },
     statIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 10,
+      marginBottom: 6,
+      backgroundColor: "rgba(201,147,58,0.15)",
     },
     statLabel: {
-      fontSize: 13,
-      color: theme.textSecondary,
+      fontSize: 11,
+      color: DASHBOARD_COLORS.creamDim,
+      marginTop: 2,
+      textAlign: "left",
     },
     statValue: {
-      fontSize: 26,
+      fontSize: 24,
       fontWeight: "700",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
       letterSpacing: -0.5,
     },
+
+    // ── Profile card ──────────────────────────────────────────────────────
     profileCard: {
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
       borderRadius: 16,
-      padding: 20,
+      padding: 16,
     },
-    profileHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
+    profileHeader: { flexDirection: "row", alignItems: "center" },
     profileAvatar: {
       width: 64,
       height: 64,
       borderRadius: 32,
-      backgroundColor: theme.primary,
+      backgroundColor: DASHBOARD_COLORS.gold,
       alignItems: "center",
       justifyContent: "center",
       marginRight: 16,
     },
-    profileAvatarImage: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-    },
+    profileAvatarImage: { width: 64, height: 64, borderRadius: 32 },
     profileAvatarText: {
       fontSize: 24,
       fontWeight: "600",
-      color: "#FFFFFF",
+      color: DASHBOARD_COLORS.background,
     },
-    profileInfo: {
-      flex: 1,
-    },
+    profileInfo: { flex: 1 },
     profileName: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
     },
     profileRate: {
       fontSize: 14,
-      color: theme.primary,
+      color: DASHBOARD_COLORS.gold,
       fontWeight: "500",
       marginTop: 2,
     },
     profileLocation: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
     profileBio: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       lineHeight: 20,
       marginTop: 16,
       paddingTop: 16,
       borderTopWidth: 1,
-      borderTopColor: theme.border + "40",
+      borderTopColor: "rgba(255,255,255,0.06)",
     },
     editButton: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.primary,
+      backgroundColor: DASHBOARD_COLORS.gold,
       paddingVertical: 14,
       borderRadius: 12,
-      marginTop: 20,
+      marginTop: 16,
     },
     editButtonText: {
       fontSize: 15,
-      fontWeight: "600",
-      color: "#FFFFFF",
+      fontWeight: "700",
+      color: DASHBOARD_COLORS.background,
       marginLeft: 8,
     },
+
+    // ── Quick actions (2×2 grid — matches Staff) ──────────────────────────
     quickActionsRow: {
       flexDirection: "row",
       gap: 12,
     },
     quickActionCard: {
       flex: 1,
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 14,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
+      borderRadius: 16,
       padding: 16,
       alignItems: "center",
     },
     quickActionIcon: {
       width: 44,
       height: 44,
-      borderRadius: 14,
+      borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 10,
+      backgroundColor: "rgba(201,147,58,0.15)",
     },
     quickActionLabel: {
       fontSize: 13,
       fontWeight: "500",
-      color: theme.text,
+      color: DASHBOARD_COLORS.cream,
       textAlign: "center",
     },
     quickActionCount: {
       fontSize: 11,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
     },
+
+    // ── Empty state ────────────────────────────────────────────────────────
     emptyCard: {
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
       borderRadius: 14,
       padding: 24,
       alignItems: "center",
@@ -1441,16 +1514,173 @@ export default function PhotographerDashboardScreen() {
       width: 48,
       height: 48,
       borderRadius: 24,
-      backgroundColor: theme.backgroundSecondary,
+      backgroundColor: "rgba(201,147,58,0.1)",
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 12,
     },
     emptyText: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: DASHBOARD_COLORS.creamDim,
       textAlign: "center",
     },
+
+    // ── Booking cards (inside modal) ───────────────────────────────────────
+    bookingCard: {
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderWidth: 1,
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 12,
+    },
+    bookingHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    bookingAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "rgba(201,147,58,0.2)",
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+    bookingAvatarText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: DASHBOARD_COLORS.gold,
+    },
+    bookingInfo: { flex: 1 },
+    bookingClient: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: DASHBOARD_COLORS.cream,
+    },
+    bookingService: {
+      fontSize: 13,
+      color: DASHBOARD_COLORS.creamDim,
+      marginTop: 2,
+    },
+    bookingAmount: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: DASHBOARD_COLORS.gold,
+    },
+    bookingDetails: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255,255,255,0.06)",
+    },
+    bookingDate: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginRight: 16,
+    },
+    bookingDateText: {
+      fontSize: 13,
+      color: DASHBOARD_COLORS.creamDim,
+      marginLeft: 6,
+    },
+    bookingActions: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 12,
+    },
+    bookingActionButton: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    bookingConfirmButton: { backgroundColor: "#34C759" },
+    bookingDeclineButton: { backgroundColor: "rgba(255,255,255,0.08)" },
+    bookingActionText: {
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    bookingStatusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    bookingStatusText: {
+      fontSize: 12,
+      fontWeight: "600",
+      textTransform: "capitalize",
+    },
+
+    // ── Error screen ───────────────────────────────────────────────────────
+    errorContainer: {
+      flex: 1,
+      backgroundColor: DASHBOARD_COLORS.background,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    errorContent: {
+      alignItems: "center",
+      paddingHorizontal: 32,
+      maxWidth: 320,
+    },
+    errorIconContainer: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      backgroundColor: "rgba(201,147,58,0.1)",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 24,
+    },
+    errorTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: DASHBOARD_COLORS.cream,
+      textAlign: "center",
+      marginBottom: 8,
+    },
+    errorMessage: {
+      fontSize: 15,
+      color: DASHBOARD_COLORS.creamDim,
+      textAlign: "center",
+      lineHeight: 22,
+      marginBottom: 32,
+    },
+    errorActions: { flexDirection: "row", gap: 12 },
+    errorButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: DASHBOARD_COLORS.gold,
+    },
+    errorButtonText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: DASHBOARD_COLORS.background,
+    },
+    errorButtonOutline: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+    },
+    errorButtonOutlineText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: DASHBOARD_COLORS.cream,
+    },
+
+    // ── Modal shells (internal content keeps theme — only outer shell changes) ──
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.6)",
@@ -1477,15 +1707,11 @@ export default function PhotographerDashboardScreen() {
       fontWeight: "600",
       color: theme.brandCream,
     },
-    modalCloseButton: {
-      padding: 4,
-    },
-    modalScroll: {
-      padding: 20,
-    },
-    formGroup: {
-      marginBottom: 20,
-    },
+    modalCloseButton: { padding: 4 },
+    modalScroll: { padding: 20 },
+
+    // ── Form fields (modal-internal — keep theme tokens) ──────────────────
+    formGroup: { marginBottom: 20 },
     formLabel: {
       fontSize: 13,
       fontWeight: "500",
@@ -1502,22 +1728,10 @@ export default function PhotographerDashboardScreen() {
       fontSize: 16,
       color: theme.brandCream,
     },
-    formTextarea: {
-      minHeight: 100,
-      textAlignVertical: "top",
-    },
-    formRow: {
-      flexDirection: "row",
-      gap: 12,
-    },
-    formHalf: {
-      flex: 1,
-    },
-    specialtiesGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
-    },
+    formTextarea: { minHeight: 100, textAlignVertical: "top" },
+    formRow: { flexDirection: "row", gap: 12 },
+    formHalf: { flex: 1 },
+    specialtiesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
     specialtyChip: {
       paddingHorizontal: 14,
       paddingVertical: 10,
@@ -1530,165 +1744,8 @@ export default function PhotographerDashboardScreen() {
       backgroundColor: theme.brandGold + "20",
       borderColor: theme.brandGold,
     },
-    specialtyChipText: {
-      fontSize: 14,
-      color: theme.brandTextDim,
-    },
-    specialtyChipTextActive: {
-      color: theme.brandGold,
-      fontWeight: "500",
-    },
-    bookingCard: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 14,
-      padding: 16,
-      marginBottom: 12,
-    },
-    bookingHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    bookingAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.primary + "30",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 12,
-    },
-    bookingAvatarText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.primary,
-    },
-    bookingInfo: {
-      flex: 1,
-    },
-    bookingClient: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    bookingService: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      marginTop: 2,
-    },
-    bookingAmount: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.primary,
-    },
-    bookingDetails: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: theme.border + "30",
-    },
-    bookingDate: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginRight: 16,
-    },
-    bookingDateText: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      marginLeft: 6,
-    },
-    bookingActions: {
-      flexDirection: "row",
-      gap: 10,
-      marginTop: 12,
-    },
-    bookingActionButton: {
-      flex: 1,
-      paddingVertical: 10,
-      borderRadius: 8,
-      alignItems: "center",
-    },
-    bookingConfirmButton: {
-      backgroundColor: "#34C759",
-    },
-    bookingDeclineButton: {
-      backgroundColor: theme.backgroundSecondary,
-    },
-    bookingActionText: {
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    bookingStatusBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    bookingStatusText: {
-      fontSize: 12,
-      fontWeight: "600",
-      textTransform: "capitalize",
-    },
-    // Error screen styles
-    errorContainer: {
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    errorContent: {
-      alignItems: "center",
-      paddingHorizontal: 32,
-      maxWidth: 320,
-    },
-    errorIconContainer: {
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 24,
-    },
-    errorTitle: {
-      fontSize: 20,
-      fontWeight: "700",
-      textAlign: "center",
-      marginBottom: 8,
-    },
-    errorMessage: {
-      fontSize: 15,
-      textAlign: "center",
-      lineHeight: 22,
-      marginBottom: 32,
-    },
-    errorActions: {
-      flexDirection: "row",
-      gap: 12,
-    },
-    errorButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 12,
-    },
-    errorButtonText: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: "#000",
-    },
-    errorButtonOutline: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 12,
-      borderWidth: 1,
-    },
-    errorButtonOutlineText: {
-      fontSize: 15,
-      fontWeight: "600",
-    },
+    specialtyChipText: { fontSize: 14, color: theme.brandTextDim },
+    specialtyChipTextActive: { color: theme.brandGold, fontWeight: "500" },
     formHint: {
       fontSize: 13,
       color: theme.brandTextDim,
@@ -2222,7 +2279,7 @@ export default function PhotographerDashboardScreen() {
             {bookings.length === 0 ? (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIcon}>
-                  <Feather name="calendar" size={24} color={theme.textSecondary} />
+                  <Feather name="calendar" size={24} color={DASHBOARD_COLORS.creamDim} />
                 </View>
                 <Text style={styles.emptyText}>No bookings yet</Text>
               </View>
@@ -2234,7 +2291,7 @@ export default function PhotographerDashboardScreen() {
                     case "confirmed": return "#34C759";
                     case "pending": return "#FF9500";
                     case "cancelled": return "#FF3B30";
-                    default: return theme.textSecondary;
+                    default: return DASHBOARD_COLORS.creamDim;
                   }
                 };
                 return (
@@ -2251,17 +2308,17 @@ export default function PhotographerDashboardScreen() {
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
                         {booking.subtotalAmount != null ? (
-                          <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                          <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
                             Subtotal: ${booking.subtotalAmount.toFixed(2)}
                           </Text>
                         ) : null}
                         {booking.bookingFeeAmount != null ? (
-                          <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                          <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
                             Booking Fee: -${booking.bookingFeeAmount.toFixed(2)}
                           </Text>
                         ) : null}
                         {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null ? (
-                          <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
+                          <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
                             Influencer: -${booking.influencerCommissionAmount.toFixed(2)}
                           </Text>
                         ) : null}
@@ -2276,11 +2333,11 @@ export default function PhotographerDashboardScreen() {
                     </View>
                     <View style={styles.bookingDetails}>
                       <View style={styles.bookingDate}>
-                        <Feather name="calendar" size={14} color={theme.textSecondary} />
+                        <Feather name="calendar" size={14} color={DASHBOARD_COLORS.creamDim} />
                         <Text style={styles.bookingDateText}>{booking.date}</Text>
                       </View>
                       <View style={styles.bookingDate}>
-                        <Feather name="clock" size={14} color={theme.textSecondary} />
+                        <Feather name="clock" size={14} color={DASHBOARD_COLORS.creamDim} />
                         <Text style={styles.bookingDateText}>{booking.time}</Text>
                       </View>
                       <View style={[styles.bookingStatusBadge, { backgroundColor: getStatusColor(booking.status) + "20" }]}>
@@ -2301,7 +2358,7 @@ export default function PhotographerDashboardScreen() {
                           onPress={() => handleBookingAction(booking.id, "cancel")}
                           style={[styles.bookingActionButton, styles.bookingDeclineButton]}
                         >
-                          <Text style={[styles.bookingActionText, { color: theme.text }]}>Decline</Text>
+                          <Text style={[styles.bookingActionText, { color: DASHBOARD_COLORS.cream }]}>Decline</Text>
                         </Pressable>
                       </View>
                     )}
@@ -2332,7 +2389,7 @@ export default function PhotographerDashboardScreen() {
       case "active": return "#22c55e";
       case "draft": return "#f97316";
       case "archived": return "#64748b";
-      default: return theme.textSecondary;
+      default: return DASHBOARD_COLORS.creamDim;
     }
   };
 
@@ -2571,29 +2628,29 @@ export default function PhotographerDashboardScreen() {
     return (
       <View style={[styles.container, styles.errorContainer, { paddingTop: insets.top + 20 }]}>
         <View style={styles.errorContent}>
-          <View style={[styles.errorIconContainer, { backgroundColor: theme.backgroundSecondary }]}>
-            <Feather name="alert-circle" size={48} color={theme.textSecondary} />
+          <View style={styles.errorIconContainer}>
+            <Feather name="alert-circle" size={48} color={DASHBOARD_COLORS.gold} />
           </View>
-          <Text style={[styles.errorTitle, { color: theme.text }]}>Unable to Load Dashboard</Text>
-          <Text style={[styles.errorMessage, { color: theme.textSecondary }]}>{authError}</Text>
+          <Text style={styles.errorTitle}>Unable to Load Dashboard</Text>
+          <Text style={styles.errorMessage}>{authError}</Text>
           <View style={styles.errorActions}>
             <Pressable
-              style={[styles.errorButton, { backgroundColor: theme.primary }]}
+              style={styles.errorButton}
               onPress={handleGoBack}
             >
-              <Feather name="arrow-left" size={18} color="#000" />
+              <Feather name="arrow-left" size={18} color={DASHBOARD_COLORS.background} />
               <Text style={styles.errorButtonText}>Go Back</Text>
             </Pressable>
             <Pressable
-              style={[styles.errorButtonOutline, { borderColor: theme.border }]}
+              style={styles.errorButtonOutline}
               onPress={() => {
                 setAuthError(null);
                 setLoading(true);
                 fetchDashboard();
               }}
             >
-              <Feather name="refresh-cw" size={18} color={theme.text} />
-              <Text style={[styles.errorButtonOutlineText, { color: theme.text }]}>Try Again</Text>
+              <Feather name="refresh-cw" size={18} color={DASHBOARD_COLORS.cream} />
+              <Text style={styles.errorButtonOutlineText}>Try Again</Text>
             </Pressable>
           </View>
         </View>
@@ -2607,7 +2664,7 @@ export default function PhotographerDashboardScreen() {
   if (loading || authLoading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={DASHBOARD_COLORS.gold} />
       </View>
     );
   }
@@ -2617,201 +2674,149 @@ export default function PhotographerDashboardScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={handleGoBack} style={styles.backButton}>
-            <Feather name="arrow-left" size={24} color={theme.text} />
+            <Feather name="arrow-left" size={24} color={DASHBOARD_COLORS.cream} />
           </Pressable>
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>{profile?.name || "Photographer"}</Text>
+            {(profile?.city || profile?.state) && (
+              <Text style={[styles.sectionSubtitle, { marginTop: 2 }]}>
+                {[profile.city, profile.state].filter(Boolean).join(", ")}
+              </Text>
+            )}
             <View style={styles.headerRow}>
               <View style={styles.statusPill}>
                 <View style={styles.statusDot} />
-                <Text style={styles.statusText}>{statusText}</Text>
+                <Text style={styles.statusText}>
+                  {profile?.stripeConnected ? "Active" : "Stripe Pending"}
+                </Text>
               </View>
             </View>
           </View>
           <Pressable onPress={handleLogout} style={styles.logoutButton}>
-            <Feather name="log-out" size={22} color={theme.textSecondary} />
+            <Feather name="log-out" size={22} color={DASHBOARD_COLORS.creamDim} />
           </Pressable>
         </View>
 
-        {/* Setup Progress - show if profile setup incomplete */}
-        {!profileComplete && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Setup Progress</Text>
-                <Text style={styles.sectionSubtitle}>Complete your profile to start receiving bookings</Text>
+        {/* Stripe: show connect banner OR manage payouts row — never both */}
+        {!profile?.stripeConnected ? (
+          <View style={[styles.setupCard, { marginHorizontal: 16, marginBottom: 16 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+              <Feather name="credit-card" size={20} color={DASHBOARD_COLORS.gold} />
+              <Text style={[styles.sectionTitle, { fontSize: 16, marginLeft: 10 }]}>Connect Stripe</Text>
+            </View>
+            <Text style={{ color: DASHBOARD_COLORS.creamDim, fontSize: 13, marginBottom: 14 }}>
+              Connect your Stripe account to accept bookings and receive payments.
+            </Text>
+            {stripeError ? (
+              <View style={{ backgroundColor: "rgba(255,59,48,0.1)", padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ color: "#FF3B30", fontSize: 13 }}>{stripeError}</Text>
               </View>
-            </View>
-            <View style={styles.setupCard}>
-              {profileSetupItems.map((item, index) => (
-                <Pressable
-                  key={item.key}
-                  onPress={item.action}
-                  style={[
-                    styles.setupItem,
-                    index === profileSetupItems.length - 1 && styles.setupItemLast,
-                  ]}
-                >
-                  <View style={[
-                    styles.setupIcon,
-                    item.complete ? styles.setupIconComplete : styles.setupIconIncomplete,
-                  ]}>
-                    {item.complete ? (
-                      <Feather name="check" size={14} color="#34C759" />
-                    ) : null}
-                  </View>
-                  <Text style={[
-                    styles.setupLabel,
-                    item.complete && styles.setupLabelComplete,
-                  ]}>
-                    {item.label}
-                  </Text>
-                  <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Stripe Connect Banner - always show if not connected */}
-        {!hasStripeConnected && (
-          <View style={styles.section}>
-            <View style={[styles.setupCard, { backgroundColor: theme.primary + "10", borderWidth: 1, borderColor: theme.primary + "30" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <Feather name="credit-card" size={24} color={theme.primary} />
-                <Text style={[styles.sectionTitle, { marginLeft: 12, flex: 1 }]}>Connect Stripe</Text>
-              </View>
-              <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 16 }}>
-                Connect your Stripe account to accept bookings and receive payments. Until connected, your profile won't be visible to clients.
-              </Text>
-              {stripeError && (
-                <View style={{ backgroundColor: "#fee2e2", padding: 12, borderRadius: 8, marginBottom: 12 }}>
-                  <Text style={{ color: "#b91c1c", fontSize: 14 }}>{stripeError}</Text>
-                </View>
-              )}
-              <Pressable
-                onPress={handleConnectStripe}
-                disabled={connectingStripe}
-                style={({ pressed }) => [{
-                  backgroundColor: theme.primary,
-                  paddingVertical: 14,
-                  paddingHorizontal: 20,
-                  borderRadius: 12,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: pressed || connectingStripe ? 0.7 : 1,
-                }]}
-              >
-                {connectingStripe ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <>
-                    <Feather name="link" size={18} color="#000" />
-                    <Text style={{ color: "#000", fontWeight: "600", fontSize: 16, marginLeft: 8 }}>
-                      Connect Stripe
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {/* Manage Payouts - show when Stripe is connected */}
-        {hasStripeConnected && (
-          <View style={styles.section}>
+            ) : null}
             <Pressable
-              onPress={handleManagePayouts}
-              disabled={loadingPayoutLink}
-              style={({ pressed }) => [{
-                backgroundColor: theme.primary,
-                paddingVertical: 14,
-                paddingHorizontal: 20,
-                borderRadius: 12,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: pressed || loadingPayoutLink ? 0.7 : 1,
-              }]}
+              onPress={handleConnectStripe}
+              disabled={connectingStripe}
+              style={{ backgroundColor: DASHBOARD_COLORS.gold, paddingVertical: 13, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", opacity: connectingStripe ? 0.7 : 1 }}
             >
-              {loadingPayoutLink ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <>
-                  <Feather name="dollar-sign" size={18} color="#000" />
-                  <Text style={{ color: "#000", fontWeight: "600", fontSize: 16, marginLeft: 8 }}>
-                    Manage Payouts
-                  </Text>
-                </>
-              )}
+              {connectingStripe
+                ? <ActivityIndicator size="small" color={DASHBOARD_COLORS.background} />
+                : <><Feather name="link" size={18} color={DASHBOARD_COLORS.background} /><Text style={{ color: DASHBOARD_COLORS.background, fontWeight: "700", fontSize: 15, marginLeft: 8 }}>Connect Stripe</Text></>}
             </Pressable>
           </View>
+        ) : (
+          <Pressable
+            onPress={handleManagePayouts}
+            disabled={loadingPayoutLink}
+            style={[
+              { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(201,147,58,0.08)", marginHorizontal: 16, marginBottom: 16, padding: 16, borderRadius: 12, borderLeftWidth: 3, borderLeftColor: DASHBOARD_COLORS.gold },
+              { opacity: loadingPayoutLink ? 0.7 : 1 },
+            ]}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(201,147,58,0.2)", alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+              <Feather name="dollar-sign" size={20} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: "600", color: DASHBOARD_COLORS.cream }}>Manage Payouts</Text>
+              <Text style={{ fontSize: 13, color: DASHBOARD_COLORS.creamDim, marginTop: 2 }}>View your balance and payout history</Text>
+            </View>
+            {loadingPayoutLink
+              ? <ActivityIndicator size="small" color={DASHBOARD_COLORS.gold} />
+              : <Feather name="chevron-right" size={20} color={DASHBOARD_COLORS.gold} />}
+          </Pressable>
         )}
 
         {/* Stats Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Overview</Text>
-          <View style={[styles.statsGrid, { marginTop: 12 }]}>
+        <View style={styles.statsRow}>
+          <View style={styles.statsRowTop}>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: theme.primary + "20" }]}>
-                  <Feather name="dollar-sign" size={16} color={theme.primary} />
-                </View>
-                <Text style={styles.statLabel}>Earnings</Text>
-              </View>
-              <Text style={styles.statValue}>${stats.earnings}</Text>
+              <View style={styles.statIcon}><Feather name="dollar-sign" size={14} color={DASHBOARD_COLORS.gold} /></View>
+              <Text style={styles.statValue}>${stats.earnings.toFixed(0)}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Earnings</Text>
             </View>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: "#34C75920" }]}>
-                  <Feather name="calendar" size={16} color="#34C759" />
-                </View>
-                <Text style={styles.statLabel}>Bookings</Text>
-              </View>
+              <View style={styles.statIcon}><Feather name="calendar" size={14} color={DASHBOARD_COLORS.gold} /></View>
               <Text style={styles.statValue}>{stats.upcomingBookings}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Bookings</Text>
             </View>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: "#007AFF20" }]}>
-                  <Feather name="message-circle" size={16} color="#007AFF" />
-                </View>
-                <Text style={styles.statLabel}>Messages</Text>
-              </View>
-              <Text style={styles.statValue}>{stats.unreadMessages}</Text>
+              <View style={styles.statIcon}><Feather name="check-circle" size={14} color={DASHBOARD_COLORS.gold} /></View>
+              <Text style={styles.statValue}>{stats.completedShoots}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Completed</Text>
+            </View>
+          </View>
+          <View style={styles.statsRowBottom}>
+            <View style={styles.statCard}>
+              <View style={styles.statIcon}><Feather name="star" size={14} color={DASHBOARD_COLORS.gold} /></View>
+              <Text style={styles.statValue}>{stats.rating > 0 ? stats.rating.toFixed(1) : "—"}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
             </View>
             <View style={styles.statCard}>
-              <View style={styles.statHeader}>
-                <View style={[styles.statIcon, { backgroundColor: "#FF950020" }]}>
-                  <Feather name="star" size={16} color="#FF9500" />
-                </View>
-                <Text style={styles.statLabel}>Rating</Text>
-              </View>
-              <Text style={styles.statValue}>{stats.rating > 0 ? stats.rating.toFixed(1) : "N/A"}</Text>
+              <View style={styles.statIcon}><Feather name="message-circle" size={14} color={DASHBOARD_COLORS.gold} /></View>
+              <Text style={styles.statValue}>{stats.reviewCount}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>Reviews</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Booking Settings */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>BOOKING SETTINGS</Text>
+          </View>
+          <View style={{
+            backgroundColor: DASHBOARD_COLORS.surface,
+            borderColor: DASHBOARD_COLORS.cardBorder,
+            borderWidth: 1,
+            borderRadius: 16,
+            padding: 14,
+          }}>
+            <AutoAcceptToggle
+              value={autoAcceptBookings}
+              onChange={handleAutoAcceptChange}
+              loading={autoAcceptLoading}
+            />
           </View>
         </View>
 
         {/* Profile Summary */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Profile</Text>
-          <View style={[styles.profileCard, { marginTop: 12 }]}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>PROFILE</Text>
+          </View>
+          <View style={styles.profileCard}>
             <View style={styles.profileHeader}>
-              {profile?.avatar ? (
-                <Image source={{ uri: profile.avatar }} style={styles.profileAvatarImage} />
-              ) : (
-                <View style={styles.profileAvatar}>
-                  <Text style={styles.profileAvatarText}>
-                    {profile?.name?.charAt(0)?.toUpperCase() || "P"}
-                  </Text>
-                </View>
-              )}
+              {profile?.avatar
+                ? <Image source={{ uri: profile.avatar }} style={styles.profileAvatarImage} />
+                : <View style={styles.profileAvatar}>
+                    <Text style={styles.profileAvatarText}>{profile?.name?.charAt(0)?.toUpperCase() || "P"}</Text>
+                  </View>}
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{profile?.name || "Your Name"}</Text>
                 <Text style={styles.profileRate}>
@@ -2822,70 +2827,64 @@ export default function PhotographerDashboardScreen() {
                 )}
               </View>
             </View>
-            {profile?.bio && (
+            {profile?.bio ? (
               <Text style={styles.profileBio} numberOfLines={3}>{profile.bio}</Text>
-            )}
+            ) : null}
             <Pressable onPress={() => setActiveModal("profile")} style={styles.editButton}>
-              <Feather name="edit-2" size={16} color="#FFFFFF" />
+              <Feather name="edit-2" size={16} color={DASHBOARD_COLORS.background} />
               <Text style={styles.editButtonText}>Edit Profile</Text>
             </Pressable>
           </View>
         </View>
 
-        {/* Booking Settings */}
+        {/* Quick Actions (2×2 grid) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Booking Settings</Text>
-          <View style={{ marginTop: 12 }}>
-            <AutoAcceptToggle
-              value={autoAcceptBookings}
-              onChange={handleAutoAcceptChange}
-              loading={autoAcceptLoading}
-            />
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>QUICK ACTIONS</Text>
           </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={[styles.quickActionsRow, { marginTop: 12 }]}>
+          {/* Row 1 */}
+          <View style={[styles.quickActionsRow, { marginBottom: 12 }]}>
             <Pressable onPress={() => setActiveModal("bookings")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: "#34C75920" }]}>
-                <Feather name="calendar" size={22} color="#34C759" />
+              <View style={styles.quickActionIcon}>
+                <Feather name="calendar" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Bookings</Text>
               <Text style={styles.quickActionCount}>{bookings.length} total</Text>
             </Pressable>
             <Pressable onPress={() => setActiveModal("services")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: theme.primary + "20" }]}>
-                <Feather name="camera" size={22} color={theme.primary} />
+              <View style={styles.quickActionIcon}>
+                <Feather name="camera" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Services</Text>
               <Text style={styles.quickActionCount}>{services.length} active</Text>
             </Pressable>
+          </View>
+          {/* Row 2 */}
+          <View style={styles.quickActionsRow}>
             <Pressable onPress={() => setActiveModal("hours")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: "#007AFF20" }]}>
-                <Feather name="clock" size={22} color="#007AFF" />
+              <View style={styles.quickActionIcon}>
+                <Feather name="clock" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Base Hours</Text>
-              <Text style={styles.quickActionCount}>
-                {hasAvailabilitySet ? "Set" : "Not set"}
-              </Text>
+              <Text style={styles.quickActionCount}>{hasAvailabilitySet ? "Set" : "Not set"}</Text>
             </Pressable>
             <Pressable onPress={() => setActiveModal("blocked")} style={styles.quickActionCard}>
-              <View style={[styles.quickActionIcon, { backgroundColor: "#FF3B3020" }]}>
-                <Feather name="x-circle" size={22} color="#FF3B30" />
+              <View style={styles.quickActionIcon}>
+                <Feather name="x-circle" size={22} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.quickActionLabel}>Block Dates</Text>
-              <Text style={styles.quickActionCount}>
-                {blockedDates.length} blocked
-              </Text>
+              <Text style={styles.quickActionCount}>{blockedDates.length} blocked</Text>
             </Pressable>
           </View>
         </View>
 
         {/* Calendar Overview */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Calendar</Text>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderAccent} />
+            <Text style={styles.sectionHeaderText}>CALENDAR</Text>
+          </View>
           <View style={{ marginTop: 12 }}>
             <ProviderCalendar
               bookings={bookings.map(b => ({
@@ -2922,13 +2921,9 @@ export default function PhotographerDashboardScreen() {
               }}
               onUnblockDate={async (blockId) => {
                 const index = blockedDates.findIndex(b => b.id === blockId);
-                if (index >= 0) {
-                  await handleRemoveBlockedDate(index);
-                }
+                if (index >= 0) await handleRemoveBlockedDate(index);
               }}
-              onBookingPress={(booking) => {
-                setActiveModal("bookings");
-              }}
+              onBookingPress={() => setActiveModal("bookings")}
               monthsAhead={3}
             />
           </View>
