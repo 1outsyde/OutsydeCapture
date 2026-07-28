@@ -77,7 +77,8 @@ async function clearCartStorage(userId: string | null): Promise<void> {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { userId, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+const userId = user?.id ?? null;
   // userId should be the logged-in user's ID string (or null if not logged in).
   // Adjust the field name to match whatever your AuthContext exposes.
 
