@@ -1132,11 +1132,18 @@ export interface MobileSignupRequest {
   city?: string;
   state?: string;
   address?: string;
+  streetAddress?: string;
+  aptUnit?: string | null;
   zipCode?: string;
+  country?: string;
+  billingSameAsHome?: boolean;
   billingAddress?: string;
+  billingStreet?: string;
+  billingAptUnit?: string | null;
   billingCity?: string;
   billingState?: string;
   billingZipCode?: string;
+  billingZip?: string;
   isStartup?: boolean;
   isMultiStaff?: boolean;
   yearsInBusiness?: string;
@@ -1667,10 +1674,49 @@ class ApiService {
 
     // Step 2: Now login to get JWT token
     console.log("[Signup] Account created, logging in to get JWT...");
-    return this.mobileLogin({
+    const loginResponse = await this.mobileLogin({
       email: data.email,
       password: data.password,
     });
+
+    // Step 3 (consumer only): save address data collected during signup
+    if (data.role === "consumer" && loginResponse.accessToken) {
+      const accessToken = loginResponse.accessToken;
+      const signupData = data as any;
+      if (signupData.streetAddress && signupData.city && signupData.state && signupData.zipCode) {
+        try {
+          await createSavedAddress(accessToken, {
+            label: "Shipping",
+            line1: signupData.streetAddress.trim(),
+            city: signupData.city.trim(),
+            state: signupData.state.trim(),
+            zipCode: signupData.zipCode.trim(),
+            isDefault: true,
+          });
+
+          if (
+            signupData.billingSameAsHome === false &&
+            signupData.billingStreet &&
+            signupData.billingCity &&
+            signupData.billingState &&
+            signupData.billingZip
+          ) {
+            await createSavedAddress(accessToken, {
+              label: "Billing",
+              line1: signupData.billingStreet.trim(),
+              city: signupData.billingCity.trim(),
+              state: signupData.billingState.trim(),
+              zipCode: signupData.billingZip.trim(),
+              isDefault: false,
+            });
+          }
+        } catch (addressError) {
+          console.warn("[Signup] Address save after signup failed (non-fatal):", addressError);
+        }
+      }
+    }
+
+    return loginResponse;
   }
 
   async search(params?: SearchParams): Promise<SearchResponse> {
@@ -4737,6 +4783,26 @@ export async function getSavedAddresses(token: string): Promise<{ addresses: Sav
 
 export async function createSavedAddress(token: string, data: SavedAddressInput): Promise<{ address: SavedAddress }> {
   return apiPost("/api/me/addresses", data, token) as Promise<{ address: SavedAddress }>;
+}
+
+export async function updateSavedAddress(
+  token: string,
+  id: string,
+  data: Partial<SavedAddressInput>
+): Promise<{ address: SavedAddress }> {
+  const response = await fetch(`${API_BASE_URL}/api/me/addresses/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`API Error ${response.status}: ${text || response.statusText}`);
+  }
+  return response.json();
 }
 
 // ==========================================
