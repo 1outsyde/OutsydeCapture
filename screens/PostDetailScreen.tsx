@@ -359,7 +359,7 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        <View style={{ paddingTop: NAV_BAR_HEIGHT, backgroundColor: "#000" }}>
+        <View style={{ paddingTop: index === 0 ? NAV_BAR_HEIGHT : 0, backgroundColor: "#000" }}>
           <ProFeedCard
             post={item}
             isVisible={index === activeIndex}
