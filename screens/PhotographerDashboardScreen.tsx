@@ -199,6 +199,11 @@ export default function PhotographerDashboardScreen() {
   const [editingService, setEditingService] = useState<ServiceFormData | null>(null);
   const [rawServices, setRawServices] = useState<VendorBookerPhotographerService[]>([]);
 
+  // CTA Button config — photographers only have Book Now, we just pick which service
+  const [ctaServiceTarget, setCtaServiceTarget] = useState<"first_available" | "specific">("first_available");
+  const [ctaSpecificServiceId, setCtaSpecificServiceId] = useState<string>("");
+  const [ctaSpecificServiceName, setCtaSpecificServiceName] = useState<string>("");
+
   const fetchDashboard = useCallback(async () => {
     const token = await getToken();
     if (!token) {
@@ -388,6 +393,15 @@ export default function PhotographerDashboardScreen() {
           pricingModel: s.pricingModel || "package",
           category: s.category || "Other",
         })));
+
+        // Parse CTA config
+        const rawCta = (photographer as any).ctaConfig;
+        if (rawCta) {
+          const parsedCta = typeof rawCta === "string" ? JSON.parse(rawCta) : rawCta;
+          setCtaServiceTarget(parsedCta.serviceTarget ?? "first_available");
+          setCtaSpecificServiceId(parsedCta.specificServiceId ?? "");
+          setCtaSpecificServiceName(parsedCta.specificServiceName ?? "");
+        }
       } catch {
         setServices([]);
         setRawServices([]);
@@ -815,6 +829,16 @@ export default function PhotographerDashboardScreen() {
       console.log("[Dashboard] updateData keys:", Object.keys(updateData));
       console.log("[Dashboard] updateData length:", Object.keys(updateData).length);
       
+      // Always include CTA config — not worth diff-checking
+      updateData.ctaConfig = {
+        buttonType: "book_now",
+        serviceTarget: ctaServiceTarget,
+        ...(ctaServiceTarget === "specific" && {
+          specificServiceId: ctaSpecificServiceId,
+          specificServiceName: ctaSpecificServiceName,
+        }),
+      };
+
       // Check if any fields changed
       if (Object.keys(updateData).length === 0) {
         Alert.alert("No Changes", "No profile changes detected to save.");
@@ -2259,6 +2283,247 @@ export default function PhotographerDashboardScreen() {
                 ]}
               />
             </View>
+
+            {/* ── Quick Action Button Config ─────────────────────────────────── */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Quick Action Button</Text>
+              <Text style={styles.formHint}>
+                The "Book Now" button floating on your public profile. Choose whether it opens
+                your full booking flow or jumps directly to one specific service.
+              </Text>
+
+              {/* Preview of the button */}
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  backgroundColor: theme.brandGold,
+                  borderRadius: 20,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  marginBottom: 16,
+                }}
+              >
+                <Text style={{ color: "#000", fontWeight: "800", fontSize: 14 }}>
+                  Book Now →
+                </Text>
+              </View>
+
+              {/* Option: open full booking flow */}
+              <Pressable
+                onPress={() => {
+                  setCtaServiceTarget("first_available");
+                  setCtaSpecificServiceId("");
+                  setCtaSpecificServiceName("");
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 14,
+                  borderRadius: 12,
+                  borderWidth: 1.5,
+                  marginBottom: 10,
+                  borderColor:
+                    ctaServiceTarget === "first_available"
+                      ? theme.brandGold
+                      : theme.brandSurface,
+                  backgroundColor:
+                    ctaServiceTarget === "first_available"
+                      ? theme.brandGold + "14"
+                      : theme.brandSurface,
+                  gap: 12,
+                }}
+              >
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    borderWidth: 2,
+                    borderColor:
+                      ctaServiceTarget === "first_available"
+                        ? theme.brandGold
+                        : theme.brandTextDim,
+                    backgroundColor:
+                      ctaServiceTarget === "first_available" ? theme.brandGold : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {ctaServiceTarget === "first_available" && (
+                    <View
+                      style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" }}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: ctaServiceTarget === "first_available" ? "700" : "500",
+                      color:
+                        ctaServiceTarget === "first_available"
+                          ? theme.brandGold
+                          : theme.brandCream,
+                    }}
+                  >
+                    Open booking flow
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 2 }}>
+                    Customer picks their service from your full list
+                  </Text>
+                </View>
+              </Pressable>
+
+              {/* Option: jump to specific service */}
+              <Pressable
+                onPress={() => setCtaServiceTarget("specific")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 14,
+                  borderRadius: 12,
+                  borderWidth: 1.5,
+                  marginBottom: 10,
+                  borderColor:
+                    ctaServiceTarget === "specific" ? theme.brandGold : theme.brandSurface,
+                  backgroundColor:
+                    ctaServiceTarget === "specific"
+                      ? theme.brandGold + "14"
+                      : theme.brandSurface,
+                  gap: 12,
+                }}
+              >
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    borderWidth: 2,
+                    borderColor:
+                      ctaServiceTarget === "specific" ? theme.brandGold : theme.brandTextDim,
+                    backgroundColor:
+                      ctaServiceTarget === "specific" ? theme.brandGold : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {ctaServiceTarget === "specific" && (
+                    <View
+                      style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" }}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: ctaServiceTarget === "specific" ? "700" : "500",
+                      color:
+                        ctaServiceTarget === "specific" ? theme.brandGold : theme.brandCream,
+                    }}
+                  >
+                    Jump to a specific service
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 2 }}>
+                    Button takes them straight to one service
+                  </Text>
+                </View>
+              </Pressable>
+
+              {/* Specific service picker — only shown when "specific" selected */}
+              {ctaServiceTarget === "specific" && (
+                <View style={{ marginTop: 4, gap: 8 }}>
+                  {services.filter((s) => s.status === "live" || (s as any).status === "active").length === 0 ? (
+                    <View
+                      style={{
+                        backgroundColor: theme.brandSurface,
+                        borderRadius: 10,
+                        padding: 14,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        style={{ fontSize: 13, color: theme.brandTextDim, textAlign: "center" }}
+                      >
+                        No live services yet. Publish a service first, then come back to
+                        pin it to your button.
+                      </Text>
+                    </View>
+                  ) : (
+                    services
+                      .filter((s) => s.status === "live" || (s as any).status === "active")
+                      .map((service) => {
+                        const isSelected = ctaSpecificServiceId === String(service.id);
+                        return (
+                          <Pressable
+                            key={String(service.id)}
+                            onPress={() => {
+                              setCtaSpecificServiceId(String(service.id));
+                              setCtaSpecificServiceName(service.name);
+                            }}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              padding: 12,
+                              borderRadius: 10,
+                              borderWidth: 1.5,
+                              borderColor: isSelected
+                                ? theme.brandGold
+                                : theme.brandSurface,
+                              backgroundColor: isSelected
+                                ? theme.brandGold + "14"
+                                : theme.brandSurface,
+                              gap: 10,
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 10,
+                                borderWidth: 2,
+                                borderColor: isSelected ? theme.brandGold : theme.brandTextDim,
+                                backgroundColor: isSelected ? theme.brandGold : "transparent",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {isSelected && (
+                                <View
+                                  style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    backgroundColor: "#fff",
+                                  }}
+                                />
+                              )}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: isSelected ? "700" : "500",
+                                  color: isSelected ? theme.brandGold : theme.brandCream,
+                                }}
+                                numberOfLines={1}
+                              >
+                                {service.name}
+                              </Text>
+                              <Text
+                                style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 1 }}
+                              >
+                                ${service.price.toFixed(2)}
+                              </Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })
+                  )}
+                </View>
+              )}
+            </View>
+            {/* ── End Quick Action Button Config ─────────────────────────────── */}
 
           </ScreenKeyboardAwareScrollView>
         </View>
