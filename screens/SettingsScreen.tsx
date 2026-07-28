@@ -253,8 +253,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#141414",
   },
   contentContainer: {
-    paddingBottom: 40,
-  },
+  paddingTop: 16,      // ← add this line
+  paddingBottom: 40,
+},
   sectionLabel: {
     fontSize: 11,
     fontWeight: "600",
