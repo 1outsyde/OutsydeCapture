@@ -11,7 +11,7 @@ import { sendClickEvent } from "@/services/referral";
 import { promptForReportReason } from "@/utils/moderationActions";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 1.25;
+const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 0.85;
 
 interface ProFeedCardProps {
   post: Post;
@@ -224,7 +224,7 @@ export function ProFeedCard({
   };
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.card }]}>
+    <View style={[styles.card, { backgroundColor: theme.card ?? '#0F0E12' }]}>
       <Pressable onPress={() => onAuthorPress(post)} style={styles.header}>
         {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
           <Image
@@ -252,8 +252,8 @@ export function ProFeedCard({
               {post.displayName || post.authorName}
             </ThemedText>
             {post.type !== "user" && (
-              <View style={[styles.badge, { backgroundColor: theme.brandGold }]}>
-                <ThemedText style={styles.badgeText}>
+              <View style={[styles.badge, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.brandGold }]}>
+                <ThemedText style={[styles.badgeText, { color: theme.brandGold }]}>
                   {post.type === "photographer" ? "Photographer" : "Business"}
                 </ThemedText>
               </View>
@@ -363,6 +363,26 @@ export function ProFeedCard({
             transition={200}
           />
         )}
+        {hasCommerce && (
+          <Pressable
+            onPress={() => {
+              if (post.influencerReferralCode) {
+                sendClickEvent(post.influencerReferralCode, post.id);
+              }
+              onActionPress(post);
+            }}
+            style={[styles.commercePill, { backgroundColor: theme.brandPrimary }]}
+          >
+            <Feather
+              name={post.productId ? "shopping-bag" : "calendar"}
+              size={14}
+              color="#000000"
+            />
+            <ThemedText style={styles.commercePillText}>
+              {post.productId ? "Buy Now" : "Book Now"}
+            </ThemedText>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.actions}>
@@ -373,7 +393,7 @@ export function ProFeedCard({
           >
             <Feather
               name="heart"
-              size={24}
+              size={22}
               color={post.isLiked ? "#FF3B30" : theme.text}
             />
           </Pressable>
@@ -381,19 +401,19 @@ export function ProFeedCard({
             onPress={() => onComment(post)}
             style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
           >
-            <Feather name="message-circle" size={24} color={theme.text} />
+            <Feather name="message-circle" size={22} color={theme.text} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
           >
-            <Feather name="send" size={24} color={theme.text} />
+            <Feather name="send" size={22} color={theme.text} />
           </Pressable>
           {onRate && hasCommerce && (
             <Pressable
               onPress={() => onRate(post)}
               style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.7 : 1 }]}
             >
-              <Feather name="star" size={24} color="#FFD700" />
+              <Feather name="star" size={22} color="#FFD700" />
             </Pressable>
           )}
         </View>
@@ -403,7 +423,7 @@ export function ProFeedCard({
         >
           <Feather
             name="bookmark"
-            size={24}
+            size={22}
             color={isSaved ? theme.brandGold : theme.text}
           />
         </Pressable>
@@ -428,26 +448,6 @@ export function ProFeedCard({
         )}
       </View>
 
-      {hasCommerce && (
-        <Pressable
-          onPress={() => {
-            if (post.influencerReferralCode) {
-              sendClickEvent(post.influencerReferralCode, post.id);
-            }
-            onActionPress(post);
-          }}
-          style={[styles.commerceButton, { backgroundColor: theme.brandPrimary }]}
-        >
-          <Feather
-            name={post.productId ? "shopping-bag" : "calendar"}
-            size={16}
-            color="#000000"
-          />
-          <ThemedText style={styles.commerceButtonText}>
-            {post.productId ? "Buy Now" : "Book Now"}
-          </ThemedText>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -568,20 +568,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
   },
-  commerceButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
+  commercePill: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    zIndex: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 9999,
   },
-  commerceButtonText: {
-    color: "#000000",
-    fontSize: 14,
-    fontWeight: "600",
+  commercePillText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '700',
   },
   menuButton: {
     marginLeft: Spacing.sm,

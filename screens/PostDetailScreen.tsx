@@ -6,6 +6,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   TouchableWithoutFeedback,
@@ -356,25 +357,27 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        // Pro card: add paddingTop so header clears the floating nav bar
-        <View style={{ height: PULSE_CARD_HEIGHT, paddingTop: NAV_BAR_HEIGHT, backgroundColor: "#000" }}>
-          <ProFeedCard
-            post={item}
-            isVisible={index === activeIndex}
-            isSaved={isSaved}
-            onLike={handleLike}
-            onComment={handleComment}
-            onSave={handleSave}
-            onAuthorPress={handleAuthorPress}
-            onActionPress={handleActionPress}
-            onDelete={handleDelete}
-            onReport={handleReport}
-            onEdit={handleEdit}
-            currentUserId={user?.id}
-            isAdmin={(user as any)?.isAdmin}
-            muted={muted}
-            onToggleMute={() => setMuted((m) => !m)}
-          />
+        // Pro card: outer height keeps FlatList snap; inner ScrollView starts below nav bar
+        <View style={{ height: PULSE_CARD_HEIGHT, backgroundColor: "#000" }}>
+          <ScrollView style={{ flex: 1, marginTop: NAV_BAR_HEIGHT }} showsVerticalScrollIndicator={false}>
+            <ProFeedCard
+              post={item}
+              isVisible={index === activeIndex}
+              isSaved={isSaved}
+              onLike={handleLike}
+              onComment={handleComment}
+              onSave={handleSave}
+              onAuthorPress={handleAuthorPress}
+              onActionPress={handleActionPress}
+              onDelete={handleDelete}
+              onReport={handleReport}
+              onEdit={handleEdit}
+              currentUserId={user?.id}
+              isAdmin={(user as any)?.isAdmin}
+              muted={muted}
+              onToggleMute={() => setMuted((m) => !m)}
+            />
+          </ScrollView>
         </View>
       );
     },

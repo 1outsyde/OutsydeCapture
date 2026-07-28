@@ -297,7 +297,7 @@ export default function PulseVideoCard({
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
         >
           <View style={styles.actionIcon}>
-            <Feather name="heart" size={26} color={isLiked ? "#FF3B30" : "#FFFFFF"} />
+            <Feather name="heart" size={24} color={isLiked ? "#FF3B30" : "#FFFFFF"} />
           </View>
           <ThemedText style={styles.actionCount}>{post.likes}</ThemedText>
         </Pressable>
@@ -307,7 +307,7 @@ export default function PulseVideoCard({
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
         >
           <View style={styles.actionIcon}>
-            <Feather name="message-circle" size={26} color="#FFFFFF" />
+            <Feather name="message-circle" size={24} color="#FFFFFF" />
           </View>
           <ThemedText style={styles.actionCount}>{post.commentCount ?? post.comments.length}</ThemedText>
         </Pressable>
@@ -315,7 +315,7 @@ export default function PulseVideoCard({
         {hasCommerce && (
           <Pressable style={[styles.actionItem, { opacity: 0.7 }]}>
             <View style={styles.actionIcon}>
-              <Feather name="star" size={26} color="#FFFFFF" />
+              <Feather name="star" size={24} color="#FFFFFF" />
             </View>
             <ThemedText style={styles.actionCount}>
               {post.rating > 0 ? post.rating.toFixed(1) : "—"}
@@ -328,7 +328,7 @@ export default function PulseVideoCard({
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
         >
           <View style={styles.actionIcon}>
-            <Feather name="bookmark" size={26} color={isSaved ? theme.brandGold : "#FFFFFF"} />
+            <Feather name="bookmark" size={24} color={isSaved ? theme.brandGold : "#FFFFFF"} />
           </View>
         </Pressable>
 
@@ -337,7 +337,7 @@ export default function PulseVideoCard({
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
         >
           <View style={styles.actionIcon}>
-            <Feather name={muted ? "volume-x" : "volume-2"} size={26} color="#FFFFFF" />
+            <Feather name={muted ? "volume-x" : "volume-2"} size={24} color="#FFFFFF" />
           </View>
         </Pressable>
 
@@ -368,7 +368,7 @@ export default function PulseVideoCard({
             style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
           >
             <View style={styles.actionIcon}>
-              <Feather name="more-horizontal" size={26} color="#FFFFFF" />
+              <Feather name="more-horizontal" size={24} color="#FFFFFF" />
             </View>
           </Pressable>
         )}
@@ -407,6 +407,13 @@ export default function PulseVideoCard({
           </ThemedText>
         ) : null}
 
+        <View style={styles.soundRow} pointerEvents="none">
+          <Feather name="music" size={12} color="rgba(255,255,255,0.75)" />
+          <ThemedText style={styles.soundText} numberOfLines={1}>
+            {soundName}
+          </ThemedText>
+        </View>
+
         {hasCommerce ? (
           <Pressable
             onPress={() => onActionPress(post)}
@@ -427,13 +434,6 @@ export default function PulseVideoCard({
         ) : null}
       </View>
 
-      {/* Bottom-right sound label */}
-      <View style={[styles.soundLabel, { bottom: soundLabelBottom }]} pointerEvents="none">
-        <Feather name="music" size={12} color="rgba(255,255,255,0.8)" />
-        <ThemedText style={styles.soundText} numberOfLines={1}>
-          {soundName}
-        </ThemedText>
-      </View>
     </Pressable>
   );
 }
@@ -480,7 +480,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.48)",
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -549,17 +551,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
-  soundLabel: {
-    position: "absolute",
-    right: 16,
-    bottom: 80,
-    maxWidth: "60%",
+  soundRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    marginBottom: Spacing.md,
   },
   soundText: {
-    color: "rgba(255,255,255,0.8)",
+    color: "rgba(255,255,255,0.75)",
     fontSize: 12,
     fontWeight: "500",
     flex: 1,
