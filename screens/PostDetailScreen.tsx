@@ -6,7 +6,6 @@ import {
   FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
   TouchableWithoutFeedback,
@@ -147,6 +146,18 @@ export default function PostDetailScreen() {
       cancelled = true;
     };
   }, [userId, initialPostId]);
+
+  useEffect(() => {
+    if (posts.length === 0 || initialIndexRef.current === 0) return;
+    const timer = setTimeout(() => {
+      listRef.current?.scrollToIndex({
+        index: initialIndexRef.current,
+        animated: false,
+        viewPosition: 0,
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [posts.length]);
 
   const handleLike = useCallback(
     async (postId: string) => {
@@ -323,15 +334,6 @@ export default function PostDetailScreen() {
     }
   ).current;
 
-  const getItemLayout = useCallback(
-    (_: any, index: number) => ({
-      length: PULSE_CARD_HEIGHT,
-      offset: PULSE_CARD_HEIGHT * index,
-      index,
-    }),
-    []
-  );
-
   const renderItem = useCallback(
     ({ item, index }: { item: Post; index: number }) => {
       const isVendor = item.type === "vendor";
@@ -357,27 +359,25 @@ export default function PostDetailScreen() {
           />
         </View>
       ) : (
-        // Pro card: outer height keeps FlatList snap; inner ScrollView starts below nav bar
-        <View style={{ height: PULSE_CARD_HEIGHT, backgroundColor: "#000" }}>
-          <ScrollView style={{ flex: 1, marginTop: NAV_BAR_HEIGHT }} showsVerticalScrollIndicator={false}>
-            <ProFeedCard
-              post={item}
-              isVisible={index === activeIndex}
-              isSaved={isSaved}
-              onLike={handleLike}
-              onComment={handleComment}
-              onSave={handleSave}
-              onAuthorPress={handleAuthorPress}
-              onActionPress={handleActionPress}
-              onDelete={handleDelete}
-              onReport={handleReport}
-              onEdit={handleEdit}
-              currentUserId={user?.id}
-              isAdmin={(user as any)?.isAdmin}
-              muted={muted}
-              onToggleMute={() => setMuted((m) => !m)}
-            />
-          </ScrollView>
+        <View style={{ paddingTop: NAV_BAR_HEIGHT, backgroundColor: "#000" }}>
+          <ProFeedCard
+            post={item}
+            isVisible={index === activeIndex}
+            isSaved={isSaved}
+            onLike={handleLike}
+            onComment={handleComment}
+            onSave={handleSave}
+            onAuthorPress={handleAuthorPress}
+            onActionPress={handleActionPress}
+            onDelete={handleDelete}
+            onReport={handleReport}
+            onEdit={handleEdit}
+            currentUserId={user?.id}
+            isAdmin={(user as any)?.isAdmin}
+            muted={muted}
+            onToggleMute={() => setMuted((m) => !m)}
+          />
+          <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.08)" }} />
         </View>
       );
     },
@@ -420,15 +420,11 @@ export default function PostDetailScreen() {
           data={posts}
           renderItem={renderItem}
           keyExtractor={(item) => `post-detail-${item.id}`}
-          pagingEnabled
           horizontal={false}
-          snapToInterval={PULSE_CARD_HEIGHT}
-          decelerationRate="fast"
           showsVerticalScrollIndicator={false}
-          getItemLayout={getItemLayout}
-          initialScrollIndex={initialIndexRef.current}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={VIEWABILITY_CONFIG}
+          onScrollToIndexFailed={() => {}}
           windowSize={5}
           maxToRenderPerBatch={3}
           removeClippedSubviews
