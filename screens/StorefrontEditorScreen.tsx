@@ -129,6 +129,12 @@ export default function StorefrontEditorScreen() {
   const [profileState, setProfileState] = useState("");
   const [profileZip, setProfileZip] = useState("");
 
+  // CTA Button config
+  const [ctaButtonType, setCtaButtonType] = useState<"book_now" | "buy_now">("book_now");
+  const [ctaProductTarget, setCtaProductTarget] = useState<"most_recent" | "oldest" | "best_selling" | "specific">("most_recent");
+  const [ctaSpecificProductId, setCtaSpecificProductId] = useState<string>("");
+  const [ctaSpecificProductName, setCtaSpecificProductName] = useState<string>("");
+
   const approvalStatus = business?.approvalStatus || "pending";
 
   const canPublishProducts = eligibility
@@ -356,6 +362,16 @@ export default function StorefrontEditorScreen() {
       setProfileCity(biz.city || "");
       setProfileState(biz.state || "");
 
+      // Parse CTA config
+      const rawCta = (biz as any).ctaConfig;
+      if (rawCta) {
+        const parsedCta = typeof rawCta === "string" ? JSON.parse(rawCta) : rawCta;
+        setCtaButtonType(parsedCta.buttonType ?? "book_now");
+        setCtaProductTarget(parsedCta.productTarget ?? "most_recent");
+        setCtaSpecificProductId(parsedCta.specificProductId ?? "");
+        setCtaSpecificProductName(parsedCta.specificProductName ?? "");
+      }
+
       if (biz.hoursOfOperation) {
         try {
           const hoursData =
@@ -401,11 +417,23 @@ export default function StorefrontEditorScreen() {
         coverMediaType: finalCoverMediaType,
         logoImage,
       });
+      const ctaPayload = {
+        buttonType: ctaButtonType,
+        ...(ctaButtonType === "buy_now" && {
+          productTarget: ctaProductTarget,
+          ...(ctaProductTarget === "specific" && {
+            specificProductId: ctaSpecificProductId,
+            specificProductName: ctaSpecificProductName,
+          }),
+        }),
+      };
+
       await api.updateVendorMyBusiness(token, {
         brandColors: brandColorsPayload as any,
         coverImage: finalCoverImage || undefined,
         coverMediaType: finalCoverMediaType,
         logoImage: logoImage || undefined,
+        ctaConfig: ctaPayload,
       });
       Alert.alert("Success", "Branding updated successfully");
     } catch (error: any) {
@@ -1465,6 +1493,276 @@ export default function StorefrontEditorScreen() {
             ]}
           />
         </View>
+
+        {/* ── Quick Action Button Config ─────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Quick Action Button</Text>
+          <Text style={styles.cardDesc}>
+            The floating button customers see on your profile. Choose whether it books a
+            service or buys a product.
+          </Text>
+
+          {/* Button type selector */}
+          <Text style={styles.inputLabel}>Button Type</Text>
+          <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+            {(["book_now", "buy_now"] as const).map((type) => {
+              const isSelected = ctaButtonType === type;
+              return (
+                <Pressable
+                  key={type}
+                  onPress={() => setCtaButtonType(type)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 12,
+                    borderRadius: 10,
+                    borderWidth: 1.5,
+                    alignItems: "center",
+                    borderColor: isSelected ? theme.brandGold : theme.brandSurfaceBorder,
+                    backgroundColor: isSelected
+                      ? theme.brandGold + "22"
+                      : theme.brandSurface,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: isSelected ? "700" : "500",
+                      color: isSelected ? theme.brandGold : theme.brandTextDim,
+                    }}
+                  >
+                    {type === "book_now" ? "📅  Book Now" : "🛒  Buy Now"}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Book Now — informational only */}
+          {ctaButtonType === "book_now" && (
+            <View
+              style={{
+                backgroundColor: theme.brandGold + "14",
+                borderRadius: 10,
+                padding: 14,
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: 10,
+              }}
+            >
+              <Text style={{ fontSize: 16 }}>📅</Text>
+              <Text
+                style={{ flex: 1, fontSize: 13, color: theme.brandTextDim, lineHeight: 19 }}
+              >
+                Customers tap this to open your booking flow where they pick a service
+                and time. No extra setup needed.
+              </Text>
+            </View>
+          )}
+
+          {/* Buy Now — product target selector */}
+          {ctaButtonType === "buy_now" && (
+            <>
+              <Text style={styles.inputLabel}>Which Product?</Text>
+              <Text style={styles.cardDesc}>
+                Choose which product gets added to cart when a customer taps Buy Now.
+              </Text>
+
+              {/* Target options */}
+              {(
+                [
+                  {
+                    value: "most_recent" as const,
+                    label: "Most Recent",
+                    desc: "Your newest product",
+                  },
+                  {
+                    value: "oldest" as const,
+                    label: "Oldest",
+                    desc: "Your first product",
+                  },
+                  {
+                    value: "best_selling" as const,
+                    label: "Best Selling",
+                    desc: "Highest number of orders",
+                  },
+                  {
+                    value: "specific" as const,
+                    label: "Specific Product",
+                    desc: "You choose exactly which one",
+                  },
+                ] as const
+              ).map((opt) => {
+                if (opt.value === "specific" && products.length === 0) return null;
+                const isSelected = ctaProductTarget === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => {
+                      setCtaProductTarget(opt.value);
+                      if (opt.value !== "specific") {
+                        setCtaSpecificProductId("");
+                        setCtaSpecificProductName("");
+                      }
+                    }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: 12,
+                      borderRadius: 10,
+                      borderWidth: 1.5,
+                      marginBottom: 8,
+                      borderColor: isSelected
+                        ? theme.brandGold
+                        : theme.brandSurfaceBorder,
+                      backgroundColor: isSelected
+                        ? theme.brandGold + "14"
+                        : theme.brandSurface,
+                      gap: 12,
+                    }}
+                  >
+                    {/* Radio dot */}
+                    <View
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        borderWidth: 2,
+                        borderColor: isSelected ? theme.brandGold : theme.brandTextDim,
+                        backgroundColor: isSelected ? theme.brandGold : "transparent",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {isSelected && (
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: "#fff",
+                          }}
+                        />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: isSelected ? "700" : "500",
+                          color: isSelected ? theme.brandGold : theme.brandCream,
+                        }}
+                      >
+                        {opt.label}
+                      </Text>
+                      <Text
+                        style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 2 }}
+                      >
+                        {opt.desc}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+
+              {/* Specific product picker — only shown when "specific" is selected */}
+              {ctaProductTarget === "specific" && products.length > 0 && (
+                <View style={{ marginTop: 8, gap: 8 }}>
+                  <Text style={styles.inputLabel}>Select a Product</Text>
+                  {products.map((product) => {
+                    const isSelected = ctaSpecificProductId === String(product.id);
+                    return (
+                      <Pressable
+                        key={String(product.id)}
+                        onPress={() => {
+                          setCtaSpecificProductId(String(product.id));
+                          setCtaSpecificProductName(product.name);
+                        }}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          padding: 12,
+                          borderRadius: 10,
+                          borderWidth: 1.5,
+                          borderColor: isSelected
+                            ? theme.brandGold
+                            : theme.brandSurfaceBorder,
+                          backgroundColor: isSelected
+                            ? theme.brandGold + "14"
+                            : theme.brandSurface,
+                          gap: 10,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 10,
+                            borderWidth: 2,
+                            borderColor: isSelected
+                              ? theme.brandGold
+                              : theme.brandTextDim,
+                            backgroundColor: isSelected ? theme.brandGold : "transparent",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {isSelected && (
+                            <View
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: 4,
+                                backgroundColor: "#fff",
+                              }}
+                            />
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: isSelected ? "700" : "500",
+                              color: isSelected ? theme.brandGold : theme.brandCream,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {product.name}
+                          </Text>
+                          <Text
+                            style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 1 }}
+                          >
+                            ${(product.priceCents / 100).toFixed(2)} · {product.status}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* No products warning */}
+              {products.length === 0 && (
+                <View
+                  style={{
+                    backgroundColor: theme.brandSurface,
+                    borderRadius: 10,
+                    padding: 14,
+                    marginTop: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{ fontSize: 13, color: theme.brandTextDim, textAlign: "center" }}
+                  >
+                    Add products in the Products tab first, then come back to configure
+                    your Buy Now button.
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+        {/* ── End Quick Action Button Config ─────────────────────────────── */}
 
         <Pressable
           style={[styles.saveButton, saving && { opacity: 0.6 }]}

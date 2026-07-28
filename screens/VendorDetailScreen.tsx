@@ -177,6 +177,15 @@ type ProfileViewModel = {
   showPhone?: boolean;
   showWebsite?: boolean;
   showStoreHours?: boolean;
+  ctaConfig?: {
+    buttonType: "book_now" | "buy_now";
+    productTarget?: "most_recent" | "oldest" | "best_selling" | "specific";
+    specificProductId?: string;
+    specificProductName?: string;
+    serviceTarget?: "first_available" | "specific";
+    specificServiceId?: string;
+    specificServiceName?: string;
+  } | null;
 };
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -721,6 +730,15 @@ export default function VendorDetailScreen({ route }: Props) {
           showWebsite: (business as any).showWebsite !== false,
           showStoreHours: (business as any).showStoreHours !== false,
           vendorTermsAndConditions: (business as any).vendorTermsAndConditions || null,
+          ctaConfig: (() => {
+            const raw = (business as any).ctaConfig;
+            if (!raw) return null;
+            try {
+              return typeof raw === "string" ? JSON.parse(raw) : raw;
+            } catch {
+              return null;
+            }
+          })(),
         };
 
         resolvedProducts = liveProducts;
@@ -878,6 +896,15 @@ export default function VendorDetailScreen({ route }: Props) {
               showPhone: (photographer as any).showPhone !== false,
               showWebsite: (photographer as any).showWebsite !== false,
               showStoreHours: true,
+              ctaConfig: (() => {
+                const raw = (photographer as any).ctaConfig;
+                if (!raw) return null;
+                try {
+                  return typeof raw === "string" ? JSON.parse(raw) : raw;
+                } catch {
+                  return null;
+                }
+              })(),
             };
 
             resolvedServices = photographerServices;
@@ -1031,6 +1058,15 @@ export default function VendorDetailScreen({ route }: Props) {
               showPhone: (photographer as any).showPhone !== false,
               showWebsite: (photographer as any).showWebsite !== false,
               showStoreHours: true,
+              ctaConfig: (() => {
+                const raw = (photographer as any).ctaConfig;
+                if (!raw) return null;
+                try {
+                  return typeof raw === "string" ? JSON.parse(raw) : raw;
+                } catch {
+                  return null;
+                }
+              })(),
             };
           }
         } catch {
@@ -1314,14 +1350,75 @@ export default function VendorDetailScreen({ route }: Props) {
 
   const resolvePrimaryAction = useCallback(() => {
     if (!profile) return { label: "", onPress: () => {} };
+
+    const cta = profile.ctaConfig;
+
+    // ── PHOTOGRAPHER ──────────────────────────────────────────────────────────
     if (profile.role === "photographer") {
       return {
-        label: "Book Shoot →",
-        onPress: () =>
-          navigation.navigate("Booking", { photographerId: profile.id }),
+        label: "Book Now →",
+        onPress: () => {
+          setActiveTab("booking");
+          setBookingFlowActive(true);
+        },
       };
     }
+
+    // ── BUSINESS ─────────────────────────────────────────────────────────────
     if (profile.role === "business") {
+
+      // Vendor explicitly configured Buy Now
+      if (cta?.buttonType === "buy_now") {
+        return {
+          label: "Buy Now →",
+          onPress: () => {
+            let targetProduct: VendorProduct | undefined;
+
+            if (cta.productTarget === "specific" && cta.specificProductId) {
+              targetProduct = products.find(
+                (p) => String(p.id) === cta.specificProductId
+              );
+            } else if (cta.productTarget === "oldest") {
+              targetProduct = [...products].sort(
+                (a, b) =>
+                  new Date((a as any).createdAt ?? 0).getTime() -
+                  new Date((b as any).createdAt ?? 0).getTime()
+              )[0];
+            } else if (cta.productTarget === "best_selling") {
+              // best_selling is resolved server-side; backend stores result as specificProductId
+              targetProduct =
+                products.find((p) => String(p.id) === cta.specificProductId) ??
+                products[0];
+            } else {
+              // most_recent (default)
+              targetProduct = [...products].sort(
+                (a, b) =>
+                  new Date((b as any).createdAt ?? 0).getTime() -
+                  new Date((a as any).createdAt ?? 0).getTime()
+              )[0];
+            }
+
+            if (!targetProduct) {
+              // No product resolved — fall back to shop tab
+              setActiveTab("shop");
+              return;
+            }
+
+            // Add to cart and open cart screen
+            addItem({
+              productId: String(targetProduct.id),
+              name: targetProduct.name,
+              price: targetProduct.priceCents,
+              quantity: 1,
+              vendorId: targetProduct.businessId,
+              imageUrl: targetProduct.imageUrl ?? undefined,
+            });
+            navigation.navigate("CartOrders");
+          },
+        };
+      }
+
+      // Vendor configured Book Now OR has no config but has services
       if (profile.hasServices) {
         return {
           label: "Book Now →",
@@ -1331,22 +1428,23 @@ export default function VendorDetailScreen({ route }: Props) {
           },
         };
       }
+
+      // No services, has products — go to shop
       if (profile.hasProducts) {
         return {
-          label: "Book Now →",
+          label: "Shop →",
           onPress: () => setActiveTab("shop"),
         };
       }
     }
+
+    // Fallback
     return {
       label: "Message",
       onPress: () =>
-        Alert.alert(
-          "Coming soon",
-          "Messaging will be wired in a follow-up update.",
-        ),
+        Alert.alert("Coming soon", "Messaging will be available soon."),
     };
-  }, [navigation, profile]);
+  }, [navigation, profile, products, addItem]);
 
   const reviewBreakdown = useMemo(() => {
     if (reviews.length === 0) {
@@ -2250,7 +2348,10 @@ export default function VendorDetailScreen({ route }: Props) {
     );
   }
 
-  const showStickyBottom = !isOwnProfile && profile.role !== "consumer";
+  const showStickyBottom =
+    !isOwnProfile &&
+    profile.role !== "consumer" &&
+    !(activeTab === "booking" && bookingFlowActive);
   const primaryAction = resolvePrimaryAction();
   const minLabel =
     profile.minPrice != null
