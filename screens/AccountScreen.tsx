@@ -281,16 +281,15 @@ const toPosts = (items: ApiPost[]): PostCard[] =>
       item.mediaType === "video" || (!!item.videoUrl && !item.imageUrl)
         ? "video"
         : "image";
+    const mediaUrl =
+      mediaType === "video"
+        ? (item.thumbnailUrl || item.imageUrl || item.videoUrl || item.mediaUrl || item.images?.[0])
+        : (item.imageUrl || item.thumbnailUrl || item.videoUrl || item.mediaUrl || item.images?.[0]);
     return {
       id: String(item.id),
       label: item.content?.trim() || "Outsyde Post",
       likes: Number(item.likesCount ?? 0),
-      mediaUrl:
-        item.imageUrl ||
-        item.thumbnailUrl ||
-        item.videoUrl ||
-        item.mediaUrl ||
-        item.images?.[0],
+      mediaUrl,
       mediaType,
       aspect: index % 3 === 0 ? "portrait" : "square",
     };
