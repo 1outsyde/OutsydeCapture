@@ -81,7 +81,9 @@ function convertApiPost(apiPost: ApiPost): Post {
     subscriptionTier: undefined,
     rating: (apiPost.author as any)?.rating || 0,
     reviewCount: (apiPost.author as any)?.reviewCount || 0,
-    image: apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "",
+    image: (apiPost.mediaType === "video" || !!apiPost.videoUrl)
+      ? (apiPost.thumbnailUrl || apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "")
+      : (apiPost.imageUrl || apiPost.thumbnailUrl || (apiPost.images && apiPost.images[0]) || ""),
     videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
     caption: apiPost.content || "",
     likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,

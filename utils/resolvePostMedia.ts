@@ -7,7 +7,8 @@
  *   - type: video ONLY when an explicit backend flag says so
  *       (mediaType === "video" | displayLayout === "pulse" | feedSurface === "pulse").
  *       A stray videoUrl on an otherwise-image post must NOT flip this to "video".
- *   - imageUrl: imageUrl ?? thumbnailUrl ?? mediaUrl ?? images[0] ?? ""
+ *   - imageUrl: for video posts: thumbnailUrl ?? imageUrl ?? mediaUrl ?? images[0] ?? ""
+ *              for image posts: imageUrl ?? thumbnailUrl ?? mediaUrl ?? images[0] ?? ""
  *   - videoUrl: only populated when type === "video", as videoUrl ?? mediaUrl
  *
  * This resolver is the single source of truth for post media resolution.
@@ -38,12 +39,9 @@ export function resolvePostMedia(post: ResolvablePostMedia): ResolvedPostMedia {
     post.displayLayout === "pulse" ||
     post.feedSurface === "pulse";
 
-  const imageUrl =
-    post.imageUrl ||
-    post.thumbnailUrl ||
-    post.mediaUrl ||
-    (post.images && post.images[0]) ||
-    "";
+  const imageUrl = isVideo
+    ? (post.thumbnailUrl || post.imageUrl || post.mediaUrl || (post.images && post.images[0]) || "")
+    : (post.imageUrl || post.thumbnailUrl || post.mediaUrl || (post.images && post.images[0]) || "");
 
   const videoUrl = isVideo ? post.videoUrl || post.mediaUrl || null : null;
 

@@ -56,7 +56,7 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     apiPost.providerId || apiPost.taggedPhotographerId || apiPost.taggedBusinessId;
 
   const layout = apiPost.displayLayout || apiPost.feedSurface;
-  const isVideoPost = layout === "pulse";
+  const isVideoPost = layout === "pulse" || apiPost.mediaType === "video";
 
   return {
     id: apiPost.id,
@@ -70,7 +70,9 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     subscriptionTier: undefined,
     rating: 0,
     reviewCount: 0,
-    image: apiPost.imageUrl || (isVideoPost ? "" : apiPost.mediaUrl) || (apiPost.images && apiPost.images[0]) || "",
+    image: isVideoPost
+      ? (apiPost.thumbnailUrl || apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "")
+      : (apiPost.imageUrl || apiPost.thumbnailUrl || (apiPost.images && apiPost.images[0]) || apiPost.mediaUrl || ""),
     videoUrl: isVideoPost ? (apiPost.videoUrl || apiPost.mediaUrl) : undefined,
     displayLayout: (apiPost.displayLayout || apiPost.feedSurface) as ("pro" | "pulse" | undefined),
     caption: apiPost.content || "",

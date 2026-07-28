@@ -114,7 +114,9 @@ export default function ProfileFeedScreen() {
 
   const renderPost = ({ item }: { item: ApiPost }) => {
     const isVideo = item.mediaType === "video" || (item.videoUrl && !item.imageUrl);
-    const thumbnailUri = item.imageUrl || (item.images && item.images[0]) || (isVideo ? item.videoUrl : "") || "";
+    const thumbnailUri = isVideo
+      ? (item.thumbnailUrl || item.imageUrl || item.videoUrl || (item.images && item.images[0]) || "")
+      : (item.imageUrl || item.thumbnailUrl || (item.images && item.images[0]) || "");
 
     return (
       <Pressable style={styles.postCard}>

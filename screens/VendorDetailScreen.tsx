@@ -298,11 +298,9 @@ const normalizePosts = (posts: ApiPost[], ownerId?: string): PostCard[] =>
         ? "video"
         : "image";
     const mediaUrl =
-      post.imageUrl ||
-      post.thumbnailUrl ||
-      post.videoUrl ||
-      post.mediaUrl ||
-      post.images?.[0];
+      mediaType === "video"
+        ? (post.thumbnailUrl || post.imageUrl || post.videoUrl || post.mediaUrl || post.images?.[0])
+        : (post.imageUrl || post.thumbnailUrl || post.videoUrl || post.mediaUrl || post.images?.[0]);
     return {
       id: String(post.id),
       label: post.content?.trim() || "",
