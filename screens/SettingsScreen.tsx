@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#141414",
   },
   contentContainer: {
-  paddingTop: 16,      // ← add this line
+  paddingTop: 24,      // ← add this line
   paddingBottom: 40,
 },
   sectionLabel: {
