@@ -18,7 +18,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import * as Haptics from "expo-haptics";
 import api from "@/services/api";
 
 interface PersonalSettingsMenuProps {
@@ -42,10 +41,10 @@ export function PersonalSettingsMenu({
   onToggleLocationVisibility,
   isMultiStaff,
 }: PersonalSettingsMenuProps) {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
-  const { user, logout, getToken } = useAuth();
+  const { user, getToken } = useAuth();
 
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
@@ -65,28 +64,9 @@ export function PersonalSettingsMenu({
     })();
   }, [visible]);
 
-  const handleToggleTheme = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    toggleTheme();
-  };
-
   const isAdmin =
     user?.email?.toLowerCase() === "info@goutsyde.com" ||
     user?.email?.toLowerCase() === "jamesmeyers2304@gmail.com";
-
-  const handleLogout = () => {
-    onClose();
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log Out",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-        },
-      },
-    ]);
-  };
 
   const handleNavigate = (screen: keyof RootStackParamList) => {
     onClose();
@@ -108,62 +88,9 @@ export function PersonalSettingsMenu({
     }
   };
 
-  const handleDeleteAccount = () => {
+  const handleNavigateToSettings = () => {
     onClose();
-    Alert.alert(
-      "Delete Account",
-      "This will permanently delete your account and data after a 30-day grace period. You can cancel anytime before then.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert(
-              "Are you sure?",
-              "This action cannot be undone after 30 days. Your account will be deleted permanently.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete Account",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      const token = await getToken();
-                      const res = await fetch(
-                        `${require("@/constants/config").BASE_URL}/api/account/delete-request`,
-                        {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                          },
-                        }
-                      );
-                      const data = await res.json();
-                      if (data.blocked) {
-                        Alert.alert("Can't delete yet", data.reason);
-                        return;
-                      }
-                      const dateStr = data.scheduledDeletionAt
-                        ? new Date(data.scheduledDeletionAt).toLocaleDateString()
-                        : "30 days from now";
-                      Alert.alert(
-                        "Deletion scheduled",
-                        `Your account will be permanently deleted on ${dateStr}. You've been logged out.`
-                      );
-                      await logout();
-                    } catch {
-                      Alert.alert("Error", "Something went wrong. Please try again.");
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
+    (navigation as any).navigate("Settings");
   };
 
   const MenuItem = ({
@@ -365,6 +292,30 @@ export function PersonalSettingsMenu({
                 Account
               </ThemedText>
 
+              <Pressable
+                onPress={handleNavigateToSettings}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  {
+                    backgroundColor: "#1f1a10",
+                    borderWidth: 1,
+                    borderColor: "#3a2c10",
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Feather name="settings" size={20} color="#e8a020" />
+                  <ThemedText
+                    type="body"
+                    style={[styles.menuItemText, { color: "#e8a020" }]}
+                  >
+                    Settings
+                  </ThemedText>
+                </View>
+                <Feather name="chevron-right" size={20} color="#e8a020" />
+              </Pressable>
+
               {onEditProfile ? (
                 <MenuItem
                   icon="edit-2"
@@ -430,45 +381,6 @@ export function PersonalSettingsMenu({
                   </View>
                 </Pressable>
               ) : null}
-
-              <Pressable
-                onPress={handleToggleTheme}
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <View style={styles.menuItemLeft}>
-                  <Feather name={isDark ? "moon" : "sun"} size={20} color={theme.text} />
-                  <View>
-                    <ThemedText type="body" style={styles.menuItemText}>
-                      Dark Mode
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      style={[styles.menuItemSubtitle, { color: theme.textSecondary }]}
-                    >
-                      {isDark ? "On" : "Off"}
-                    </ThemedText>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.toggleSwitch,
-                    { backgroundColor: isDark ? "#FFD60A" : "#767577" },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.toggleKnob,
-                      { marginLeft: isDark ? 22 : 2 },
-                    ]}
-                  />
-                </View>
-              </Pressable>
 
               <MenuItem
                 icon="bell"
@@ -544,23 +456,6 @@ export function PersonalSettingsMenu({
               <MenuItem icon="shield" label="Privacy Policy" onPress={() => handleNavigate("PrivacyPolicy")} />
             </View>
 
-            <View style={styles.section}>
-              <MenuItem
-                icon="trash-2"
-                label="Delete Account"
-                onPress={handleDeleteAccount}
-                color={theme.error}
-              />
-            </View>
-
-            <View style={styles.section}>
-              <MenuItem
-                icon="log-out"
-                label="Log Out"
-                onPress={handleLogout}
-                color={theme.error}
-              />
-            </View>
           </ScrollView>
         </View>
       </View>
