@@ -680,9 +680,17 @@ export default function CartOrdersScreen() {
         <>
           {cart.map((item) => (
             <View key={item.productId} style={styles.cartItem}>
-              <View style={styles.cartIcon}>
-                <Feather name="package" size={20} color={theme.brandGold} />
-              </View>
+              {item.imageUrl ? (
+  <Image
+    source={{ uri: item.imageUrl }}
+    style={{ width: 44, height: 44, borderRadius: 22 }}
+    contentFit="cover"
+  />
+) : (
+  <View style={styles.cartIcon}>
+    <Feather name="package" size={20} color={theme.brandGold} />
+  </View>
+)}
               <View style={styles.cartInfo}>
                 <ThemedText type="h4" numberOfLines={1}>{item.name}</ThemedText>
                 <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
