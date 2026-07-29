@@ -269,14 +269,20 @@ export default function BusinessDashboardScreen() {
 
       // Load blocked dates to power the calendar red indicators
       try {
-        const blocks = await api.getBlocks(token, "business");
+        const blocksResponse = await api.getBlocks(token, "business");
+        console.log("[Dashboard] Raw blocks response:", blocksResponse);
+        // Business endpoint returns { blocks: [...] }; Photographer returns a raw array.
+        // Unwrap defensively so either shape works.
+        const blocks: any[] = Array.isArray(blocksResponse)
+          ? blocksResponse
+          : (blocksResponse as any)?.blocks ?? [];
         setBlockedDates(
-          blocks.map((b) => ({
+          blocks.map((b: any) => ({
             id: b.id,
-            date: b.startDate.split("T")[0],
+            date: b.startDate?.split("T")[0] ?? b.startAt?.split("T")[0],
             isFullDay: b.isFullDay,
-            startTime: b.isFullDay ? undefined : b.startDate.split("T")[1]?.substring(0, 5),
-            endTime: b.isFullDay ? undefined : b.endDate.split("T")[1]?.substring(0, 5),
+            startTime: b.isFullDay ? undefined : (b.startDate ?? b.startAt)?.split("T")[1]?.substring(0, 5),
+            endTime: b.isFullDay ? undefined : (b.endDate ?? b.endAt)?.split("T")[1]?.substring(0, 5),
             reason: b.reason,
           }))
         );
@@ -704,12 +710,13 @@ export default function BusinessDashboardScreen() {
     try {
       const startDate = isFullDay ? `${date}T00:00:00` : `${date}T${startTime}:00`;
       const endDate = isFullDay ? `${date}T23:59:59` : `${date}T${endTime}:00`;
+      // Business endpoint expects startAt/endAt (not startDate/endDate)
       const newBlock = await api.createBlock(token, "business", {
-        startDate,
-        endDate,
+        startAt: startDate,
+        endAt: endDate,
         isFullDay,
         reason,
-      });
+      } as any);
       setBlockedDates((prev) => [
         ...prev,
         {
