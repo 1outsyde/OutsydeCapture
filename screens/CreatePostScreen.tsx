@@ -317,7 +317,7 @@ export default function CreatePostScreen() {
       )}
 
       {step === 3 && canAttach && (
-        <>
+        <View style={{ flex: 1, paddingBottom: insets.bottom || 16 }}>
           <View style={styles.attachContent}>
             <ThemedText type="h4" style={{ color: theme.brandCream, textAlign: "center" }}>
               {user?.role === "photographer" ? "Attach a service?" : "Attach a product or service?"}
@@ -402,7 +402,7 @@ export default function CreatePostScreen() {
           </View>
 
           {renderShareButton()}
-        </>
+        </View>
       )}
     </ThemedView>
   );
@@ -478,6 +478,7 @@ const styles = StyleSheet.create({
   attachContent: {
     paddingHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
+    flex: 1,
   },
   attachPlaceholder: {
     marginTop: Spacing.lg,
@@ -496,6 +497,7 @@ const styles = StyleSheet.create({
   },
   attachList: {
     marginTop: Spacing.lg,
+    flex: 1,
   },
   attachRow: {
     flexDirection: "row",
