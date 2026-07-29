@@ -31,6 +31,7 @@ interface ProFeedCardProps {
   isVisible?: boolean;
   muted?: boolean;
   onToggleMute?: () => void;
+  mediaHeight?: number;
 }
 
 function CardVideoMedia({
@@ -125,6 +126,7 @@ export function ProFeedCard({
   isVisible = true,
   muted = false,
   onToggleMute,
+  mediaHeight = CARD_MEDIA_HEIGHT,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -347,7 +349,7 @@ export function ProFeedCard({
         </Modal>
       )}
 
-      <View style={styles.mediaContainer}>
+      <View style={[styles.mediaContainer, { height: mediaHeight }]}>
         {hasVideo ? (
           <CardVideoMedia
             videoUrl={post.videoUrl!}
@@ -512,7 +514,6 @@ const styles = StyleSheet.create({
   },
   mediaContainer: {
     width: SCREEN_WIDTH,
-    height: CARD_MEDIA_HEIGHT,
     position: "relative",
   },
   media: {

@@ -29,7 +29,7 @@ import { ProFeedCard } from "@/components/ProFeedCard";
 import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type PostDetailRouteProp = RouteProp<RootStackParamList, "PostDetail">;
 type PostDetailNavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -364,6 +364,7 @@ export default function PostDetailScreen() {
         <View style={{ paddingTop: index === 0 ? NAV_BAR_HEIGHT : 0, backgroundColor: "#000" }}>
           <ProFeedCard
             post={item}
+            mediaHeight={SCREEN_WIDTH * 1.25}
             isVisible={index === activeIndex}
             isSaved={isSaved}
             onLike={handleLike}
