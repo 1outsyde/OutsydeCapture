@@ -11,6 +11,7 @@ import { Feather } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -25,6 +26,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<SettingsNavigationProp>();
   const { isDark, toggleTheme } = useTheme();
   const { getToken, logout } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [shippingAddress, setShippingAddress] = useState<SavedAddress | null>(null);
   const [billingAddress, setBillingAddress] = useState<SavedAddress | null>(null);
@@ -145,7 +147,11 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: insets.top + 80, paddingBottom: 40 }}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       {/* ADDRESS */}
       <ThemedText style={styles.sectionLabel}>ADDRESS</ThemedText>
       <View style={styles.sectionContainer}>
@@ -252,10 +258,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#141414",
   },
-  contentContainer: {
-  paddingTop: 32,      // ← add this line
-  paddingBottom: 40,
-},
   sectionLabel: {
     fontSize: 11,
     fontWeight: "600",
