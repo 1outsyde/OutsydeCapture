@@ -315,7 +315,7 @@ export default function ProviderCalendar({
           <ThemedText style={[styles.legendText, { color: theme.textSecondary }]}>Pending</ThemedText>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: theme.error }]} />
+          <Feather name="x" size={10} color={theme.error} />
           <ThemedText style={[styles.legendText, { color: theme.textSecondary }]}>Blocked</ThemedText>
         </View>
       </View>
