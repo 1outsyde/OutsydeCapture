@@ -50,8 +50,6 @@ import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
-import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
-
 // Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
 const DASHBOARD_COLORS = {
   background: "#080C08",
@@ -1769,7 +1767,7 @@ export default function PhotographerDashboardScreen() {
       backgroundColor: theme.brandBgElevated,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      maxHeight: "90%",
+      height: "90%",
     },
     modalHeader: {
       flexDirection: "row",
@@ -1882,7 +1880,7 @@ export default function PhotographerDashboardScreen() {
               )}
             </Pressable>
           </View>
-          <ScreenKeyboardAwareScrollView style={styles.modalScroll} contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Banner Editor */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Profile Banner</Text>
@@ -2525,7 +2523,8 @@ export default function PhotographerDashboardScreen() {
             </View>
             {/* ── End Quick Action Button Config ─────────────────────────────── */}
 
-          </ScreenKeyboardAwareScrollView>
+            <View style={{ height: insets.bottom + 20 }} />
+          </ScrollView>
         </View>
       </View>
     </Modal>
