@@ -110,6 +110,7 @@ export default function BusinessDashboardScreen() {
   const [products, setProducts] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
+  const [blockedDates, setBlockedDates] = useState<CalendarBlockedDate[]>([]);
   
   const [autoAcceptBookings, setAutoAcceptBookings] = useState(false);
   const [autoAcceptLoading, setAutoAcceptLoading] = useState(false);
@@ -264,6 +265,23 @@ export default function BusinessDashboardScreen() {
         }
       } catch (hoursErr) {
         console.warn("[Dashboard] Could not load weekly hours for calendar:", hoursErr);
+      }
+
+      // Load blocked dates to power the calendar red indicators
+      try {
+        const blocks = await api.getBlocks(token, "business");
+        setBlockedDates(
+          blocks.map((b) => ({
+            id: b.id,
+            date: b.startDate.split("T")[0],
+            isFullDay: b.isFullDay,
+            startTime: b.isFullDay ? undefined : b.startDate.split("T")[1]?.substring(0, 5),
+            endTime: b.isFullDay ? undefined : b.endDate.split("T")[1]?.substring(0, 5),
+            reason: b.reason,
+          }))
+        );
+      } catch (blocksErr) {
+        console.warn("[Dashboard] Could not load blocked dates for calendar:", blocksErr);
       }
       
       const tabs = getAvailableTabs();
@@ -671,6 +689,51 @@ export default function BusinessDashboardScreen() {
       fetchTabData();
     } catch (error: any) {
       Alert.alert("Error", error?.message || "Failed to mark as delivered");
+    }
+  };
+
+  const handleBlockDate = async (
+    date: string,
+    isFullDay: boolean,
+    startTime?: string,
+    endTime?: string,
+    reason?: string
+  ) => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      const startDate = isFullDay ? `${date}T00:00:00` : `${date}T${startTime}:00`;
+      const endDate = isFullDay ? `${date}T23:59:59` : `${date}T${endTime}:00`;
+      const newBlock = await api.createBlock(token, "business", {
+        startDate,
+        endDate,
+        isFullDay,
+        reason,
+      });
+      setBlockedDates((prev) => [
+        ...prev,
+        {
+          id: newBlock.id,
+          date,
+          isFullDay,
+          startTime: isFullDay ? undefined : startTime,
+          endTime: isFullDay ? undefined : endTime,
+          reason,
+        },
+      ]);
+    } catch (err) {
+      console.error("[Dashboard] Failed to block date:", err);
+    }
+  };
+
+  const handleUnblockDate = async (blockId: string) => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      await api.deleteBlock(token, "business", blockId);
+      setBlockedDates((prev) => prev.filter((b) => b.id !== blockId));
+    } catch (err) {
+      console.error("[Dashboard] Failed to unblock date:", err);
     }
   };
 
@@ -2295,10 +2358,10 @@ export default function BusinessDashboardScreen() {
           </View>
           <ProviderCalendar
             bookings={calendarBookings}
-            blockedDates={[]}
+            blockedDates={blockedDates}
             weeklyAvailability={calendarWeeklyAvailability}
-            onBlockDate={() => {}}
-            onUnblockDate={() => {}}
+            onBlockDate={handleBlockDate}
+            onUnblockDate={handleUnblockDate}
             onBookingPress={() => setActiveTab("bookings")}
             monthsAhead={3}
           />
