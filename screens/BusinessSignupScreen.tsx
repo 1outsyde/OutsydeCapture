@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Switch, Image, Linking } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Switch, Image, Linking, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
@@ -75,6 +75,7 @@ const STEPS = [
   { id: 5, name: "Location" },
   { id: 6, name: "Online Presence" },
   { id: 7, name: "Review" },
+  { id: 8, name: "Agreement" },
 ];
 
 export default function BusinessSignupScreen() {
@@ -91,6 +92,8 @@ export default function BusinessSignupScreen() {
   const prefillEmail = route.params?.prefillEmail ?? googleProfile?.email ?? "";
 
   const [currentStep, setCurrentStep] = useState(1);
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const [agreementChecked, setAgreementChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const [email, setEmail] = useState(prefillEmail);
@@ -268,10 +271,22 @@ export default function BusinessSignupScreen() {
   };
 
   const handleBack = () => {
+    if (currentStep === 8) {
+      setHasScrolledToBottom(false);
+      setAgreementChecked(false);
+    }
     if (currentStep > 1) {
       setCurrentStep(prev => prev - 1);
     } else {
       navigation.goBack();
+    }
+  };
+
+  const handleAgreementScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const atBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40;
+    if (atBottom && !hasScrolledToBottom) {
+      setHasScrolledToBottom(true);
     }
   };
 
@@ -1024,6 +1039,182 @@ export default function BusinessSignupScreen() {
           </View>
         );
 
+      case 8:
+        return (
+          <View style={styles.stepContent}>
+            <ThemedText type="h2" style={styles.stepTitle}>Vendor Agreement</ThemedText>
+            <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
+              Scroll through the full agreement, then check the box to continue.
+            </ThemedText>
+
+            <ScrollView
+              style={styles.agreementScroll}
+              onScroll={handleAgreementScroll}
+              scrollEventThrottle={16}
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+            >
+              <ThemedText style={styles.agSectionHeader}>
+                OUTSYDE VENDOR MARKETPLACE AGREEMENT
+              </ThemedText>
+              <ThemedText style={styles.agItalic}>
+                Payment Processing Compliance &amp; Permitted Products Addendum
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>1. Parties &amp; Purpose</ThemedText>
+              <ThemedText style={styles.agBody}>
+                This agreement is between Outsyde, LLC and you, the Vendor, governing your access to
+                the Outsyde marketplace. It establishes explicit standards for permitted products and
+                protects both parties from payment processing disruptions caused by violations of
+                Stripe's policies.
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>2. Payment Processor Compliance</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Outsyde processes all vendor payments through Stripe Connect. Stripe maintains a
+                Prohibited and Restricted Businesses list. Violations may result in immediate account
+                termination and fund holds of 90–180+ days without prior notice.
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>3. Explicitly Permitted Products</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Approved without additional review: physical goods (apparel, home goods, art,
+                electronics, beauty products without medical claims, packaged food and non-alcoholic
+                beverages, fitness equipment, pet products, outdoor gear); digital products (downloads,
+                photography, creative services, coaching, courses, event planning); event services
+                (ticketing, catering, entertainment, photography); professional services (moving,
+                cleaning, contracting, notary).
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>4. Explicitly Prohibited Products</ThemedText>
+              <ThemedText style={styles.agWarning}>
+                The following are strictly prohibited and may not be listed on Outsyde under any
+                circumstances:
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Tobacco &amp; Smoking Products</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Cigarettes (tobacco or herbal), pre-rolled cones or sticks of ANY plant material
+                intended for smoking — including hemp, lavender, chamomile, eucalyptus, or any other
+                botanical — herbal cigarettes, loose smoking blends, vape pens, vape cartridges,
+                e-cigarette products of any kind. Labeling a pre-rolled product as "aromatherapy"
+                does not exempt it. The physical form of the product controls its classification.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Cannabis &amp; CBD</ThemedText>
+              <ThemedText style={styles.agBody}>
+                THC-containing products of any kind, CBD products exceeding 0.3% THC by dry weight,
+                CBD edibles or ingestibles, hemp flower sold for smoking.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Alcohol</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Alcoholic beverages of any kind — beer, wine, spirits, hard seltzers — and alcohol
+                subscription boxes or delivery services.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Adult Content &amp; Services</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Pornographic or sexually explicit content in any format, escort or companionship
+                services, adult novelty products, AI-generated adult content.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Gambling &amp; Games of Chance</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Online casino services, poker, sports betting, fantasy sports with real-money prizes,
+                lotteries, sweepstakes where prizes are contingent on purchase, bidding-fee auctions.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Weapons &amp; Dangerous Items</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Firearms, ammunition, switchblades or other weapons prohibited by law, explosives,
+                pyrotechnics, replica or unregistered weapon facsimiles.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Pharmaceutical &amp; Medical Products</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Prescription medications, supplements or vitamins making disease-prevention or cure
+                claims (FDA prohibited without approval), prescription veterinary products.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Financial Services &amp; Fraud</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Unlicensed investment or securities services, cryptocurrency or NFT sales, payday
+                loans, debt settlement or credit repair services, pyramid schemes or MLM structures
+                with recruitment-based income.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Counterfeit Goods &amp; IP Violations</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Counterfeit goods of any brand, pirated software or media, products using trademarked
+                names or logos without authorization, fake identification documents or credentials.
+              </ThemedText>
+
+              <ThemedText style={styles.agSubsection}>Illegal Activity</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Any product or service that is illegal under applicable federal, state, or local law.
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>5. Restricted Categories</ThemedText>
+              <ThemedText style={styles.agBody}>
+                The following require written approval from Outsyde before listing: herbal supplements
+                and ingestible wellness products, food products with health claims, age-restricted
+                products (18+/21+), subscription box services, extended warranties over 12 months,
+                telehealth or wellness consultation services. Email vendors@outsyde.com before listing
+                any of these.
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>6. Vendor Representations</ThemedText>
+              <ThemedText style={styles.agBody}>
+                By agreeing, you confirm: (a) all your listed products fall within permitted categories
+                or you have written approval; (b) all listings are truthful and not deceptively
+                described; (c) you will notify Outsyde immediately if any product may conflict with
+                this Agreement; (d) you hold all required licenses, permits, and regulatory approvals.
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>7. Enforcement</ThemedText>
+              <ThemedText style={styles.agBody}>
+                Violations may result in immediate listing removal, account suspension, payout holds
+                up to 90 days, or permanent termination. If Outsyde's Stripe account incurs holds,
+                fund freezes, or penalties as a direct result of your prohibited product listings,
+                you may be held financially liable for documented losses including held funds,
+                chargeback fees, and platform remediation costs.
+              </ThemedText>
+
+              <ThemedText style={styles.agSectionHeader}>8. Governing Law</ThemedText>
+              <ThemedText style={styles.agBody}>
+                This Agreement is governed by the laws of the State of New York. Disputes are resolved
+                by binding arbitration under AAA rules in Nassau County, NY.
+              </ThemedText>
+
+              <ThemedText style={styles.agItalic}>
+                By checking the box below, you confirm you have read this Agreement in full and agree
+                to be bound by its terms.
+              </ThemedText>
+            </ScrollView>
+
+            {!hasScrolledToBottom && (
+              <ThemedText style={styles.agScrollHint}>
+                ↓ Scroll to the bottom to enable the checkbox
+              </ThemedText>
+            )}
+
+            <Pressable
+              style={[styles.agCheckboxRow, !hasScrolledToBottom && styles.agCheckboxDisabled]}
+              onPress={() => hasScrolledToBottom && setAgreementChecked(prev => !prev)}
+            >
+              <View style={[styles.agCheckbox, agreementChecked && styles.agCheckboxChecked]}>
+                {agreementChecked && (
+                  <ThemedText style={styles.agCheckmark}>✓</ThemedText>
+                )}
+              </View>
+              <ThemedText style={[styles.agCheckboxLabel, !hasScrolledToBottom && styles.agCheckboxLabelDim]}>
+                I have read the Outsyde Vendor Agreement in full and agree to its terms
+              </ThemedText>
+            </Pressable>
+          </View>
+        );
+
       default:
         return null;
     }
@@ -1053,9 +1244,20 @@ export default function BusinessSignupScreen() {
       </ScreenKeyboardAwareScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md, backgroundColor: theme.background }]}>
-        {currentStep === 7 ? (
-          <Button onPress={handleSubmit} style={[styles.nextButton, { backgroundColor: "#C9933A" }]} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Submit Application"}
+        {currentStep === 8 ? (
+          <Button
+            onPress={handleSubmit}
+            style={[styles.nextButton, { backgroundColor: "#C9933A" }]}
+            disabled={!agreementChecked || isLoading}
+          >
+            {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Confirm & Submit"}
+          </Button>
+        ) : currentStep === 7 ? (
+          <Button
+            onPress={handleNext}
+            style={[styles.nextButton, { backgroundColor: "#2D7A2D" }]}
+          >
+            Continue to Agreement
           </Button>
         ) : (
           <>
@@ -1234,4 +1436,91 @@ const styles = StyleSheet.create({
   pendingDetails: { marginTop: Spacing.lg, marginBottom: Spacing.xl },
   pendingDetailRow: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.md },
   pendingButton: { width: "100%" },
+  agreementScroll: {
+    maxHeight: 340,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    padding: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    marginTop: 12,
+  },
+  agSectionHeader: {
+    fontWeight: "700",
+    fontSize: 12,
+    color: "#E8B930",
+    marginTop: 16,
+    marginBottom: 4,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  agSubsection: {
+    fontWeight: "600",
+    fontSize: 12,
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  agBody: {
+    fontSize: 12,
+    lineHeight: 18,
+    opacity: 0.75,
+    marginBottom: 4,
+  },
+  agWarning: {
+    fontSize: 12,
+    color: "#e05c5c",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  agItalic: {
+    fontSize: 12,
+    opacity: 0.6,
+    fontStyle: "italic",
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  agScrollHint: {
+    fontSize: 12,
+    color: "#E8B930",
+    textAlign: "center",
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+  agCheckboxRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginTop: 16,
+  },
+  agCheckboxDisabled: {
+    opacity: 0.4,
+  },
+  agCheckbox: {
+    width: 22,
+    height: 22,
+    borderWidth: 2,
+    borderColor: "#E8B930",
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  agCheckboxChecked: {
+    backgroundColor: "#E8B930",
+  },
+  agCheckmark: {
+    color: "#000000",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  agCheckboxLabel: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  agCheckboxLabelDim: {
+    opacity: 0.4,
+  },
 });
