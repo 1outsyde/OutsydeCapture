@@ -1173,9 +1173,11 @@ export interface CustomerSignupRequest {
   name: string; // Backend requires 'name', not firstName/lastName
   phone?: string;
   address?: string;
+  aptUnit?: string;
   city?: string;
   state?: string;
   zipCode?: string;
+  country?: string;
   username?: string;
   dateOfBirth?: string;
   gender?: string;
@@ -1184,6 +1186,12 @@ export interface CustomerSignupRequest {
   selectedIndustries?: string[];
   industryNiches?: Record<string, string[]>;
   industryValues?: Record<string, string[]>;
+  billingSameAsHome?: boolean;
+  billingStreet?: string;
+  billingAptUnit?: string;
+  billingCity?: string;
+  billingState?: string;
+  billingZip?: string;
 }
 
 export interface VendorSignupRequest {
@@ -1578,6 +1586,7 @@ class ApiService {
     const fullName = `${data.firstName} ${data.lastName}`.trim();
     
     if (data.role === "consumer") {
+      const signupData = data as any;
       const customerPayload: CustomerSignupRequest = {
         email: data.email,
         password: data.password,
@@ -1590,6 +1599,19 @@ class ApiService {
         selectedIndustries: data.selectedIndustries,
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
+        dateOfBirth: signupData.dateOfBirth,
+        shoppingFrequency: signupData.shoppingFrequency,
+        ethnicity: signupData.ethnicity,
+        zipCode: signupData.zipCode,
+        address: signupData.address || signupData.streetAddress,
+        aptUnit: signupData.aptUnit,
+        country: signupData.country,
+        billingSameAsHome: signupData.billingSameAsHome,
+        billingStreet: signupData.billingStreet,
+        billingAptUnit: signupData.billingAptUnit,
+        billingCity: signupData.billingCity,
+        billingState: signupData.billingState,
+        billingZip: signupData.billingZip,
       };
       console.log("[Signup] Customer payload:", JSON.stringify(customerPayload, null, 2));
       await this.customerSignup(customerPayload);
