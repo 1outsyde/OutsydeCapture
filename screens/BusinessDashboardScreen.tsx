@@ -916,45 +916,49 @@ export default function BusinessDashboardScreen() {
       <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
         <SectionLabel text="ACTIVITY" />
 
-        <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardOrdersScreen")}>
-          <View style={styles.navCardLeft}>
-            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
-              <Feather name="shopping-bag" size={20} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <View style={styles.navCardTextWrap}>
-              <Text style={styles.navCardTitle}>Orders</Text>
-              <Text style={styles.navCardSubtitle}>{stats.upcomingOrders} need attention</Text>
-            </View>
-          </View>
-          <View style={styles.navCardRight}>
-            {stats.upcomingOrders > 0 && (
-              <View style={[styles.navBadge, { backgroundColor: "rgba(232,93,93,0.15)" }]}>
-                <Text style={[styles.navBadgeText, { color: "#E85D5D" }]}>{stats.upcomingOrders}</Text>
+        {(businessType === "product" || businessType === "both") && (
+          <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardOrdersScreen")}>
+            <View style={styles.navCardLeft}>
+              <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+                <Feather name="shopping-bag" size={20} color={DASHBOARD_COLORS.gold} />
               </View>
-            )}
-            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
-          </View>
-        </Pressable>
+              <View style={styles.navCardTextWrap}>
+                <Text style={styles.navCardTitle}>Orders</Text>
+                <Text style={styles.navCardSubtitle}>{stats.upcomingOrders} need attention</Text>
+              </View>
+            </View>
+            <View style={styles.navCardRight}>
+              {stats.upcomingOrders > 0 && (
+                <View style={[styles.navBadge, { backgroundColor: "rgba(232,93,93,0.15)" }]}>
+                  <Text style={[styles.navBadgeText, { color: "#E85D5D" }]}>{stats.upcomingOrders}</Text>
+                </View>
+              )}
+              <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+          </Pressable>
+        )}
 
-        <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardBookingsScreen")}>
-          <View style={styles.navCardLeft}>
-            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
-              <Feather name="calendar" size={20} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <View style={styles.navCardTextWrap}>
-              <Text style={styles.navCardTitle}>Bookings</Text>
-              <Text style={styles.navCardSubtitle}>{stats.upcomingBookings} upcoming</Text>
-            </View>
-          </View>
-          <View style={styles.navCardRight}>
-            {stats.upcomingBookings > 0 && (
-              <View style={[styles.navBadge, { backgroundColor: "rgba(224,169,59,0.15)" }]}>
-                <Text style={[styles.navBadgeText, { color: "#E0A93B" }]}>{stats.upcomingBookings}</Text>
+        {(businessType === "service" || businessType === "both") && (
+          <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardBookingsScreen")}>
+            <View style={styles.navCardLeft}>
+              <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+                <Feather name="calendar" size={20} color={DASHBOARD_COLORS.gold} />
               </View>
-            )}
-            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
-          </View>
-        </Pressable>
+              <View style={styles.navCardTextWrap}>
+                <Text style={styles.navCardTitle}>Bookings</Text>
+                <Text style={styles.navCardSubtitle}>{stats.upcomingBookings} upcoming</Text>
+              </View>
+            </View>
+            <View style={styles.navCardRight}>
+              {stats.upcomingBookings > 0 && (
+                <View style={[styles.navBadge, { backgroundColor: "rgba(224,169,59,0.15)" }]}>
+                  <Text style={[styles.navBadgeText, { color: "#E0A93B" }]}>{stats.upcomingBookings}</Text>
+                </View>
+              )}
+              <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+          </Pressable>
+        )}
 
         <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardCreditsScreen")}>
           <View style={styles.navCardLeft}>
