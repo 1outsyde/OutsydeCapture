@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Linking } from "react-native";
+import { AppState, AppStateStatus, Linking } from "react-native";
 import { api } from "../services/api";
 import { captureReferralFromURL, captureReferralFromInitialURL } from "../services/referral";
 import {
@@ -58,6 +58,7 @@ export interface User {
   staffStripeOnboardingUrl?: string;
   deletionStatus?: "active" | "pending_deletion" | "deleted";
   scheduledDeletionAt?: string | null;
+  subscriptionTier?: string;
 }
 
 export interface SignupData {
@@ -282,7 +283,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    loadStoredAuth();
+    const init = async () => {
+      await loadStoredAuth();
+      await refreshUser();
+    };
+    init();
+
     captureReferralFromInitialURL();
     // Handle cold-start deep links
     Linking.getInitialURL().then((url) => {
@@ -302,7 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }).catch(() => {});
-    const sub = Linking.addEventListener("url", ({ url }) => {
+    const linkSub = Linking.addEventListener("url", ({ url }) => {
       console.log("[DeepLink] Received URL:", url);
       captureReferralFromURL(url);
       if (url.includes("reset-password")) {
@@ -317,7 +323,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     });
-    return () => sub.remove();
+    const appStateSub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (nextState === "active") {
+        refreshUser();
+      }
+    });
+    return () => {
+      linkSub.remove();
+      appStateSub.remove();
+    };
   }, []);
 
   const _clearAllAuth = async () => {
@@ -959,6 +973,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           bio: backendUser.bio ?? user.bio,
           deletionStatus: backendUser.deletionStatus ?? user.deletionStatus,
           scheduledDeletionAt: backendUser.scheduledDeletionAt ?? user.scheduledDeletionAt,
+          subscriptionTier: backendUser.subscriptionTier ?? user.subscriptionTier,
         };
         
         console.log("[Auth] User refreshed - username:", updatedUser.username, "displayName:", updatedUser.displayName, "bio:", updatedUser.bio);
