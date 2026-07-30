@@ -14,6 +14,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import RoleBadge from "@/components/RoleBadge";
 import {
   Alert,
   Animated,
@@ -1585,35 +1586,19 @@ export default function VendorDetailScreen({ route }: Props) {
         </View>
 
         <View style={styles.nameRow}>
-          <Text style={styles.nameText}>{profile.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.nameText}>{profile.name}</Text>
+            <RoleBadge
+              role="vendor"
+              subscriptionTier={profile.subscriptionTier?.toLowerCase() ?? null}
+              size="pill"
+            />
+          </View>
           {profile.isVerified ? (
             <View
               style={[styles.verifiedBadge, { backgroundColor: accentColor }]}
             >
               <Feather name="check" size={12} color={COLORS.black} />
-            </View>
-          ) : null}
-          {profile.role === "business" && profile.subscriptionTier ? (
-            <View
-              style={[
-                styles.tierBadge,
-                profile.subscriptionTier.toLowerCase().includes("pro")
-                  ? { backgroundColor: COLORS.gold }
-                  : profile.subscriptionTier.toLowerCase().includes("growth")
-                    ? { backgroundColor: COLORS.emerald }
-                    : { backgroundColor: COLORS.gray },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tierBadgeText,
-                  profile.subscriptionTier.toLowerCase().includes("pro")
-                    ? { color: COLORS.black }
-                    : { color: COLORS.white },
-                ]}
-              >
-                {profile.subscriptionTier}
-              </Text>
             </View>
           ) : null}
         </View>
@@ -2733,15 +2718,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-  },
-  tierBadge: {
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  tierBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
   },
   metaLine: {
     marginTop: 6,
