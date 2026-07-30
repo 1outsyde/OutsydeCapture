@@ -70,6 +70,12 @@ interface AudienceData {
   age_ranges: Record<string, number>;
   shopping_frequency: Record<string, number>;
   top_industries: string[];
+  top_locations: {
+    city: string;
+    state: string | null;
+    zip_code: string | null;
+    customer_count: number;
+  }[];
 }
 
 interface PhotographerMatch {
@@ -486,6 +492,82 @@ export default function DashboardAnalyticsScreen() {
               <LockedCard
                 title="Influencer Match"
                 upgradeLabel="Growth Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* CUSTOMER LOCATIONS */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>CUSTOMER LOCATIONS</Text>
+            {isUnlocked(tier, "pro") ? (
+              <View>
+                <Text
+                  style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: "bold", marginBottom: 14 }}
+                >
+                  Where Your Customers Are
+                </Text>
+                {audienceData?.top_locations && audienceData.top_locations.length > 0 ? (
+                  <>
+                    {audienceData.top_locations.map((loc: { city: string; state: string | null; zip_code: string | null; customer_count: number }, i: number) => {
+                      const maxCount = audienceData.top_locations[0].customer_count;
+                      const pct = Math.round((loc.customer_count / maxCount) * 100);
+                      return (
+                        <View key={i} style={{ marginBottom: 12 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <Text style={{ color: COLORS.textPrimary, fontSize: 13 }}>
+                              {loc.city}
+                              {loc.state ? `, ${loc.state}` : ""}
+                              {loc.zip_code ? ` ${loc.zip_code}` : ""}
+                            </Text>
+                            <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
+                              {loc.customer_count} customer{loc.customer_count !== 1 ? "s" : ""}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              height: 8,
+                              backgroundColor: COLORS.surfaceAlt,
+                              borderRadius: 4,
+                              overflow: "hidden",
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: `${pct}%`,
+                                height: "100%",
+                                backgroundColor: COLORS.gold,
+                                borderRadius: 4,
+                              }}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                    <Text
+                      style={{ color: COLORS.textMuted, fontSize: 11, fontStyle: "italic", marginTop: 8 }}
+                    >
+                      Based on customer billing addresses
+                    </Text>
+                  </>
+                ) : (
+                  <View style={{ backgroundColor: COLORS.surfaceAlt, borderRadius: 12, padding: 14 }}>
+                    <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
+                      No location data yet — builds as customers order
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <LockedCard
+                title="Customer Locations"
+                upgradeLabel="Pro Plan"
                 onUpgrade={() => navigation.navigate("SubscriptionPlan")}
               />
             )}
