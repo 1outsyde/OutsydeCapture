@@ -73,7 +73,7 @@ export default function SubscriptionPlanScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { getToken } = useAuth();
+  const { getToken, refreshUser } = useAuth();
 
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [tiersLoading, setTiersLoading] = useState(true);
@@ -400,7 +400,8 @@ export default function SubscriptionPlanScreen() {
           </Text>
           <Pressable
             style={[styles.successBtn, { backgroundColor: theme.primary }]}
-            onPress={() => {
+            onPress={async () => {
+              await refreshUser();
               setSubscribeSuccess(false);
               navigation.goBack();
             }}
