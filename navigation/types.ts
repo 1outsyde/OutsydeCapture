@@ -73,6 +73,7 @@ export type RootStackParamList = {
   DashboardBookingsScreen: undefined;
   DashboardCalendarScreen: undefined;
   DashboardCreditsScreen: undefined;
+  DashboardAnalytics: undefined;
   StaffDashboard: undefined;
   EditStaffProfile: undefined;
   InfluencerApplication: undefined;
