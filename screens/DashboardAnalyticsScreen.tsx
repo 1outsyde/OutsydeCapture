@@ -1,0 +1,549 @@
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useAuth } from "@/context/AuthContext";
+import api, { API_BASE_URL } from "@/services/api";
+import { RootStackParamList } from "@/navigation/types";
+
+const COLORS = {
+  black: "#000000",
+  gold: "#C9933A",
+  cream: "#F5F0E6",
+  surface: "#111111",
+  surfaceAlt: "#1A1A1A",
+  locked: "#2A2A2A",
+  textPrimary: "#FFFFFF",
+  textMuted: "#888888",
+  emerald: "#1A3C34",
+};
+
+type TierName = "starter" | "growth" | "pro";
+
+interface SubscriptionFeatures {
+  tier: {
+    name: TierName;
+    display_name: string;
+    price_in_cents: number;
+    max_staff: number | null;
+  };
+  features: string[];
+  benefits: {
+    benefit_type: string;
+    benefit_name: string;
+    description: string;
+    is_unlimited: boolean;
+    included_quantity: number | null;
+  }[];
+}
+
+type BusinessStats = {
+  orderCount: number;
+  bookingCount: number;
+  monthlyRevenueCents: number;
+  reviewCount: number;
+  averageRating: number;
+};
+
+const TIER_ORDER: Record<TierName, number> = { starter: 0, growth: 1, pro: 2 };
+const isUnlocked = (current: TierName, required: TierName): boolean =>
+  TIER_ORDER[current] >= TIER_ORDER[required];
+
+function LockedCard({
+  title,
+  upgradeLabel,
+  onUpgrade,
+}: {
+  title: string;
+  upgradeLabel: string;
+  onUpgrade: () => void;
+}) {
+  return (
+    <View
+      style={{
+        backgroundColor: "#2A2A2A",
+        borderRadius: 12,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: "rgba(201,147,58,0.3)",
+        alignItems: "center",
+      }}
+    >
+      <Feather name="lock" size={24} color={COLORS.gold} />
+      <Text style={{ color: COLORS.textPrimary, fontSize: 16, fontWeight: "bold", marginTop: 12 }}>
+        {title}
+      </Text>
+      <Text style={{ color: COLORS.textMuted, fontSize: 13, marginTop: 6 }}>
+        Available on {upgradeLabel}
+      </Text>
+      <Pressable
+        style={{
+          backgroundColor: COLORS.gold,
+          borderRadius: 8,
+          paddingHorizontal: 20,
+          paddingVertical: 10,
+          marginTop: 16,
+        }}
+        onPress={onUpgrade}
+      >
+        <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>Upgrade Plan</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function BarChart({
+  data,
+  labels,
+  color,
+}: {
+  data: number[];
+  labels: string[];
+  color: string;
+}) {
+  const maxValue = Math.max(...data, 1);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-end", height: 100, gap: 4 }}>
+      {data.map((value, i) => (
+        <View key={i} style={{ flex: 1, alignItems: "center" }}>
+          <View
+            style={{
+              backgroundColor: color,
+              borderRadius: 4,
+              width: "80%",
+              height: Math.max(16, (value / maxValue) * 100),
+            }}
+          />
+          <Text style={{ fontSize: 9, color: COLORS.textMuted, marginTop: 4, textAlign: "center" }}>
+            {labels[i]}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export default function DashboardAnalyticsScreen() {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { getToken } = useAuth();
+
+  const [subscription, setSubscription] = useState<SubscriptionFeatures | null>(null);
+  const [stats, setStats] = useState<BusinessStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("No token");
+      const [subRes, statsResult] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/vendor/subscription/features`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        api.getBusinessStats(token),
+      ]);
+      if (!subRes.ok) throw new Error("subscription fetch failed");
+      const subData: SubscriptionFeatures = await subRes.json();
+      setSubscription(subData);
+      setStats(statsResult.stats);
+    } catch (_err) {
+      setError("Failed to load analytics");
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const tier: TierName = subscription?.tier.name ?? "starter";
+
+  if (loading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: COLORS.black }]}>
+        <ActivityIndicator color={COLORS.gold} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.centered, { backgroundColor: COLORS.black }]}>
+        <Text style={{ color: COLORS.textMuted, marginBottom: 16 }}>{error}</Text>
+        <Pressable onPress={fetchData}>
+          <Text style={{ color: COLORS.gold }}>Try Again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const audienceData = [
+    { label: "18–24", pct: 35 },
+    { label: "25–34", pct: 42 },
+    { label: "35–44", pct: 18 },
+    { label: "45+", pct: 5 },
+  ];
+
+  const photographerMatches = [
+    { initials: "PA", name: "Photographer A", sub: "Portrait · Lifestyle", match: "92% match" },
+    { initials: "PB", name: "Photographer B", sub: "Portrait · Lifestyle", match: "87% match" },
+    { initials: "PC", name: "Photographer C", sub: "Portrait · Lifestyle", match: "81% match" },
+  ];
+
+  const tips = [
+    "Post on weekends — your audience is 40% more active Sat–Sun",
+    "Add 3+ product photos to increase conversion by 2×",
+    "Vendors with Authority Badge see 28% more profile visits",
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.black }}>
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingHorizontal: 20,
+          paddingBottom: 16,
+          backgroundColor: COLORS.black,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Pressable onPress={() => navigation.goBack()}>
+          <Feather name="chevron-left" size={24} color={COLORS.textPrimary} />
+        </Pressable>
+        <Text
+          style={{
+            flex: 1,
+            textAlign: "center",
+            fontSize: 20,
+            fontWeight: "bold",
+            color: COLORS.textPrimary,
+          }}
+        >
+          Analytics
+        </Text>
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: COLORS.gold,
+            borderRadius: 20,
+            paddingHorizontal: 12,
+            paddingVertical: 4,
+          }}
+        >
+          <Text style={{ color: COLORS.gold, fontSize: 12, fontWeight: "600" }}>
+            {subscription?.tier.display_name ?? "—"}
+          </Text>
+        </View>
+      </View>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+          {/* 1. OVERVIEW */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>OVERVIEW</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              <View style={[styles.statCard, { flexBasis: "48%" }]}>
+                <Text style={styles.statValue}>
+                  ${((stats?.monthlyRevenueCents ?? 0) / 100).toFixed(2)}
+                </Text>
+                <Text style={styles.statLabel}>Revenue</Text>
+              </View>
+              <View style={[styles.statCard, { flexBasis: "48%" }]}>
+                <Text style={styles.statValue}>{stats?.orderCount ?? 0}</Text>
+                <Text style={styles.statLabel}>Orders</Text>
+              </View>
+              <View style={[styles.statCard, { flexBasis: "48%" }]}>
+                <Text style={styles.statValue}>{stats?.bookingCount ?? 0}</Text>
+                <Text style={styles.statLabel}>Bookings</Text>
+              </View>
+              <View style={[styles.statCard, { flexBasis: "48%" }]}>
+                <Text style={styles.statValue}>
+                  {stats?.averageRating != null ? `${stats.averageRating.toFixed(1)} ★` : "— ★"}
+                </Text>
+                <Text style={styles.statLabel}>Rating</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* 2. PERFORMANCE */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>PERFORMANCE</Text>
+            {isUnlocked(tier, "growth") ? (
+              <>
+                <Text
+                  style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: "bold", marginBottom: 12 }}
+                >
+                  Revenue Trend
+                </Text>
+                <BarChart
+                  data={[40, 65, 30, 80, 55, 90, 70]}
+                  labels={["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
+                  color={COLORS.gold}
+                />
+                <Text
+                  style={{ color: COLORS.textMuted, fontSize: 11, fontStyle: "italic", marginTop: 8 }}
+                >
+                  Last 7 days · live data coming soon
+                </Text>
+              </>
+            ) : (
+              <LockedCard
+                title="Charts & Trends"
+                upgradeLabel="Growth Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 3. YOUR AUDIENCE */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>YOUR AUDIENCE</Text>
+            {isUnlocked(tier, "growth") ? (
+              <>
+                <Text
+                  style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: "bold", marginBottom: 14 }}
+                >
+                  Age Breakdown
+                </Text>
+                {audienceData.map(({ label, pct }) => (
+                  <View
+                    key={label}
+                    style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}
+                  >
+                    <Text style={{ width: 44, fontSize: 12, color: COLORS.textMuted }}>{label}</Text>
+                    <View
+                      style={{
+                        flex: 1,
+                        height: 8,
+                        backgroundColor: COLORS.surfaceAlt,
+                        borderRadius: 4,
+                        marginHorizontal: 10,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: `${pct}%`,
+                          height: "100%",
+                          backgroundColor: COLORS.gold,
+                          borderRadius: 4,
+                        }}
+                      />
+                    </View>
+                    <Text
+                      style={{ width: 32, fontSize: 12, color: COLORS.textMuted, textAlign: "right" }}
+                    >
+                      {pct}%
+                    </Text>
+                  </View>
+                ))}
+                <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 8 }}>
+                  Based on customer activity · updates as data grows
+                </Text>
+              </>
+            ) : (
+              <LockedCard
+                title="Audience Demographics"
+                upgradeLabel="Growth Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 4. PHOTOGRAPHER MATCH */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>PHOTOGRAPHER MATCH</Text>
+            {isUnlocked(tier, "growth") ? (
+              <>
+                {photographerMatches.map(({ initials, name, sub, match }) => (
+                  <View
+                    key={initials}
+                    style={{
+                      backgroundColor: COLORS.surfaceAlt,
+                      borderRadius: 12,
+                      padding: 14,
+                      marginBottom: 10,
+                      flexDirection: "row",
+                      alignItems: "center",
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 21,
+                        backgroundColor: COLORS.emerald,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, color: COLORS.gold, fontWeight: "700" }}>
+                        {initials}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={{ color: COLORS.textPrimary, fontSize: 14, fontWeight: "bold" }}>
+                        {name}
+                      </Text>
+                      <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 2 }}>{sub}</Text>
+                    </View>
+                    <View
+                      style={{
+                        borderWidth: 1,
+                        borderColor: COLORS.gold,
+                        borderRadius: 10,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <Text style={{ color: COLORS.gold, fontSize: 11 }}>{match}</Text>
+                    </View>
+                  </View>
+                ))}
+                <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 4 }}>
+                  Live matches based on audience overlap · coming soon
+                </Text>
+              </>
+            ) : (
+              <LockedCard
+                title="Influencer Match"
+                upgradeLabel="Growth Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 5. MARKETING INTELLIGENCE */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>MARKETING INTELLIGENCE</Text>
+            {isUnlocked(tier, "pro") ? (
+              <>
+                {tips.map((tip, i) => (
+                  <View key={i} style={styles.tipCard}>
+                    <Feather name="zap" size={14} color={COLORS.gold} style={{ marginRight: 10 }} />
+                    <Text style={{ color: COLORS.cream, fontSize: 13, flex: 1 }}>{tip}</Text>
+                  </View>
+                ))}
+              </>
+            ) : (
+              <LockedCard
+                title="Marketing Tips"
+                upgradeLabel="Pro Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 6. AUTHORITY */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>AUTHORITY</Text>
+            {isUnlocked(tier, "pro") ? (
+              <View
+                style={{
+                  backgroundColor: "rgba(201,147,58,0.08)",
+                  borderWidth: 1,
+                  borderColor: "rgba(201,147,58,0.4)",
+                  borderRadius: 12,
+                  padding: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Feather name="award" size={28} color={COLORS.gold} />
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={{ color: COLORS.textPrimary, fontSize: 16, fontWeight: "bold" }}>
+                    Authority Badge
+                  </Text>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 13, marginTop: 3 }}>
+                    Verified on your storefront
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    backgroundColor: "#1A3C34",
+                    borderRadius: 10,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text style={{ color: "#4CAF50", fontSize: 12, fontWeight: "600" }}>Active</Text>
+                </View>
+              </View>
+            ) : (
+              <LockedCard
+                title="Authority Badge"
+                upgradeLabel="Pro Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    color: COLORS.gold,
+    textTransform: "uppercase",
+    marginBottom: 14,
+  },
+  statCard: {
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: 12,
+    padding: 14,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  tipCard: {
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.gold,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+});
