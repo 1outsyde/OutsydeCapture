@@ -631,7 +631,7 @@ export default function BusinessDashboardScreen() {
   const locationDisplay =
     [profile?.city, profile?.state].filter(Boolean).join(", ") || "Location not set";
   const rawTier = String(
-    (user as any)?.subscriptionTier || (profile as any)?.subscriptionTier || ""
+    user?.subscriptionTier || profile?.subscriptionTier || ""
   ).toLowerCase();
   const tierLabel = rawTier.includes("pro")
     ? "Pro"
