@@ -13,7 +13,7 @@ import {
   AppStateStatus,
   Switch,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -972,6 +972,21 @@ export default function BusinessDashboardScreen() {
                 <Text style={[styles.navBadgeText, { color: DASHBOARD_COLORS.gold }]}>{creditBalance}</Text>
               </View>
             )}
+            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardAnalytics")}>
+          <View style={styles.navCardLeft}>
+            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+              <Ionicons name="bar-chart-outline" size={20} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={styles.navCardTextWrap}>
+              <Text style={styles.navCardTitle}>Analytics</Text>
+              <Text style={styles.navCardSubtitle}>Track your growth & insights</Text>
+            </View>
+          </View>
+          <View style={styles.navCardRight}>
             <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
           </View>
         </Pressable>
