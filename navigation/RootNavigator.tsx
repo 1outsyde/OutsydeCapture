@@ -60,6 +60,11 @@ import { useTheme } from "@/hooks/useTheme";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const DashboardOrdersScreenPlaceholder = () => null;
+const DashboardBookingsScreenPlaceholder = () => null;
+const DashboardCalendarScreenPlaceholder = () => null;
+const DashboardCreditsScreenPlaceholder = () => null;
+
 export default function RootNavigator() {
   const { theme } = useTheme();
   const [initialRoute, setInitialRoute] = useState<"Onboarding" | "Main" | null>(null);
@@ -534,6 +539,26 @@ export default function RootNavigator() {
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
         }}
+      />
+      <Stack.Screen
+        name="DashboardOrdersScreen"
+        component={DashboardOrdersScreenPlaceholder}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DashboardBookingsScreen"
+        component={DashboardBookingsScreenPlaceholder}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DashboardCalendarScreen"
+        component={DashboardCalendarScreenPlaceholder}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DashboardCreditsScreen"
+        component={DashboardCreditsScreenPlaceholder}
+        options={{ headerShown: false }}
       />
 
       <Stack.Screen
