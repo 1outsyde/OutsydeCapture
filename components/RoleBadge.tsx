@@ -1,7 +1,6 @@
 import React from "react";
 import { View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { ThemedText } from "@/components/ThemedText";
 
 const BADGE_GOLD = '#C9933A';
 const BADGE_BLUE = '#4A90E2';
@@ -21,16 +20,12 @@ export default function RoleBadge({ role, subscriptionTier, size = 'pill' }: Rol
 
   const icon: keyof typeof Feather.glyphMap = isPhotographer ? 'camera' : 'briefcase';
   const color = BADGE_GOLD;
-  const label = isPhotographer ? 'Outsyde Crew' : isVerifiedVendor ? 'Verified Business' : 'Business';
 
   if (size === 'pill') {
     return (
       <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 8,
-        paddingVertical: 3,
+        paddingHorizontal: 6,
+        paddingVertical: 4,
         borderRadius: 20,
         borderWidth: 1,
         borderColor: color,
@@ -44,7 +39,6 @@ export default function RoleBadge({ role, subscriptionTier, size = 'pill' }: Rol
             </View>
           )}
         </View>
-        <ThemedText style={{ fontSize: 11, color, fontWeight: '600' }}>{label}</ThemedText>
       </View>
     );
   }
