@@ -16,6 +16,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
+import RoleBadge from "@/components/RoleBadge";
 import { RootStackParamList } from "@/navigation/types";
 
 const SEARCH_HISTORY_KEY = "@search_history";
@@ -502,20 +503,11 @@ export default function SearchScreen() {
           </ThemedText>
 
           <View style={{ flexDirection: "row", marginTop: 4 }}>
-            <View style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: accentColor + "26",
-              paddingHorizontal: 6,
-              paddingVertical: 2,
-              borderRadius: 20,
-              alignSelf: "flex-start",
-            }}>
-              <Feather name={typeIcon} size={9} color={accentColor} />
-              <ThemedText style={{ color: accentColor, fontSize: 10, fontWeight: "600", marginLeft: 3 }}>
-                {RESULT_TYPE_LABELS[item.resultType]}
-              </ThemedText>
-            </View>
+            <RoleBadge
+              role={item.resultType === 'photographer' ? 'photographer' : item.resultType === 'business' ? 'vendor' : 'user'}
+              subscriptionTier={item.subscriptionTier ?? null}
+              size="pill"
+            />
           </View>
 
           {/* Provider/business name for products and services */}

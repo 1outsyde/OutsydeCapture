@@ -7,6 +7,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Post } from "@/context/DataContext";
+import RoleBadge from "@/components/RoleBadge";
 import { sendClickEvent } from "@/services/referral";
 import { promptForReportReason } from "@/utils/moderationActions";
 
@@ -253,13 +254,11 @@ export function ProFeedCard({
             <ThemedText style={styles.authorName}>
               {post.displayName || post.authorName}
             </ThemedText>
-            {post.type !== "user" && (
-              <View style={[styles.badge, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.brandGold }]}>
-                <ThemedText style={[styles.badgeText, { color: theme.brandGold }]}>
-                  {post.type === "photographer" ? "Photographer" : "Business"}
-                </ThemedText>
-              </View>
-            )}
+            <RoleBadge
+              role={post.type === 'photographer' ? 'photographer' : post.type === 'vendor' ? 'vendor' : 'user'}
+              subscriptionTier={post.subscriptionTier ?? null}
+              size="pill"
+            />
             {hasCommerce && (
               <View style={styles.ratingInline}>
                 <Feather name="star" size={12} color="#FFD700" />
