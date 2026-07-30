@@ -57,12 +57,12 @@ import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
 
 import DashboardOrdersScreen from "@/screens/DashboardOrdersScreen";
 import DashboardBookingsScreen from "@/screens/DashboardBookingsScreen";
+import DashboardCalendarScreen from "@/screens/DashboardCalendarScreen";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const DashboardCalendarScreenPlaceholder = () => null;
 const DashboardCreditsScreenPlaceholder = () => null;
 
 export default function RootNavigator() {
@@ -552,7 +552,7 @@ export default function RootNavigator() {
       />
       <Stack.Screen
         name="DashboardCalendarScreen"
-        component={DashboardCalendarScreenPlaceholder}
+        component={DashboardCalendarScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

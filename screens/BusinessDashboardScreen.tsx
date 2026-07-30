@@ -3,19 +3,16 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   Pressable,
   ScrollView,
   ActivityIndicator,
   Alert,
-  Modal,
   RefreshControl,
   Linking,
   AppState,
   AppStateStatus,
   Switch,
 } from "react-native";
-import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -25,34 +22,20 @@ import { useAuth } from "@/context/AuthContext";
 import api, {
   BusinessDashboardStats,
   BusinessDashboardProfile,
-  BusinessOrder,
-  BusinessBooking,
-  BusinessService,
-  BusinessProduct,
-  BillingAddress,
   VendorEligibility,
-  ProductionCreditData,
-  ProductionCreditHistory,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
-import HoursEditor, { DayHours, getDefaultHours, hoursArrayToObject, convertTo24Hour } from "@/components/HoursEditor";
-import RefundModal from "@/components/RefundModal";
+import { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
-import { availabilityEvents } from "@/services/availabilityEvents";
 import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
-import OrderCard from "@/components/OrderCard";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
 type BusinessType = "service" | "product" | "both";
-type TabType = "orders" | "bookings" | "products" | "services" | "hours" | "storefront" | "profile" | "credits";
 
-const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const DASHBOARD_COLORS = {
   background: "#080C08",
   surface: "rgba(255,255,255,0.04)",
   cardBorder: "rgba(255,255,255,0.08)",
-  greenBright: "#2D7A2D",
-  greenAccent: "#3A9E3A",
   gold: "#C9933A",
   goldLight: "#E8B86D",
   cream: "#F0EAD6",
@@ -66,22 +49,28 @@ const convertTo12Hour = (time24: string): string => {
   return `${h12}:${m.toString().padStart(2, "0")} ${period}`;
 };
 
+function SectionLabel({ text }: { text: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, marginTop: 4 }}>
+      <View style={{ width: 3, height: 11, backgroundColor: DASHBOARD_COLORS.gold, borderRadius: 2 }} />
+      <Text style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: DASHBOARD_COLORS.creamDim, fontWeight: "700" }}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 export default function BusinessDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { getToken, logout, user, isLoading: authLoading, refreshUser } = useAuth();
+  const { getToken, logout, user, isLoading: authLoading } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<TabType>("orders");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const hasFetchedRef = useRef(false);
   const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
-  const [creditData, setCreditData] = useState<ProductionCreditData | null>(null);
-  const [creditLoading, setCreditLoading] = useState(false);
-  const [milestoneVisible, setMilestoneVisible] = useState(true);
 
   const [stats, setStats] = useState<BusinessDashboardStats>({
     earnings: 0,
@@ -98,63 +87,22 @@ export default function BusinessDashboardScreen() {
     maxStaff: number | null;
     tierName: string;
   } | null>(null);
-  const [billingAddress, setBillingAddress] = useState<BillingAddress>({
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    state: "",
-    zipCode: "",
-  });
-  const [orders, setOrders] = useState<BusinessOrder[]>([]);
+
   const [bookings, setBookings] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
   const [blockedDates, setBlockedDates] = useState<CalendarBlockedDate[]>([]);
-  
+
   const [autoAcceptBookings, setAutoAcceptBookings] = useState(false);
   const [autoAcceptLoading, setAutoAcceptLoading] = useState(false);
-  const [refundModalVisible, setRefundModalVisible] = useState(false);
-  const [selectedBookingForRefund, setSelectedBookingForRefund] = useState<BusinessBooking | null>(null);
+  const [loadingPayoutLink, setLoadingPayoutLink] = useState(false);
 
-  const [shipModalVisible, setShipModalVisible] = useState(false);
-  const [shipOrderId, setShipOrderId] = useState<string>("");
-  const [shipCarrier, setShipCarrier] = useState("");
-  const [shipTracking, setShipTracking] = useState("");
-  const [shipSubmitting, setShipSubmitting] = useState(false);
-
-  const [editProfile, setEditProfile] = useState({
-    name: "",
-    username: "",
-    category: "",
-    bio: "",
-    city: "",
-    state: "",
-    website: "",
-  });
-  
-  const [identityStatus, setIdentityStatus] = useState<{
-    canChangeUsername: boolean;
-    canChangeDisplayName: boolean;
-    usernameCooldownDays?: number;
-    displayNameCooldownDays?: number;
-  } | null>(null);
-  const [savingIdentity, setSavingIdentity] = useState(false);
-  const [originalUsername, setOriginalUsername] = useState("");
+  // Up Next data — fetched lightly on mount when profile is ready
+  const [upNextOrders, setUpNextOrders] = useState<any[]>([]);
+  const [creditBalance, setCreditBalance] = useState(0);
 
   const businessType: BusinessType = profile?.businessType || "both";
 
-  const getAvailableTabs = (): TabType[] => {
-    switch (businessType) {
-      case "product":
-        return ["orders", "products", "storefront", "credits", "profile"];
-      case "service":
-        return ["bookings", "services", "hours", "storefront", "credits", "profile"];
-      case "both":
-      default:
-        return ["orders", "bookings", "products", "services", "hours", "storefront", "credits", "profile"];
-    }
-  };
+  // ─── Fetch dashboard ────────────────────────────────────────────────────────
 
   const fetchDashboard = useCallback(async () => {
     const token = await getToken();
@@ -168,7 +116,7 @@ export default function BusinessDashboardScreen() {
       setLoading(true);
       setAuthError(null);
       const { business } = await api.getVendorMyBusiness(token);
-      
+
       setStats({
         earnings: (business as any).totalEarnings || 0,
         upcomingOrders: 0,
@@ -191,12 +139,12 @@ export default function BusinessDashboardScreen() {
         console.warn("[Dashboard] Failed to load business stats:", statsError);
       }
 
-      const businessTypeValue = business.hasProducts && business.hasServices 
-        ? "both" 
-        : business.hasProducts 
-          ? "product" 
+      const businessTypeValue = business.hasProducts && business.hasServices
+        ? "both"
+        : business.hasProducts
+          ? "product"
           : "service";
-      
+
       setProfile({
         id: business.id,
         name: business.name || "",
@@ -225,26 +173,7 @@ export default function BusinessDashboardScreen() {
         setSeatStatus(null);
       }
 
-      setEditProfile({
-        name: business.name || "",
-        username: (business as any).username || "",
-        category: business.category || "",
-        bio: business.description || "",
-        city: business.city || "",
-        state: business.state || "",
-        website: business.websiteUrl || "",
-      });
-      setOriginalUsername((business as any).username || "");
-      
-      // Fetch identity status for cooldown info
-      try {
-        const status = await api.getUserIdentityStatus(token);
-        setIdentityStatus(status);
-      } catch (err) {
-        console.log("[Dashboard] Could not fetch identity status:", err);
-      }
-
-      // Load weekly hours to power the calendar
+      // Load weekly hours to power the calendar preview
       try {
         const weeklyRes = await api.getWeeklyAvailability(token, "business");
         const rawWeekly: any[] = (weeklyRes as any)?.availability || (Array.isArray(weeklyRes) ? weeklyRes : []);
@@ -270,9 +199,6 @@ export default function BusinessDashboardScreen() {
       // Load blocked dates to power the calendar red indicators
       try {
         const blocksResponse = await api.getBlocks(token, "business");
-        console.log("[Dashboard] Raw blocks response:", blocksResponse);
-        // Business endpoint returns { blocks: [...] }; Photographer returns a raw array.
-        // Unwrap defensively so either shape works.
         const blocks: any[] = Array.isArray(blocksResponse)
           ? blocksResponse
           : (blocksResponse as any)?.blocks ?? [];
@@ -289,24 +215,19 @@ export default function BusinessDashboardScreen() {
       } catch (blocksErr) {
         console.warn("[Dashboard] Could not load blocked dates for calendar:", blocksErr);
       }
-      
-      const tabs = getAvailableTabs();
-      if (!tabs.includes(activeTab)) {
-        setActiveTab(tabs[0]);
-      }
     } catch (error: any) {
       console.error("Failed to fetch business dashboard:", error);
-      
+
       const status = error?.status || error?.response?.status;
       const message = error?.message || "";
       const is401 = status === 401 || message.includes("401") || message.toLowerCase().includes("unauthorized");
-      
+
       if (is401) {
         setAuthError("Your session has expired. Please sign in again.");
         await logout();
         return;
       }
-      
+
       setStats({
         earnings: 0,
         upcomingOrders: 0,
@@ -340,62 +261,34 @@ export default function BusinessDashboardScreen() {
     }
   }, [getToken]);
 
-  const fetchTabData = useCallback(async () => {
+  const fetchBookingsForCalendar = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
-
     try {
-      switch (activeTab) {
-        case "orders":
-          const ordersResponse = await api.getBusinessOrders(token);
-          setOrders(ordersResponse.orders);
-          break;
-        case "bookings":
-          const bookingsResponse = await api.getBusinessBookings(token) as any;
-          setBookings(Array.isArray(bookingsResponse) ? bookingsResponse : bookingsResponse?.bookings || []);
-          break;
-        case "products":
-          const productsResponse = await api.getBusinessProducts(token) as any;
-          setProducts(Array.isArray(productsResponse) ? productsResponse : productsResponse?.products || []);
-          break;
-        case "services":
-          const servicesResponse = await api.getBusinessServices(token) as any;
-          setServices(Array.isArray(servicesResponse) ? servicesResponse : servicesResponse?.services || []);
-          break;
-        case "credits":
-          if (!profile?.id) break;
-          setCreditLoading(true);
-          try {
-            const creditsData = await api.getBusinessProductionCredits(token, profile.id);
-            setCreditData(creditsData);
-          } catch (err) {
-            console.warn("[Dashboard] Could not fetch production credits:", err);
-            setCreditData({ balance: 0, history: [] });
-          } finally {
-            setCreditLoading(false);
-          }
-          break;
-      }
-    } catch (error) {
-      console.error(`Failed to fetch ${activeTab} data:`, error);
+      const res = await api.getBusinessBookings(token) as any;
+      setBookings(Array.isArray(res) ? res : res?.bookings || []);
+    } catch (err) {
+      console.warn("[Dashboard] Could not load bookings for calendar:", err);
     }
-  }, [getToken, activeTab, profile?.id]);
+  }, [getToken]);
+
+  // ─── Effects ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (authLoading) return;
-    
+
     if (!user) {
       setAuthError("Please sign in to access your dashboard");
       setLoading(false);
       return;
     }
-    
+
     if (user.role !== "business") {
       setAuthError("This dashboard is only available for businesses");
       setLoading(false);
       return;
     }
-    
+
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
       fetchDashboard();
@@ -403,50 +296,42 @@ export default function BusinessDashboardScreen() {
     }
   }, [authLoading, user?.id, user?.role]);
 
-  useEffect(() => {
-    if (hasFetchedRef.current && profile?.id) {
-      fetchTabData();
-    }
-  }, [activeTab, profile?.id]);
-
-  // Also load bookings on mount so the calendar is populated immediately
+  // Preload bookings for the calendar preview
   useEffect(() => {
     if (!hasFetchedRef.current || !profile?.id) return;
-    const loadBookingsForCalendar = async () => {
+    fetchBookingsForCalendar();
+  }, [profile?.id]);
+
+  // Fetch up-next orders + credit balance when profile is ready
+  useEffect(() => {
+    if (!profile?.id) return;
+    const fetchUpNextData = async () => {
       const token = await getToken();
       if (!token) return;
       try {
-        const bookingsResponse = await api.getBusinessBookings(token) as any;
-        setBookings(Array.isArray(bookingsResponse) ? bookingsResponse : bookingsResponse?.bookings || []);
-      } catch (err) {
-        console.warn("[Dashboard] Could not preload bookings for calendar:", err);
-      }
+        const ordersRes = await api.getBusinessOrders(token);
+        setUpNextOrders(ordersRes.orders as any[]);
+      } catch { /* silent */ }
+      try {
+        const creditsRes = await api.getBusinessProductionCredits(token, profile.id);
+        setCreditBalance(creditsRes.balance);
+      } catch { /* silent */ }
     };
-    loadBookingsForCalendar();
+    fetchUpNextData();
   }, [profile?.id]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([fetchDashboard(), fetchTabData()]);
-    setRefreshing(false);
-  };
+  // ─── Stripe / AppState / Deep-link ─────────────────────────────────────────
 
   const STRIPE_RETURN_URL = "outsyde://stripe-return";
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  
+
   const refreshStripeStatus = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
-    
     try {
-      console.log("[Dashboard] Fetching fresh Stripe status...");
       const stripeStatus = await api.getVendorStripeStatus(token);
-      console.log("[Dashboard] Stripe status response:", stripeStatus);
-      
       const isConnected = stripeStatus.onboardingComplete || (stripeStatus.chargesEnabled && stripeStatus.payoutsEnabled);
-      
       setProfile(prev => prev ? { ...prev, stripeConnected: isConnected } : prev);
-      
       if (isConnected) {
         Alert.alert("Success", "Your Stripe account is now connected! You can start accepting payments.");
       }
@@ -454,57 +339,42 @@ export default function BusinessDashboardScreen() {
       console.error("[Dashboard] Failed to fetch Stripe status:", error);
     }
   }, [getToken]);
-  
+
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       if (event.url.includes("stripe-return")) {
-        console.log("[Dashboard] Stripe return deep link received, refreshing status...");
         await refreshStripeStatus();
       }
     };
-
     const subscription = Linking.addEventListener("url", handleDeepLink);
-    
     Linking.getInitialURL().then((url) => {
-      if (url && url.includes("stripe-return")) {
-        handleDeepLink({ url });
-      }
+      if (url && url.includes("stripe-return")) handleDeepLink({ url });
     });
-
-    return () => {
-      subscription.remove();
-    };
+    return () => { subscription.remove(); };
   }, [refreshStripeStatus]);
-  
+
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === "active") {
-        console.log("[Dashboard] App came to foreground, refreshing eligibility and Stripe status...");
         await Promise.all([fetchEligibility(), refreshStripeStatus()]);
       }
       appStateRef.current = nextAppState;
     });
-
-    return () => {
-      subscription.remove();
-    };
+    return () => { subscription.remove(); };
   }, [fetchEligibility, refreshStripeStatus]);
-  
+
+  // ─── Handlers ───────────────────────────────────────────────────────────────
+
   const handleConnectStripe = async () => {
     const token = await getToken();
     if (!token) return;
-
     try {
       const { url } = await api.startVendorStripeOnboarding(token, STRIPE_RETURN_URL);
-      if (url) {
-        Linking.openURL(url);
-      }
+      if (url) Linking.openURL(url);
     } catch (error) {
       Alert.alert("Error", "Failed to connect Stripe. Please try again.");
     }
   };
-
-  const [loadingPayoutLink, setLoadingPayoutLink] = useState(false);
 
   const handleManagePayouts = async () => {
     const token = await getToken();
@@ -524,180 +394,6 @@ export default function BusinessDashboardScreen() {
     }
   };
 
-  const handleSaveUsername = async () => {
-    const token = await getToken();
-    if (!token) return;
-    
-    const newUsername = editProfile.username.trim().toLowerCase();
-    if (newUsername === originalUsername) {
-      Alert.alert("No Changes", "Username is the same as before.");
-      return;
-    }
-    
-    if (!newUsername) {
-      Alert.alert("Invalid Username", "Username cannot be empty.");
-      return;
-    }
-    
-    if (!/^[a-z0-9_]+$/.test(newUsername)) {
-      Alert.alert("Invalid Username", "Username can only contain lowercase letters, numbers, and underscores.");
-      return;
-    }
-    
-    if (!identityStatus?.canChangeUsername) {
-      Alert.alert(
-        "Cooldown Active",
-        `You can change your username again in ${identityStatus?.usernameCooldownDays || 14} days.`
-      );
-      return;
-    }
-    
-    try {
-      setSavingIdentity(true);
-      await api.updateUserIdentity(token, { username: newUsername });
-      setOriginalUsername(newUsername);
-      
-      // Refresh identity status
-      const status = await api.getUserIdentityStatus(token);
-      setIdentityStatus(status);
-      
-      // Refresh user from backend to update AuthContext with new username
-      await refreshUser();
-      console.log("[Dashboard] Username updated, refreshed user from backend");
-      
-      Alert.alert("Success", "Username updated successfully!");
-    } catch (error: any) {
-      const message = error?.message || "Failed to update username";
-      Alert.alert("Error", message);
-    } finally {
-      setSavingIdentity(false);
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    const token = await getToken();
-    if (!token) return;
-
-    try {
-      setSaving(true);
-      await api.updateVendorMyBusiness(token, {
-        name: editProfile.name,
-        category: editProfile.category,
-        description: editProfile.bio || undefined,
-        city: editProfile.city || undefined,
-        state: editProfile.state || undefined,
-        websiteUrl: editProfile.website || undefined,
-      });
-      Alert.alert("Success", "Profile updated successfully");
-      fetchDashboard();
-    } catch (error) {
-      Alert.alert("Error", "Failed to save profile");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveHours = async () => {
-    const token = await getToken();
-    if (!token) return;
-
-    try {
-      setSaving(true);
-      
-      // Convert DayHours to WeeklyAvailabilitySlot format for weekly_availability table
-      const slots = hours
-        .filter((h) => h.isAvailable)
-        .map((h) => ({
-          dayOfWeek: h.dayOfWeek,
-          startTime: convertTo24Hour(h.startTime),
-          endTime: convertTo24Hour(h.endTime),
-          isActive: true,
-        }));
-
-      console.log("[BusinessDashboard] Saving weekly availability:", JSON.stringify(slots, null, 2));
-      
-      // Save to weekly_availability table (primary source of truth)
-      await api.updateWeeklyAvailability(token, "business", slots);
-      
-      // DUAL-SYNC: Also update hoursOfOperation for legacy banner UI support
-      // This is transitional - banner should eventually read from weekly_availability directly
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const hoursOfOperation: Record<string, { open: boolean; start?: string; end?: string }> = {};
-      dayNames.forEach((dayName, index) => {
-        const slot = slots.find((s) => s.dayOfWeek === index);
-        if (slot) {
-          hoursOfOperation[dayName] = { open: true, start: slot.startTime, end: slot.endTime };
-        } else {
-          hoursOfOperation[dayName] = { open: false };
-        }
-      });
-      console.log("[BusinessDashboard] Syncing hoursOfOperation for banner:", JSON.stringify(hoursOfOperation, null, 2));
-      try {
-        await api.updateVendorMyBusiness(token, { hoursOfOperation });
-        console.log("[BusinessDashboard] hoursOfOperation synced successfully");
-      } catch (syncError) {
-        console.warn("[BusinessDashboard] Failed to sync hoursOfOperation (non-blocking):", syncError);
-      }
-      
-      // Emit availability changed event so other screens can refresh
-      availabilityEvents.emit();
-      
-      Alert.alert("Success", "Business hours updated successfully");
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to save business hours");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleOrderAction = async (orderId: string, status: string) => {
-    const token = await getToken();
-    if (!token) return;
-
-    try {
-      await api.updateOrderStatus(token, orderId, status);
-      Alert.alert("Success", "Order updated successfully");
-      fetchTabData();
-    } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to update order");
-    }
-  };
-
-  const handleShipOrder = async () => {
-    if (!shipCarrier.trim() || !shipTracking.trim()) return;
-    const token = await getToken();
-    if (!token) return;
-    setShipSubmitting(true);
-    try {
-      await api.updateOrderStatus(token, shipOrderId, "shipped", {
-        carrier: shipCarrier.trim(),
-        trackingNumber: shipTracking.trim(),
-      });
-      setShipModalVisible(false);
-      setShipCarrier("");
-      setShipTracking("");
-      setShipOrderId("");
-      Alert.alert("Success", "Order marked as shipped");
-      fetchTabData();
-    } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to update order");
-    } finally {
-      setShipSubmitting(false);
-    }
-  };
-
-  const handleMarkDelivered = async (orderId: string, shipmentId: string) => {
-    const token = await getToken();
-    if (!token) return;
-    try {
-      await api.updateShipmentStatus(token, shipmentId, "delivered");
-      Alert.alert("Success", "Order marked as delivered");
-      fetchTabData();
-    } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to mark as delivered");
-    }
-  };
-
   const handleBlockDate = async (
     date: string,
     isFullDay: boolean,
@@ -710,7 +406,6 @@ export default function BusinessDashboardScreen() {
     try {
       const startDate = isFullDay ? `${date}T00:00:00` : `${date}T${startTime}:00`;
       const endDate = isFullDay ? `${date}T23:59:59` : `${date}T${endTime}:00`;
-      // Business endpoint expects startAt/endAt (not startDate/endDate)
       const newBlock = await api.createBlock(token, "business", {
         startAt: startDate,
         endAt: endDate,
@@ -719,14 +414,7 @@ export default function BusinessDashboardScreen() {
       } as any);
       setBlockedDates((prev) => [
         ...prev,
-        {
-          id: newBlock.id,
-          date,
-          isFullDay,
-          startTime: isFullDay ? undefined : startTime,
-          endTime: isFullDay ? undefined : endTime,
-          reason,
-        },
+        { id: newBlock.id, date, isFullDay, startTime: isFullDay ? undefined : startTime, endTime: isFullDay ? undefined : endTime, reason },
       ]);
     } catch (err) {
       console.error("[Dashboard] Failed to block date:", err);
@@ -744,27 +432,9 @@ export default function BusinessDashboardScreen() {
     }
   };
 
-  const handleBookingAction = async (bookingId: string, action: "confirm" | "cancel") => {
-    const token = await getToken();
-    if (!token) return;
-
-    try {
-      if (action === "confirm") {
-        await api.acceptBooking(token, "business", bookingId);
-      } else {
-        await api.declineBooking(token, "business", bookingId);
-      }
-      Alert.alert("Success", `Booking ${action}ed successfully`);
-      fetchTabData();
-    } catch (error) {
-      Alert.alert("Error", `Failed to ${action} booking`);
-    }
-  };
-
   const handleAutoAcceptChange = async (value: boolean) => {
     const token = await getToken();
     if (!token) return;
-
     const prev = autoAcceptBookings;
     setAutoAcceptBookings(value);
     setAutoAcceptLoading(true);
@@ -780,32 +450,20 @@ export default function BusinessDashboardScreen() {
     }
   };
 
-  const handleRefundPress = (booking: BusinessBooking) => {
-    setSelectedBookingForRefund(booking);
-    setRefundModalVisible(true);
-  };
-
-  const handleRefundConfirm = async (amount?: number) => {
-    if (!selectedBookingForRefund) return;
-    
-    const token = await getToken();
-    if (!token) throw new Error("Not authenticated");
-
-    const result = await api.issueRefund(token, "business", selectedBookingForRefund.id, amount);
-    if (result.success) {
-      Alert.alert("Refund Issued", `$${result.refundedAmount?.toFixed(2) || amount || selectedBookingForRefund.amount} has been refunded to the customer.`);
-      fetchTabData();
-    } else {
-      throw new Error(result.message || "Failed to issue refund");
-    }
-  };
-
   const handleLogout = () => {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Log Out", style: "destructive", onPress: () => logout() },
     ]);
   };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchDashboard(), fetchBookingsForCalendar()]);
+    setRefreshing(false);
+  };
+
+  // ─── Styles ─────────────────────────────────────────────────────────────────
 
   const styles = StyleSheet.create({
     container: {
@@ -820,23 +478,10 @@ export default function BusinessDashboardScreen() {
       paddingTop: insets.top + 12,
       paddingBottom: 12,
     },
-    headerLeft: {
-      flex: 1,
-    },
-    headerTitle: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: DASHBOARD_COLORS.cream,
-    },
-    headerSubtitle: {
-      fontSize: 13,
-      color: DASHBOARD_COLORS.creamDim,
-      marginTop: 2,
-    },
-    backButton: {
-      padding: 8,
-      marginRight: 8,
-    },
+    headerLeft: { flex: 1 },
+    headerTitle: { fontSize: 22, fontWeight: "700", color: DASHBOARD_COLORS.cream },
+    headerSubtitle: { fontSize: 13, color: DASHBOARD_COLORS.creamDim, marginTop: 2 },
+    backButton: { padding: 8, marginRight: 8 },
     tierBadge: {
       backgroundColor: DASHBOARD_COLORS.gold,
       borderRadius: 999,
@@ -845,11 +490,7 @@ export default function BusinessDashboardScreen() {
       marginLeft: 10,
       alignSelf: "flex-start",
     },
-    tierBadgeText: {
-      color: DASHBOARD_COLORS.background,
-      fontSize: 12,
-      fontWeight: "700",
-    },
+    tierBadgeText: { color: DASHBOARD_COLORS.background, fontSize: 12, fontWeight: "700" },
     stripeCard: {
       flexDirection: "row",
       alignItems: "center",
@@ -870,40 +511,13 @@ export default function BusinessDashboardScreen() {
       justifyContent: "center",
       marginRight: 12,
     },
-    stripeContent: {
-      flex: 1,
-    },
-    stripeTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: DASHBOARD_COLORS.cream,
-    },
-    stripeDescription: {
-      fontSize: 13,
-      color: DASHBOARD_COLORS.creamDim,
-      marginTop: 2,
-    },
-    setupLink: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: DASHBOARD_COLORS.gold,
-      alignSelf: "flex-end",
-      marginTop: 12,
-    },
-    statsRow: {
-      paddingHorizontal: 16,
-      paddingBottom: 16,
-      gap: 10,
-    },
-    statsRowTop: {
-      flexDirection: "row",
-      gap: 10,
-      marginBottom: 10,
-    },
-    statsRowBottom: {
-      flexDirection: "row",
-      gap: 10,
-    },
+    stripeContent: { flex: 1 },
+    stripeTitle: { fontSize: 16, fontWeight: "600", color: DASHBOARD_COLORS.cream },
+    stripeDescription: { fontSize: 13, color: DASHBOARD_COLORS.creamDim, marginTop: 2 },
+    setupLink: { fontSize: 13, fontWeight: "600", color: DASHBOARD_COLORS.gold, alignSelf: "flex-end", marginTop: 12 },
+    // Stats 2×2
+    statsRow: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+    statsGridRow: { flexDirection: "row", gap: 10 },
     statCard: {
       flex: 1,
       backgroundColor: "#111411",
@@ -913,17 +527,8 @@ export default function BusinessDashboardScreen() {
       padding: 16,
       alignItems: "flex-start",
     },
-    statValue: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: DASHBOARD_COLORS.cream,
-    },
-    statLabel: {
-      fontSize: 11,
-      color: DASHBOARD_COLORS.creamDim,
-      marginTop: 2,
-      textAlign: "left",
-    },
+    statValue: { fontSize: 24, fontWeight: "700", color: DASHBOARD_COLORS.cream },
+    statLabel: { fontSize: 11, color: DASHBOARD_COLORS.creamDim, marginTop: 2 },
     statIcon: {
       width: 30,
       height: 30,
@@ -933,408 +538,7 @@ export default function BusinessDashboardScreen() {
       marginBottom: 6,
       backgroundColor: "rgba(201,147,58,0.15)",
     },
-    contentRow: {
-      flexDirection: "row",
-      flex: 1,
-    },
-    leftColumn: {
-      width: "40%",
-      paddingHorizontal: 16,
-    },
-    rightColumn: {
-      flex: 1,
-      paddingRight: 16,
-    },
-    profileCard: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 16,
-    },
-    sectionTitle: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: theme.text,
-      marginBottom: 12,
-    },
-    profileInfo: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    profileAvatar: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
-      backgroundColor: theme.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 12,
-    },
-    profileAvatarText: {
-      fontSize: 20,
-      fontWeight: "600",
-      color: "#FFFFFF",
-    },
-    profileName: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    profileCategory: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      marginTop: 2,
-    },
-    websiteLink: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    websiteLinkText: {
-      fontSize: 13,
-      color: theme.primary,
-      marginLeft: 4,
-    },
-    statsGrid: {
-      flexDirection: "row",
-      gap: 12,
-      marginBottom: 16,
-    },
-    miniStatCard: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.backgroundSecondary,
-      borderRadius: 10,
-      padding: 12,
-    },
-    miniStatIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
-    },
-    miniStatValue: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    miniStatLabel: {
-      fontSize: 11,
-      color: theme.textSecondary,
-    },
-    billingCard: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
-      padding: 16,
-    },
-    billingHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    billingTitle: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: theme.text,
-      marginLeft: 8,
-    },
-    input: {
-      backgroundColor: theme.backgroundSecondary,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 14,
-      color: theme.text,
-      marginBottom: 8,
-    },
-    inputRow: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    inputHalf: {
-      flex: 1,
-    },
-    tabsContainer: {
-      backgroundColor: "rgba(0,0,0,0.4)",
-      borderTopWidth: 1,
-      borderTopColor: "rgba(255,255,255,0.06)",
-      overflow: "hidden",
-    },
-    tabBar: {
-      flexDirection: "row",
-      borderBottomWidth: 0,
-    },
-    tab: {
-      paddingVertical: 12,
-      paddingHorizontal: 12,
-      alignItems: "center",
-    },
-    activeTab: {
-      borderBottomWidth: 2,
-      borderBottomColor: DASHBOARD_COLORS.gold,
-    },
-    tabText: {
-      fontSize: 12,
-      color: DASHBOARD_COLORS.creamDim,
-    },
-    activeTabText: {
-      color: DASHBOARD_COLORS.gold,
-      fontWeight: "600",
-    },
-    tabContent: {
-      padding: 16,
-      minHeight: 200,
-    },
-    emptyState: {
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 40,
-    },
-    emptyIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 20,
-      backgroundColor: "rgba(201,147,58,0.08)",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 12,
-    },
-    emptyTitle: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: DASHBOARD_COLORS.cream,
-      marginBottom: 4,
-    },
-    emptySubtitle: {
-      fontSize: 13,
-      color: DASHBOARD_COLORS.creamDim,
-      textAlign: "center",
-    },
-    orderCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
-      borderWidth: 1,
-      borderRadius: 10,
-      padding: 12,
-      marginBottom: 8,
-    },
-    orderHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    orderCustomer: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    orderAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.primary + "40",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
-    },
-    orderName: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    orderDate: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    orderStatus: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    orderStatusText: {
-      fontSize: 11,
-      fontWeight: "600",
-    },
-    orderItems: {
-      marginBottom: 8,
-    },
-    orderItem: {
-      fontSize: 13,
-      color: theme.textSecondary,
-    },
-    orderFooter: {
-      gap: 8,
-    },
-    orderTotal: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    orderActions: {
-      flexDirection: "row",
-      gap: 8,
-      justifyContent: "flex-end",
-    },
-    actionButton: {
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 6,
-    },
-    actionButtonText: {
-      fontSize: 12,
-      fontWeight: "600",
-    },
-    bookingCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
-      borderWidth: 1,
-      borderRadius: 10,
-      padding: 12,
-      marginBottom: 8,
-    },
-    bookingHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    bookingClient: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    bookingAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.primary + "40",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
-    },
-    bookingName: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    bookingDate: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    bookingStatus: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    bookingStatusText: {
-      fontSize: 11,
-      fontWeight: "600",
-    },
-    bookingDetails: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    bookingInfo: {
-      fontSize: 13,
-      color: theme.textSecondary,
-    },
-    bookingAmount: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    bookingActions: {
-      flexDirection: "row",
-      gap: 8,
-      marginTop: 8,
-    },
-    productCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
-      borderWidth: 1,
-      borderRadius: 10,
-      padding: 12,
-      marginBottom: 8,
-    },
-    productHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    productName: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    productPrice: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.primary,
-    },
-    productDescription: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      marginTop: 4,
-    },
-    productInventory: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginTop: 4,
-    },
-    serviceCard: {
-      backgroundColor: DASHBOARD_COLORS.surface,
-      borderColor: DASHBOARD_COLORS.cardBorder,
-      borderWidth: 1,
-      borderRadius: 10,
-      padding: 12,
-      marginBottom: 8,
-    },
-    serviceHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    serviceName: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-    },
-    servicePrice: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.primary,
-    },
-    serviceDescription: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      marginTop: 4,
-    },
-    serviceDuration: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginTop: 4,
-    },
-    sectionHeaderRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 12,
-      gap: 8,
-    },
-    sectionHeaderAccent: {
-      width: 4,
-      height: 14,
-      borderRadius: 2,
-      backgroundColor: DASHBOARD_COLORS.gold,
-    },
-    sectionHeaderText: {
-      fontSize: 14,
-      letterSpacing: 1.5,
-      fontWeight: "700",
-      color: DASHBOARD_COLORS.cream,
-    },
+    // Section cards
     autoAcceptCard: {
       backgroundColor: DASHBOARD_COLORS.surface,
       borderColor: DASHBOARD_COLORS.cardBorder,
@@ -1342,11 +546,7 @@ export default function BusinessDashboardScreen() {
       borderRadius: 16,
       padding: 14,
     },
-    autoAcceptRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
+    autoAcceptRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     autoAcceptIcon: {
       width: 44,
       height: 44,
@@ -1355,788 +555,60 @@ export default function BusinessDashboardScreen() {
       alignItems: "center",
       justifyContent: "center",
     },
-    autoAcceptTextWrap: {
-      flex: 1,
-    },
-    autoAcceptTitle: {
-      color: DASHBOARD_COLORS.cream,
-      fontSize: 15,
-      fontWeight: "600",
-      marginBottom: 2,
-    },
-    autoAcceptDescription: {
-      color: DASHBOARD_COLORS.creamDim,
-      fontSize: 12,
-      lineHeight: 17,
-    },
-    profileForm: {
-      gap: 12,
-    },
-    formGroup: {
-      marginBottom: 4,
-    },
-    formLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginBottom: 6,
-    },
-    formInput: {
-      backgroundColor: theme.backgroundSecondary,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 14,
-      color: theme.text,
-    },
-    formTextarea: {
-      minHeight: 80,
-      textAlignVertical: "top",
-    },
-    saveButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.primary,
-      paddingVertical: 12,
-      borderRadius: 8,
-      marginTop: 8,
-    },
-    saveButtonText: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: "#FFFFFF",
-      marginLeft: 6,
-    },
-    milestoneBar: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderRadius: 12,
-      borderWidth: 1,
-      padding: 12,
-      marginBottom: 14,
-      gap: 8,
-    },
-    milestoneText: {
-      flex: 1,
-      fontSize: 13,
-      fontWeight: "600",
-      lineHeight: 18,
-    },
-    creditsCard: {
-      borderRadius: 18,
-      borderWidth: 1,
-      padding: 20,
-      marginBottom: 22,
-    },
-    creditsCardTop: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    creditIconBg: {
-      width: 52,
-      height: 52,
+    autoAcceptTextWrap: { flex: 1 },
+    autoAcceptTitle: { color: DASHBOARD_COLORS.cream, fontSize: 15, fontWeight: "600", marginBottom: 2 },
+    autoAcceptDescription: { color: DASHBOARD_COLORS.creamDim, fontSize: 12, lineHeight: 17 },
+    // Up Next card
+    upNextCard: {
       borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    creditsLabel: {
-      fontSize: 13,
-      fontWeight: "500",
-    },
-    creditsBalance: {
-      fontSize: 44,
-      fontWeight: "900",
-      lineHeight: 50,
-    },
-    freeBadge: {
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-    },
-    freeBadgeText: {
-      color: "#fff",
-      fontSize: 11,
-      fontWeight: "800",
-    },
-    progressTrack: {
-      height: 8,
-      borderRadius: 4,
-      overflow: "hidden",
-    },
-    progressFill: {
-      height: 8,
-      borderRadius: 4,
-    },
-    bookShootBtn: {
-      borderRadius: 12,
-      paddingVertical: 13,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      marginTop: 18,
-    },
-    bookShootBtnText: {
-      fontSize: 15,
-      fontWeight: "700",
-      color: "#000",
-    },
-    historyTitle: {
-      fontSize: 16,
-      fontWeight: "700",
-      marginBottom: 10,
-    },
-    historyRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderRadius: 12,
       borderWidth: 1,
+      borderColor: "rgba(201,147,58,0.28)",
+      backgroundColor: "rgba(201,147,58,0.07)",
       padding: 14,
-      marginBottom: 10,
     },
-    historyIcon: {
-      width: 40,
-      height: 40,
+    upNextLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+    upNextLabelDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: DASHBOARD_COLORS.gold },
+    upNextLabelText: { color: DASHBOARD_COLORS.gold, fontSize: 10, fontWeight: "800", letterSpacing: 1.4 },
+    upNextBody: { flexDirection: "row", alignItems: "center", gap: 12 },
+    upNextIconBox: {
+      width: 42,
+      height: 42,
       borderRadius: 12,
+      backgroundColor: "rgba(0,0,0,0.3)",
       alignItems: "center",
       justifyContent: "center",
     },
-    historyShootType: {
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    historyDate: {
-      fontSize: 12,
-      marginTop: 2,
-    },
-    historyPrice: {
-      fontSize: 14,
-      fontWeight: "700",
-    },
-    creditsUsedBadge: {
-      borderRadius: 6,
-      paddingHorizontal: 7,
-      paddingVertical: 2,
-      marginTop: 3,
-    },
-    creditsUsedText: {
-      fontSize: 11,
-      fontWeight: "700",
-    },
-    shipModalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.7)",
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 24,
-    },
-    shipModalCard: {
-      width: "100%",
-      backgroundColor: "#1A1A1A",
+    upNextTextWrap: { flex: 1 },
+    upNextTitle: { color: DASHBOARD_COLORS.cream, fontSize: 14, fontWeight: "600" },
+    upNextSubtext: { color: DASHBOARD_COLORS.creamDim, fontSize: 11.5, marginTop: 2 },
+    upNextUrgency: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+    // Activity nav cards
+    navCard: {
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderWidth: 1,
+      borderColor: DASHBOARD_COLORS.cardBorder,
       borderRadius: 16,
-      padding: 24,
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.1)",
-    },
-    shipModalTitle: {
-      color: "#F5F0E6",
-      fontSize: 18,
-      fontWeight: "700",
-      marginBottom: 20,
-    },
-    shipModalLabel: {
-      color: "#999",
-      fontSize: 12,
-      fontWeight: "600",
-      marginBottom: 6,
-      marginTop: 12,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-    },
-    shipModalInput: {
-      backgroundColor: "rgba(255,255,255,0.06)",
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.12)",
-      color: "#F5F0E6",
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 15,
-    },
-    shipCarrierRow: {
+      padding: 16,
+      marginBottom: 10,
       flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-    },
-    shipCarrierChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.15)",
-      backgroundColor: "#2A2A2A",
-    },
-    shipCarrierChipSelected: {
-      borderColor: "#E8B930",
-      backgroundColor: "#E8B93015",
-    },
-    shipCarrierChipText: {
-      fontSize: 13,
-      fontWeight: "600" as const,
-      color: "#888",
-    },
-    shipCarrierChipTextSelected: {
-      color: "#E8B930",
-    },
-    shipModalActions: {
-      flexDirection: "row",
-      gap: 12,
-      marginTop: 24,
-    },
-    shipModalBtn: {
-      flex: 1,
-      paddingVertical: 12,
-      borderRadius: 8,
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent: "space-between",
     },
-    shipModalBtnText: {
-      fontSize: 15,
-      fontWeight: "700",
-    },
+    navCardLeft: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
+    navCardIconBg: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    navCardTextWrap: { flex: 1 },
+    navCardTitle: { color: DASHBOARD_COLORS.cream, fontSize: 15, fontWeight: "600" },
+    navCardSubtitle: { color: DASHBOARD_COLORS.creamDim, fontSize: 12, marginTop: 2 },
+    navCardRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+    navBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+    navBadgeText: { fontSize: 12, fontWeight: "700" },
+    emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 40 },
+    emptyIcon: { width: 48, height: 48, borderRadius: 20, backgroundColor: "rgba(201,147,58,0.08)", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+    emptyTitle: { fontSize: 15, fontWeight: "600", color: DASHBOARD_COLORS.cream, marginBottom: 4 },
+    emptySubtitle: { fontSize: 13, color: DASHBOARD_COLORS.creamDim, textAlign: "center" },
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending": return { bg: "#FF950020", text: "#FF9500" };
-      case "paid": return { bg: "#34C75920", text: "#34C759" };
-      case "processing": return { bg: "#007AFF20", text: "#007AFF" };
-      case "confirmed": return { bg: "#34C75920", text: "#34C759" };
-      case "shipped": return { bg: "#5856D620", text: "#5856D6" };
-      case "delivered":
-      case "completed": return { bg: theme.primary + "20", text: theme.primary };
-      case "cancelled": return { bg: "#FF3B3020", text: "#FF3B30" };
-      case "no_show": return { bg: "#8E8E9320", text: "#8E8E93" };
-      default: return { bg: theme.backgroundSecondary, text: theme.textSecondary };
-    }
-  };
-
-  const renderOrdersTab = () => {
-    if (orders.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Feather name="shopping-bag" size={24} color={DASHBOARD_COLORS.gold} />
-          </View>
-          <Text style={styles.emptyTitle}>No orders yet</Text>
-          <Text style={styles.emptySubtitle}>Orders will appear here once customers make purchases</Text>
-        </View>
-      );
-    }
-
-    return orders.map(order => (
-      <OrderCard
-        key={order.id}
-        order={order}
-        onCancelOrder={handleOrderAction}
-        onShipPress={(orderId) => {
-          setShipOrderId(orderId);
-          setShipCarrier("");
-          setShipTracking("");
-          setShipModalVisible(true);
-        }}
-        onMarkDelivered={handleMarkDelivered}
-      />
-    ));
-  };
-
-  const renderBookingsTab = () => {
-    if (bookings.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Feather name="calendar" size={24} color={DASHBOARD_COLORS.gold} />
-          </View>
-          <Text style={styles.emptyTitle}>No bookings yet</Text>
-          <Text style={styles.emptySubtitle}>Bookings will appear here once customers book your services</Text>
-        </View>
-      );
-    }
-
-    return bookings.map(booking => {
-      const statusColor = getStatusColor(booking.status);
-      return (
-        <View key={booking.id} style={styles.bookingCard}>
-          <View style={styles.bookingHeader}>
-            <View style={styles.bookingClient}>
-              <View style={styles.bookingAvatar}>
-                {booking.customerAvatar ? (
-                  <Image
-                    source={{ uri: booking.customerAvatar }}
-                    style={{ width: 32, height: 32, borderRadius: 16 }}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <Feather name="user" size={16} color={theme.primary} />
-                )}
-              </View>
-              <View>
-                <Text style={styles.bookingName}>{booking.customerName}</Text>
-                <Text style={styles.bookingDate}>{booking.date} at {booking.time}</Text>
-              </View>
-            </View>
-            <View style={[styles.bookingStatus, { backgroundColor: statusColor.bg }]}>
-              <Text style={[styles.bookingStatusText, { color: statusColor.text }]}>
-                {booking.status === "no_show" ? "No Show" : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.bookingDetails}>
-            <Text style={styles.bookingInfo}>{booking.serviceName}</Text>
-            <View style={{ alignItems: "flex-end" }}>
-              {booking.subtotalAmount != null ? (
-                <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
-                  Subtotal: ${booking.subtotalAmount.toFixed(2)}
-                </Text>
-              ) : null}
-              {booking.bookingFeeAmount != null ? (
-                <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
-                  Booking Fee: -${booking.bookingFeeAmount.toFixed(2)}
-                </Text>
-              ) : null}
-              {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null ? (
-                <Text style={[styles.bookingAmount, { color: theme.textSecondary, fontSize: 12 }]}>
-                  Influencer: -${booking.influencerCommissionAmount.toFixed(2)}
-                </Text>
-              ) : null}
-              {booking.vendorNetAmount != null ? (
-                <Text style={[styles.bookingAmount, { fontWeight: "700" }]}>
-                  You Earn: ${booking.vendorNetAmount.toFixed(2)}
-                </Text>
-              ) : (
-                <Text style={styles.bookingAmount}>${booking.amount}</Text>
-              )}
-            </View>
-          </View>
-          {booking.status === "pending" && (
-            <View style={styles.bookingActions}>
-              <Pressable
-                onPress={() => handleBookingAction(booking.id, "confirm")}
-                style={[styles.actionButton, { backgroundColor: "#34C759", flex: 1 }]}
-              >
-                <Text style={[styles.actionButtonText, { color: "#FFFFFF" }]}>Accept</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => handleBookingAction(booking.id, "cancel")}
-                style={[styles.actionButton, { backgroundColor: "#FF3B3020", flex: 1 }]}
-              >
-                <Text style={[styles.actionButtonText, { color: "#FF3B30" }]}>Decline</Text>
-              </Pressable>
-            </View>
-          )}
-          {booking.status === "confirmed" && (
-            <View style={styles.bookingActions}>
-              <Pressable
-                onPress={() => handleRefundPress(booking)}
-                style={[styles.actionButton, { backgroundColor: "#FF3B3015", borderWidth: 1, borderColor: "#FF3B30", flex: 1 }]}
-              >
-                <Text style={[styles.actionButtonText, { color: "#FF3B30" }]}>Issue Refund</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  Alert.alert(
-                    "Cancel without refund?",
-                    "This marks the booking as a no-show. The customer will NOT be refunded. This can't be undone.",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Confirm",
-                        style: "destructive",
-                        onPress: async () => {
-                          try {
-                            const token = await getToken();
-                            if (!token) throw new Error("Not authenticated");
-                            await api.cancelBookingNoRefund(token, booking.id);
-                            fetchTabData();
-                          } catch (err: any) {
-                            Alert.alert("Error", err?.message || "Failed to cancel booking");
-                          }
-                        },
-                      },
-                    ]
-                  );
-                }}
-                style={[styles.actionButton, { backgroundColor: "#8E8E9315", borderWidth: 1, borderColor: "#8E8E93", flex: 1 }]}
-              >
-                <Text style={[styles.actionButtonText, { color: "#8E8E93" }]}>Cancel (No Show)</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      );
-    });
-  };
-
-  const renderProductsTab = () => {
-    if (products.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Feather name="box" size={24} color={DASHBOARD_COLORS.gold} />
-          </View>
-          <Text style={styles.emptyTitle}>No products yet</Text>
-          <Text style={styles.emptySubtitle}>Add products for customers to purchase</Text>
-        </View>
-      );
-    }
-
-    return products.map(product => (
-      <View key={product.id} style={styles.productCard}>
-        <View style={styles.productHeader}>
-          <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.productPrice}>${product.price}</Text>
-        </View>
-        <Text style={styles.productDescription}>{product.description}</Text>
-        <Text style={styles.productInventory}>In stock: {product.inventory}</Text>
-      </View>
-    ));
-  };
-
-  const renderServicesTab = () => {
-    if (services.length === 0) {
-      return (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Feather name="package" size={24} color={DASHBOARD_COLORS.gold} />
-          </View>
-          <Text style={styles.emptyTitle}>No services yet</Text>
-          <Text style={styles.emptySubtitle}>Add services that customers can book</Text>
-        </View>
-      );
-    }
-
-    return services.map(service => (
-      <View key={service.id} style={styles.serviceCard}>
-        <View style={styles.serviceHeader}>
-          <Text style={styles.serviceName}>{service.name}</Text>
-          <Text style={styles.servicePrice}>${service.price}</Text>
-        </View>
-        <Text style={styles.serviceDescription}>{service.description}</Text>
-        <Text style={styles.serviceDuration}>{service.duration} minutes</Text>
-      </View>
-    ));
-  };
-
-  const renderProfileTab = () => (
-    <View style={styles.profileForm}>
-      <View style={styles.formGroup}>
-        <Text style={styles.formLabel}>Business Name</Text>
-        <TextInput
-          style={styles.formInput}
-          value={editProfile.name}
-          onChangeText={(text) => setEditProfile({ ...editProfile, name: text })}
-          placeholder="Your business name"
-          placeholderTextColor={theme.textSecondary}
-        />
-      </View>
-      
-      <View style={styles.formGroup}>
-        <Text style={styles.formLabel}>Username</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ flex: 1 }}>
-            <TextInput
-              style={[
-                styles.formInput,
-                !identityStatus?.canChangeUsername && editProfile.username === originalUsername 
-                  ? { opacity: 0.6 } 
-                  : null
-              ]}
-              value={editProfile.username}
-              onChangeText={(text) => setEditProfile({ ...editProfile, username: text.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
-              placeholder="your_username"
-              placeholderTextColor={theme.textSecondary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={identityStatus?.canChangeUsername !== false}
-            />
-          </View>
-          {editProfile.username !== originalUsername && (
-            <Pressable 
-              onPress={handleSaveUsername} 
-              disabled={savingIdentity}
-              style={{
-                backgroundColor: theme.primary,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 8,
-              }}
-            >
-              {savingIdentity ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <Text style={{ color: "#000", fontWeight: "600" }}>Save</Text>
-              )}
-            </Pressable>
-          )}
-        </View>
-        {!identityStatus?.canChangeUsername && identityStatus?.usernameCooldownDays ? (
-          <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
-            You can change your username again in {identityStatus.usernameCooldownDays} days
-          </Text>
-        ) : (
-          <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
-            This is how others find you (@{editProfile.username || "username"})
-          </Text>
-        )}
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.formLabel}>Category</Text>
-        <TextInput
-          style={styles.formInput}
-          value={editProfile.category}
-          onChangeText={(text) => setEditProfile({ ...editProfile, category: text })}
-          placeholder="e.g. Restaurant, Salon, etc."
-          placeholderTextColor={theme.textSecondary}
-        />
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.formLabel}>Bio</Text>
-        <TextInput
-          style={[styles.formInput, styles.formTextarea]}
-          value={editProfile.bio}
-          onChangeText={(text) => setEditProfile({ ...editProfile, bio: text })}
-          placeholder="Tell customers about your business..."
-          placeholderTextColor={theme.textSecondary}
-          multiline
-        />
-      </View>
-
-      <View style={styles.inputRow}>
-        <View style={[styles.formGroup, styles.inputHalf]}>
-          <Text style={styles.formLabel}>City</Text>
-          <TextInput
-            style={styles.formInput}
-            value={editProfile.city}
-            onChangeText={(text) => setEditProfile({ ...editProfile, city: text })}
-            placeholder="City"
-            placeholderTextColor={theme.textSecondary}
-          />
-        </View>
-        <View style={[styles.formGroup, styles.inputHalf]}>
-          <Text style={styles.formLabel}>State</Text>
-          <TextInput
-            style={styles.formInput}
-            value={editProfile.state}
-            onChangeText={(text) => setEditProfile({ ...editProfile, state: text })}
-            placeholder="State"
-            placeholderTextColor={theme.textSecondary}
-          />
-        </View>
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.formLabel}>Website</Text>
-        <TextInput
-          style={styles.formInput}
-          value={editProfile.website}
-          onChangeText={(text) => setEditProfile({ ...editProfile, website: text })}
-          placeholder="https://yourbusiness.com"
-          placeholderTextColor={theme.textSecondary}
-        />
-      </View>
-
-      <Pressable onPress={handleSaveProfile} style={styles.saveButton} disabled={saving}>
-        {saving ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <>
-            <Feather name="save" size={16} color="#FFFFFF" />
-            <Text style={styles.saveButtonText}>Save Profile</Text>
-          </>
-        )}
-      </Pressable>
-    </View>
-  );
-
-  const renderCreditsTab = () => {
-    const balance = creditData?.balance ?? 0;
-    const history = creditData?.history ?? [];
-    const MILESTONE_TARGET = 3;
-    const showMilestone = milestoneVisible && balance >= 2 && balance < MILESTONE_TARGET;
-
-    const formatDate = (iso: string) => {
-      try {
-        return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      } catch { return iso; }
-    };
-    const formatPrice = (cents: number) => cents === 0 ? "Free" : `$${(cents / 100).toFixed(0)}`;
-    const shootTypeLabel = (raw: string) => {
-      const map: Record<string, string> = {
-        "on-location-product": "On-Location Product",
-        "studio-product": "Studio Product",
-        "video": "Video Shoot",
-      };
-      return map[raw] ?? raw;
-    };
-
-    if (creditLoading) {
-      return (
-        <View style={{ alignItems: "center", paddingVertical: 40 }}>
-          <ActivityIndicator color={theme.primary} />
-          <Text style={{ color: theme.textSecondary, marginTop: 10, fontSize: 14 }}>Loading credits...</Text>
-        </View>
-      );
-    }
-
-    return (
-      <View style={{ paddingHorizontal: 0, paddingBottom: 20 }}>
-        {showMilestone ? (
-          <View style={[styles.milestoneBar, { backgroundColor: theme.primary + "18", borderColor: theme.primary + "40" }]}>
-            <Feather name="zap" size={16} color={theme.primary} />
-            <Text style={[styles.milestoneText, { color: theme.primary }]}>
-              You are {MILESTONE_TARGET - balance} credit{MILESTONE_TARGET - balance !== 1 ? "s" : ""} away from a free production shoot!
-            </Text>
-            <Pressable onPress={() => setMilestoneVisible(false)} style={{ marginLeft: 8 }}>
-              <Feather name="x" size={14} color={theme.primary} />
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* Credits Card */}
-        <View style={[styles.creditsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.creditsCardTop}>
-            <View style={[styles.creditIconBg, { backgroundColor: theme.primary + "18" }]}>
-              <Feather name="star" size={22} color={theme.primary} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={[styles.creditsLabel, { color: theme.textSecondary }]}>Available Credits</Text>
-              <Text style={[styles.creditsBalance, { color: theme.text }]}>{balance}</Text>
-            </View>
-            {balance >= MILESTONE_TARGET ? (
-              <View style={[styles.freeBadge, { backgroundColor: "#22c55e" }]}>
-                <Text style={styles.freeBadgeText}>Free Shoot Ready</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* Progress Bar */}
-          <View style={{ marginTop: 16, marginBottom: 4 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-              <Text style={{ fontSize: 12, color: theme.textSecondary }}>
-                {Math.min(balance, MILESTONE_TARGET)}/{MILESTONE_TARGET} credits to free shoot
-              </Text>
-              <Text style={{ fontSize: 12, color: theme.primary, fontWeight: "600" }}>
-                {balance >= MILESTONE_TARGET ? "Unlocked!" : `${MILESTONE_TARGET - balance} more needed`}
-              </Text>
-            </View>
-            <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    backgroundColor: balance >= MILESTONE_TARGET ? "#22c55e" : theme.primary,
-                    width: `${Math.min((balance / MILESTONE_TARGET) * 100, 100)}%` as any,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-
-          <Pressable
-            style={[styles.bookShootBtn, { backgroundColor: theme.primary }]}
-            onPress={() => navigation.navigate("ShootBooking", { businessId: profile?.id || "", creditBalance: balance })}
-          >
-            <Feather name="camera" size={16} color="#000" />
-            <Text style={styles.bookShootBtnText}>Book a Shoot</Text>
-          </Pressable>
-        </View>
-
-        {/* History */}
-        <Text style={[styles.historyTitle, { color: theme.text }]}>Recent Redemptions</Text>
-        {history.length === 0 ? (
-          <View style={[styles.emptyState, { marginTop: 8 }]}>
-            <Feather name="clock" size={24} color={theme.textSecondary} />
-            <Text style={[styles.emptyTitle, { marginTop: 10 }]}>No shoot history yet</Text>
-            <Text style={styles.emptySubtitle}>Book your first shoot to get started.</Text>
-          </View>
-        ) : (
-          history.slice(0, 5).map((item: ProductionCreditHistory, idx: number) => (
-            <View
-              key={item.id}
-              style={[styles.historyRow, { backgroundColor: theme.card, borderColor: theme.border }]}
-            >
-              <View style={[styles.historyIcon, { backgroundColor: theme.primary + "14" }]}>
-                <Feather name="camera" size={16} color={theme.primary} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.historyShootType, { color: theme.text }]}>{shootTypeLabel(item.shootType)}</Text>
-                <Text style={[styles.historyDate, { color: theme.textSecondary }]}>{formatDate(item.date)}</Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.historyPrice, { color: theme.text }]}>{formatPrice(item.pricePaidCents)}</Text>
-                {item.creditsUsed > 0 ? (
-                  <View style={[styles.creditsUsedBadge, { backgroundColor: item.creditsUsed >= 3 ? "#22c55e20" : theme.primary + "14" }]}>
-                    <Text style={[styles.creditsUsedText, { color: item.creditsUsed >= 3 ? "#22c55e" : theme.primary }]}>
-                      {item.creditsUsed >= 3 ? "Free" : `-${item.creditsUsed} credit${item.creditsUsed > 1 ? "s" : ""}`}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          ))
-        )}
-      </View>
-    );
-  };
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "orders":
-        return renderOrdersTab();
-      case "bookings":
-        return renderBookingsTab();
-      case "products":
-        return renderProductsTab();
-      case "services":
-        return renderServicesTab();
-      case "hours":
-        return (
-          <HoursEditor
-            hours={hours}
-            onChange={setHours}
-            onSave={handleSaveHours}
-            isSaving={saving}
-            title="Business Hours"
-            description="Set your operating hours for each day of the week"
-          />
-        );
-      case "storefront":
-        return (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Feather name="shopping-bag" size={24} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <Text style={styles.emptyTitle}>Customize Your Storefront</Text>
-            <Text style={styles.emptySubtitle}>Edit branding, hours, products, and services</Text>
-            <Pressable
-              style={[styles.saveButton, { marginTop: 16 }]}
-              onPress={() => navigation.navigate("StorefrontEditor")}
-            >
-              <Feather name="edit-3" size={16} color="#FFFFFF" />
-              <Text style={styles.saveButtonText}>Open Storefront Editor</Text>
-            </Pressable>
-          </View>
-        );
-      case "credits":
-        return renderCreditsTab();
-      case "profile":
-        return renderProfileTab();
-      default:
-        return null;
-    }
-  };
+  // ─── Loading / Error ────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -2146,7 +618,7 @@ export default function BusinessDashboardScreen() {
     );
   }
 
-  const availableTabs = getAvailableTabs();
+  // ─── Derived values ─────────────────────────────────────────────────────────
 
   const handleGoBack = () => {
     if (navigation.canGoBack()) {
@@ -2167,7 +639,6 @@ export default function BusinessDashboardScreen() {
       ? "Growth"
       : "Starter";
 
-  // Build typed calendar props from live bookings state
   const calendarBookings: CalendarBooking[] = bookings.map((b) => ({
     id: b.id,
     date: b.date,
@@ -2185,12 +656,67 @@ export default function BusinessDashboardScreen() {
     windows: h.isAvailable ? [{ startTime: h.startTime, endTime: h.endTime }] : [],
   }));
 
+  // ─── Up Next computation ────────────────────────────────────────────────────
+
+  const NOW = Date.now();
+  const DAY_MS = 86400000;
+  const todayStr = new Date().toISOString().split("T")[0];
+  const tomorrowDate = new Date(); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = tomorrowDate.toISOString().split("T")[0];
+
+  type UpNextItem = { title: string; subtext?: string; iconName: string; urgency?: "red" | "amber" | "green" };
+  let upNextItem: UpNextItem | null = null;
+
+  const p1 = upNextOrders.find((o: any) => o.status === "paid" && !o.shipment && new Date(o.orderDate).getTime() + 4 * DAY_MS < NOW);
+  if (p1) {
+    const orderNum = p1.id ? String(p1.id).slice(-6) : "";
+    upNextItem = { title: "Overdue — ship immediately", subtext: `Order #${orderNum} · Paid ${new Date(p1.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, iconName: "package", urgency: "red" };
+  }
+
+  if (!upNextItem) {
+    const p2 = upNextOrders.find((o: any) => {
+      if (o.status !== "paid" || o.shipment) return false;
+      const deadline = new Date(o.orderDate).getTime() + 4 * DAY_MS;
+      return deadline >= NOW && deadline < NOW + 2 * DAY_MS;
+    });
+    if (p2) {
+      const orderNum = p2.id ? String(p2.id).slice(-6) : "";
+      const deadline = new Date(new Date(p2.orderDate).getTime() + 4 * DAY_MS);
+      upNextItem = { title: `Order #${orderNum} — ships soon`, subtext: `Paid ${new Date(p2.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ship by ${deadline.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, iconName: "package", urgency: "amber" };
+    }
+  }
+
+  if (!upNextItem) {
+    const p3 = bookings.find((b: any) => b.status === "confirmed" && (b.date === todayStr || b.date === tomorrowStr));
+    if (p3) {
+      upNextItem = { title: `${p3.serviceName} — ${p3.customerName}`, subtext: `${p3.date} at ${p3.time}`, iconName: "calendar", urgency: "green" };
+    }
+  }
+
+  if (!upNextItem) {
+    const pendingBks = [...bookings].filter((b: any) => b.status === "pending").sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (pendingBks.length > 0) {
+      upNextItem = { title: "Booking awaiting confirmation", subtext: `Requested by ${pendingBks[0].customerName}`, iconName: "clock", urgency: "amber" };
+    }
+  }
+
+  if (!upNextItem) {
+    const paidUnshipped = [...upNextOrders].filter((o: any) => o.status === "paid" && !o.shipment).sort((a: any, b: any) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime());
+    if (paidUnshipped.length > 0) {
+      const o = paidUnshipped[0];
+      upNextItem = { title: `Order #${o.id ? String(o.id).slice(-6) : ""} — needs shipping`, subtext: `Paid ${new Date(o.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, iconName: "package" };
+    }
+  }
+
+  // ─── JSX ────────────────────────────────────────────────────────────────────
+
   return (
     <ScreenKeyboardAwareScrollView
       style={styles.container}
       contentContainerStyle={{ paddingTop: 0, paddingBottom: 0, paddingHorizontal: 0 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
     >
+      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={handleGoBack} style={styles.backButton}>
           <Feather name="arrow-left" size={24} color={DASHBOARD_COLORS.cream} />
@@ -2204,6 +730,7 @@ export default function BusinessDashboardScreen() {
         </View>
       </View>
 
+      {/* Eligibility banner */}
       {eligibility && !eligibility.canPublishProducts && !eligibility.canPublishServices && !eligibility.requiresApproval && (
         <View style={styles.stripeCard}>
           <View style={styles.stripeIcon}>
@@ -2211,14 +738,13 @@ export default function BusinessDashboardScreen() {
           </View>
           <View style={styles.stripeContent}>
             <Text style={styles.stripeTitle}>Complete Your Setup</Text>
-            <Text style={styles.stripeDescription}>
-              Add your first product or service to go live
-            </Text>
+            <Text style={styles.stripeDescription}>Add your first product or service to go live</Text>
             <Text style={styles.setupLink}>Get Started →</Text>
           </View>
         </View>
       )}
 
+      {/* Manage Payouts banner */}
       {profile?.stripeConnected && (
         <Pressable
           onPress={handleManagePayouts}
@@ -2240,55 +766,46 @@ export default function BusinessDashboardScreen() {
         </Pressable>
       )}
 
+      {/* Stats 2×2 grid */}
       <View style={styles.statsRow}>
-        <View style={styles.statsRowTop}>
+        <View style={styles.statsGridRow}>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
               <Feather name="dollar-sign" size={14} color={DASHBOARD_COLORS.gold} />
             </View>
             <Text style={styles.statValue}>${stats.earnings}</Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Revenue</Text>
+            <Text style={styles.statLabel}>Revenue</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
               <Feather name="shopping-bag" size={14} color={DASHBOARD_COLORS.gold} />
             </View>
             <Text style={styles.statValue}>{stats.upcomingOrders}</Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Orders</Text>
+            <Text style={styles.statLabel}>Orders</Text>
           </View>
+        </View>
+        <View style={[styles.statsGridRow, { marginTop: 10 }]}>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
               <Feather name="calendar" size={14} color={DASHBOARD_COLORS.gold} />
             </View>
             <Text style={styles.statValue}>{stats.upcomingBookings}</Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Bookings</Text>
-          </View>
-        </View>
-        <View style={styles.statsRowBottom}>
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Feather name="message-circle" size={14} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <Text style={styles.statValue}>{stats.unreadMessages}</Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Unread</Text>
+            <Text style={styles.statLabel}>Bookings</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
               <Feather name="star" size={14} color={DASHBOARD_COLORS.gold} />
             </View>
             <Text style={styles.statValue}>{stats.reviewCount > 0 ? stats.rating.toFixed(1) : "—"}</Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
+            <Text style={styles.statLabel}>Rating</Text>
           </View>
         </View>
       </View>
 
-      {/* Team - Only show for multi-staff businesses */}
+      {/* Team — multi-staff only */}
       {profile?.isMultiStaff && (
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderAccent} />
-            <Text style={styles.sectionHeaderText}>TEAM</Text>
-          </View>
+          <SectionLabel text="TEAM" />
           <View style={styles.autoAcceptCard}>
             <View style={styles.autoAcceptRow}>
               <View style={styles.autoAcceptIcon}>
@@ -2299,9 +816,7 @@ export default function BusinessDashboardScreen() {
                 <Text
                   style={[
                     styles.autoAcceptDescription,
-                    seatStatus &&
-                    seatStatus.maxStaff !== null &&
-                    seatStatus.activeCount >= seatStatus.maxStaff
+                    seatStatus && seatStatus.maxStaff !== null && seatStatus.activeCount >= seatStatus.maxStaff
                       ? { color: "#FF3B30" }
                       : null,
                   ]}
@@ -2321,13 +836,10 @@ export default function BusinessDashboardScreen() {
         </View>
       )}
 
-      {/* Booking Settings - Only show for service-based businesses */}
+      {/* Booking Settings — service-based only */}
       {(businessType === "service" || businessType === "both") && (
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderAccent} />
-            <Text style={styles.sectionHeaderText}>BOOKING SETTINGS</Text>
-          </View>
+          <SectionLabel text="BOOKING SETTINGS" />
           <View style={styles.autoAcceptCard}>
             <View style={styles.autoAcceptRow}>
               <View style={styles.autoAcceptIcon}>
@@ -2356,143 +868,116 @@ export default function BusinessDashboardScreen() {
         </View>
       )}
 
-      {/* Calendar Overview - Only for service-based businesses */}
+      {/* Calendar preview — service-based only */}
       {(businessType === "service" || businessType === "both") && (
         <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderAccent} />
-            <Text style={styles.sectionHeaderText}>CALENDAR</Text>
-          </View>
-          <ProviderCalendar
-            bookings={calendarBookings}
-            blockedDates={blockedDates}
-            weeklyAvailability={calendarWeeklyAvailability}
-            onBlockDate={handleBlockDate}
-            onUnblockDate={handleUnblockDate}
-            onBookingPress={() => setActiveTab("bookings")}
-            monthsAhead={3}
-          />
+          <SectionLabel text="CALENDAR" />
+          <Pressable onPress={() => navigation.navigate("DashboardCalendarScreen")}>
+            <ProviderCalendar
+              bookings={calendarBookings}
+              blockedDates={blockedDates}
+              weeklyAvailability={calendarWeeklyAvailability}
+              onBlockDate={handleBlockDate}
+              onUnblockDate={handleUnblockDate}
+              onBookingPress={() => navigation.navigate("DashboardBookingsScreen")}
+              monthsAhead={3}
+            />
+          </Pressable>
         </View>
       )}
 
-      {/* Tab Navigation */}
-      <View style={styles.tabsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
-          <View style={styles.tabBar}>
-            {availableTabs.map(tab => (
-              <Pressable
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[styles.tab, activeTab === tab && styles.activeTab]}
-              >
-                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Tab Content */}
-      <View style={styles.tabContent}>
-        {renderTabContent()}
-      </View>
-
-      <View style={{ height: insets.bottom + 20 }} />
-
-      <RefundModal
-        visible={refundModalVisible}
-        onClose={() => {
-          setRefundModalVisible(false);
-          setSelectedBookingForRefund(null);
-        }}
-        onConfirm={handleRefundConfirm}
-        bookingAmount={selectedBookingForRefund?.amount || 0}
-        clientName={selectedBookingForRefund?.customerName || ""}
-        serviceName={selectedBookingForRefund?.serviceName || ""}
-      />
-
-      <Modal
-        visible={shipModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShipModalVisible(false)}
-      >
-        <View style={styles.shipModalOverlay}>
-          <View style={styles.shipModalCard}>
-            <Text style={styles.shipModalTitle}>Ship Order</Text>
-
-            <Text style={styles.shipModalLabel}>Carrier</Text>
-            <View style={styles.shipCarrierRow}>
-              {(["UPS", "FedEx", "USPS", "DHL", "Other"] as const).map((c) => {
-                const selected = shipCarrier === c;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setShipCarrier(c)}
-                    style={[
-                      styles.shipCarrierChip,
-                      selected && styles.shipCarrierChipSelected,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.shipCarrierChipText,
-                        selected && styles.shipCarrierChipTextSelected,
-                      ]}
-                    >
-                      {c}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+      {/* Up Next card */}
+      {upNextItem && (
+        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+          <View style={styles.upNextCard}>
+            <View style={styles.upNextLabelRow}>
+              <View style={styles.upNextLabelDot} />
+              <Text style={styles.upNextLabelText}>UP NEXT</Text>
             </View>
-
-            <Text style={[styles.shipModalLabel, { marginTop: 16 }]}>Tracking Number</Text>
-            <TextInput
-              style={[styles.shipModalInput, { fontFamily: "monospace" }]}
-              placeholder="Enter tracking number"
-              placeholderTextColor="#555"
-              value={shipTracking}
-              onChangeText={setShipTracking}
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-            />
-
-            <View style={styles.shipModalActions}>
-              <Pressable
-                onPress={() => {
-                  setShipModalVisible(false);
-                  setShipCarrier("");
-                  setShipTracking("");
-                }}
-                style={[styles.shipModalBtn, { backgroundColor: "rgba(255,255,255,0.08)" }]}
-              >
-                <Text style={[styles.shipModalBtnText, { color: "#CCC" }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleShipOrder}
-                disabled={!shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting}
-                style={[
-                  styles.shipModalBtn,
-                  {
-                    backgroundColor: "#1A3C34",
-                    opacity: !shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting ? 0.5 : 1,
-                  },
-                ]}
-              >
-                {shipSubmitting ? (
-                  <ActivityIndicator size="small" color="#E8B930" />
-                ) : (
-                  <Text style={[styles.shipModalBtnText, { color: "#E8B930" }]}>Confirm Shipment</Text>
-                )}
-              </Pressable>
+            <View style={styles.upNextBody}>
+              <View style={styles.upNextIconBox}>
+                <Feather name={upNextItem.iconName as any} size={18} color={DASHBOARD_COLORS.gold} />
+              </View>
+              <View style={styles.upNextTextWrap}>
+                <Text style={styles.upNextTitle}>{upNextItem.title}</Text>
+                {upNextItem.subtext ? <Text style={styles.upNextSubtext}>{upNextItem.subtext}</Text> : null}
+              </View>
+              {upNextItem.urgency ? (
+                <Text style={[styles.upNextUrgency, { color: upNextItem.urgency === "red" ? "#E85D5D" : upNextItem.urgency === "amber" ? "#E0A93B" : "#3FCB6E" }]}>
+                  {upNextItem.urgency === "red" ? "OVERDUE" : upNextItem.urgency === "amber" ? "SOON" : "TODAY"}
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>
-      </Modal>
+      )}
+
+      {/* Activity nav cards */}
+      <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+        <SectionLabel text="ACTIVITY" />
+
+        <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardOrdersScreen")}>
+          <View style={styles.navCardLeft}>
+            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+              <Feather name="shopping-bag" size={20} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={styles.navCardTextWrap}>
+              <Text style={styles.navCardTitle}>Orders</Text>
+              <Text style={styles.navCardSubtitle}>{stats.upcomingOrders} need attention</Text>
+            </View>
+          </View>
+          <View style={styles.navCardRight}>
+            {stats.upcomingOrders > 0 && (
+              <View style={[styles.navBadge, { backgroundColor: "rgba(232,93,93,0.15)" }]}>
+                <Text style={[styles.navBadgeText, { color: "#E85D5D" }]}>{stats.upcomingOrders}</Text>
+              </View>
+            )}
+            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardBookingsScreen")}>
+          <View style={styles.navCardLeft}>
+            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+              <Feather name="calendar" size={20} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={styles.navCardTextWrap}>
+              <Text style={styles.navCardTitle}>Bookings</Text>
+              <Text style={styles.navCardSubtitle}>{stats.upcomingBookings} upcoming</Text>
+            </View>
+          </View>
+          <View style={styles.navCardRight}>
+            {stats.upcomingBookings > 0 && (
+              <View style={[styles.navBadge, { backgroundColor: "rgba(224,169,59,0.15)" }]}>
+                <Text style={[styles.navBadgeText, { color: "#E0A93B" }]}>{stats.upcomingBookings}</Text>
+              </View>
+            )}
+            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardCreditsScreen")}>
+          <View style={styles.navCardLeft}>
+            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+              <Feather name="star" size={20} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={styles.navCardTextWrap}>
+              <Text style={styles.navCardTitle}>Credits</Text>
+              <Text style={styles.navCardSubtitle}>Production shoot credits</Text>
+            </View>
+          </View>
+          <View style={styles.navCardRight}>
+            {creditBalance > 0 && (
+              <View style={[styles.navBadge, { backgroundColor: "rgba(201,147,58,0.15)" }]}>
+                <Text style={[styles.navBadgeText, { color: DASHBOARD_COLORS.gold }]}>{creditBalance}</Text>
+              </View>
+            )}
+            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+          </View>
+        </Pressable>
+      </View>
+
+      <View style={{ height: insets.bottom + 20 }} />
 
       <BusinessEligibilityGate
         eligibility={eligibility}
