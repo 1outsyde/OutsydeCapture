@@ -56,6 +56,33 @@ type BusinessStats = {
   averageRating: number;
 };
 
+interface DailyDay {
+  date: string;
+  label: string;
+  revenue_cents: number;
+  order_count: number;
+  booking_count: number;
+}
+
+interface AudienceData {
+  total_customers: number;
+  gender: Record<string, number>;
+  age_ranges: Record<string, number>;
+  shopping_frequency: Record<string, number>;
+  top_industries: string[];
+}
+
+interface PhotographerMatch {
+  photographer_id: string;
+  name: string;
+  username: string | null;
+  profile_image_url: string | null;
+  specialty: string | null;
+  rating: number;
+  review_count: number;
+  match_percent: number;
+}
+
 const TIER_ORDER: Record<TierName, number> = { starter: 0, growth: 1, pro: 2 };
 const isUnlocked = (current: TierName, required: TierName): boolean =>
   TIER_ORDER[current] >= TIER_ORDER[required];
@@ -143,6 +170,9 @@ export default function DashboardAnalyticsScreen() {
   const [stats, setStats] = useState<BusinessStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dailyData, setDailyData] = useState<DailyDay[] | null>(null);
+  const [audienceData, setAudienceData] = useState<AudienceData | null>(null);
+  const [matchData, setMatchData] = useState<PhotographerMatch[] | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -150,16 +180,37 @@ export default function DashboardAnalyticsScreen() {
     try {
       const token = await getToken();
       if (!token) throw new Error("No token");
-      const [subRes, statsResult] = await Promise.all([
+      const [subRes, statsResult, dailyRes, audienceRes, matchRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/vendor/subscription/features`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         api.getBusinessStats(token),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/daily`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/audience`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/photographer-match`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
       if (!subRes.ok) throw new Error("subscription fetch failed");
       const subData: SubscriptionFeatures = await subRes.json();
       setSubscription(subData);
       setStats(statsResult.stats);
+      if (dailyRes.ok) {
+        const d = await dailyRes.json();
+        setDailyData(d.days ?? []);
+      }
+      if (audienceRes.ok) {
+        const a = await audienceRes.json();
+        setAudienceData(a);
+      }
+      if (matchRes.ok) {
+        const m = await matchRes.json();
+        setMatchData(m.matches ?? []);
+      }
     } catch (_err) {
       setError("Failed to load analytics");
     } finally {
@@ -192,18 +243,6 @@ export default function DashboardAnalyticsScreen() {
     );
   }
 
-  const audienceData = [
-    { label: "18–24", pct: 35 },
-    { label: "25–34", pct: 42 },
-    { label: "35–44", pct: 18 },
-    { label: "45+", pct: 5 },
-  ];
-
-  const photographerMatches = [
-    { initials: "PA", name: "Photographer A", sub: "Portrait · Lifestyle", match: "92% match" },
-    { initials: "PB", name: "Photographer B", sub: "Portrait · Lifestyle", match: "87% match" },
-    { initials: "PC", name: "Photographer C", sub: "Portrait · Lifestyle", match: "81% match" },
-  ];
 
   const tips = [
     "Post on weekends — your audience is 40% more active Sat–Sun",
@@ -296,14 +335,14 @@ export default function DashboardAnalyticsScreen() {
                   Revenue Trend
                 </Text>
                 <BarChart
-                  data={[40, 65, 30, 80, 55, 90, 70]}
-                  labels={["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
+                  data={(dailyData ?? []).map((d: DailyDay) => d.revenue_cents)}
+                  labels={(dailyData ?? []).map((d: DailyDay) => d.label)}
                   color={COLORS.gold}
                 />
                 <Text
                   style={{ color: COLORS.textMuted, fontSize: 11, fontStyle: "italic", marginTop: 8 }}
                 >
-                  Last 7 days · live data coming soon
+                  Last 7 days · revenue (cents)
                 </Text>
               </>
             ) : (
@@ -325,38 +364,47 @@ export default function DashboardAnalyticsScreen() {
                 >
                   Age Breakdown
                 </Text>
-                {audienceData.map(({ label, pct }) => (
-                  <View
-                    key={label}
-                    style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}
-                  >
-                    <Text style={{ width: 44, fontSize: 12, color: COLORS.textMuted }}>{label}</Text>
-                    <View
-                      style={{
-                        flex: 1,
-                        height: 8,
-                        backgroundColor: COLORS.surfaceAlt,
-                        borderRadius: 4,
-                        marginHorizontal: 10,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: `${pct}%`,
-                          height: "100%",
-                          backgroundColor: COLORS.gold,
-                          borderRadius: 4,
-                        }}
-                      />
-                    </View>
-                    <Text
-                      style={{ width: 32, fontSize: 12, color: COLORS.textMuted, textAlign: "right" }}
-                    >
-                      {pct}%
-                    </Text>
-                  </View>
-                ))}
+                {(() => {
+                  const ageRanges: Record<string, number> = audienceData?.age_ranges ?? {};
+                  const total = Object.values(ageRanges).reduce((s: number, v: number) => s + v, 0) || 1;
+                  return Object.entries(ageRanges)
+                    .filter(([key]) => key !== "unknown")
+                    .map(([label, count]: [string, number]) => {
+                      const pct = Math.round((count / total) * 100);
+                      return (
+                        <View
+                          key={label}
+                          style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}
+                        >
+                          <Text style={{ width: 44, fontSize: 12, color: COLORS.textMuted }}>{label}</Text>
+                          <View
+                            style={{
+                              flex: 1,
+                              height: 8,
+                              backgroundColor: COLORS.surfaceAlt,
+                              borderRadius: 4,
+                              marginHorizontal: 10,
+                              overflow: "hidden",
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: `${pct}%`,
+                                height: "100%",
+                                backgroundColor: COLORS.gold,
+                                borderRadius: 4,
+                              }}
+                            />
+                          </View>
+                          <Text
+                            style={{ width: 32, fontSize: 12, color: COLORS.textMuted, textAlign: "right" }}
+                          >
+                            {pct}%
+                          </Text>
+                        </View>
+                      );
+                    });
+                })()}
                 <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 8 }}>
                   Based on customer activity · updates as data grows
                 </Text>
@@ -375,51 +423,61 @@ export default function DashboardAnalyticsScreen() {
             <Text style={styles.sectionLabel}>PHOTOGRAPHER MATCH</Text>
             {isUnlocked(tier, "growth") ? (
               <>
-                {photographerMatches.map(({ initials, name, sub, match }) => (
-                  <View
-                    key={initials}
-                    style={{
-                      backgroundColor: COLORS.surfaceAlt,
-                      borderRadius: 12,
-                      padding: 14,
-                      marginBottom: 10,
-                      flexDirection: "row",
-                      alignItems: "center",
-                    }}
-                  >
+                {(matchData ?? []).map((p: PhotographerMatch) => {
+                  const initials = p.name
+                    .split(" ")
+                    .slice(0, 2)
+                    .map((w: string) => w[0])
+                    .join("")
+                    .toUpperCase();
+                  return (
                     <View
+                      key={p.photographer_id}
                       style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 21,
-                        backgroundColor: COLORS.emerald,
+                        backgroundColor: COLORS.surfaceAlt,
+                        borderRadius: 12,
+                        padding: 14,
+                        marginBottom: 10,
+                        flexDirection: "row",
                         alignItems: "center",
-                        justifyContent: "center",
                       }}
                     >
-                      <Text style={{ fontSize: 14, color: COLORS.gold, fontWeight: "700" }}>
-                        {initials}
-                      </Text>
+                      <View
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 21,
+                          backgroundColor: COLORS.emerald,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text style={{ fontSize: 14, color: COLORS.gold, fontWeight: "700" }}>
+                          {initials}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={{ color: COLORS.textPrimary, fontSize: 14, fontWeight: "bold" }}>
+                          {p.name}
+                        </Text>
+                        <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 2 }}>
+                          {p.specialty ?? "Photographer"}{p.rating ? ` · ★ ${p.rating.toFixed(1)}` : ""}
+                        </Text>
+                      </View>
+                      <View
+                        style={{
+                          borderWidth: 1,
+                          borderColor: COLORS.gold,
+                          borderRadius: 10,
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                        }}
+                      >
+                        <Text style={{ color: COLORS.gold, fontSize: 11 }}>{p.match_percent}% match</Text>
+                      </View>
                     </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={{ color: COLORS.textPrimary, fontSize: 14, fontWeight: "bold" }}>
-                        {name}
-                      </Text>
-                      <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 2 }}>{sub}</Text>
-                    </View>
-                    <View
-                      style={{
-                        borderWidth: 1,
-                        borderColor: COLORS.gold,
-                        borderRadius: 10,
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                      }}
-                    >
-                      <Text style={{ color: COLORS.gold, fontSize: 11 }}>{match}</Text>
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
                 <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 4 }}>
                   Live matches based on audience overlap · coming soon
                 </Text>
