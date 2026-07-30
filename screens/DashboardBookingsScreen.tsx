@@ -357,52 +357,64 @@ export default function DashboardBookingsScreen() {
       </View>
 
       {/* Filter chips — scrollable row */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
-      >
-        {FILTER_OPTIONS.map(f => (
-          <Pressable
-            key={f.key}
-            onPress={() => setFilter(f.key)}
-            style={{
-              flexShrink: 0,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: filter === f.key ? GOLD : CARD_BORDER,
-              backgroundColor: filter === f.key ? GOLD : SURFACE,
-            }}
-          >
-            <Text style={{
-              fontSize: 12,
-              fontWeight: "700",
-              color: filter === f.key ? "#141209" : CREAM_DIM,
-            }}>
-              {f.label}
-            </Text>
-            <View style={{
-              backgroundColor: filter === f.key ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.08)",
-              borderRadius: 999,
-              paddingHorizontal: 6,
-              paddingVertical: 1,
-            }}>
-              <Text style={{
-                fontSize: 10,
-                fontWeight: "700",
-                color: filter === f.key ? "#141209" : CREAM_DIM,
-              }}>
-                {f.count}
-              </Text>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={{ height: 44, marginBottom: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            alignItems: "center",
+            gap: 8,
+          }}
+          style={{ flex: 1 }}
+        >
+          {FILTER_OPTIONS.map(f => {
+            const isActive = filter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => setFilter(f.key)}
+                style={{
+                  height: 32,
+                  flexShrink: 0,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: 12,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: isActive ? GOLD : "rgba(255,255,255,0.15)",
+                  backgroundColor: isActive ? GOLD : "rgba(255,255,255,0.06)",
+                }}
+              >
+                <Text style={{
+                  fontSize: 12,
+                  fontWeight: "600",
+                  color: isActive ? "#141209" : "#FFFFFF",
+                }}>
+                  {f.label}
+                </Text>
+                <View style={{
+                  backgroundColor: isActive ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.15)",
+                  borderRadius: 10,
+                  paddingHorizontal: 5,
+                  paddingVertical: 1,
+                  minWidth: 18,
+                  alignItems: "center",
+                }}>
+                  <Text style={{
+                    fontSize: 10,
+                    fontWeight: "700",
+                    color: isActive ? "#141209" : "#FFFFFF",
+                  }}>
+                    {f.count}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* Sort button — separate row */}
       <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>

@@ -58,12 +58,11 @@ import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
 import DashboardOrdersScreen from "@/screens/DashboardOrdersScreen";
 import DashboardBookingsScreen from "@/screens/DashboardBookingsScreen";
 import DashboardCalendarScreen from "@/screens/DashboardCalendarScreen";
+import DashboardCreditsScreen from "@/screens/DashboardCreditsScreen";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-const DashboardCreditsScreenPlaceholder = () => null;
 
 export default function RootNavigator() {
   const { theme } = useTheme();
@@ -557,7 +556,7 @@ export default function RootNavigator() {
       />
       <Stack.Screen
         name="DashboardCreditsScreen"
-        component={DashboardCreditsScreenPlaceholder}
+        component={DashboardCreditsScreen}
         options={{ headerShown: false }}
       />
 
