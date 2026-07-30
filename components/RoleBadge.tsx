@@ -23,14 +23,7 @@ export default function RoleBadge({ role, subscriptionTier, size = 'pill' }: Rol
 
   if (size === 'pill') {
     return (
-      <View style={{
-        paddingHorizontal: 6,
-        paddingVertical: 4,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: color,
-        backgroundColor: 'transparent',
-      }}>
+      <View style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
         <View style={{ position: 'relative' }}>
           <Feather name={icon} size={13} color={color} />
           {isVerifiedVendor && (
