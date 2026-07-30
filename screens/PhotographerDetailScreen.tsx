@@ -9,6 +9,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
+import RoleBadge from "@/components/RoleBadge";
 import api from "@/services/api";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
@@ -470,7 +471,14 @@ export default function PhotographerDetailScreen() {
             contentFit="cover"
           />
           <View style={styles.headerInfo}>
-            <ThemedText type="h2">{photographer.name}</ThemedText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ThemedText type="h2">{photographer.name}</ThemedText>
+              <RoleBadge
+                role="photographer"
+                subscriptionTier={null}
+                size="pill"
+              />
+            </View>
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
               {getSpecialtyLabel()}
             </ThemedText>
