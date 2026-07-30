@@ -245,27 +245,6 @@ export default function DashboardOrdersScreen() {
     },
     backBtn: { padding: 8, marginRight: 8 },
     headerTitle: { fontSize: 20, fontWeight: "700", color: CREAM },
-    filterRow: { paddingVertical: 12 },
-    filterContent: { paddingHorizontal: 16, gap: 8 },
-    chip: {
-      flexShrink: 0,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 999,
-      borderWidth: 1,
-    },
-    chipText: { fontSize: 13, fontWeight: "600" },
-    chipBadge: {
-      borderRadius: 10,
-      paddingHorizontal: 5,
-      paddingVertical: 1,
-      minWidth: 18,
-      alignItems: "center",
-    },
-    chipBadgeText: { fontSize: 10, fontWeight: "700" },
     sortRow: {
       paddingHorizontal: 16,
       paddingBottom: 12,
@@ -410,42 +389,65 @@ export default function DashboardOrdersScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterRow}
-          contentContainerStyle={styles.filterContent}
-        >
-          {FILTER_TABS.map(tab => {
-            const active = filter === tab.key;
-            const count = countFor(tab.key);
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => setFilter(tab.key)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: active ? GOLD : SURFACE,
-                    borderColor: active ? GOLD : CARD_BORDER,
-                  },
-                ]}
-              >
-                <Text style={[styles.chipText, { color: active ? "#141209" : CREAM_DIM }]}>
-                  {tab.label}
-                </Text>
-                <View style={[
-                  styles.chipBadge,
-                  { backgroundColor: active ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.06)" },
-                ]}>
-                  <Text style={[styles.chipBadgeText, { color: active ? "#141209" : CREAM_DIM }]}>
-                    {count}
+        <View style={{ height: 44, marginBottom: 8 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              alignItems: "center",
+              gap: 8,
+            }}
+            style={{ flex: 1 }}
+          >
+            {FILTER_TABS.map(tab => {
+              const active = filter === tab.key;
+              const count = countFor(tab.key);
+              return (
+                <Pressable
+                  key={tab.key}
+                  onPress={() => setFilter(tab.key)}
+                  style={{
+                    height: 32,
+                    flexShrink: 0,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingHorizontal: 12,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: active ? GOLD : "rgba(255,255,255,0.15)",
+                    backgroundColor: active ? GOLD : "rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: active ? "#141209" : "#FFFFFF",
+                  }}>
+                    {tab.label}
                   </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  <View style={{
+                    backgroundColor: active ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.15)",
+                    borderRadius: 10,
+                    paddingHorizontal: 5,
+                    paddingVertical: 1,
+                    minWidth: 18,
+                    alignItems: "center",
+                  }}>
+                    <Text style={{
+                      fontSize: 10,
+                      fontWeight: "700",
+                      color: active ? "#141209" : "#FFFFFF",
+                    }}>
+                      {count}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
 
         {/* Sort control */}
         <View style={styles.sortRow}>
