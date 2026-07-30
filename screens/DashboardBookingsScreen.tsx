@@ -27,15 +27,6 @@ const CARD_BORDER = "rgba(255,255,255,0.08)";
 type FilterStatus = "all" | "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
 type SortMode = "action" | "newest" | "oldest" | "highest";
 
-const FILTER_TABS: { key: FilterStatus; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "confirmed", label: "Confirmed" },
-  { key: "completed", label: "Completed" },
-  { key: "cancelled", label: "Cancelled" },
-  { key: "no_show", label: "No Show" },
-];
-
 const SORT_CYCLE: SortMode[] = ["action", "newest", "oldest", "highest"];
 const SORT_LABELS: Record<SortMode, string> = {
   action: "Needs Action First",
@@ -186,6 +177,15 @@ export default function DashboardBookingsScreen() {
     setSort(SORT_CYCLE[(idx + 1) % SORT_CYCLE.length]);
   };
 
+  const FILTER_OPTIONS = [
+    { key: "all" as FilterStatus,       label: "All",       count: bookings.length },
+    { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => b.status === "pending").length },
+    { key: "confirmed" as FilterStatus, label: "Confirmed", count: bookings.filter(b => b.status === "confirmed").length },
+    { key: "completed" as FilterStatus, label: "Completed", count: bookings.filter(b => b.status === "completed").length },
+    { key: "cancelled" as FilterStatus, label: "Cancelled", count: bookings.filter(b => b.status === "cancelled").length },
+    { key: "no_show" as FilterStatus,   label: "No Show",   count: bookings.filter(b => b.status === "no_show").length },
+  ];
+
   const filtered = bookings.filter(b => filter === "all" || b.status === filter);
 
   const sorted = [...filtered].sort((a, b) => {
@@ -230,38 +230,6 @@ export default function DashboardBookingsScreen() {
       fontWeight: "700",
       letterSpacing: 0.2,
     },
-    sortButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 8,
-      backgroundColor: SURFACE,
-      borderWidth: 1,
-      borderColor: CARD_BORDER,
-    },
-    sortLabel: { color: GOLD, fontSize: 12, fontWeight: "600" },
-    filterRow: {
-      flexDirection: "row",
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 8,
-    },
-    filterChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 20,
-      backgroundColor: SURFACE,
-      borderWidth: 1,
-      borderColor: CARD_BORDER,
-    },
-    filterChipActive: {
-      backgroundColor: "rgba(201,147,58,0.15)",
-      borderColor: GOLD,
-    },
-    filterChipText: { color: CREAM_DIM, fontSize: 13, fontWeight: "500" },
-    filterChipTextActive: { color: GOLD },
     scrollContent: {
       paddingHorizontal: 16,
       paddingTop: 4,
@@ -386,29 +354,78 @@ export default function DashboardBookingsScreen() {
           <Feather name="arrow-left" size={22} color={CREAM} />
         </Pressable>
         <Text style={styles.headerTitle}>Bookings</Text>
-        <Pressable style={styles.sortButton} onPress={cycleSortMode}>
-          <Feather name="sliders" size={13} color={GOLD} />
-          <Text style={styles.sortLabel}>{SORT_LABELS[sort]}</Text>
-        </Pressable>
       </View>
 
+      {/* Filter chips — scrollable row */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
       >
-        {FILTER_TABS.map(tab => (
+        {FILTER_OPTIONS.map(f => (
           <Pressable
-            key={tab.key}
-            style={[styles.filterChip, filter === tab.key && styles.filterChipActive]}
-            onPress={() => setFilter(tab.key)}
+            key={f.key}
+            onPress={() => setFilter(f.key)}
+            style={{
+              flexShrink: 0,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: filter === f.key ? GOLD : CARD_BORDER,
+              backgroundColor: filter === f.key ? GOLD : SURFACE,
+            }}
           >
-            <Text style={[styles.filterChipText, filter === tab.key && styles.filterChipTextActive]}>
-              {tab.label}
+            <Text style={{
+              fontSize: 12,
+              fontWeight: "700",
+              color: filter === f.key ? "#141209" : CREAM_DIM,
+            }}>
+              {f.label}
             </Text>
+            <View style={{
+              backgroundColor: filter === f.key ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.08)",
+              borderRadius: 999,
+              paddingHorizontal: 6,
+              paddingVertical: 1,
+            }}>
+              <Text style={{
+                fontSize: 10,
+                fontWeight: "700",
+                color: filter === f.key ? "#141209" : CREAM_DIM,
+              }}>
+                {f.count}
+              </Text>
+            </View>
           </Pressable>
         ))}
       </ScrollView>
+
+      {/* Sort button — separate row */}
+      <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
+        <Pressable
+          onPress={cycleSortMode}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            alignSelf: "flex-start",
+            backgroundColor: SURFACE,
+            borderWidth: 1,
+            borderColor: CARD_BORDER,
+            borderRadius: 999,
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: "700", color: CREAM }}>
+            ↕ Sort: {SORT_LABELS[sort]}
+          </Text>
+        </Pressable>
+      </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
