@@ -97,6 +97,8 @@ export default function NotificationsScreen() {
         return "briefcase";
       case "booking_confirmed":
         return "check-circle";
+      case "booking_canceled":
+        return "x-circle";
       case "order_shipped":
         return "truck";
       case "new_order":

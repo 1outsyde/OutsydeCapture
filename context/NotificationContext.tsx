@@ -19,7 +19,7 @@ export interface Notification {
   title: string;
   body: string;
   type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow" | "business_pending" | "new_vendor_application" | "vendor_approved" | "vendor_rejected"
-    | "booking_confirmed" | "payment_succeeded" | "payment_failed" | "subscription_activated" | "subscription_canceled" | "addon_charged" | "refund_issued" | "new_order" | "order_shipped" | "photographer_assigned" | "subscription_tier_changed" | "stripe_onboarding_complete" | "new_photographer_application" | "new_follower";
+    | "booking_confirmed" | "booking_canceled" | "payment_succeeded" | "payment_failed" | "subscription_activated" | "subscription_canceled" | "addon_charged" | "refund_issued" | "new_order" | "order_shipped" | "photographer_assigned" | "subscription_tier_changed" | "stripe_onboarding_complete" | "new_photographer_application" | "new_follower";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;
