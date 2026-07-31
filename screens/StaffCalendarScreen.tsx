@@ -244,17 +244,18 @@ export default function StaffCalendarScreen() {
   ) => {
     const token = await getToken();
     if (!token) return;
-    const startDate = isFullDay ? `${date}T00:00:00` : `${date}T${startTime}:00`;
-    const endDate = isFullDay ? `${date}T23:59:59` : `${date}T${endTime}:00`;
+    const startAt = isFullDay ? `${date}T00:00:00` : `${date}T${startTime}:00`;
+    const endAt = isFullDay ? `${date}T23:59:59` : `${date}T${endTime}:00`;
     const finalReason = ownerOnly
       ? `[Owner only] ${reason || ""}`.trim()
       : reason || undefined;
+    // Backend expects startAt/endAt; AvailabilityBlock type uses startDate/endDate
     const newBlock = await api.createBlock(token, "business", {
-      startDate,
-      endDate,
+      startAt,
+      endAt,
       isFullDay,
       reason: finalReason,
-    });
+    } as any);
     setBlockedDates(prev => [...prev, {
       id: newBlock.id,
       date,
