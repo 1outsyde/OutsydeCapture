@@ -871,7 +871,7 @@ export default function BusinessDashboardScreen() {
       {(businessType === "service" || businessType === "both") && (
         <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
           <SectionLabel text="CALENDAR" />
-          <Pressable onPress={() => navigation.navigate("DashboardCalendarScreen")}>
+          <Pressable onPress={() => navigation.navigate(seatStatus?.activeCount > 0 ? "StaffCalendarScreen" : "DashboardCalendarScreen")}>
             <ProviderCalendar
               bookings={calendarBookings}
               blockedDates={blockedDates}
