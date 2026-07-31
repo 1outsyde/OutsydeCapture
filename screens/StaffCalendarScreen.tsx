@@ -498,11 +498,33 @@ export default function StaffCalendarScreen() {
   }
 
   function renderListView() {
-    const filteredDays = selectedStaffId
-      ? bookedDaysInMonth.filter((d: string) => bookings.some((b: RawBooking) => b.date === d && b.staffMemberId === selectedStaffId))
-      : bookedDaysInMonth;
+    const activeStaff = selectedStaffId
+      ? staff.filter((s: StaffMember) => s.id === selectedStaffId)
+      : staff;
 
-    if (filteredDays.length === 0) {
+    const sections: Array<{ member: StaffMember | null; bks: RawBooking[] }> = activeStaff.map((s: StaffMember) => ({
+      member: s,
+      bks: bookings
+        .filter((b: RawBooking) => b.staffMemberId === s.id && b.date.startsWith(monthPrefix))
+        .sort((a: RawBooking, b: RawBooking) =>
+          a.date !== b.date ? a.date.localeCompare(b.date) : a.startTime.localeCompare(b.startTime)
+        ),
+    }));
+
+    if (!selectedStaffId && hasUnassigned) {
+      sections.push({
+        member: null,
+        bks: bookings
+          .filter((b: RawBooking) => !b.staffMemberId && b.date.startsWith(monthPrefix))
+          .sort((a: RawBooking, b: RawBooking) =>
+            a.date !== b.date ? a.date.localeCompare(b.date) : a.startTime.localeCompare(b.startTime)
+          ),
+      });
+    }
+
+    const totalBookings = sections.reduce((sum: number, s) => sum + s.bks.length, 0);
+
+    if (totalBookings === 0) {
       return (
         <View style={styles.emptyState}>
           <Feather name="calendar" size={24} color={GOLD} />
@@ -513,48 +535,51 @@ export default function StaffCalendarScreen() {
 
     return (
       <View>
-        {filteredDays.map(dateStr => {
-          const dayBk = bookings.filter((b: RawBooking) =>
-            b.date === dateStr &&
-            (selectedStaffId ? b.staffMemberId === selectedStaffId : true)
-          );
-          const isToday = dateStr === today;
-          const dayNum = parseInt(dateStr.split("-")[2]);
+        {sections.map(({ member, bks }) => {
+          const color = member ? member.color : UNASSIGNED_COLOR;
+          const initials = member ? member.initials : "?";
+          const name = member ? member.displayName : "Unassigned";
           return (
-            <View key={dateStr} style={styles.listDay}>
-              <View style={styles.listDayHeader}>
-                <View style={[styles.listDateSquare, isToday && { backgroundColor: GOLD }]}>
-                  <Text style={[styles.listDateNum, isToday && { color: "#000" }]}>{dayNum}</Text>
+            <View key={member?.id ?? "__unassigned__"} style={styles.listStaffSection}>
+              <View style={styles.listStaffHeader}>
+                <View style={[styles.listStaffAvatar, { backgroundColor: color }]}>
+                  <Text style={styles.listStaffAvatarText}>{initials}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.listMonthDay}>{formatMonthDay(dateStr)}</Text>
-                  <Text style={styles.listCountText}>{dayBk.length} booking{dayBk.length !== 1 ? "s" : ""}</Text>
+                  <Text style={[styles.listStaffSectionName, { color }]}>{name}</Text>
+                  <Text style={styles.listStaffCount}>
+                    {bks.length} booking{bks.length !== 1 ? "s" : ""}
+                  </Text>
                 </View>
               </View>
-              {dayBk.map((b: RawBooking) => {
-                const color = getStaffColor(b.staffMemberId);
-                const staffName = b.staffMemberId
-                  ? staffById.get(b.staffMemberId)?.displayName.split(" ")[0] ?? "Staff"
-                  : "Unassigned";
-                const sp = statusPill(b.status);
-                return (
-                  <View key={b.id} style={styles.listRow}>
-                    <View style={[styles.listStaffDot, { backgroundColor: color }]} />
-                    <View style={styles.listRowInfo}>
-                      <Text style={[styles.listStaffName, { color }]}>{staffName}</Text>
-                      <Text style={styles.listClientService} numberOfLines={1}>
-                        {b.customerName} · {b.serviceName}
-                      </Text>
-                      <Text style={styles.listTime}>{b.startTime}</Text>
+              {bks.length === 0 ? (
+                <Text style={styles.listEmptyStaff}>No bookings this month</Text>
+              ) : (
+                bks.map((b: RawBooking) => {
+                  const parts = b.date.split("-").map(Number);
+                  const dayNum = parts[2];
+                  const monthAbbr = MONTHS[parts[1] - 1].substring(0, 3);
+                  const sp = statusPill(b.status);
+                  return (
+                    <View key={b.id} style={[styles.listBookingRow, { borderLeftColor: color }]}>
+                      <View style={styles.listDateCol}>
+                        <Text style={styles.listDateDay}>{dayNum}</Text>
+                        <Text style={styles.listDateMonth}>{monthAbbr}</Text>
+                      </View>
+                      <View style={styles.listBookingInfo}>
+                        <Text style={styles.listBookingClient} numberOfLines={1}>{b.customerName}</Text>
+                        <Text style={styles.listBookingDetail} numberOfLines={1}>{b.serviceName}</Text>
+                        <Text style={styles.listBookingTime}>{b.startTime}</Text>
+                      </View>
                       <View style={[styles.listStatusPill, { backgroundColor: sp.bg }]}>
                         <Text style={[styles.listStatusText, { color: sp.text }]}>
                           {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
                         </Text>
                       </View>
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })
+              )}
             </View>
           );
         })}
@@ -752,8 +777,8 @@ function makeStyles(topInset: number) {
     weekColNum: { color: CREAM_DIM, fontSize: 12 },
     weekHourRow: { flexDirection: "row", minHeight: 46, borderTopWidth: 1, borderTopColor: BORDER },
     weekHourLabel: { color: "rgba(255,255,255,0.2)", fontSize: 10, paddingTop: 4 },
-    weekCell: { width: 52, borderLeftWidth: 1, borderLeftColor: BORDER, padding: 2 },
-    weekEvent: { borderLeftWidth: 2, borderRadius: 3, padding: 3, marginBottom: 1 },
+    weekCell: { width: 52, borderLeftWidth: 1, borderLeftColor: BORDER, padding: 2, flexDirection: "column" },
+    weekEvent: { flex: 1, borderLeftWidth: 2, borderRadius: 3, padding: 3 },
     weekEventText: { fontSize: 9, fontWeight: "600" },
     // List view
     listDay: { marginBottom: 20 },
@@ -770,6 +795,21 @@ function makeStyles(topInset: number) {
     listTime: { color: CREAM_DIM, fontSize: 11, marginTop: 2 },
     listStatusPill: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start", marginTop: 4 },
     listStatusText: { fontSize: 10, fontWeight: "700" },
+    listStaffSection: { marginBottom: 24 },
+    listStaffHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: BORDER },
+    listStaffAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+    listStaffAvatarText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+    listStaffSectionName: { fontSize: 15, fontWeight: "700" },
+    listStaffCount: { color: CREAM_DIM, fontSize: 12, marginTop: 1 },
+    listEmptyStaff: { color: CREAM_DIM, fontSize: 12, paddingVertical: 6, paddingLeft: 4 },
+    listBookingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingLeft: 10, borderLeftWidth: 3, marginBottom: 6, backgroundColor: SURFACE, borderRadius: 4 },
+    listDateCol: { width: 36, alignItems: "center" },
+    listDateDay: { color: CREAM, fontSize: 18, fontWeight: "700", lineHeight: 20 },
+    listDateMonth: { color: CREAM_DIM, fontSize: 10, textTransform: "uppercase" },
+    listBookingInfo: { flex: 1 },
+    listBookingClient: { color: CREAM, fontSize: 13, fontWeight: "700" },
+    listBookingDetail: { color: CREAM_DIM, fontSize: 12, marginTop: 1 },
+    listBookingTime: { color: CREAM_DIM, fontSize: 11, marginTop: 2 },
     // Empty state
     emptyState: { alignItems: "center", gap: 12, marginTop: 40, paddingBottom: 40 },
     emptyTitle: { color: CREAM_DIM, fontSize: 14 },

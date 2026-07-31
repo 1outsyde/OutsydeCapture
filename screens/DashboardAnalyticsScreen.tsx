@@ -224,7 +224,11 @@ export default function DashboardAnalyticsScreen() {
     }
   }, [getToken]);
 
-  useFocusEffect(fetchData);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   const tier: TierName = subscription?.tier.name ?? "starter";
 
