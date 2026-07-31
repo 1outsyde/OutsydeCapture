@@ -222,6 +222,9 @@ export default function DashboardAnalyticsScreen() {
   const [peakTimes, setPeakTimes] = useState<PeakTimesData | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [yoy, setYoy] = useState<YoyMonth[] | null>(null);
+  const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [weeklyData, setWeeklyData] = useState<DailyDay[] | null>(null);
+  const [monthlyData, setMonthlyData] = useState<DailyDay[] | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -230,7 +233,7 @@ export default function DashboardAnalyticsScreen() {
       const token = await getToken();
       if (!token) throw new Error("No token");
       const h = { headers: { Authorization: `Bearer ${token}` } };
-      const [subRes, statsResult, dailyRes, audienceRes, matchRes, healthRes, svcRes, peakRes, forecastRes, yoyRes] = await Promise.all([
+      const [subRes, statsResult, dailyRes, audienceRes, matchRes, healthRes, svcRes, peakRes, forecastRes, yoyRes, weeklyRes, monthlyRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/vendor/subscription/features`, h),
         api.getBusinessStats(token),
         fetch(`${API_BASE_URL}/api/vendor/analytics/daily`, h),
@@ -241,6 +244,8 @@ export default function DashboardAnalyticsScreen() {
         fetch(`${API_BASE_URL}/api/vendor/analytics/peak-times`, h),
         fetch(`${API_BASE_URL}/api/vendor/analytics/revenue-forecast`, h),
         fetch(`${API_BASE_URL}/api/vendor/analytics/year-over-year`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/weekly`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/monthly`, h),
       ]);
       if (!subRes.ok) throw new Error("subscription fetch failed");
       const subData: SubscriptionFeatures = await subRes.json();
@@ -275,6 +280,8 @@ export default function DashboardAnalyticsScreen() {
         const y = await yoyRes.json();
         setYoy(y.months ?? []);
       }
+      if (weeklyRes.ok) { const w = await weeklyRes.json(); setWeeklyData(w.days ?? []); }
+      if (monthlyRes.ok) { const mo = await monthlyRes.json(); setMonthlyData(mo.days ?? []); }
     } catch (_err) {
       setError("Failed to load analytics");
     } finally {
@@ -363,7 +370,51 @@ export default function DashboardAnalyticsScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {/* 1. OVERVIEW */}
+          {/* 1. AUTHORITY */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>AUTHORITY</Text>
+            {isUnlocked(tier, "pro") ? (
+              <View
+                style={{
+                  backgroundColor: "rgba(201,147,58,0.08)",
+                  borderWidth: 1,
+                  borderColor: "rgba(201,147,58,0.4)",
+                  borderRadius: 12,
+                  padding: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Feather name="award" size={28} color={COLORS.gold} />
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={{ color: COLORS.textPrimary, fontSize: 16, fontWeight: "bold" }}>
+                    Authority Badge
+                  </Text>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 13, marginTop: 3 }}>
+                    Verified on your storefront
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    backgroundColor: "#1A3C34",
+                    borderRadius: 10,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text style={{ color: "#4CAF50", fontSize: 12, fontWeight: "600" }}>Active</Text>
+                </View>
+              </View>
+            ) : (
+              <LockedCard
+                title="Authority Badge"
+                upgradeLabel="Pro Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 2. OVERVIEW */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>OVERVIEW</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
@@ -392,31 +443,74 @@ export default function DashboardAnalyticsScreen() {
 
           {/* 2. PERFORMANCE */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>PERFORMANCE</Text>
-            {isUnlocked(tier, "growth") ? (
-              <>
-                <Text
-                  style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: "bold", marginBottom: 12 }}
-                >
-                  Revenue Trend
-                </Text>
+            <Text style={styles.sectionLabel}>PERFORMANCE <Text style={{ color: COLORS.textMuted, fontSize: 10, fontWeight: '400', letterSpacing: 0 }}>Growth</Text></Text>
+            {isUnlocked(tier, 'growth') ? (
+              <View style={styles.statCard}>
+                {/* Revenue value + delta row */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                  <View>
+                    <Text style={[styles.statValue, { fontSize: 28 }]}>
+                      {performancePeriod === 'daily'
+                        ? `$${(((dailyData ?? []).slice(-1)[0]?.revenue_cents ?? 0) / 100).toFixed(0)}`
+                        : performancePeriod === 'weekly'
+                        ? `$${((weeklyData ?? []).reduce((s: number, d: DailyDay) => s + d.revenue_cents, 0) / 100).toFixed(0)}`
+                        : `$${((monthlyData ?? []).slice(-1)[0]?.revenue_cents ?? 0 / 100).toFixed(0)}`}
+                    </Text>
+                    <Text style={{ color: COLORS.textMuted, fontSize: 11, fontWeight: '600', marginTop: 2, letterSpacing: 0.5 }}>
+                      {performancePeriod === 'daily' ? "TODAY'S REVENUE" : performancePeriod === 'weekly' ? "THIS WEEK'S REVENUE" : "MONTHLY REVENUE"}
+                    </Text>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(52,199,89,0.14)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+                    <Text style={{ color: '#34C759', fontSize: 12, fontWeight: '700' }}>▲ 18%</Text>
+                  </View>
+                </View>
+
+                {/* Toggle pills */}
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+                  {(['daily', 'weekly', 'monthly'] as const).map(p => (
+                    <Pressable
+                      key={p}
+                      onPress={() => setPerformancePeriod(p)}
+                      style={{
+                        paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: performancePeriod === p ? COLORS.gold : 'transparent',
+                        backgroundColor: performancePeriod === p ? 'rgba(201,147,58,0.12)' : 'transparent',
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 12, fontWeight: '700',
+                        color: performancePeriod === p ? COLORS.gold : COLORS.textMuted,
+                        textTransform: 'capitalize'
+                      }}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Bar chart */}
                 <BarChart
-                  data={(dailyData ?? []).map((d: DailyDay) => d.revenue_cents)}
-                  labels={(dailyData ?? []).map((d: DailyDay) => d.label)}
+                  data={
+                    performancePeriod === 'daily'
+                      ? (dailyData ?? []).map((d: DailyDay) => d.revenue_cents)
+                      : performancePeriod === 'weekly'
+                      ? (weeklyData ?? []).map((d: DailyDay) => d.revenue_cents)
+                      : (monthlyData ?? []).map((d: DailyDay) => d.revenue_cents)
+                  }
+                  labels={
+                    performancePeriod === 'daily'
+                      ? (dailyData ?? []).map((d: DailyDay) => d.label)
+                      : performancePeriod === 'weekly'
+                      ? (weeklyData ?? []).map((d: DailyDay) => d.label)
+                      : (monthlyData ?? []).map((d: DailyDay) => d.label)
+                  }
                   color={COLORS.gold}
                 />
-                <Text
-                  style={{ color: COLORS.textMuted, fontSize: 11, fontStyle: "italic", marginTop: 8 }}
-                >
-                  Last 7 days · revenue (cents)
+                <Text style={{ color: COLORS.textMuted, fontSize: 11, fontStyle: 'italic', marginTop: 8, textAlign: 'center' }}>
+                  {performancePeriod === 'daily' ? 'Today vs. yesterday' : performancePeriod === 'weekly' ? 'This week vs. last week' : 'This month vs. last month'}
                 </Text>
-              </>
+              </View>
             ) : (
-              <LockedCard
-                title="Charts & Trends"
-                upgradeLabel="Growth Plan"
-                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
-              />
+              <LockedCard title="Charts & Trends" upgradeLabel="Growth Plan" onUpgrade={() => navigation.navigate('SubscriptionPlan')} />
             )}
           </View>
 
@@ -952,49 +1046,6 @@ export default function DashboardAnalyticsScreen() {
             )}
           </View>
 
-          {/* 12. AUTHORITY */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>AUTHORITY</Text>
-            {isUnlocked(tier, "pro") ? (
-              <View
-                style={{
-                  backgroundColor: "rgba(201,147,58,0.08)",
-                  borderWidth: 1,
-                  borderColor: "rgba(201,147,58,0.4)",
-                  borderRadius: 12,
-                  padding: 16,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Feather name="award" size={28} color={COLORS.gold} />
-                <View style={{ flex: 1, marginLeft: 14 }}>
-                  <Text style={{ color: COLORS.textPrimary, fontSize: 16, fontWeight: "bold" }}>
-                    Authority Badge
-                  </Text>
-                  <Text style={{ color: COLORS.textMuted, fontSize: 13, marginTop: 3 }}>
-                    Verified on your storefront
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    backgroundColor: "#1A3C34",
-                    borderRadius: 10,
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                  }}
-                >
-                  <Text style={{ color: "#4CAF50", fontSize: 12, fontWeight: "600" }}>Active</Text>
-                </View>
-              </View>
-            ) : (
-              <LockedCard
-                title="Authority Badge"
-                upgradeLabel="Pro Plan"
-                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
-              />
-            )}
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
