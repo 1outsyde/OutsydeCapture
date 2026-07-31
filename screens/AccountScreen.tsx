@@ -30,7 +30,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
@@ -1030,7 +1030,7 @@ export default function AccountScreen() {
             postsCount: resolvedPosts.length,
             isVerified: Boolean((business as any).isVerified),
             subscriptionTier: String(
-              (business as any).subscriptionTier || "Starter",
+              (business as any).subscriptionTier || "",
             ),
             brandColors: parseBrandColors(business.brandColors),
             hasProducts: liveProducts.length > 0,
@@ -1292,9 +1292,7 @@ export default function AccountScreen() {
     }
   }, [getToken, isAuthenticated, role, user, viewerMode, routeUserId, routeUserType]);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useFocusEffect(loadProfile);
 
   useEffect(() => {
     const unsub = feedEvents.subscribe(() => {
@@ -1506,29 +1504,36 @@ export default function AccountScreen() {
               <Feather name="check" size={12} color={COLORS.black} />
             </View>
           ) : null}
-          {profile.role === "business" && profile.subscriptionTier ? (
-            <View
-              style={[
-                styles.tierBadge,
-                profile.subscriptionTier.toLowerCase().includes("pro")
-                  ? { backgroundColor: COLORS.gold }
-                  : profile.subscriptionTier.toLowerCase().includes("growth")
-                    ? { backgroundColor: COLORS.emerald }
-                    : { backgroundColor: COLORS.gray },
-              ]}
-            >
-              <Text
+          {(() => {
+            const effectiveTier = isOwner
+              ? (user?.subscriptionTier || profile.subscriptionTier || "")
+              : (profile.subscriptionTier || "");
+            if (profile.role !== "business" || !effectiveTier) return null;
+            const tierLower = effectiveTier.toLowerCase();
+            return (
+              <View
                 style={[
-                  styles.tierBadgeText,
-                  profile.subscriptionTier.toLowerCase().includes("pro")
-                    ? { color: COLORS.black }
-                    : { color: COLORS.white },
+                  styles.tierBadge,
+                  tierLower.includes("pro")
+                    ? { backgroundColor: COLORS.gold }
+                    : tierLower.includes("growth")
+                      ? { backgroundColor: COLORS.emerald }
+                      : { backgroundColor: COLORS.gray },
                 ]}
               >
-                {profile.subscriptionTier}
-              </Text>
-            </View>
-          ) : null}
+                <Text
+                  style={[
+                    styles.tierBadgeText,
+                    tierLower.includes("pro")
+                      ? { color: COLORS.black }
+                      : { color: COLORS.white },
+                  ]}
+                >
+                  {effectiveTier}
+                </Text>
+              </View>
+            );
+          })()}
         </View>
 
         <Text style={styles.metaLine}>

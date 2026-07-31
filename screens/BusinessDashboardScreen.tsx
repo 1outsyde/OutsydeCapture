@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -69,7 +69,7 @@ export default function BusinessDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const hasFetchedRef = useRef(false);
+
   const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
 
   const [stats, setStats] = useState<BusinessDashboardStats>({
@@ -274,31 +274,30 @@ export default function BusinessDashboardScreen() {
 
   // ─── Effects ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (authLoading) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (authLoading) return;
 
-    if (!user) {
-      setAuthError("Please sign in to access your dashboard");
-      setLoading(false);
-      return;
-    }
+      if (!user) {
+        setAuthError("Please sign in to access your dashboard");
+        setLoading(false);
+        return;
+      }
 
-    if (user.role !== "business") {
-      setAuthError("This dashboard is only available for businesses");
-      setLoading(false);
-      return;
-    }
+      if (user.role !== "business") {
+        setAuthError("This dashboard is only available for businesses");
+        setLoading(false);
+        return;
+      }
 
-    if (!hasFetchedRef.current) {
-      hasFetchedRef.current = true;
       fetchDashboard();
       fetchEligibility();
-    }
-  }, [authLoading, user?.id, user?.role]);
+    }, [authLoading, user?.id, user?.role, fetchDashboard, fetchEligibility])
+  );
 
   // Preload bookings for the calendar preview
   useEffect(() => {
-    if (!hasFetchedRef.current || !profile?.id) return;
+    if (!profile?.id) return;
     fetchBookingsForCalendar();
   }, [profile?.id]);
 
