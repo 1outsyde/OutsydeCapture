@@ -913,7 +913,7 @@ export interface BusinessBooking {
   date: string;
   time: string;
   serviceName: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "cancelled" | "no_show" | "declined" | "expired";
   amount: number;
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
