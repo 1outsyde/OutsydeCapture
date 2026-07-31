@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { BusinessBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
@@ -24,7 +24,7 @@ const CREAM_DIM = "rgba(200,191,168,0.6)";
 const SURFACE = "rgba(255,255,255,0.04)";
 const CARD_BORDER = "rgba(255,255,255,0.08)";
 
-type FilterStatus = "all" | "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+type FilterStatus = "all" | "pending" | "confirmed" | "completed" | "cancelled" | "no_show" | "declined" | "expired";
 type SortMode = "action" | "newest" | "oldest" | "highest";
 
 const SORT_CYCLE: SortMode[] = ["action", "newest", "oldest", "highest"];
@@ -36,15 +36,19 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 
 const STATUS_PRIORITY: Record<string, number> = {
+  pending_provider: 0,
   pending: 0,
   confirmed: 1,
   completed: 2,
   cancelled: 3,
   no_show: 3,
+  declined: 4,
+  expired: 4,
 };
 
 function statusColors(status: BusinessBooking["status"]): { bg: string; text: string } {
   switch (status) {
+    case "pending_provider":
     case "pending":
       return { bg: "rgba(255,204,0,0.15)", text: "#FFCC00" };
     case "confirmed":
@@ -52,8 +56,10 @@ function statusColors(status: BusinessBooking["status"]): { bg: string; text: st
     case "completed":
       return { bg: "rgba(201,147,58,0.15)", text: GOLD };
     case "cancelled":
+    case "declined":
       return { bg: "rgba(255,59,48,0.12)", text: "#FF3B30" };
     case "no_show":
+    case "expired":
       return { bg: "rgba(142,142,147,0.15)", text: "#8E8E93" };
     default:
       return { bg: "rgba(255,255,255,0.08)", text: CREAM_DIM };
@@ -61,8 +67,11 @@ function statusColors(status: BusinessBooking["status"]): { bg: string; text: st
 }
 
 function formatStatusLabel(status: BusinessBooking["status"]): string {
-  if (status === "no_show") return "No Show";
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  switch (status) {
+    case "pending_provider": return "Pending Review";
+    case "no_show": return "No Show";
+    default: return status.charAt(0).toUpperCase() + status.slice(1);
+  }
 }
 
 export default function DashboardBookingsScreen() {
@@ -97,6 +106,12 @@ export default function DashboardBookingsScreen() {
   useEffect(() => {
     fetchBookings();
   }, [fetchBookings]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings(true);
+    }, [fetchBookings])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -179,14 +194,18 @@ export default function DashboardBookingsScreen() {
 
   const FILTER_OPTIONS = [
     { key: "all" as FilterStatus,       label: "All",       count: bookings.length },
-    { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => b.status === "pending").length },
+    { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => b.status === "pending" || b.status === "pending_provider").length },
     { key: "confirmed" as FilterStatus, label: "Confirmed", count: bookings.filter(b => b.status === "confirmed").length },
     { key: "completed" as FilterStatus, label: "Completed", count: bookings.filter(b => b.status === "completed").length },
     { key: "cancelled" as FilterStatus, label: "Cancelled", count: bookings.filter(b => b.status === "cancelled").length },
     { key: "no_show" as FilterStatus,   label: "No Show",   count: bookings.filter(b => b.status === "no_show").length },
   ];
 
-  const filtered = bookings.filter(b => filter === "all" || b.status === filter);
+  const filtered = bookings.filter(b =>
+    filter === "all" ||
+    b.status === filter ||
+    (filter === "pending" && b.status === "pending_provider")
+  );
 
   const sorted = [...filtered].sort((a, b) => {
     if (sort === "action") {
@@ -326,10 +345,11 @@ export default function DashboardBookingsScreen() {
     }
 
     const groups: { label: string; items: BusinessBooking[] }[] = [
-      { label: "Pending", items: list.filter(b => b.status === "pending") },
+      { label: "Pending", items: list.filter(b => b.status === "pending" || b.status === "pending_provider") },
       { label: "Confirmed", items: list.filter(b => b.status === "confirmed") },
       { label: "Completed", items: list.filter(b => b.status === "completed") },
       { label: "Cancelled / No Show", items: list.filter(b => b.status === "cancelled" || b.status === "no_show") },
+      { label: "Declined / Expired", items: list.filter(b => b.status === "declined" || b.status === "expired") },
     ];
 
     return groups
@@ -539,7 +559,7 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow 
         </View>
       </View>
 
-      {booking.status === "pending" && (
+      {(booking.status === "pending" || booking.status === "pending_provider") && (
         <View style={styles.actions}>
           <Pressable style={[styles.actionBtn, { backgroundColor: "rgba(52,199,89,0.12)" }]} onPress={() => onAccept(booking.id)}>
             <Text style={[styles.actionBtnText, { color: "#34C759" }]}>Accept</Text>
