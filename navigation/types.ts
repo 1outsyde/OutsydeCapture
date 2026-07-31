@@ -72,6 +72,7 @@ export type RootStackParamList = {
   DashboardOrdersScreen: undefined;
   DashboardBookingsScreen: undefined;
   DashboardCalendarScreen: undefined;
+  StaffCalendarScreen: undefined;
   DashboardCreditsScreen: undefined;
   DashboardAnalytics: undefined;
   StaffDashboard: undefined;
