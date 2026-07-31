@@ -373,7 +373,7 @@ export default function DashboardAnalyticsScreen() {
           {/* 1. AUTHORITY */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>AUTHORITY</Text>
-            {isUnlocked(tier, "pro") ? (
+            {isUnlocked(tier, "starter") ? (
               <View
                 style={{
                   backgroundColor: "rgba(201,147,58,0.08)",
@@ -822,7 +822,7 @@ export default function DashboardAnalyticsScreen() {
           {/* CUSTOMER LOCATIONS */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>CUSTOMER LOCATIONS</Text>
-            {isUnlocked(tier, "pro") ? (
+            {isUnlocked(tier, "growth") ? (
               <View>
                 <Text
                   style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: "bold", marginBottom: 14 }}
