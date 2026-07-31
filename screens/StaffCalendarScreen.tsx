@@ -869,16 +869,61 @@ export default function StaffCalendarScreen() {
             onPress={async () => {
               setBlockLoading(true);
               setBlockError("");
+              let partialFailure = false;
               try {
+                const token = await getToken();
+                if (!token) throw new Error("No token");
+
+                if (blockScope === "all") {
+                  try {
+                    const result = await api.bulkCancelByDate(
+                      token,
+                      blockDate,
+                      blockIsFullDay ? undefined : blockStartTime,
+                      blockIsFullDay ? undefined : blockEndTime,
+                      blockReason.trim() || "Vendor blocked this time",
+                    );
+                    setBookings(prev => prev.filter(b => {
+                      if (b.date !== blockDate) return true;
+                      if (blockIsFullDay) return false;
+                      const bHour = parseHour(b.startTime);
+                      const startHour = parseInt(blockStartTime.split(":")[0]);
+                      const endHour = parseInt(blockEndTime.split(":")[0]);
+                      return bHour < startHour || bHour >= endHour;
+                    }));
+                    if (result.failedRefunds?.length > 0) {
+                      partialFailure = true;
+                      setBlockError(
+                        `Block created. ${result.failedRefunds.length} refund(s) failed — check dashboard.`
+                      );
+                    }
+                  } catch (cancelErr) {
+                    console.warn("[StaffCalendar] Bulk cancel failed:", cancelErr);
+                    partialFailure = true;
+                    setBlockError("Block created but some cancellations may have failed.");
+                  }
+                }
+
                 await handleBlockDate(
                   blockDate, blockIsFullDay,
                   blockStartTime, blockEndTime,
                   blockReason, blockScope === "owner",
                 );
-                setBlockModalVisible(false);
-                setBlockReason("");
-                setBlockScope("all");
-                setBlockIsFullDay(false);
+
+                if (!partialFailure) {
+                  setBlockModalVisible(false);
+                  setBlockReason("");
+                  setBlockScope("all");
+                  setBlockIsFullDay(false);
+                } else {
+                  setTimeout(() => {
+                    setBlockModalVisible(false);
+                    setBlockReason("");
+                    setBlockScope("all");
+                    setBlockIsFullDay(false);
+                    setBlockError("");
+                  }, 2000);
+                }
               } catch {
                 setBlockError("Failed to block time. Please try again.");
               } finally {
