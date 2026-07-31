@@ -4467,6 +4467,32 @@ class ApiService {
     );
   }
 
+  async bulkCancelByDate(
+    token: string,
+    date: string,
+    startTime?: string,
+    endTime?: string,
+    reason?: string
+  ): Promise<{
+    success: boolean;
+    cancelledCount: number;
+    refundedCount: number;
+    failedRefunds: string[];
+    date: string;
+  }> {
+    return this.request<{
+      success: boolean;
+      cancelledCount: number;
+      refundedCount: number;
+      failedRefunds: string[];
+      date: string;
+    }>("/api/vendor/bookings/bulk-cancel-by-date", {
+      method: "POST",
+      body: JSON.stringify({ date, startTime, endTime, reason }),
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
   // GET /api/users/:id — public user profile (consumers / any registered user)
   async getPublicUser(userId: string): Promise<{
     user: {
