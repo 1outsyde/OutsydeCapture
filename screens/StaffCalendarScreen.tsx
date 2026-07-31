@@ -196,7 +196,11 @@ export default function StaffCalendarScreen() {
     setRefreshing(false);
   }, [getToken]);
 
-  useFocusEffect(fetchData);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   // ─── Derived ──────────────────────────────────────────────────────────────
 
