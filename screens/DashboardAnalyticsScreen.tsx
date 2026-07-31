@@ -89,6 +89,44 @@ interface PhotographerMatch {
   match_percent: number;
 }
 
+interface BookingHealth {
+  conversion_rate: number;
+  cancellation_rate: number;
+  calendar_utilization: number;
+  booked_count: number;
+  available_hours: number;
+}
+
+interface RevenueByService {
+  service: string;
+  booking_count: number;
+  revenue_cents: number;
+}
+
+interface PeakTimesData {
+  heatmap: { day_of_week: number; time_slot: string; booking_count: number }[];
+  busiest_day: string | null;
+  busiest_window: string | null;
+  most_open_day: string | null;
+}
+
+interface ForecastData {
+  forecast_low: number;
+  forecast_high: number;
+  projected_month: number;
+  confidence: string;
+  historical: { month: string; revenue_cents: number }[];
+  mtd_cents: number;
+}
+
+interface YoyMonth {
+  month: string;
+  label: string;
+  revenue_cents: number;
+  yoy_revenue_cents: number | null;
+  yoy_delta: number | null;
+}
+
 const TIER_ORDER: Record<TierName, number> = { starter: 0, growth: 1, pro: 2 };
 const isUnlocked = (current: TierName, required: TierName): boolean =>
   TIER_ORDER[current] >= TIER_ORDER[required];
@@ -179,6 +217,11 @@ export default function DashboardAnalyticsScreen() {
   const [dailyData, setDailyData] = useState<DailyDay[] | null>(null);
   const [audienceData, setAudienceData] = useState<AudienceData | null>(null);
   const [matchData, setMatchData] = useState<PhotographerMatch[] | null>(null);
+  const [bookingHealth, setBookingHealth] = useState<BookingHealth | null>(null);
+  const [revenueByService, setRevenueByService] = useState<RevenueByService[] | null>(null);
+  const [peakTimes, setPeakTimes] = useState<PeakTimesData | null>(null);
+  const [forecast, setForecast] = useState<ForecastData | null>(null);
+  const [yoy, setYoy] = useState<YoyMonth[] | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -186,20 +229,18 @@ export default function DashboardAnalyticsScreen() {
     try {
       const token = await getToken();
       if (!token) throw new Error("No token");
-      const [subRes, statsResult, dailyRes, audienceRes, matchRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/vendor/subscription/features`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const h = { headers: { Authorization: `Bearer ${token}` } };
+      const [subRes, statsResult, dailyRes, audienceRes, matchRes, healthRes, svcRes, peakRes, forecastRes, yoyRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/vendor/subscription/features`, h),
         api.getBusinessStats(token),
-        fetch(`${API_BASE_URL}/api/vendor/analytics/daily`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/api/vendor/analytics/audience`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/api/vendor/analytics/photographer-match`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/daily`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/audience`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/photographer-match`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/booking-health`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/revenue-by-service`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/peak-times`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/revenue-forecast`, h),
+        fetch(`${API_BASE_URL}/api/vendor/analytics/year-over-year`, h),
       ]);
       if (!subRes.ok) throw new Error("subscription fetch failed");
       const subData: SubscriptionFeatures = await subRes.json();
@@ -216,6 +257,23 @@ export default function DashboardAnalyticsScreen() {
       if (matchRes.ok) {
         const m = await matchRes.json();
         setMatchData(m.matches ?? []);
+      }
+      if (healthRes.ok) {
+        setBookingHealth(await healthRes.json());
+      }
+      if (svcRes.ok) {
+        const s = await svcRes.json();
+        setRevenueByService(s.services ?? []);
+      }
+      if (peakRes.ok) {
+        setPeakTimes(await peakRes.json());
+      }
+      if (forecastRes.ok) {
+        setForecast(await forecastRes.json());
+      }
+      if (yoyRes.ok) {
+        const y = await yoyRes.json();
+        setYoy(y.months ?? []);
       }
     } catch (_err) {
       setError("Failed to load analytics");
@@ -362,7 +420,37 @@ export default function DashboardAnalyticsScreen() {
             )}
           </View>
 
-          {/* 3. YOUR AUDIENCE */}
+          {/* 3. BOOKING HEALTH */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>BOOKING HEALTH</Text>
+            {isUnlocked(tier, "growth") ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                <View style={[styles.statCard, { flexBasis: "48%", borderLeftWidth: 3, borderLeftColor: "#4CAF50" }]}>
+                  <Text style={styles.statValue}>{bookingHealth?.conversion_rate ?? 0}%</Text>
+                  <Text style={styles.statLabel}>Conversion Rate</Text>
+                </View>
+                <View style={[styles.statCard, { flexBasis: "48%", borderLeftWidth: 3, borderLeftColor: "#FF5252" }]}>
+                  <Text style={styles.statValue}>{bookingHealth?.cancellation_rate ?? 0}%</Text>
+                  <Text style={styles.statLabel}>Cancellation Rate</Text>
+                </View>
+                <View style={[styles.statCard, { flex: 1, borderLeftWidth: 3, borderLeftColor: COLORS.gold }]}>
+                  <Text style={styles.statValue}>{bookingHealth?.calendar_utilization ?? 0}%</Text>
+                  <Text style={styles.statLabel}>Calendar Utilization This Week</Text>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 4 }}>
+                    {bookingHealth?.booked_count ?? 0} booked · {bookingHealth?.available_hours ?? 0}h available
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <LockedCard
+                title="Booking Health Metrics"
+                upgradeLabel="Growth Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 4. YOUR AUDIENCE */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>YOUR AUDIENCE</Text>
             {isUnlocked(tier, "growth") ? (
@@ -499,6 +587,144 @@ export default function DashboardAnalyticsScreen() {
             )}
           </View>
 
+          {/* 7. REVENUE BY SERVICE */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>REVENUE BY SERVICE</Text>
+            {isUnlocked(tier, "growth") ? (
+              <>
+                <Text style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: "bold", marginBottom: 14 }}>
+                  This Month
+                </Text>
+                {(revenueByService ?? []).length === 0 ? (
+                  <View style={{ backgroundColor: COLORS.surfaceAlt, borderRadius: 12, padding: 14 }}>
+                    <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>No service revenue this month yet</Text>
+                  </View>
+                ) : (
+                  (revenueByService ?? []).map((svc: RevenueByService, i: number) => {
+                    const maxCents = revenueByService![0].revenue_cents || 1;
+                    const pct = Math.round((svc.revenue_cents / maxCents) * 100);
+                    return (
+                      <View key={i} style={{ marginBottom: 12 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                          <Text style={{ color: COLORS.textPrimary, fontSize: 13, flex: 1 }} numberOfLines={1}>
+                            {svc.service}
+                          </Text>
+                          <Text style={{ color: COLORS.gold, fontSize: 13, fontWeight: "bold" }}>
+                            ${(svc.revenue_cents / 100).toFixed(0)}
+                          </Text>
+                        </View>
+                        <View
+                          style={{ height: 6, backgroundColor: COLORS.surfaceAlt, borderRadius: 3, overflow: "hidden" }}
+                        >
+                          <View
+                            style={{ width: `${pct}%`, height: "100%", backgroundColor: COLORS.gold, borderRadius: 3 }}
+                          />
+                        </View>
+                        <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 2 }}>
+                          {svc.booking_count} booking{svc.booking_count !== 1 ? "s" : ""}
+                        </Text>
+                      </View>
+                    );
+                  })
+                )}
+              </>
+            ) : (
+              <LockedCard
+                title="Revenue by Service"
+                upgradeLabel="Growth Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 8. PEAK BOOKING TIMES */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>PEAK BOOKING TIMES</Text>
+            {isUnlocked(tier, "pro") ? (
+              peakTimes && peakTimes.heatmap.length > 0 ? (
+                <>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+                    {[
+                      { label: "Busiest Day", value: peakTimes.busiest_day ?? "—" },
+                      {
+                        label: "Busiest Window",
+                        value: peakTimes.busiest_window
+                          ? peakTimes.busiest_window.charAt(0).toUpperCase() + peakTimes.busiest_window.slice(1)
+                          : "—",
+                      },
+                      { label: "Most Open Day", value: peakTimes.most_open_day ?? "—" },
+                    ].map((item) => (
+                      <View key={item.label} style={[styles.statCard, { flexBasis: "31%" }]}>
+                        <Text style={[styles.statValue, { fontSize: 16 }]}>{item.value}</Text>
+                        <Text style={styles.statLabel}>{item.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 8 }}>
+                    Booking activity by day & time (last 90 days)
+                  </Text>
+                  {["morning", "afternoon", "evening", "night"].map((slot) => {
+                    const maxCount = Math.max(...peakTimes.heatmap.map((h: { day_of_week: number; time_slot: string; booking_count: number }) => h.booking_count), 1);
+                    return (
+                      <View key={slot} style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                        <Text style={{ color: COLORS.textMuted, fontSize: 10, width: 62 }}>
+                          {slot.charAt(0).toUpperCase() + slot.slice(1)}
+                        </Text>
+                        {[0, 1, 2, 3, 4, 5, 6].map((dow) => {
+                          const cell = peakTimes.heatmap.find(
+                            (hm: { day_of_week: number; time_slot: string; booking_count: number }) =>
+                              hm.day_of_week === dow && hm.time_slot === slot
+                          );
+                          const count = cell?.booking_count ?? 0;
+                          const opacity = 0.1 + (count / maxCount) * 0.9;
+                          return (
+                            <View
+                              key={dow}
+                              style={{
+                                flex: 1,
+                                height: 28,
+                                backgroundColor: `rgba(201,147,58,${opacity.toFixed(2)})`,
+                                borderRadius: 4,
+                                marginHorizontal: 2,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {count > 0 && (
+                                <Text style={{ fontSize: 9, color: "#FFF" }}>{count}</Text>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })}
+                  <View style={{ flexDirection: "row", marginTop: 4 }}>
+                    <View style={{ width: 62 }} />
+                    {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                      <Text
+                        key={i}
+                        style={{ flex: 1, textAlign: "center", color: COLORS.textMuted, fontSize: 10 }}
+                      >
+                        {d}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <View style={{ backgroundColor: COLORS.surfaceAlt, borderRadius: 12, padding: 14 }}>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>No booking data yet</Text>
+                </View>
+              )
+            ) : (
+              <LockedCard
+                title="Peak Booking Times"
+                upgradeLabel="Pro Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
           {/* CUSTOMER LOCATIONS */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>CUSTOMER LOCATIONS</Text>
@@ -596,7 +822,137 @@ export default function DashboardAnalyticsScreen() {
             )}
           </View>
 
-          {/* 6. AUTHORITY */}
+          {/* 10. REVENUE FORECAST */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>REVENUE FORECAST</Text>
+            {isUnlocked(tier, "pro") ? (
+              forecast ? (
+                <>
+                  <View
+                    style={{
+                      backgroundColor: COLORS.surfaceAlt,
+                      borderRadius: 12,
+                      padding: 16,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 4 }}>
+                      Projected This Month
+                    </Text>
+                    <Text style={{ color: COLORS.textPrimary, fontSize: 28, fontWeight: "bold" }}>
+                      ${(forecast.projected_month / 100).toFixed(0)}
+                    </Text>
+                    <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 4 }}>
+                      Range: ${(forecast.forecast_low / 100).toFixed(0)} – ${(forecast.forecast_high / 100).toFixed(0)}
+                      {" · "}
+                      {forecast.confidence} confidence
+                    </Text>
+                  </View>
+                  {forecast.historical.length > 0 && (
+                    <>
+                      <Text
+                        style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: "600", marginBottom: 10 }}
+                      >
+                        Recent History
+                      </Text>
+                      {forecast.historical.map((hm: { month: string; revenue_cents: number }) => (
+                        <View
+                          key={hm.month}
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            paddingVertical: 8,
+                            borderBottomWidth: 1,
+                            borderBottomColor: COLORS.surfaceAlt,
+                          }}
+                        >
+                          <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>{hm.month}</Text>
+                          <Text style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: "600" }}>
+                            ${(hm.revenue_cents / 100).toFixed(0)}
+                          </Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                </>
+              ) : (
+                <View style={{ backgroundColor: COLORS.surfaceAlt, borderRadius: 12, padding: 14 }}>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
+                    Not enough data for forecast yet
+                  </Text>
+                </View>
+              )
+            ) : (
+              <LockedCard
+                title="Revenue Forecast"
+                upgradeLabel="Pro Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 11. YEAR-OVER-YEAR */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>YEAR-OVER-YEAR</Text>
+            {isUnlocked(tier, "pro") ? (
+              <>
+                {(yoy ?? []).length === 0 ? (
+                  <View style={{ backgroundColor: COLORS.surfaceAlt, borderRadius: 12, padding: 14 }}>
+                    <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
+                      No booking history for comparison yet
+                    </Text>
+                  </View>
+                ) : (
+                  (yoy ?? []).map((m: YoyMonth) => (
+                    <View
+                      key={m.month}
+                      style={{
+                        backgroundColor: COLORS.surfaceAlt,
+                        borderRadius: 10,
+                        padding: 14,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <View
+                        style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                      >
+                        <Text style={{ color: COLORS.textPrimary, fontSize: 14, fontWeight: "bold" }}>
+                          {m.label}
+                        </Text>
+                        <Text style={{ color: COLORS.textPrimary, fontSize: 14, fontWeight: "bold" }}>
+                          ${(m.revenue_cents / 100).toFixed(0)}
+                        </Text>
+                      </View>
+                      {m.yoy_delta !== null ? (
+                        <Text
+                          style={{
+                            color: m.yoy_delta >= 0 ? "#4CAF50" : "#FF5252",
+                            fontSize: 12,
+                            marginTop: 4,
+                          }}
+                        >
+                          {m.yoy_delta >= 0 ? "+" : ""}
+                          {m.yoy_delta}% vs same month last year (${((m.yoy_revenue_cents ?? 0) / 100).toFixed(0)})
+                        </Text>
+                      ) : (
+                        <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 4 }}>
+                          No data from last year
+                        </Text>
+                      )}
+                    </View>
+                  ))
+                )}
+              </>
+            ) : (
+              <LockedCard
+                title="Year-over-Year Growth"
+                upgradeLabel="Pro Plan"
+                onUpgrade={() => navigation.navigate("SubscriptionPlan")}
+              />
+            )}
+          </View>
+
+          {/* 12. AUTHORITY */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>AUTHORITY</Text>
             {isUnlocked(tier, "pro") ? (
