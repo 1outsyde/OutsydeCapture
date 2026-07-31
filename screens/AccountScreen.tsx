@@ -1292,7 +1292,11 @@ export default function AccountScreen() {
     }
   }, [getToken, isAuthenticated, role, user, viewerMode, routeUserId, routeUserType]);
 
-  useFocusEffect(loadProfile);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   useEffect(() => {
     const unsub = feedEvents.subscribe(() => {
