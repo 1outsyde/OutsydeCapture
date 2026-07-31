@@ -7,6 +7,12 @@ import {
   ActivityIndicator,
   StyleSheet,
   RefreshControl,
+  Modal,
+  Switch,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -154,15 +160,27 @@ export default function StaffCalendarScreen() {
 
   const [bookings, setBookings] = useState<RawBooking[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [blockedDates, setBlockedDates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Block modal state
+  const [blockModalVisible, setBlockModalVisible] = useState(false);
+  const [blockDate, setBlockDate] = useState(today);
+  const [blockIsFullDay, setBlockIsFullDay] = useState(false);
+  const [blockStartTime, setBlockStartTime] = useState("09:00");
+  const [blockEndTime, setBlockEndTime] = useState("17:00");
+  const [blockReason, setBlockReason] = useState("");
+  const [blockScope, setBlockScope] = useState<"all" | "owner">("all");
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [blockError, setBlockError] = useState("");
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     const token = await getToken();
     if (!token) { setLoading(false); return; }
 
-    const [bookingsResult, staffResult] = await Promise.allSettled([
+    const [bookingsResult, staffResult, , blocksResult] = await Promise.allSettled([
       api.getBusinessBookings(token),
       api.getVendorStaff(token),
       api.getWeeklyAvailability(token, "business"),
@@ -192,6 +210,20 @@ export default function StaffCalendarScreen() {
       })));
     }
 
+    if (blocksResult.status === "fulfilled") {
+      const blocks: any[] = Array.isArray(blocksResult.value)
+        ? blocksResult.value
+        : (blocksResult.value as any)?.blocks ?? [];
+      setBlockedDates(blocks.map((b: any) => ({
+        id: b.id,
+        date: b.startDate?.split("T")[0],
+        isFullDay: b.isFullDay,
+        startTime: b.isFullDay ? undefined : b.startDate?.split("T")[1]?.substring(0, 5),
+        endTime: b.isFullDay ? undefined : b.endDate?.split("T")[1]?.substring(0, 5),
+        reason: b.reason,
+      })));
+    }
+
     setLoading(false);
     setRefreshing(false);
   }, [getToken]);
@@ -201,6 +233,44 @@ export default function StaffCalendarScreen() {
       fetchData();
     }, [fetchData])
   );
+
+  const handleBlockDate = useCallback(async (
+    date: string,
+    isFullDay: boolean,
+    startTime: string,
+    endTime: string,
+    reason: string,
+    ownerOnly: boolean,
+  ) => {
+    const token = await getToken();
+    if (!token) return;
+    const startDate = isFullDay ? `${date}T00:00:00` : `${date}T${startTime}:00`;
+    const endDate = isFullDay ? `${date}T23:59:59` : `${date}T${endTime}:00`;
+    const finalReason = ownerOnly
+      ? `[Owner only] ${reason || ""}`.trim()
+      : reason || undefined;
+    const newBlock = await api.createBlock(token, "business", {
+      startDate,
+      endDate,
+      isFullDay,
+      reason: finalReason,
+    });
+    setBlockedDates(prev => [...prev, {
+      id: newBlock.id,
+      date,
+      isFullDay,
+      startTime: isFullDay ? undefined : startTime,
+      endTime: isFullDay ? undefined : endTime,
+      reason: finalReason,
+    }]);
+  }, [getToken]);
+
+  const handleUnblockDate = useCallback(async (blockId: string) => {
+    const token = await getToken();
+    if (!token) return;
+    await api.deleteBlock(token, "business", blockId);
+    setBlockedDates(prev => prev.filter(b => b.id !== blockId));
+  }, [getToken]);
 
   // ─── Derived ──────────────────────────────────────────────────────────────
 
@@ -236,6 +306,8 @@ export default function StaffCalendarScreen() {
       }
       if (colors.length >= 3) break;
     }
+    const dayBlocks = blockedDates.filter(b => b.date === dateStr);
+    if (dayBlocks.length > 0) colors.push(RED);
     return colors;
   }
 
@@ -344,23 +416,39 @@ export default function StaffCalendarScreen() {
       const s = staffById.get(selectedStaffId);
       const color = s?.color ?? UNASSIGNED_COLOR;
       const dayBk = bookings.filter((b: RawBooking) => b.date === selectedDay && b.staffMemberId === selectedStaffId);
+      const dayBlocksAll = blockedDates.filter(b => b.date === selectedDay);
       return (
         <View style={styles.dayView}>
           <Text style={styles.dayViewTitle}>{dayLabel}</Text>
           {HOURS.map(hour => {
             const hourBk = dayBk.filter((b: RawBooking) => parseHour(b.startTime) === hour);
+            const hourBlocks = blockedDates.filter(b => {
+              if (b.date !== selectedDay) return false;
+              if (b.isFullDay) return hour === HOURS[0];
+              return b.startTime ? parseInt(b.startTime.split(":")[0]) === hour : false;
+            });
             return (
               <View key={hour} style={styles.hourRow}>
                 <Text style={styles.hourLabel}>{HOUR_LABELS[hour]}</Text>
                 <View style={styles.hourContent}>
-                  {hourBk.length === 0
+                  {hourBlocks.map((b: any) => (
+                    <View key={b.id} style={styles.blockRow}>
+                      <Text style={styles.blockRowTitle}>
+                        Blocked{b.reason ? ` — ${b.reason}` : ""}
+                      </Text>
+                      <Text style={styles.blockRowTime}>
+                        {b.isFullDay ? "All day" : `${b.startTime} – ${b.endTime}`}
+                      </Text>
+                    </View>
+                  ))}
+                  {hourBk.length === 0 && hourBlocks.length === 0
                     ? <Text style={styles.emptyHourDash}>–</Text>
                     : hourBk.map((b: RawBooking) => renderStaffEventBlock(b, color))}
                 </View>
               </View>
             );
           })}
-          {dayBk.length === 0 && (
+          {dayBk.length === 0 && dayBlocksAll.length === 0 && (
             <View style={styles.emptyState}>
               <Feather name="calendar" size={24} color={GOLD} />
               <Text style={styles.emptyTitle}>No bookings this day</Text>
@@ -667,6 +755,142 @@ export default function StaffCalendarScreen() {
 
         <View style={{ height: 80 }} />
       </ScrollView>
+
+      {/* FAB */}
+      <Pressable
+        style={[styles.fab, { bottom: insets.bottom + 20 }]}
+        onPress={() => { setBlockDate(selectedDay); setBlockModalVisible(true); }}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </Pressable>
+
+      {/* Block Modal */}
+      <Modal
+        visible={blockModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setBlockModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setBlockModalVisible(false)} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalSheet}
+        >
+          {/* Handle bar */}
+          <View style={styles.modalHandle} />
+
+          {/* Header */}
+          <Text style={styles.modalTitle}>Block Time</Text>
+
+          {/* Date row */}
+          <View style={styles.modalRow}>
+            <Feather name="calendar" size={16} color={GOLD} />
+            <Text style={styles.modalRowLabel}>Date</Text>
+            <Text style={styles.modalRowValue}>
+              {new Date(blockDate + "T12:00:00").toLocaleDateString("en-US", {
+                weekday: "short", month: "short", day: "numeric",
+              })}
+            </Text>
+          </View>
+
+          {/* Full Day toggle */}
+          <View style={styles.modalRow}>
+            <Feather name="sun" size={16} color={GOLD} />
+            <Text style={styles.modalRowLabel}>Full Day</Text>
+            <Switch
+              value={blockIsFullDay}
+              onValueChange={setBlockIsFullDay}
+              trackColor={{ false: "#333", true: GOLD }}
+              thumbColor={blockIsFullDay ? "#000" : "#888"}
+            />
+          </View>
+
+          {/* Time range */}
+          {!blockIsFullDay && (
+            <>
+              <View style={styles.modalRow}>
+                <Feather name="clock" size={16} color={GOLD} />
+                <Text style={styles.modalRowLabel}>Start Time</Text>
+                <Text style={styles.modalRowValue}>{blockStartTime}</Text>
+              </View>
+              <View style={styles.modalRow}>
+                <Feather name="clock" size={16} color={GOLD} />
+                <Text style={styles.modalRowLabel}>End Time</Text>
+                <Text style={styles.modalRowValue}>{blockEndTime}</Text>
+              </View>
+            </>
+          )}
+
+          {/* Reason input */}
+          <TextInput
+            style={styles.modalInput}
+            placeholder="Add a reason (optional)"
+            placeholderTextColor={CREAM_DIM}
+            value={blockReason}
+            onChangeText={setBlockReason}
+            maxLength={100}
+          />
+
+          {/* Scope cards */}
+          <View style={styles.scopeRow}>
+            <Pressable
+              style={[styles.scopeCard, blockScope === "all" && styles.scopeCardActive]}
+              onPress={() => setBlockScope("all")}
+            >
+              <Feather name="users" size={22} color={blockScope === "all" ? GOLD : CREAM_DIM} />
+              <Text style={[styles.scopeCardTitle, blockScope === "all" && { color: GOLD }]}>
+                Block All Staff
+              </Text>
+              <Text style={styles.scopeCardSub}>Close the shop for this time</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.scopeCard, blockScope === "owner" && styles.scopeCardActive]}
+              onPress={() => setBlockScope("owner")}
+            >
+              <Feather name="user" size={22} color={blockScope === "owner" ? GOLD : CREAM_DIM} />
+              <Text style={[styles.scopeCardTitle, blockScope === "owner" && { color: GOLD }]}>
+                My Schedule Only
+              </Text>
+              <Text style={styles.scopeCardSub}>You're off, shop stays open</Text>
+            </Pressable>
+          </View>
+
+          {blockError ? <Text style={styles.blockError}>{blockError}</Text> : null}
+
+          {/* Cancel */}
+          <Pressable onPress={() => setBlockModalVisible(false)} style={styles.cancelBtn}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </Pressable>
+
+          {/* Submit */}
+          <Pressable
+            style={styles.submitBtn}
+            onPress={async () => {
+              setBlockLoading(true);
+              setBlockError("");
+              try {
+                await handleBlockDate(
+                  blockDate, blockIsFullDay,
+                  blockStartTime, blockEndTime,
+                  blockReason, blockScope === "owner",
+                );
+                setBlockModalVisible(false);
+                setBlockReason("");
+                setBlockScope("all");
+                setBlockIsFullDay(false);
+              } catch {
+                setBlockError("Failed to block time. Please try again.");
+              } finally {
+                setBlockLoading(false);
+              }
+            }}
+          >
+            {blockLoading
+              ? <ActivityIndicator color="#000" />
+              : <Text style={styles.submitBtnText}>Block Time</Text>}
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -813,5 +1037,121 @@ function makeStyles(topInset: number) {
     // Empty state
     emptyState: { alignItems: "center", gap: 12, marginTop: 40, paddingBottom: 40 },
     emptyTitle: { color: CREAM_DIM, fontSize: 14 },
+    // Block row (in day view)
+    blockRow: {
+      backgroundColor: "#2a1818",
+      borderLeftWidth: 3,
+      borderLeftColor: RED,
+      borderRadius: 4,
+      padding: 6,
+      marginBottom: 4,
+    },
+    blockRowTitle: { color: RED, fontSize: 12, fontWeight: "600" },
+    blockRowTime: { color: CREAM_DIM, fontSize: 11, marginTop: 1 },
+    // FAB
+    fab: {
+      position: "absolute",
+      right: 20,
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor: GOLD,
+      alignItems: "center",
+      justifyContent: "center",
+      elevation: 4,
+      shadowColor: GOLD,
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    fabIcon: {
+      color: "#080C08",
+      fontSize: 26,
+      fontWeight: "700",
+      lineHeight: 30,
+      marginTop: -2,
+    },
+    // Modal
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+    modalSheet: {
+      backgroundColor: "#0F0F0F",
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255,255,255,0.08)",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      paddingBottom: 40,
+    },
+    modalHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: "#444",
+      alignSelf: "center",
+      marginBottom: 16,
+    },
+    modalTitle: {
+      color: CREAM,
+      fontSize: 16,
+      fontWeight: "700",
+      marginBottom: 20,
+    },
+    modalRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: "rgba(255,255,255,0.06)",
+    },
+    modalRowLabel: { flex: 1, color: CREAM_DIM, fontSize: 14 },
+    modalRowValue: { color: CREAM, fontSize: 14 },
+    modalInput: {
+      marginTop: 16,
+      backgroundColor: "#1A1A1A",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.08)",
+      borderRadius: 10,
+      padding: 12,
+      color: CREAM,
+      fontSize: 14,
+    },
+    scopeRow: { flexDirection: "row", gap: 10, marginTop: 20 },
+    scopeCard: {
+      flex: 1,
+      backgroundColor: "#1A1A1A",
+      borderWidth: 1.5,
+      borderColor: "rgba(255,255,255,0.08)",
+      borderRadius: 12,
+      padding: 14,
+      alignItems: "center",
+      gap: 6,
+    },
+    scopeCardActive: {
+      borderColor: GOLD,
+      backgroundColor: "rgba(201,147,58,0.08)",
+    },
+    scopeCardTitle: {
+      color: CREAM_DIM,
+      fontSize: 12,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+    scopeCardSub: {
+      color: "rgba(200,191,168,0.4)",
+      fontSize: 10,
+      textAlign: "center",
+    },
+    blockError: { color: RED, fontSize: 12, marginTop: 8, textAlign: "center" },
+    cancelBtn: { alignItems: "center", paddingVertical: 14, marginTop: 12 },
+    cancelBtnText: { color: CREAM_DIM, fontSize: 14 },
+    submitBtn: {
+      backgroundColor: GOLD,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: "center",
+      marginTop: 4,
+    },
+    submitBtnText: { color: "#000", fontSize: 15, fontWeight: "700" },
   });
 }
