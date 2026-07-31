@@ -16,6 +16,7 @@ export default function RoleBadge({ role, subscriptionTier, size = 'pill' }: Rol
 
   const isPhotographer = role === 'photographer' || role === 'crew';
   const isVendor = role === 'vendor' || role === 'business';
+  if (isVendor && subscriptionTier !== 'growth' && subscriptionTier !== 'pro') return null;
   const isVerifiedVendor = isVendor && (subscriptionTier === 'growth' || subscriptionTier === 'pro');
 
   const icon: keyof typeof Feather.glyphMap = isPhotographer ? 'camera' : 'briefcase';
