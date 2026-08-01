@@ -35,7 +35,7 @@ export default function AutoAcceptToggle({
           <ThemedText style={[styles.description, { color: theme.textSecondary }]}>
             {value 
               ? "New bookings are confirmed immediately after payment"
-              : "New bookings require your approval within 24 hours"
+              : "New bookings require your approval within 48 hours"
             }
           </ThemedText>
         </View>
@@ -55,7 +55,7 @@ export default function AutoAcceptToggle({
         <View style={[styles.warningBanner, { backgroundColor: theme.warning + "15" }]}>
           <Feather name="alert-circle" size={14} color={theme.warning} />
           <ThemedText style={[styles.warningText, { color: theme.warning }]}>
-            Pending bookings expire after 24 hours if not accepted
+            Pending bookings expire after 48 hours if not accepted
           </ThemedText>
         </View>
       )}

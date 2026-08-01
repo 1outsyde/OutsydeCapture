@@ -693,7 +693,7 @@ export default function BusinessDashboardScreen() {
   }
 
   if (!upNextItem) {
-    const pendingBks = [...bookings].filter((b: any) => b.status === "pending").sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const pendingBks = [...bookings].filter((b: any) => b.status === "pending" || b.status === "pending_provider").sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
     if (pendingBks.length > 0) {
       upNextItem = { title: "Booking awaiting confirmation", subtext: `Requested by ${pendingBks[0].customerName}`, iconName: "clock", urgency: "amber" };
     }
@@ -849,7 +849,7 @@ export default function BusinessDashboardScreen() {
                 <Text style={styles.autoAcceptDescription}>
                   {autoAcceptBookings
                     ? "New bookings are confirmed immediately after payment"
-                    : "New bookings require your approval within 24 hours"}
+                    : "New bookings require your approval within 48 hours"}
                 </Text>
               </View>
               {autoAcceptLoading ? (
