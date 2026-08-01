@@ -87,6 +87,7 @@ export default function DashboardBookingsScreen() {
 
   const [refundModalVisible, setRefundModalVisible] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BusinessBooking | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchBookings = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -119,27 +120,48 @@ export default function DashboardBookingsScreen() {
   };
 
   const handleAccept = async (bookingId: string) => {
+    if (actionLoading) return;
+    setActionLoading(bookingId);
     try {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
       await api.acceptBooking(token, "business", bookingId);
-      Alert.alert("Success", "Booking accepted");
+      setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
       fetchBookings(true);
-    } catch {
-      Alert.alert("Error", "Failed to accept booking");
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to accept booking. Please try again.");
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleDecline = async (bookingId: string) => {
-    try {
-      const token = await getToken();
-      if (!token) throw new Error("Not authenticated");
-      await api.declineBooking(token, "business", bookingId);
-      Alert.alert("Success", "Booking declined");
-      fetchBookings(true);
-    } catch {
-      Alert.alert("Error", "Failed to decline booking");
-    }
+    Alert.alert(
+      "Decline Booking",
+      "The customer's card hold will be released. They will not be charged.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Decline",
+          style: "destructive",
+          onPress: async () => {
+            if (actionLoading) return;
+            setActionLoading(bookingId);
+            try {
+              const token = await getToken();
+              if (!token) throw new Error("Not authenticated");
+              await api.declineBooking(token, "business", bookingId);
+              setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
+              fetchBookings(true);
+            } catch (err: any) {
+              Alert.alert("Error", err?.message || "Failed to decline booking. Please try again.");
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleNoShow = (booking: BusinessBooking) => {
@@ -341,7 +363,7 @@ export default function DashboardBookingsScreen() {
 
   const renderGroupHeaders = (list: BusinessBooking[]) => {
     if (sort !== "action") {
-      return list.map(b => <BookingCard key={b.id} booking={b} styles={styles} onAccept={handleAccept} onDecline={handleDecline} onRefund={handleRefundPress} onNoShow={handleNoShow} />);
+      return list.map(b => <BookingCard key={b.id} booking={b} styles={styles} onAccept={handleAccept} onDecline={handleDecline} onRefund={handleRefundPress} onNoShow={handleNoShow} actionLoading={actionLoading} />);
     }
 
     const groups: { label: string; items: BusinessBooking[] }[] = [
@@ -361,7 +383,7 @@ export default function DashboardBookingsScreen() {
             <Text style={styles.groupLabel}>{g.label}</Text>
           </View>
           {g.items.map(b => (
-            <BookingCard key={b.id} booking={b} styles={styles} onAccept={handleAccept} onDecline={handleDecline} onRefund={handleRefundPress} onNoShow={handleNoShow} />
+            <BookingCard key={b.id} booking={b} styles={styles} onAccept={handleAccept} onDecline={handleDecline} onRefund={handleRefundPress} onNoShow={handleNoShow} actionLoading={actionLoading} />
           ))}
         </View>
       ));
@@ -506,13 +528,14 @@ export default function DashboardBookingsScreen() {
 interface BookingCardProps {
   booking: BusinessBooking;
   styles: ReturnType<typeof StyleSheet.create>;
-  onAccept: (id: string) => void;
-  onDecline: (id: string) => void;
+  onAccept: (id: string) => void | Promise<void>;
+  onDecline: (id: string) => void | Promise<void>;
   onRefund: (b: BusinessBooking) => void;
   onNoShow: (b: BusinessBooking) => void;
+  actionLoading?: string | null;
 }
 
-function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow }: BookingCardProps) {
+function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow, actionLoading }: BookingCardProps) {
   const sc = statusColors(booking.status);
 
   return (
@@ -561,12 +584,28 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow 
 
       {(booking.status === "pending" || booking.status === "pending_provider") && (
         <View style={styles.actions}>
-          <Pressable style={[styles.actionBtn, { backgroundColor: "rgba(52,199,89,0.12)" }]} onPress={() => onAccept(booking.id)}>
-            <Text style={[styles.actionBtnText, { color: "#34C759" }]}>Accept</Text>
+          <Pressable
+            style={[styles.actionBtn, { backgroundColor: "rgba(52,199,89,0.12)", opacity: actionLoading === booking.id ? 0.6 : 1 }]}
+            onPress={() => onAccept(booking.id)}
+            disabled={!!actionLoading}
+          >
+            {actionLoading === booking.id ? (
+              <ActivityIndicator size="small" color="#34C759" />
+            ) : (
+              <Text style={[styles.actionBtnText, { color: "#34C759" }]}>Accept</Text>
+            )}
           </Pressable>
           <View style={styles.actionDivider} />
-          <Pressable style={[styles.actionBtn, { backgroundColor: "rgba(255,59,48,0.08)" }]} onPress={() => onDecline(booking.id)}>
-            <Text style={[styles.actionBtnText, { color: "#FF3B30" }]}>Decline</Text>
+          <Pressable
+            style={[styles.actionBtn, { backgroundColor: "rgba(255,59,48,0.08)", opacity: actionLoading === booking.id ? 0.6 : 1 }]}
+            onPress={() => onDecline(booking.id)}
+            disabled={!!actionLoading}
+          >
+            {actionLoading === booking.id ? (
+              <ActivityIndicator size="small" color="#FF3B30" />
+            ) : (
+              <Text style={[styles.actionBtnText, { color: "#FF3B30" }]}>Decline</Text>
+            )}
           </Pressable>
         </View>
       )}

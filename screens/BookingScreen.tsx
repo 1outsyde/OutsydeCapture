@@ -584,7 +584,7 @@ export default function BookingScreen() {
           type: "booking",
           title: isPending ? "Booking Submitted" : "Booking Confirmed",
           body: isPending
-            ? `Your booking request with ${photographerName} on ${formattedDate} has been submitted. Awaiting provider approval (up to 24h).`
+            ? `Your booking request with ${photographerName} on ${formattedDate} has been submitted. Awaiting provider approval (up to 48h).`
             : `Your session with ${photographerName} on ${formattedDate} has been confirmed.`,
         });
 
@@ -1222,7 +1222,7 @@ export default function BookingScreen() {
       </ThemedText>
       <ThemedText style={{ marginTop: Spacing.md, color: theme.textSecondary, textAlign: "center", paddingHorizontal: Spacing.xl }}>
         {bookingPending
-          ? `Your booking request with ${photographer?.name || "the photographer"} has been submitted. You'll be notified within 24 hours once confirmed.`
+          ? `Your booking request with ${photographer?.name || "the photographer"} has been submitted. You'll be notified within 48 hours once confirmed.`
           : `Your session with ${photographer?.name || "the photographer"} has been booked for ${selectedDate ? formatDate(selectedDate) : ""}.`}
       </ThemedText>
       {bookingPending ? (

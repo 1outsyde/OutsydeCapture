@@ -3155,7 +3155,7 @@ export default function PhotographerDashboardScreen() {
                 }}>
                   {autoAcceptBookings
                     ? "New bookings are confirmed immediately after payment"
-                    : "New bookings require your approval within 24 hours"}
+                    : "New bookings require your approval within 48 hours"}
                 </Text>
               </View>
               {autoAcceptLoading ? (
@@ -3189,7 +3189,7 @@ export default function PhotographerDashboardScreen() {
                   fontSize: 12,
                   flex: 1,
                 }}>
-                  Pending bookings expire after 24 hours if not accepted
+                  Pending bookings expire after 48 hours if not accepted
                 </Text>
               </View>
             )}
