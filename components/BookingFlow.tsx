@@ -232,6 +232,7 @@ export default function BookingFlow({
   const [validating, setValidating] = useState(false);
   const [creatingHold, setCreatingHold] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [bookingPending, setBookingPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [showIncompatibleModal, setShowIncompatibleModal] = useState(false);
@@ -495,6 +496,7 @@ export default function BookingFlow({
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         refreshSessions().catch(() => {});
+        setBookingPending(Boolean(paymentData.requiresApproval));
         setStep(5);
       }
     } catch (err: any) {
@@ -1352,12 +1354,18 @@ export default function BookingFlow({
 
       {step === 5 && (
         <View style={[styles.stepContent, styles.successContainer]}>
-          <Feather name="check-circle" size={64} color={theme.brandSuccess} />
+          <Feather
+            name={bookingPending ? "clock" : "check-circle"}
+            size={64}
+            color={bookingPending ? theme.warning : theme.brandSuccess}
+          />
           <ThemedText style={[styles.successTitle, { color: theme.brandCream }]}>
-            Booking confirmed!
+            {bookingPending ? "Request Submitted!" : "Booking Confirmed!"}
           </ThemedText>
           <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm, textAlign: "center" }}>
-            Your appointment has been booked and payment processed.
+            {bookingPending
+              ? `Your card has been authorized but not charged. ${providerName} has 48 hours to accept or decline your request. You'll be notified either way.`
+              : "Your appointment has been booked and payment processed."}
           </ThemedText>
           <Pressable
             onPress={() => navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))}
