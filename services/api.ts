@@ -4298,6 +4298,8 @@ class ApiService {
     paymentIntentId: string;
     appointmentId: string;
     captureMethod: "automatic" | "manual";
+    requiresApproval?: boolean;
+    status?: string;
     feeBreakdown?: {
       subtotal: number;
       consumerFee: number;
