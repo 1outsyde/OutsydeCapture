@@ -19,7 +19,7 @@ export interface CalendarBooking {
   endTime?: string;
   clientName: string;
   serviceName: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled" | "declined";
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "cancelled" | "declined";
   amount: number;
 }
 
@@ -189,7 +189,7 @@ export default function ProviderCalendar({
     const isPast = date < today;
     const isToday = date.getTime() === today.getTime();
     const hasConfirmed = dayBookings.some(b => b.status === "confirmed");
-    const hasPending = dayBookings.some(b => b.status === "pending");
+    const hasPending = dayBookings.some(b => b.status === "pending" || b.status === "pending_provider");
     const isFullyBlocked = dayBlocks.some(b => b.isFullDay);
     const hasPartialBlock = dayBlocks.some(b => !b.isFullDay);
     const isAvailableDay = weekdayAvail?.isAvailable ?? false;
@@ -350,10 +350,10 @@ export default function ProviderCalendar({
                       </View>
                       <View style={[
                         styles.statusBadge,
-                        { backgroundColor: booking.status === "confirmed" ? theme.success : booking.status === "pending" ? theme.warning : theme.textSecondary }
+                        { backgroundColor: booking.status === "confirmed" ? theme.success : (booking.status === "pending" || booking.status === "pending_provider") ? theme.warning : theme.textSecondary }
                       ]}>
                         <ThemedText style={styles.statusText}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                          {booking.status === "pending_provider" ? "Pending Review" : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                         </ThemedText>
                       </View>
                     </Pressable>
