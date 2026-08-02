@@ -52,6 +52,7 @@ import SessionsScreen from "@/screens/SessionsScreen";
 import AppointmentDetailScreen from "@/screens/AppointmentDetailScreen";
 import CreatePostScreen from "@/screens/CreatePostScreen";
 import StoryViewerScreen from "@/screens/StoryViewerScreen";
+import StoryInsightsScreen from "@/screens/StoryInsightsScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
@@ -837,6 +838,16 @@ export default function RootNavigator() {
           animation: "fade",
           headerShown: false,
           gestureEnabled: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="StoryInsights"
+        component={StoryInsightsScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: false,
         }}
       />
 

@@ -44,6 +44,7 @@ interface StoryRingProps {
   isOwnProfile: boolean;
   onAddStory: () => void;
   onViewStory: (stories: Story[]) => void;
+  onViewInsights?: () => void;
 }
 
 export default function StoryRing({
@@ -53,6 +54,7 @@ export default function StoryRing({
   isOwnProfile,
   onAddStory,
   onViewStory,
+  onViewInsights,
 }: StoryRingProps) {
   const { getToken } = useAuth();
   const [stories, setStories] = useState<Story[]>([]);
@@ -103,8 +105,8 @@ export default function StoryRing({
       if (Platform.OS === "ios") {
         ActionSheetIOS.showActionSheetWithOptions(
           {
-            options: ["View My Story", "Add to Story", "Cancel"],
-            cancelButtonIndex: 2,
+            options: ["View My Story", "Add to Story", "Story Insights", "Cancel"],
+            cancelButtonIndex: 3,
           },
           (idx) => {
             if (idx === 0) {
@@ -112,6 +114,8 @@ export default function StoryRing({
               onViewStory(stories);
             } else if (idx === 1) {
               onAddStory();
+            } else if (idx === 2) {
+              onViewInsights?.();
             }
           }
         );
@@ -125,6 +129,7 @@ export default function StoryRing({
             },
           },
           { text: "Add to Story", onPress: onAddStory },
+          { text: "Story Insights", onPress: () => onViewInsights?.() },
           { text: "Cancel", style: "cancel" },
         ]);
       }
@@ -142,7 +147,7 @@ export default function StoryRing({
       onAddStory();
     }
     // No active stories + not own profile → ring is invisible; no-op
-  }, [hasActive, isOwnProfile, stories, onAddStory, onViewStory, markAllSeen]);
+  }, [hasActive, isOwnProfile, stories, onAddStory, onViewStory, onViewInsights, markAllSeen]);
 
   // ── Sizing ────────────────────────────────────────────────────────────────
   const outerSize = size + EXTRA;
