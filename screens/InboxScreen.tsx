@@ -6,11 +6,14 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { InboxToggle, InboxMode } from "@/components/InboxToggle";
 import { Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import MessagesScreen from "@/screens/MessagesScreen";
+import StoriesBar from "@/components/StoriesBar";
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
   const [mode, setMode] = useState<InboxMode>("activity");
 
   return (
@@ -18,6 +21,8 @@ export default function InboxScreen() {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <ThemedText type="h2">Inbox</ThemedText>
       </View>
+      <StoriesBar />
+      <View style={[styles.divider, { backgroundColor: theme.border }]} />
       <InboxToggle mode={mode} onModeChange={setMode} />
       <View style={styles.content}>
         {mode === "activity" ? <NotificationsScreen /> : <MessagesScreen />}
@@ -34,6 +39,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.sm,
   },
+  divider: { height: StyleSheet.hairlineWidth },
   content: {
     flex: 1,
   },
