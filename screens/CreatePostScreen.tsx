@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -48,6 +48,9 @@ export default function CreatePostScreen() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<"front" | "back">("back");
   const cameraRef = useRef<CameraView>(null);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
   type AttachType = "product" | "service" | "photographerService";
   type AttachItem = { type: AttachType; id: string; name: string; priceCents: number | null };
@@ -77,6 +80,12 @@ export default function CreatePostScreen() {
 
   useEffect(() => {
     requestCameraPermission();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -164,17 +173,45 @@ export default function CreatePostScreen() {
     }
   };
 
-  const handleCameraCapture = async () => {
+  const handleShutterPressIn = async () => {
     if (!cameraPermission?.granted) {
       await requestCameraPermission();
       return;
     }
-    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
-    if (photo?.uri) {
-      setPostImage(photo.uri);
-      setPostLayout("pro");
+    if (!micPermission?.granted) {
+      await requestMicPermission();
+      return;
+    }
+    setIsRecording(true);
+    recordingTimerRef.current = setTimeout(async () => {
+      await cameraRef.current?.stopRecording();
+      setIsRecording(false);
+    }, 15000);
+    const result = await cameraRef.current?.recordAsync({ maxDuration: 15 });
+    if (!result?.uri) {
+      setIsRecording(false);
+      if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
+      return;
+    }
+    if (mode === "post") {
+      setPostImage(result.uri);
+      setPostLayout("pulse");
+      setStep(2);
+    } else {
+      setPostImage(result.uri);
+      setPostLayout("pulse");
       setStep(2);
     }
+  };
+
+  const handleShutterPressOut = async () => {
+    if (!isRecording) return;
+    if (recordingTimerRef.current) {
+      clearTimeout(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    await cameraRef.current?.stopRecording();
+    setIsRecording(false);
   };
 
   const handleCreatePost = async () => {
@@ -401,6 +438,7 @@ export default function CreatePostScreen() {
                 <Pressable
                   style={[styles.tab, mode === "post" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
                   onPress={() => switchMode("post")}
+                  disabled={isRecording}
                 >
                   <ThemedText type="button" style={{ color: mode === "post" ? "#D4A94A" : theme.brandTextDim }}>
                     Post
@@ -409,6 +447,7 @@ export default function CreatePostScreen() {
                 <Pressable
                   style={[styles.tab, mode === "story" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
                   onPress={() => switchMode("story")}
+                  disabled={isRecording}
                 >
                   <ThemedText type="button" style={{ color: mode === "story" ? "#D4A94A" : theme.brandTextDim }}>
                     Story
@@ -416,17 +455,36 @@ export default function CreatePostScreen() {
                 </Pressable>
               </View>
 
+              {/* Recording indicator */}
+              {isRecording && (
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "red", marginRight: 6 }} />
+                  <ThemedText style={{ color: "red", fontSize: 13 }}>Recording</ThemedText>
+                </View>
+              )}
+
               {/* Gallery | Shutter | Flip row */}
               <View style={styles.controlsRow}>
                 <Pressable
                   onPress={mode === "story" ? handlePickStoryMedia : handlePickPostImage}
-                  style={styles.galleryButton}
+                  disabled={isRecording}
+                  style={[styles.galleryButton, isRecording && { opacity: 0.4 }]}
                 >
                   <Feather name="image" size={24} color="#fff" />
                 </Pressable>
 
-                <Pressable onPress={handleCameraCapture} style={styles.shutterButton}>
-                  <View style={styles.shutterInner} />
+                <Pressable
+                  onPressIn={handleShutterPressIn}
+                  onPressOut={handleShutterPressOut}
+                  style={[
+                    styles.shutterButton,
+                    isRecording && { borderColor: "red", borderWidth: 3 },
+                  ]}
+                >
+                  <View style={[
+                    styles.shutterInner,
+                    isRecording && { backgroundColor: "red" },
+                  ]} />
                 </Pressable>
 
                 <Pressable

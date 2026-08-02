@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.outsyde.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Outsyde uses your camera to create posts and stories."
+        "NSCameraUsageDescription": "Outsyde uses your camera to create posts and stories.",
+        "NSMicrophoneUsageDescription": "Outsyde uses your microphone to record videos."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
@@ -62,7 +63,7 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
-      "expo-camera",
+      ["expo-camera", { "enableMicrophonePermission": true }],
       [
         "@stripe/stripe-react-native",
         {
