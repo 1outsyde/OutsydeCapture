@@ -39,6 +39,7 @@ import { feedEvents } from "@/services/feedEvents";
 import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
 import StoryRing from "@/components/StoryRing";
+import StoriesBar from "@/components/StoriesBar";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -539,6 +540,9 @@ export default function DiscoverScreen() {
       {feedMode === "pro" ? (
         <View style={{ paddingTop: headerHeight }}>
           <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+          <View style={{ height: 96 }}>
+            <StoriesBar />
+          </View>
         </View>
       ) : null}
 
