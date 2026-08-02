@@ -14,6 +14,7 @@ import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import StoryRing from "@/components/StoryRing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenFlatList } from "@/components/ScreenFlatList";
@@ -27,6 +28,7 @@ import { RootStackParamList } from "@/navigation/types";
 import api, { UnifiedSearchItem } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 function formatRelativeTime(timestamp: string): string | null {
   const date = new Date(timestamp);
@@ -64,6 +66,7 @@ function ConversationItem({
   onPress: () => void;
 }) {
   const { theme } = useTheme();
+  const navigation = useNavigation<NavProp>();
   const hasUnread = conversation.unreadCount > 0;
   const unreadCount = conversation.unreadCount || 0;
 
@@ -90,21 +93,36 @@ function ConversationItem({
         { backgroundColor: pressed ? theme.brandSurface : "transparent" },
       ]}
     >
-      {conversation.participantAvatar ? (
-        <Image
-          source={{ uri: conversation.participantAvatar }}
-          style={styles.avatar}
-          contentFit="cover"
-          transition={200}
-          onError={() => {}}
-        />
-      ) : (
-        <View style={[styles.avatar, { backgroundColor: theme.brandSurface }]}>
-          <ThemedText type="h4" style={{ color: theme.brandTextDim }}>
-            {conversation.participantName?.charAt(0)?.toUpperCase() || "?"}
-          </ThemedText>
-        </View>
-      )}
+      <StoryRing
+        userId={conversation.participantId}
+        size={48}
+        isOwnProfile={false}
+        onAddStory={() => {}}
+        onViewStory={(stories) =>
+          navigation.navigate("StoryViewer", {
+            userId: conversation.participantId,
+            stories,
+            authorName: conversation.participantName,
+            authorAvatarUrl: conversation.participantAvatar,
+          })
+        }
+      >
+        {conversation.participantAvatar ? (
+          <Image
+            source={{ uri: conversation.participantAvatar }}
+            style={styles.avatar}
+            contentFit="cover"
+            transition={200}
+            onError={() => {}}
+          />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: theme.brandSurface }]}>
+            <ThemedText type="h4" style={{ color: theme.brandTextDim }}>
+              {conversation.participantName?.charAt(0)?.toUpperCase() || "?"}
+            </ThemedText>
+          </View>
+        )}
+      </StoryRing>
       <View style={styles.conversationContent}>
         <View style={styles.nameRow}>
           <ThemedText
