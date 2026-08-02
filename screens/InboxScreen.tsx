@@ -21,7 +21,9 @@ export default function InboxScreen() {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <ThemedText type="h2">Inbox</ThemedText>
       </View>
-      <StoriesBar />
+      <View style={{ height: 96 }}>
+        <StoriesBar />
+      </View>
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
       <InboxToggle mode={mode} onModeChange={setMode} />
       <View style={styles.content}>
