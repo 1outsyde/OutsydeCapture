@@ -30,6 +30,7 @@ import api, { ApiPost, PulseEngagement } from "@/services/api";
 import { feedEvents } from "@/services/feedEvents";
 import PulseVideoCard, { PULSE_CARD_HEIGHT, PulseEngagementEvent } from "@/components/PulseVideoCard";
 import { showReportBlockMenu, promptForReportReason } from "@/utils/moderationActions";
+import StoryRing from "@/components/StoryRing";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -589,19 +590,34 @@ export default function PulseFeedScreenV2() {
                   const timestamp = formatRelativeTime(c.createdAt || "");
                   return (
                     <View style={styles.commentRow}>
-                      {avatarUri ? (
-                        <Image
-                          source={{ uri: avatarUri }}
-                          style={styles.commentAvatar}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <View style={styles.commentAvatarPlaceholder}>
-                          <ThemedText style={styles.commentAvatarInitial}>
-                            {displayName.charAt(0).toUpperCase()}
-                          </ThemedText>
-                        </View>
-                      )}
+                      <StoryRing
+                        userId={c.userId || c.user?.id || ""}
+                        size={36}
+                        isOwnProfile={(c.userId || c.user?.id) === user?.id}
+                        onAddStory={() => {}}
+                        onViewStory={(stories) =>
+                          navigation.navigate("StoryViewer", {
+                            userId: c.userId || c.user?.id || "",
+                            stories,
+                            authorName: displayName,
+                            authorAvatarUrl: avatarUri,
+                          })
+                        }
+                      >
+                        {avatarUri ? (
+                          <Image
+                            source={{ uri: avatarUri }}
+                            style={styles.commentAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.commentAvatarPlaceholder}>
+                            <ThemedText style={styles.commentAvatarInitial}>
+                              {displayName.charAt(0).toUpperCase()}
+                            </ThemedText>
+                          </View>
+                        )}
+                      </StoryRing>
                       <View style={styles.commentRight}>
                         <View style={styles.commentMeta}>
                           <ThemedText style={styles.commentAuthorText}>{displayName}</ThemedText>

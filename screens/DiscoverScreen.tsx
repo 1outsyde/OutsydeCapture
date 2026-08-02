@@ -38,6 +38,7 @@ import { ProFeedCard } from "@/components/ProFeedCard";
 import { feedEvents } from "@/services/feedEvents";
 import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
+import StoryRing from "@/components/StoryRing";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -629,19 +630,34 @@ export default function DiscoverScreen() {
                   const timestamp = formatRelativeTime(comment.createdAt || "");
                   return (
                     <View style={styles.commentRow}>
-                      {avatarUri ? (
-                        <Image
-                          source={{ uri: avatarUri }}
-                          style={styles.commentAvatar}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <View style={styles.commentAvatarPlaceholder}>
-                          <ThemedText style={styles.commentAvatarInitial}>
-                            {displayName.charAt(0).toUpperCase()}
-                          </ThemedText>
-                        </View>
-                      )}
+                      <StoryRing
+                        userId={comment.userId || comment.user?.id || ""}
+                        size={36}
+                        isOwnProfile={(comment.userId || comment.user?.id) === user?.id}
+                        onAddStory={() => {}}
+                        onViewStory={(stories) =>
+                          navigation.navigate("StoryViewer", {
+                            userId: comment.userId || comment.user?.id || "",
+                            stories,
+                            authorName: displayName,
+                            authorAvatarUrl: avatarUri,
+                          })
+                        }
+                      >
+                        {avatarUri ? (
+                          <Image
+                            source={{ uri: avatarUri }}
+                            style={styles.commentAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.commentAvatarPlaceholder}>
+                            <ThemedText style={styles.commentAvatarInitial}>
+                              {displayName.charAt(0).toUpperCase()}
+                            </ThemedText>
+                          </View>
+                        )}
+                      </StoryRing>
                       <View style={styles.commentContent}>
                         <View style={styles.commentMeta}>
                           <ThemedText style={styles.commentAuthorText}>{displayName}</ThemedText>
