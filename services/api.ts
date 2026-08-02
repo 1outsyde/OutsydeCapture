@@ -4507,6 +4507,44 @@ class ApiService {
       };
     }>(`/api/users/${userId}`);
   }
+
+  // ==========================================
+  // Stories API
+  // ==========================================
+
+  async createStory(authToken: string, data: {
+    mediaUrl: string;
+    mediaType: "image" | "video";
+    thumbnailUrl?: string;
+    muxAssetId?: string;
+    caption?: string;
+  }): Promise<{ story: any }> {
+    return this.request<{ story: any }>("/api/stories", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getStoriesByUser(userId: string, authToken?: string): Promise<any[]> {
+    return this.request<any[]>(`/api/stories/${userId}`, {
+      headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {},
+    });
+  }
+
+  async deleteStory(storyId: string, authToken: string): Promise<void> {
+    return this.request<void>(`/api/stories/${storyId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async recordView(storyId: string, authToken?: string): Promise<void> {
+    return this.request<void>(`/api/stories/${storyId}/view`, {
+      method: "POST",
+      headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {},
+    });
+  }
 }
 
 // Availability Calendar types

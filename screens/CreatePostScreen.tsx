@@ -14,6 +14,8 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -39,6 +41,8 @@ export default function CreatePostScreen() {
   const [postLayout, setPostLayout] = useState<"pro" | "pulse" | null>(null);
   const [postSaving, setPostSaving] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [mode, setMode] = useState<"post" | "story">("post");
+  const [storySaving, setStorySaving] = useState(false);
 
   type AttachType = "product" | "service" | "photographerService";
   type AttachItem = { type: AttachType; id: string; name: string; priceCents: number | null };
@@ -49,6 +53,22 @@ export default function CreatePostScreen() {
   const [selectedAttach, setSelectedAttach] = useState<{ type: AttachType; id: string } | null>(null);
 
   const canAttach = user?.role === "business" || user?.role === "photographer";
+
+  const switchMode = (newMode: "post" | "story") => {
+    setMode(newMode);
+    setStep(1);
+    setPostImage("");
+    setPostCaption("");
+    setSelectedAttach(null);
+  };
+
+  // Horizontal swipe on Step 1 only — left = story, right = post
+  const modeSwipeGesture = Gesture.Pan()
+    .activeOffsetX([-50, 50])
+    .onEnd((e) => {
+      if (e.translationX < -50) runOnJS(switchMode)("story");
+      else if (e.translationX > 50) runOnJS(switchMode)("post");
+    });
 
   useEffect(() => {
     if (step !== 3 || attachItems.length > 0 || attachLoading) return;
@@ -109,6 +129,45 @@ export default function CreatePostScreen() {
       setPostImage(asset.uri);
       const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
       setPostLayout(isVideo ? "pulse" : "pro");
+    }
+  };
+
+  const handlePickStoryMedia = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      videoMaxDuration: 15,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setPostImage(asset.uri);
+      const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
+      setPostLayout(isVideo ? "pulse" : "pro");
+    }
+  };
+
+  const handleCameraCapture = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your camera.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPostImage(result.assets[0].uri);
+      setPostLayout("pro");
     }
   };
 
@@ -177,6 +236,51 @@ export default function CreatePostScreen() {
     }
   };
 
+  const handleCreateStory = async () => {
+    if (!postImage) {
+      Alert.alert("No Media", "Please select a photo or video for your story.");
+      return;
+    }
+    const authToken = await getToken();
+    if (!authToken) {
+      Alert.alert("Error", "You must be logged in to post a story.");
+      return;
+    }
+    setStorySaving(true);
+    try {
+      const isVideo = postLayout === "pulse";
+      const caption = postCaption.trim() || undefined;
+      if (isVideo) {
+        const uploadResult = await uploadVideo(postImage, "video/mp4", authToken);
+        if (!uploadResult.uploadId) throw new Error("Failed to upload video. Please try again.");
+        await apiClient.createStory(authToken, {
+          mediaUrl: uploadResult.uploadId,
+          mediaType: "video",
+          muxAssetId: uploadResult.uploadId,
+          caption,
+        });
+      } else {
+        const uploadResult = await uploadImage(postImage, "image/jpeg", "stories", authToken);
+        if (!uploadResult.url) throw new Error("Failed to upload image. Please try again.");
+        await apiClient.createStory(authToken, {
+          mediaUrl: uploadResult.url,
+          mediaType: "image",
+          caption,
+        });
+      }
+      setPostImage("");
+      setPostCaption("");
+      setPostLayout(null);
+      setStep(1);
+      navigation.goBack();
+    } catch (error: any) {
+      console.error("[CreatePostScreen] Failed to create story:", error);
+      Alert.alert("Error", error.message || "Failed to post story. Please try again.");
+    } finally {
+      setStorySaving(false);
+    }
+  };
+
   const handleClose = () => {
     setPostImage("");
     setPostCaption("");
@@ -223,54 +327,85 @@ export default function CreatePostScreen() {
           </Pressable>
         )}
         <ThemedText type="h4" style={{ flex: 1, textAlign: "center", color: theme.brandCream }}>
-          Create Post
+          {mode === "story" ? "Create Story" : "Create Post"}
         </ThemedText>
         <View style={{ width: 24 }} />
       </View>
 
+      {/* ── Mode tab switcher ── */}
+      <View style={[styles.tabRow, { borderBottomColor: theme.brandSurfaceBorder }]}>
+        <Pressable
+          style={[styles.tab, mode === "post" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
+          onPress={() => switchMode("post")}
+        >
+          <ThemedText type="button" style={{ color: mode === "post" ? "#D4A94A" : theme.brandTextDim }}>
+            Post
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, mode === "story" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
+          onPress={() => switchMode("story")}
+        >
+          <ThemedText type="button" style={{ color: mode === "story" ? "#D4A94A" : theme.brandTextDim }}>
+            Story
+          </ThemedText>
+        </Pressable>
+      </View>
+
       {step === 1 && (
-        <>
-          <Pressable
-            onPress={handlePickPostImage}
-            style={[styles.mediaPicker, { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder }]}
-          >
-            {postImage ? (
-              postLayout === "pulse" ? (
-                <View style={styles.videoSelected}>
-                  <Feather name="video" size={32} color={theme.brandGold} />
+        <GestureDetector gesture={modeSwipeGesture}>
+          <View style={{ flex: 1 }}>
+            <Pressable
+              onPress={mode === "story" ? handlePickStoryMedia : handlePickPostImage}
+              style={[styles.mediaPicker, { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder }]}
+            >
+              {postImage ? (
+                postLayout === "pulse" ? (
+                  <View style={styles.videoSelected}>
+                    <Feather name="video" size={32} color={theme.brandGold} />
+                    <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
+                      Video selected
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
+                )
+              ) : (
+                <View style={styles.mediaEmpty}>
+                  <Feather name="image" size={32} color={theme.brandTextDim} />
                   <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                    Video selected
+                    Tap to select a photo or video
                   </ThemedText>
                 </View>
-              ) : (
-                <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
-              )
-            ) : (
-              <View style={styles.mediaEmpty}>
-                <Feather name="image" size={32} color={theme.brandTextDim} />
-                <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                  Tap to select a photo or video
-                </ThemedText>
-              </View>
-            )}
-          </Pressable>
+              )}
+            </Pressable>
 
-          <Pressable
-            onPress={() => setStep(2)}
-            disabled={!postImage}
-            style={[
-              styles.footerButton,
-              { backgroundColor: theme.brandPrimary, opacity: !postImage ? 0.5 : 1 },
-            ]}
-          >
-            <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
-              Next
-            </ThemedText>
-          </Pressable>
-        </>
+            {mode === "story" && (
+              <Pressable onPress={handleCameraCapture} style={styles.cameraButton}>
+                <Feather name="camera" size={16} color={theme.brandGold} />
+                <ThemedText type="body" style={{ color: theme.brandGold, marginLeft: Spacing.xs }}>
+                  Camera
+                </ThemedText>
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={() => setStep(2)}
+              disabled={!postImage}
+              style={[
+                styles.footerButton,
+                { backgroundColor: theme.brandPrimary, opacity: !postImage ? 0.5 : 1 },
+              ]}
+            >
+              <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
+                Next
+              </ThemedText>
+            </Pressable>
+          </View>
+        </GestureDetector>
       )}
 
-      {step === 2 && (
+      {step === 2 && mode === "post" && (
         <>
           <View
             style={[
@@ -316,7 +451,66 @@ export default function CreatePostScreen() {
         </>
       )}
 
-      {step === 3 && canAttach && (
+      {step === 2 && mode === "story" && (
+        <>
+          <View
+            style={[
+              styles.detailsThumbnail,
+              { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+            ]}
+          >
+            {postLayout === "pulse" ? (
+              <View style={styles.videoSelected}>
+                <Feather name="video" size={20} color={theme.brandGold} />
+                <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: Spacing.xs }}>
+                  Video selected
+                </ThemedText>
+              </View>
+            ) : (
+              <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
+            )}
+          </View>
+
+          <ScreenKeyboardAwareScrollView contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}>
+            <TextInput
+              style={[styles.captionInput, { color: theme.brandCream, borderColor: theme.brandSurfaceBorder }]}
+              placeholder="Write a caption... (optional)"
+              placeholderTextColor={theme.brandTextDim}
+              value={postCaption}
+              onChangeText={setPostCaption}
+              multiline
+            />
+
+            <Pressable
+              onPress={handleCreateStory}
+              disabled={storySaving}
+              style={[
+                styles.footerButton,
+                { backgroundColor: "#D4A94A", opacity: storySaving ? 0.6 : 1 },
+              ]}
+            >
+              {storySaving ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <ThemedText type="button" style={{ color: "#000" }}>
+                  Post Story
+                </ThemedText>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={() => { setStep(1); setPostImage(""); setPostCaption(""); setPostLayout(null); }}
+              style={styles.discardButton}
+            >
+              <ThemedText type="body" style={{ color: theme.brandTextDim }}>
+                Discard
+              </ThemedText>
+            </Pressable>
+          </ScreenKeyboardAwareScrollView>
+        </>
+      )}
+
+      {step === 3 && canAttach && mode === "post" && (
         <View style={{ flex: 1, paddingBottom: insets.bottom || 16 }}>
           <View style={styles.attachContent}>
             <ThemedText type="h4" style={{ color: theme.brandCream, textAlign: "center" }}>
@@ -507,5 +701,26 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
+  },
+  tabRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+  },
+  cameraButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  discardButton: {
+    alignItems: "center",
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
 });
