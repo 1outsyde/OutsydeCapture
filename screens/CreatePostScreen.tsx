@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Pressable,
@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -44,7 +45,9 @@ export default function CreatePostScreen() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [mode, setMode] = useState<"post" | "story">("post");
   const [storySaving, setStorySaving] = useState(false);
-  const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [facing, setFacing] = useState<"front" | "back">("back");
+  const cameraRef = useRef<CameraView>(null);
 
   type AttachType = "product" | "service" | "photographerService";
   type AttachItem = { type: AttachType; id: string; name: string; priceCents: number | null };
@@ -73,10 +76,7 @@ export default function CreatePostScreen() {
     });
 
   useEffect(() => {
-    (async () => {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      setCameraPermission(status === "granted");
-    })();
+    requestCameraPermission();
   }, []);
 
   useEffect(() => {
@@ -165,26 +165,14 @@ export default function CreatePostScreen() {
   };
 
   const handleCameraCapture = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      setCameraPermission(false);
+    if (!cameraPermission?.granted) {
+      await requestCameraPermission();
       return;
     }
-    setCameraPermission(true);
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes:
-        mode === "story"
-          ? ImagePicker.MediaTypeOptions.Images
-          : ImagePicker.MediaTypeOptions.All,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setPostImage(asset.uri);
-      const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
-      setPostLayout(isVideo ? "pulse" : "pro");
+    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
+    if (photo?.uri) {
+      setPostImage(photo.uri);
+      setPostLayout("pro");
       setStep(2);
     }
   };
@@ -380,19 +368,29 @@ export default function CreatePostScreen() {
                   </Pressable>
                 </>
               ) : (
-                <View style={styles.cameraPlaceholder}>
-                  <Feather name="camera" size={40} color="rgba(255,255,255,0.3)" />
-                  {cameraPermission === false && (
-                    <Pressable onPress={() => Linking.openSettings()} style={{ marginTop: 16 }}>
-                      <ThemedText
-                        type="body"
-                        style={{ color: "#D4A94A", textDecorationLine: "underline" }}
-                      >
-                        Enable camera access
-                      </ThemedText>
-                    </Pressable>
+                <>
+                  {cameraPermission?.granted ? (
+                    <CameraView
+                      ref={cameraRef}
+                      style={StyleSheet.absoluteFill}
+                      facing={facing}
+                    />
+                  ) : (
+                    <View style={styles.cameraPlaceholder}>
+                      <Feather name="camera" size={40} color="rgba(255,255,255,0.3)" />
+                      {cameraPermission?.granted === false && (
+                        <Pressable onPress={() => Linking.openSettings()} style={{ marginTop: 16 }}>
+                          <ThemedText
+                            type="body"
+                            style={{ color: "#D4A94A", textDecorationLine: "underline" }}
+                          >
+                            Enable camera access
+                          </ThemedText>
+                        </Pressable>
+                      )}
+                    </View>
                   )}
-                </View>
+                </>
               )}
             </View>
 
@@ -431,9 +429,12 @@ export default function CreatePostScreen() {
                   <View style={styles.shutterInner} />
                 </Pressable>
 
-                <View style={styles.flipButton}>
+                <Pressable
+                  style={styles.flipButton}
+                  onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+                >
                   <Feather name="refresh-cw" size={24} color="#fff" />
-                </View>
+                </Pressable>
               </View>
             </View>
           </View>
