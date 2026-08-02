@@ -20,6 +20,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { CATEGORY_LABELS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
 import { showReportBlockMenu } from "@/utils/moderationActions";
+import StoryRing from "@/components/StoryRing";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "PhotographerDetail">;
@@ -465,11 +466,26 @@ export default function PhotographerDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Image
-            source={{ uri: photographer.avatar || FALLBACK_AVATAR }}
-            style={styles.avatar}
-            contentFit="cover"
-          />
+          <StoryRing
+            userId={photographer.userId || (photographer as any).ownerId || ""}
+            size={64}
+            isOwnProfile={false}
+            onAddStory={() => {}}
+            onViewStory={(stories) =>
+              navigation.navigate("StoryViewer", {
+                userId: photographer.userId || (photographer as any).ownerId || "",
+                stories,
+                authorName: photographer.name,
+                authorAvatarUrl: photographer.avatar,
+              })
+            }
+          >
+            <Image
+              source={{ uri: photographer.avatar || FALLBACK_AVATAR }}
+              style={styles.avatar}
+              contentFit="cover"
+            />
+          </StoryRing>
           <View style={styles.headerInfo}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <ThemedText type="h2">{photographer.name}</ThemedText>
