@@ -55,6 +55,7 @@ import apiClient, {
 import { feedEvents } from "@/services/feedEvents";
 import { useTheme } from "@/hooks/useTheme";
 import { showReportBlockMenu } from "@/utils/moderationActions";
+import StoryRing from "@/components/StoryRing";
 import {
   BrandColorSpec,
   resolveBrandColor,
@@ -1464,11 +1465,26 @@ export default function AccountScreen() {
     return (
       <View style={styles.identityBlock}>
         <View style={styles.avatarActionRow}>
-          <AvatarWithInitials
-            name={profile.name}
-            imageUrl={profile.avatarUrl}
-            accentColor={accentColor}
-          />
+          <StoryRing
+            userId={String(profile.userId || profile.id)}
+            size={88}
+            isOwnProfile={isOwner}
+            onAddStory={() => navigation.navigate("CreatePost")}
+            onViewStory={(stories) =>
+              navigation.navigate("StoryViewer", {
+                userId: String(profile.userId || profile.id),
+                stories,
+                authorName: profile.name,
+                authorAvatarUrl: profile.avatarUrl,
+              })
+            }
+          >
+            <AvatarWithInitials
+              name={profile.name}
+              imageUrl={profile.avatarUrl}
+              accentColor={accentColor}
+            />
+          </StoryRing>
           {isOwner ? (
             <Pressable
               style={[styles.editProfileButton, { backgroundColor: accentColor }]}

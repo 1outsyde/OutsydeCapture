@@ -17,6 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
 import RoleBadge from "@/components/RoleBadge";
+import StoryRing from "@/components/StoryRing";
 import { RootStackParamList } from "@/navigation/types";
 
 const SEARCH_HISTORY_KEY = "@search_history";
@@ -493,6 +494,38 @@ export default function SearchScreen() {
               <ThemedText style={{ color: "#0A0A0A", fontSize: 11, fontWeight: "700" }}>
                 {priceDisplay}
               </ThemedText>
+            </View>
+          ) : null}
+
+          {/* Story ring overlay — non-product cards only */}
+          {item.resultType !== "product" ? (
+            <View style={{ position: "absolute", bottom: 8, left: 8 }}>
+              <StoryRing
+                userId={item.userId || item.id}
+                size={40}
+                isOwnProfile={(item.userId || item.id) === String(user?.id)}
+                onAddStory={() => navigation.navigate("CreatePost")}
+                onViewStory={(stories) =>
+                  navigation.navigate("StoryViewer", {
+                    userId: item.userId || item.id,
+                    stories,
+                    authorName: item.displayName || item.name,
+                    authorAvatarUrl: item.avatar,
+                  })
+                }
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, overflow: "hidden", borderWidth: 2, borderColor: "#0d0d0d", backgroundColor: "#222" }}>
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  ) : (
+                    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                      <ThemedText style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>
+                        {getInitials(displayLabel)}
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
+              </StoryRing>
             </View>
           ) : null}
         </View>
