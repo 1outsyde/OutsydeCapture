@@ -8,6 +8,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { Post } from "@/context/DataContext";
 import RoleBadge from "@/components/RoleBadge";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "@/navigation/types";
+import StoryRing from "@/components/StoryRing";
 import { sendClickEvent } from "@/services/referral";
 import { promptForReportReason } from "@/utils/moderationActions";
 
@@ -130,6 +134,7 @@ export function ProFeedCard({
   mediaHeight = CARD_MEDIA_HEIGHT,
 }: ProFeedCardProps) {
   const { theme } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [menuVisible, setMenuVisible] = useState(false);
   const hasVideo = post.videoUrl && post.videoUrl.length > 0;
   const hasCommerce = post.serviceId || post.productId;
@@ -229,26 +234,41 @@ export function ProFeedCard({
   return (
     <View style={[styles.card, { backgroundColor: theme.card ?? '#0F0E12' }]}>
       <Pressable onPress={() => onAuthorPress(post)} style={styles.header}>
-        {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
-          <Image
-            source={{ uri: post.authorAvatar }}
-            style={styles.avatar}
-            contentFit="cover"
-            onError={() => {}}
-          />
-        ) : (
-          <View
-            style={[
-              styles.avatar,
-              styles.avatarPlaceholder,
-              { backgroundColor: theme.primary },
-            ]}
-          >
-            <ThemedText style={styles.avatarInitial}>
-              {(post.displayName || post.authorName || "?").charAt(0).toUpperCase()}
-            </ThemedText>
-          </View>
-        )}
+        <StoryRing
+          userId={post.userId || post.authorId || ""}
+          size={36}
+          isOwnProfile={false}
+          onAddStory={() => {}}
+          onViewStory={(stories) =>
+            navigation.navigate("StoryViewer", {
+              userId: post.userId || post.authorId || "",
+              stories,
+              authorName: post.displayName || post.authorName,
+              authorAvatarUrl: post.authorAvatar,
+            })
+          }
+        >
+          {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
+            <Image
+              source={{ uri: post.authorAvatar }}
+              style={styles.avatar}
+              contentFit="cover"
+              onError={() => {}}
+            />
+          ) : (
+            <View
+              style={[
+                styles.avatar,
+                styles.avatarPlaceholder,
+                { backgroundColor: theme.primary },
+              ]}
+            >
+              <ThemedText style={styles.avatarInitial}>
+                {(post.displayName || post.authorName || "?").charAt(0).toUpperCase()}
+              </ThemedText>
+            </View>
+          )}
+        </StoryRing>
         <View style={styles.headerInfo}>
           <View style={styles.headerRow}>
             <ThemedText style={styles.authorName}>

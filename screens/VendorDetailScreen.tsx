@@ -62,6 +62,7 @@ import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { showReportBlockMenu } from "@/utils/moderationActions";
+import StoryRing from "@/components/StoryRing";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -1551,11 +1552,26 @@ export default function VendorDetailScreen({ route }: Props) {
     return (
       <View style={styles.identityBlock}>
         <View style={styles.avatarActionRow}>
-          <AvatarWithInitials
-            name={profile.name}
-            imageUrl={profile.avatarUrl || profile.logoImage}
-            accentColor={accentColor}
-          />
+          <StoryRing
+            userId={profile.userId || profile.id}
+            size={88}
+            isOwnProfile={false}
+            onAddStory={() => {}}
+            onViewStory={(stories) =>
+              navigation.navigate("StoryViewer", {
+                userId: profile.userId || profile.id,
+                stories,
+                authorName: profile.name,
+                authorAvatarUrl: profile.avatarUrl || profile.logoImage,
+              })
+            }
+          >
+            <AvatarWithInitials
+              name={profile.name}
+              imageUrl={profile.avatarUrl || profile.logoImage}
+              accentColor={accentColor}
+            />
+          </StoryRing>
           <View style={styles.actionsWrap}>
             <Pressable
               style={[
