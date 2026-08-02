@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActionSheetIOS,
+  ActivityIndicator,
   Alert,
   Dimensions,
   Platform,
@@ -27,10 +28,57 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/services/api";
 import { Story } from "@/components/StoryRing";
+import BottomSheet, {
+  BottomSheetFlatList,
+  BottomSheetBackdrop,
+} from "@gorhom/bottom-sheet";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const IMAGE_MS = 5000;
 const { width: SCREEN_W } = Dimensions.get("window");
+
+// ── Viewer entry shape ────────────────────────────────────────────────────────
+interface ViewerEntry {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  viewedAt: string;
+}
+
+function formatTimeAgo(viewedAt: string): string {
+  const diff = Date.now() - new Date(viewedAt).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function ViewerRow({ viewer }: { viewer: ViewerEntry }) {
+  return (
+    <View style={vSheet.row}>
+      {viewer.avatarUrl ? (
+        <Image source={{ uri: viewer.avatarUrl }} style={vSheet.avatar} contentFit="cover" />
+      ) : (
+        <View style={[vSheet.avatar, vSheet.avatarFallback]}>
+          <Text style={vSheet.initial}>{viewer.name.charAt(0).toUpperCase()}</Text>
+        </View>
+      )}
+      <Text style={vSheet.name} numberOfLines={1}>{viewer.name}</Text>
+      <Text style={vSheet.time}>{formatTimeAgo(viewer.viewedAt)}</Text>
+    </View>
+  );
+}
+
+const vSheet = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 10 },
+  avatar: { width: 36, height: 36, borderRadius: 18 },
+  avatarFallback: { backgroundColor: "#333", alignItems: "center", justifyContent: "center" },
+  initial: { color: "#D4A94A", fontSize: 14, fontWeight: "600" },
+  name: { flex: 1, color: "#e0e0e0", fontSize: 14 },
+  time: { color: "#888", fontSize: 12 },
+});
 
 // ── Local param type (wired into RootStackParamList in Step 7) ───────────────
 type StoryViewerParams = {
@@ -156,6 +204,30 @@ export default function StoryViewerScreen() {
   const currentStory = stories[currentIndex];
   const isAuthor = !!user?.id && user.id === currentStory?.authorId;
 
+  // ── Viewer sheet state (author only) ─────────────────────────────────────
+  const [viewerSheetIndex, setViewerSheetIndex] = useState(-1);
+  const [viewerData, setViewerData] = useState<{ viewCount: number; viewers: ViewerEntry[] } | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
+  const snapPoints = useMemo(() => ["50%"], []);
+
+  const fetchViewers = useCallback(async (storyId: string) => {
+    setViewerLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE_URL}/api/stories/${storyId}/views`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) setViewerData(await res.json());
+    } catch {}
+    setViewerLoading(false);
+  }, [getToken]);
+
+  const handleOpenViewerSheet = useCallback(() => {
+    if (!isAuthor || !currentStory?.id) return;
+    setViewerSheetIndex(0);
+    fetchViewers(currentStory.id);
+  }, [isAuthor, currentStory?.id, fetchViewers]);
+
   // ── Record view when a story becomes active ──────────────────────────────
   useEffect(() => {
     if (!currentStory) return;
@@ -270,14 +342,16 @@ export default function StoryViewerScreen() {
   // ── Swipe-down to dismiss ────────────────────────────────────────────────
   // activeOffsetY(20) ensures quick taps don't accidentally fire the gesture.
   const swipeGesture = Gesture.Pan()
-    .activeOffsetY(20)
+    .activeOffsetY([-20, 20])
     .onEnd((e) => {
       if (e.translationY > 100) runOnJS(handleDismiss)();
+      else if (e.translationY < -60) runOnJS(handleOpenViewerSheet)();
     });
 
   if (!currentStory) return null;
 
   return (
+    <>
     <GestureDetector gesture={swipeGesture}>
       <View style={styles.container}>
         {/* ── Background media ── */}
@@ -369,16 +443,56 @@ export default function StoryViewerScreen() {
         {/* ── Bottom bar — trash icon replaces caption when viewer is author ── */}
         <View style={[styles.bottomBar, { bottom: insets.bottom + 24 }]}>
           {isAuthor ? (
-            <Pressable style={styles.deleteRow} onPress={handleDelete}>
-              <Feather name="trash-2" size={20} color="#fff" />
-              <Text style={styles.deleteText}>Delete Story</Text>
-            </Pressable>
+            <View style={styles.authorBarRow}>
+              <Pressable style={styles.deleteRow} onPress={handleDelete}>
+                <Feather name="trash-2" size={20} color="#fff" />
+                <Text style={styles.deleteText}>Delete Story</Text>
+              </Pressable>
+              <Pressable style={styles.viewsPill} onPress={handleOpenViewerSheet}>
+                <Text style={styles.viewsPillText}>
+                  👁 {viewerData != null ? viewerData.viewCount : "·"}
+                </Text>
+              </Pressable>
+            </View>
           ) : currentStory.caption ? (
             <Text style={styles.caption}>{currentStory.caption}</Text>
           ) : null}
         </View>
       </View>
     </GestureDetector>
+    {isAuthor && (
+      <BottomSheet
+        index={viewerSheetIndex}
+        snapPoints={snapPoints}
+        onChange={setViewerSheetIndex}
+        enablePanDownToClose
+        backgroundStyle={{ backgroundColor: "#1a1a1a" }}
+        handleIndicatorStyle={{ backgroundColor: "#555" }}
+        backdropComponent={(props) => (
+          <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+        )}
+      >
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>
+            👁 {viewerData?.viewCount ?? 0} views
+          </Text>
+        </View>
+        {viewerLoading ? (
+          <ActivityIndicator style={{ marginTop: 32 }} color="#D4A94A" />
+        ) : (
+          <BottomSheetFlatList
+            data={viewerData?.viewers ?? []}
+            keyExtractor={(item) => item.userId}
+            renderItem={({ item }) => <ViewerRow viewer={item} />}
+            contentContainerStyle={{ paddingBottom: 32 }}
+            ListEmptyComponent={
+              <Text style={styles.sheetEmpty}>No views yet</Text>
+            }
+          />
+        )}
+      </BottomSheet>
+    )}
+    </>
   );
 }
 
@@ -465,4 +579,10 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
+  authorBarRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  viewsPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)" },
+  viewsPillText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  sheetHeader: { paddingHorizontal: 16, paddingBottom: 8 },
+  sheetTitle: { color: "#D4A94A", fontSize: 17, fontWeight: "700" },
+  sheetEmpty: { color: "#666", fontSize: 14, textAlign: "center", paddingTop: 32 },
 });

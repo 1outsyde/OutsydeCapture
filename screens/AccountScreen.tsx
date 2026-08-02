@@ -1478,6 +1478,11 @@ export default function AccountScreen() {
                 authorAvatarUrl: profile.avatarUrl,
               })
             }
+            onViewInsights={
+              isOwner
+                ? () => navigation.navigate("StoryInsights", { userId: String(profile.userId || profile.id) })
+                : undefined
+            }
           >
             <AvatarWithInitials
               name={profile.name}

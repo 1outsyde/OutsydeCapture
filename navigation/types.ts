@@ -107,6 +107,7 @@ export type RootStackParamList = {
     authorName?: string;
     authorAvatarUrl?: string;
   };
+  StoryInsights: { userId: string };
 };
 
 export type MainTabParamList = {
