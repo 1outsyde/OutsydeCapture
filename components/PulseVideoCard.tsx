@@ -17,6 +17,10 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import { Post } from "@/context/DataContext";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "@/navigation/types";
+import StoryRing from "@/components/StoryRing";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -219,6 +223,7 @@ export default function PulseVideoCard({
 }: PulseVideoCardProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [isPaused, setIsPaused] = useState(false);
 
   // Floating tab bar overlays content rather than reserving layout space
@@ -377,20 +382,35 @@ export default function PulseVideoCard({
       {/* Bottom-left author block */}
       <View style={[styles.authorBlock, { bottom: authorBlockBottom }]} pointerEvents="box-none">
         <Pressable onPress={() => onAuthorPress(post)} style={styles.authorRow}>
-          {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
-            <Image
-              source={{ uri: post.authorAvatar }}
-              style={styles.avatar}
-              contentFit="cover"
-              onError={() => {}}
-            />
-          ) : (
-            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: theme.primary }]}>
-              <ThemedText style={styles.avatarInitial}>
-                {(post.displayName || post.authorName || "?").charAt(0).toUpperCase()}
-              </ThemedText>
-            </View>
-          )}
+          <StoryRing
+            userId={post.userId || post.authorId || ""}
+            size={42}
+            isOwnProfile={false}
+            onAddStory={() => {}}
+            onViewStory={(stories) =>
+              navigation.navigate("StoryViewer", {
+                userId: post.userId || post.authorId || "",
+                stories,
+                authorName: post.displayName || post.authorName,
+                authorAvatarUrl: post.authorAvatar,
+              })
+            }
+          >
+            {post.authorAvatar && post.authorAvatar.startsWith("http") ? (
+              <Image
+                source={{ uri: post.authorAvatar }}
+                style={styles.avatar}
+                contentFit="cover"
+                onError={() => {}}
+              />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: theme.primary }]}>
+                <ThemedText style={styles.avatarInitial}>
+                  {(post.displayName || post.authorName || "?").charAt(0).toUpperCase()}
+                </ThemedText>
+              </View>
+            )}
+          </StoryRing>
           <View style={styles.authorTexts}>
             <ThemedText style={styles.displayName} numberOfLines={1}>
               {post.displayName || post.authorName}
