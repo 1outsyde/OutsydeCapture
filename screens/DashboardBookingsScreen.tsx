@@ -50,7 +50,7 @@ function statusColors(status: BusinessBooking["status"]): { bg: string; text: st
   switch (status) {
     case "pending_provider":
     case "pending":
-      return { bg: "rgba(255,204,0,0.15)", text: "#FFCC00" };
+      return { bg: "rgba(212,175,55,0.15)", text: "#D4AF37" };
     case "confirmed":
       return { bg: "rgba(52,199,89,0.15)", text: "#34C759" };
     case "completed":
@@ -135,32 +135,46 @@ export default function DashboardBookingsScreen() {
     }
   };
 
-  const handleDecline = async (bookingId: string) => {
-    Alert.alert(
+  const handleDecline = (bookingId: string) => {
+    const doDecline = async (reason?: string) => {
+      if (actionLoading) return;
+      setActionLoading(bookingId);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("Not authenticated");
+        await api.declineBooking(token, "business", bookingId, reason?.trim() || undefined);
+        setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
+        fetchBookings(true);
+      } catch (err: any) {
+        Alert.alert("Error", err?.message || "Failed to decline booking. Please try again.");
+      } finally {
+        setActionLoading(null);
+      }
+    };
+
+    Alert.prompt(
       "Decline Booking",
-      "The customer's card hold will be released. They will not be charged.",
+      "Optional: add a reason for the customer (e.g. unavailable, fully booked).",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Decline",
           style: "destructive",
-          onPress: async () => {
-            if (actionLoading) return;
-            setActionLoading(bookingId);
-            try {
-              const token = await getToken();
-              if (!token) throw new Error("Not authenticated");
-              await api.declineBooking(token, "business", bookingId);
-              setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
-              fetchBookings(true);
-            } catch (err: any) {
-              Alert.alert("Error", err?.message || "Failed to decline booking. Please try again.");
-            } finally {
-              setActionLoading(null);
-            }
+          onPress: (reason?: string) => {
+            Alert.alert(
+              "Confirm Decline",
+              "The customer's card hold will be released. They will not be charged.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Decline", style: "destructive", onPress: () => doDecline(reason) },
+              ]
+            );
           },
         },
-      ]
+      ],
+      "plain-text",
+      "",
+      "default"
     );
   };
 
