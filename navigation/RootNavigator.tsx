@@ -51,6 +51,7 @@ import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
 import AppointmentDetailScreen from "@/screens/AppointmentDetailScreen";
 import CreatePostScreen from "@/screens/CreatePostScreen";
+import StoryViewerScreen from "@/screens/StoryViewerScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
@@ -825,6 +826,17 @@ export default function RootNavigator() {
           presentation: "modal",
           animation: "slide_from_bottom",
           headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="StoryViewer"
+        component={StoryViewerScreen}
+        options={{
+          presentation: "fullScreenModal",
+          animation: "fade",
+          headerShown: false,
+          gestureEnabled: false,
         }}
       />
 

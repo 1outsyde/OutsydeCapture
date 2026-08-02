@@ -2,6 +2,7 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
 import { GoogleProfile } from "@/context/AuthContext";
 import { BusinessAppointment, ConsumerOrderItem } from "@/services/api";
+import { Story } from "@/components/StoryRing";
 
 
 export type RootStackParamList = {
@@ -99,6 +100,13 @@ export type RootStackParamList = {
   };
   Sessions: undefined;
   CreatePost: undefined;
+  StoryViewer: {
+    userId: string;
+    stories: Story[];
+    initialIndex?: number;
+    authorName?: string;
+    authorAvatarUrl?: string;
+  };
 };
 
 export type MainTabParamList = {
