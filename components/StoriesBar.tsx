@@ -204,7 +204,7 @@ export default function StoriesBar() {
 const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 6,
     gap: 12,
   },
   item: {
