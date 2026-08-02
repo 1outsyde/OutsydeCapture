@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -43,6 +44,7 @@ export default function CreatePostScreen() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [mode, setMode] = useState<"post" | "story">("post");
   const [storySaving, setStorySaving] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
 
   type AttachType = "product" | "service" | "photographerService";
   type AttachItem = { type: AttachType; id: string; name: string; priceCents: number | null };
@@ -69,6 +71,13 @@ export default function CreatePostScreen() {
       if (e.translationX < -50) runOnJS(switchMode)("story");
       else if (e.translationX > 50) runOnJS(switchMode)("post");
     });
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      setCameraPermission(status === "granted");
+    })();
+  }, []);
 
   useEffect(() => {
     if (step !== 3 || attachItems.length > 0 || attachLoading) return;
@@ -129,6 +138,7 @@ export default function CreatePostScreen() {
       setPostImage(asset.uri);
       const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
       setPostLayout(isVideo ? "pulse" : "pro");
+      setStep(2);
     }
   };
 
@@ -150,24 +160,32 @@ export default function CreatePostScreen() {
       setPostImage(asset.uri);
       const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
       setPostLayout(isVideo ? "pulse" : "pro");
+      setStep(2);
     }
   };
 
   const handleCameraCapture = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Please allow access to your camera.");
+      setCameraPermission(false);
       return;
     }
+    setCameraPermission(true);
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes:
+        mode === "story"
+          ? ImagePicker.MediaTypeOptions.Images
+          : ImagePicker.MediaTypeOptions.All,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPostImage(result.assets[0].uri);
-      setPostLayout("pro");
+      const asset = result.assets[0];
+      setPostImage(asset.uri);
+      const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
+      setPostLayout(isVideo ? "pulse" : "pro");
+      setStep(2);
     }
   };
 
@@ -332,75 +350,92 @@ export default function CreatePostScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* ── Mode tab switcher ── */}
-      <View style={[styles.tabRow, { borderBottomColor: theme.brandSurfaceBorder }]}>
-        <Pressable
-          style={[styles.tab, mode === "post" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
-          onPress={() => switchMode("post")}
-        >
-          <ThemedText type="button" style={{ color: mode === "post" ? "#D4A94A" : theme.brandTextDim }}>
-            Post
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, mode === "story" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
-          onPress={() => switchMode("story")}
-        >
-          <ThemedText type="button" style={{ color: mode === "story" ? "#D4A94A" : theme.brandTextDim }}>
-            Story
-          </ThemedText>
-        </Pressable>
-      </View>
-
       {step === 1 && (
         <GestureDetector gesture={modeSwipeGesture}>
           <View style={{ flex: 1 }}>
-            <Pressable
-              onPress={mode === "story" ? handlePickStoryMedia : handlePickPostImage}
-              style={[styles.mediaPicker, { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder }]}
-            >
+            {/* ── Camera area: fills middle ── */}
+            <View style={styles.cameraArea}>
               {postImage ? (
-                postLayout === "pulse" ? (
-                  <View style={styles.videoSelected}>
-                    <Feather name="video" size={32} color={theme.brandGold} />
-                    <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                      Video selected
-                    </ThemedText>
-                  </View>
-                ) : (
-                  <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
-                )
+                <>
+                  {postLayout === "pulse" ? (
+                    <View style={[StyleSheet.absoluteFill, styles.videoPlaceholder]}>
+                      <Feather name="video" size={48} color="#fff" />
+                      <ThemedText type="body" style={{ color: "#fff", marginTop: 12 }}>
+                        Video selected
+                      </ThemedText>
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: postImage }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                    />
+                  )}
+                  <Pressable
+                    onPress={() => { setPostImage(""); setPostLayout(null); }}
+                    style={styles.retakeButton}
+                    hitSlop={12}
+                  >
+                    <Feather name="x" size={20} color="#fff" />
+                  </Pressable>
+                </>
               ) : (
-                <View style={styles.mediaEmpty}>
-                  <Feather name="image" size={32} color={theme.brandTextDim} />
-                  <ThemedText type="body" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                    Tap to select a photo or video
-                  </ThemedText>
+                <View style={styles.cameraPlaceholder}>
+                  <Feather name="camera" size={40} color="rgba(255,255,255,0.3)" />
+                  {cameraPermission === false && (
+                    <Pressable onPress={() => Linking.openSettings()} style={{ marginTop: 16 }}>
+                      <ThemedText
+                        type="body"
+                        style={{ color: "#D4A94A", textDecorationLine: "underline" }}
+                      >
+                        Enable camera access
+                      </ThemedText>
+                    </Pressable>
+                  )}
                 </View>
               )}
-            </Pressable>
+            </View>
 
-            {mode === "story" && (
-              <Pressable onPress={handleCameraCapture} style={styles.cameraButton}>
-                <Feather name="camera" size={16} color={theme.brandGold} />
-                <ThemedText type="body" style={{ color: theme.brandGold, marginLeft: Spacing.xs }}>
-                  Camera
-                </ThemedText>
-              </Pressable>
-            )}
+            {/* ── Bottom bar ── */}
+            <View style={[styles.step1BottomBar, { paddingBottom: insets.bottom || 16 }]}>
+              {/* POST | STORY tab row */}
+              <View style={[styles.tabRow, { borderBottomColor: theme.brandSurfaceBorder }]}>
+                <Pressable
+                  style={[styles.tab, mode === "post" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
+                  onPress={() => switchMode("post")}
+                >
+                  <ThemedText type="button" style={{ color: mode === "post" ? "#D4A94A" : theme.brandTextDim }}>
+                    Post
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  style={[styles.tab, mode === "story" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
+                  onPress={() => switchMode("story")}
+                >
+                  <ThemedText type="button" style={{ color: mode === "story" ? "#D4A94A" : theme.brandTextDim }}>
+                    Story
+                  </ThemedText>
+                </Pressable>
+              </View>
 
-            <Pressable
-              onPress={() => setStep(2)}
-              disabled={!postImage}
-              style={[
-                styles.footerButton,
-                { backgroundColor: theme.brandPrimary, opacity: !postImage ? 0.5 : 1 },
-              ]}
-            >
-              <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
-                Next
-              </ThemedText>
-            </Pressable>
+              {/* Gallery | Shutter | Flip row */}
+              <View style={styles.controlsRow}>
+                <Pressable
+                  onPress={mode === "story" ? handlePickStoryMedia : handlePickPostImage}
+                  style={styles.galleryButton}
+                >
+                  <Feather name="image" size={24} color="#fff" />
+                </Pressable>
+
+                <Pressable onPress={handleCameraCapture} style={styles.shutterButton}>
+                  <View style={styles.shutterInner} />
+                </Pressable>
+
+                <View style={styles.flipButton}>
+                  <Feather name="refresh-cw" size={24} color="#fff" />
+                </View>
+              </View>
+            </View>
           </View>
         </GestureDetector>
       )}
@@ -704,7 +739,6 @@ const styles = StyleSheet.create({
   },
   tabRow: {
     flexDirection: "row",
-    borderBottomWidth: 1,
   },
   tab: {
     flex: 1,
@@ -722,5 +756,74 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  cameraArea: {
+    flex: 1,
+    backgroundColor: "#0a0a0a",
+  },
+  cameraPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0a0a0a",
+  },
+  retakeButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  step1BottomBar: {
+    backgroundColor: "#000",
+    paddingTop: 8,
+  },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 40,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  galleryButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shutterButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 3,
+    borderColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shutterInner: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "#fff",
+  },
+  flipButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
