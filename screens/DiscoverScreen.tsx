@@ -540,9 +540,6 @@ export default function DiscoverScreen() {
       {feedMode === "pro" ? (
         <View style={{ paddingTop: headerHeight }}>
           <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
-          <View style={{ height: 96 }}>
-            <StoriesBar />
-          </View>
         </View>
       ) : null}
 
@@ -568,6 +565,11 @@ export default function DiscoverScreen() {
               contentContainerStyle={styles.proFeedContent}
               onViewableItemsChanged={onProViewableItemsChanged}
               viewabilityConfig={PRO_VIEWABILITY_CONFIG}
+              ListHeaderComponent={
+                <View style={{ height: 96 }}>
+                  <StoriesBar />
+                </View>
+              }
             />
           ) : (
             <PulseFeedScreenV2 />
