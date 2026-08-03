@@ -62,6 +62,7 @@ export default function StoryInsightsScreen() {
 
   const [rows, setRows] = useState<StoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingStoryId, setSavingStoryId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -137,6 +138,8 @@ export default function StoryInsightsScreen() {
   }, []);
 
   const handleSaveHighlight = useCallback(async (row: StoryRow) => {
+    if (savingStoryId === row.story.id) return;
+    setSavingStoryId(row.story.id);
     try {
       const token = await getToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -155,21 +158,30 @@ export default function StoryInsightsScreen() {
       });
       if (res.ok) {
         const result = await res.json();
-        if (result?.id) {
-          setRows((prev) =>
-            prev.map((r) =>
-              r.story.id === row.story.id
-                ? { ...r, isHighlighted: true, highlightId: result.id }
-                : r
-            )
-          );
-        }
+        setRows((prev) =>
+          prev.map((r) =>
+            r.story.id === row.story.id
+              ? { ...r, isHighlighted: true, highlightId: result?.id ?? null }
+              : r
+          )
+        );
+      } else if (res.status === 409) {
+        // Already exists — reflect saved state without a highlightId
+        setRows((prev) =>
+          prev.map((r) =>
+            r.story.id === row.story.id ? { ...r, isHighlighted: true } : r
+          )
+        );
       }
-    } catch {}
-  }, [getToken]);
+    } catch {} finally {
+      setSavingStoryId(null);
+    }
+  }, [getToken, savingStoryId]);
 
   const handleDeleteHighlight = useCallback(async (row: StoryRow) => {
     if (!row.highlightId) return;
+    if (savingStoryId === row.story.id) return;
+    setSavingStoryId(row.story.id);
     try {
       const token = await getToken();
       const headers: Record<string, string> = {};
@@ -185,8 +197,10 @@ export default function StoryInsightsScreen() {
             : r
         )
       );
-    } catch {}
-  }, [getToken]);
+    } catch {} finally {
+      setSavingStoryId(null);
+    }
+  }, [getToken, savingStoryId]);
 
   const renderStoryRow = ({ item }: { item: StoryRow }) => (
     <View>
@@ -211,6 +225,7 @@ export default function StoryInsightsScreen() {
         </Pressable>
         <Pressable
           style={styles.highlightBtn}
+          disabled={savingStoryId === item.story.id}
           onPress={() =>
             item.isHighlighted
               ? handleDeleteHighlight(item)
