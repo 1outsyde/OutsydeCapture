@@ -848,6 +848,7 @@ export default function RootNavigator() {
           presentation: "modal",
           animation: "slide_from_bottom",
           headerShown: false,
+          gestureEnabled: false,
         }}
       />
 
