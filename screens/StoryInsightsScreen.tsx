@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
@@ -203,20 +203,24 @@ export default function StoryInsightsScreen() {
           <Text style={styles.expiryText}>{formatExpiry(item.story.expiresAt)}</Text>
         </View>
         <View style={styles.viewCountBadge}>
-          <Text style={styles.viewCountText}>
-            👁 {item.viewCount ?? "—"}
-          </Text>
+          <Feather name="eye" size={14} color="#D4A94A" />
+          <Text style={styles.viewCountText}>{item.viewCount ?? "—"}</Text>
         </View>
         <Pressable
+          style={styles.highlightBtn}
           onPress={() =>
             item.isHighlighted
               ? handleDeleteHighlight(item)
               : handleSaveHighlight(item)
           }
-          hitSlop={8}
         >
+          <Ionicons
+            name={item.isHighlighted ? "star" : "star-outline"}
+            size={14}
+            color={item.isHighlighted ? "#D4A94A" : "#888"}
+          />
           <Text style={[styles.highlightText, item.isHighlighted && styles.highlightTextSaved]}>
-            {item.isHighlighted ? "★ Saved" : "☆ Save"}
+            {item.isHighlighted ? "Saved" : "Save"}
           </Text>
         </Pressable>
         <Feather name={item.expanded ? "chevron-up" : "chevron-down"} size={16} color="#888" />
@@ -298,7 +302,7 @@ const styles = StyleSheet.create({
   storyMeta: { flex: 1 },
   captionText: { color: "#fff", fontSize: 14, fontWeight: "500" },
   expiryText: { color: "#888", fontSize: 12, marginTop: 2 },
-  viewCountBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "#1a1a1a" },
+  viewCountBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "#1a1a1a" },
   viewCountText: { color: "#D4A94A", fontSize: 13, fontWeight: "600" },
   viewerList: { paddingHorizontal: 16, paddingVertical: 4, backgroundColor: "#0d0d0d" },
   emptyText: { color: "#666", fontSize: 13, textAlign: "center", paddingVertical: 16 },
@@ -310,6 +314,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#1a1a1a",
   },
+  highlightBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 12, gap: 4 },
   highlightText: { color: "#888", fontSize: 13, fontWeight: "600" },
   highlightTextSaved: { color: "#D4A94A" },
   viewerAvatar: { width: 36, height: 36, borderRadius: 18 },
