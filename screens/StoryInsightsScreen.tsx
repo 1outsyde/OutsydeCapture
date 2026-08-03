@@ -30,6 +30,8 @@ interface StoryRow {
   viewCount: number | null;
   viewers: ViewerEntry[] | null;
   expanded: boolean;
+  isHighlighted: boolean;
+  highlightId: string | null;
 }
 
 function formatExpiry(expiresAt: string): string {
@@ -74,8 +76,35 @@ export default function StoryInsightsScreen() {
         const stories: Story[] = await res.json();
 
         if (active) {
-          setRows(stories.map((s) => ({ story: s, viewCount: null, viewers: null, expanded: false })));
+          setRows(stories.map((s) => ({
+            story: s,
+            viewCount: null,
+            viewers: null,
+            expanded: false,
+            isHighlighted: false,
+            highlightId: null,
+          })));
           setLoading(false);
+        }
+
+        // Pre-populate highlight state for all rows
+        if (active && token) {
+          try {
+            const hlRes = await fetch(`${API_BASE_URL}/api/stories/highlights`, { headers });
+            if (hlRes.ok && active) {
+              const hlData = await hlRes.json();
+              const hlMap = new Map<string, string>(
+                (hlData.highlights as { id: string; storyId: string }[]).map((h) => [h.storyId, h.id])
+              );
+              setRows((prev) =>
+                prev.map((r) => ({
+                  ...r,
+                  isHighlighted: hlMap.has(r.story.id),
+                  highlightId: hlMap.get(r.story.id) ?? null,
+                }))
+              );
+            }
+          } catch {}
         }
 
         for (const s of stories) {
@@ -107,6 +136,58 @@ export default function StoryInsightsScreen() {
     );
   }, []);
 
+  const handleSaveHighlight = useCallback(async (row: StoryRow) => {
+    try {
+      const token = await getToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE_URL}/api/stories/highlights`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          storyId: row.story.id,
+          mediaUrl: row.story.mediaUrl,
+          mediaType: row.story.mediaType,
+          thumbnailUrl: row.story.thumbnailUrl ?? null,
+          muxAssetId: row.story.muxAssetId ?? null,
+          caption: row.story.caption ?? null,
+        }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result?.id) {
+          setRows((prev) =>
+            prev.map((r) =>
+              r.story.id === row.story.id
+                ? { ...r, isHighlighted: true, highlightId: result.id }
+                : r
+            )
+          );
+        }
+      }
+    } catch {}
+  }, [getToken]);
+
+  const handleDeleteHighlight = useCallback(async (row: StoryRow) => {
+    if (!row.highlightId) return;
+    try {
+      const token = await getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      await fetch(`${API_BASE_URL}/api/stories/highlights/${row.highlightId}`, {
+        method: "DELETE",
+        headers,
+      });
+      setRows((prev) =>
+        prev.map((r) =>
+          r.story.id === row.story.id
+            ? { ...r, isHighlighted: false, highlightId: null }
+            : r
+        )
+      );
+    } catch {}
+  }, [getToken]);
+
   const renderStoryRow = ({ item }: { item: StoryRow }) => (
     <View>
       <Pressable style={styles.storyRow} onPress={() => handleToggleExpand(item.story.id)}>
@@ -126,6 +207,18 @@ export default function StoryInsightsScreen() {
             👁 {item.viewCount ?? "—"}
           </Text>
         </View>
+        <Pressable
+          onPress={() =>
+            item.isHighlighted
+              ? handleDeleteHighlight(item)
+              : handleSaveHighlight(item)
+          }
+          hitSlop={8}
+        >
+          <Text style={[styles.highlightText, item.isHighlighted && styles.highlightTextSaved]}>
+            {item.isHighlighted ? "★ Saved" : "☆ Save"}
+          </Text>
+        </Pressable>
         <Feather name={item.expanded ? "chevron-up" : "chevron-down"} size={16} color="#888" />
       </Pressable>
 
@@ -217,6 +310,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#1a1a1a",
   },
+  highlightText: { color: "#888", fontSize: 13, fontWeight: "600" },
+  highlightTextSaved: { color: "#D4A94A" },
   viewerAvatar: { width: 36, height: 36, borderRadius: 18 },
   viewerAvatarFallback: { backgroundColor: "#333", alignItems: "center", justifyContent: "center" },
   viewerInitial: { color: "#D4A94A", fontSize: 14, fontWeight: "600" },
