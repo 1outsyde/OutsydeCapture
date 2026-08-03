@@ -173,6 +173,19 @@ export default function CreatePostScreen() {
     }
   };
 
+  const handleShutterTap = async () => {
+    if (!cameraPermission?.granted) {
+      await requestCameraPermission();
+      return;
+    }
+    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
+    if (photo?.uri) {
+      setPostImage(photo.uri);
+      setPostLayout("pro");
+      setStep(2);
+    }
+  };
+
   const handleShutterPressIn = async () => {
     if (!cameraPermission?.granted) {
       await requestCameraPermission();
@@ -335,6 +348,31 @@ export default function CreatePostScreen() {
     navigation.goBack();
   };
 
+  // ── Shutter gestures (RNGH) ───────────────────────────────────────────────
+  const shutterTapGesture = Gesture.Tap()
+    .simultaneousWithExternalGesture(modeSwipeGesture)
+    .onEnd(() => {
+      runOnJS(handleShutterTap)();
+    });
+
+  const shutterLongPressGesture = Gesture.LongPress()
+    .minDuration(300)
+    .simultaneousWithExternalGesture(modeSwipeGesture)
+    .onStart(() => {
+      runOnJS(handleShutterPressIn)();
+    })
+    .onEnd(() => {
+      runOnJS(handleShutterPressOut)();
+    })
+    .onFinalize(() => {
+      runOnJS(handleShutterPressOut)();
+    });
+
+  const shutterGesture = Gesture.Race(
+    shutterLongPressGesture,
+    shutterTapGesture
+  );
+
   const renderShareButton = () => (
     <Pressable
       onPress={handleCreatePost}
@@ -473,19 +511,19 @@ export default function CreatePostScreen() {
                   <Feather name="image" size={24} color="#fff" />
                 </Pressable>
 
-                <Pressable
-                  onPressIn={handleShutterPressIn}
-                  onPressOut={handleShutterPressOut}
-                  style={[
-                    styles.shutterButton,
-                    isRecording && { borderColor: "red", borderWidth: 3 },
-                  ]}
-                >
-                  <View style={[
-                    styles.shutterInner,
-                    isRecording && { backgroundColor: "red" },
-                  ]} />
-                </Pressable>
+                <GestureDetector gesture={shutterGesture}>
+                  <View
+                    style={[
+                      styles.shutterButton,
+                      isRecording && { borderColor: "red", borderWidth: 3 },
+                    ]}
+                  >
+                    <View style={[
+                      styles.shutterInner,
+                      isRecording && { backgroundColor: "red" },
+                    ]} />
+                  </View>
+                </GestureDetector>
 
                 <Pressable
                   style={styles.flipButton}
