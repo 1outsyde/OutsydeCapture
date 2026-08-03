@@ -190,22 +190,25 @@ export default function StoryInsightsScreen() {
 
   const renderStoryRow = ({ item }: { item: StoryRow }) => (
     <View>
-      <Pressable style={styles.storyRow} onPress={() => handleToggleExpand(item.story.id)}>
-        <Image
-          source={{ uri: item.story.thumbnailUrl ?? item.story.mediaUrl }}
-          style={styles.thumbnail}
-          contentFit="cover"
-        />
-        <View style={styles.storyMeta}>
-          <Text style={styles.captionText} numberOfLines={1}>
-            {item.story.caption || "No caption"}
-          </Text>
-          <Text style={styles.expiryText}>{formatExpiry(item.story.expiresAt)}</Text>
-        </View>
-        <View style={styles.viewCountBadge}>
-          <Feather name="eye" size={14} color="#D4A94A" />
-          <Text style={styles.viewCountText}>{item.viewCount ?? "—"}</Text>
-        </View>
+      <View style={styles.storyRowContainer}>
+        <Pressable style={styles.storyRowExpand} onPress={() => handleToggleExpand(item.story.id)}>
+          <Image
+            source={{ uri: item.story.thumbnailUrl ?? item.story.mediaUrl }}
+            style={styles.thumbnail}
+            contentFit="cover"
+          />
+          <View style={styles.storyMeta}>
+            <Text style={styles.captionText} numberOfLines={1}>
+              {item.story.caption || "No caption"}
+            </Text>
+            <Text style={styles.expiryText}>{formatExpiry(item.story.expiresAt)}</Text>
+          </View>
+          <View style={styles.viewCountBadge}>
+            <Feather name="eye" size={14} color="#D4A94A" />
+            <Text style={styles.viewCountText}>{item.viewCount ?? "—"}</Text>
+          </View>
+          <Feather name={item.expanded ? "chevron-up" : "chevron-down"} size={16} color="#888" />
+        </Pressable>
         <Pressable
           style={styles.highlightBtn}
           onPress={() =>
@@ -223,8 +226,7 @@ export default function StoryInsightsScreen() {
             {item.isHighlighted ? "Saved" : "Save"}
           </Text>
         </Pressable>
-        <Feather name={item.expanded ? "chevron-up" : "chevron-down"} size={16} color="#888" />
-      </Pressable>
+      </View>
 
       {item.expanded && (
         <View style={styles.viewerList}>
@@ -289,14 +291,19 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
   listContent: { paddingBottom: 32 },
-  storyRow: {
+  storyRowContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#222",
+  },
+  storyRowExpand: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#222",
   },
   thumbnail: { width: 48, height: 48, borderRadius: 8 },
   storyMeta: { flex: 1 },
