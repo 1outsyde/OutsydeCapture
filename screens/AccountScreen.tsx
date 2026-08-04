@@ -1318,20 +1318,16 @@ export default function AccountScreen() {
   }, [loadProfile]);
 
   useEffect(() => {
-    console.log("[HighlightsFetch] useEffect fired, isOwner:", isOwner);
     if (!isOwner) return;
     let active = true;
     (async () => {
       try {
         const token = await getToken();
         if (!token) return;
-        console.log("[HighlightsFetch] fetching highlights for user");
         const res = await fetch(`${API_BASE_URL}/api/stories/highlights`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log("[HighlightsFetch] response status:", res.status);
         const data = await res.json();
-        console.log("[HighlightsFetch] data:", JSON.stringify(data));
         if (res.ok && active) {
           setHighlights(data.highlights ?? []);
         }
