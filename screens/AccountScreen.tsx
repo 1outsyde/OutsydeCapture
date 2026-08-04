@@ -20,6 +20,7 @@ import {
   Dimensions,
   Modal,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -46,6 +47,7 @@ import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import InviteTeamModal from "@/components/InviteTeamModal";
 import BookingFlow from "@/components/BookingFlow";
 import apiClient, {
+  API_BASE_URL,
   ApiPost,
   VendorProduct,
   VendorService,
@@ -449,6 +451,15 @@ export default function AccountScreen() {
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [highlights, setHighlights] = useState<{
+    id: string;
+    storyId: string;
+    mediaUrl: string;
+    mediaType: string;
+    thumbnailUrl: string | null;
+    caption: string | null;
+    savedAt: string;
+  }[]>([]);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
   const [posts, setPosts] = useState<PostCard[]>([]);
@@ -1306,6 +1317,25 @@ export default function AccountScreen() {
     return unsub;
   }, [loadProfile]);
 
+  useEffect(() => {
+    if (!isOwner) return;
+    let active = true;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await fetch(`${API_BASE_URL}/api/stories/highlights`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok && active) {
+          const data = await res.json();
+          setHighlights(data.highlights ?? []);
+        }
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, [isOwner, getToken]);
+
   const tabList = useMemo<ProfileTab[]>(
     () => (profile ? tabsForRole(profile) : ["posts"]),
     [profile],
@@ -1635,6 +1665,38 @@ export default function AccountScreen() {
             <Text style={styles.statLabel}>Following</Text>
           </View>
         </View>
+      </View>
+    );
+  };
+
+  const renderHighlightsRow = () => {
+    if (!isOwner || highlights.length === 0) return null;
+    return (
+      <View style={styles.highlightsRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.highlightsScroll}
+        >
+          {highlights.map((h) => (
+            <Pressable
+              key={h.id}
+              style={styles.highlightItem}
+              onPress={() => {/* viewer — post-launch */}}
+            >
+              <View style={styles.highlightRing}>
+                <Image
+                  source={{ uri: h.thumbnailUrl ?? h.mediaUrl }}
+                  style={styles.highlightThumb}
+                  contentFit="cover"
+                />
+              </View>
+              <Text style={styles.highlightLabel} numberOfLines={1}>
+                {h.caption ?? "Highlight"}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
     );
   };
@@ -2887,6 +2949,7 @@ export default function AccountScreen() {
           accentColor={accentDimColor}
         />
         {renderIdentityBlock()}
+        {renderHighlightsRow()}
         {renderTabBar()}
         {renderTabContent()}
       </Animated.ScrollView>
@@ -3527,5 +3590,37 @@ const styles = StyleSheet.create({
     color: COLORS.cream,
     fontSize: 13,
     textAlign: "right",
+  },
+  highlightsRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1a1a1a",
+  },
+  highlightsScroll: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  highlightItem: {
+    alignItems: "center",
+    width: 64,
+  },
+  highlightRing: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: "#D4A94A",
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  highlightThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  highlightLabel: {
+    color: "#fff",
+    fontSize: 11,
+    textAlign: "center",
+    width: 64,
   },
 });
