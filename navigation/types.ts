@@ -106,6 +106,7 @@ export type RootStackParamList = {
     initialIndex?: number;
     authorName?: string;
     authorAvatarUrl?: string;
+    onStoryDeleted?: (deletedId: string) => void;
   };
   StoryInsights: { userId: string };
 };

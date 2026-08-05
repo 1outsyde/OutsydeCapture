@@ -87,6 +87,7 @@ type StoryViewerParams = {
   initialIndex?: number;
   authorName?: string;
   authorAvatarUrl?: string;
+  onStoryDeleted?: (deletedId: string) => void;
 };
 
 // ── Segment ───────────────────────────────────────────────────────────────────
@@ -194,10 +195,11 @@ function VideoStory({ story, onDurationKnown, onVideoEnd }: VideoStoryProps) {
 export default function StoryViewerScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<{ StoryViewer: StoryViewerParams }, "StoryViewer">>();
-  const { userId, stories, initialIndex = 0, authorName, authorAvatarUrl } = route.params;
+  const { userId, stories: paramStories, initialIndex = 0, authorName, authorAvatarUrl, onStoryDeleted } = route.params;
   const { user, getToken } = useAuth();
   const insets = useSafeAreaInsets();
 
+  const [stories, setStories] = useState(paramStories);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const progress = useSharedValue(0);
 
@@ -311,7 +313,14 @@ export default function StoryViewerScreen() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
-          navigation.goBack();
+          onStoryDeleted?.(storyId);
+          const filtered = stories.filter((s) => s.id !== storyId);
+          if (filtered.length === 0) {
+            navigation.goBack();
+          } else {
+            setStories(filtered);
+            setCurrentIndex((i) => Math.min(i, filtered.length - 1));
+          }
         } else {
           Alert.alert("Error", "Could not delete story. Please try again.");
         }
@@ -337,7 +346,7 @@ export default function StoryViewerScreen() {
         { text: "Cancel", style: "cancel" },
       ]);
     }
-  }, [currentStory?.id, getToken, navigation]);
+  }, [currentStory?.id, getToken, navigation, stories, onStoryDeleted]);
 
   // ── Swipe-down to dismiss ────────────────────────────────────────────────
   // activeOffsetY(20) ensures quick taps don't accidentally fire the gesture.

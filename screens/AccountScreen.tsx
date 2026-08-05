@@ -451,6 +451,7 @@ export default function AccountScreen() {
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [storyRefreshKey, setStoryRefreshKey] = useState(0);
   const [highlights, setHighlights] = useState<{
     id: string;
     story_id: string;
@@ -1497,6 +1498,7 @@ export default function AccountScreen() {
       <View style={styles.identityBlock}>
         <View style={styles.avatarActionRow}>
           <StoryRing
+            key={storyRefreshKey}
             userId={String(profile.userId || profile.id)}
             size={88}
             isOwnProfile={isOwner}
@@ -1507,6 +1509,7 @@ export default function AccountScreen() {
                 stories,
                 authorName: profile.name,
                 authorAvatarUrl: profile.avatarUrl,
+                onStoryDeleted: () => setStoryRefreshKey((k) => k + 1),
               })
             }
             onViewInsights={
