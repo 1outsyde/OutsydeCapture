@@ -1670,7 +1670,7 @@ export default function AccountScreen() {
   };
 
   const renderHighlightsRow = () => {
-    if (!isOwner || highlights.length === 0) return null;
+    if (!isOwner && highlights.length === 0) return null;
     return (
       <View style={styles.highlightsRow}>
         <ScrollView
