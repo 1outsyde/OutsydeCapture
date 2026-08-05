@@ -231,44 +231,13 @@ export default function SubscriptionPlanScreen() {
       setSubscribeError("Selected plan not found. Please refresh and try again.");
       return;
     }
-    const token = await getToken();
-    if (!token) return;
-    setSubscribeError(null);
-    setActionLoading(true);
-    wasSubscribingRef.current = true;
-    try {
-      const response = await api.createTierSubscriptionCheckout(token, selectedTier.id, STRIPE_RETURN_URL);
-      if (response.url) {
-        await Linking.openURL(response.url);
-      } else {
-        setSubscribeError("Payment setup failed. Please try again.");
-      }
-    } catch (err: any) {
-      wasSubscribingRef.current = false;
-      if (isMonetizationError(err)) {
-        setSubscribeError("monetization");
-      } else {
-        setSubscribeError(toErrorString(err));
-      }
-    } finally {
-      setActionLoading(false);
-    }
+    await Linking.openURL("https://www.goutsyde.com/subscription");
   };
 
   const handleManageBilling = async () => {
     const token = await getToken();
     if (!token) return;
-    setPortalLoading(true);
-    try {
-      const { portalUrl } = await api.createBillingPortalSession(token, STRIPE_RETURN_URL);
-      if (portalUrl) {
-        await Linking.openURL(portalUrl);
-      }
-    } catch (err: any) {
-      Alert.alert("Billing Portal Unavailable", "Please contact support to manage your subscription.");
-    } finally {
-      setPortalLoading(false);
-    }
+    await Linking.openURL("https://www.goutsyde.com/subscription/manage");
   };
 
   const statusColor = () => {
