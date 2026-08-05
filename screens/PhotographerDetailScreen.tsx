@@ -82,6 +82,7 @@ export default function PhotographerDetailScreen() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [additionalPhotos, setAdditionalPhotos] = useState<string[]>([]);
   const [isStartingChat, setIsStartingChat] = useState(false);
+  const [storyRefreshKey, setStoryRefreshKey] = useState(0);
   
   const photographerAuthUserId = photographer.userId || (photographer as any).ownerId;
   const isOwner = Boolean(user?.id && photographerAuthUserId && photographerAuthUserId === user.id);
@@ -467,6 +468,7 @@ export default function PhotographerDetailScreen() {
       >
         <View style={styles.header}>
           <StoryRing
+            key={storyRefreshKey}
             userId={photographer.userId || (photographer as any).ownerId || ""}
             size={64}
             isOwnProfile={false}
@@ -477,6 +479,7 @@ export default function PhotographerDetailScreen() {
                 stories,
                 authorName: photographer.name,
                 authorAvatarUrl: photographer.avatar,
+                onStoryDeleted: () => setStoryRefreshKey((k) => k + 1),
               })
             }
           >

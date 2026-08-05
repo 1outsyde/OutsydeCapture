@@ -152,6 +152,16 @@ export default function StoriesBar() {
                     stories: ownEntry.stories,
                     authorName: ownEntry.authorName,
                     authorAvatarUrl: ownEntry.authorAvatarUrl ?? undefined,
+                    onStoryDeleted: (deletedId: string) => {
+                      setFeed((prev) =>
+                        prev
+                          .map((entry) => {
+                            if (entry.userId !== ownEntry.userId) return entry;
+                            return { ...entry, stories: entry.stories.filter((s) => s.id !== deletedId) };
+                          })
+                          .filter((entry) => entry.stories.length > 0)
+                      );
+                    },
                   });
                 } else {
                   navigation.navigate("CreatePost");

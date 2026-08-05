@@ -548,6 +548,7 @@ export default function VendorDetailScreen({ route }: Props) {
     caption: string | null;
     saved_at: string;
   }[]>([]);
+  const [storyRefreshKey, setStoryRefreshKey] = useState(0);
 
   const getCardAnim = useCallback((productId: string): Animated.Value => {
     if (!cardAnims.current.has(productId)) {
@@ -1581,6 +1582,7 @@ export default function VendorDetailScreen({ route }: Props) {
       <View style={styles.identityBlock}>
         <View style={styles.avatarActionRow}>
           <StoryRing
+            key={storyRefreshKey}
             userId={profile.userId || profile.id}
             size={88}
             isOwnProfile={false}
@@ -1591,6 +1593,10 @@ export default function VendorDetailScreen({ route }: Props) {
                 stories,
                 authorName: profile.name,
                 authorAvatarUrl: profile.avatarUrl || profile.logoImage,
+                onStoryDeleted: (deletedId: string) => {
+                  setStoryRefreshKey((k) => k + 1);
+                  setHighlights((prev) => prev.filter((h) => h.story_id !== deletedId));
+                },
               })
             }
           >
@@ -1764,6 +1770,10 @@ export default function VendorDetailScreen({ route }: Props) {
                     initialIndex: 0,
                     authorName: profile.name,
                     authorAvatarUrl: profile.avatarUrl || profile.logoImage,
+                    onStoryDeleted: (deletedId: string) => {
+                      setHighlights((prev) => prev.filter((hl) => hl.story_id !== deletedId));
+                      setStoryRefreshKey((k) => k + 1);
+                    },
                   })
                 }
               >
