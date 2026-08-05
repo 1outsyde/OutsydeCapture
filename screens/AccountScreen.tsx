@@ -1713,6 +1713,10 @@ export default function AccountScreen() {
                     initialIndex: 0,
                     authorName: profile?.name,
                     authorAvatarUrl: profile?.avatarUrl,
+                    onStoryDeleted: (deletedId: string) => {
+                      setHighlights((prev) => prev.filter((hl) => hl.story_id !== deletedId));
+                      setStoryRefreshKey((k) => k + 1);
+                    },
                   })
                 }
               >
