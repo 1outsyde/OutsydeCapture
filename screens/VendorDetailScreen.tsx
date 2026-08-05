@@ -540,12 +540,13 @@ export default function VendorDetailScreen({ route }: Props) {
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlights, setHighlights] = useState<{
     id: string;
-    storyId: string;
-    mediaUrl: string;
-    mediaType: string;
-    thumbnailUrl: string | null;
+    story_id: string;
+    media_url: string;
+    media_type: string;
+    thumbnail_url: string | null;
+    mux_asset_id: string | null;
     caption: string | null;
-    savedAt: string;
+    saved_at: string;
   }[]>([]);
 
   const getCardAnim = useCallback((productId: string): Animated.Value => {
@@ -1732,24 +1733,53 @@ export default function VendorDetailScreen({ route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.highlightsScroll}
         >
-          {highlights.map((h) => (
-            <Pressable
-              key={h.id}
-              style={styles.highlightItem}
-              onPress={() => {/* viewer — post-launch */}}
-            >
-              <View style={styles.highlightRing}>
-                <Image
-                  source={{ uri: h.thumbnailUrl ?? h.mediaUrl }}
-                  style={styles.highlightThumb}
-                  contentFit="cover"
-                />
-              </View>
-              <Text style={styles.highlightLabel} numberOfLines={1}>
-                {h.caption ?? "Highlight"}
-              </Text>
-            </Pressable>
-          ))}
+          {highlights.map((h) => {
+            const thumbUri =
+              h.media_type === "video"
+                ? (h.thumbnail_url ?? (h.mux_asset_id ? `https://image.mux.com/${h.mux_asset_id}/thumbnail.jpg` : null))
+                : h.media_url;
+            const profileUserId = String(profile.userId || profile.id || "");
+            return (
+              <Pressable
+                key={h.id}
+                style={styles.highlightItem}
+                onPress={() =>
+                  navigation.navigate("StoryViewer", {
+                    userId: profileUserId,
+                    stories: [
+                      {
+                        id: h.story_id,
+                        authorId: profileUserId,
+                        mediaUrl: h.media_url,
+                        mediaType: h.media_type as "image" | "video",
+                        thumbnailUrl: h.thumbnail_url,
+                        muxAssetId: h.mux_asset_id,
+                        caption: h.caption,
+                        createdAt: h.saved_at,
+                        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+                        isActive: true,
+                        viewedByCurrentUser: false,
+                      },
+                    ],
+                    initialIndex: 0,
+                    authorName: profile.name,
+                    authorAvatarUrl: profile.avatarUrl || profile.logoImage,
+                  })
+                }
+              >
+                <View style={styles.highlightRing}>
+                  <Image
+                    source={thumbUri ? { uri: thumbUri } : undefined}
+                    style={styles.highlightThumb}
+                    contentFit="cover"
+                  />
+                </View>
+                <Text style={styles.highlightLabel} numberOfLines={2}>
+                  {h.caption ?? "Highlight"}
+                </Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       </View>
     );
