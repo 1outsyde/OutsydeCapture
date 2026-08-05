@@ -14,7 +14,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Outsyde uses your camera to create posts and stories.",
         "NSMicrophoneUsageDescription": "Outsyde uses your microphone to record videos.",
-        "NSLocationWhenInUseUsageDescription": "Outsyde uses your location to show nearby vendors, photographers, and local businesses in your area. For example, your location helps display relevant listings and services within your community."
+        "NSLocationWhenInUseUsageDescription": "Outsyde uses your location to show nearby vendors, photographers, and local businesses in your area. For example, your location helps display relevant listings and services within your community.",
+        "NSPhotoLibraryUsageDescription": "Outsyde uses your photo library to let you upload profile photos, post images, and share content with the community. For example, you can select photos from your library when creating a post or setting up your profile."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
