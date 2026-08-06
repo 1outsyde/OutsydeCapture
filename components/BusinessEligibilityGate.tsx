@@ -458,7 +458,7 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
               )}
             </View>
             <Text style={s.tierPrice}>
-              {tier.priceLabel || (typeof tier.price === "number" ? `$${(tier.price / 100).toFixed(2)}/${tier.interval || "mo"}` : String(tier.price))}
+              {tier.priceLabel || (typeof tier.priceInCents === "number" ? `$${(tier.priceInCents / 100).toFixed(0)}/${tier.interval || "mo"}` : typeof tier.price === "number" ? `$${(tier.price / 100).toFixed(0)}/${tier.interval || "mo"}` : "")}
             </Text>
             {tier.description ? (
               <Text style={s.tierDesc}>{tier.description}</Text>
@@ -552,7 +552,7 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
                   {selectedTierId === tier.id && <Feather name="check-circle" size={18} color={theme.primary} />}
                 </View>
                 <Text style={s.tierPrice}>
-                  {tier.priceLabel || (typeof tier.price === "number" ? `$${(tier.price / 100).toFixed(2)}/${tier.interval || "mo"}` : String(tier.price))}
+                  {tier.priceLabel || (typeof tier.priceInCents === "number" ? `$${(tier.priceInCents / 100).toFixed(0)}/${tier.interval || "mo"}` : typeof tier.price === "number" ? `$${(tier.price / 100).toFixed(0)}/${tier.interval || "mo"}` : "")}
                 </Text>
               </Pressable>
             ))
