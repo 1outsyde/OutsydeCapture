@@ -74,6 +74,15 @@ const SPECIALTIES = [
 
 type ModalType = "profile" | "hours" | "services" | "bookings" | "blocked" | null;
 
+// provider_blocks has no is_full_day column (shared/schema.ts:1598-1606), so a
+// full-day block is derived from the span: midnight through end-of-day.
+function isFullDayBlock(startAt?: string, endAt?: string): boolean {
+  const startTime = startAt?.split("T")[1]?.substring(0, 5);
+  const endTime = endAt?.split("T")[1]?.substring(0, 5);
+  if (!startTime || !endTime) return false;
+  return startTime === "00:00" && endTime >= "23:59";
+}
+
 export default function PhotographerDashboardScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -435,16 +444,31 @@ export default function PhotographerDashboardScreen() {
       // Fetch blocked dates from new blocks endpoint
       try {
         const blocks = await api.getBlocks(token, "photographer");
-        setBlockedDates(blocks.map((b) => ({
-          id: b.id,
-          date: b.startDate.split("T")[0], // Extract date part from ISO string
-          isFullDay: b.isFullDay,
-          startTime: b.isFullDay ? undefined : b.startDate.split("T")[1]?.substring(0, 5),
-          endTime: b.isFullDay ? undefined : b.endDate.split("T")[1]?.substring(0, 5),
-          reason: b.reason,
-        })));
-      } catch {
-        // Keep empty blocked dates
+        setBlockedDates(
+          blocks
+            .map((raw) => {
+              // The server returns raw provider_blocks rows (startAt/endAt); the
+              // declared AvailabilityBlock type still says startDate/endDate, so
+              // read both shapes and cast locally rather than change the type.
+              const b = raw as any;
+              const startAt: string | undefined = b.startAt ?? b.startDate;
+              const endAt: string | undefined = b.endAt ?? b.endDate;
+              if (!startAt) return null;
+
+              const fullDay = isFullDayBlock(startAt, endAt);
+              return {
+                id: b.id,
+                date: startAt.split("T")[0],
+                isFullDay: fullDay,
+                startTime: fullDay ? undefined : startAt.split("T")[1]?.substring(0, 5),
+                endTime: fullDay ? undefined : endAt?.split("T")[1]?.substring(0, 5),
+                reason: b.reason,
+              };
+            })
+            .filter((b): b is NonNullable<typeof b> => b !== null)
+        );
+      } catch (err) {
+        console.error("[Dashboard] Failed to load blocked dates:", err);
         setBlockedDates([]);
       }
 
@@ -930,20 +954,30 @@ export default function PhotographerDashboardScreen() {
     
     try {
       setSaving(true);
-      // Use new blocks endpoint for full-featured blocking (full day or time ranges)
+      // The backend requires startAt/endAt and has no is_full_day column, so
+      // full day is expressed as a midnight-to-end-of-day span. Callers pass
+      // times in either format (DateBlocker sends 24h, ProviderCalendar sends
+      // 12h), so normalise before interpolating; convertTo24Hour returns a
+      // 24-hour string unchanged.
+      const startAt = blockedDate.isFullDay
+        ? `${blockedDate.date}T00:00:00`
+        : `${blockedDate.date}T${convertTo24Hour(blockedDate.startTime || "00:00")}:00`;
+      const endAt = blockedDate.isFullDay
+        ? `${blockedDate.date}T23:59:59`
+        : `${blockedDate.date}T${convertTo24Hour(blockedDate.endTime || "23:59")}:00`;
+
       const result = await api.createBlock(token, "photographer", {
-        startDate: blockedDate.isFullDay ? blockedDate.date : `${blockedDate.date}T${blockedDate.startTime || "00:00"}`,
-        endDate: blockedDate.isFullDay ? blockedDate.date : `${blockedDate.date}T${blockedDate.endTime || "23:59"}`,
-        isFullDay: blockedDate.isFullDay,
+        startAt,
+        endAt,
         reason: blockedDate.reason,
-      });
+      } as any);
       setBlockedDates(prev => [...prev, {
         id: result.id,
         date: blockedDate.date,
-        isFullDay: result.isFullDay,
-        startTime: blockedDate.startTime,
-        endTime: blockedDate.endTime,
-        reason: result.reason,
+        isFullDay: blockedDate.isFullDay,
+        startTime: blockedDate.isFullDay ? undefined : startAt.split("T")[1]?.substring(0, 5),
+        endTime: blockedDate.isFullDay ? undefined : endAt.split("T")[1]?.substring(0, 5),
+        reason: blockedDate.reason,
       }]);
     } catch (error: any) {
       console.error("[Dashboard] Failed to add blocked date:", error);
