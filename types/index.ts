@@ -76,7 +76,7 @@ export type SessionStatus =
   | "pending"
   | "confirmed"
   | "completed"
-  | "cancelled";
+  | "canceled";
 
 export interface BookingFormData {
   photographerId: string;

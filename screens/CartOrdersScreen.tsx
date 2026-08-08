@@ -113,7 +113,7 @@ export default function CartOrdersScreen() {
         : Array.isArray(response?.orders) ? response.orders : [];
 
       const normalized: ConsumerOrder[] = ordersPayload.map((order: any, index: number) => {
-        const validStatuses = new Set(["pending", "paid", "shipped", "delivered", "cancelled"]);
+        const validStatuses = new Set(["pending", "paid", "shipped", "delivered", "canceled"]);
         const status = validStatuses.has(order?.status) ? order.status : "pending";
         const items = Array.isArray(order?.items)
           ? order.items.map((item: any) => ({
@@ -203,7 +203,7 @@ export default function CartOrdersScreen() {
     if (status === "paid") return { label: "Confirmed", icon: "check-circle" as const, color: "#34C759" };
     if (status === "shipped") return { label: "Shipped", icon: "truck" as const, color: "#007AFF" };
     if (status === "delivered") return { label: "Delivered", icon: "check-circle" as const, color: "#34C759" };
-    if (status === "cancelled") return { label: "Cancelled", icon: "x-circle" as const, color: "#FF3B30" };
+    if (status === "canceled") return { label: "Cancelled", icon: "x-circle" as const, color: "#FF3B30" };
     return { label: "Processing", icon: "clock" as const, color: "#FF9500" };
   };
 
@@ -224,7 +224,7 @@ export default function CartOrdersScreen() {
     switch (status) {
       case "upcoming": return theme.brandSuccess || "#34C759";
       case "completed": return "#007AFF";
-      case "cancelled": return theme.brandError || "#FF3B30";
+      case "canceled": return theme.brandError || "#FF3B30";
       default: return theme.brandTextDim;
     }
   };

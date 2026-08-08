@@ -5,14 +5,14 @@ interface PaymentContextType {
     paymentIntentId: string;
     amountCents: number;
     pointsEarned: number;
-    status: "succeeded" | "failed" | "cancelled";
+    status: "succeeded" | "failed" | "canceled";
     timestamp: string;
   } | null;
   recordTransaction: (tx: {
     paymentIntentId: string;
     amountCents: number;
     pointsEarned: number;
-    status: "succeeded" | "failed" | "cancelled";
+    status: "succeeded" | "failed" | "canceled";
   }) => void;
   clearLastTransaction: () => void;
 }

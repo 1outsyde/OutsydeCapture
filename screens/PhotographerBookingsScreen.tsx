@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,21 +8,24 @@ import {
   Alert,
   RefreshControl,
   StyleSheet,
-  Image,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
-import api, { BusinessBooking } from "@/services/api";
+import api, { PhotographerBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
 
-const BG = "#080C08";
+const BG = "#0F0F0F";
 const GOLD = "#C9933A";
 const CREAM = "#F0EAD6";
 const CREAM_DIM = "rgba(200,191,168,0.6)";
-const SURFACE = "rgba(255,255,255,0.04)";
-const CARD_BORDER = "rgba(255,255,255,0.08)";
+const GREEN = "#3FCB6E";
+const AMBER = "#E0A93B";
+const RED = "#E85D5D";
+const SURFACE = "#1A1A1A";
+const SURFACE2 = "#1E1E1E";
+const BORDER = "rgba(255,255,255,0.06)";
 
 type FilterStatus = "all" | "pending" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired";
 type SortMode = "action" | "newest" | "oldest" | "highest";
@@ -40,24 +43,24 @@ const STATUS_PRIORITY: Record<string, number> = {
   pending: 0,
   confirmed: 1,
   completed: 2,
-  cancelled: 3,
+  canceled: 3,
   no_show: 3,
   declined: 4,
   expired: 4,
 };
 
-function statusColors(status: BusinessBooking["status"]): { bg: string; text: string } {
+function statusColors(status: PhotographerBooking["status"]): { bg: string; text: string } {
   switch (status) {
     case "pending_provider":
     case "pending":
-      return { bg: "rgba(212,175,55,0.15)", text: "#D4AF37" };
+      return { bg: "rgba(212,175,55,0.15)", text: AMBER };
     case "confirmed":
-      return { bg: "rgba(52,199,89,0.15)", text: "#34C759" };
+      return { bg: "rgba(63,203,110,0.15)", text: GREEN };
     case "completed":
       return { bg: "rgba(201,147,58,0.15)", text: GOLD };
     case "canceled":
     case "declined":
-      return { bg: "rgba(255,59,48,0.12)", text: "#FF3B30" };
+      return { bg: "rgba(232,93,93,0.12)", text: RED };
     case "no_show":
     case "expired":
       return { bg: "rgba(142,142,147,0.15)", text: "#8E8E93" };
@@ -66,7 +69,7 @@ function statusColors(status: BusinessBooking["status"]): { bg: string; text: st
   }
 }
 
-function formatStatusLabel(status: BusinessBooking["status"]): string {
+function formatStatusLabel(status: PhotographerBooking["status"]): string {
   switch (status) {
     case "pending_provider": return "Pending Review";
     case "no_show": return "No Show";
@@ -74,19 +77,83 @@ function formatStatusLabel(status: BusinessBooking["status"]): string {
   }
 }
 
-export default function DashboardBookingsScreen() {
+// Photographer bookings endpoint uses different field names than the business endpoint.
+// This mapper applies the same cents÷100 conversion used in PhotographerDashboardScreen.
+function mapRawBooking(b: any): PhotographerBooking {
+  const id = b.recordId || b.id || "";
+  const firstName = b.firstName || "";
+  const lastName = b.lastName || "";
+  const clientName =
+    b.clientName ||
+    b.customerName ||
+    (firstName || lastName ? `${firstName} ${lastName}`.trim() : "Client");
+
+  const bookingDateTime: string = b.bookingDateTime || "";
+  const datePart = b.date || bookingDateTime.split(" ")[0] || "";
+  const rawTime = b.startTime || b.time || bookingDateTime.split(" ")[1] || "";
+  // Truncate seconds if present: "HH:mm:ss" → "HH:mm"
+  const timePart = rawTime.length > 5 ? rawTime.slice(0, 5) : rawTime;
+
+  const isRecordShape =
+    typeof b.totalPaid === "number" ||
+    typeof b.vendorNet === "number" ||
+    typeof b.platformFee === "number";
+
+  const centsToDollars = (v: unknown): number | undefined =>
+    typeof v === "number" ? v / 100 : undefined;
+
+  const amount = isRecordShape
+    ? centsToDollars(b.totalPaid) ?? 0
+    : typeof b.totalAmount === "number"
+    ? b.totalAmount / 100
+    : b.amount || 0;
+
+  const vendorNetAmount = isRecordShape
+    ? centsToDollars(b.vendorNet)
+    : typeof b.vendorNetAmount === "number"
+    ? b.vendorNetAmount
+    : undefined;
+
+  const bookingFeeAmount = isRecordShape
+    ? centsToDollars(b.platformFee)
+    : typeof b.bookingFeeAmount === "number"
+    ? b.bookingFeeAmount
+    : undefined;
+
+  const subtotalAmount = isRecordShape ? amount : b.subtotalAmount ?? undefined;
+
+  const sessionType = b.serviceName || b.sessionType || b.shootType || "Session";
+
+  return {
+    id,
+    clientName,
+    clientAvatar: b.customerAvatar || b.clientAvatar,
+    date: datePart,
+    time: timePart,
+    sessionType,
+    status: b.status || "pending",
+    amount,
+    subtotalAmount,
+    bookingFeeAmount,
+    vendorNetAmount,
+    influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
+    isInfluencerAttributed: b.isInfluencerAttributed ?? false,
+  };
+}
+
+export default function PhotographerBookingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { getToken } = useAuth();
 
-  const [bookings, setBookings] = useState<BusinessBooking[]>([]);
+  const [bookings, setBookings] = useState<PhotographerBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [sort, setSort] = useState<SortMode>("action");
 
   const [refundModalVisible, setRefundModalVisible] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<BusinessBooking | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<PhotographerBooking | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchBookings = useCallback(async (silent = false) => {
@@ -94,9 +161,10 @@ export default function DashboardBookingsScreen() {
     try {
       const token = await getToken();
       if (!token) return;
-      const res = await api.getBusinessBookings(token);
-      setBookings(res.bookings);
-    } catch (err) {
+      const res = await api.getPhotographerMeBookings(token);
+      const mapped = (res.bookings || []).map(mapRawBooking);
+      setBookings(mapped);
+    } catch {
       if (!silent) Alert.alert("Error", "Failed to load bookings");
     } finally {
       setLoading(false);
@@ -104,13 +172,9 @@ export default function DashboardBookingsScreen() {
     }
   }, [getToken]);
 
-  useEffect(() => {
-    fetchBookings();
-  }, [fetchBookings]);
-
   useFocusEffect(
     useCallback(() => {
-      fetchBookings(true);
+      fetchBookings(false);
     }, [fetchBookings])
   );
 
@@ -125,8 +189,7 @@ export default function DashboardBookingsScreen() {
     try {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
-      await api.acceptBooking(token, "business", bookingId);
-      setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
+      await api.acceptBooking(token, "photographer", bookingId);
       fetchBookings(true);
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to accept booking. Please try again.");
@@ -135,74 +198,22 @@ export default function DashboardBookingsScreen() {
     }
   };
 
-  const handleDecline = (bookingId: string) => {
-    const doDecline = async (reason?: string) => {
-      if (actionLoading) return;
-      setActionLoading(bookingId);
-      try {
-        const token = await getToken();
-        if (!token) throw new Error("Not authenticated");
-        await api.declineBooking(token, "business", bookingId, reason?.trim() || undefined);
-        setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
-        fetchBookings(true);
-      } catch (err: any) {
-        Alert.alert("Error", err?.message || "Failed to decline booking. Please try again.");
-      } finally {
-        setActionLoading(null);
-      }
-    };
-
-    Alert.prompt(
-      "Decline Booking",
-      "Optional: add a reason for the customer (e.g. unavailable, fully booked).",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Decline",
-          style: "destructive",
-          onPress: (reason?: string) => {
-            Alert.alert(
-              "Confirm Decline",
-              "The customer's card hold will be released. They will not be charged.",
-              [
-                { text: "Cancel", style: "cancel" },
-                { text: "Decline", style: "destructive", onPress: () => doDecline(reason) },
-              ]
-            );
-          },
-        },
-      ],
-      "plain-text",
-      "",
-      "default"
-    );
+  const handleDecline = async (bookingId: string) => {
+    if (actionLoading) return;
+    setActionLoading(bookingId);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      await api.declineBooking(token, "photographer", bookingId);
+      fetchBookings(true);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to decline booking. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleNoShow = (booking: BusinessBooking) => {
-    Alert.alert(
-      "Cancel without refund?",
-      "This marks the booking as a no-show. The customer will NOT be refunded. This can't be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await getToken();
-              if (!token) throw new Error("Not authenticated");
-              await api.cancelBookingNoRefund(token, booking.id);
-              fetchBookings(true);
-            } catch (err: any) {
-              Alert.alert("Error", err?.message || "Failed to cancel booking");
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleRefundPress = (booking: BusinessBooking) => {
+  const handleRefundPress = (booking: PhotographerBooking) => {
     setSelectedBooking(booking);
     setRefundModalVisible(true);
   };
@@ -211,7 +222,7 @@ export default function DashboardBookingsScreen() {
     if (!selectedBooking) return;
     const token = await getToken();
     if (!token) throw new Error("Not authenticated");
-    const result = await api.issueRefund(token, "business", selectedBooking.id, amount);
+    const result = await api.issueRefund(token, "photographer", selectedBooking.id, amount);
     if (result.success) {
       Alert.alert(
         "Refund Issued",
@@ -233,7 +244,7 @@ export default function DashboardBookingsScreen() {
     { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => b.status === "pending" || b.status === "pending_provider").length },
     { key: "confirmed" as FilterStatus, label: "Confirmed", count: bookings.filter(b => b.status === "confirmed").length },
     { key: "completed" as FilterStatus, label: "Completed", count: bookings.filter(b => b.status === "completed").length },
-    { key: "canceled" as FilterStatus, label: "Cancelled", count: bookings.filter(b => b.status === "canceled").length },
+    { key: "canceled" as FilterStatus,  label: "Cancelled", count: bookings.filter(b => b.status === "canceled").length },
     { key: "no_show" as FilterStatus,   label: "No Show",   count: bookings.filter(b => b.status === "no_show").length },
   ];
 
@@ -269,7 +280,7 @@ export default function DashboardBookingsScreen() {
       paddingHorizontal: 16,
       backgroundColor: BG,
       borderBottomWidth: 1,
-      borderBottomColor: CARD_BORDER,
+      borderBottomColor: BORDER,
     },
     backButton: {
       width: 36,
@@ -319,7 +330,7 @@ export default function DashboardBookingsScreen() {
       backgroundColor: SURFACE,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: CARD_BORDER,
+      borderColor: BORDER,
       marginBottom: 12,
       overflow: "hidden",
     },
@@ -335,10 +346,11 @@ export default function DashboardBookingsScreen() {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: "rgba(255,255,255,0.06)",
+      backgroundColor: SURFACE2,
       alignItems: "center",
       justifyContent: "center",
     },
+    avatarText: { color: CREAM, fontSize: 14, fontWeight: "700" },
     clientName: { color: CREAM, fontSize: 14, fontWeight: "600" },
     dateTime: { color: CREAM_DIM, fontSize: 12, marginTop: 1 },
     statusBadge: {
@@ -354,14 +366,14 @@ export default function DashboardBookingsScreen() {
       justifyContent: "space-between",
       alignItems: "flex-end",
     },
-    serviceName: { color: CREAM_DIM, fontSize: 13 },
+    serviceName: { color: CREAM_DIM, fontSize: 13, flex: 1, marginRight: 8 },
     earningsCol: { alignItems: "flex-end", gap: 2 },
     earningsLine: { color: CREAM_DIM, fontSize: 11 },
     earningsPrimary: { color: CREAM, fontSize: 14, fontWeight: "700" },
     actions: {
       flexDirection: "row",
       borderTopWidth: 1,
-      borderTopColor: CARD_BORDER,
+      borderTopColor: BORDER,
       overflow: "hidden",
     },
     actionBtn: {
@@ -370,22 +382,34 @@ export default function DashboardBookingsScreen() {
       alignItems: "center",
       justifyContent: "center",
     },
-    actionDivider: { width: 1, backgroundColor: CARD_BORDER },
+    actionDivider: { width: 1, backgroundColor: BORDER },
     actionBtnText: { fontSize: 13, fontWeight: "600" },
     loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
   });
 
-  const renderGroupHeaders = (list: BusinessBooking[]) => {
+  const renderGroupHeaders = (list: PhotographerBooking[]) => {
     if (sort !== "action") {
-      return list.map(b => <BookingCard key={b.id} booking={b} styles={styles} onAccept={handleAccept} onDecline={handleDecline} onRefund={handleRefundPress} onNoShow={handleNoShow} actionLoading={actionLoading} />);
+      return list.map(b => (
+        <BookingCard
+          key={b.id}
+          booking={b}
+          styles={styles}
+          onAccept={handleAccept}
+          onDecline={handleDecline}
+          onRefund={handleRefundPress}
+          actionLoading={actionLoading}
+        />
+      ));
     }
 
-    const groups: { label: string; items: BusinessBooking[] }[] = [
-      { label: "Pending", items: list.filter(b => b.status === "pending" || b.status === "pending_provider") },
+    const groups: { label: string; items: PhotographerBooking[] }[] = [
+      { label: "Pending",   items: list.filter(b => b.status === "pending" || b.status === "pending_provider") },
       { label: "Confirmed", items: list.filter(b => b.status === "confirmed") },
       { label: "Completed", items: list.filter(b => b.status === "completed") },
-      { label: "Cancelled / No Show", items: list.filter(b => b.status === "canceled" || b.status === "no_show") },
-      { label: "Declined / Expired", items: list.filter(b => b.status === "declined" || b.status === "expired") },
+      { label: "Cancelled", items: list.filter(b => b.status === "canceled") },
+      { label: "No Show",   items: list.filter(b => b.status === "no_show") },
+      { label: "Declined",  items: list.filter(b => b.status === "declined") },
+      { label: "Expired",   items: list.filter(b => b.status === "expired") },
     ];
 
     return groups
@@ -397,7 +421,15 @@ export default function DashboardBookingsScreen() {
             <Text style={styles.groupLabel}>{g.label}</Text>
           </View>
           {g.items.map(b => (
-            <BookingCard key={b.id} booking={b} styles={styles} onAccept={handleAccept} onDecline={handleDecline} onRefund={handleRefundPress} onNoShow={handleNoShow} actionLoading={actionLoading} />
+            <BookingCard
+              key={b.id}
+              booking={b}
+              styles={styles}
+              onAccept={handleAccept}
+              onDecline={handleDecline}
+              onRefund={handleRefundPress}
+              actionLoading={actionLoading}
+            />
           ))}
         </View>
       ));
@@ -412,16 +444,12 @@ export default function DashboardBookingsScreen() {
         <Text style={styles.headerTitle}>Bookings</Text>
       </View>
 
-      {/* Filter chips — scrollable row */}
+      {/* Filter chips */}
       <View style={{ height: 44, marginBottom: 8 }}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            alignItems: "center",
-            gap: 8,
-          }}
+          contentContainerStyle={{ paddingHorizontal: 16, alignItems: "center", gap: 8 }}
           style={{ flex: 1 }}
         >
           {FILTER_OPTIONS.map(f => {
@@ -443,11 +471,7 @@ export default function DashboardBookingsScreen() {
                   backgroundColor: isActive ? GOLD : "rgba(255,255,255,0.06)",
                 }}
               >
-                <Text style={{
-                  fontSize: 12,
-                  fontWeight: "600",
-                  color: isActive ? "#141209" : "#FFFFFF",
-                }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: isActive ? "#141209" : "#FFFFFF" }}>
                   {f.label}
                 </Text>
                 <View style={{
@@ -458,11 +482,7 @@ export default function DashboardBookingsScreen() {
                   minWidth: 18,
                   alignItems: "center",
                 }}>
-                  <Text style={{
-                    fontSize: 10,
-                    fontWeight: "700",
-                    color: isActive ? "#141209" : "#FFFFFF",
-                  }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: isActive ? "#141209" : "#FFFFFF" }}>
                     {f.count}
                   </Text>
                 </View>
@@ -472,7 +492,7 @@ export default function DashboardBookingsScreen() {
         </ScrollView>
       </View>
 
-      {/* Sort button — separate row */}
+      {/* Sort button */}
       <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
         <Pressable
           onPress={cycleSortMode}
@@ -483,7 +503,7 @@ export default function DashboardBookingsScreen() {
             alignSelf: "flex-start",
             backgroundColor: SURFACE,
             borderWidth: 1,
-            borderColor: CARD_BORDER,
+            borderColor: BORDER,
             borderRadius: 999,
             paddingHorizontal: 14,
             paddingVertical: 8,
@@ -509,11 +529,11 @@ export default function DashboardBookingsScreen() {
               <View style={styles.emptyIcon}>
                 <Feather name="calendar" size={24} color={GOLD} />
               </View>
-              <Text style={styles.emptyTitle}>No bookings</Text>
+              <Text style={styles.emptyTitle}>No bookings yet</Text>
               <Text style={styles.emptySubtitle}>
                 {filter === "all"
-                  ? "Bookings will appear here once customers book your services"
-                  : `No ${formatStatusLabel(filter as BusinessBooking["status"])} bookings`}
+                  ? "Bookings will appear here once clients book your services"
+                  : `No ${formatStatusLabel(filter as PhotographerBooking["status"])} bookings`}
               </Text>
             </View>
           ) : (
@@ -531,8 +551,8 @@ export default function DashboardBookingsScreen() {
           }}
           onConfirm={handleRefundConfirm}
           bookingAmount={selectedBooking.vendorNetAmount ?? selectedBooking.amount}
-          clientName={selectedBooking.customerName}
-          serviceName={selectedBooking.serviceName}
+          clientName={selectedBooking.clientName}
+          serviceName={selectedBooking.sessionType}
         />
       )}
     </View>
@@ -540,35 +560,34 @@ export default function DashboardBookingsScreen() {
 }
 
 interface BookingCardProps {
-  booking: BusinessBooking;
+  booking: PhotographerBooking;
   styles: ReturnType<typeof StyleSheet.create>;
   onAccept: (id: string) => void | Promise<void>;
   onDecline: (id: string) => void | Promise<void>;
-  onRefund: (b: BusinessBooking) => void;
-  onNoShow: (b: BusinessBooking) => void;
+  onRefund: (b: PhotographerBooking) => void;
   actionLoading?: string | null;
 }
 
-function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow, actionLoading }: BookingCardProps) {
+function BookingCard({ booking, styles, onAccept, onDecline, onRefund, actionLoading }: BookingCardProps) {
   const sc = statusColors(booking.status);
+  const initials = booking.clientName
+    ? booking.clientName.charAt(0).toUpperCase()
+    : "?";
+
+  const isPending = booking.status === "pending" || booking.status === "pending_provider";
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.clientRow}>
           <View style={styles.avatar}>
-            {booking.customerAvatar ? (
-              <Image
-                source={{ uri: booking.customerAvatar }}
-                style={{ width: 36, height: 36, borderRadius: 18 }}
-              />
-            ) : (
-              <Feather name="user" size={17} color={CREAM_DIM} />
-            )}
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View>
-            <Text style={styles.clientName}>{booking.customerName}</Text>
-            <Text style={styles.dateTime}>{booking.date} at {booking.time}</Text>
+            <Text style={styles.clientName}>{booking.clientName}</Text>
+            <Text style={styles.dateTime}>
+              {booking.date}{booking.time ? ` at ${booking.time}` : ""}
+            </Text>
           </View>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
@@ -577,13 +596,13 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow,
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.serviceName}>{booking.serviceName}</Text>
+        <Text style={styles.serviceName}>{booking.sessionType}</Text>
         <View style={styles.earningsCol}>
           {booking.subtotalAmount != null && (
             <Text style={styles.earningsLine}>Subtotal: ${booking.subtotalAmount.toFixed(2)}</Text>
           )}
           {booking.bookingFeeAmount != null && (
-            <Text style={styles.earningsLine}>Fee: -${booking.bookingFeeAmount.toFixed(2)}</Text>
+            <Text style={styles.earningsLine}>Booking Fee: -${booking.bookingFeeAmount.toFixed(2)}</Text>
           )}
           {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null && (
             <Text style={styles.earningsLine}>Influencer: -${booking.influencerCommissionAmount.toFixed(2)}</Text>
@@ -591,34 +610,34 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow,
           {booking.vendorNetAmount != null ? (
             <Text style={styles.earningsPrimary}>You Earn: ${booking.vendorNetAmount.toFixed(2)}</Text>
           ) : (
-            <Text style={styles.earningsPrimary}>${booking.amount}</Text>
+            <Text style={styles.earningsPrimary}>${booking.amount.toFixed(2)}</Text>
           )}
         </View>
       </View>
 
-      {(booking.status === "pending" || booking.status === "pending_provider") && (
+      {isPending && (
         <View style={styles.actions}>
           <Pressable
-            style={[styles.actionBtn, { backgroundColor: "rgba(52,199,89,0.12)", opacity: actionLoading === booking.id ? 0.6 : 1 }]}
+            style={[styles.actionBtn, { backgroundColor: "rgba(63,203,110,0.12)", opacity: actionLoading === booking.id ? 0.6 : 1 }]}
             onPress={() => onAccept(booking.id)}
             disabled={!!actionLoading}
           >
             {actionLoading === booking.id ? (
-              <ActivityIndicator size="small" color="#34C759" />
+              <ActivityIndicator size="small" color={GREEN} />
             ) : (
-              <Text style={[styles.actionBtnText, { color: "#34C759" }]}>Accept</Text>
+              <Text style={[styles.actionBtnText, { color: GREEN }]}>Accept</Text>
             )}
           </Pressable>
           <View style={styles.actionDivider} />
           <Pressable
-            style={[styles.actionBtn, { backgroundColor: "rgba(255,59,48,0.08)", opacity: actionLoading === booking.id ? 0.6 : 1 }]}
+            style={[styles.actionBtn, { backgroundColor: "rgba(232,93,93,0.08)", opacity: actionLoading === booking.id ? 0.6 : 1 }]}
             onPress={() => onDecline(booking.id)}
             disabled={!!actionLoading}
           >
             {actionLoading === booking.id ? (
-              <ActivityIndicator size="small" color="#FF3B30" />
+              <ActivityIndicator size="small" color={RED} />
             ) : (
-              <Text style={[styles.actionBtnText, { color: "#FF3B30" }]}>Decline</Text>
+              <Text style={[styles.actionBtnText, { color: RED }]}>Decline</Text>
             )}
           </Pressable>
         </View>
@@ -626,12 +645,11 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow,
 
       {booking.status === "confirmed" && (
         <View style={styles.actions}>
-          <Pressable style={[styles.actionBtn, { backgroundColor: "rgba(255,59,48,0.08)" }]} onPress={() => onRefund(booking)}>
-            <Text style={[styles.actionBtnText, { color: "#FF3B30" }]}>Issue Refund</Text>
-          </Pressable>
-          <View style={styles.actionDivider} />
-          <Pressable style={[styles.actionBtn, { backgroundColor: "rgba(142,142,147,0.08)" }]} onPress={() => onNoShow(booking)}>
-            <Text style={[styles.actionBtnText, { color: "#8E8E93" }]}>No Show</Text>
+          <Pressable
+            style={[styles.actionBtn, { backgroundColor: "rgba(232,93,93,0.08)" }]}
+            onPress={() => onRefund(booking)}
+          >
+            <Text style={[styles.actionBtnText, { color: RED }]}>Issue Refund</Text>
           </Pressable>
         </View>
       )}

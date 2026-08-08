@@ -20,7 +20,7 @@ import OrderCard from "@/components/OrderCard";
 
 // Local type override: backend returns "paid" status but the shared type doesn't include it yet.
 type Order = Omit<BusinessOrder, "status"> & {
-  status: "pending" | "processing" | "paid" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "processing" | "paid" | "shipped" | "delivered" | "canceled";
 };
 
 const BG = "#080C08";
@@ -30,7 +30,7 @@ const CREAM_DIM = "rgba(200,191,168,0.6)";
 const SURFACE = "rgba(255,255,255,0.04)";
 const CARD_BORDER = "rgba(255,255,255,0.08)";
 
-type FilterStatus = "all" | "pending" | "paid" | "shipped" | "delivered" | "cancelled";
+type FilterStatus = "all" | "pending" | "paid" | "shipped" | "delivered" | "canceled";
 type SortMode = "action" | "newest" | "oldest" | "highest";
 
 const FILTER_TABS: { key: FilterStatus; label: string }[] = [
@@ -39,7 +39,7 @@ const FILTER_TABS: { key: FilterStatus; label: string }[] = [
   { key: "paid", label: "Paid" },
   { key: "shipped", label: "Shipped" },
   { key: "delivered", label: "Delivered" },
-  { key: "cancelled", label: "Cancelled" },
+  { key: "canceled", label: "Cancelled" },
 ];
 
 const SORT_CYCLE: SortMode[] = ["action", "newest", "oldest", "highest"];
@@ -156,7 +156,7 @@ export default function DashboardOrdersScreen() {
     const token = await getToken();
     if (!token) return;
     try {
-      await api.updateOrderStatus(token, orderId, "cancelled");
+      await api.updateOrderStatus(token, orderId, "canceled");
       fetchOrders();
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to cancel order");
@@ -228,7 +228,7 @@ export default function DashboardOrdersScreen() {
         { label: "Pending", orders: sorted.filter(o => o.status === "pending") },
         { label: "Processing", orders: sorted.filter(o => o.status === "processing") },
         { label: "Shipped", orders: sorted.filter(o => o.status === "shipped") },
-        { label: "Delivered / Cancelled", orders: sorted.filter(o => o.status === "delivered" || o.status === "cancelled") },
+        { label: "Delivered / Cancelled", orders: sorted.filter(o => o.status === "delivered" || o.status === "canceled") },
       ].filter(g => g.orders.length > 0)
     : [];
 

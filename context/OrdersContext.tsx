@@ -13,7 +13,7 @@ export interface Order {
   vendorId: string;
   vendorName: string;
   date: string;
-  status: "processing" | "shipped" | "delivered" | "cancelled";
+  status: "processing" | "shipped" | "delivered" | "canceled";
   total: number;
   items: OrderItem[];
 }
@@ -73,7 +73,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         status:
           order?.status === "shipped" ||
           order?.status === "delivered" ||
-          order?.status === "cancelled"
+          order?.status === "canceled"
             ? order.status
             : "processing",
         total:

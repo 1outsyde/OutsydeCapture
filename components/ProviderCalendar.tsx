@@ -19,7 +19,7 @@ export interface CalendarBooking {
   endTime?: string;
   clientName: string;
   serviceName: string;
-  status: "pending" | "pending_provider" | "confirmed" | "completed" | "cancelled" | "declined";
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "declined";
   amount: number;
 }
 
