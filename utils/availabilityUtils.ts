@@ -138,6 +138,49 @@ export function computeAvailableDates(
   return availableSlots;
 }
 
+/**
+ * Raw-row layer. Given the startAt/endAt timestamps of a provider_blocks row,
+ * decide whether it represents a full-day block.
+ *
+ * provider_blocks has no is_full_day column (shared/schema.ts:1598-1606), so
+ * full day is derived from the span: midnight through end-of-day.
+ *
+ * For the already-mapped-object equivalent — deciding whether a BlockedDate
+ * covers a whole day — see isDateBlocked above, which operates one layer up.
+ */
+export function isFullDaySpan(startAt?: string, endAt?: string): boolean {
+  const startTime = startAt?.split("T")[1]?.substring(0, 5);
+  const endTime = endAt?.split("T")[1]?.substring(0, 5);
+  if (!startTime || !endTime) return false;
+  return startTime === "00:00" && endTime >= "23:59";
+}
+
+/**
+ * Raw-row layer. Maps a provider_blocks row from GET /me/blocks into the
+ * BlockedDate shape the UI uses. Returns null for a row with no usable start
+ * timestamp so callers can filter it out rather than crash the whole map.
+ *
+ * The server returns startAt/endAt; the declared AvailabilityBlock type still
+ * says startDate/endDate, so both shapes are read and the row is cast locally
+ * rather than changing the shared type.
+ */
+export function mapProviderBlockToBlockedDate(raw: unknown): BlockedDate | null {
+  const b = raw as any;
+  const startAt: string | undefined = b?.startAt ?? b?.startDate;
+  const endAt: string | undefined = b?.endAt ?? b?.endDate;
+  if (!startAt) return null;
+
+  const fullDay = isFullDaySpan(startAt, endAt);
+  return {
+    id: b.id,
+    date: startAt.split("T")[0],
+    isFullDay: fullDay,
+    startTime: fullDay ? undefined : startAt.split("T")[1]?.substring(0, 5),
+    endTime: fullDay ? undefined : endAt?.split("T")[1]?.substring(0, 5),
+    reason: b.reason,
+  };
+}
+
 export function formatTimeDisplay(time: string): string {
   const [hourStr, minStr] = time.split(":");
   const hour = parseInt(hourStr, 10);

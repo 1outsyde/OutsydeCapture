@@ -46,6 +46,7 @@ import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import { VendorBookerPhotographerService } from "@/services/api";
+import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
 import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -73,15 +74,6 @@ const SPECIALTIES = [
 // Display hex per swatch is resolved at render time from COLOR_VALUES[id][mode].
 
 type ModalType = "profile" | "hours" | "services" | "bookings" | "blocked" | null;
-
-// provider_blocks has no is_full_day column (shared/schema.ts:1598-1606), so a
-// full-day block is derived from the span: midnight through end-of-day.
-function isFullDayBlock(startAt?: string, endAt?: string): boolean {
-  const startTime = startAt?.split("T")[1]?.substring(0, 5);
-  const endTime = endAt?.split("T")[1]?.substring(0, 5);
-  if (!startTime || !endTime) return false;
-  return startTime === "00:00" && endTime >= "23:59";
-}
 
 export default function PhotographerDashboardScreen() {
   const { theme, isDark } = useTheme();
@@ -446,25 +438,7 @@ export default function PhotographerDashboardScreen() {
         const blocks = await api.getBlocks(token, "photographer");
         setBlockedDates(
           blocks
-            .map((raw) => {
-              // The server returns raw provider_blocks rows (startAt/endAt); the
-              // declared AvailabilityBlock type still says startDate/endDate, so
-              // read both shapes and cast locally rather than change the type.
-              const b = raw as any;
-              const startAt: string | undefined = b.startAt ?? b.startDate;
-              const endAt: string | undefined = b.endAt ?? b.endDate;
-              if (!startAt) return null;
-
-              const fullDay = isFullDayBlock(startAt, endAt);
-              return {
-                id: b.id,
-                date: startAt.split("T")[0],
-                isFullDay: fullDay,
-                startTime: fullDay ? undefined : startAt.split("T")[1]?.substring(0, 5),
-                endTime: fullDay ? undefined : endAt?.split("T")[1]?.substring(0, 5),
-                reason: b.reason,
-              };
-            })
+            .map(mapProviderBlockToBlockedDate)
             .filter((b): b is NonNullable<typeof b> => b !== null)
         );
       } catch (err) {
@@ -3312,6 +3286,7 @@ export default function PhotographerDashboardScreen() {
             <Text style={styles.sectionHeaderText}>CALENDAR</Text>
           </View>
           <View style={{ marginTop: 12 }}>
+            <Pressable onPress={() => navigation.navigate("PhotographerCalendarScreen")}>
             <ProviderCalendar
               bookings={bookings.map(b => ({
                 id: b.id,
@@ -3352,6 +3327,7 @@ export default function PhotographerDashboardScreen() {
               onBookingPress={() => setActiveModal("bookings")}
               monthsAhead={3}
             />
+            </Pressable>
           </View>
         </View>
       </ScrollView>
