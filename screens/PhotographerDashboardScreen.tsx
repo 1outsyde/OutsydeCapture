@@ -103,6 +103,7 @@ export default function PhotographerDashboardScreen() {
   const [stats, setStats] = useState<PhotographerDashboardStats>({
     earnings: 0,
     upcomingBookings: 0,
+    totalBookings: 0,
     unreadMessages: 0,
     rating: 0,
     reviewCount: 0,
@@ -380,14 +381,38 @@ export default function PhotographerDashboardScreen() {
           (sum, b) => sum + (b.vendorNetAmount ?? b.amount ?? 0),
           0,
         );
-        const activeBookingCount = mappedBookings.filter(
+        // totalBookings: every booking that was not cancelled or declined,
+        // regardless of date. This is what the "Bookings" stat tile shows.
+        const totalBookingCount = mappedBookings.filter(
           (b) => b.status !== "cancelled" && b.status !== "declined",
+        ).length;
+
+        // upcomingBookings: dated today or later AND still going to happen —
+        // confirmed, pending, or pending_provider. Excludes completed (a
+        // finished shoot is not upcoming even if it is dated today) and
+        // cancelled / declined / expired / no_show. A booking with a missing or
+        // malformed date does not count.
+        //
+        // Dates are compared as YYYY-MM-DD strings against a locally computed
+        // today. Do not switch this to `new Date(b.date)` — a bare date string
+        // parses as UTC midnight, which shifts the boundary a day for every
+        // user west of Greenwich.
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const upcomingStatuses = ["confirmed", "pending", "pending_provider"];
+        const upcomingBookingCount = mappedBookings.filter(
+          (b) =>
+            typeof b.date === "string" &&
+            /^\d{4}-\d{2}-\d{2}$/.test(b.date) &&
+            b.date >= todayStr &&
+            upcomingStatuses.includes(b.status),
         ).length;
 
         setStats((prev) => ({
           ...prev,
           earnings: totalEarnings,
-          upcomingBookings: activeBookingCount,
+          totalBookings: totalBookingCount,
+          upcomingBookings: upcomingBookingCount,
           completedShoots: confirmedOrCompleted.length,
           rating: photographer.rating || prev.rating,
           reviewCount: photographer.reviewCount || prev.reviewCount,
@@ -3105,7 +3130,7 @@ export default function PhotographerDashboardScreen() {
             </View>
             <View style={styles.statCard}>
               <View style={styles.statIcon}><Feather name="calendar" size={14} color={DASHBOARD_COLORS.gold} /></View>
-              <Text style={styles.statValue}>{stats.upcomingBookings}</Text>
+              <Text style={styles.statValue}>{stats.totalBookings ?? 0}</Text>
               <Text style={styles.statLabel} numberOfLines={1}>Bookings</Text>
             </View>
             <View style={styles.statCard}>

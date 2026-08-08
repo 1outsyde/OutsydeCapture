@@ -773,7 +773,12 @@ export interface ApiPhotographer {
 
 export interface PhotographerDashboardStats {
   earnings: number;
+  // upcomingBookings counts only bookings dated today or later that are still
+  // going to happen; totalBookings counts every booking that was not cancelled
+  // or declined, regardless of date. They are different questions — see the
+  // derivation in screens/PhotographerDashboardScreen.tsx.
   upcomingBookings: number;
+  totalBookings?: number;
   unreadMessages: number;
   rating: number;
   reviewCount: number;
@@ -808,7 +813,12 @@ export interface PhotographerBooking {
   time: string;
   sessionType: string;
   location?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  // Matches BusinessBooking["status"] character for character — two providers,
+  // one vocabulary. Source of truth is BOOKING_STATES in shared/schema.ts:123-133;
+  // `draft` and `pending_payment` are deliberately omitted here because neither
+  // reaches a provider-facing list (draft is a pre-payment slot lock,
+  // pending_payment is transient), which is also why BusinessBooking omits them.
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "cancelled" | "no_show" | "declined" | "expired";
   amount: number;
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
