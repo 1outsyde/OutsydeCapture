@@ -475,6 +475,23 @@ export interface AvailabilityBlock {
   createdAt?: string;
 }
 
+// The block write endpoints respond with { block: {...} } rather than the bare
+// row. Accepts either shape and returns the inner object. Throws on anything
+// else: callers persist the returned .id and later pass it to deleteBlock, so
+// handing back an id-less object would silently make the block undeletable.
+function unwrapBlockResponse(
+  response: { block?: AvailabilityBlock } | AvailabilityBlock | null | undefined,
+  action: "create" | "update"
+): AvailabilityBlock {
+  const block = (response as any)?.block ?? response;
+  if (!block || typeof block !== "object" || typeof (block as any).id !== "string") {
+    throw {
+      message: `The server response to the block ${action} was not in the expected shape.`,
+    } as ApiError;
+  }
+  return block as AvailabilityBlock;
+}
+
 // Product/Service status type
 // - draft: Not visible to customers, editable
 // - live: Visible and purchasable/bookable (requires Stripe + subscription + approval)
@@ -3337,6 +3354,9 @@ class ApiService {
     return response.availability || [];
   }
 
+  // The endpoint returns { availability: [...] }, not a bare array. This method
+  // flattens that envelope so the declared return type is true — do not
+  // "simplify" it back to a bare request<WeeklyAvailabilitySlot[]> call.
   async updateWeeklyAvailability(
     authToken: string,
     type: "photographer" | "business",
@@ -3345,14 +3365,22 @@ class ApiService {
     const endpoint = type === "photographer"
       ? "/api/photographers/me/weekly-availability"
       : "/api/businesses/me/weekly-availability";
-    return this.request<WeeklyAvailabilitySlot[]>(endpoint, {
+    const response = await this.request<{ availability?: WeeklyAvailabilitySlot[] } | WeeklyAvailabilitySlot[] | null>(endpoint, {
       method: "PUT",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ slots: availability }),
     });
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return response?.availability ?? [];
   }
 
   // Blocked dates/times endpoints
+  //
+  // The endpoint returns { blocks: [...] }, not a bare array. This method
+  // flattens that envelope so the declared return type is true — do not
+  // "simplify" it back to a bare request<AvailabilityBlock[]> call.
   async getBlocks(
     authToken: string,
     type: "photographer" | "business"
@@ -3360,11 +3388,21 @@ class ApiService {
     const endpoint = type === "photographer"
       ? "/api/photographers/me/blocks"
       : "/api/businesses/me/blocks";
-    return this.request<AvailabilityBlock[]>(endpoint, {
+    const response = await this.request<{ blocks?: AvailabilityBlock[] } | AvailabilityBlock[] | null>(endpoint, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return response?.blocks ?? [];
   }
 
+  // The endpoint returns { block: {...} }, not a bare object. This method
+  // flattens that envelope so the declared return type is true — do not
+  // "simplify" it back to a bare request<AvailabilityBlock> call.
+  // Callers store the returned .id and pass it to deleteBlock, so an id-less
+  // object silently makes the block undeletable; an unrecognised shape throws
+  // rather than returning one.
   async createBlock(
     authToken: string,
     type: "photographer" | "business",
@@ -3373,13 +3411,20 @@ class ApiService {
     const endpoint = type === "photographer"
       ? "/api/photographers/me/blocks"
       : "/api/businesses/me/blocks";
-    return this.request<AvailabilityBlock>(endpoint, {
+    const response = await this.request<{ block?: AvailabilityBlock } | AvailabilityBlock | null>(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify(block),
     });
+    return unwrapBlockResponse(response, "create");
   }
 
+  // The endpoint returns { block: {...} }, not a bare object. This method
+  // flattens that envelope so the declared return type is true — do not
+  // "simplify" it back to a bare request<AvailabilityBlock> call.
+  // Callers store the returned .id and pass it to deleteBlock, so an id-less
+  // object silently makes the block undeletable; an unrecognised shape throws
+  // rather than returning one.
   async updateBlock(
     authToken: string,
     type: "photographer" | "business",
@@ -3389,11 +3434,12 @@ class ApiService {
     const endpoint = type === "photographer"
       ? "/api/photographers/me/blocks"
       : "/api/businesses/me/blocks";
-    return this.request<AvailabilityBlock>(endpoint, {
+    const response = await this.request<{ block?: AvailabilityBlock } | AvailabilityBlock | null>(endpoint, {
       method: "PATCH",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ id: blockId, ...updates }),
     });
+    return unwrapBlockResponse(response, "update");
   }
 
   async deleteBlock(
