@@ -290,10 +290,20 @@ export default function PhotographerDashboardScreen() {
           //   recordId        → id
           //   firstName/lastName → clientName (must be concatenated)
           //   bookingDateTime → split into date + time (format: "YYYY-MM-DD HH:mm")
-          //   totalPaid       → amount (already in DOLLARS, not cents)
-          //   vendorNet       → vendorNetAmount (already in DOLLARS)
-          //   platformFee     → bookingFeeAmount (already in DOLLARS)
+          //   totalPaid       → amount           (integer CENTS — divide by 100)
+          //   vendorNet       → vendorNetAmount  (integer CENTS — divide by 100)
+          //   platformFee     → bookingFeeAmount (integer CENTS — divide by 100)
           //   shootType/serviceName → sessionType
+          //
+          // MONEY UNITS: these three arrive as integer cents. The serializer at
+          // server/storage.ts:1636-1638 passes shoot_bookings.total_price /
+          // platform_fee / vendor_net straight through undivided, unlike the
+          // business endpoint at server/storage.ts:1800-1803 which divides by
+          // 100 server-side. So the two endpoints emit different units and only
+          // this one needs client-side conversion.
+          // Verified against shoot_bookings on 2026-08-08:
+          //   total_price 205000 = $2,050.00, platform_fee 4100 = $41.00 (2%),
+          //   vendor_net 200900 = $2,009.00.
 
           // Support both the booking-record shape AND the legacy generic shape
           const id = b.recordId || b.id || "";
@@ -309,29 +319,33 @@ export default function PhotographerDashboardScreen() {
           const datePart = b.date || bookingDateTime.split(" ")[0] || "";
           const timePart = b.startTime || b.time || bookingDateTime.split(" ")[1] || "";
 
-          // Amount fields — backend returns DOLLARS for booking records,
-          // but may return CENTS (divided by 100) for the legacy shape.
-          // Heuristic: if totalPaid > 0, it's in dollars; totalAmount is in cents.
-          const amount =
-            typeof b.totalPaid === "number" && b.totalPaid > 0
-              ? b.totalPaid
-              : b.totalAmount
-              ? b.totalAmount / 100
-              : b.amount || 0;
+          // Decide on shape, not on value: the booking-record fields are cents
+          // and the legacy generic fields are already dollars.
+          const isRecordShape =
+            typeof b.totalPaid === "number" ||
+            typeof b.vendorNet === "number" ||
+            typeof b.platformFee === "number";
 
-          const vendorNetAmount =
-            typeof b.vendorNet === "number"
-              ? b.vendorNet
-              : typeof b.vendorNetAmount === "number"
-              ? b.vendorNetAmount
-              : undefined;
+          const centsToDollars = (v: unknown): number | undefined =>
+            typeof v === "number" ? v / 100 : undefined;
 
-          const bookingFeeAmount =
-            typeof b.platformFee === "number"
-              ? b.platformFee
-              : typeof b.bookingFeeAmount === "number"
-              ? b.bookingFeeAmount
-              : undefined;
+          const amount = isRecordShape
+            ? centsToDollars(b.totalPaid) ?? 0
+            : typeof b.totalAmount === "number"
+            ? b.totalAmount / 100
+            : b.amount || 0;
+
+          const vendorNetAmount = isRecordShape
+            ? centsToDollars(b.vendorNet)
+            : typeof b.vendorNetAmount === "number"
+            ? b.vendorNetAmount
+            : undefined;
+
+          const bookingFeeAmount = isRecordShape
+            ? centsToDollars(b.platformFee)
+            : typeof b.bookingFeeAmount === "number"
+            ? b.bookingFeeAmount
+            : undefined;
 
           const sessionType =
             b.serviceName || b.sessionType || b.shootType || "Session";
@@ -345,7 +359,11 @@ export default function PhotographerDashboardScreen() {
             sessionType,
             status: b.status || "pending",
             amount,
-            subtotalAmount: b.subtotalAmount ?? undefined,
+            // The record shape carries no subtotal field, so mirror what the
+            // business serializer does (server/storage.ts:1799-1800) and set it
+            // equal to the gross amount. Without this the modal's "Subtotal:"
+            // line never renders and the fee breakdown reads incomplete.
+            subtotalAmount: isRecordShape ? amount : b.subtotalAmount ?? undefined,
             bookingFeeAmount,
             vendorNetAmount,
             influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,

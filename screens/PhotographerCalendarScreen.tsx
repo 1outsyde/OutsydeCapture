@@ -173,9 +173,9 @@ export default function PhotographerCalendarScreen() {
           (firstName || lastName ? `${firstName} ${lastName}`.trim() : "Client");
 
         // totalPaid is integer CENTS (server/storage.ts:1636). The dashboard
-        // mapper at PhotographerDashboardScreen.tsx:301-303 claims dollars and
-        // does not divide — that is a known bug scheduled for a separate build.
-        // This screen is the correct one.
+        // mapper in PhotographerDashboardScreen.tsx now divides by 100 as well,
+        // so both photographer mappers agree that these fields are cents and
+        // that dollars are what reaches the UI.
         const amountCents =
           typeof b.totalPaid === "number" ? b.totalPaid
           : typeof b.totalAmount === "number" ? b.totalAmount
