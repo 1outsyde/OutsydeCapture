@@ -1263,14 +1263,15 @@ export default function PhotographerDashboardScreen() {
   const handleAutoAcceptChange = async (value: boolean) => {
     const token = await getToken();
     if (!token) return;
-
+    const previous = autoAcceptBookings;
+    setAutoAcceptBookings(value);
     setAutoAcceptLoading(true);
     try {
-      await api.updateProviderSettings(token, "photographer", { autoAcceptBookings: value });
-      setAutoAcceptBookings(value);
+      await api.updatePhotographerSettings(token, { autoAcceptBookings: value });
       setProfile(prev => prev ? { ...prev, autoAcceptBookings: value } : prev);
     } catch (error) {
       console.error("Failed to update auto-accept setting:", error);
+      setAutoAcceptBookings(previous);
       Alert.alert("Error", "Failed to update booking settings. Please try again.");
     } finally {
       setAutoAcceptLoading(false);

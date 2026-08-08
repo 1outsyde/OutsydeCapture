@@ -3336,6 +3336,17 @@ class ApiService {
     });
   }
 
+  async updatePhotographerSettings(
+    authToken: string,
+    settings: { autoAcceptBookings: boolean }
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>("/api/photographers/me/settings", {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(settings),
+    });
+  }
+
   // Get provider settings
   async getProviderSettings(
     authToken: string,
