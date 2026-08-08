@@ -1594,7 +1594,51 @@ export default function PhotographerDashboardScreen() {
       marginLeft: 8,
     },
 
-    // ── Quick actions (2×2 grid — matches Staff) ──────────────────────────
+    // ── Up Next card ───────────────────────────────────────────────────────
+    upNextCard: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: "rgba(201,147,58,0.28)",
+      backgroundColor: "rgba(201,147,58,0.07)",
+      padding: 14,
+    },
+    upNextLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+    upNextLabelDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: DASHBOARD_COLORS.gold },
+    upNextLabelText: { color: DASHBOARD_COLORS.gold, fontSize: 10, fontWeight: "800", letterSpacing: 1.4 },
+    upNextBody: { flexDirection: "row", alignItems: "center", gap: 12 },
+    upNextIconBox: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: "rgba(0,0,0,0.3)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    upNextTextWrap: { flex: 1 },
+    upNextTitle: { color: DASHBOARD_COLORS.cream, fontSize: 14, fontWeight: "600" },
+    upNextSubtext: { color: DASHBOARD_COLORS.creamDim, fontSize: 11.5, marginTop: 2 },
+    upNextUrgency: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+    // ── Activity nav cards ─────────────────────────────────────────────────
+    navCard: {
+      backgroundColor: DASHBOARD_COLORS.surface,
+      borderWidth: 1,
+      borderColor: DASHBOARD_COLORS.cardBorder,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    navCardLeft: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
+    navCardIconBg: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    navCardTextWrap: { flex: 1 },
+    navCardTitle: { color: DASHBOARD_COLORS.cream, fontSize: 15, fontWeight: "600" },
+    navCardSubtitle: { color: DASHBOARD_COLORS.creamDim, fontSize: 12, marginTop: 2 },
+    navCardRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+    navBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+    navBadgeText: { fontSize: 12, fontWeight: "700" },
+    // ── Quick actions (kept for legacy reference — no longer rendered) ──────
     quickActionsRow: {
       flexDirection: "row",
       gap: 12,
@@ -3039,6 +3083,55 @@ export default function PhotographerDashboardScreen() {
     );
   }
 
+  // ── UP NEXT computation ────────────────────────────────────────────────
+  // Computed at render time from already-mapped bookings state.
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  type UpNextItem = {
+    title: string;
+    subtext?: string;
+    iconName: string;
+    urgency?: "red" | "amber" | "green";
+  };
+  let upNextItem: UpNextItem | null = null;
+
+  // Priority 1: next confirmed booking today or tomorrow
+  const todayMs = new Date().setHours(0, 0, 0, 0);
+  const tomorrowMs = todayMs + DAY_MS;
+  const confirmedSoon = bookings
+    .filter((b) => {
+      if (b.status !== "confirmed") return false;
+      const d = new Date(b.date).setHours(0, 0, 0, 0);
+      return d >= todayMs && d <= tomorrowMs + DAY_MS;
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  if (confirmedSoon.length > 0) {
+    const c = confirmedSoon[0];
+    const isToday = new Date(c.date).setHours(0, 0, 0, 0) === todayMs;
+    upNextItem = {
+      title: `${c.sessionType || "Session"} — ${c.clientName}`,
+      subtext: `${c.date}${c.time ? " at " + c.time : ""}`,
+      iconName: "calendar",
+      urgency: isToday ? "green" : "amber",
+    };
+  }
+
+  // Priority 2: oldest pending booking awaiting confirmation
+  if (!upNextItem) {
+    const pendingBks = bookings
+      .filter((b) => b.status === "pending" || b.status === "pending_provider")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (pendingBks.length > 0) {
+      upNextItem = {
+        title: "Booking awaiting confirmation",
+        subtext: `Requested by ${pendingBks[0].clientName}`,
+        iconName: "clock",
+        urgency: "amber",
+      };
+    }
+  }
+
   return (
     <>
       <ScrollView
@@ -3280,46 +3373,103 @@ export default function PhotographerDashboardScreen() {
           </View>
         </View>
 
-        {/* Quick Actions (2×2 grid) */}
-        <View style={styles.section}>
+        {/* UP NEXT card */}
+        {upNextItem && (
+          <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+            <View style={styles.upNextCard}>
+              <View style={styles.upNextLabelRow}>
+                <View style={styles.upNextLabelDot} />
+                <Text style={styles.upNextLabelText}>UP NEXT</Text>
+              </View>
+              <View style={styles.upNextBody}>
+                <View style={styles.upNextIconBox}>
+                  <Feather name={upNextItem.iconName as any} size={18} color={DASHBOARD_COLORS.gold} />
+                </View>
+                <View style={styles.upNextTextWrap}>
+                  <Text style={styles.upNextTitle}>{upNextItem.title}</Text>
+                  {upNextItem.subtext ? <Text style={styles.upNextSubtext}>{upNextItem.subtext}</Text> : null}
+                </View>
+                {upNextItem.urgency ? (
+                  <Text style={[styles.upNextUrgency, { color: upNextItem.urgency === "red" ? "#E85D5D" : upNextItem.urgency === "amber" ? "#E0A93B" : "#3FCB6E" }]}>
+                    {upNextItem.urgency === "red" ? "OVERDUE" : upNextItem.urgency === "amber" ? "SOON" : "TODAY"}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ACTIVITY section */}
+        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionHeaderAccent} />
-            <Text style={styles.sectionHeaderText}>QUICK ACTIONS</Text>
+            <Text style={styles.sectionHeaderText}>ACTIVITY</Text>
           </View>
-          {/* Row 1 */}
-          <View style={[styles.quickActionsRow, { marginBottom: 12 }]}>
-            <Pressable onPress={() => setActiveModal("bookings")} style={styles.quickActionCard}>
-              <View style={styles.quickActionIcon}>
-                <Feather name="calendar" size={22} color={DASHBOARD_COLORS.gold} />
+
+          <Pressable style={styles.navCard} onPress={() => navigation.navigate("PhotographerBookingsScreen")}>
+            <View style={styles.navCardLeft}>
+              <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+                <Feather name="calendar" size={20} color={DASHBOARD_COLORS.gold} />
               </View>
-              <Text style={styles.quickActionLabel}>Bookings</Text>
-              <Text style={styles.quickActionCount}>{bookings.length} total</Text>
-            </Pressable>
-            <Pressable onPress={() => setActiveModal("services")} style={styles.quickActionCard}>
-              <View style={styles.quickActionIcon}>
-                <Feather name="camera" size={22} color={DASHBOARD_COLORS.gold} />
+              <View style={styles.navCardTextWrap}>
+                <Text style={styles.navCardTitle}>Bookings</Text>
+                <Text style={styles.navCardSubtitle}>{stats.upcomingBookings} upcoming</Text>
               </View>
-              <Text style={styles.quickActionLabel}>Services</Text>
-              <Text style={styles.quickActionCount}>{services.length} active</Text>
-            </Pressable>
-          </View>
-          {/* Row 2 */}
-          <View style={styles.quickActionsRow}>
-            <Pressable onPress={() => setActiveModal("hours")} style={styles.quickActionCard}>
-              <View style={styles.quickActionIcon}>
-                <Feather name="clock" size={22} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={styles.navCardRight}>
+              {stats.upcomingBookings > 0 && (
+                <View style={[styles.navBadge, { backgroundColor: "rgba(224,169,59,0.15)" }]}>
+                  <Text style={[styles.navBadgeText, { color: "#E0A93B" }]}>{stats.upcomingBookings}</Text>
+                </View>
+              )}
+              <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+          </Pressable>
+
+          <Pressable style={styles.navCard} onPress={() => setActiveModal("services")}>
+            <View style={styles.navCardLeft}>
+              <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+                <Feather name="camera" size={20} color={DASHBOARD_COLORS.gold} />
               </View>
-              <Text style={styles.quickActionLabel}>Base Hours</Text>
-              <Text style={styles.quickActionCount}>{hasAvailabilitySet ? "Set" : "Not set"}</Text>
-            </Pressable>
-            <Pressable onPress={() => setActiveModal("blocked")} style={styles.quickActionCard}>
-              <View style={styles.quickActionIcon}>
-                <Feather name="x-circle" size={22} color={DASHBOARD_COLORS.gold} />
+              <View style={styles.navCardTextWrap}>
+                <Text style={styles.navCardTitle}>Services</Text>
+                <Text style={styles.navCardSubtitle}>{services.length} active</Text>
               </View>
-              <Text style={styles.quickActionLabel}>Block Dates</Text>
-              <Text style={styles.quickActionCount}>{blockedDates.length} blocked</Text>
-            </Pressable>
-          </View>
+            </View>
+            <View style={styles.navCardRight}>
+              <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+          </Pressable>
+
+          <Pressable style={styles.navCard} onPress={() => setActiveModal("hours")}>
+            <View style={styles.navCardLeft}>
+              <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+                <Feather name="clock" size={20} color={DASHBOARD_COLORS.gold} />
+              </View>
+              <View style={styles.navCardTextWrap}>
+                <Text style={styles.navCardTitle}>Base Hours</Text>
+                <Text style={styles.navCardSubtitle}>{hasAvailabilitySet ? "Set" : "Not set"}</Text>
+              </View>
+            </View>
+            <View style={styles.navCardRight}>
+              <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+          </Pressable>
+
+          <Pressable style={styles.navCard} onPress={() => setActiveModal("blocked")}>
+            <View style={styles.navCardLeft}>
+              <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+                <Feather name="x-circle" size={20} color={DASHBOARD_COLORS.gold} />
+              </View>
+              <View style={styles.navCardTextWrap}>
+                <Text style={styles.navCardTitle}>Block Dates</Text>
+                <Text style={styles.navCardSubtitle}>{blockedDates.length} blocked</Text>
+              </View>
+            </View>
+            <View style={styles.navCardRight}>
+              <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+          </Pressable>
         </View>
 
         {/* Calendar Overview */}

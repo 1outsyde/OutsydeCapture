@@ -62,6 +62,7 @@ import DashboardBookingsScreen from "@/screens/DashboardBookingsScreen";
 import DashboardCalendarScreen from "@/screens/DashboardCalendarScreen";
 import StaffCalendarScreen from "@/screens/StaffCalendarScreen";
 import PhotographerCalendarScreen from "@/screens/PhotographerCalendarScreen";
+import PhotographerBookingsScreen from "@/screens/PhotographerBookingsScreen";
 import DashboardCreditsScreen from "@/screens/DashboardCreditsScreen";
 import DashboardAnalyticsScreen from "@/screens/DashboardAnalyticsScreen";
 import { RootStackParamList } from "@/navigation/types";
@@ -567,6 +568,11 @@ export default function RootNavigator() {
       <Stack.Screen
         name="PhotographerCalendarScreen"
         component={PhotographerCalendarScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="PhotographerBookingsScreen"
+        component={PhotographerBookingsScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
