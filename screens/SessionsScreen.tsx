@@ -168,7 +168,7 @@ export default function SessionsScreen() {
         return theme.success;
       case "completed":
         return "#007AFF";
-      case "cancelled":
+      case "canceled":
         return theme.error;
       default:
         return theme.textSecondary;

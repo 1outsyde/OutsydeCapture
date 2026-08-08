@@ -141,7 +141,7 @@ function formatTimeStr(time: string): string {
 function getStatusColor(status: Session["status"], theme: any): string {
   if (status === "upcoming") return theme.success;
   if (status === "completed") return theme.brandGold;
-  if (status === "cancelled") return theme.error;
+  if (status === "canceled") return theme.error;
   return theme.textSecondary;
 }
 

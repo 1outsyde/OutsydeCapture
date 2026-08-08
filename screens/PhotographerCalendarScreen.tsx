@@ -118,7 +118,7 @@ function statusPill(status: string): { bg: string; text: string } {
   if (status === "confirmed") return { bg: "rgba(63,203,110,0.15)", text: GREEN };
   if (isPendingStatus(status)) return { bg: "rgba(224,169,59,0.15)", text: AMBER };
   if (status === "completed") return { bg: "rgba(201,147,58,0.15)", text: GOLD };
-  if (status === "cancelled" || status === "declined") return { bg: "rgba(232,93,93,0.1)", text: RED };
+  if (status === "canceled" || status === "declined") return { bg: "rgba(232,93,93,0.1)", text: RED };
   if (status === "expired" || status === "no_show") return { bg: "rgba(255,255,255,0.08)", text: CREAM_DIM };
   return { bg: "rgba(255,255,255,0.08)", text: CREAM_DIM };
 }

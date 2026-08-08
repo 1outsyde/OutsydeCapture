@@ -384,7 +384,7 @@ export default function PhotographerDashboardScreen() {
         // totalBookings: every booking that was not cancelled or declined,
         // regardless of date. This is what the "Bookings" stat tile shows.
         const totalBookingCount = mappedBookings.filter(
-          (b) => b.status !== "cancelled" && b.status !== "declined",
+          (b) => b.status !== "canceled" && b.status !== "declined",
         ).length;
 
         // upcomingBookings: dated today or later AND still going to happen —
@@ -2660,7 +2660,7 @@ export default function PhotographerDashboardScreen() {
                   switch (status) {
                     case "confirmed": return "#34C759";
                     case "pending": return "#FF9500";
-                    case "cancelled": return "#FF3B30";
+                    case "canceled": return "#FF3B30";
                     default: return DASHBOARD_COLORS.creamDim;
                   }
                 };
@@ -3337,7 +3337,7 @@ export default function PhotographerDashboardScreen() {
                 startTime: b.time || "9:00 AM",
                 clientName: b.clientName,
                 serviceName: b.sessionType,
-                status: b.status as "pending" | "confirmed" | "completed" | "cancelled" | "declined",
+                status: b.status as "pending" | "confirmed" | "completed" | "canceled" | "declined",
                 amount: b.amount,
               }))}
               blockedDates={blockedDates.map(bd => ({

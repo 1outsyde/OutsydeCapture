@@ -24,7 +24,7 @@ const CREAM_DIM = "rgba(200,191,168,0.6)";
 const SURFACE = "rgba(255,255,255,0.04)";
 const CARD_BORDER = "rgba(255,255,255,0.08)";
 
-type FilterStatus = "all" | "pending" | "confirmed" | "completed" | "cancelled" | "no_show" | "declined" | "expired";
+type FilterStatus = "all" | "pending" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired";
 type SortMode = "action" | "newest" | "oldest" | "highest";
 
 const SORT_CYCLE: SortMode[] = ["action", "newest", "oldest", "highest"];
@@ -55,7 +55,7 @@ function statusColors(status: BusinessBooking["status"]): { bg: string; text: st
       return { bg: "rgba(52,199,89,0.15)", text: "#34C759" };
     case "completed":
       return { bg: "rgba(201,147,58,0.15)", text: GOLD };
-    case "cancelled":
+    case "canceled":
     case "declined":
       return { bg: "rgba(255,59,48,0.12)", text: "#FF3B30" };
     case "no_show":
@@ -233,7 +233,7 @@ export default function DashboardBookingsScreen() {
     { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => b.status === "pending" || b.status === "pending_provider").length },
     { key: "confirmed" as FilterStatus, label: "Confirmed", count: bookings.filter(b => b.status === "confirmed").length },
     { key: "completed" as FilterStatus, label: "Completed", count: bookings.filter(b => b.status === "completed").length },
-    { key: "cancelled" as FilterStatus, label: "Cancelled", count: bookings.filter(b => b.status === "cancelled").length },
+    { key: "canceled" as FilterStatus, label: "Cancelled", count: bookings.filter(b => b.status === "canceled").length },
     { key: "no_show" as FilterStatus,   label: "No Show",   count: bookings.filter(b => b.status === "no_show").length },
   ];
 
@@ -384,7 +384,7 @@ export default function DashboardBookingsScreen() {
       { label: "Pending", items: list.filter(b => b.status === "pending" || b.status === "pending_provider") },
       { label: "Confirmed", items: list.filter(b => b.status === "confirmed") },
       { label: "Completed", items: list.filter(b => b.status === "completed") },
-      { label: "Cancelled / No Show", items: list.filter(b => b.status === "cancelled" || b.status === "no_show") },
+      { label: "Cancelled / No Show", items: list.filter(b => b.status === "canceled" || b.status === "no_show") },
       { label: "Declined / Expired", items: list.filter(b => b.status === "declined" || b.status === "expired") },
     ];
 

@@ -31,7 +31,7 @@ function statusColor(
     case "shipped":    return { bg: "#5856D620", text: "#5856D6" };
     case "delivered":
     case "completed":  return { bg: primary + "20", text: primary };
-    case "cancelled":  return { bg: "#FF3B3020", text: "#FF3B30" };
+    case "canceled":  return { bg: "#FF3B3020", text: "#FF3B30" };
     case "no_show":    return { bg: "#8E8E9320", text: "#8E8E93" };
     default:           return { bg: bgSecondary,  text: textSecondary };
   }
@@ -285,7 +285,7 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
                 {
                   text: "Cancel Order",
                   style: "destructive",
-                  onPress: () => onCancelOrder(order.id, "cancelled"),
+                  onPress: () => onCancelOrder(order.id, "canceled"),
                 },
               ])
             }
@@ -307,7 +307,7 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
                   {
                     text: "Cancel Order",
                     style: "destructive",
-                    onPress: () => onCancelOrder(order.id, "cancelled"),
+                    onPress: () => onCancelOrder(order.id, "canceled"),
                   },
                 ]
               )

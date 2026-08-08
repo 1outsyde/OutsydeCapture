@@ -76,7 +76,7 @@ export interface Session {
   endTime?: string;
   location: string;
   sessionType: string;
-  status: "upcoming" | "completed" | "cancelled";
+  status: "upcoming" | "completed" | "canceled";
   price: number;
   notes?: string;
   photos?: string[];
@@ -1106,7 +1106,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return sessions
-      .filter((s) => s.status === "completed" || s.status === "cancelled" || new Date(s.date) < today)
+      .filter((s) => s.status === "completed" || s.status === "canceled" || new Date(s.date) < today)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 

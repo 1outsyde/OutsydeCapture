@@ -705,7 +705,7 @@ export interface AdminOrder {
   businessId: string;
   businessName: string;
   amount: number;
-  status: "pending" | "completed" | "cancelled" | "refunded";
+  status: "pending" | "completed" | "canceled" | "refunded";
   createdAt: string;
 }
 
@@ -717,7 +717,7 @@ export interface AdminBooking {
   photographerName: string;
   date: string;
   amount: number;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "pending" | "confirmed" | "completed" | "canceled";
   createdAt: string;
 }
 
@@ -818,7 +818,7 @@ export interface PhotographerBooking {
   // `draft` and `pending_payment` are deliberately omitted here because neither
   // reaches a provider-facing list (draft is a pre-payment slot lock,
   // pending_payment is transient), which is also why BusinessBooking omits them.
-  status: "pending" | "pending_provider" | "confirmed" | "completed" | "cancelled" | "no_show" | "declined" | "expired";
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired";
   amount: number;
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
@@ -913,7 +913,7 @@ export interface BusinessOrder {
   orderDate: string;
   items: { name: string; quantity: number; price: number }[];
   totalAmount: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "processing" | "shipped" | "delivered" | "canceled";
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
   platformFeeAmount?: number;
@@ -940,7 +940,7 @@ export interface BusinessBooking {
   date: string;
   time: string;
   serviceName: string;
-  status: "pending" | "pending_provider" | "confirmed" | "completed" | "cancelled" | "no_show" | "declined" | "expired";
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired";
   amount: number;
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
@@ -4965,7 +4965,7 @@ export interface ConsumerOrder {
   id: string;
   vendorName: string;
   businessId: string;
-  status: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "paid" | "shipped" | "delivered" | "canceled";
   items: ConsumerOrderItem[];
   itemCount: number;
   totalAmount: number;
