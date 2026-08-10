@@ -25,7 +25,9 @@ type SettingsNavigationProp = NativeStackNavigationProp<AccountStackParamList, "
 export default function SettingsScreen() {
   const navigation = useNavigation<SettingsNavigationProp>();
   const { isDark, toggleTheme } = useTheme();
-  const { getToken, logout } = useAuth();
+  const { getToken, logout, user } = useAuth();
+  console.log('[DEBUG] user.isInfluencer:', user?.isInfluencer, 'influencerStatus:', user?.influencerStatus);
+  const isApprovedInfluencer = user?.isInfluencer === true || user?.influencerStatus === "approved";
   const insets = useSafeAreaInsets();
 
   const [shippingAddress, setShippingAddress] = useState<SavedAddress | null>(null);
@@ -213,6 +215,23 @@ export default function SettingsScreen() {
       {/* ACCOUNT */}
       <ThemedText style={styles.sectionLabel}>ACCOUNT</ThemedText>
       <View style={styles.sectionContainer}>
+        {isApprovedInfluencer && (
+          <Pressable
+            style={({ pressed }) => [styles.row, { opacity: pressed ? 0.75 : 1 }]}
+            onPress={() => navigation.navigate("InfluencerDashboard")}
+          >
+            <View style={styles.rowLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: "#2a1f00" }]}>
+                <Feather name="trending-up" size={18} color="#f5a623" />
+              </View>
+              <View style={styles.rowTextBlock}>
+                <ThemedText style={styles.rowLabel}>Influencer Dashboard</ThemedText>
+                <ThemedText style={styles.rowSubLabel}>Stats, links &amp; payouts</ThemedText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={18} color="#444444" />
+          </Pressable>
+        )}
         <Pressable
           style={({ pressed }) => [styles.row, { opacity: pressed ? 0.75 : 1 }]}
           onPress={handleLogout}
