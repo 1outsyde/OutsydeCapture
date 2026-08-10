@@ -2087,10 +2087,20 @@ class ApiService {
   }
 
   async getAdminInfluencers(authToken: string, status?: string): Promise<AdminInfluencer[]> {
-    const query = status ? `?status=${status}` : "";
-    return this.request<AdminInfluencer[]>(`/api/admin/influencers${query}`, {
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    const response = await this.request<{ applications: any[] }>(`/api/admin/influencers${query}`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    const applications: any[] = response?.applications ?? [];
+    return applications.map((app: any) => ({
+      id: app.id,
+      name: app.user?.name ?? app.userName ?? "",
+      email: app.user?.email ?? app.userEmail,
+      instagram: app.instagramUrl,
+      followers: app.followerCount,
+      status: app.status,
+      createdAt: app.createdAt,
+    }));
   }
 
   async getPaymentStats(authToken: string): Promise<PaymentStats> {
