@@ -419,7 +419,7 @@ export function PersonalSettingsMenu({
                   onPress={() => handleNavigate("InfluencerDashboard")}
                   color={theme.primary}
                   backgroundColor={theme.primaryTransparent}
-                  subtitle="Stats, link, earnings, and tier"
+                  subtitle="Stats, analytics, and collab calendar"
                 />
               ) : null}
 

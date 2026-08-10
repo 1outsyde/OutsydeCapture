@@ -37,6 +37,8 @@ import StaffDashboardScreen from "@/screens/StaffDashboardScreen";
 import EditStaffProfileScreen from "@/screens/EditStaffProfileScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
 import InfluencerDashboardScreen from "@/screens/InfluencerDashboardScreen";
+import InfluencerReferralScreen from "@/screens/InfluencerReferralScreen";
+import InfluencerAnalyticsScreen from "@/screens/InfluencerAnalyticsScreen";
 import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
@@ -634,6 +636,29 @@ export default function RootNavigator() {
       <Stack.Screen
         name="InfluencerDashboard"
         component={InfluencerDashboardScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Dashboard",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="InfluencerReferral"
+        component={InfluencerReferralScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="InfluencerAnalytics"
+        component={InfluencerAnalyticsScreen}
         options={{
           headerShown: false,
         }}
