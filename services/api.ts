@@ -2134,7 +2134,9 @@ class ApiService {
   }
 
   async approveApplication(authToken: string, type: "business" | "influencer", id: string, notes?: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
-    const endpoint = type === "business" ? `/api/admin/businesses/${id}/approve` : `/api/admin/applications/${id}/approve`;
+    const endpoint = type === "business"
+      ? `/api/admin/businesses/${id}/approve`
+      : `/api/admin/influencer-applications/${id}/approve`;
     console.log(`[API] approveApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`);
     return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
       method: "POST",
@@ -2144,7 +2146,9 @@ class ApiService {
   }
 
   async rejectApplication(authToken: string, type: "business" | "influencer", id: string, reason: string): Promise<{ success: boolean; business?: AdminBusinessDetail }> {
-    const endpoint = type === "business" ? `/api/admin/businesses/${id}/reject` : `/api/admin/applications/${id}/reject`;
+    const endpoint = type === "business"
+      ? `/api/admin/businesses/${id}/reject`
+      : `/api/admin/influencer-applications/${id}/reject`;
     console.log(`[API] rejectApplication - Type: ${type}, ID: ${id}, Full URL: ${this.baseUrl}${endpoint}`);
     return this.request<{ success: boolean; business?: AdminBusinessDetail }>(endpoint, {
       method: "POST",
