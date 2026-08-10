@@ -26,6 +26,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<SettingsNavigationProp>();
   const { isDark, toggleTheme } = useTheme();
   const { getToken, logout, user } = useAuth();
+  console.log('[DEBUG] user.isInfluencer:', user?.isInfluencer, 'influencerStatus:', user?.influencerStatus);
   const isApprovedInfluencer = user?.isInfluencer === true || user?.influencerStatus === "approved";
   const insets = useSafeAreaInsets();
 
