@@ -11,6 +11,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { apiPost } from "@/api/client";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 
@@ -19,7 +20,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function InfluencerApplicationScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { user } = useAuth();
+  const { user, getToken } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +41,17 @@ export default function InfluencerApplicationScreen() {
 
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const token = await getToken();
+      await apiPost(
+        "/api/influencer/apply",
+        {
+          instagramUrl: instagram.trim() || null,
+          tiktokUrl: tiktok.trim() || null,
+          followerCount: followers.trim(),
+          bio: bio.trim() || null,
+        },
+        token ?? undefined
+      );
       Alert.alert(
         "Application Submitted",
         "Thank you for applying to become an Outsyde Influencer! We'll review your application and get back to you within 3-5 business days.",
