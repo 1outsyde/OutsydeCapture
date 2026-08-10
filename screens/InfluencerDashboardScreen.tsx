@@ -1,28 +1,31 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { Image } from "expo-image";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "@/context/AuthContext";
 import { RootStackParamList } from "@/navigation/types";
+import api, { InfluencerDashboard } from "@/services/api";
 
 const DASHBOARD_COLORS = {
   background: "#080C08",
   surface: "rgba(255,255,255,0.04)",
   cardBorder: "rgba(255,255,255,0.08)",
-  gold: "#C9933A",
+  gold: "#E8B930",
   goldLight: "#E8B86D",
   cream: "#F0EAD6",
   creamDim: "rgba(200,191,168,0.6)",
-};
-
-// Mock data — replace with /services/api once the influencer stats endpoints exist
-const MOCK_STATS = {
-  engagementRate: 4.2,
-  followers: 12800,
-  collabs: 6,
-  avgReachPerPost: 3400,
 };
 
 type CollabDay = { date: string; brand: string; type: "Sponsored Post" | "Collab" };
@@ -44,6 +47,17 @@ function formatCompact(n: number): string {
   return String(n);
 }
 
+// Matches the formatting used in StoryInsightsScreen.
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 function SectionLabel({ text }: { text: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, marginTop: 4 }}>
@@ -63,6 +77,64 @@ export default function InfluencerDashboardScreen() {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
+
+  const [stats, setStats] = useState<InfluencerDashboard | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const userId = user?.id ? String(user.id) : "";
+
+  const loadStats = useCallback(
+    async (isCancelled: () => boolean) => {
+      if (!userId) {
+        if (!isCancelled()) {
+          setError("Sign in to see your stats.");
+          setIsLoading(false);
+        }
+        return;
+      }
+      try {
+        const data = await api.getInfluencerDashboard(userId);
+        if (!isCancelled()) {
+          setStats(data);
+          setError(null);
+        }
+      } catch (err) {
+        console.log("[InfluencerDashboard] failed to load stats:", err);
+        if (!isCancelled()) setError("Couldn't load your stats.");
+      } finally {
+        if (!isCancelled()) {
+          setIsLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [userId]
+  );
+
+  // Tracks unmount so the pull-to-refresh path — which runs outside the effect
+  // and so has no cancelled flag of its own — doesn't set state after teardown.
+  const unmountedRef = useRef(false);
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadStats(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadStats]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadStats(() => unmountedRef.current);
+  }, [loadStats]);
 
   const collabsByDate = useMemo(() => {
     const map = new Map<string, CollabDay>();
@@ -113,7 +185,17 @@ export default function InfluencerDashboardScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={DASHBOARD_COLORS.gold}
+        />
+      }
+    >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable onPress={handleGoBack} style={styles.backButton}>
@@ -128,45 +210,123 @@ export default function InfluencerDashboardScreen() {
         </Pressable>
       </View>
 
-      {/* Stats 2×2 grid */}
-      <View style={styles.statsRow}>
-        <View style={styles.statsGridRow}>
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Feather name="trending-up" size={14} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <Text style={styles.statValue}>{MOCK_STATS.engagementRate.toFixed(1)}%</Text>
-            <Text style={styles.statLabel}>Engagement Rate</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Feather name="users" size={14} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <Text style={styles.statValue}>{formatCompact(MOCK_STATS.followers)}</Text>
-            <Text style={styles.statLabel}>Followers</Text>
-          </View>
+      {isLoading ? (
+        <View style={styles.centeredBlock}>
+          <ActivityIndicator color={DASHBOARD_COLORS.gold} />
         </View>
-        <View style={[styles.statsGridRow, { marginTop: 10 }]}>
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Feather name="briefcase" size={14} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <Text style={styles.statValue}>{MOCK_STATS.collabs}</Text>
-            <Text style={styles.statLabel}>Collabs</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Feather name="eye" size={14} color={DASHBOARD_COLORS.gold} />
-            </View>
-            <Text style={styles.statValue}>{formatCompact(MOCK_STATS.avgReachPerPost)}</Text>
-            <Text style={styles.statLabel}>Avg Reach / Post</Text>
-          </View>
+      ) : error ? (
+        <View style={styles.centeredBlock}>
+          <Feather name="wifi-off" size={22} color={DASHBOARD_COLORS.creamDim} />
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={handleRefresh}>
+            <Text style={styles.retryButtonText}>Try again</Text>
+          </Pressable>
         </View>
-      </View>
+      ) : (
+        <>
+          {/* Stats 2×2 grid */}
+          <View style={styles.statsRow}>
+            <View style={styles.statsGridRow}>
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Feather name="users" size={14} color={DASHBOARD_COLORS.gold} />
+                </View>
+                <Text style={styles.statValue}>{formatCompact(stats?.followers ?? 0)}</Text>
+                <Text style={styles.statLabel}>Followers</Text>
+              </View>
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Feather name="image" size={14} color={DASHBOARD_COLORS.gold} />
+                </View>
+                <Text style={styles.statValue}>
+                  {formatCompact(stats?.totalPosts ?? 0)}
+                  {stats?.postCountCapped ? "+" : ""}
+                </Text>
+                <Text style={styles.statLabel}>Posts</Text>
+              </View>
+            </View>
+            <View style={[styles.statsGridRow, { marginTop: 10 }]}>
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Feather name="trending-up" size={14} color={DASHBOARD_COLORS.gold} />
+                </View>
+                <Text style={styles.statValue}>{(stats?.engagementRate ?? 0).toFixed(1)}%</Text>
+                <Text style={styles.statLabel}>Engagement Rate</Text>
+              </View>
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Feather name="heart" size={14} color={DASHBOARD_COLORS.gold} />
+                </View>
+                <Text style={styles.statValue}>{formatCompact(stats?.totalLikes ?? 0)}</Text>
+                <Text style={styles.statLabel}>Total Likes</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Recent activity feed */}
+          <View style={{ paddingHorizontal: 16, marginTop: 4 }}>
+            <SectionLabel text="RECENT ACTIVITY" />
+            <View style={styles.activityCard}>
+              {stats && stats.recentActivity.length > 0 ? (
+                stats.recentActivity.map((item, i) => (
+                  <Pressable
+                    key={item.postId}
+                    style={[styles.activityRow, i > 0 ? styles.activityRowDivider : null]}
+                    onPress={() =>
+                      navigation.navigate("PostDetail", {
+                        userId,
+                        initialPostId: item.postId,
+                      })
+                    }
+                  >
+                    {item.thumbnailUrl ? (
+                      <Image
+                        source={{ uri: item.thumbnailUrl }}
+                        style={styles.activityThumb}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ) : (
+                      <View style={[styles.activityThumb, styles.activityThumbFallback]}>
+                        <Feather
+                          name={item.mediaType === "video" ? "video" : "image"}
+                          size={16}
+                          color={DASHBOARD_COLORS.creamDim}
+                        />
+                      </View>
+                    )}
+                    <View style={styles.activityTextWrap}>
+                      <Text style={styles.activityCaption} numberOfLines={1}>
+                        {item.caption || (item.mediaType === "video" ? "Video post" : "Photo post")}
+                      </Text>
+                      <View style={styles.activityMetaRow}>
+                        <Feather name="heart" size={11} color={DASHBOARD_COLORS.gold} />
+                        <Text style={styles.activityMetaText}>{formatCompact(item.likesCount)}</Text>
+                        <Feather name="message-circle" size={11} color={DASHBOARD_COLORS.gold} />
+                        <Text style={styles.activityMetaText}>
+                          {formatCompact(item.commentsCount)}
+                        </Text>
+                        <Text style={styles.activityTime}>· {formatTimeAgo(item.createdAt)}</Text>
+                      </View>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={DASHBOARD_COLORS.creamDim} />
+                  </Pressable>
+                ))
+              ) : (
+                <View style={styles.activityEmpty}>
+                  <Text style={styles.activityEmptyText}>
+                    No posts yet. Your activity shows up here once you post.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </>
+      )}
 
       {/* Activity nav cards */}
-      <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-        <SectionLabel text="ACTIVITY" />
+      <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+        <SectionLabel text="MORE" />
 
         <Pressable style={styles.navCard} onPress={() => navigation.navigate("InfluencerAnalytics")}>
           <View style={styles.navCardLeft}>
@@ -295,6 +455,61 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 6,
     backgroundColor: "rgba(201,147,58,0.15)",
+  },
+  // Loading / error states
+  centeredBlock: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+  },
+  errorText: { color: DASHBOARD_COLORS.creamDim, fontSize: 13, textAlign: "center" },
+  retryButton: {
+    borderWidth: 1,
+    borderColor: DASHBOARD_COLORS.gold,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    marginTop: 2,
+  },
+  retryButtonText: { color: DASHBOARD_COLORS.gold, fontSize: 13, fontWeight: "600" },
+  // Recent activity feed
+  activityCard: {
+    backgroundColor: DASHBOARD_COLORS.surface,
+    borderWidth: 1,
+    borderColor: DASHBOARD_COLORS.cardBorder,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  activityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  activityRowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: DASHBOARD_COLORS.cardBorder,
+  },
+  activityThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#111411" },
+  activityThumbFallback: { alignItems: "center", justifyContent: "center" },
+  activityTextWrap: { flex: 1 },
+  activityCaption: { color: DASHBOARD_COLORS.cream, fontSize: 14, fontWeight: "600" },
+  activityMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  activityMetaText: {
+    color: DASHBOARD_COLORS.creamDim,
+    fontSize: 12,
+    marginRight: 6,
+  },
+  activityTime: { color: DASHBOARD_COLORS.creamDim, fontSize: 12 },
+  activityEmpty: { paddingHorizontal: 16, paddingVertical: 22 },
+  activityEmptyText: {
+    color: DASHBOARD_COLORS.creamDim,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 19,
   },
   // Activity nav cards
   navCard: {

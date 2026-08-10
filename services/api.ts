@@ -5,6 +5,7 @@ import {
   clearAuthStorage,
 } from "@/utils/tokenStorage";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/api/client";
+import { resolvePostMedia } from "@/utils/resolvePostMedia";
 
 export const API_BASE_URL = "https://outsyde-backend.onrender.com";
 
@@ -4037,6 +4038,66 @@ class ApiService {
     });
   }
 
+  // Composes the influencer performance stats from the two endpoints that exist.
+  // There is no single influencer performance endpoint — getInfluencerStats above
+  // is referral-only (clicks, commission, tier) and has none of these metrics.
+  //
+  // Both fetches fail soft: a dashboard showing 0 followers is better than a
+  // dashboard that errors out because one of two calls failed.
+  async getInfluencerDashboard(
+    userId: string,
+    params?: { postLimit?: number }
+  ): Promise<InfluencerDashboard> {
+    const postLimit = params?.postLimit ?? 60;
+
+    const [userResult, postsResult] = await Promise.all([
+      this.getPublicUser(userId).catch(() => null),
+      this.getProfilePosts(userId, { limit: postLimit }).catch(() => ({ posts: [] as ApiPost[] })),
+    ]);
+
+    const posts = postsResult?.posts ?? [];
+    const followers = userResult?.user?.followerCount ?? 0;
+
+    const totalLikes = posts.reduce((sum, p) => sum + (p.likesCount ?? 0), 0);
+    const totalComments = posts.reduce((sum, p) => sum + (p.commentsCount ?? 0), 0);
+
+    // Follower-based engagement rate. The conventional definition divides by
+    // reach or impressions, but ApiPost exposes neither, so this divides by
+    // followers × posts. Guard the denominator — a brand new influencer has
+    // zero posts AND zero followers, which would otherwise produce NaN.
+    const denominator = posts.length * followers;
+    const engagementRate =
+      denominator > 0 ? ((totalLikes + totalComments) / denominator) * 100 : 0;
+
+    const recentActivity: InfluencerActivityItem[] = [...posts]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+      .map((post) => {
+        const media = resolvePostMedia(post);
+        return {
+          postId: post.id,
+          createdAt: post.createdAt,
+          caption: post.content?.trim() || "",
+          thumbnailUrl: media.imageUrl || undefined,
+          mediaType: media.type,
+          likesCount: post.likesCount ?? 0,
+          commentsCount: post.commentsCount ?? 0,
+        };
+      });
+
+    return {
+      followers,
+      totalPosts: posts.length,
+      totalLikes,
+      totalComments,
+      engagementRate,
+      recentActivity,
+      // getProfilePosts returns no total count, so a full page back means there
+      // are probably more posts than we counted. Let the screen say "60+".
+      postCountCapped: posts.length >= postLimit,
+    };
+  }
+
   async trackInfluencerClick(referralCode: string, postId?: string): Promise<void> {
     try {
       await this.request<{ success: boolean }>("/api/influencer/click", {
@@ -4774,6 +4835,31 @@ export interface InfluencerStats {
   pendingCommissionCents?: number;
   approvedCommissionCents?: number;
   transferredCommissionCents?: number;
+}
+
+// One entry in the influencer dashboard's recent activity feed. Derived from the
+// influencer's own posts — this is "my posts and how they did", not an event
+// stream of who liked what. A true event feed would need the notifications API.
+export interface InfluencerActivityItem {
+  postId: string;
+  createdAt: string;
+  caption: string;
+  thumbnailUrl?: string;
+  mediaType: "image" | "video";
+  likesCount: number;
+  commentsCount: number;
+}
+
+export interface InfluencerDashboard {
+  followers: number;
+  totalPosts: number;
+  totalLikes: number;
+  totalComments: number;
+  /** Percentage, follower-based — see getInfluencerDashboard for the formula. */
+  engagementRate: number;
+  recentActivity: InfluencerActivityItem[];
+  /** True when totalPosts hit the fetch limit and the real count may be higher. */
+  postCountCapped: boolean;
 }
 
 export const api = new ApiService();
