@@ -406,6 +406,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               coverMediaType: backendUser.coverMediaType || parsed.coverMediaType,
               deletionStatus: backendUser.deletionStatus ?? parsed.deletionStatus,
               scheduledDeletionAt: backendUser.scheduledDeletionAt ?? parsed.scheduledDeletionAt,
+              isInfluencer: backendUser.isInfluencer ?? parsed.isInfluencer,
+              influencerStatus: (backendUser.influencerStatus as User["influencerStatus"]) ?? parsed.influencerStatus,
             };
             await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
             await storeUserData(updated);
@@ -974,6 +976,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           deletionStatus: backendUser.deletionStatus ?? user.deletionStatus,
           scheduledDeletionAt: backendUser.scheduledDeletionAt ?? user.scheduledDeletionAt,
           subscriptionTier: backendUser.subscriptionTier ?? user.subscriptionTier,
+          isInfluencer: backendUser.isInfluencer ?? user.isInfluencer,
+          influencerStatus: (backendUser.influencerStatus as User["influencerStatus"]) ?? user.influencerStatus,
         };
         
         console.log("[Auth] User refreshed - username:", updatedUser.username, "displayName:", updatedUser.displayName, "bio:", updatedUser.bio);
