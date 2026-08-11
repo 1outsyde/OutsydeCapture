@@ -870,12 +870,15 @@ export interface PhotographerHours {
   endTime?: string;
 }
 
+// Field names match the backend billingAddressSchema (line1 / postalCode / country).
+// The previous interface used addressLine1/zipCode which did not match the backend.
 export interface BillingAddress {
-  addressLine1: string;
-  addressLine2?: string;
+  line1: string;
+  line2?: string;
   city: string;
   state: string;
-  zipCode: string;
+  postalCode: string;
+  country: string;
 }
 
 export interface BusinessDashboardStats {
@@ -3094,8 +3097,10 @@ class ApiService {
   }
 
   async updateBusinessBillingAddress(authToken: string, address: BillingAddress): Promise<void> {
-    await this.request<void>("/api/business/billing-address", {
-      method: "PUT",
+    // Backend route: PATCH /api/businesses/me/billing-address
+    // Previous client code incorrectly used PUT /api/business/billing-address
+    await this.request<void>("/api/businesses/me/billing-address", {
+      method: "PATCH",
       body: JSON.stringify(address),
       headers: { "Authorization": `Bearer ${authToken}` },
     });

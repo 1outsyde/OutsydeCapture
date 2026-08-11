@@ -70,6 +70,7 @@ export type RootStackParamList = {
   AdminBusinessReview: { businessId: string };
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
+  BusinessBillingAddress: undefined;
   DashboardOrdersScreen: undefined;
   DashboardBookingsScreen: undefined;
   DashboardCalendarScreen: undefined;

@@ -33,6 +33,7 @@ import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
 import AdminBusinessReviewScreen from "@/screens/AdminBusinessReviewScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
+import BusinessBillingAddressScreen from "@/screens/BusinessBillingAddressScreen";
 import StaffDashboardScreen from "@/screens/StaffDashboardScreen";
 import EditStaffProfileScreen from "@/screens/EditStaffProfileScreen";
 import InfluencerApplicationScreen from "@/screens/InfluencerApplicationScreen";
@@ -550,6 +551,11 @@ export default function RootNavigator() {
       <Stack.Screen
         name="DashboardOrdersScreen"
         component={DashboardOrdersScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="BusinessBillingAddress"
+        component={BusinessBillingAddressScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
