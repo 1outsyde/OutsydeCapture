@@ -6,7 +6,6 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Location from "expo-location";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -165,11 +164,10 @@ const SHOPPING_FREQUENCIES = ["Rarely", "Monthly", "Weekly", "Multiple times a w
 
 const STEPS = [
   { id: 1, name: "Account" },
-  { id: 2, name: "Location" },
-  { id: 3, name: "About You" },
-  { id: 4, name: "Industries" },
-  { id: 5, name: "Your Tastes" },
-  { id: 6, name: "Finish" },
+  { id: 2, name: "About You" },
+  { id: 3, name: "Industries" },
+  { id: 4, name: "Your Tastes" },
+  { id: 5, name: "Finish" },
 ];
 
 type ConsumerSignupRouteProp = RouteProp<RootStackParamList, "ConsumerSignup">;
@@ -189,7 +187,6 @@ export default function ConsumerSignupScreen() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
-  const [detectingLocation, setDetectingLocation] = useState(false);
 
   const [email, setEmail] = useState(prefillEmail);
   const [password, setPassword] = useState("");
@@ -222,72 +219,6 @@ export default function ConsumerSignupScreen() {
       setLastName(parts.slice(1).join(" ") ?? "");
     }
   }, [prefillName]);
-
-  // Address fields — used for shipping and billing on orders ONLY, not for location-based discovery
-  const [streetAddress, setStreetAddress] = useState("");
-  const [aptUnit, setAptUnit] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [zipCode, setZipCode] = useState("");
-  const [country, setCountry] = useState("United States");
-  const [locationPreFilled, setLocationPreFilled] = useState(false);
-  const [billingSameAsHome, setBillingSameAsHome] = useState(true);
-  const [billingStreet, setBillingStreet] = useState("");
-  const [billingAptUnit, setBillingAptUnit] = useState("");
-  const [billingCity, setBillingCity] = useState("");
-  const [billingState, setBillingState] = useState("");
-  const [billingZip, setBillingZip] = useState("");
-
-  useEffect(() => {
-    const checkExistingLocation = async () => {
-      try {
-        const onboardingCity = await AsyncStorage.getItem("@outsyde_onboarding_city");
-        const onboardingState = await AsyncStorage.getItem("@outsyde_onboarding_state");
-        const { status } = await Location.getForegroundPermissionsAsync();
-        const alreadyGranted = status === "granted";
-        if (alreadyGranted && onboardingCity) {
-          setCity(onboardingCity);
-          setState(onboardingState ?? "");
-          setLocationPreFilled(true);
-        }
-      } catch (e) {
-        // Silent fail — user can fill manually
-      }
-    };
-    checkExistingLocation();
-  }, []);
-
-  const handleUseMyLocation = async () => {
-    setDetectingLocation(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Location Permission",
-          "Please enable location access to auto-fill your city and state.",
-          [
-            { text: "Cancel", style: "cancel" },
-            ...(Platform.OS !== "web" ? [{ text: "Open Settings", onPress: async () => {
-              try { await Linking.openSettings(); } catch (e) {}
-            }}] : []),
-          ]
-        );
-        setDetectingLocation(false);
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const [result] = await Location.reverseGeocodeAsync(loc.coords);
-      if (result) {
-        setCity(result.city ?? "");
-        setState(result.region ?? "");
-        // Do NOT fill street address — GPS cannot provide that
-      }
-    } catch (error) {
-      Alert.alert("Location Error", "Could not detect your location. Please enter manually.");
-    } finally {
-      setDetectingLocation(false);
-    }
-  };
 
   const [username, setUsername] = useState("");
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
@@ -375,33 +306,15 @@ export default function ConsumerSignupScreen() {
           return false;
         }
         return true;
-      case 2: {
-        const step2Valid =
-          streetAddress.trim().length > 0 &&
-          city.trim().length > 0 &&
-          state.trim().length > 0 &&
-          zipCode.trim().length > 0 &&
-          (billingSameAsHome || (
-            billingStreet.trim().length > 0 &&
-            billingCity.trim().length > 0 &&
-            billingState.trim().length > 0 &&
-            billingZip.trim().length > 0
-          ));
-        if (!step2Valid) {
-          Alert.alert("Error", "Please fill in all required address fields");
-          return false;
-        }
+      case 2:
         return true;
-      }
       case 3:
-        return true;
-      case 4:
         if (selectedIndustries.length === 0) {
           Alert.alert("Error", "Please select at least one industry");
           return false;
         }
         return true;
-      case 5:
+      case 4:
         return true;
       default:
         return true;
@@ -445,14 +358,14 @@ export default function ConsumerSignupScreen() {
 
     if (!validateStep()) return;
 
-    if (currentStep === 5) {
+    if (currentStep === 4) {
       if (currentIndustryIndex < selectedIndustries.length - 1) {
         setCurrentIndustryIndex(prev => prev + 1);
       } else {
-        setCurrentStep(6);
+        setCurrentStep(5);
       }
     } else {
-      if (currentStep === 4) {
+      if (currentStep === 3) {
         setCurrentIndustryIndex(0);
       }
       setCurrentStep(prev => prev + 1);
@@ -460,10 +373,10 @@ export default function ConsumerSignupScreen() {
   };
 
   const handleBack = () => {
-    if (currentStep === 5 && currentIndustryIndex > 0) {
+    if (currentStep === 4 && currentIndustryIndex > 0) {
       setCurrentIndustryIndex(prev => prev - 1);
     } else if (currentStep > 1) {
-      if (currentStep === 5) {
+      if (currentStep === 4) {
         setCurrentIndustryIndex(0);
       }
       setCurrentStep(prev => prev - 1);
@@ -487,20 +400,6 @@ export default function ConsumerSignupScreen() {
             password,
             googleProfile,
             profileImageUrl: profilePhotoUri || googleProfile?.profileImageUrl || null,
-            address: streetAddress.trim(),
-            aptUnit: aptUnit.trim() || null,
-            city: city.trim(),
-            state: state.trim(),
-            zipCode: zipCode.trim(),
-            country: country.trim() || "United States",
-            billingSameAsHome,
-            ...(billingSameAsHome ? {} : {
-              billingStreet: billingStreet.trim(),
-              billingAptUnit: billingAptUnit.trim() || null,
-              billingCity: billingCity.trim(),
-              billingState: billingState.trim(),
-              billingZip: billingZip.trim(),
-            }),
           }),
         });
         const data = await response.json();
@@ -525,9 +424,6 @@ export default function ConsumerSignupScreen() {
       dateOfBirth,
       password,
       role: "consumer",
-      city,
-      state,
-      zipCode,
       username,
       gender,
       ethnicity,
@@ -535,17 +431,6 @@ export default function ConsumerSignupScreen() {
       selectedIndustries,
       industryNiches,
       industryValues,
-      address: streetAddress.trim(),
-      aptUnit: aptUnit.trim() || null,
-      country: country.trim() || "United States",
-      billingSameAsHome,
-      ...(billingSameAsHome ? {} : {
-        billingStreet: billingStreet.trim(),
-        billingAptUnit: billingAptUnit.trim() || null,
-        billingCity: billingCity.trim(),
-        billingState: billingState.trim(),
-        billingZip: billingZip.trim(),
-      }),
       profileImageUrl: profilePhotoUri || undefined,
     });
 
@@ -734,196 +619,6 @@ export default function ConsumerSignupScreen() {
       case 2:
         return (
           <View style={styles.stepContent}>
-            <ThemedText type="h2" style={styles.stepTitle}>Your Address</ThemedText>
-            <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-              Used for shipping and billing on your orders
-            </ThemedText>
-
-            {locationPreFilled ? null : (
-              <Pressable
-                onPress={handleUseMyLocation}
-                disabled={detectingLocation}
-                style={({ pressed }) => [
-                  styles.locationButton,
-                  { opacity: pressed || detectingLocation ? 0.7 : 1 },
-                ]}
-              >
-                {detectingLocation ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <>
-                    <Feather name="map-pin" size={18} color="#000" />
-                    <ThemedText type="button" style={{ color: "#000", marginLeft: 8 }}>
-                      Use My Location
-                    </ThemedText>
-                  </>
-                )}
-              </Pressable>
-            )}
-
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Street Address *</ThemedText>
-              <TextInput
-                style={styles.addressInput}
-                value={streetAddress}
-                onChangeText={setStreetAddress}
-                placeholder="123 Main Street"
-                placeholderTextColor="rgba(200,191,168,0.4)"
-                autoCapitalize="words"
-              />
-            </View>
-
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Apt / Suite (optional)</ThemedText>
-              <TextInput
-                style={styles.addressInput}
-                value={aptUnit}
-                onChangeText={setAptUnit}
-                placeholder="Apt 4B"
-                placeholderTextColor="rgba(200,191,168,0.4)"
-                autoCapitalize="words"
-              />
-            </View>
-
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>City *</ThemedText>
-              <TextInput
-                style={styles.addressInput}
-                value={city}
-                onChangeText={setCity}
-                placeholder="New York"
-                placeholderTextColor="rgba(200,191,168,0.4)"
-                autoCapitalize="words"
-              />
-            </View>
-
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>State *</ThemedText>
-              <TextInput
-                style={styles.addressInput}
-                value={state}
-                onChangeText={setState}
-                placeholder="NY"
-                placeholderTextColor="rgba(200,191,168,0.4)"
-                autoCapitalize="characters"
-                maxLength={2}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Zip Code *</ThemedText>
-              <TextInput
-                style={styles.addressInput}
-                value={zipCode}
-                onChangeText={setZipCode}
-                placeholder="10001"
-                placeholderTextColor="rgba(200,191,168,0.4)"
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Country</ThemedText>
-              <TextInput
-                style={styles.addressInput}
-                value={country}
-                onChangeText={setCountry}
-                placeholder="United States"
-                placeholderTextColor="rgba(200,191,168,0.4)"
-                autoCapitalize="words"
-              />
-            </View>
-
-            <View style={styles.sectionDivider} />
-
-            <Pressable
-              style={styles.checkboxRow}
-              onPress={() => setBillingSameAsHome(v => !v)}
-            >
-              <Feather
-                name={billingSameAsHome ? "check-square" : "square"}
-                size={20}
-                color="#C9933A"
-              />
-              <ThemedText style={styles.checkboxLabel}>
-                Billing address same as above
-              </ThemedText>
-            </Pressable>
-
-            {billingSameAsHome ? null : (
-              <View style={{ marginTop: 16 }}>
-                <ThemedText type="h3" style={[styles.stepTitle, { marginBottom: 12 }]}>Billing Address</ThemedText>
-
-                <View style={styles.field}>
-                  <ThemedText type="small" style={styles.label}>Billing Street *</ThemedText>
-                  <TextInput
-                    style={styles.addressInput}
-                    value={billingStreet}
-                    onChangeText={setBillingStreet}
-                    placeholder="123 Main Street"
-                    placeholderTextColor="rgba(200,191,168,0.4)"
-                    autoCapitalize="words"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <ThemedText type="small" style={styles.label}>Billing Apt / Suite (optional)</ThemedText>
-                  <TextInput
-                    style={styles.addressInput}
-                    value={billingAptUnit}
-                    onChangeText={setBillingAptUnit}
-                    placeholder="Apt 4B"
-                    placeholderTextColor="rgba(200,191,168,0.4)"
-                    autoCapitalize="words"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <ThemedText type="small" style={styles.label}>Billing City *</ThemedText>
-                  <TextInput
-                    style={styles.addressInput}
-                    value={billingCity}
-                    onChangeText={setBillingCity}
-                    placeholder="New York"
-                    placeholderTextColor="rgba(200,191,168,0.4)"
-                    autoCapitalize="words"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <ThemedText type="small" style={styles.label}>Billing State *</ThemedText>
-                  <TextInput
-                    style={styles.addressInput}
-                    value={billingState}
-                    onChangeText={setBillingState}
-                    placeholder="NY"
-                    placeholderTextColor="rgba(200,191,168,0.4)"
-                    autoCapitalize="characters"
-                    maxLength={2}
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <ThemedText type="small" style={styles.label}>Billing Zip *</ThemedText>
-                  <TextInput
-                    style={styles.addressInput}
-                    value={billingZip}
-                    onChangeText={setBillingZip}
-                    placeholder="10001"
-                    placeholderTextColor="rgba(200,191,168,0.4)"
-                    keyboardType="number-pad"
-                    maxLength={10}
-                  />
-                </View>
-              </View>
-            )}
-          </View>
-        );
-
-      case 3:
-        return (
-          <View style={styles.stepContent}>
             <ThemedText type="h2" style={styles.stepTitle}>About You</ThemedText>
             <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
               Help us personalize your experience
@@ -996,7 +691,7 @@ export default function ConsumerSignupScreen() {
           </View>
         );
 
-      case 4:
+      case 3:
         return (
           <View style={styles.stepContent}>
             <ThemedText type="h2" style={styles.stepTitle}>Your Interests</ThemedText>
@@ -1047,7 +742,7 @@ export default function ConsumerSignupScreen() {
           </View>
         );
 
-      case 5:
+      case 4:
         const currentIndustry = selectedIndustries[currentIndustryIndex];
         const nicheData = INDUSTRY_NICHES[currentIndustry];
         const valueData = INDUSTRY_VALUES[currentIndustry];
@@ -1133,7 +828,7 @@ export default function ConsumerSignupScreen() {
           </View>
         );
 
-      case 6:
+      case 5:
         return (
           <View style={styles.stepContent}>
             <View style={[styles.successIcon, { backgroundColor: theme.primary + "20" }]}>
@@ -1180,7 +875,7 @@ export default function ConsumerSignupScreen() {
             Please complete all required fields to continue
           </ThemedText>
         ) : null}
-        {currentStep === 6 ? (
+        {currentStep === 5 ? (
           <Button onPress={handleSubmit} style={styles.nextButton} disabled={isLoading}>
             {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Create Account"}
           </Button>
@@ -1295,42 +990,6 @@ const styles = StyleSheet.create({
     color: "#E05252",
     textAlign: "center",
     marginBottom: 8,
-  },
-  locationButton: {
-    backgroundColor: "#C9933A",
-    height: 52,
-    borderRadius: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginBottom: 20,
-  },
-  addressInput: {
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    color: "#F0EAD6",
-    paddingHorizontal: Spacing.md,
-    fontSize: 16,
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    marginVertical: 16,
-  },
-  checkboxRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 0,
-    marginBottom: 8,
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    color: "rgba(200,191,168,0.8)",
   },
   passwordContainer: {
     flexDirection: "row",
