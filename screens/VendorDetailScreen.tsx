@@ -3,7 +3,6 @@
 // View-aware: Own profile (AccountScreen) | External (VendorDetail)
 // Brand colors: Business uses brandColors.primary override
 // TODO: Wire follow/unfollow to API
-// TODO: Wire review submit to POST /reviews endpoint
 // TODO: Wire booking modal to existing booking flow screen
 // ─────────────────────────────────────────────────────────────
 
@@ -16,6 +15,7 @@ import React, {
 } from "react";
 import RoleBadge from "@/components/RoleBadge";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -528,6 +528,7 @@ export default function VendorDetailScreen({ route }: Props) {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [reviewSheetIndex, setReviewSheetIndex] = useState(-1);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const reviewSnapPoints = useMemo(() => ["45%"], []);
@@ -758,16 +759,7 @@ export default function VendorDetailScreen({ route }: Props) {
 
         resolvedProducts = liveProducts;
         resolvedServices = liveServices;
-        resolvedReviews = Array.isArray((business as any).reviews)
-          ? (business as any).reviews.map((item: any, index: number) => ({
-              id: String(item.id ?? `review-${index}`),
-              userName: item.userName || item.authorName || "Outsyde User",
-              avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
-              rating: Number(item.rating ?? 5),
-              text: item.text || item.comment || "",
-              createdAt: item.createdAt || new Date().toISOString(),
-            }))
-          : [];
+        resolvedReviews = [];
       } catch {
         try {
           console.log(
@@ -931,18 +923,7 @@ export default function VendorDetailScreen({ route }: Props) {
               endTime: String(slot.endTime ?? ""),
               isActive: Boolean(slot.isActive ?? true),
             }));
-            resolvedReviews = Array.isArray((photographer as any).reviews)
-              ? (photographer as any).reviews.map(
-                  (item: any, index: number) => ({
-                    id: String(item.id ?? `review-${index}`),
-                    userName: item.userName || item.authorName || "Outsyde User",
-                    avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
-                    rating: Number(item.rating ?? 5),
-                    text: item.text || item.comment || "",
-                    createdAt: item.createdAt || new Date().toISOString(),
-                  }),
-                )
-              : [];
+            resolvedReviews = [];
           } catch (processingError) {
             console.warn(
               "[VendorDetail] Photographer data processing error, rendering with partial data:",
@@ -1173,6 +1154,33 @@ export default function VendorDetailScreen({ route }: Props) {
         }
       }
 
+      if (resolvedProfile) {
+        try {
+          const targetType =
+            resolvedProfile.role === "photographer" ? "photographer" : "business";
+          const reviewsResponse = await apiClient.getReviewsByTarget(
+            targetType,
+            vendorId,
+          );
+          resolvedReviews = (reviewsResponse.reviews || []).map(
+            (item: any, index: number) => ({
+              id: String(item.id ?? `review-${index}`),
+              userName:
+                item.reviewerName ||
+                item.userName ||
+                item.authorName ||
+                "Outsyde User",
+              avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
+              rating: Number(item.rating ?? 5),
+              text: item.text || item.comment || "",
+              createdAt: item.createdAt || new Date().toISOString(),
+            }),
+          );
+        } catch {
+          resolvedReviews = [];
+        }
+      }
+
       setProfile(resolvedProfile);
       setProducts(resolvedProducts);
       setServices(resolvedServices);
@@ -1362,22 +1370,70 @@ export default function VendorDetailScreen({ route }: Props) {
     }
   }, [profile]);
 
-  const handleSubmitReview = useCallback(() => {
+  const handleSubmitReview = useCallback(async () => {
     if (!profile || reviewRating === 0) {
       Alert.alert("Add a rating", "Select a star rating before submitting.");
       return;
     }
-    console.log("TODO review submit", {
-      profileId: profile.id,
-      rating: reviewRating,
-      reviewText,
-    });
-    // TODO: Wire review submit to POST /reviews endpoint
-    setReviewRating(0);
-    setReviewText("");
-    setReviewSheetIndex(-1);
-    Alert.alert("Review captured", "Thanks for your feedback.");
-  }, [profile, reviewRating, reviewText]);
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Sign in required", "Please sign in to leave a review.");
+      return;
+    }
+    setIsSubmittingReview(true);
+    try {
+      const targetType =
+        profile.role === "photographer" ? "photographer" : "business";
+      await apiClient.submitReview(token, {
+        targetType,
+        targetId: profile.id,
+        bookingType: "appointment",
+        bookingId: "",
+        rating: reviewRating,
+        comment: reviewText || undefined,
+      });
+      setReviewRating(0);
+      setReviewText("");
+      setReviewSheetIndex(-1);
+      Alert.alert("Review submitted!", "Thanks for your feedback.");
+      try {
+        const refreshed = await apiClient.getReviewsByTarget(targetType, vendorId);
+        setReviews(
+          (refreshed.reviews || []).map((item: any, index: number) => ({
+            id: String(item.id ?? `review-${index}`),
+            userName:
+              item.reviewerName ||
+              item.userName ||
+              item.authorName ||
+              "Outsyde User",
+            avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
+            rating: Number(item.rating ?? 5),
+            text: item.text || item.comment || "",
+            createdAt: item.createdAt || new Date().toISOString(),
+          })),
+        );
+      } catch {
+        // silent — reviews will refresh on next load
+      }
+    } catch (err: any) {
+      const status = err?.status as number | undefined;
+      if (status === 403) {
+        Alert.alert(
+          "Not eligible",
+          "You can only review after completing a booking with this provider.",
+        );
+      } else if (status === 409) {
+        Alert.alert(
+          "Already reviewed",
+          "You've already reviewed this provider.",
+        );
+      } else {
+        Alert.alert("Error", "Failed to submit review. Please try again.");
+      }
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  }, [profile, reviewRating, reviewText, getToken, vendorId]);
 
   const resolvePrimaryAction = useCallback(() => {
     if (!profile) return { label: "", onPress: () => {} };
@@ -2561,10 +2617,16 @@ export default function VendorDetailScreen({ route }: Props) {
             style={[
               styles.submitReviewButton,
               { backgroundColor: accentColor },
+              isSubmittingReview && { opacity: 0.6 },
             ]}
             onPress={handleSubmitReview}
+            disabled={isSubmittingReview}
           >
-            <Text style={styles.submitReviewText}>Submit Review</Text>
+            {isSubmittingReview ? (
+              <ActivityIndicator size="small" color={COLORS.black} />
+            ) : (
+              <Text style={styles.submitReviewText}>Submit Review</Text>
+            )}
           </Pressable>
         </BottomSheetView>
       </BottomSheet>
