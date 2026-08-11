@@ -4715,6 +4715,63 @@ class ApiService {
       headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {},
     });
   }
+
+  // ==========================================
+  // Reviews API
+  // ==========================================
+
+  // GET /api/reviews/reviewable - List bookings eligible for review
+  async getReviewableBookings(token: string): Promise<{
+    orders: any[];
+    appointments: any[];
+    shootBookings: any[];
+  }> {
+    return this.request(`/api/reviews/reviewable`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+  }
+
+  // POST /api/reviews - Submit a review for a completed booking
+  async submitReview(
+    token: string,
+    payload: {
+      targetType: string;
+      targetId: string;
+      bookingType: string;
+      bookingId: string;
+      rating: number;
+      title?: string;
+      comment?: string;
+    }
+  ): Promise<{ review: any }> {
+    return this.request<{ review: any }>(`/api/reviews`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // GET /api/reviews/:targetType/:targetId - Fetch reviews for a vendor
+  async getReviewsByTarget(
+    targetType: string,
+    targetId: string
+  ): Promise<{ reviews: any[] }> {
+    return this.request<{ reviews: any[] }>(`/api/reviews/${targetType}/${targetId}`);
+  }
+
+  // GET /api/reviews/can-review/:bookingType/:bookingId
+  async canReviewBooking(
+    token: string,
+    bookingType: string,
+    bookingId: string
+  ): Promise<{ canReview: boolean; alreadyReviewed: boolean }> {
+    return this.request<{ canReview: boolean; alreadyReviewed: boolean }>(
+      `/api/reviews/can-review/${bookingType}/${bookingId}`,
+      {
+        headers: { "Authorization": `Bearer ${token}` },
+      }
+    );
+  }
 }
 
 // Availability Calendar types
