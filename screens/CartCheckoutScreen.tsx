@@ -302,7 +302,24 @@ const clientPoints = useMemo(() => Math.round((subtotal / 100) * clientPointsRat
       Array.from(new Set(cart.map(i => i.vendorId))).forEach(vid => removeVendorItems(vid));
       setBackendFeeBreakdown(null);
       navigation.navigate("OrderSuccess", { itemCount, totalCharged, pointsEarned });
-    } catch {
+    } catch (err: any) {
+      const msg: string = err?.message ?? "";
+      if (msg.includes("ADDRESS_REQUIRED")) {
+        Alert.alert(
+          "Shipping Address Required",
+          "Please add a shipping address to continue.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+      if (msg.includes("INVALID_ADDRESS")) {
+        Alert.alert(
+          "Invalid Address",
+          "Please check your shipping address and try again.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
       Alert.alert("Checkout failed. Please try again.");
     } finally {
       setCheckoutLoading(false);

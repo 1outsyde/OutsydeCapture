@@ -1630,16 +1630,6 @@ class ApiService {
         dateOfBirth: signupData.dateOfBirth,
         shoppingFrequency: signupData.shoppingFrequency,
         ethnicity: signupData.ethnicity,
-        zipCode: signupData.zipCode,
-        address: signupData.address || signupData.streetAddress,
-        aptUnit: signupData.aptUnit,
-        country: signupData.country,
-        billingSameAsHome: signupData.billingSameAsHome,
-        billingStreet: signupData.billingStreet,
-        billingAptUnit: signupData.billingAptUnit,
-        billingCity: signupData.billingCity,
-        billingState: signupData.billingState,
-        billingZip: signupData.billingZip,
       };
       console.log("[Signup] Customer payload:", JSON.stringify(customerPayload, null, 2));
       await this.customerSignup(customerPayload);
@@ -1728,43 +1718,6 @@ class ApiService {
       email: data.email,
       password: data.password,
     });
-
-    // Step 3 (consumer only): save address data collected during signup
-    if (data.role === "consumer" && loginResponse.accessToken) {
-      const accessToken = loginResponse.accessToken;
-      const signupData = data as any;
-      if (signupData.streetAddress && signupData.city && signupData.state && signupData.zipCode) {
-        try {
-          await createSavedAddress(accessToken, {
-            label: "Shipping",
-            line1: signupData.streetAddress.trim(),
-            city: signupData.city.trim(),
-            state: signupData.state.trim(),
-            zipCode: signupData.zipCode.trim(),
-            isDefault: true,
-          });
-
-          if (
-            signupData.billingSameAsHome === false &&
-            signupData.billingStreet &&
-            signupData.billingCity &&
-            signupData.billingState &&
-            signupData.billingZip
-          ) {
-            await createSavedAddress(accessToken, {
-              label: "Billing",
-              line1: signupData.billingStreet.trim(),
-              city: signupData.billingCity.trim(),
-              state: signupData.billingState.trim(),
-              zipCode: signupData.billingZip.trim(),
-              isDefault: false,
-            });
-          }
-        } catch (addressError) {
-          console.warn("[Signup] Address save after signup failed (non-fatal):", addressError);
-        }
-      }
-    }
 
     return loginResponse;
   }
