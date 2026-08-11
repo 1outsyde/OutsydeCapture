@@ -309,10 +309,6 @@ export default function ConsumerSignupScreen() {
       case 2:
         return true;
       case 3:
-        if (selectedIndustries.length === 0) {
-          Alert.alert("Error", "Please select at least one industry");
-          return false;
-        }
         return true;
       case 4:
         return true;
@@ -383,6 +379,14 @@ export default function ConsumerSignupScreen() {
     } else {
       navigation.goBack();
     }
+  };
+
+  const handleSkipToFinish = () => {
+    setSelectedIndustries([]);
+    setIndustryNiches({});
+    setIndustryValues({});
+    setCurrentIndustryIndex(0);
+    setCurrentStep(5);
   };
 
   const handleSubmit = async () => {
@@ -880,13 +884,20 @@ export default function ConsumerSignupScreen() {
             {isLoading ? <ActivityIndicator color="#FFFFFF" /> : "Create Account"}
           </Button>
         ) : (
-          <Button
-            onPress={handleNext}
-            style={styles.nextButton}
-            disabled={currentStep === 1 && !agreedToTerms}
-          >
-            Continue
-          </Button>
+          <>
+            <Button
+              onPress={handleNext}
+              style={styles.nextButton}
+              disabled={currentStep === 1 && !agreedToTerms}
+            >
+              Continue
+            </Button>
+            {(currentStep === 3 || currentStep === 4) ? (
+              <Pressable onPress={handleSkipToFinish} style={styles.skipButton}>
+                <ThemedText style={styles.skipText}>Skip for now</ThemedText>
+              </Pressable>
+            ) : null}
+          </>
         )}
       </View>
     </ThemedView>
@@ -990,6 +1001,16 @@ const styles = StyleSheet.create({
     color: "#E05252",
     textAlign: "center",
     marginBottom: 8,
+  },
+  skipButton: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  skipText: {
+    fontSize: 14,
+    color: "rgba(200,191,168,0.5)",
+    textDecorationLine: "underline",
   },
   passwordContainer: {
     flexDirection: "row",
