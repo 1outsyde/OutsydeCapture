@@ -995,6 +995,29 @@ export default function BusinessDashboardScreen() {
         </Pressable>
       </View>
 
+      {/* Settings nav cards */}
+      <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+        <SectionLabel text="SETTINGS" />
+
+        <Pressable
+          style={styles.navCard}
+          onPress={() => navigation.navigate("BusinessBillingAddress")}
+        >
+          <View style={styles.navCardLeft}>
+            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+              <Feather name="credit-card" size={20} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={styles.navCardTextWrap}>
+              <Text style={styles.navCardTitle}>Billing Address</Text>
+              <Text style={styles.navCardSubtitle}>Used for Stripe payout verification</Text>
+            </View>
+          </View>
+          <View style={styles.navCardRight}>
+            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+          </View>
+        </Pressable>
+      </View>
+
       <View style={{ height: insets.bottom + 20 }} />
 
       <BusinessEligibilityGate
