@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useAuth } from "@/context/AuthContext";
@@ -25,6 +26,7 @@ type Props = NativeStackScreenProps<AccountStackParamList, "AddressForm">;
 export default function AddressFormScreen({ route, navigation }: Props) {
   const { mode } = route.params;
   const { getToken } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [existingId, setExistingId] = useState<string | null>(null);
   const [line1, setLine1] = useState("");
@@ -146,7 +148,7 @@ export default function AddressFormScreen({ route, navigation }: Props) {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={[styles.contentContainer, { paddingTop: insets.top + 72 }]}
       keyboardShouldPersistTaps="handled"
     >
       {mode === "billing" && (
@@ -241,7 +243,7 @@ export default function AddressFormScreen({ route, navigation }: Props) {
         disabled={saving || inputsDisabled}
       >
         {saving ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color="#000000" />
         ) : (
           <ThemedText style={styles.saveButtonText}>Save Address</ThemedText>
         )}
@@ -317,7 +319,7 @@ const styles = StyleSheet.create({
   saveButton: {
     height: 52,
     borderRadius: 14,
-    backgroundColor: "#4a9fd4",
+    backgroundColor: "#E8B930",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
@@ -326,7 +328,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    color: "#fff",
+    color: "#000000",
     fontSize: 16,
     fontWeight: "600",
   },
