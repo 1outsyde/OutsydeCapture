@@ -18,10 +18,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { useAuth, UserRole, GoogleProfile } from "@/context/AuthContext";
+import { useAuth, UserRole } from "@/context/AuthContext";
 import { Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import { useGoogleSignIn, useAppleSignIn } from "@/hooks/useOAuthSignIn";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const DS = {
@@ -88,31 +87,12 @@ export default function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  const [pendingGoogleProfile, setPendingGoogleProfile] = useState<GoogleProfile | null>(null);
-
   const [showPendingMessage, setShowPendingMessage] = useState(false);
   const [pendingUserInfo, setPendingUserInfo] = useState<{
     businessName: string;
     businessCategory: string;
     email: string;
   } | null>(null);
-
-  const { signIn: handleGoogleSignIn, isLoading: isGoogleLoading } = useGoogleSignIn(
-    (gProfile) => {
-      setPendingGoogleProfile(gProfile);
-      setMode("signup");
-    }
-  );
-
-  const { signIn: handleAppleSignIn, isLoading: isAppleLoading } = useAppleSignIn(
-    ({ prefillName, prefillEmail }) => {
-      navigation.navigate("ConsumerSignup", {
-        prefillName,
-        prefillEmail,
-        socialProvider: "apple",
-      });
-    }
-  );
 
   const validateForm = () => {
     if (!identifier.trim() || !password.trim()) {
@@ -150,12 +130,9 @@ export default function AuthScreen() {
   };
 
   const navigateToSignup = (role: UserRole) => {
-    const googleParams = pendingGoogleProfile
-      ? { googleProfile: pendingGoogleProfile, isGoogleSignup: true as const }
-      : undefined;
-    if (role === "consumer") navigation.navigate("ConsumerSignup", googleParams);
-    else if (role === "business") navigation.navigate("BusinessSignup", googleParams);
-    else navigation.navigate("PhotographerSignup", googleParams);
+    if (role === "consumer") navigation.navigate("ConsumerSignup", undefined);
+    else if (role === "business") navigation.navigate("BusinessSignup", undefined);
+    else navigation.navigate("PhotographerSignup", undefined);
   };
 
   const handleGuestLogin = async () => {
@@ -167,7 +144,6 @@ export default function AuthScreen() {
     setMode(mode === "login" ? "signup" : "login");
     setIdentifier("");
     setPassword("");
-    setPendingGoogleProfile(null);
   };
 
   const inputBorder = (name: string) =>
@@ -350,62 +326,6 @@ export default function AuthScreen() {
                   Sign up
                 </ThemedText>
               </Pressable>
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <ThemedText style={styles.dividerLabel}>or</ThemedText>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <Pressable
-                onPress={handleGoogleSignIn}
-                disabled={isGoogleLoading}
-                style={[
-                  styles.socialBtn,
-                  {
-                    backgroundColor: DS.greenDeep,
-                    borderColor: "rgba(45,122,45,0.4)",
-                    opacity: isGoogleLoading ? 0.6 : 1,
-                  },
-                ]}
-              >
-                {isGoogleLoading ? (
-                  <ActivityIndicator color={DS.cream} size="small" />
-                ) : (
-                  <Feather name="mail" size={20} color={DS.cream} />
-                )}
-                <ThemedText style={[styles.socialBtnText, { color: DS.cream }]}>
-                  Continue with Google
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
-                onPress={handleAppleSignIn}
-                disabled={isAppleLoading}
-                style={[
-                  styles.socialBtn,
-                  {
-                    backgroundColor: "#000000",
-                    borderColor: "rgba(255,255,255,0.15)",
-                    opacity: isAppleLoading ? 0.6 : 1,
-                  },
-                ]}
-              >
-                {isAppleLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Feather name="smartphone" size={20} color="#FFFFFF" />
-                )}
-                <ThemedText style={[styles.socialBtnText, { color: "#FFFFFF" }]}>
-                  Continue with Apple
-                </ThemedText>
-              </Pressable>
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <ThemedText style={styles.dividerLabel}>or</ThemedText>
-                <View style={styles.dividerLine} />
-              </View>
             </>
           ) : (
             /* ── SIGNUP MODE ───────────────────────────────────────────────── */
