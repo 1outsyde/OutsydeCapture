@@ -59,6 +59,7 @@ import StoryInsightsScreen from "@/screens/StoryInsightsScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
+import SupportContactScreen from "@/screens/SupportContactScreen";
 
 import DashboardOrdersScreen from "@/screens/DashboardOrdersScreen";
 import DashboardBookingsScreen from "@/screens/DashboardBookingsScreen";
@@ -776,6 +777,16 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="SupportContact"
+        component={SupportContactScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: false,
         }}
       />
 
