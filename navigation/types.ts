@@ -114,6 +114,7 @@ export type RootStackParamList = {
     onStoryDeleted?: (deletedId: string) => void;
   };
   StoryInsights: { userId: string };
+  SupportContact: undefined;
 };
 
 export type MainTabParamList = {

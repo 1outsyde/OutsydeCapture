@@ -97,18 +97,6 @@ export default function AddressFormScreen({ route, navigation }: Props) {
       Alert.alert("Invalid Address", "Please enter a valid street address.");
       return false;
     }
-    if (!city || city.trim().length < 2) {
-      Alert.alert("Invalid City", "Please enter a valid city.");
-      return false;
-    }
-    if (!state || state.trim().length < 1) {
-      Alert.alert("Invalid State", "Please enter your state.");
-      return false;
-    }
-    if (!zipCode || zipCode.trim().length < 5) {
-      Alert.alert("Invalid ZIP", "Please enter a valid ZIP code.");
-      return false;
-    }
     return true;
   };
 
@@ -204,7 +192,7 @@ export default function AddressFormScreen({ route, navigation }: Props) {
       </View>
 
       <View style={styles.field}>
-        <ThemedText style={styles.fieldLabel}>City *</ThemedText>
+        <ThemedText style={styles.fieldLabel}>City</ThemedText>
         <TextInput
           style={[styles.addressInput, inputsDisabled && styles.disabledInput]}
           value={city}
@@ -217,7 +205,7 @@ export default function AddressFormScreen({ route, navigation }: Props) {
       </View>
 
       <View style={styles.field}>
-        <ThemedText style={styles.fieldLabel}>State *</ThemedText>
+        <ThemedText style={styles.fieldLabel}>State</ThemedText>
         <TextInput
           style={[styles.addressInput, inputsDisabled && styles.disabledInput]}
           value={state}
@@ -231,7 +219,7 @@ export default function AddressFormScreen({ route, navigation }: Props) {
       </View>
 
       <View style={styles.field}>
-        <ThemedText style={styles.fieldLabel}>ZIP code *</ThemedText>
+        <ThemedText style={styles.fieldLabel}>ZIP code</ThemedText>
         <TextInput
           style={[styles.addressInput, inputsDisabled && styles.disabledInput]}
           value={zipCode}
