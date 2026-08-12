@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import * as Notifications from "expo-notifications";
 import { useAuth } from "./AuthContext";
 import api from "@/services/api";
 import { apiPost } from "@/api/client";
@@ -58,6 +59,7 @@ const getNotificationsKey = (userId: string) => `@outsyde_notifications_${userId
 const getSettingsKey = (userId: string) => `@outsyde_notification_settings_${userId}`;
 const getEnabledKey = (userId: string) => `@outsyde_notifications_enabled_${userId}`;
 const getSeenBusinessesKey = (userId: string) => `@outsyde_seen_businesses_${userId}`;
+const PUSH_PROMPTED_KEY = "push_permission_prompted";
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   bookingConfirmations: true,
@@ -74,6 +76,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [pendingBusinessCount, setPendingBusinessCount] = useState(0);
   const [seenBusinessIds, setSeenBusinessIds] = useState<string[]>([]);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [showPrimingModal, setShowPrimingModal] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notificationListenerRef = useRef<any>(null);
@@ -110,13 +113,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const initializePushNotifications = async () => {
     if (Platform.OS === "web") return;
-    
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status === "undetermined") {
+        const alreadyPrompted = await AsyncStorage.getItem(PUSH_PROMPTED_KEY);
+        if (!alreadyPrompted) {
+          setShowPrimingModal(true);
+          return;
+        }
+        // User previously declined our modal — don't auto-ask again
+        return;
+      }
+      // Permission already granted or denied at OS level — proceed normally
+      await proceedWithPushRegistration();
+    } catch (error) {
+      console.error("[NotificationContext] Failed to initialize push notifications:", error);
+    }
+  };
+
+  const proceedWithPushRegistration = async () => {
     try {
       const token = await registerForPushNotificationsAsync();
       if (token) {
         setPushToken(token);
         console.log("[NotificationContext] Push token obtained:", token);
-        // Register token with backend so push notifications can be delivered
         try {
           const authToken = await getToken();
           if (authToken) {
@@ -144,8 +164,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         console.log("[NotificationContext] Notification response:", response);
       });
     } catch (error) {
-      console.error("[NotificationContext] Failed to initialize push notifications:", error);
+      console.error("[NotificationContext] Failed to register push notifications:", error);
     }
+  };
+
+  const handleAllowNotifications = async () => {
+    setShowPrimingModal(false);
+    await AsyncStorage.setItem(PUSH_PROMPTED_KEY, "true");
+    await proceedWithPushRegistration();
+  };
+
+  const handleDeclineNotifications = async () => {
+    setShowPrimingModal(false);
+    await AsyncStorage.setItem(PUSH_PROMPTED_KEY, "true");
   };
 
   const loadNotificationData = async () => {
@@ -435,9 +466,95 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <Modal
+        visible={showPrimingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleDeclineNotifications}
+      >
+        <View style={primingStyles.overlay}>
+          <View style={primingStyles.card}>
+            <Text style={primingStyles.title}>Stay in the loop</Text>
+            <Text style={primingStyles.body}>
+              Get notified about booking confirmations, order updates, and messages from your community.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [primingStyles.primaryButton, { opacity: pressed ? 0.85 : 1 }]}
+              onPress={handleAllowNotifications}
+            >
+              <Text style={primingStyles.primaryButtonText}>Allow Notifications</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [primingStyles.secondaryButton, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={handleDeclineNotifications}
+            >
+              <Text style={primingStyles.secondaryButtonText}>Not Now</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </NotificationContext.Provider>
   );
 }
+
+const primingStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  card: {
+    backgroundColor: "#080C08",
+    borderRadius: 20,
+    padding: 28,
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  title: {
+    color: "#F0EAD6",
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  body: {
+    color: "rgba(200,191,168,0.7)",
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginBottom: 28,
+  },
+  primaryButton: {
+    backgroundColor: "#E8B930",
+    borderRadius: 12,
+    paddingVertical: 14,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  primaryButtonText: {
+    color: "#000000",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  secondaryButton: {
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    color: "#F0EAD6",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+});
 
 export function useNotifications() {
   const context = useContext(NotificationContext);
