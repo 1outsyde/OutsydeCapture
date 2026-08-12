@@ -249,10 +249,6 @@ export default function PhotographerSignupScreen() {
         }
         return true;
       case 3:
-        if (!city.trim() || !state.trim()) {
-          Alert.alert("Error", "Please enter your city and state");
-          return false;
-        }
         if (shootLocation.length === 0) {
           Alert.alert("Error", "Please select where you shoot");
           return false;
@@ -635,7 +631,7 @@ export default function PhotographerSignupScreen() {
             </ThemedText>
 
             <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>City *</ThemedText>
+              <ThemedText type="small" style={styles.label}>City</ThemedText>
               <TextInput
                 style={inputStyle}
                 value={city}
@@ -647,7 +643,7 @@ export default function PhotographerSignupScreen() {
             </View>
 
             <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>State *</ThemedText>
+              <ThemedText type="small" style={styles.label}>State</ThemedText>
               <TextInput
                 style={inputStyle}
                 value={state}
