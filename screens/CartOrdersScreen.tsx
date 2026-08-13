@@ -801,6 +801,7 @@ export default function CartOrdersScreen() {
                 navigation.navigate("ProductOrderDetail", {
                   orderId: order.id,
                   vendorName: order.vendorName,
+                  businessId: order.businessId,
                   status: order.status,
                   items: order.items,
                   totalAmount: order.totalAmount,

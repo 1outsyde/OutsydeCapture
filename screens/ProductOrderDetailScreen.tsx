@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -19,6 +19,8 @@ import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/services/api";
+import { RatingBottomSheet } from "@/components/ratings";
+import type { PurchaseItem } from "@/types/ratings";
 
 type Route = RouteProp<RootStackParamList, "ProductOrderDetail">;
 
@@ -67,10 +69,27 @@ export default function ProductOrderDetailScreen() {
   const { getToken } = useAuth();
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(route.params.status);
+  const [canRate, setCanRate] = useState(false);
+  const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
+
+  useEffect(() => {
+    if (currentStatus !== "delivered" || !businessId) return;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const { canRate: eligible } = await api.checkRating(token, "business", businessId);
+        setCanRate(eligible);
+      } catch {
+        // ignore — rate button simply won't appear
+      }
+    })();
+  }, [currentStatus, businessId]);
 
   const {
     orderId,
     vendorName,
+    businessId,
     status,
     items,
     totalAmount,
@@ -407,6 +426,29 @@ export default function ProductOrderDetailScreen() {
           </View>
         )}
 
+        {/* Rate this vendor — shown after delivery if eligible */}
+        {currentStatus === "delivered" && canRate && businessId && (
+          <View style={{ marginHorizontal: Spacing.lg, marginBottom: Spacing.lg }}>
+            <Pressable
+              style={({ pressed }) => ({
+                paddingVertical: 14,
+                borderRadius: 10,
+                backgroundColor: pressed ? "#b07d2a" : "#C9933A",
+                alignItems: "center" as const,
+                flexDirection: "row" as const,
+                justifyContent: "center" as const,
+                gap: 8,
+              })}
+              onPress={() => setRatingSheetVisible(true)}
+            >
+              <Feather name="star" size={16} color="#fff" />
+              <ThemedText type="body" style={{ color: "#fff", fontWeight: "700" }}>
+                Rate Your Order
+              </ThemedText>
+            </Pressable>
+          </View>
+        )}
+
         {/* Footer */}
         <View style={styles.footer}>
           <ThemedText type="caption" style={{ color: theme.brandTextDim, textAlign: "center" }}>
@@ -414,6 +456,30 @@ export default function ProductOrderDetailScreen() {
           </ThemedText>
         </View>
       </ScrollView>
+
+      {businessId && (
+        <RatingBottomSheet
+          visible={ratingSheetVisible}
+          onClose={() => setRatingSheetVisible(false)}
+          onSubmit={async (rating, purchaseId, purchaseType) => {
+            const token = await getToken();
+            if (!token) throw new Error("Not authenticated");
+            await api.submitRating(token, "business", businessId, rating, purchaseId, purchaseType);
+            setCanRate(false);
+          }}
+          targetType="business"
+          targetId={businessId}
+          targetName={vendorName}
+          purchases={[{
+            purchaseId: orderId,
+            purchaseType: "order",
+            targetId: businessId,
+            targetType: "business",
+            label: vendorName,
+            date: createdAt,
+          } as PurchaseItem]}
+        />
+      )}
     </View>
   );
 }
