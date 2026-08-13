@@ -156,6 +156,18 @@ export default function DiscoverScreen() {
       serviceId: apiPost.photographerServiceId || apiPost.serviceId,
       productId: apiPost.productId,
       providerId,
+      // Resolve businessId from the richest available source:
+      //   1. product.businessId or service.businessId (linked commerce item)
+      //   2. providerId when the author is a vendor (backend sets this to authorBusinessId)
+      //   3. taggedBusinessId (explicit tag on the post)
+      //   4. author.businessId (legacy author field)
+      businessId:
+        apiPost.product?.businessId ||
+        apiPost.service?.businessId ||
+        ((apiPost.authorType === "vendor" || apiPost.authorType === "business") ? providerId : undefined) ||
+        apiPost.taggedBusinessId ||
+        apiPost.author?.businessId ||
+        undefined,
       photographerId: apiPost.authorType === "photographer" ? (providerId || userId) : undefined,
       photographerName: apiPost.authorType === "photographer" ? displayName : undefined,
     };
