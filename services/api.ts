@@ -6,6 +6,12 @@ import {
 } from "@/utils/tokenStorage";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/api/client";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
+import type {
+  RatingCheckResponse,
+  Rating,
+  RatingsResponse,
+  RatingTargetType,
+} from "../types/ratings";
 
 export const API_BASE_URL = "https://outsyde-backend.onrender.com";
 
@@ -4730,6 +4736,81 @@ class ApiService {
       }
     );
   }
+
+  // ── Ratings ───────────────────────────────────────────────────────────────
+
+  async checkRating(
+    authToken: string,
+    targetType: RatingTargetType,
+    targetId: string,
+  ): Promise<RatingCheckResponse> {
+    return this.request<RatingCheckResponse>(
+      `/api/ratings/check?targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`,
+      { headers: { Authorization: `Bearer ${authToken}` } },
+    );
+  }
+
+  async submitRating(
+    authToken: string,
+    targetType: RatingTargetType,
+    targetId: string,
+    rating: number,
+    purchaseId: string,
+    purchaseType: string,
+  ): Promise<Rating> {
+    return this.request<Rating>("/api/ratings", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ targetType, targetId, rating, purchaseId, purchaseType }),
+    });
+  }
+
+  async getRatings(
+    targetType: RatingTargetType,
+    targetId: string,
+    authToken?: string | null,
+  ): Promise<RatingsResponse> {
+    const headers: Record<string, string> = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    return this.request<RatingsResponse>(
+      `/api/ratings/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`,
+      { headers },
+    );
+  }
+
+  async dismissRatingPrompt(
+    authToken: string,
+    purchaseId: string,
+    purchaseType: string,
+  ): Promise<void> {
+    await this.request<{ success: boolean }>("/api/ratings/dismiss", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ purchaseId, purchaseType }),
+    });
+  }
+
+  async getRecentCompletedOrders(
+    authToken: string,
+    since: string = "7d",
+  ): Promise<RecentOrder[]> {
+    const res = await this.request<{ orders: RecentOrder[] }>(
+      `/api/my-orders?status=completed&since=${encodeURIComponent(since)}`,
+      { headers: { Authorization: `Bearer ${authToken}` } },
+    );
+    return res.orders ?? [];
+  }
+
+  async getRecentCompletedBookings(
+    authToken: string,
+    since: string = "7d",
+  ): Promise<RecentBooking[]> {
+    const res = await this.request<{ appointments: RecentBooking[] }>(
+      `/api/my-appointments?status=completed&since=${encodeURIComponent(since)}`,
+      { headers: { Authorization: `Bearer ${authToken}` } },
+    );
+    return res.appointments ?? [];
+  }
 }
 
 // Availability Calendar types
@@ -4875,6 +4956,22 @@ export interface InfluencerDashboard {
   recentActivity: InfluencerActivityItem[];
   /** True when totalPosts hit the fetch limit and the real count may be higher. */
   postCountCapped: boolean;
+}
+
+export interface RecentOrder {
+  id: string;
+  businessId: string;
+  businessName: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface RecentBooking {
+  id: string;
+  businessId: string;
+  businessName: string | null;
+  status: string;
+  appointmentDate: string;
 }
 
 export const api = new ApiService();
