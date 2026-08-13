@@ -15,7 +15,6 @@ import React, {
 } from "react";
 import RoleBadge from "@/components/RoleBadge";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -25,7 +24,6 @@ import {
   Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import {
@@ -42,8 +40,6 @@ import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
-
 import apiClient, {
   API_BASE_URL,
   ApiPost,
@@ -65,6 +61,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
+import { StarDisplay, RatingBottomSheet } from "@/components/ratings";
+import type { PurchaseItem, RatingCheckResponse, RatingsResponse } from "@/types/ratings";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -299,11 +297,6 @@ const getInitials = (name?: string): string => {
 const parseBrandColors = (raw: unknown): BrandColors =>
   parseBrandColorSpec(raw);
 
-const scoreToStars = (rating: number): number => {
-  if (!Number.isFinite(rating) || rating <= 0) return 0;
-  return rating > 5 ? Math.round(rating / 10) : Math.round(rating);
-};
-
 const normalizePosts = (posts: ApiPost[], ownerId?: string): PostCard[] =>
   posts.map((post, index) => {
     const mediaType =
@@ -325,30 +318,6 @@ const normalizePosts = (posts: ApiPost[], ownerId?: string): PostCard[] =>
       authorUserId: post.userId || post.authorId || ownerId,
     };
   });
-
-const StarRating = ({
-  rating,
-  color,
-  size = 13,
-}: {
-  rating: number;
-  color: string;
-  size?: number;
-}) => {
-  const stars = scoreToStars(rating);
-  return (
-    <View style={styles.starRow}>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Feather
-          key={`star-${index}`}
-          name="star"
-          size={size}
-          color={index < stars ? color : COLORS.grayMid}
-        />
-      ))}
-    </View>
-  );
-};
 
 const AvatarWithInitials = ({
   name,
@@ -525,13 +494,11 @@ export default function VendorDetailScreen({ route }: Props) {
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
-  const [reviewRating, setReviewRating] = useState(0);
-  const [reviewText, setReviewText] = useState("");
-  const [reviewSheetIndex, setReviewSheetIndex] = useState(-1);
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [ratingsData, setRatingsData] = useState<RatingsResponse | null>(null);
+  const [ratingCheckResult, setRatingCheckResult] = useState<RatingCheckResponse | null>(null);
+  const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
-  const reviewSnapPoints = useMemo(() => ["45%"], []);
 
   // Cart
   const { addItem, itemCount } = useCart();
@@ -1155,9 +1122,9 @@ export default function VendorDetailScreen({ route }: Props) {
       }
 
       if (resolvedProfile) {
+        const targetType =
+          resolvedProfile.role === "photographer" ? "photographer" : "business";
         try {
-          const targetType =
-            resolvedProfile.role === "photographer" ? "photographer" : "business";
           const reviewsResponse = await apiClient.getReviewsByTarget(
             targetType,
             vendorId,
@@ -1178,6 +1145,12 @@ export default function VendorDetailScreen({ route }: Props) {
           );
         } catch {
           resolvedReviews = [];
+        }
+        try {
+          const rd = await apiClient.getRatings(targetType, vendorId);
+          setRatingsData(rd);
+        } catch {
+          // aggregate stats unavailable — fall back to profile.rating
         }
       }
 
@@ -1355,9 +1328,31 @@ export default function VendorDetailScreen({ route }: Props) {
     }
   }, [followBusy, isFollowing, profile]);
 
-  const openReviewModal = useCallback(() => {
-    setReviewSheetIndex(0);
-  }, []);
+  const handleLeaveReview = useCallback(async () => {
+    if (!profile) return;
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Sign in required", "Please sign in to leave a review.");
+      return;
+    }
+    try {
+      const targetType = profile.role === "photographer" ? "photographer" : "business";
+      const checkResult = await apiClient.checkRating(token, targetType, profile.id);
+      setRatingCheckResult(checkResult);
+      if (checkResult.canRate) {
+        setRatingSheetVisible(true);
+      } else if (checkResult.existingRating) {
+        Alert.alert("Already rated", "You've already rated this provider.");
+      } else {
+        Alert.alert(
+          "Not eligible",
+          "You can only rate after completing a booking with this provider.",
+        );
+      }
+    } catch {
+      Alert.alert("Error", "Failed to check eligibility. Please try again.");
+    }
+  }, [profile, getToken]);
 
   const handleShare = useCallback(async () => {
     if (!profile) return;
@@ -1369,71 +1364,6 @@ export default function VendorDetailScreen({ route }: Props) {
       console.warn("Share failed:", error);
     }
   }, [profile]);
-
-  const handleSubmitReview = useCallback(async () => {
-    if (!profile || reviewRating === 0) {
-      Alert.alert("Add a rating", "Select a star rating before submitting.");
-      return;
-    }
-    const token = await getToken();
-    if (!token) {
-      Alert.alert("Sign in required", "Please sign in to leave a review.");
-      return;
-    }
-    setIsSubmittingReview(true);
-    try {
-      const targetType =
-        profile.role === "photographer" ? "photographer" : "business";
-      await apiClient.submitReview(token, {
-        targetType,
-        targetId: profile.id,
-        bookingType: "appointment",
-        bookingId: "",
-        rating: reviewRating,
-        comment: reviewText || undefined,
-      });
-      setReviewRating(0);
-      setReviewText("");
-      setReviewSheetIndex(-1);
-      Alert.alert("Review submitted!", "Thanks for your feedback.");
-      try {
-        const refreshed = await apiClient.getReviewsByTarget(targetType, vendorId);
-        setReviews(
-          (refreshed.reviews || []).map((item: any, index: number) => ({
-            id: String(item.id ?? `review-${index}`),
-            userName:
-              item.reviewerName ||
-              item.userName ||
-              item.authorName ||
-              "Outsyde User",
-            avatarUrl: item.avatarUrl || item.authorAvatar || undefined,
-            rating: Number(item.rating ?? 5),
-            text: item.text || item.comment || "",
-            createdAt: item.createdAt || new Date().toISOString(),
-          })),
-        );
-      } catch {
-        // silent — reviews will refresh on next load
-      }
-    } catch (err: any) {
-      const status = err?.status as number | undefined;
-      if (status === 403) {
-        Alert.alert(
-          "Not eligible",
-          "You can only review after completing a booking with this provider.",
-        );
-      } else if (status === 409) {
-        Alert.alert(
-          "Already reviewed",
-          "You've already reviewed this provider.",
-        );
-      } else {
-        Alert.alert("Error", "Failed to submit review. Please try again.");
-      }
-    } finally {
-      setIsSubmittingReview(false);
-    }
-  }, [profile, reviewRating, reviewText, getToken, vendorId]);
 
   const resolvePrimaryAction = useCallback(() => {
     if (!profile) return { label: "", onPress: () => {} };
@@ -1534,6 +1464,14 @@ export default function VendorDetailScreen({ route }: Props) {
   }, [navigation, profile, products, addItem]);
 
   const reviewBreakdown = useMemo(() => {
+    const dist = ratingsData?.distribution as Record<string, number> | undefined;
+    if (dist) {
+      const total = (Object.values(dist) as number[]).reduce((a, b) => a + b, 0) || 1;
+      return [5, 4, 3, 2, 1].map((stars) => ({
+        stars,
+        ratio: (dist[String(stars * 10)] ?? 0) / total,
+      }));
+    }
     if (reviews.length === 0) {
       return [5, 4, 3, 2, 1].map((stars) => ({ stars, ratio: 0 }));
     }
@@ -1543,7 +1481,7 @@ export default function VendorDetailScreen({ route }: Props) {
       ).length;
       return { stars, ratio: count / reviews.length };
     });
-  }, [reviews]);
+  }, [ratingsData, reviews]);
 
   const postCellWidth = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - 8) / 3;
 
@@ -1758,7 +1696,7 @@ export default function VendorDetailScreen({ route }: Props) {
         ) : null}
 
         <View style={styles.ratingInlineRow}>
-          <StarRating rating={profile.rating} color={accentColor} />
+          <StarDisplay rating={Math.round(profile.rating * 10)} size={13} color={accentColor} />
           <Text style={styles.ratingText}>{profile.rating.toFixed(1)}</Text>
           <Text style={styles.ratingMeta}>({profile.reviewCount})</Text>
           {profile.responseTime ? (
@@ -2292,10 +2230,10 @@ export default function VendorDetailScreen({ route }: Props) {
           <Text style={styles.reviewScore}>
             {profile?.rating?.toFixed(1) || "0.0"}
           </Text>
-          <StarRating
-            rating={profile?.rating || 0}
-            color={accentColor}
+          <StarDisplay
+            rating={Math.round((profile?.rating || 0) * 10)}
             size={14}
+            color={accentColor}
           />
           <Text style={styles.reviewCountLabel}>
             {profile?.reviewCount || 0} reviews
@@ -2323,7 +2261,7 @@ export default function VendorDetailScreen({ route }: Props) {
 
       <Pressable
         style={[styles.leaveReviewButton, { borderColor: accentColor }]}
-        onPress={openReviewModal}
+        onPress={handleLeaveReview}
       >
         <Text style={[styles.leaveReviewButtonText, { color: accentColor }]}>
           ✍️ Leave a Review
@@ -2353,12 +2291,12 @@ export default function VendorDetailScreen({ route }: Props) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewUser}>{review.userName}</Text>
-                <Text style={styles.reviewMeta}>
-                  {"★".repeat(
-                    Math.max(1, Math.min(5, Math.round(review.rating))),
-                  )}{" "}
-                  • {new Date(review.createdAt).toLocaleDateString()}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <StarDisplay rating={Math.round(review.rating * 10)} size={11} color={accentColor} />
+                  <Text style={styles.reviewMeta}>
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
               </View>
             </View>
             <Text style={styles.reviewText}>{review.text}</Text>
@@ -2577,59 +2515,24 @@ export default function VendorDetailScreen({ route }: Props) {
         </View>
       ) : null}
 
-      <BottomSheet
-        index={reviewSheetIndex}
-        snapPoints={reviewSnapPoints}
-        onChange={setReviewSheetIndex}
-        enablePanDownToClose
-        animateOnMount={false}
-        backgroundStyle={{ backgroundColor: "#111111" }}
-        handleIndicatorStyle={{ backgroundColor: COLORS.gray }}
-        keyboardBehavior="interactive"
-        keyboardBlurBehavior="restore"
-      >
-        <BottomSheetView style={styles.sheetBody}>
-          <Text style={styles.sheetTitle}>Rate {profile.name}</Text>
-          <View style={styles.largeStars}>
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Pressable
-                key={`rating-${index}`}
-                onPress={() => setReviewRating(index + 1)}
-              >
-                <Feather
-                  name="star"
-                  size={36}
-                  color={index < reviewRating ? accentColor : COLORS.grayMid}
-                />
-              </Pressable>
-            ))}
-          </View>
-          <TextInput
-            value={reviewText}
-            onChangeText={setReviewText}
-            style={styles.reviewInput}
-            placeholder="Share your experience..."
-            placeholderTextColor={COLORS.grayLight}
-            multiline
-            maxLength={500}
-          />
-          <Pressable
-            style={[
-              styles.submitReviewButton,
-              { backgroundColor: accentColor },
-              isSubmittingReview && { opacity: 0.6 },
-            ]}
-            onPress={handleSubmitReview}
-            disabled={isSubmittingReview}
-          >
-            {isSubmittingReview ? (
-              <ActivityIndicator size="small" color={COLORS.black} />
-            ) : (
-              <Text style={styles.submitReviewText}>Submit Review</Text>
-            )}
-          </Pressable>
-        </BottomSheetView>
-      </BottomSheet>
+      {profile && (
+        <RatingBottomSheet
+          visible={ratingSheetVisible}
+          onClose={() => setRatingSheetVisible(false)}
+          onSubmit={async (rating, purchaseId, purchaseType) => {
+            const token = await getToken();
+            if (!token) throw new Error("Not authenticated");
+            const targetType = profile.role === "photographer" ? "photographer" : "business";
+            await apiClient.submitRating(token, targetType, profile.id, rating, purchaseId, purchaseType);
+            setRatingCheckResult(null);
+          }}
+          targetType={profile.role === "photographer" ? "photographer" : "business"}
+          targetId={profile.id}
+          targetName={profile.name}
+          purchases={ratingCheckResult?.purchases ?? []}
+          existingRating={ratingCheckResult?.existingRating?.rating ?? null}
+        />
+      )}
 
       {toastVisible && (
         <Animated.View
