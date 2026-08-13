@@ -27,7 +27,7 @@ import { CartProvider } from "@/context/CartContext";
 import { ThemeProvider, useThemeContext } from "@/context/ThemeContext";
 import { RatingPromptOverlay } from "@/components/ratings";
 import { PurchaseItem } from "@/types/ratings";
-import { API_BASE_URL } from "@/services/api";
+import api from "@/services/api";
 
 // Inner shell: has access to all context providers, owns rating-prompt state.
 function AppShell() {
@@ -53,19 +53,7 @@ function AppShell() {
       const token = await getToken();
       if (!token) return;
 
-      const res = await fetch(
-        `${API_BASE_URL}/api/my-orders?status=completed&since=7d`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!res.ok) return;
-
-      const data = await res.json();
-      const orders: Array<{
-        id: string;
-        businessId: string;
-        businessName: string;
-        createdAt: string;
-      }> = data.orders ?? [];
+      const orders = await api.getRecentCompletedOrders(token);
 
       const purchases: PurchaseItem[] = orders.map((o) => ({
         purchaseId: o.id,
@@ -93,17 +81,7 @@ function AppShell() {
     try {
       const token = await getToken();
       if (!token) return;
-      await fetch(`${API_BASE_URL}/api/ratings/dismiss`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          purchaseId: purchase.purchaseId,
-          purchaseType: purchase.purchaseType,
-        }),
-      });
+      await api.dismissRatingPrompt(token, purchase.purchaseId, purchase.purchaseType);
     } catch {
       // fire-and-forget
     }
@@ -120,24 +98,14 @@ function AppShell() {
     const token = await getToken();
     if (!token) throw new Error("Not authenticated");
 
-    const res = await fetch(`${API_BASE_URL}/api/ratings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        targetType: purchase.targetType,
-        targetId: purchase.targetId,
-        rating,
-        purchaseId,
-        purchaseType,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error ?? "Failed to submit rating");
-    }
+    await api.submitRating(
+      token,
+      purchase.targetType,
+      purchase.targetId,
+      rating,
+      purchaseId,
+      purchaseType,
+    );
   };
 
   return (
