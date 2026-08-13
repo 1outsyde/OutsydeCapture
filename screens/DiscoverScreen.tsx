@@ -35,6 +35,8 @@ import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { ProFeedCard } from "@/components/ProFeedCard";
+import { RatingBottomSheet } from "@/components/ratings";
+import type { RatingCheckResponse, RatingTargetType } from "@/types/ratings";
 import { feedEvents } from "@/services/feedEvents";
 import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
@@ -76,7 +78,7 @@ export default function DiscoverScreen() {
   const { getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { user, getToken } = useAuth();
+  const { user, getToken, isAuthenticated } = useAuth();
 
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
@@ -87,6 +89,9 @@ export default function DiscoverScreen() {
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [ratingPost, setRatingPost] = useState<Post | null>(null);
+  const [ratingCheckResult, setRatingCheckResult] = useState<RatingCheckResponse | null>(null);
+  const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
   const [modalComments, setModalComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
 
@@ -417,25 +422,35 @@ export default function DiscoverScreen() {
     }
   };
 
-  const handleRatePress = (post: Post) => {
-    const eligibility = checkEligibility(post);
-    if (!eligibility.canRate) {
-      Alert.alert("Rating Not Available", eligibility.reason, [{ text: "OK" }]);
+  const handleRatePress = async (post: Post) => {
+    if (!isAuthenticated) {
+      Alert.alert("Sign in required", "Please sign in to leave a rating.");
       return;
     }
-    const authorType = post.type === "vendor" ? "vendor" : "photographer";
-    Alert.alert(
-      `Rate ${post.authorName}`,
-      `How would you rate this ${authorType}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "1", onPress: () => console.log("Rated 1 star") },
-        { text: "2", onPress: () => console.log("Rated 2 stars") },
-        { text: "3", onPress: () => console.log("Rated 3 stars") },
-        { text: "4", onPress: () => console.log("Rated 4 stars") },
-        { text: "5", onPress: () => console.log("Rated 5 stars") },
-      ]
-    );
+    const targetType: RatingTargetType =
+      post.type === "vendor" ? "business" : "photographer";
+    const targetId = post.businessId || post.providerId || post.authorId || "";
+    if (!targetId) {
+      Alert.alert("Rating Not Available", "Unable to identify this provider.");
+      return;
+    }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const checkResult = await api.checkRating(token, targetType, targetId);
+      setRatingCheckResult(checkResult);
+      setRatingPost(post);
+      if (checkResult.canRate) {
+        setRatingSheetVisible(true);
+      } else if (checkResult.existingRating) {
+        Alert.alert("Already rated", `You've already rated ${post.authorName}.`);
+      } else {
+        const eligibility = checkEligibility(post);
+        Alert.alert("Rating Not Available", eligibility.reason || "Complete a booking to rate this provider.");
+      }
+    } catch {
+      Alert.alert("Error", "Failed to check rating eligibility. Please try again.");
+    }
   };
 
   const handleDeletePost = async (postId: string) => {
@@ -717,6 +732,34 @@ export default function DiscoverScreen() {
           </View>
         </View>
       </Modal>
+
+      {ratingPost && (
+        <RatingBottomSheet
+          visible={ratingSheetVisible}
+          onClose={() => {
+            setRatingSheetVisible(false);
+            setRatingPost(null);
+            setRatingCheckResult(null);
+          }}
+          onSubmit={async (rating, purchaseId, purchaseType) => {
+            const token = await getToken();
+            if (!token) throw new Error("Not authenticated");
+            const targetType: RatingTargetType =
+              ratingPost.type === "vendor" ? "business" : "photographer";
+            const targetId =
+              ratingPost.businessId || ratingPost.providerId || ratingPost.authorId || "";
+            await api.submitRating(token, targetType, targetId, rating, purchaseId, purchaseType);
+            setRatingSheetVisible(false);
+            setRatingPost(null);
+            setRatingCheckResult(null);
+          }}
+          targetType={ratingPost.type === "vendor" ? "business" : "photographer"}
+          targetId={ratingPost.businessId || ratingPost.providerId || ratingPost.authorId || ""}
+          targetName={ratingPost.authorName || ""}
+          purchases={ratingCheckResult?.purchases ?? []}
+          existingRating={ratingCheckResult?.existingRating?.rating ?? null}
+        />
+      )}
     </View>
   );
 }
