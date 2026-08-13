@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, View, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -12,6 +12,8 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { BusinessAppointment } from "@/services/api";
+import { RatingBottomSheet } from "@/components/ratings";
+import type { PurchaseItem } from "@/types/ratings";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "AppointmentDetail">;
@@ -159,7 +161,23 @@ export default function AppointmentDetailScreen() {
   const route = useRoute<RouteType>();
   const { getToken } = useAuth();
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [canRate, setCanRate] = useState(false);
+  const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
   const appt = route.params.appointment;
+
+  useEffect(() => {
+    if (appt.status !== "completed") return;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const { canRate: eligible } = await api.checkRating(token, "business", appt.businessId);
+        setCanRate(eligible);
+      } catch {
+        // ignore — rate button simply won't appear
+      }
+    })();
+  }, [appt.status, appt.businessId]);
 
   const grossCents = appt.totalPrice + Math.round(appt.totalPrice * 0.03);
   const statusColor = getBusinessStatusColor(appt.status, theme);
@@ -334,6 +352,41 @@ export default function AppointmentDetailScreen() {
           </ThemedText>
         </Pressable>
       ) : null}
+
+      {/* Rate button — shown after completion if eligible */}
+      {appt.status === "completed" && canRate ? (
+        <Pressable
+          onPress={() => setRatingSheetVisible(true)}
+          style={({ pressed }) => [styles.rateButton, { opacity: pressed ? 0.8 : 1 }]}
+        >
+          <Feather name="star" size={18} color="#fff" style={{ marginRight: Spacing.sm }} />
+          <ThemedText type="button" style={{ color: "#fff" }}>
+            Rate This Business
+          </ThemedText>
+        </Pressable>
+      ) : null}
+
+      <RatingBottomSheet
+        visible={ratingSheetVisible}
+        onClose={() => setRatingSheetVisible(false)}
+        onSubmit={async (rating, purchaseId, purchaseType) => {
+          const token = await getToken();
+          if (!token) throw new Error("Not authenticated");
+          await api.submitRating(token, "business", appt.businessId, rating, purchaseId, purchaseType);
+          setCanRate(false);
+        }}
+        targetType="business"
+        targetId={appt.businessId}
+        targetName={appt.businessName ?? "Business"}
+        purchases={[{
+          purchaseId: appt.id,
+          purchaseType: "appointment",
+          targetId: appt.businessId,
+          targetType: "business",
+          label: appt.businessName ?? "Business",
+          date: appt.appointmentDate,
+        } as PurchaseItem]}
+      />
     </ScreenScrollView>
   );
 }
@@ -390,6 +443,16 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.md,
     marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  rateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
     marginBottom: Spacing.xl,
+    backgroundColor: "#C9933A",
   },
 });

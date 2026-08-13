@@ -132,6 +132,8 @@ export interface Post {
   serviceId?: string;
   productId?: string;
   providerId?: string;
+  // Rating targets — businessId for vendor posts, photographerId for photographer posts
+  businessId?: string;
   // Vendor-specific fields
   productName?: string;
   productPrice?: number;

@@ -46,6 +46,7 @@ export type RootStackParamList = {
   ProductOrderDetail: {
     orderId: string;
     vendorName: string;
+    businessId?: string;
     status: string;
     items: ConsumerOrderItem[];
     totalAmount: number;

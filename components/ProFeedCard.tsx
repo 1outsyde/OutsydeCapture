@@ -14,6 +14,7 @@ import { RootStackParamList } from "@/navigation/types";
 import StoryRing from "@/components/StoryRing";
 import { sendClickEvent } from "@/services/referral";
 import { promptForReportReason } from "@/utils/moderationActions";
+import { StarDisplay } from "@/components/ratings";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 0.85;
@@ -279,12 +280,17 @@ export function ProFeedCard({
               subscriptionTier={post.subscriptionTier ?? null}
               size="pill"
             />
-            {hasCommerce && (
+            {hasCommerce && post.rating > 0 && (
               <View style={styles.ratingInline}>
-                <Feather name="star" size={12} color="#FFD700" />
-                <ThemedText style={[styles.ratingText, { color: theme.textSecondary }]}>
-                  {((post as any).author?.rating ?? post.rating ?? 0).toFixed(1)}
-                </ThemedText>
+                <StarDisplay
+                  rating={Math.round(post.rating * 10)}
+                  size={12}
+                />
+                {post.reviewCount > 0 && (
+                  <ThemedText style={[styles.ratingText, { color: theme.textSecondary }]}>
+                    ({post.reviewCount})
+                  </ThemedText>
+                )}
               </View>
             )}
           </View>

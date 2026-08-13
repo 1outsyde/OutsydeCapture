@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, Pressable, ScrollView, Dimensions, Alert, Platform, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +21,8 @@ import { CATEGORY_LABELS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
 import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
+import { RatingBottomSheet } from "@/components/ratings";
+import type { RatingCheckResponse } from "@/types/ratings";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "PhotographerDetail">;
@@ -83,6 +85,8 @@ export default function PhotographerDetailScreen() {
   const [additionalPhotos, setAdditionalPhotos] = useState<string[]>([]);
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [storyRefreshKey, setStoryRefreshKey] = useState(0);
+  const [ratingCheckResult, setRatingCheckResult] = useState<RatingCheckResponse | null>(null);
+  const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
   
   const photographerAuthUserId = photographer.userId || (photographer as any).ownerId;
   const isOwner = Boolean(user?.id && photographerAuthUserId && photographerAuthUserId === user.id);
@@ -272,6 +276,31 @@ export default function PhotographerDetailScreen() {
       return;
     }
     navigation.navigate("Booking", { photographer: initialData });
+  };
+
+  const handleLeaveReview = async () => {
+    if (!isAuthenticated) {
+      navigation.navigate("Auth", {});
+      return;
+    }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const checkResult = await api.checkRating(token, "photographer", photographer.id);
+      setRatingCheckResult(checkResult);
+      if (checkResult.canRate) {
+        setRatingSheetVisible(true);
+      } else if (checkResult.existingRating) {
+        Alert.alert("Already rated", "You've already rated this photographer.");
+      } else {
+        Alert.alert(
+          "Not eligible",
+          "You can only rate after completing a shoot booking with this photographer.",
+        );
+      }
+    } catch {
+      Alert.alert("Error", "Failed to check eligibility. Please try again.");
+    }
   };
 
   const handleScroll = (event: any) => {
@@ -507,7 +536,7 @@ export default function PhotographerDetailScreen() {
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <View style={styles.statValue}>
-              <Feather name="star" size={18} color="#FFD700" />
+              <Ionicons name="star" size={18} color="#C9933A" />
               <ThemedText type="h4" style={styles.statNumber}>
                 {photographer.rating?.toFixed(1) || "New"}
               </ThemedText>
@@ -641,6 +670,30 @@ export default function PhotographerDetailScreen() {
           </View>
         </View>
 
+        {isAuthenticated && !isOwner && (
+          <View style={[styles.section, { paddingBottom: Spacing.sm }]}>
+            <Pressable
+              onPress={handleLeaveReview}
+              style={({ pressed }) => ({
+                flexDirection: "row" as const,
+                alignItems: "center" as const,
+                justifyContent: "center" as const,
+                gap: 8,
+                paddingVertical: 12,
+                borderRadius: BorderRadius.md,
+                borderWidth: 1,
+                borderColor: "#C9933A",
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Ionicons name="star-outline" size={16} color="#C9933A" />
+              <ThemedText type="body" style={{ color: "#C9933A", fontWeight: "600" }}>
+                Rate this Photographer
+              </ThemedText>
+            </Pressable>
+          </View>
+        )}
+
         <View style={styles.bottomPadding} />
       </ScrollView>
 
@@ -681,6 +734,21 @@ export default function PhotographerDetailScreen() {
           Book Now
         </Button>
       </View>
+      <RatingBottomSheet
+        visible={ratingSheetVisible}
+        onClose={() => setRatingSheetVisible(false)}
+        onSubmit={async (rating, purchaseId, purchaseType) => {
+          const token = await getToken();
+          if (!token) throw new Error("Not authenticated");
+          await api.submitRating(token, "photographer", photographer.id, rating, purchaseId, purchaseType);
+          setRatingCheckResult(null);
+        }}
+        targetType="photographer"
+        targetId={photographer.id}
+        targetName={photographer.name}
+        purchases={ratingCheckResult?.purchases ?? []}
+        existingRating={ratingCheckResult?.existingRating?.rating ?? null}
+      />
     </ThemedView>
   );
 }

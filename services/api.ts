@@ -239,6 +239,21 @@ export interface ApiPost {
     id: string;
     displayName: string;
   };
+  product?: {
+    id: string;
+    name: string;
+    businessId: string;
+  };
+  service?: {
+    id: string;
+    name: string;
+    businessId: string;
+  };
+  photographerService?: {
+    id: string;
+    name: string;
+    photographerId: string;
+  };
 }
 
 export interface CreateConversationRequest {
