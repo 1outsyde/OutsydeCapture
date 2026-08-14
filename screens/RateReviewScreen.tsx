@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,12 @@ export default function RateReviewScreen({ route, navigation }: Props) {
   const { targetType, targetId, vendorName, bookingId, bookingType } = route.params;
   const { getToken } = useAuth();
 
+  // Resolved booking — seeded from nav params when present, otherwise fetched on mount
+  const [resolvedBookingId, setResolvedBookingId] = useState('');
+  const [resolvedBookingType, setResolvedBookingType] = useState('');
+  const [bookingFetching, setBookingFetching] = useState(!bookingId);
+  const [bookingFetchError, setBookingFetchError] = useState(false);
+
   // StarPicker values are in ×10 format (5–50); 0 means no selection
   const [starRating, setStarRating] = useState(0);
   const [showReviewInput, setShowReviewInput] = useState(false);
@@ -37,9 +43,61 @@ export default function RateReviewScreen({ route, navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const canSubmit = starRating > 0 && !submitting && !submitted;
+  // Seed resolved values from nav params when present, or fetch from API when absent.
+  // Auto-selects the most recent completed booking/order — no picker UI.
+  useEffect(() => {
+    if (bookingId) {
+      setResolvedBookingId(bookingId);
+      setResolvedBookingType(bookingType ?? '');
+      setBookingFetching(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token || cancelled) return;
+
+        const [orders, appointments] = await Promise.all([
+          apiClient.getRecentCompletedOrders(token, '180d'),
+          apiClient.getRecentCompletedBookings(token, '180d'),
+        ]);
+
+        if (cancelled) return;
+
+        const matchingOrders = orders
+          .filter((o) => o.businessId === targetId)
+          .map((o) => ({ id: o.id, type: 'order' as const, date: o.createdAt }));
+
+        const matchingAppointments = appointments
+          .filter((a) => a.businessId === targetId)
+          .map((a) => ({ id: a.id, type: 'appointment' as const, date: a.appointmentDate }));
+
+        const all = [...matchingOrders, ...matchingAppointments].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        );
+
+        if (all.length > 0) {
+          setResolvedBookingId(all[0].id);
+          setResolvedBookingType(all[0].type);
+        }
+        // No matching booking found — rating still submits, review is skipped
+        // (hasReview requires a non-empty resolvedBookingId)
+      } catch {
+        if (!cancelled) setBookingFetchError(true);
+      } finally {
+        if (!cancelled) setBookingFetching(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [bookingId, bookingType, targetId, getToken]);
+
+  const canSubmit = starRating > 0 && !submitting && !submitted && !bookingFetching;
   const reviewValid = reviewText.trim().length >= MIN_REVIEW_CHARS;
-  const hasReview = showReviewInput && reviewValid && !!bookingId && !!bookingType;
+  const hasReview = showReviewInput && reviewValid && !!resolvedBookingId && !!resolvedBookingType;
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -56,16 +114,16 @@ export default function RateReviewScreen({ route, navigation }: Props) {
         targetType as RatingTargetType,
         targetId,
         starRating,
-        bookingId ?? '',
-        bookingType ?? '',
+        resolvedBookingId,
+        resolvedBookingType,
       );
 
       if (hasReview) {
         await apiClient.submitReview(token, {
           targetType,
           targetId,
-          bookingType: bookingType!,
-          bookingId: bookingId!,
+          bookingType: resolvedBookingType,
+          bookingId: resolvedBookingId,
           rating: starRating,
           title: reviewTitle.trim() || undefined,
           comment: reviewText.trim(),
@@ -85,7 +143,7 @@ export default function RateReviewScreen({ route, navigation }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, hasReview, starRating, reviewText, reviewTitle, bookingId, bookingType, targetType, targetId, getToken, navigation]);
+  }, [canSubmit, hasReview, starRating, reviewText, reviewTitle, resolvedBookingId, resolvedBookingType, targetType, targetId, getToken, navigation]);
 
   const displayName = vendorName ?? (targetType === 'photographer' ? 'Rate Photographer' : 'Rate Vendor');
   const submitLabel = submitting
@@ -115,63 +173,75 @@ export default function RateReviewScreen({ route, navigation }: Props) {
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.body}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.sectionLabel}>How was it?</Text>
+        {bookingFetching ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={GOLD} size="large" />
+          </View>
+        ) : bookingFetchError ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.errorText}>
+              Unable to load your booking history. You can still submit a star rating.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.body}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.sectionLabel}>How was it?</Text>
 
-          <StarPicker
-            value={starRating}
-            onChange={setStarRating}
-            size={40}
-            color={GOLD}
-            showLabel
-          />
+            <StarPicker
+              value={starRating}
+              onChange={setStarRating}
+              size={40}
+              color={GOLD}
+              showLabel
+            />
 
-          {!showReviewInput && (
-            <Pressable
-              style={styles.addReviewButton}
-              onPress={() => setShowReviewInput(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Add a written review"
-            >
-              <Text style={styles.addReviewText}>+ Add a written review</Text>
-            </Pressable>
-          )}
+            {!showReviewInput && (
+              <Pressable
+                style={styles.addReviewButton}
+                onPress={() => setShowReviewInput(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Add a written review"
+              >
+                <Text style={styles.addReviewText}>+ Add a written review</Text>
+              </Pressable>
+            )}
 
-          {showReviewInput && (
-            <View style={styles.reviewSection}>
-              <TextInput
-                style={styles.titleInput}
-                placeholder="Title (optional)"
-                placeholderTextColor="#888888"
-                value={reviewTitle}
-                onChangeText={setReviewTitle}
-                maxLength={100}
-              />
-              <TextInput
-                style={styles.reviewInput}
-                placeholder="Share your experience..."
-                placeholderTextColor="#888888"
-                value={reviewText}
-                onChangeText={setReviewText}
-                multiline
-                maxLength={1000}
-                textAlignVertical="top"
-              />
-              <Text style={[
-                styles.charCount,
-                reviewText.length < MIN_REVIEW_CHARS && styles.charCountWarn,
-              ]}>
-                {reviewText.length < MIN_REVIEW_CHARS
-                  ? `${MIN_REVIEW_CHARS - reviewText.length} more characters needed`
-                  : `${reviewText.length} / 1000`}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+            {showReviewInput && (
+              <View style={styles.reviewSection}>
+                <TextInput
+                  style={styles.titleInput}
+                  placeholder="Title (optional)"
+                  placeholderTextColor="#888888"
+                  value={reviewTitle}
+                  onChangeText={setReviewTitle}
+                  maxLength={100}
+                />
+                <TextInput
+                  style={styles.reviewInput}
+                  placeholder="Share your experience..."
+                  placeholderTextColor="#888888"
+                  value={reviewText}
+                  onChangeText={setReviewText}
+                  multiline
+                  maxLength={1000}
+                  textAlignVertical="top"
+                />
+                <Text style={[
+                  styles.charCount,
+                  reviewText.length < MIN_REVIEW_CHARS && styles.charCountWarn,
+                ]}>
+                  {reviewText.length < MIN_REVIEW_CHARS
+                    ? `${MIN_REVIEW_CHARS - reviewText.length} more characters needed`
+                    : `${reviewText.length} / 1000`}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
 
         <View style={styles.footer}>
           <Pressable
@@ -210,6 +280,18 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  errorText: {
+    color: '#888888',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   body: {
     padding: 24,
