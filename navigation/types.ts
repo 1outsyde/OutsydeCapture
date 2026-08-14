@@ -116,6 +116,13 @@ export type RootStackParamList = {
   };
   StoryInsights: { userId: string };
   SupportContact: undefined;
+  RateReview: {
+    targetType: 'business' | 'photographer';
+    targetId: string;
+    vendorName?: string;
+    bookingId?: string;
+    bookingType?: string;
+  };
 };
 
 export type MainTabParamList = {

@@ -1328,31 +1328,15 @@ export default function VendorDetailScreen({ route }: Props) {
     }
   }, [followBusy, isFollowing, profile]);
 
-  const handleLeaveReview = useCallback(async () => {
+  const handleLeaveReview = useCallback(() => {
     if (!profile) return;
-    const token = await getToken();
-    if (!token) {
-      Alert.alert("Sign in required", "Please sign in to leave a review.");
-      return;
-    }
-    try {
-      const targetType = profile.role === "photographer" ? "photographer" : "business";
-      const checkResult = await apiClient.checkRating(token, targetType, profile.id);
-      setRatingCheckResult(checkResult);
-      if (checkResult.canRate) {
-        setRatingSheetVisible(true);
-      } else if (checkResult.existingRating) {
-        Alert.alert("Already rated", "You've already rated this provider.");
-      } else {
-        Alert.alert(
-          "Not eligible",
-          "You can only rate after completing a booking with this provider.",
-        );
-      }
-    } catch {
-      Alert.alert("Error", "Failed to check eligibility. Please try again.");
-    }
-  }, [profile, getToken]);
+    const targetType = profile.role === "photographer" ? "photographer" : "business";
+    navigation.navigate("RateReview", {
+      targetType,
+      targetId: profile.id,
+      vendorName: profile.name,
+    });
+  }, [navigation, profile]);
 
   const handleShare = useCallback(async () => {
     if (!profile) return;
