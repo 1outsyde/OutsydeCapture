@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { StarPicker } from '@/components/ratings/StarPicker';
 import { apiClient } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { RootStackParamList } from '@/navigation/types';
-import { RatingTargetType } from '@/types/ratings';
+import { RatingTargetType, PurchaseType } from '@/types/ratings';
 
 const GOLD = '#C9933A';
 const MIN_REVIEW_CHARS = 20;
@@ -29,6 +29,14 @@ export default function RateReviewScreen({ route, navigation }: Props) {
   const { targetType, targetId, vendorName, bookingId, bookingType } = route.params;
   const { getToken } = useAuth();
 
+  // Resolved purchase — from checkRating result (purchases[0]) or seeded from nav params
+  const [resolvedTargetType, setResolvedTargetType] = useState<RatingTargetType | null>(null);
+  const [resolvedTargetId, setResolvedTargetId] = useState('');
+  const [resolvedBookingId, setResolvedBookingId] = useState('');
+  const [resolvedBookingType, setResolvedBookingType] = useState('');
+  const [bookingFetching, setBookingFetching] = useState(true);
+  const [bookingFetchError, setBookingFetchError] = useState<string | null>(null);
+
   // StarPicker values are in ×10 format (5–50); 0 means no selection
   const [starRating, setStarRating] = useState(0);
   const [showReviewInput, setShowReviewInput] = useState(false);
@@ -37,12 +45,64 @@ export default function RateReviewScreen({ route, navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const canSubmit = starRating > 0 && !submitting && !submitted;
+  // Call checkRating on mount to get verified purchase details.
+  // purchases[0] carries the correct targetType/targetId for the API — not the nav param values.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token || cancelled) return;
+
+        const result = await apiClient.checkRating(
+          token,
+          targetType as RatingTargetType,
+          targetId,
+        );
+
+        if (cancelled) return;
+
+        if (result.purchases.length > 0) {
+          const purchase = result.purchases[0];
+          setResolvedTargetType(purchase.targetType as RatingTargetType);
+          setResolvedTargetId(purchase.targetId);
+          setResolvedBookingId(purchase.purchaseId);
+          setResolvedBookingType(purchase.purchaseType as PurchaseType);
+        } else if (bookingId && bookingType) {
+          // Nav params provided a specific purchase — use them directly
+          setResolvedTargetType(targetType as RatingTargetType);
+          setResolvedTargetId(targetId);
+          setResolvedBookingId(bookingId);
+          setResolvedBookingType(bookingType);
+        } else {
+          setBookingFetchError('No eligible completed purchases found for this vendor.');
+        }
+      } catch {
+        if (!cancelled) {
+          setBookingFetchError('Unable to verify your purchase history. Please try again.');
+        }
+      } finally {
+        if (!cancelled) setBookingFetching(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [targetType, targetId, bookingId, bookingType, getToken]);
+
+  const canSubmit =
+    starRating > 0 &&
+    !submitting &&
+    !submitted &&
+    !bookingFetching &&
+    !bookingFetchError &&
+    !!resolvedTargetType;
+
   const reviewValid = reviewText.trim().length >= MIN_REVIEW_CHARS;
-  const hasReview = showReviewInput && reviewValid && !!bookingId && !!bookingType;
+  const hasReview = showReviewInput && reviewValid && !!resolvedBookingId && !!resolvedBookingType;
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || !resolvedTargetType) return;
     setSubmitting(true);
     try {
       const token = await getToken();
@@ -53,19 +113,19 @@ export default function RateReviewScreen({ route, navigation }: Props) {
 
       await apiClient.submitRating(
         token,
-        targetType as RatingTargetType,
-        targetId,
+        resolvedTargetType,
+        resolvedTargetId,
         starRating,
-        bookingId ?? '',
-        bookingType ?? '',
+        resolvedBookingId,
+        resolvedBookingType,
       );
 
       if (hasReview) {
         await apiClient.submitReview(token, {
-          targetType,
-          targetId,
-          bookingType: bookingType!,
-          bookingId: bookingId!,
+          targetType: resolvedTargetType,
+          targetId: resolvedTargetId,
+          bookingType: resolvedBookingType,
+          bookingId: resolvedBookingId,
           rating: starRating,
           title: reviewTitle.trim() || undefined,
           comment: reviewText.trim(),
@@ -85,7 +145,7 @@ export default function RateReviewScreen({ route, navigation }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, hasReview, starRating, reviewText, reviewTitle, bookingId, bookingType, targetType, targetId, getToken, navigation]);
+  }, [canSubmit, hasReview, resolvedTargetType, resolvedTargetId, resolvedBookingId, resolvedBookingType, starRating, reviewText, reviewTitle, getToken, navigation]);
 
   const displayName = vendorName ?? (targetType === 'photographer' ? 'Rate Photographer' : 'Rate Vendor');
   const submitLabel = submitting
@@ -115,63 +175,73 @@ export default function RateReviewScreen({ route, navigation }: Props) {
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.body}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.sectionLabel}>How was it?</Text>
+        {bookingFetching ? (
+          <View style={styles.centeredContainer}>
+            <ActivityIndicator color={GOLD} size="large" />
+          </View>
+        ) : bookingFetchError ? (
+          <View style={styles.centeredContainer}>
+            <Text style={styles.errorText}>{bookingFetchError}</Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.body}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.sectionLabel}>How was it?</Text>
 
-          <StarPicker
-            value={starRating}
-            onChange={setStarRating}
-            size={40}
-            color={GOLD}
-            showLabel
-          />
+            <StarPicker
+              value={starRating}
+              onChange={setStarRating}
+              size={40}
+              color={GOLD}
+              showLabel
+            />
 
-          {!showReviewInput && (
-            <Pressable
-              style={styles.addReviewButton}
-              onPress={() => setShowReviewInput(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Add a written review"
-            >
-              <Text style={styles.addReviewText}>+ Add a written review</Text>
-            </Pressable>
-          )}
+            {!showReviewInput && (
+              <Pressable
+                style={styles.addReviewButton}
+                onPress={() => setShowReviewInput(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Add a written review"
+              >
+                <Text style={styles.addReviewText}>+ Add a written review</Text>
+              </Pressable>
+            )}
 
-          {showReviewInput && (
-            <View style={styles.reviewSection}>
-              <TextInput
-                style={styles.titleInput}
-                placeholder="Title (optional)"
-                placeholderTextColor="#888888"
-                value={reviewTitle}
-                onChangeText={setReviewTitle}
-                maxLength={100}
-              />
-              <TextInput
-                style={styles.reviewInput}
-                placeholder="Share your experience..."
-                placeholderTextColor="#888888"
-                value={reviewText}
-                onChangeText={setReviewText}
-                multiline
-                maxLength={1000}
-                textAlignVertical="top"
-              />
-              <Text style={[
-                styles.charCount,
-                reviewText.length < MIN_REVIEW_CHARS && styles.charCountWarn,
-              ]}>
-                {reviewText.length < MIN_REVIEW_CHARS
-                  ? `${MIN_REVIEW_CHARS - reviewText.length} more characters needed`
-                  : `${reviewText.length} / 1000`}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+            {showReviewInput && (
+              <View style={styles.reviewSection}>
+                <TextInput
+                  style={styles.titleInput}
+                  placeholder="Title (optional)"
+                  placeholderTextColor="#888888"
+                  value={reviewTitle}
+                  onChangeText={setReviewTitle}
+                  maxLength={100}
+                />
+                <TextInput
+                  style={styles.reviewInput}
+                  placeholder="Share your experience..."
+                  placeholderTextColor="#888888"
+                  value={reviewText}
+                  onChangeText={setReviewText}
+                  multiline
+                  maxLength={1000}
+                  textAlignVertical="top"
+                />
+                <Text style={[
+                  styles.charCount,
+                  reviewText.length < MIN_REVIEW_CHARS && styles.charCountWarn,
+                ]}>
+                  {reviewText.length < MIN_REVIEW_CHARS
+                    ? `${MIN_REVIEW_CHARS - reviewText.length} more characters needed`
+                    : `${reviewText.length} / 1000`}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
 
         <View style={styles.footer}>
           <Pressable
@@ -210,6 +280,18 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 8,
+  },
+  centeredContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  errorText: {
+    color: '#888888',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   body: {
     padding: 24,
