@@ -18,7 +18,7 @@ import { StarPicker } from '@/components/ratings/StarPicker';
 import { apiClient } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { RootStackParamList } from '@/navigation/types';
-import { RatingTargetType } from '@/types/ratings';
+import { RatingTargetType, PurchaseType } from '@/types/ratings';
 
 const GOLD = '#C9933A';
 const MIN_REVIEW_CHARS = 20;
@@ -29,11 +29,13 @@ export default function RateReviewScreen({ route, navigation }: Props) {
   const { targetType, targetId, vendorName, bookingId, bookingType } = route.params;
   const { getToken } = useAuth();
 
-  // Resolved booking — seeded from nav params when present, otherwise fetched on mount
+  // Resolved purchase — from checkRating result (purchases[0]) or seeded from nav params
+  const [resolvedTargetType, setResolvedTargetType] = useState<RatingTargetType | null>(null);
+  const [resolvedTargetId, setResolvedTargetId] = useState('');
   const [resolvedBookingId, setResolvedBookingId] = useState('');
   const [resolvedBookingType, setResolvedBookingType] = useState('');
-  const [bookingFetching, setBookingFetching] = useState(!bookingId);
-  const [bookingFetchError, setBookingFetchError] = useState(false);
+  const [bookingFetching, setBookingFetching] = useState(true);
+  const [bookingFetchError, setBookingFetchError] = useState<string | null>(null);
 
   // StarPicker values are in ×10 format (5–50); 0 means no selection
   const [starRating, setStarRating] = useState(0);
@@ -43,16 +45,9 @@ export default function RateReviewScreen({ route, navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Seed resolved values from nav params when present, or fetch from API when absent.
-  // Auto-selects the most recent completed booking/order — no picker UI.
+  // Call checkRating on mount to get verified purchase details.
+  // purchases[0] carries the correct targetType/targetId for the API — not the nav param values.
   useEffect(() => {
-    if (bookingId) {
-      setResolvedBookingId(bookingId);
-      setResolvedBookingType(bookingType ?? '');
-      setBookingFetching(false);
-      return;
-    }
-
     let cancelled = false;
 
     (async () => {
@@ -60,47 +55,54 @@ export default function RateReviewScreen({ route, navigation }: Props) {
         const token = await getToken();
         if (!token || cancelled) return;
 
-        const [orders, appointments] = await Promise.all([
-          apiClient.getRecentCompletedOrders(token, '180d'),
-          apiClient.getRecentCompletedBookings(token, '180d'),
-        ]);
+        const result = await apiClient.checkRating(
+          token,
+          targetType as RatingTargetType,
+          targetId,
+        );
 
         if (cancelled) return;
 
-        const matchingOrders = orders
-          .filter((o) => o.businessId === targetId)
-          .map((o) => ({ id: o.id, type: 'order' as const, date: o.createdAt }));
-
-        const matchingAppointments = appointments
-          .filter((a) => a.businessId === targetId)
-          .map((a) => ({ id: a.id, type: 'appointment' as const, date: a.appointmentDate }));
-
-        const all = [...matchingOrders, ...matchingAppointments].sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        );
-
-        if (all.length > 0) {
-          setResolvedBookingId(all[0].id);
-          setResolvedBookingType(all[0].type);
+        if (result.purchases.length > 0) {
+          const purchase = result.purchases[0];
+          setResolvedTargetType(purchase.targetType as RatingTargetType);
+          setResolvedTargetId(purchase.targetId);
+          setResolvedBookingId(purchase.purchaseId);
+          setResolvedBookingType(purchase.purchaseType as PurchaseType);
+        } else if (bookingId && bookingType) {
+          // Nav params provided a specific purchase — use them directly
+          setResolvedTargetType(targetType as RatingTargetType);
+          setResolvedTargetId(targetId);
+          setResolvedBookingId(bookingId);
+          setResolvedBookingType(bookingType);
+        } else {
+          setBookingFetchError('No eligible completed purchases found for this vendor.');
         }
-        // No matching booking found — rating still submits, review is skipped
-        // (hasReview requires a non-empty resolvedBookingId)
       } catch {
-        if (!cancelled) setBookingFetchError(true);
+        if (!cancelled) {
+          setBookingFetchError('Unable to verify your purchase history. Please try again.');
+        }
       } finally {
         if (!cancelled) setBookingFetching(false);
       }
     })();
 
     return () => { cancelled = true; };
-  }, [bookingId, bookingType, targetId, getToken]);
+  }, [targetType, targetId, bookingId, bookingType, getToken]);
 
-  const canSubmit = starRating > 0 && !submitting && !submitted && !bookingFetching;
+  const canSubmit =
+    starRating > 0 &&
+    !submitting &&
+    !submitted &&
+    !bookingFetching &&
+    !bookingFetchError &&
+    !!resolvedTargetType;
+
   const reviewValid = reviewText.trim().length >= MIN_REVIEW_CHARS;
   const hasReview = showReviewInput && reviewValid && !!resolvedBookingId && !!resolvedBookingType;
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || !resolvedTargetType) return;
     setSubmitting(true);
     try {
       const token = await getToken();
@@ -111,8 +113,8 @@ export default function RateReviewScreen({ route, navigation }: Props) {
 
       await apiClient.submitRating(
         token,
-        targetType as RatingTargetType,
-        targetId,
+        resolvedTargetType,
+        resolvedTargetId,
         starRating,
         resolvedBookingId,
         resolvedBookingType,
@@ -120,8 +122,8 @@ export default function RateReviewScreen({ route, navigation }: Props) {
 
       if (hasReview) {
         await apiClient.submitReview(token, {
-          targetType,
-          targetId,
+          targetType: resolvedTargetType,
+          targetId: resolvedTargetId,
           bookingType: resolvedBookingType,
           bookingId: resolvedBookingId,
           rating: starRating,
@@ -143,7 +145,7 @@ export default function RateReviewScreen({ route, navigation }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, hasReview, starRating, reviewText, reviewTitle, resolvedBookingId, resolvedBookingType, targetType, targetId, getToken, navigation]);
+  }, [canSubmit, hasReview, resolvedTargetType, resolvedTargetId, resolvedBookingId, resolvedBookingType, starRating, reviewText, reviewTitle, getToken, navigation]);
 
   const displayName = vendorName ?? (targetType === 'photographer' ? 'Rate Photographer' : 'Rate Vendor');
   const submitLabel = submitting
@@ -174,14 +176,12 @@ export default function RateReviewScreen({ route, navigation }: Props) {
         </View>
 
         {bookingFetching ? (
-          <View style={styles.loadingContainer}>
+          <View style={styles.centeredContainer}>
             <ActivityIndicator color={GOLD} size="large" />
           </View>
         ) : bookingFetchError ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.errorText}>
-              Unable to load your booking history. You can still submit a star rating.
-            </Text>
+          <View style={styles.centeredContainer}>
+            <Text style={styles.errorText}>{bookingFetchError}</Text>
           </View>
         ) : (
           <ScrollView
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginHorizontal: 8,
   },
-  loadingContainer: {
+  centeredContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
