@@ -58,6 +58,7 @@ import StoryViewerScreen from "@/screens/StoryViewerScreen";
 import StoryInsightsScreen from "@/screens/StoryInsightsScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
+import RateReviewScreen from "@/screens/RateReviewScreen";
 import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
 import SupportContactScreen from "@/screens/SupportContactScreen";
 
@@ -931,6 +932,12 @@ export default function RootNavigator() {
           headerStyle: { backgroundColor: theme.backgroundRoot },
           gestureEnabled: false,
         }}
+      />
+
+      <Stack.Screen
+        name="RateReview"
+        component={RateReviewScreen}
+        options={{ headerShown: false, presentation: 'modal' }}
       />
     </Stack.Navigator>
   );
