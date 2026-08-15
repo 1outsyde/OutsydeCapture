@@ -69,12 +69,6 @@ export default function RateReviewScreen({ route, navigation }: Props) {
           setResolvedTargetId(purchase.targetId);
           setResolvedBookingId(purchase.purchaseId);
           setResolvedBookingType(purchase.purchaseType as PurchaseType);
-        } else if (bookingId && bookingType) {
-          // Nav params provided a specific purchase — use them directly
-          setResolvedTargetType(targetType as RatingTargetType);
-          setResolvedTargetId(targetId);
-          setResolvedBookingId(bookingId);
-          setResolvedBookingType(bookingType);
         } else {
           setBookingFetchError('No eligible completed purchases found for this vendor.');
         }
