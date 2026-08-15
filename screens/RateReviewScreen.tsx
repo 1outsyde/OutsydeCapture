@@ -115,9 +115,11 @@ export default function RateReviewScreen({ route, navigation }: Props) {
       );
 
       if (hasReview) {
+        const reviewTargetType = targetType === 'photographer' ? 'photographer' : 'business';
+        const reviewTargetId = targetId;
         await apiClient.submitReview(token, {
-          targetType: resolvedTargetType,
-          targetId: resolvedTargetId,
+          targetType: reviewTargetType,
+          targetId: reviewTargetId,
           bookingType: resolvedBookingType,
           bookingId: resolvedBookingId,
           rating: starRating,
