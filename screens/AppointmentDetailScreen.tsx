@@ -13,7 +13,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { BusinessAppointment } from "@/services/api";
 import { RatingBottomSheet } from "@/components/ratings";
-import type { PurchaseItem } from "@/types/ratings";
+import type { PurchaseItem, RatingCheckResponse } from "@/types/ratings";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "AppointmentDetail">;
@@ -163,6 +163,7 @@ export default function AppointmentDetailScreen() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [canRate, setCanRate] = useState(false);
   const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
+  const [ratingCheckResult, setRatingCheckResult] = useState<RatingCheckResponse | null>(null);
   const appt = route.params.appointment;
 
   useEffect(() => {
@@ -171,8 +172,9 @@ export default function AppointmentDetailScreen() {
       try {
         const token = await getToken();
         if (!token) return;
-        const { canRate: eligible } = await api.checkRating(token, "business", appt.businessId);
-        setCanRate(eligible);
+        const result = await api.checkRating(token, "business", appt.businessId);
+        setRatingCheckResult(result);
+        setCanRate(result.canRate);
       } catch {
         // ignore — rate button simply won't appear
       }
@@ -372,7 +374,10 @@ export default function AppointmentDetailScreen() {
         onSubmit={async (rating, purchaseId, purchaseType) => {
           const token = await getToken();
           if (!token) throw new Error("Not authenticated");
-          await api.submitRating(token, "business", appt.businessId, rating, purchaseId, purchaseType);
+          const purchases = ratingCheckResult?.purchases ?? [];
+          const purchase = purchases.find(p => p.purchaseId === purchaseId) ?? purchases[0];
+          if (!purchase) return;
+          await api.submitRating(token, purchase.targetType, purchase.targetId, rating, purchaseId, purchaseType);
           setCanRate(false);
         }}
         targetType="business"

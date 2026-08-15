@@ -2506,8 +2506,10 @@ export default function VendorDetailScreen({ route }: Props) {
           onSubmit={async (rating, purchaseId, purchaseType) => {
             const token = await getToken();
             if (!token) throw new Error("Not authenticated");
-            const targetType = profile.role === "photographer" ? "photographer" : "business";
-            await apiClient.submitRating(token, targetType, profile.id, rating, purchaseId, purchaseType);
+            const purchases = ratingCheckResult?.purchases ?? [];
+            const purchase = purchases.find(p => p.purchaseId === purchaseId) ?? purchases[0];
+            if (!purchase) return;
+            await apiClient.submitRating(token, purchase.targetType, purchase.targetId, rating, purchaseId, purchaseType);
             setRatingCheckResult(null);
           }}
           targetType={profile.role === "photographer" ? "photographer" : "business"}
