@@ -1680,9 +1680,9 @@ export default function VendorDetailScreen({ route }: Props) {
         ) : null}
 
         <View style={styles.ratingInlineRow}>
-          <StarDisplay rating={Math.round(profile.rating * 10)} size={13} color={accentColor} />
-          <Text style={styles.ratingText}>{profile.rating.toFixed(1)}</Text>
-          <Text style={styles.ratingMeta}>({profile.reviewCount})</Text>
+          <StarDisplay rating={ratingsData?.average ?? Math.round(profile.rating * 10)} size={13} color={accentColor} />
+          <Text style={styles.ratingText}>{ratingsData ? (ratingsData.average / 10).toFixed(1) : profile.rating.toFixed(1)}</Text>
+          <Text style={styles.ratingMeta}>({ratingsData?.count ?? profile.reviewCount})</Text>
           {profile.responseTime ? (
             <Text style={styles.ratingMeta}>⚡ {profile.responseTime}</Text>
           ) : null}
@@ -2212,15 +2212,15 @@ export default function VendorDetailScreen({ route }: Props) {
       <View style={styles.reviewSummaryCard}>
         <View style={styles.reviewSummaryLeft}>
           <Text style={styles.reviewScore}>
-            {profile?.rating?.toFixed(1) || "0.0"}
+            {ratingsData ? (ratingsData.average / 10).toFixed(1) : (profile?.rating?.toFixed(1) || "0.0")}
           </Text>
           <StarDisplay
-            rating={Math.round((profile?.rating || 0) * 10)}
+            rating={ratingsData?.average ?? Math.round((profile?.rating || 0) * 10)}
             size={14}
             color={accentColor}
           />
           <Text style={styles.reviewCountLabel}>
-            {profile?.reviewCount || 0} reviews
+            {ratingsData?.count ?? profile?.reviewCount ?? 0} reviews
           </Text>
         </View>
         <View style={styles.reviewSummaryRight}>
