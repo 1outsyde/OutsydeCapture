@@ -20,7 +20,7 @@ import { RootStackParamList } from "@/navigation/types";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/services/api";
 import { RatingBottomSheet } from "@/components/ratings";
-import type { PurchaseItem } from "@/types/ratings";
+import type { PurchaseItem, RatingCheckResponse } from "@/types/ratings";
 
 type Route = RouteProp<RootStackParamList, "ProductOrderDetail">;
 
@@ -71,6 +71,7 @@ export default function ProductOrderDetailScreen() {
   const [currentStatus, setCurrentStatus] = useState(route.params.status);
   const [canRate, setCanRate] = useState(false);
   const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
+  const [ratingCheckResult, setRatingCheckResult] = useState<RatingCheckResponse | null>(null);
 
   useEffect(() => {
     if (currentStatus !== "delivered" || !businessId) return;
@@ -78,8 +79,9 @@ export default function ProductOrderDetailScreen() {
       try {
         const token = await getToken();
         if (!token) return;
-        const { canRate: eligible } = await api.checkRating(token, "business", businessId);
-        setCanRate(eligible);
+        const result = await api.checkRating(token, "business", businessId);
+        setRatingCheckResult(result);
+        setCanRate(result.canRate);
       } catch {
         // ignore — rate button simply won't appear
       }
@@ -464,7 +466,10 @@ export default function ProductOrderDetailScreen() {
           onSubmit={async (rating, purchaseId, purchaseType) => {
             const token = await getToken();
             if (!token) throw new Error("Not authenticated");
-            await api.submitRating(token, "business", businessId, rating, purchaseId, purchaseType);
+            const purchases = ratingCheckResult?.purchases ?? [];
+            const purchase = purchases.find(p => p.purchaseId === purchaseId) ?? purchases[0];
+            if (!purchase) return;
+            await api.submitRating(token, purchase.targetType, purchase.targetId, rating, purchaseId, purchaseType);
             setCanRate(false);
           }}
           targetType="business"

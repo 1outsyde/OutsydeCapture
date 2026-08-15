@@ -744,11 +744,10 @@ export default function DiscoverScreen() {
           onSubmit={async (rating, purchaseId, purchaseType) => {
             const token = await getToken();
             if (!token) throw new Error("Not authenticated");
-            const targetType: RatingTargetType =
-              ratingPost.type === "vendor" ? "business" : "photographer";
-            const targetId =
-              ratingPost.businessId || ratingPost.providerId || ratingPost.authorId || "";
-            await api.submitRating(token, targetType, targetId, rating, purchaseId, purchaseType);
+            const purchases = ratingCheckResult?.purchases ?? [];
+            const purchase = purchases.find(p => p.purchaseId === purchaseId) ?? purchases[0];
+            if (!purchase) return;
+            await api.submitRating(token, purchase.targetType, purchase.targetId, rating, purchaseId, purchaseType);
             setRatingSheetVisible(false);
             setRatingPost(null);
             setRatingCheckResult(null);
