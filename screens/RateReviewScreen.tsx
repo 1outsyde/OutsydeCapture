@@ -46,7 +46,8 @@ export default function RateReviewScreen({ route, navigation }: Props) {
   const [submitted, setSubmitted] = useState(false);
 
   // Call checkRating on mount to get verified purchase details.
-  // purchases[0] carries the correct targetType/targetId for the API — not the nav param values.
+  // resolvedTargetType/resolvedTargetId (product/service level) are used for submitRating only.
+  // submitReview uses the nav param targetType/targetId (vendor level) instead.
   useEffect(() => {
     let cancelled = false;
 
