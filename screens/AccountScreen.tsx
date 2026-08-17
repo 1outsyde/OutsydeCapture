@@ -1244,7 +1244,24 @@ export default function AccountScreen() {
           const publicUser = publicUserResult?.user;
           resolvedPosts = toPosts(profilePosts.posts || []);
           resolvedSaved = [];
-          resolvedReviews = [];
+
+          try {
+            const reviewToken = await getToken();
+            if (reviewToken && user?.id) {
+              const myReviewsResult = await apiClient.getMyReviews(reviewToken, String(user.id));
+              resolvedReviews = (myReviewsResult.reviews || []).map((r) => ({
+                id: r.id,
+                userName: r.vendorName,
+                rating: Math.round(r.rating / 10),
+                text: r.comment,
+                createdAt: r.createdAt ?? '',
+              }));
+            } else {
+              resolvedReviews = [];
+            }
+          } catch {
+            resolvedReviews = [];
+          }
           profileData = {
             id: String(user?.id || "me"),
             userId: String(user?.id || ""),
