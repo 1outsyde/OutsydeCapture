@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StarPicker } from '@/components/ratings/StarPicker';
-import { apiClient } from '@/services/api';
+import apiClient from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { RootStackParamList } from '@/navigation/types';
 import { RatingTargetType, PurchaseType } from '@/types/ratings';
