@@ -4752,6 +4752,16 @@ class ApiService {
     );
   }
 
+  // GET /api/users/:userId/reviews - Fetch reviews written by the authenticated user
+  async getMyReviews(
+    token: string,
+    userId: string,
+  ): Promise<{ reviews: Array<{ id: string; targetType: string; targetId: string; vendorName: string; rating: number; title: string | null; comment: string; createdAt: string | null }> }> {
+    return this.request(`/api/users/${userId}/reviews`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+  }
+
   // ── Ratings ───────────────────────────────────────────────────────────────
 
   async checkRating(
