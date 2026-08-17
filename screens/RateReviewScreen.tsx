@@ -52,10 +52,24 @@ export default function RateReviewScreen({ route, navigation }: Props) {
     let cancelled = false;
 
     (async () => {
+      let token: string | null = null;
       try {
-        const token = await getToken();
-        if (!token || cancelled) return;
+        token = await getToken();
+      } catch (tokenErr) {
+        console.error('[RateReviewScreen] getToken() threw:', tokenErr);
+        if (!cancelled) {
+          setBookingFetchError('Unable to verify your purchase history. Please try again.');
+          setBookingFetching(false);
+        }
+        return;
+      }
 
+      if (!token || cancelled) {
+        if (!cancelled) setBookingFetching(false);
+        return;
+      }
+
+      try {
         const result = await apiClient.checkRating(
           token,
           targetType as RatingTargetType,
@@ -73,7 +87,8 @@ export default function RateReviewScreen({ route, navigation }: Props) {
         } else {
           setBookingFetchError('No eligible completed purchases found for this vendor.');
         }
-      } catch {
+      } catch (err) {
+        console.error('[RateReviewScreen] checkRating failed:', err);
         if (!cancelled) {
           setBookingFetchError('Unable to verify your purchase history. Please try again.');
         }
