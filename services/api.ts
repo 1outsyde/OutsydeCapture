@@ -1479,13 +1479,6 @@ class ApiService {
     });
   }
 
-  async mobileGoogleLogin(idToken: string): Promise<MobileLoginResponse> {
-    return this.request<MobileLoginResponse>("/api/auth/mobile/google", {
-      method: "POST",
-      body: JSON.stringify({ idToken }),
-    });
-  }
-
   async mobileSignup(data: MobileSignupRequest): Promise<MobileSignupResponse> {
     return this.request<MobileSignupResponse>("/api/auth/mobile/signup", {
       method: "POST",
@@ -1593,35 +1586,6 @@ class ApiService {
       body: JSON.stringify({ refreshToken }),
     }).catch(() => {
       // Non-critical: fire-and-forget
-    });
-  }
-
-  async appleSignIn(params: {
-    identityToken: string;
-    fullName?: string | null;
-    email?: string | null;
-    nonce?: string;
-  }): Promise<
-    | { isNewUser: true; requiresUsername: boolean; appleId: string; email: string; fullName?: string }
-    | { isNewUser: false; user: Record<string, any>; accessToken: string; refreshToken: string }
-  > {
-    return this.request("/api/auth/oauth/apple", {
-      method: "POST",
-      body: JSON.stringify(params),
-    });
-  }
-
-  async appleCompleteSignup(params: {
-    appleId: string;
-    email: string;
-    fullName?: string;
-    username: string;
-    password: string;
-    role?: string;
-  }): Promise<{ user: Record<string, any>; accessToken: string; refreshToken: string }> {
-    return this.request("/api/auth/oauth/apple/complete-signup", {
-      method: "POST",
-      body: JSON.stringify(params),
     });
   }
 

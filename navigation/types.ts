@@ -1,17 +1,16 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
-import { GoogleProfile } from "@/context/AuthContext";
 import { BusinessAppointment, ConsumerOrderItem } from "@/services/api";
 import { Story } from "@/components/StoryRing";
 
 
 export type RootStackParamList = {
-  Onboarding: { startAtSlide?: number; googleProfile?: GoogleProfile } | undefined;
+  Onboarding: { startAtSlide?: number } | undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
   Auth: { returnTo?: string };
-  ConsumerSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
-  BusinessSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
-  PhotographerSignup: { prefillName?: string; prefillEmail?: string; socialProvider?: string; prefillAvatar?: string; isGoogleSignup?: boolean; googleProfile?: GoogleProfile } | undefined;
+  ConsumerSignup: { prefillName?: string; prefillEmail?: string; prefillAvatar?: string } | undefined;
+  BusinessSignup: { prefillName?: string; prefillEmail?: string; prefillAvatar?: string } | undefined;
+  PhotographerSignup: { prefillName?: string; prefillEmail?: string; prefillAvatar?: string } | undefined;
   BusinessOnboarding: undefined;
   PhotographerOnboarding: undefined;
   SelectPhotographer: undefined;
