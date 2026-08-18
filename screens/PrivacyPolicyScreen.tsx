@@ -182,8 +182,6 @@ export default function PrivacyPolicyScreen() {
         <BulletPoint>Resend — Transactional email delivery (booking confirmations, invites, password resets)</BulletPoint>
         <BulletPoint>Expo Push Notifications — Mobile push notification delivery (uses your Expo push token)</BulletPoint>
         <BulletPoint>Google Places API — Address autocomplete and geocoding (coordinates stored in our database)</BulletPoint>
-        <BulletPoint>Google OAuth — Sign-in with Google (name, email, profile photo URL, and Google account ID)</BulletPoint>
-        <BulletPoint>Apple Sign-In — Sign-in with Apple (Apple ID, name if provided, and email address)</BulletPoint>
         <BulletPoint>Google Calendar API — Booking calendar sync for providers (booking details written to your connected calendar)</BulletPoint>
         <BulletPoint>Neon — Managed PostgreSQL database hosting (all user data stored in our database is hosted on Neon's infrastructure)</BulletPoint>
         <BulletPoint>Render — Backend server hosting (all server traffic passes through Render's infrastructure)</BulletPoint>

@@ -176,14 +176,11 @@ export default function ConsumerSignupScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ConsumerSignupRouteProp>();
-  const { signup, loginWithTokens, isLoading } = useAuth();
+  const { signup, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const googleProfile = route.params?.googleProfile ?? null;
-  const isGoogleSignup = route.params?.isGoogleSignup ?? false;
-  const isAppleSignup = route.params?.socialProvider === "apple";
-  const prefillName = route.params?.prefillName ?? googleProfile?.name ?? "";
-  const prefillEmail = route.params?.prefillEmail ?? googleProfile?.email ?? "";
+  const prefillName = route.params?.prefillName ?? "";
+  const prefillEmail = route.params?.prefillEmail ?? "";
 
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -196,7 +193,7 @@ export default function ConsumerSignupScreen() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [showFormError, setShowFormError] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(googleProfile?.profileImageUrl ?? null);
+  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
 
   const handlePickProfilePhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -390,36 +387,6 @@ export default function ConsumerSignupScreen() {
   };
 
   const handleSubmit = async () => {
-    if (isGoogleSignup && googleProfile) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/oauth/complete-signup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username,
-            email,
-            firstName,
-            lastName,
-            role: "consumer",
-            password,
-            googleProfile,
-            profileImageUrl: profilePhotoUri || googleProfile?.profileImageUrl || null,
-          }),
-        });
-        const data = await response.json();
-        if (response.ok) {
-          await AsyncStorage.removeItem("@outsyde_google_profile");
-          await loginWithTokens(data.accessToken, data.refreshToken, data as any);
-          navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Main" }] }));
-        } else {
-          Alert.alert("Error", data.error ?? "Something went wrong. Please try again.");
-        }
-      } catch {
-        Alert.alert("Error", "Something went wrong. Please try again.");
-      }
-      return;
-    }
-
     const result = await signup({
       firstName,
       lastName,

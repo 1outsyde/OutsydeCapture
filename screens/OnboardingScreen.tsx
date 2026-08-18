@@ -9,10 +9,6 @@ import {
   Animated,
   Text,
   StatusBar,
-  Alert,
-  ActivityIndicator,
-  Linking,
-  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -20,13 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
-import * as WebBrowser from "expo-web-browser";
-
 import { RootStackParamList } from "@/navigation/types";
-import { UserRole, GoogleAuthUserData, GoogleProfile, useAuth } from "@/context/AuthContext";
-import { useGoogleSignIn, useAppleSignIn, parseGoogleAuthUrl } from "@/hooks/useOAuthSignIn";
-
-WebBrowser.maybeCompleteAuthSession();
+import { UserRole, useAuth } from "@/context/AuthContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -97,52 +88,10 @@ type Props = NativeStackScreenProps<RootStackParamList, "Onboarding">;
 
 export default function OnboardingScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const { loginWithTokens, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
-  const [deepLinkLoading, setDeepLinkLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-
-  // Google OAuth new-user profile — set when backend signals isNewUser=true
-  const [googleProfileForSignup, setGoogleProfileForSignup] = useState<GoogleProfile | null>(
-    route.params?.googleProfile ?? null
-  );
-
-  // Role picker modal state — shown when a new social user has no pre-selected role
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [pendingSocialProfile, setPendingSocialProfile] = useState<{
-    prefillName: string;
-    prefillEmail: string;
-    socialProvider: "google" | "apple";
-    googleProfile?: GoogleProfile | null;
-  } | null>(null);
-
-  const { signIn: handleGoogleSignIn, isLoading: googleHookLoading } = useGoogleSignIn(
-    (gProfile) => {
-      // New Google user: show role picker modal instead of silently scrolling to Slide 4
-      setPendingSocialProfile({
-        prefillName: gProfile.name ?? "",
-        prefillEmail: gProfile.email ?? "",
-        socialProvider: "google",
-        googleProfile: gProfile,
-      });
-      setShowRoleModal(true);
-    }
-  );
-
-  const { signIn: handleAppleSignIn, isLoading: isAppleLoading } = useAppleSignIn(
-    async ({ prefillName, prefillEmail }) => {
-      // New Apple user: show role picker modal instead of defaulting to ConsumerSignup
-      setPendingSocialProfile({
-        prefillName: prefillName ?? "",
-        prefillEmail,
-        socialProvider: "apple",
-      });
-      setShowRoleModal(true);
-    }
-  );
-
-  const isGoogleLoading = googleHookLoading || deepLinkLoading;
 
   // Pulse animation for Screen 1
   const pulseScale1 = useRef(new Animated.Value(1)).current;
@@ -232,7 +181,7 @@ export default function OnboardingScreen({ navigation, route }: Props) {
     return () => { cancelled = true; };
   }, [currentIndex]);
 
-  // Scroll to startAtSlide on mount (used when navigating back to pick a role after Google OAuth)
+  // Scroll to startAtSlide on mount if provided via route params
   useEffect(() => {
     const startAt = route.params?.startAtSlide ?? 0;
     if (startAt > 0) {
@@ -245,7 +194,7 @@ export default function OnboardingScreen({ navigation, route }: Props) {
   }, []);
 
   // Auto-complete onboarding and navigate to Main when user becomes authenticated
-  // (fires after Google/Apple/Email sign-in from Slide 4)
+  // (fires after Email sign-in from Slide 4)
   useEffect(() => {
     if (isAuthenticated) {
       AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, "true").finally(() => {
@@ -253,45 +202,6 @@ export default function OnboardingScreen({ navigation, route }: Props) {
       });
     }
   }, [isAuthenticated]);
-
-  // Deep link listener — backup for Google OAuth redirect when WebBrowser doesn't intercept
-  useEffect(() => {
-    const handleDeepLink = async (event: { url: string }) => {
-      if (event.url.startsWith("outsyde://auth/success")) {
-        setDeepLinkLoading(true);
-        try {
-          const parsed = parseGoogleAuthUrl(event.url);
-          if (!parsed) throw new Error("Failed to parse auth URL");
-
-          if (parsed.isNewUser && parsed.profile) {
-            await AsyncStorage.setItem("@outsyde_google_profile", JSON.stringify(parsed.profile));
-            setGoogleProfileForSignup(parsed.profile);
-            flatListRef.current?.scrollToOffset({ offset: 3 * SCREEN_WIDTH, animated: true });
-            setCurrentIndex(3);
-          } else if (!parsed.isNewUser) {
-            const { accessToken, refreshToken, userId, email, userData } = parsed;
-            if (!accessToken || !refreshToken || !userId || !email) {
-              Alert.alert("Error", "Authentication failed. Missing required data.");
-              return;
-            }
-            await loginWithTokens(accessToken, refreshToken, { userId, email, ...userData } as GoogleAuthUserData);
-          }
-        } catch {
-          Alert.alert("Error", "Failed to complete sign-in. Please try again.");
-        } finally {
-          setDeepLinkLoading(false);
-        }
-      } else if (event.url.startsWith("outsyde://auth/error")) {
-        Alert.alert("Sign-In Error", parseGoogleAuthUrl(event.url)?.error || "Google sign-in failed");
-        setDeepLinkLoading(false);
-      }
-    };
-
-    const subscription = Linking.addEventListener("url", handleDeepLink);
-    Linking.getInitialURL().then((url) => { if (url) handleDeepLink({ url }); });
-    return () => subscription.remove();
-  }, [loginWithTokens, navigation]);
-
 
   const isLastSlide = currentIndex === 3;
   const handleNext = () => {
@@ -315,69 +225,26 @@ export default function OnboardingScreen({ navigation, route }: Props) {
       console.error("[Onboarding] Failed to save onboarding state:", err);
     }
 
-    const gp = googleProfileForSignup;
-    const googleParams = gp
-      ? {
-          prefillName: gp.name ?? "",
-          prefillEmail: gp.email ?? "",
-          prefillAvatar: gp.profileImageUrl ?? "",
-          isGoogleSignup: true as const,
-          googleProfile: gp,
-        }
-      : undefined;
-
     if (role === "business") {
       navigation.reset({
         index: 1,
-        routes: [{ name: "Main" }, { name: "BusinessSignup", params: googleParams }],
+        routes: [{ name: "Main" }, { name: "BusinessSignup" }],
       });
     } else if (role === "photographer") {
       navigation.reset({
         index: 1,
-        routes: [{ name: "Main" }, { name: "PhotographerSignup", params: googleParams }],
+        routes: [{ name: "Main" }, { name: "PhotographerSignup" }],
       });
     } else {
       navigation.reset({
         index: 1,
-        routes: [{ name: "Main" }, { name: "ConsumerSignup", params: googleParams }],
+        routes: [{ name: "Main" }, { name: "ConsumerSignup" }],
       });
     }
   };
 
   const handleRoleSelect = async (role: UserRole) => {
     await completeOnboarding(role);
-  };
-
-  const handleModalRoleSelect = async (role: UserRole) => {
-    setShowRoleModal(false);
-    if (!pendingSocialProfile) return;
-
-    await AsyncStorage.multiSet([
-      [ONBOARDING_COMPLETE_KEY, "true"],
-      [ONBOARDING_USER_TYPE_KEY, role],
-    ]);
-
-    const { prefillName, prefillEmail, socialProvider, googleProfile } = pendingSocialProfile;
-
-    const params =
-      socialProvider === "google"
-        ? {
-            prefillName,
-            prefillEmail,
-            isGoogleSignup: true as const,
-            googleProfile: googleProfile ?? undefined,
-          }
-        : { prefillName, prefillEmail, socialProvider: "apple" as const };
-
-    setPendingSocialProfile(null);
-
-    if (role === "business") {
-      navigation.reset({ index: 1, routes: [{ name: "Main" }, { name: "BusinessSignup", params }] });
-    } else if (role === "photographer") {
-      navigation.reset({ index: 1, routes: [{ name: "Main" }, { name: "PhotographerSignup", params }] });
-    } else {
-      navigation.reset({ index: 1, routes: [{ name: "Main" }, { name: "ConsumerSignup", params }] });
-    }
   };
 
   // ─── Slide Renders ──────────────────────────────────────────────────────────
@@ -680,38 +547,6 @@ export default function OnboardingScreen({ navigation, route }: Props) {
       {/* Returning user sign-in section */}
       <Text style={styles.signInLabel}>Already have an account? Sign in</Text>
 
-      {/* Google sign-in button */}
-      <Pressable
-        onPress={handleGoogleSignIn}
-        disabled={isGoogleLoading}
-        style={[styles.socialBtn, { backgroundColor: OB.greenDeep, borderColor: OB.greenMid, borderWidth: 1, opacity: isGoogleLoading ? 0.6 : 1 }]}
-      >
-        {isGoogleLoading ? (
-          <ActivityIndicator size="small" color={OB.cream} />
-        ) : (
-          <>
-            <Feather name="mail" size={20} color={OB.cream} />
-            <Text style={[styles.socialBtnText, { color: OB.cream }]}>Continue with Google</Text>
-          </>
-        )}
-      </Pressable>
-
-      {/* Apple sign-in button */}
-      <Pressable
-        onPress={handleAppleSignIn}
-        disabled={isAppleLoading}
-        style={[styles.socialBtn, { backgroundColor: "#000000", opacity: isAppleLoading ? 0.6 : 1 }]}
-      >
-        {isAppleLoading ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <>
-            <Feather name="smartphone" size={20} color="#FFFFFF" />
-            <Text style={[styles.socialBtnText, { color: "#FFFFFF" }]}>Continue with Apple</Text>
-          </>
-        )}
-      </Pressable>
-
       {/* Email sign-in button */}
       <Pressable
         onPress={() => navigation.navigate("Auth", {})}
@@ -814,43 +649,6 @@ export default function OnboardingScreen({ navigation, route }: Props) {
         ) : null}
       </View>
 
-      {/* Role Picker Modal — slides up after Google/Apple auth for new users */}
-      <Modal
-        visible={showRoleModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowRoleModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
-            <Text style={styles.modalTitle}>One more step</Text>
-            <Text style={styles.modalSubtext}>Choose how you'll use Outsyde</Text>
-
-            <View style={{ gap: 12 }}>
-              {ROLE_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt.role}
-                  onPress={() => handleModalRoleSelect(opt.role)}
-                  style={({ pressed }) => [
-                    styles.roleCard,
-                    pressed && { borderColor: opt.accent + "80", backgroundColor: opt.accent + "12" },
-                    { opacity: pressed ? 0.85 : 1 },
-                  ]}
-                >
-                  <View style={[styles.roleIconWrap, { backgroundColor: opt.accent + "20" }]}>
-                    <Feather name={opt.icon} size={22} color={opt.accent} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 14 }}>
-                    <Text style={[styles.roleLabel, { color: OB.cream }]}>{opt.label}</Text>
-                    <Text style={[styles.roleDesc, { color: OB.creamDim }]}>{opt.description}</Text>
-                  </View>
-                  <Feather name="chevron-right" size={18} color={OB.greenMid} />
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1119,14 +917,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  roleCheck: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   // ── Footer ───────────────────────────────────────────────────────────────────
   footer: {
@@ -1155,12 +945,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     letterSpacing: 0.2,
-  },
-  roleCounter: {
-    color: "#C8BFA870",
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: 12,
   },
 
   // ── Slide 4 sign-in section ───────────────────────────────────────────────
@@ -1200,31 +984,4 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
-  // ── Role Picker Modal ─────────────────────────────────────────────────────
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    backgroundColor: "#0D2B0D",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 28,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(201,147,58,0.3)",
-  },
-  modalTitle: {
-    fontWeight: "700",
-    fontSize: 24,
-    color: "#F0EAD6",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  modalSubtext: {
-    fontSize: 14,
-    color: "rgba(200,191,168,0.6)",
-    textAlign: "center",
-    marginBottom: 24,
-  },
 });

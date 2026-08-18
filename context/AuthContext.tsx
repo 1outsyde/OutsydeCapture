@@ -164,7 +164,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (identifier: string, password: string, type?: "email" | "username") => Promise<LoginResult>;
-  loginWithGoogle: (idToken: string) => Promise<LoginResult>;
   loginWithTokens: (accessToken: string, refreshToken: string, userData: GoogleAuthUserData) => Promise<LoginResult>;
   signup: (data: SignupData) => Promise<SignupResult>;
   loginAsGuest: () => Promise<void>;
@@ -365,11 +364,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedUserJson = await AsyncStorage.getItem(STORAGE_KEYS.USER);
       const parsed: User | null = secureUser || (storedUserJson ? JSON.parse(storedUserJson) : null);
       if (!parsed) {
-        // Clean up any abandoned Google OAuth profile
-        try {
-          const abandoned = await AsyncStorage.getItem("@outsyde_google_profile");
-          if (abandoned) await AsyncStorage.removeItem("@outsyde_google_profile");
-        } catch (_) {}
         setIsLoading(false);
         return;
       }
@@ -560,101 +554,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (status === 401 || status === 403) {
         return { success: false, isPending: false, isRejected: false };
       }
-      return { success: false, isPending: false, isRejected: false };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loginWithGoogle = async (idToken: string): Promise<LoginResult> => {
-    setIsLoading(true);
-    try {
-      const response = await api.mobileGoogleLogin(idToken);
-      console.log("[Auth] Google login response received, user:", response.user?.id);
-      
-      const backendUser = response.user;
-      
-      // Determine role from backend flags
-      let role: UserRole = "consumer";
-      if (backendUser.isPhotographer) {
-        role = "photographer";
-      } else if (backendUser.isVendor) {
-        role = "business";
-      }
-      
-      // Staff detection: GET /api/staff/me (404 = not staff; 409 = staff at
-      // 2+ businesses, auto-selected — see resolveStaffProfile)
-      let staffData: StaffProfile | null = null;
-      if (role === "consumer" && response.accessToken) {
-        staffData = await resolveStaffProfile(response.accessToken);
-        if (staffData) {
-          role = "staff";
-          console.log("[Auth] Google login — staff profile found:", staffData.id);
-        }
-      }
-
-      // Extract photographer data if present
-      const photographerData = (response as any).photographer;
-      
-      const newUser: User = {
-        id: backendUser.id,
-        firstName: backendUser.firstName || backendUser.name?.split(" ")[0] || "",
-        lastName: backendUser.lastName || backendUser.name?.split(" ").slice(1).join(" ") || "",
-        email: backendUser.email,
-        phone: backendUser.phone || "",
-        dateOfBirth: backendUser.dateOfBirth || "",
-        role,
-        approvalStatus: backendUser.approvalStatus || "approved",
-        isProfileComplete: backendUser.isProfileComplete,
-        avatar: backendUser.avatar || backendUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(backendUser.firstName || backendUser.name || "User")}&background=D4A84B&color=fff`,
-        profileImageUrl: backendUser.profileImageUrl,
-        coverMediaUrl: (backendUser as any).coverMediaUrl,
-        coverMediaType: (backendUser as any).coverMediaType,
-        city: backendUser.city || photographerData?.city,
-        state: backendUser.state || photographerData?.state,
-        businessName: backendUser.businessName,
-        businessCategory: backendUser.businessCategory,
-        businessDescription: backendUser.businessDescription,
-        displayName: photographerData?.displayName || backendUser.displayName,
-        bio: photographerData?.bio || backendUser.bio,
-        hourlyRate: photographerData?.hourlyRate || backendUser.hourlyRate,
-        portfolioUrl: photographerData?.portfolioUrl || backendUser.portfolioUrl,
-        specialties: photographerData?.specialties || backendUser.specialties,
-        isAdmin: backendUser.isAdmin || false,
-        businessId: (response as any).vendor?.id,
-        photographerId: photographerData?.id,
-        staffId: staffData?.id,
-        staffBusinessId: staffData?.businessId,
-        staffBusinessName: staffData?.businessName,
-        staffStripeOnboardingComplete: staffData?.stripeOnboardingComplete,
-        staffStripeOnboardingUrl: staffData?.stripeOnboardingUrl,
-      };
-
-      if (newUser.approvalStatus === "rejected") {
-        return { success: false, isPending: false, isRejected: true };
-      }
-      
-      const sessionToken = response.accessToken || `session_${backendUser.id}`;
-      if (response.accessToken && response.refreshToken) {
-        await storeTokens(response.accessToken, response.refreshToken);
-      } else if (response.refreshToken) {
-        await AsyncStorage.setItem("@outsyde_refresh_token", response.refreshToken);
-      }
-      await storeUserData(newUser);
-
-      if (newUser.role === "business" && newUser.approvalStatus === "pending") {
-        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-        await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
-        return { success: true, isPending: true, isRejected: false, user: newUser };
-      }
-      
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
-      setUser(newUser);
-      console.log("[Auth] User logged in via Google:", newUser.email, "role:", newUser.role);
-      return { success: true, isPending: false, isRejected: false, user: newUser };
-    } catch (error: any) {
-      console.error("Google login failed:", error);
       return { success: false, isPending: false, isRejected: false };
     } finally {
       setIsLoading(false);
@@ -1030,8 +929,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(newUser);
       
       console.log("[AuthContext] User logged in successfully:", newUser.email, "role:", derivedRole, "isAdmin:", newUser.isAdmin);
-      // Remove any abandoned Google profile stored during OAuth signup flow
-      await AsyncStorage.removeItem('@outsyde_google_profile');
       return { success: true, isPending: false, isRejected: false, user: newUser };
     } catch (error) {
       console.error("Failed to login with tokens:", error);
@@ -1048,7 +945,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
-        loginWithGoogle,
         loginWithTokens,
         signup,
         loginAsGuest,
