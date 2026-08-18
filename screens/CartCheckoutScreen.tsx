@@ -45,7 +45,6 @@ interface FeeBreakdown {
   outsydePointsEarned: number;
 }
 
-const RETURN_URL = "outsyde://checkout-return";
 
 export default function CartCheckoutScreen() {
   const { theme } = useTheme();
@@ -270,8 +269,7 @@ const clientPoints = useMemo(() => Math.round((subtotal / 100) * clientPointsRat
 
       const { paymentIntent, error: piError } = await confirmPayment(
         clientSecret,
-        paymentData,
-        { returnURL: RETURN_URL }
+        paymentData
       );
 
       if (piError) {
@@ -303,24 +301,34 @@ const clientPoints = useMemo(() => Math.round((subtotal / 100) * clientPointsRat
       setBackendFeeBreakdown(null);
       navigation.navigate("OrderSuccess", { itemCount, totalCharged, pointsEarned });
     } catch (err: any) {
-      const msg: string = err?.message ?? "";
-      if (msg.includes("ADDRESS_REQUIRED")) {
+      const message: string = err?.message ?? "";
+      if (message.includes("ADDRESS_REQUIRED")) {
         Alert.alert(
           "Shipping Address Required",
           "Please add a shipping address to continue.",
           [{ text: "OK" }]
         );
-        return;
-      }
-      if (msg.includes("INVALID_ADDRESS")) {
+      } else if (message.includes("INVALID_ADDRESS")) {
         Alert.alert(
           "Invalid Address",
           "Please check your shipping address and try again.",
           [{ text: "OK" }]
         );
-        return;
+      } else if (message.includes("STRIPE_NOT_ONBOARDED")) {
+        Alert.alert(
+          "Vendor Unavailable",
+          "One or more items in your cart cannot be purchased at this " +
+            "time. Please remove them and try again, or contact support.",
+          [{ text: "OK" }]
+        );
+      } else {
+        Alert.alert(
+          "Checkout Failed",
+          "Something went wrong. Please try again or contact support " +
+            "if the issue continues.",
+          [{ text: "OK" }]
+        );
       }
-      Alert.alert("Checkout failed. Please try again.");
     } finally {
       setCheckoutLoading(false);
     }
