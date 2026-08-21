@@ -6,7 +6,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51ScRnhBXLHe4A1FGNW5WB4OzSGujYFg9YJTkPvBsw8rDygHTtzhc8RRYgXwSxNmQfnf60TN3YN1uFEhaT6wFTj9g00bI5lHiMW"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -15,7 +18,10 @@
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_REPLACE_ME"
+      }
     }
   },
   "submit": {
