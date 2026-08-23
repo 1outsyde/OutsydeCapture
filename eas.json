@@ -8,19 +8,19 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51ScRnhBXLHe4A1FGNW5WB4OzSGujYFg9YJTkPvBsw8rDygHTtzhc8RRYgXwSxNmQfnf60TN3YN1uFEhaT6wFTj9g00bI5lHiMW"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51ScRnhBXLHe4A1FGNW5WB4OzSGujYFg9YJTkPvBsw8rDygHTtzhc8RRYgXwSxNmQfnf60TN3YN1uFEhaT6wFTj9g00bI5lHiMW"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_REPLACE_ME"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl"
       }
     }
   },
