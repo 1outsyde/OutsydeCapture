@@ -233,7 +233,7 @@ export default function OutsydePointsScreen() {
             {loading ? "—" : balance.toLocaleString()}
           </Text>
           <Text style={styles.balanceSub}>
-            Outsyde Points · Worth ${loading ? "—" : dollarValue}
+            Outsyde Points
           </Text>
           <View style={styles.divider} />
           <View style={styles.metaRow}>
@@ -448,7 +448,7 @@ export default function OutsydePointsScreen() {
           </View>
         ))}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Redeem Modal */}
