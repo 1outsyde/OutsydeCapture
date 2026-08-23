@@ -5189,3 +5189,55 @@ export interface ConsumerOrder {
   estimatedDelivery?: string | null;
   shipmentStatus?: string | null;
 }
+
+// ==========================================
+// Outsyde Points
+// ==========================================
+
+export interface PointsActiveCode {
+  code: string;
+  discountCents: number;
+  expiresAt: string;
+}
+
+export interface PointsBalanceResponse {
+  balance: number;
+  dollarValue: string;
+  canRedeem: boolean;
+  minToRedeem: number;
+  activeCodes: PointsActiveCode[];
+}
+
+export interface PointsHistoryTransaction {
+  id: string;
+  type: 'earn' | 'redeem';
+  points: number;
+  referenceType: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface PointsHistoryResponse {
+  transactions: PointsHistoryTransaction[];
+}
+
+export interface RedeemPointsResponse {
+  success: boolean;
+  code: string;
+  discountDollars: number;
+  discountCents: number;
+  expiresInDays: number;
+  newBalance: number;
+}
+
+export async function getPointsBalance(token: string): Promise<PointsBalanceResponse> {
+  return apiGet("/api/points/balance", token) as Promise<PointsBalanceResponse>;
+}
+
+export async function getPointsHistory(token: string): Promise<PointsHistoryResponse> {
+  return apiGet("/api/points/history", token) as Promise<PointsHistoryResponse>;
+}
+
+export async function redeemPointsForCode(token: string, pointsToRedeem: number): Promise<RedeemPointsResponse> {
+  return apiPost("/api/points/redeem", { pointsToRedeem }, token) as Promise<RedeemPointsResponse>;
+}
