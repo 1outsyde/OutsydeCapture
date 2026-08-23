@@ -46,11 +46,11 @@ const EARN_GREEN = "#E8B930";
 const REDEEM_RED = "#FF6B6B";
 
 const REDEEM_TIERS: RedeemTier[] = [
-  { points: 500, dollars: 5 },
-  { points: 1000, dollars: 10 },
-  { points: 2500, dollars: 25 },
-  { points: 5000, dollars: 50 },
-  { points: 10000, dollars: 100 },
+  { points: 2500, dollars: 5 },
+  { points: 5000, dollars: 10 },
+  { points: 12500, dollars: 25 },
+  { points: 25000, dollars: 50 },
+  { points: 50000, dollars: 100 },
 ];
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
@@ -170,7 +170,7 @@ export default function OutsydePointsScreen() {
       // Optimistic update
       setBalance(result.newBalance);
       setDollarValue((result.newBalance / 100).toFixed(2));
-      setCanRedeem(result.newBalance >= 500);
+      setCanRedeem(result.newBalance >= 2500);
       setActiveCodes((prev: PointsActiveCode[]) => [
         {
           code: result.code,
