@@ -982,7 +982,7 @@ export default function AdminDashboardScreen() {
   const renderOrderItem = ({ item }: { item: AdminOrder }) => (
     <View style={styles.listItem}>
       <View style={styles.listItemHeader}>
-        <Text style={styles.listItemName}>Order #{item.id.slice(0, 8)}</Text>
+        <Text style={styles.listItemName}>Order {item.orderNumber != null ? `#${String(item.orderNumber).padStart(4, '0')}` : `#${item.id.slice(0, 8)}`}</Text>
         <View style={[
           styles.statusBadge,
           item.status === "pending" ? styles.pendingBadge :
@@ -1006,7 +1006,7 @@ export default function AdminDashboardScreen() {
   const renderBookingItem = ({ item }: { item: AdminBooking }) => (
     <View style={styles.listItem}>
       <View style={styles.listItemHeader}>
-        <Text style={styles.listItemName}>Booking #{item.id.slice(0, 8)}</Text>
+        <Text style={styles.listItemName}>Booking {item.bookingNumber != null ? `#S${String(item.bookingNumber).padStart(4, '0')}` : `#${item.id.slice(0, 8)}`}</Text>
         <View style={[
           styles.statusBadge,
           item.status === "pending" ? styles.pendingBadge :

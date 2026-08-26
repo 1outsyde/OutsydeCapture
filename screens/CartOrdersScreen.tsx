@@ -127,6 +127,7 @@ export default function CartOrdersScreen() {
         const itemCount = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
         return {
           id: String(order?.id ?? `order-${index}`),
+          orderNumber: order?.orderNumber ?? undefined,
           vendorName: order?.vendorName || order?.vendor?.name || order?.businessName || "Order",
           businessId: String(order?.businessId ?? ""),
           status,
@@ -800,6 +801,7 @@ export default function CartOrdersScreen() {
               onPress={() =>
                 navigation.navigate("ProductOrderDetail", {
                   orderId: order.id,
+                  orderNumber: order.orderNumber,
                   vendorName: order.vendorName,
                   businessId: order.businessId,
                   status: order.status,
