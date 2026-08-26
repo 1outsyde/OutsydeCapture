@@ -722,6 +722,7 @@ export interface AdminInfluencer {
 
 export interface AdminOrder {
   id: string;
+  orderNumber?: number;
   userId: string;
   userName: string;
   businessId: string;
@@ -733,6 +734,7 @@ export interface AdminOrder {
 
 export interface AdminBooking {
   id: string;
+  bookingNumber?: number;
   userId: string;
   userName: string;
   photographerId: string;
@@ -5175,6 +5177,7 @@ export interface ConsumerOrderItem {
 
 export interface ConsumerOrder {
   id: string;
+  orderNumber?: number;
   vendorName: string;
   businessId: string;
   status: "pending" | "paid" | "shipped" | "delivered" | "canceled";

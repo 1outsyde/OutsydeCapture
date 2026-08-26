@@ -90,6 +90,7 @@ export default function ProductOrderDetailScreen() {
 
   const {
     orderId,
+    orderNumber,
     vendorName,
     businessId,
     status,
@@ -103,6 +104,10 @@ export default function ProductOrderDetailScreen() {
     estimatedDelivery,
     shipmentStatus,
   } = route.params;
+
+  const orderRef = orderNumber != null
+    ? `#${String(orderNumber).padStart(4, '0')}`
+    : `#${orderId.slice(-8).toUpperCase()}`;
 
   const statusConfig = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.processing;
 
@@ -198,7 +203,7 @@ export default function ProductOrderDetailScreen() {
         <View style={{ flex: 1, marginLeft: Spacing.sm }}>
           <ThemedText type="h4" numberOfLines={1}>{vendorName}</ThemedText>
           <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
-            {formatDate(createdAt)} · #{orderId.slice(-8).toUpperCase()}
+            {formatDate(createdAt)} · {orderRef}
           </ThemedText>
         </View>
       </View>
