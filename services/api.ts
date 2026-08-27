@@ -1225,6 +1225,8 @@ export interface CustomerSignupRequest {
   email: string;
   password: string;
   name: string; // Backend requires 'name', not firstName/lastName
+  firstName?: string;
+  lastName?: string;
   phone?: string;
   address?: string;
   aptUnit?: string;
@@ -1609,6 +1611,8 @@ class ApiService {
         email: data.email,
         password: data.password,
         name: fullName,
+        firstName: data.firstName,
+        lastName: data.lastName,
         phone: data.phone,
         city: data.city,
         state: data.state,
