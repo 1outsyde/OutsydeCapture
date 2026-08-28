@@ -37,7 +37,11 @@ interface FeedEntry {
   stories: Story[];
 }
 
-export default function StoriesBar() {
+interface StoriesBarProps {
+  onVisibilityChange?: (visible: boolean) => void;
+}
+
+export default function StoriesBar({ onVisibilityChange }: StoriesBarProps = {}) {
   const { theme } = useTheme();
   const { getToken, user } = useAuth();
   const navigation = useNavigation<NavProp>();
@@ -68,8 +72,17 @@ export default function StoriesBar() {
   const otherEntries = user ? feed.filter((e) => e.userId !== user.id) : feed;
   const showOwnSlot = !!user;
 
-  if (!loading && !showOwnSlot && feed.length === 0) return null;
-  if (!loading && showOwnSlot && !ownEntry && otherEntries.length === 0) return null;
+  const isEmpty =
+    !loading &&
+    ((!showOwnSlot && feed.length === 0) ||
+      (showOwnSlot && !ownEntry && otherEntries.length === 0));
+
+  useEffect(() => {
+    if (loading) return;
+    onVisibilityChange?.(!isEmpty);
+  }, [loading, isEmpty]);
+
+  if (isEmpty) return null;
 
   const truncate = (name: string) =>
     name.length > 8 ? name.slice(0, 8) + "…" : name;

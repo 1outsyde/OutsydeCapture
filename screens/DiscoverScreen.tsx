@@ -22,7 +22,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
+import Animated, {
+  runOnJS,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -84,6 +89,17 @@ export default function DiscoverScreen() {
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const storiesBarHeight = useSharedValue(96);
+
+  const storiesBarAnimatedStyle = useAnimatedStyle(() => ({
+    height: storiesBarHeight.value,
+    overflow: "hidden",
+  }));
+
+  const handleStoriesVisibilityChange = (visible: boolean) => {
+    storiesBarHeight.value = withTiming(visible ? 96 : 0, { duration: 250 });
+  };
 
   // Comments modal (Pro feed)
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
@@ -593,9 +609,9 @@ export default function DiscoverScreen() {
               onViewableItemsChanged={onProViewableItemsChanged}
               viewabilityConfig={PRO_VIEWABILITY_CONFIG}
               ListHeaderComponent={
-                <View style={{ height: 96 }}>
-                  <StoriesBar />
-                </View>
+                <Animated.View style={storiesBarAnimatedStyle}>
+                  <StoriesBar onVisibilityChange={handleStoriesVisibilityChange} />
+                </Animated.View>
               }
             />
           ) : (
