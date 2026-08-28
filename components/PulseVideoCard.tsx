@@ -230,9 +230,8 @@ export default function PulseVideoCard({
   // (see MainTabNavigator.tsx: height = 83 + insets.bottom / 2), so
   // bottom-anchored elements here must add their own clearance.
   const TAB_BAR_OVERLAY = 83 + insets.bottom / 2;
-  const soundLabelBottom = TAB_BAR_OVERLAY + 16;
-  const authorBlockBottom = soundLabelBottom + 20;
-  const actionBarBottom = authorBlockBottom + 60;
+  const authorBlockBottom = TAB_BAR_OVERLAY + 16;
+  const actionBarBottom = TAB_BAR_OVERLAY + 16;
 
   useEffect(() => {
     if (!isActive) setIsPaused(false);
@@ -491,20 +490,19 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 160,
     alignItems: "center",
-    gap: Spacing.lg,
+    gap: 20,
   },
   actionItem: {
     alignItems: "center",
   },
   actionIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "rgba(0,0,0,0.48)",
-    borderWidth: 0.5,
-    borderColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    elevation: 4,
   },
   actionCount: {
     color: "#FFFFFF",
