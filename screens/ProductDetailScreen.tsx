@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -18,6 +18,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useCart } from "@/context/CartContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import api, { ProductVariant } from "@/services/api";
 
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
 
@@ -51,9 +52,38 @@ export default function ProductDetailScreen() {
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [variantsLoading, setVariantsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const load = async () => {
+      setVariantsLoading(true);
+      try {
+        const product = await api.getProductWithVariants(String(id));
+        if (!cancelled) setVariants(product.variants ?? []);
+      } catch {
+        if (!cancelled) setVariants([]);
+      } finally {
+        if (!cancelled) setVariantsLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const effectiveInventory =
+    selectedVariant?.inventory !== undefined && selectedVariant?.inventory !== null
+      ? selectedVariant.inventory
+      : inventory;
+
+  const effectiveHasInventoryCap = effectiveInventory != null && effectiveInventory > 0;
+
   const decrement = () => setQuantity((q) => Math.max(1, q - 1));
   const increment = () => {
-    setQuantity((q) => (hasInventoryCap ? Math.min(inventory!, q + 1) : q + 1));
+    setQuantity((q) => (effectiveHasInventoryCap ? Math.min(effectiveInventory!, q + 1) : q + 1));
   };
 
   const handleAddToCart = () => {
