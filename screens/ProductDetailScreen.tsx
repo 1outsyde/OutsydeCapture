@@ -156,7 +156,7 @@ export default function ProductDetailScreen() {
             type="h4"
             style={[styles.price, { color: theme.brandGold }]}
           >
-            {formatCents(priceCents)}
+            {formatCents(selectedVariant ? selectedVariant.priceCents : priceCents)}
           </ThemedText>
 
           {/* Description */}
@@ -168,6 +168,64 @@ export default function ProductDetailScreen() {
               {description}
             </ThemedText>
           ) : null}
+
+          {/* Variant pill selector */}
+          {variants.length > 0 && (
+            <View style={{ marginBottom: Spacing.md }}>
+              <Text style={{
+                fontSize: 13,
+                color: theme.brandTextDim,
+                marginBottom: Spacing.sm,
+                letterSpacing: 0.5,
+              }}>
+                Choose an option
+              </Text>
+              {variantsLoading ? (
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {[80, 64, 96].map((w) => (
+                    <View key={w} style={{
+                      width: w, height: 36, borderRadius: 20,
+                      backgroundColor: theme.brandSurface, opacity: 0.4,
+                    }} />
+                  ))}
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                >
+                  {variants.map((v: ProductVariant) => {
+                    const selected = selectedVariant?.id === v.id;
+                    return (
+                      <Pressable
+                        key={v.id}
+                        onPress={() => setSelectedVariant(selected ? null : v)}
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 8,
+                          minHeight: 44,
+                          justifyContent: "center",
+                          borderRadius: BorderRadius.full,
+                          borderWidth: 1.5,
+                          borderColor: selected ? theme.brandGold : "rgba(255,255,255,0.2)",
+                          backgroundColor: selected ? "rgba(201,147,58,0.15)" : "transparent",
+                        }}
+                      >
+                        <Text style={{
+                          fontSize: 14,
+                          fontWeight: selected ? "600" : "400",
+                          color: selected ? theme.brandGold : theme.brandCream,
+                        }}>
+                          {v.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          )}
 
           {/* Inventory status */}
           {isOutOfStock ? (
