@@ -968,7 +968,7 @@ export interface BusinessOrder {
   customerName: string;
   customerAvatar?: string;
   orderDate: string;
-  items: { name: string; quantity: number; price: number }[];
+  items: { name: string; quantity: number; price: number; variantLabel?: string | null }[];
   totalAmount: number;
   status: "pending" | "processing" | "shipped" | "delivered" | "canceled";
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
@@ -5255,6 +5255,7 @@ export interface ConsumerOrderItem {
   quantity: number;
   price: number;
   imageUrl?: string | null;
+  variantLabel?: string | null;
 }
 
 export interface ConsumerOrder {

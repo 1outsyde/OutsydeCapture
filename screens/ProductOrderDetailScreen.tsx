@@ -244,6 +244,11 @@ export default function ProductOrderDetailScreen() {
                   )}
                   <View style={styles.itemInfo}>
                     <ThemedText type="body" numberOfLines={2}>{item.name}</ThemedText>
+                    {item.variantLabel ? (
+                      <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: 1 }}>
+                        {item.variantLabel}
+                      </ThemedText>
+                    ) : null}
                     <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
                       {item.quantity} × {formatCents(item.price)}
                     </ThemedText>
