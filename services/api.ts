@@ -539,6 +539,36 @@ export interface VendorProduct {
   updatedAt?: string;
 }
 
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  label: string;
+  priceCents: number;
+  compareAtPriceCents?: number | null;
+  inventory?: number | null;
+  trackInventory: boolean;
+  sku?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface VendorProductWithVariants extends VendorProduct {
+  variants: ProductVariant[];
+}
+
+export interface LocalVariant {
+  id?: string;
+  label: string;
+  priceCents: number;
+  inventory: number | null;
+  isActive: boolean;
+  sortOrder: number;
+  isNew: boolean;
+  isDirty: boolean;
+  isDeleted: boolean;
+}
+
 // VendorBooker Service (from /api/vendor/services)
 export interface VendorService {
   id: string;
@@ -938,7 +968,7 @@ export interface BusinessOrder {
   customerName: string;
   customerAvatar?: string;
   orderDate: string;
-  items: { name: string; quantity: number; price: number }[];
+  items: { name: string; quantity: number; price: number; variantLabel?: string | null }[];
   totalAmount: number;
   status: "pending" | "processing" | "shipped" | "delivered" | "canceled";
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
@@ -2946,6 +2976,54 @@ class ApiService {
       method: "DELETE",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+  }
+
+  // ==========================================
+  // Product Variants
+  // ==========================================
+
+  async getProductWithVariants(productId: string): Promise<VendorProductWithVariants> {
+    return this.request<VendorProductWithVariants>(`/api/products/${productId}`, {
+      method: 'GET',
+    });
+  }
+
+  async createProductVariant(
+    authToken: string,
+    productId: string,
+    data: { label: string; priceCents: number; inventory?: number | null; sortOrder?: number }
+  ): Promise<ProductVariant> {
+    return this.request<ProductVariant>(
+      `/api/business/products/${productId}/variants`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      }
+    );
+  }
+
+  async updateProductVariant(
+    authToken: string,
+    productId: string,
+    variantId: string,
+    data: Partial<{ label: string; priceCents: number; inventory: number | null; isActive: boolean; sortOrder: number }>
+  ): Promise<ProductVariant> {
+    return this.request<ProductVariant>(
+      `/api/business/products/${productId}/variants/${variantId}`,
+      { method: 'PATCH', body: JSON.stringify(data), headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+  }
+
+  async deleteProductVariant(
+    authToken: string,
+    productId: string,
+    variantId: string,
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(
+      `/api/business/products/${productId}/variants/${variantId}`,
+      { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
   }
 
   // ==========================================
@@ -5177,6 +5255,7 @@ export interface ConsumerOrderItem {
   quantity: number;
   price: number;
   imageUrl?: string | null;
+  variantLabel?: string | null;
 }
 
 export interface ConsumerOrder {

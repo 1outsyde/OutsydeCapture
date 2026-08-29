@@ -213,7 +213,7 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
         <View style={styles.itemsCol}>
           {order.items.slice(0, 2).map((item, i) => (
             <Text key={i} style={styles.itemLine}>
-              {item.quantity}× {item.name} — ${item.price}
+              {item.quantity}× {item.name}{item.variantLabel ? ` (${item.variantLabel})` : ""} — ${item.price}
             </Text>
           ))}
           {order.items.length > 2 && (

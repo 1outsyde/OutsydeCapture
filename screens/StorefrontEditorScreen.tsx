@@ -34,7 +34,10 @@ import api, {
   VendorServiceInput,
   HoursOfOperationData,
   VendorEligibility,
+  ProductVariant,
+  LocalVariant,
 } from "@/services/api";
+import VariantBuilderSection from "@/components/products/VariantBuilderSection";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, {
   DayHours,
@@ -254,6 +257,9 @@ export default function StorefrontEditorScreen() {
     inventory: 0,
     status: "draft",
   });
+  const [localVariants, setLocalVariants] = useState<LocalVariant[]>([]);
+  const [initialVariants, setInitialVariants] = useState<ProductVariant[]>([]);
+  const [productModalToken, setProductModalToken] = useState<string>("");
 
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
   const [editingService, setEditingService] = useState<VendorService | null>(
@@ -540,7 +546,15 @@ export default function StorefrontEditorScreen() {
     }
   };
 
-  const openProductForm = (product?: VendorProduct) => {
+  const openProductForm = async (product?: VendorProduct) => {
+    // Reset variant state before populating
+    setLocalVariants([]);
+    setInitialVariants([]);
+
+    // Capture token for the modal session (used by VariantBuilderSection)
+    const modalToken = await getToken();
+    setProductModalToken(modalToken ?? "");
+
     if (product) {
       setEditingProduct(product);
       const rawProduct = product as any;
@@ -559,6 +573,14 @@ export default function StorefrontEditorScreen() {
         inventory: product.inventory ?? 0,
         status: product.status,
       });
+
+      // Fetch variants for existing products (non-fatal)
+      try {
+        const full = await api.getProductWithVariants(product.id);
+        setInitialVariants(full.variants ?? []);
+      } catch {
+        setInitialVariants([]);
+      }
     } else {
       setEditingProduct(null);
       setPriceInput("");
@@ -591,6 +613,20 @@ export default function StorefrontEditorScreen() {
     ) {
       Alert.alert("Invalid Price", "Price must be at least $7.00");
       return;
+    }
+
+    const hasVariantRows = localVariants.some((v: LocalVariant) => !v.isDeleted);
+    if (hasVariantRows) {
+      const validVariants = localVariants.filter(
+        (v: LocalVariant) => !v.isDeleted && v.label.trim().length > 0 && v.priceCents > 0
+      );
+      if (validVariants.length === 0) {
+        Alert.alert(
+          "Variants incomplete",
+          "Add at least one variant with a name and price, or turn off variants."
+        );
+        return;
+      }
     }
     const priceCentsValue = Math.round(parsedDollars * 100);
 
@@ -631,6 +667,36 @@ export default function StorefrontEditorScreen() {
       } else {
         const response = await api.createVendorProduct(token, payload);
         productId = response.product.id;
+      }
+
+      // Save variants in parallel (new → POST, dirty existing → PATCH)
+      const validVariants = localVariants.filter(
+        (v: LocalVariant) => !v.isDeleted && v.label.trim().length > 0 && v.priceCents > 0
+      );
+      if (validVariants.length > 0) {
+        await Promise.all([
+          ...validVariants
+            .filter((v: LocalVariant) => v.isNew)
+            .map((v: LocalVariant) =>
+              api.createProductVariant(token, productId, {
+                label: v.label.trim(),
+                priceCents: v.priceCents,
+                inventory: v.inventory,
+                sortOrder: v.sortOrder,
+              })
+            ),
+          ...validVariants
+            .filter((v: LocalVariant) => !v.isNew && v.isDirty)
+            .map((v: LocalVariant) =>
+              api.updateProductVariant(token, productId, v.id!, {
+                label: v.label.trim(),
+                priceCents: v.priceCents,
+                inventory: v.inventory,
+                isActive: v.isActive,
+                sortOrder: v.sortOrder,
+              })
+            ),
+        ]);
       }
 
       if (!shouldGoLive) {
@@ -2389,6 +2455,13 @@ export default function StorefrontEditorScreen() {
             placeholder="0"
             placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
+          />
+
+          <VariantBuilderSection
+            productId={editingProduct?.id}
+            initialVariants={initialVariants}
+            onVariantsChange={setLocalVariants}
+            authToken={productModalToken}
           />
 
           <Text style={styles.inputLabel}>Product Image</Text>

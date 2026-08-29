@@ -195,9 +195,11 @@ export default function CartOrdersScreen() {
   }, [route.params?._ts]);
 
   // ─── Cart actions ─────────────────────────────────────────────────────────
-  const updateQuantity = (productId: string, delta: number) => {
-    const item = cart.find((i) => i.productId === productId);
-    if (item) ctxUpdateQuantity(productId, item.quantity + delta);
+  const updateQuantity = (productId: string, variantId: string | undefined, delta: number) => {
+    const item = cart.find(
+      (i) => i.productId === productId && (i.variantId ?? undefined) === variantId
+    );
+    if (item) ctxUpdateQuantity(productId, variantId, item.quantity + delta);
   };
 
   const getOrderStatusConfig = (status: ConsumerOrder["status"]) => {
@@ -680,7 +682,7 @@ export default function CartOrdersScreen() {
       ) : (
         <>
           {cart.map((item) => (
-            <View key={item.productId} style={styles.cartItem}>
+            <View key={`${item.productId}::${item.variantId ?? ""}`} style={styles.cartItem}>
               {item.imageUrl ? (
   <Image
     source={{ uri: item.imageUrl }}
@@ -694,16 +696,21 @@ export default function CartOrdersScreen() {
 )}
               <View style={styles.cartInfo}>
                 <ThemedText type="h4" numberOfLines={1}>{item.name}</ThemedText>
+                {item.variantLabel ? (
+                  <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: 2 }}>
+                    {item.variantLabel}
+                  </ThemedText>
+                ) : null}
                 <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
                   ${(item.price / 100).toFixed(2)} each
                 </ThemedText>
               </View>
               <View style={styles.quantityControls}>
-                <Pressable onPress={() => updateQuantity(item.productId, -1)} style={styles.quantityBtn}>
+                <Pressable onPress={() => updateQuantity(item.productId, item.variantId, -1)} style={styles.quantityBtn}>
                   <Feather name="minus" size={14} color={theme.brandCream} />
                 </Pressable>
                 <ThemedText type="body" style={styles.quantityText}>{item.quantity}</ThemedText>
-                <Pressable onPress={() => updateQuantity(item.productId, 1)} style={styles.quantityBtn}>
+                <Pressable onPress={() => updateQuantity(item.productId, item.variantId, 1)} style={styles.quantityBtn}>
                   <Feather name="plus" size={14} color={theme.brandCream} />
                 </Pressable>
               </View>

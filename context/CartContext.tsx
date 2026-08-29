@@ -19,13 +19,15 @@ export interface CartItem {
   vendorId: string;
   vendorStripeAccountId?: string;
   imageUrl?: string;
+  variantId?: string;
+  variantLabel?: string;
 }
 
 interface CartContextType {
   items: CartItem[];
   addItem(item: CartItem): void;
-  removeItem(productId: string): void;
-  updateQuantity(productId: string, quantity: number): void;
+  removeItem(productId: string, variantId?: string): void;
+  updateQuantity(productId: string, variantId: string | undefined, quantity: number): void;
   clearCart(): void;
   removeVendorItems(vendorId: string): void;
   itemCount: number;
@@ -71,6 +73,10 @@ async function clearCartStorage(userId: string | null): Promise<void> {
     console.warn("[CartContext] Failed to clear cart storage:", err);
   }
 }
+
+// Dedup key for cart line items — combines productId and variantId
+const lineKey = (productId: string, variantId?: string): string =>
+  `${productId}::${variantId ?? ""}`;
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -128,10 +134,12 @@ const userId = user?.id ?? null;
 
   const addItem = useCallback((item: CartItem) => {
     setItems((prev) => {
-      const existing = prev.find((i) => i.productId === item.productId);
+      const existing = prev.find(
+        (i) => lineKey(i.productId, i.variantId) === lineKey(item.productId, item.variantId)
+      );
       if (existing) {
         return prev.map((i) =>
-          i.productId === item.productId
+          lineKey(i.productId, i.variantId) === lineKey(item.productId, item.variantId)
             ? { ...i, quantity: i.quantity + item.quantity }
             : i
         );
@@ -140,19 +148,30 @@ const userId = user?.id ?? null;
     });
   }, []);
 
-  const removeItem = useCallback((productId: string) => {
-    setItems((prev) => prev.filter((i) => i.productId !== productId));
-  }, []);
-
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setItems((prev) => prev.filter((i) => i.productId !== productId));
-      return;
-    }
+  const removeItem = useCallback((productId: string, variantId?: string) => {
     setItems((prev) =>
-      prev.map((i) => (i.productId === productId ? { ...i, quantity } : i))
+      prev.filter((i) => lineKey(i.productId, i.variantId) !== lineKey(productId, variantId))
     );
   }, []);
+
+  const updateQuantity = useCallback(
+    (productId: string, variantId: string | undefined, quantity: number) => {
+      if (quantity <= 0) {
+        setItems((prev) =>
+          prev.filter((i) => lineKey(i.productId, i.variantId) !== lineKey(productId, variantId))
+        );
+        return;
+      }
+      setItems((prev) =>
+        prev.map((i) =>
+          lineKey(i.productId, i.variantId) === lineKey(productId, variantId)
+            ? { ...i, quantity }
+            : i
+        )
+      );
+    },
+    []
+  );
 
   /**
    * clearCart: wipes in-memory state AND storage.

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -18,6 +18,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useCart } from "@/context/CartContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import api, { ProductVariant } from "@/services/api";
 
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
 
@@ -51,21 +52,56 @@ export default function ProductDetailScreen() {
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [variantsLoading, setVariantsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const load = async () => {
+      setVariantsLoading(true);
+      try {
+        const product = await api.getProductWithVariants(String(id));
+        if (!cancelled) setVariants(product.variants ?? []);
+      } catch {
+        if (!cancelled) setVariants([]);
+      } finally {
+        if (!cancelled) setVariantsLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const effectiveInventory =
+    selectedVariant?.inventory !== undefined && selectedVariant?.inventory !== null
+      ? selectedVariant.inventory
+      : inventory;
+
+  const effectiveHasInventoryCap = effectiveInventory != null && effectiveInventory > 0;
+
   const decrement = () => setQuantity((q) => Math.max(1, q - 1));
   const increment = () => {
-    setQuantity((q) => (hasInventoryCap ? Math.min(inventory!, q + 1) : q + 1));
+    setQuantity((q) => (effectiveHasInventoryCap ? Math.min(effectiveInventory!, q + 1) : q + 1));
   };
 
+  const canAddToCart =
+    !isOutOfStock &&
+    (variants.length === 0 || selectedVariant !== null);
+
   const handleAddToCart = () => {
-    if (isOutOfStock) return;
+    if (!canAddToCart) return;
 
     addItem({
       productId: String(id),
       name,
-      price: priceCents,
+      price: selectedVariant ? selectedVariant.priceCents : priceCents,
       quantity,
       vendorId: businessId,
       imageUrl: imageUrl ?? undefined,
+      variantId: selectedVariant?.id,
+      variantLabel: selectedVariant?.label,
     });
 
     // Toast: fade in → hold → fade out
@@ -126,7 +162,7 @@ export default function ProductDetailScreen() {
             type="h4"
             style={[styles.price, { color: theme.brandGold }]}
           >
-            {formatCents(priceCents)}
+            {formatCents(selectedVariant ? selectedVariant.priceCents : priceCents)}
           </ThemedText>
 
           {/* Description */}
@@ -138,6 +174,64 @@ export default function ProductDetailScreen() {
               {description}
             </ThemedText>
           ) : null}
+
+          {/* Variant pill selector */}
+          {variants.length > 0 && (
+            <View style={{ marginBottom: Spacing.md }}>
+              <Text style={{
+                fontSize: 13,
+                color: theme.brandTextDim,
+                marginBottom: Spacing.sm,
+                letterSpacing: 0.5,
+              }}>
+                Choose an option
+              </Text>
+              {variantsLoading ? (
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {[80, 64, 96].map((w) => (
+                    <View key={w} style={{
+                      width: w, height: 36, borderRadius: 20,
+                      backgroundColor: theme.brandSurface, opacity: 0.4,
+                    }} />
+                  ))}
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                >
+                  {variants.map((v: ProductVariant) => {
+                    const selected = selectedVariant?.id === v.id;
+                    return (
+                      <Pressable
+                        key={v.id}
+                        onPress={() => setSelectedVariant(selected ? null : v)}
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 8,
+                          minHeight: 44,
+                          justifyContent: "center",
+                          borderRadius: BorderRadius.full,
+                          borderWidth: 1.5,
+                          borderColor: selected ? theme.brandGold : "rgba(255,255,255,0.2)",
+                          backgroundColor: selected ? "rgba(201,147,58,0.15)" : "transparent",
+                        }}
+                      >
+                        <Text style={{
+                          fontSize: 14,
+                          fontWeight: selected ? "600" : "400",
+                          color: selected ? theme.brandGold : theme.brandCream,
+                        }}>
+                          {v.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          )}
 
           {/* Inventory status */}
           {isOutOfStock ? (
@@ -196,29 +290,31 @@ export default function ProductDetailScreen() {
           {/* Add to Cart button */}
           <Pressable
             onPress={handleAddToCart}
-            disabled={isOutOfStock}
+            disabled={!canAddToCart}
             style={({ pressed }) => [
               styles.addButton,
               {
-                backgroundColor: isOutOfStock
-                  ? theme.brandSurface
-                  : theme.brandGold,
-                opacity: pressed && !isOutOfStock ? 0.85 : 1,
+                backgroundColor: canAddToCart ? theme.brandGold : theme.brandSurface,
+                opacity: pressed && canAddToCart ? 0.85 : canAddToCart ? 1 : 0.4,
               },
             ]}
           >
             <Feather
               name="shopping-cart"
               size={18}
-              color={isOutOfStock ? (theme.brandTextDim ?? "#999") : "#000"}
+              color={canAddToCart ? "#000" : (theme.brandTextDim ?? "#999")}
             />
             <Text
               style={[
                 styles.addButtonText,
-                { color: isOutOfStock ? (theme.brandTextDim ?? "#999") : "#000" },
+                { color: canAddToCart ? "#000" : (theme.brandTextDim ?? "#999") },
               ]}
             >
-              {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+              {isOutOfStock
+                ? "Out of Stock"
+                : variants.length > 0 && selectedVariant === null
+                  ? "Select an option"
+                  : "Add to Cart"}
             </Text>
           </Pressable>
         </View>
