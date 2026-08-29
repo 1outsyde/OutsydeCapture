@@ -86,16 +86,22 @@ export default function ProductDetailScreen() {
     setQuantity((q) => (effectiveHasInventoryCap ? Math.min(effectiveInventory!, q + 1) : q + 1));
   };
 
+  const canAddToCart =
+    !isOutOfStock &&
+    (variants.length === 0 || selectedVariant !== null);
+
   const handleAddToCart = () => {
-    if (isOutOfStock) return;
+    if (!canAddToCart) return;
 
     addItem({
       productId: String(id),
       name,
-      price: priceCents,
+      price: selectedVariant ? selectedVariant.priceCents : priceCents,
       quantity,
       vendorId: businessId,
       imageUrl: imageUrl ?? undefined,
+      variantId: selectedVariant?.id,
+      variantLabel: selectedVariant?.label,
     });
 
     // Toast: fade in → hold → fade out
@@ -284,29 +290,31 @@ export default function ProductDetailScreen() {
           {/* Add to Cart button */}
           <Pressable
             onPress={handleAddToCart}
-            disabled={isOutOfStock}
+            disabled={!canAddToCart}
             style={({ pressed }) => [
               styles.addButton,
               {
-                backgroundColor: isOutOfStock
-                  ? theme.brandSurface
-                  : theme.brandGold,
-                opacity: pressed && !isOutOfStock ? 0.85 : 1,
+                backgroundColor: canAddToCart ? theme.brandGold : theme.brandSurface,
+                opacity: pressed && canAddToCart ? 0.85 : canAddToCart ? 1 : 0.4,
               },
             ]}
           >
             <Feather
               name="shopping-cart"
               size={18}
-              color={isOutOfStock ? (theme.brandTextDim ?? "#999") : "#000"}
+              color={canAddToCart ? "#000" : (theme.brandTextDim ?? "#999")}
             />
             <Text
               style={[
                 styles.addButtonText,
-                { color: isOutOfStock ? (theme.brandTextDim ?? "#999") : "#000" },
+                { color: canAddToCart ? "#000" : (theme.brandTextDim ?? "#999") },
               ]}
             >
-              {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+              {isOutOfStock
+                ? "Out of Stock"
+                : variants.length > 0 && selectedVariant === null
+                  ? "Select an option"
+                  : "Add to Cart"}
             </Text>
           </Pressable>
         </View>
