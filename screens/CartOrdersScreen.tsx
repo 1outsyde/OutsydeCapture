@@ -699,11 +699,11 @@ export default function CartOrdersScreen() {
                 </ThemedText>
               </View>
               <View style={styles.quantityControls}>
-                <Pressable onPress={() => updateQuantity(item.productId, -1)} style={styles.quantityBtn}>
+                <Pressable onPress={() => updateQuantity(item.productId, item.variantId, -1)} style={styles.quantityBtn}>
                   <Feather name="minus" size={14} color={theme.brandCream} />
                 </Pressable>
                 <ThemedText type="body" style={styles.quantityText}>{item.quantity}</ThemedText>
-                <Pressable onPress={() => updateQuantity(item.productId, 1)} style={styles.quantityBtn}>
+                <Pressable onPress={() => updateQuantity(item.productId, item.variantId, 1)} style={styles.quantityBtn}>
                   <Feather name="plus" size={14} color={theme.brandCream} />
                 </Pressable>
               </View>
