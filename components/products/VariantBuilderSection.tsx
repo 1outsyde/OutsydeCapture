@@ -38,6 +38,7 @@ export default function VariantBuilderSection({
           id: v.id,
           label: v.label,
           priceCents: v.priceCents,
+          priceDisplay: v.priceCents > 0 ? (v.priceCents / 100).toFixed(2) : "",
           inventory: v.inventory ?? null,
           isActive: v.isActive,
           sortOrder: v.sortOrder,
@@ -116,42 +117,46 @@ export default function VariantBuilderSection({
     headerRow: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 12,
+      paddingHorizontal: 8,
       paddingBottom: 6,
-      gap: 8,
+      gap: 6,
     },
     headerText: {
-      fontSize: 11,
-      color: "rgba(200,191,168,0.55)",
-      letterSpacing: 1.2,
+      fontSize: 10,
+      fontWeight: "600",
+      color: "rgba(200,191,168,0.5)",
+      letterSpacing: 0.8,
       textTransform: "uppercase",
     },
     variantRow: {
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 10,
-      paddingHorizontal: 12,
-      gap: 8,
+      paddingHorizontal: 8,
+      gap: 6,
       borderLeftWidth: 3,
       borderBottomWidth: 1,
       borderBottomColor: "rgba(255,255,255,0.06)",
     },
     input: {
-      backgroundColor: theme.brandSurface,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
       fontSize: 14,
       color: theme.brandCream,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.10)",
     },
     orderControls: {
+      width: 40,
       flexDirection: "column",
       alignItems: "center",
-      gap: 0,
+      gap: 2,
     },
     orderButton: {
-      width: 44,
-      height: 22,
+      width: 40,
+      height: 20,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -197,25 +202,37 @@ export default function VariantBuilderSection({
       >
         {/* Label */}
         <TextInput
-          style={[styles.input, { flex: 2 }]}
+          style={[styles.input, { flex: 2.5, minWidth: 90 }]}
           placeholder="e.g. 10 inch, 1 Hour"
           placeholderTextColor="rgba(200,191,168,0.4)"
           value={item.label}
           onChangeText={(text: string) => updateVariant(index, { label: text, isDirty: true })}
         />
 
-        {/* Price */}
+        {/* Price — two-phase: display string while typing, convert on blur */}
         <TextInput
-          style={[styles.input, { flex: 1.5 }]}
+          style={[styles.input, { flex: 1.8, minWidth: 68 }]}
           keyboardType="decimal-pad"
-          placeholder="$0.00"
+          returnKeyType="done"
+          placeholder="0.00"
           placeholderTextColor="rgba(200,191,168,0.4)"
-          value={item.priceCents > 0 ? (item.priceCents / 100).toFixed(2) : ""}
+          value={item.priceDisplay ?? ""}
           onChangeText={(text: string) => {
-            const dollars = parseFloat(text || "0");
-            const cents = Math.round(dollars * 100);
+            const cleaned = text.replace(/[^0-9.]/g, "");
+            const parts = cleaned.split(".");
+            const safe =
+              parts.length > 2
+                ? parts[0] + "." + parts.slice(1).join("")
+                : cleaned;
+            updateVariant(index, { priceDisplay: safe, isDirty: true });
+          }}
+          onBlur={() => {
+            const num = parseFloat(item.priceDisplay || "0");
+            const cents = isNaN(num) ? 0 : Math.round(num * 100);
+            const formatted = isNaN(num) || item.priceDisplay === "" ? "" : num.toFixed(2);
             updateVariant(index, {
-              priceCents: isNaN(cents) ? 0 : cents,
+              priceCents: cents,
+              priceDisplay: formatted,
               isDirty: true,
             });
           }}
@@ -223,7 +240,7 @@ export default function VariantBuilderSection({
 
         {/* Stock */}
         <TextInput
-          style={[styles.input, { flex: 1 }]}
+          style={[styles.input, { width: 52, textAlign: "center" }]}
           keyboardType="number-pad"
           placeholder="∞"
           placeholderTextColor="rgba(200,191,168,0.4)"
@@ -242,7 +259,7 @@ export default function VariantBuilderSection({
         />
 
         {/* Active toggle */}
-        <View style={{ flex: 0.8, alignItems: "center" }}>
+        <View style={{ width: 44, alignItems: "center" }}>
           <Switch
             value={item.isActive}
             onValueChange={(val: boolean) => updateVariant(index, { isActive: val, isDirty: true })}
@@ -256,7 +273,7 @@ export default function VariantBuilderSection({
         </View>
 
         {/* Sort order controls */}
-        <View style={[styles.orderControls, { flex: 0.6 }]}>
+        <View style={styles.orderControls}>
           <TouchableOpacity
             style={styles.orderButton}
             onPress={() => moveVariant(index, "up")}
@@ -323,11 +340,11 @@ export default function VariantBuilderSection({
         <View>
           {/* Column headers */}
           <View style={styles.headerRow}>
-            <Text style={[styles.headerText, { flex: 2 }]}>Label</Text>
-            <Text style={[styles.headerText, { flex: 1.5 }]}>Price</Text>
-            <Text style={[styles.headerText, { flex: 1 }]}>Stock</Text>
-            <Text style={[styles.headerText, { flex: 0.8, textAlign: "center" }]}>On</Text>
-            <Text style={[styles.headerText, { flex: 0.6, textAlign: "center" }]}>Order</Text>
+            <Text style={[styles.headerText, { flex: 2.5, minWidth: 90 }]}>Label</Text>
+            <Text style={[styles.headerText, { flex: 1.8, minWidth: 68 }]}>Price</Text>
+            <Text style={[styles.headerText, { width: 52, textAlign: "center" }]}>QTY</Text>
+            <Text style={[styles.headerText, { width: 44, textAlign: "center" }]}>ON</Text>
+            <Text style={[styles.headerText, { width: 40, textAlign: "center" }]}>↕</Text>
             <View style={{ width: 44 }} />
           </View>
 
@@ -348,6 +365,7 @@ export default function VariantBuilderSection({
                 {
                   label: "",
                   priceCents: 0,
+                  priceDisplay: "",
                   inventory: null,
                   isActive: true,
                   sortOrder: newSortOrder,
