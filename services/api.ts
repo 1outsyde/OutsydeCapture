@@ -561,6 +561,7 @@ export interface LocalVariant {
   id?: string;
   label: string;
   priceCents: number;
+  priceDisplay?: string;
   inventory: number | null;
   isActive: boolean;
   sortOrder: number;
