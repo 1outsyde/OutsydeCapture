@@ -7,6 +7,7 @@ import {
   Switch,
   ScrollView,
 } from "react-native";
+import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -16,11 +17,51 @@ import { ThemedView } from "@/components/ThemedView";
 import Card from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { useNotifications, Notification } from "@/context/NotificationContext";
+import { useNotifications, Notification, NotificationTriggeringUser } from "@/context/NotificationContext";
 import { Spacing, FontSizes, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+function resolveNotificationAvatar(
+  triggeringUser?: NotificationTriggeringUser | null
+): string | null {
+  if (!triggeringUser) return null;
+  const url = triggeringUser.profilePhotoUrl || triggeringUser.profileImageUrl;
+  if (url && url.startsWith("http")) return url;
+  return null;
+}
+
+function resolveNotificationInitial(
+  triggeringUser?: NotificationTriggeringUser | null
+): string {
+  if (!triggeringUser) return "?";
+  return (triggeringUser.displayName || "?").charAt(0).toUpperCase();
+}
+
+function getNotificationBadgeColor(
+  type: Notification["type"],
+  theme: any
+): string {
+  switch (type) {
+    case "new_order":
+    case "order_shipped":
+      return theme.brandGold;
+    case "payment_succeeded":
+    case "addon_charged":
+      return theme.success;
+    case "new_follower":
+      return "#3b82f6";
+    case "booking_confirmed":
+    case "booking_canceled":
+      return theme.primary;
+    case "subscription_activated":
+    case "subscription_tier_changed":
+      return theme.brandGold;
+    default:
+      return theme.surfaceSecondary;
+  }
+}
 
 export default function NotificationsScreen() {
   const { theme } = useTheme();
@@ -254,6 +295,30 @@ export default function NotificationsScreen() {
       borderRadius: BorderRadius.md,
       marginBottom: Spacing.md,
     },
+    notificationAvatarWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      position: "relative",
+      flexShrink: 0,
+    },
+    notificationAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+    },
+    notificationBadge: {
+      position: "absolute",
+      bottom: -2,
+      right: -2,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: theme.background,
+      alignItems: "center",
+      justifyContent: "center",
+    },
   });
 
   return (
@@ -384,24 +449,49 @@ export default function NotificationsScreen() {
                   style={styles.notificationPressable}
                   onPress={() => handleNotificationPress(notification)}
                 >
-                  <View
-                    style={[
-                      styles.notificationIconContainer,
-                      {
-                        backgroundColor: notification.read
-                          ? theme.surfaceSecondary
-                          : theme.primaryTransparent,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name={getNotificationIcon(notification.type)}
-                      size={20}
-                      color={
-                        notification.read ? theme.textSecondary : theme.brandGold
-                      }
-                    />
-                  </View>
+                  {(() => {
+                    const avatarUrl = resolveNotificationAvatar(notification.triggeringUser);
+                    return avatarUrl ? (
+                      <View style={styles.notificationAvatarWrap}>
+                        <Image
+                          source={{ uri: avatarUrl }}
+                          style={styles.notificationAvatar}
+                          contentFit="cover"
+                          transition={200}
+                          onError={() => {}}
+                        />
+                        <View
+                          style={[
+                            styles.notificationBadge,
+                            { backgroundColor: getNotificationBadgeColor(notification.type, theme) },
+                          ]}
+                        >
+                          <Feather
+                            name={getNotificationIcon(notification.type)}
+                            size={10}
+                            color={theme.background}
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.notificationIconContainer,
+                          {
+                            backgroundColor: notification.read
+                              ? theme.surfaceSecondary
+                              : theme.primaryTransparent,
+                          },
+                        ]}
+                      >
+                        <Feather
+                          name={getNotificationIcon(notification.type)}
+                          size={20}
+                          color={notification.read ? theme.textSecondary : theme.brandGold}
+                        />
+                      </View>
+                    );
+                  })()}
                   <View style={styles.notificationContent}>
                     <View style={styles.notificationHeader}>
                       <ThemedText
