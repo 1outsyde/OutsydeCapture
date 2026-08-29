@@ -402,6 +402,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               scheduledDeletionAt: backendUser.scheduledDeletionAt ?? parsed.scheduledDeletionAt,
               isInfluencer: backendUser.isInfluencer ?? parsed.isInfluencer,
               influencerStatus: (backendUser.influencerStatus as User["influencerStatus"]) ?? parsed.influencerStatus,
+              isAdmin: backendUser.isAdmin ?? parsed.isAdmin ?? false,
             };
             await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
             await storeUserData(updated);
@@ -835,26 +836,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async (): Promise<void> => {
     try {
-      console.log("[Auth] Refreshing user from /api/auth/me...");
+      const accessToken = await getAccessToken();
+      const refreshHeaders: HeadersInit = { "Content-Type": "application/json" };
+      if (accessToken) refreshHeaders["Authorization"] = `Bearer ${accessToken}`;
       const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
         method: "GET",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: refreshHeaders,
       });
       
       if (!response.ok) {
-        console.warn("[Auth] refreshUser failed - status:", response.status);
         return;
       }
       
       const data = await response.json();
-      console.log("[Auth] refreshUser response:", JSON.stringify(data, null, 2));
       
       // /api/auth/me returns a flat object { userId, username, displayName, bio,
       // profilePhotoUrl, coverMediaUrl, coverMediaType, ... } with no nested .user
       const backendUser = data;
       if (!backendUser?.userId && !backendUser?.id) {
-        console.warn("[Auth] refreshUser - no user id in response");
         return;
       }
       
@@ -877,9 +877,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscriptionTier: backendUser.subscriptionTier ?? user.subscriptionTier,
           isInfluencer: backendUser.isInfluencer ?? user.isInfluencer,
           influencerStatus: (backendUser.influencerStatus as User["influencerStatus"]) ?? user.influencerStatus,
+          isAdmin: backendUser.isAdmin ?? user.isAdmin ?? false,
         };
         
-        console.log("[Auth] User refreshed - username:", updatedUser.username, "displayName:", updatedUser.displayName, "bio:", updatedUser.bio);
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
         setUser(updatedUser);
       }

@@ -31,10 +31,16 @@ type RouteParams = RouteProp<RootStackParamList, "AdminBusinessReview">;
 export default function AdminBusinessReviewScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+
+  const STATUS_COLORS = {
+    pending:  { bg: '#FFF3E0', text: '#E65100' },
+    approved: { bg: '#E8F5E9', text: '#2E7D32' },
+    rejected: { bg: '#FFEBEE', text: '#C62828' },
+  };
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteParams>();
   const { businessId } = route.params;
-  const { getToken } = useAuth();
+  const { getToken, user, refreshUser } = useAuth();
   const { addNotification } = useNotifications();
 
   const [loading, setLoading] = useState(true);
@@ -48,32 +54,21 @@ export default function AdminBusinessReviewScreen() {
 
   const fetchBusinessDetail = useCallback(async () => {
     const token = await getToken();
-    console.log(`[AdminBusinessReview] Token retrieved:`, token ? `${token.substring(0, 30)}...` : "null");
     if (!token) {
-      setFetchError("Authentication required. Please log in again.");
-      setLoading(false);
-      return;
-    }
-    
-    if (token.startsWith("session_")) {
-      console.log("[AdminBusinessReview] WARNING: Token is a session indicator, not a JWT. Backend may return 401.");
-      setFetchError("Your session token is not a valid JWT. The backend requires a JWT access token for admin operations. Please log out and log back in, or contact the backend team to ensure /api/auth/login returns an accessToken.");
+      setFetchError("Not authenticated. Please log out and log back in.");
       setLoading(false);
       return;
     }
 
     try {
-      console.log(`[AdminBusinessReview] Fetching business detail for ID: ${businessId}`);
       const data = await api.getAdminBusinessDetail(token, businessId);
-      console.log(`[AdminBusinessReview] Business detail loaded:`, data?.name);
       setBusiness(data);
       setFetchError(null);
     } catch (error: any) {
-      console.log("[AdminBusinessReview] Error fetching business detail:", error?.message || error, "status:", error?.status);
       if (error?.status === 401 || error?.message?.includes("401") || error?.message?.includes("Not authenticated")) {
-        setFetchError("Authentication failed (401). Your token may be invalid or expired. Please log out and log back in. If this persists, the backend may need to return a valid JWT in the login response.");
+        setFetchError("Authentication failed (401). Your token may be invalid or expired. Please log out and log back in.");
       } else if (error?.status === 404 || error?.message?.includes("404")) {
-        setFetchError("Business detail view is not yet available from the backend. The GET /api/admin/businesses/:id endpoint may need to be implemented. You can still approve or reject businesses from the list.");
+        setFetchError("Business detail view is not yet available from the backend.");
       } else {
         setFetchError(`Failed to load business details: ${error?.message || "Unknown error"}`);
       }
@@ -120,7 +115,7 @@ export default function AdminBusinessReviewScreen() {
               Alert.alert(
                 "Success",
                 `"${business.name}" has been approved. The owner will receive a notification to complete their subscription.`,
-                [{ text: "OK", onPress: () => navigation.goBack() }]
+                [{ text: "OK", onPress: async () => { await refreshUser(); navigation.goBack(); } }]
               );
             } catch (error) {
               console.error("Failed to approve business:", error);
@@ -157,7 +152,7 @@ export default function AdminBusinessReviewScreen() {
       Alert.alert(
         "Rejected",
         `"${business.name}" has been rejected.`,
-        [{ text: "OK", onPress: () => navigation.goBack() }]
+        [{ text: "OK", onPress: async () => { await refreshUser(); navigation.goBack(); } }]
       );
     } catch (error) {
       console.error("Failed to reject business:", error);
@@ -191,7 +186,7 @@ export default function AdminBusinessReviewScreen() {
     },
     scrollContent: {
       paddingHorizontal: Spacing.lg,
-      paddingBottom: 120 + insets.bottom,
+      paddingBottom: 80 + insets.bottom,
     },
     loadingContainer: {
       flex: 1,
@@ -245,13 +240,13 @@ export default function AdminBusinessReviewScreen() {
       marginTop: Spacing.xs,
     },
     pendingBadge: {
-      backgroundColor: "#FFF3E0",
+      backgroundColor: STATUS_COLORS.pending.bg,
     },
     approvedBadge: {
-      backgroundColor: "#E8F5E9",
+      backgroundColor: STATUS_COLORS.approved.bg,
     },
     rejectedBadge: {
-      backgroundColor: "#FFEBEE",
+      backgroundColor: STATUS_COLORS.rejected.bg,
     },
     statusText: {
       fontSize: 12,
@@ -259,13 +254,13 @@ export default function AdminBusinessReviewScreen() {
       textTransform: "capitalize",
     },
     pendingText: {
-      color: "#E65100",
+      color: STATUS_COLORS.pending.text,
     },
     approvedText: {
-      color: "#2E7D32",
+      color: STATUS_COLORS.approved.text,
     },
     rejectedText: {
-      color: "#C62828",
+      color: STATUS_COLORS.rejected.text,
     },
     infoRow: {
       flexDirection: "row",
@@ -357,7 +352,7 @@ export default function AdminBusinessReviewScreen() {
     },
     closedText: {
       fontSize: 14,
-      color: "#FF3B30",
+      color: theme.error,
     },
     metaRow: {
       flexDirection: "row",
@@ -374,10 +369,10 @@ export default function AdminBusinessReviewScreen() {
       fontWeight: "500",
     },
     trueValue: {
-      color: "#34C759",
+      color: theme.success,
     },
     falseValue: {
-      color: "#FF3B30",
+      color: theme.error,
     },
     actionBar: {
       position: "absolute",
@@ -403,10 +398,10 @@ export default function AdminBusinessReviewScreen() {
       gap: Spacing.xs,
     },
     approveButton: {
-      backgroundColor: "#34C759",
+      backgroundColor: theme.success,
     },
     rejectButton: {
-      backgroundColor: "#FF3B30",
+      backgroundColor: theme.error,
     },
     disabledButton: {
       opacity: 0.6,
@@ -481,7 +476,7 @@ export default function AdminBusinessReviewScreen() {
       color: theme.text,
     },
     confirmRejectButton: {
-      backgroundColor: "#FF3B30",
+      backgroundColor: theme.error,
     },
     confirmRejectText: {
       fontSize: 16,
@@ -497,6 +492,23 @@ export default function AdminBusinessReviewScreen() {
         <Text style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
           Loading business details...
         </Text>
+      </View>
+    );
+  }
+
+  if (!user?.isAdmin) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.background }}>
+        <Feather name="lock" size={48} color={theme.textMuted} />
+        <Text style={{ color: theme.textSecondary, marginTop: 12, fontSize: 16 }}>
+          Admin access required
+        </Text>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, borderRadius: BorderRadius.md, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}
+        >
+          <Text style={{ color: theme.text }}>Go Back</Text>
+        </Pressable>
       </View>
     );
   }
