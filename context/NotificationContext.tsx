@@ -15,15 +15,29 @@ import {
   setBadgeCount,
 } from "@/services/pushNotifications";
 
+export interface NotificationTriggeringUser {
+  id: string;
+  displayName: string | null;
+  profilePhotoUrl: string | null;
+  profileImageUrl: string | null;
+}
+
 export interface Notification {
   id: string;
   title: string;
   body: string;
-  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow" | "business_pending" | "new_vendor_application" | "vendor_approved" | "vendor_rejected"
-    | "booking_confirmed" | "booking_canceled" | "payment_succeeded" | "payment_failed" | "subscription_activated" | "subscription_canceled" | "addon_charged" | "refund_issued" | "new_order" | "order_shipped" | "photographer_assigned" | "subscription_tier_changed" | "stripe_onboarding_complete" | "new_photographer_application" | "new_follower";
+  type: "booking" | "reminder" | "promotion" | "system" | "admin" | "follow"
+    | "business_pending" | "new_vendor_application" | "vendor_approved"
+    | "vendor_rejected" | "booking_confirmed" | "booking_canceled"
+    | "payment_succeeded" | "payment_failed" | "subscription_activated"
+    | "subscription_canceled" | "addon_charged" | "refund_issued"
+    | "new_order" | "order_shipped" | "photographer_assigned"
+    | "subscription_tier_changed" | "stripe_onboarding_complete"
+    | "new_photographer_application" | "new_follower";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;
+  triggeringUser?: NotificationTriggeringUser | null;
 }
 
 interface NotificationSettings {
@@ -286,6 +300,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     referenceId?: string;
     metadata?: Record<string, any>;
     createdAt: string;
+    triggeringUser?: {
+      id: string;
+      displayName: string | null;
+      profilePhotoUrl: string | null;
+      profileImageUrl: string | null;
+    } | null;
   }): Notification => ({
     id: raw.id,
     title: raw.title,
@@ -298,6 +318,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       ...(raw.referenceId ? { referenceId: raw.referenceId } : {}),
       ...stringifyFlat(raw.metadata),
     },
+    triggeringUser: raw.triggeringUser ?? null,
   });
 
   const startUserPolling = () => {
