@@ -32,7 +32,7 @@ function HeaderRightButtons() {
       })}
     >
       <View>
-        <Feather name="shopping-bag" size={22} color={theme.brandGold} />
+        <Feather name="shopping-cart" size={22} color={theme.brandGold} />
         {totalBadge > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
