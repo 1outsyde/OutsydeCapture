@@ -122,6 +122,8 @@ export interface SignupData {
   experienceLevel?: string;
   equipmentLevel?: string | null;
   deliveryTime?: string;
+  vendorAgreementAccepted?: boolean;
+  vendorAgreementAcceptedAt?: string;
 }
 
 export interface LoginResult {
@@ -613,6 +615,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         selectedIndustries: data.selectedIndustries,
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
+        vendorAgreementAccepted: data.vendorAgreementAccepted,
+        vendorAgreementAcceptedAt: data.vendorAgreementAcceptedAt,
       });
       
       const backendUser = response.user;
