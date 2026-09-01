@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -227,7 +228,11 @@ export default function AuthScreen() {
         >
           {/* ── Header ── */}
           <View style={styles.logoRow}>
-            <Feather name="camera" size={36} color={DS.gold} />
+            <Image
+              source={require("../assets/images/outsyde-y-logo.png")}
+              style={{ width: 40, height: 40 }}
+              resizeMode="contain"
+            />
             <ThemedText style={styles.wordmark}>Outsyde</ThemedText>
           </View>
 
