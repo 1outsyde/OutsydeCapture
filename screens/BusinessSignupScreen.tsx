@@ -345,6 +345,8 @@ export default function BusinessSignupScreen() {
       billingZipCode: !hasPhysicalLocation ? billingZipCode : zipCode,
       websiteUrl: businessDetailsPayload.websiteUrl,
       socialMedia: businessDetailsPayload.socialMedia,
+      vendorAgreementAccepted: agreementChecked,
+      vendorAgreementAcceptedAt: new Date().toISOString(),
     });
 
     if (result.success) {
