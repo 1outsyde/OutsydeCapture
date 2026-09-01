@@ -105,7 +105,7 @@ export default function AuthScreen() {
   const handleLogin = async () => {
     if (!validateForm()) return;
     const raw = identifier.trim();
-    const isEmail = raw.includes("@") && raw.includes(".");
+    const isEmail = raw.includes("@") && raw.indexOf("@") > 0 && raw.slice(raw.indexOf("@")).includes(".");
     const loginIdentifier = isEmail ? raw.toLowerCase() : raw.replace(/^@/, "").toLowerCase();
     const result = await login(loginIdentifier, password, isEmail ? "email" : "username");
     if (result.success) {

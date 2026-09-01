@@ -705,8 +705,8 @@ export default function PhotographerDashboardScreen() {
       return;
     }
     
-    if (!/^[a-z0-9_]+$/.test(newUsername)) {
-      Alert.alert("Invalid Username", "Username can only contain lowercase letters, numbers, and underscores.");
+    if (!/^[a-z0-9_.]+$/.test(newUsername)) {
+      Alert.alert("Invalid Username", "Username can only contain lowercase letters, numbers, underscores, and periods.");
       return;
     }
     
@@ -2233,7 +2233,7 @@ export default function PhotographerDashboardScreen() {
                         : null
                     ]}
                     value={editProfile.username}
-                    onChangeText={(text) => setEditProfile({ ...editProfile, username: text.toLowerCase().replace(/[^a-z0-9_]/g, "") })}
+                    onChangeText={(text) => setEditProfile({ ...editProfile, username: text.toLowerCase().replace(/[^a-z0-9_.]/g, "") })}
                     placeholder="your_username"
                     placeholderTextColor={theme.brandTextDim}
                     autoCapitalize="none"

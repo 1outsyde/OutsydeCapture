@@ -26,7 +26,7 @@ import { uploadImage } from "@/services/mediaUpload";
 
 type NavigationProp = NativeStackNavigationProp<AccountStackParamList>;
 
-const USERNAME_REGEX = /^[a-zA-Z0-9_.]{3,30}$/;
+const USERNAME_REGEX = /^[a-z0-9_.]{3,20}$/;
 
 type UsernameCheckState = "idle" | "checking" | "available" | "taken" | "invalid";
 
@@ -182,7 +182,7 @@ export default function ConsumerEditProfileScreen() {
       return;
     }
     if (usernameChanged && usernameCheck === "invalid") {
-      Alert.alert("Invalid Username", "Usernames must be 3–30 characters and can only contain letters, numbers, periods, and underscores.");
+      Alert.alert("Invalid Username", "Usernames must be 3–20 characters and can only contain letters, numbers, periods, and underscores.");
       return;
     }
     if (usernameChanged && usernameCheck === "taken") {
@@ -301,7 +301,7 @@ export default function ConsumerEditProfileScreen() {
       case "taken":
         return "That username is already taken";
       case "invalid":
-        return "3–30 characters: letters, numbers, periods, underscores only";
+        return "3–20 characters: letters, numbers, periods, underscores only";
       default:
         return "Your unique @handle shown on your profile and posts";
     }
@@ -459,7 +459,7 @@ export default function ConsumerEditProfileScreen() {
               onChangeText={(text) => setUsername(text.replace(/\s/g, ""))}
               placeholder="username"
               placeholderTextColor={theme.brandTextDim}
-              maxLength={30}
+              maxLength={20}
               returnKeyType="next"
               autoCapitalize="none"
               autoCorrect={false}
