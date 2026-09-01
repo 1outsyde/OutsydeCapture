@@ -1238,6 +1238,8 @@ export interface MobileSignupRequest {
   websiteUrl?: string;
   socialMedia?: string;
   username?: string;
+  vendorAgreementAccepted?: boolean;
+  vendorAgreementAcceptedAt?: string;
   gender?: string;
   ethnicity?: string;
   shoppingFrequency?: string;
@@ -1309,6 +1311,8 @@ export interface VendorSignupRequest {
   logoImage?: string | null;
   acceptedSubscription: boolean;
   username?: string;
+  vendorAgreementAccepted?: boolean;
+  vendorAgreementAcceptedAt?: string;
 }
 
 export interface PhotographerSignupRequest {
@@ -1687,6 +1691,8 @@ class ApiService {
         logoImage: data.logoImage || undefined,
         acceptedSubscription: true,
         username: data.username,
+        vendorAgreementAccepted: data.vendorAgreementAccepted ?? true,
+        vendorAgreementAcceptedAt: data.vendorAgreementAcceptedAt ?? new Date().toISOString(),
       };
       console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
       await this.vendorSignup(vendorPayload);

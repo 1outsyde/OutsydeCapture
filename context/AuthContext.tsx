@@ -97,6 +97,8 @@ export interface SignupData {
   websiteUrl?: string;
   socialMedia?: string;
   username?: string;
+  vendorAgreementAccepted?: boolean;
+  vendorAgreementAcceptedAt?: string;
   gender?: string;
   ethnicity?: string;
   shoppingFrequency?: string;
@@ -574,6 +576,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: data.phone,
         dateOfBirth: data.dateOfBirth,
         username: data.username,
+        vendorAgreementAccepted: data.vendorAgreementAccepted,
+        vendorAgreementAcceptedAt: data.vendorAgreementAcceptedAt,
         businessName: data.businessName,
         businessCategory: data.businessCategory,
         businessDescription: data.businessDescription,
