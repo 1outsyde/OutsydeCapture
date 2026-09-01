@@ -345,6 +345,8 @@ export default function BusinessSignupScreen() {
       billingZipCode: !hasPhysicalLocation ? billingZipCode : zipCode,
       websiteUrl: businessDetailsPayload.websiteUrl,
       socialMedia: businessDetailsPayload.socialMedia,
+      vendorAgreementAccepted: agreementChecked,
+      vendorAgreementAcceptedAt: agreementChecked ? new Date().toISOString() : undefined,
     });
 
     if (result.success) {
@@ -462,6 +464,9 @@ export default function BusinessSignupScreen() {
                 inputBaseStyle={[styles.input, { backgroundColor: theme.backgroundDefault }]}
                 theme={theme}
               />
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                Only letters, numbers, and underscores allowed. Periods and other characters are removed as you type.
+              </ThemedText>
             </View>
 
             <View style={styles.field}>
