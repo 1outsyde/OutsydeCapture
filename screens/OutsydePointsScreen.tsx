@@ -412,26 +412,26 @@ export default function OutsydePointsScreen() {
           {
             icon: "camera" as const,
             title: "Book a session",
-            sub: "Earn points on every shoot booking",
+            sub: "Points are added automatically with every purchase.",
             badge: "Points back",
           },
           {
             icon: "shopping-bag" as const,
             title: "Purchase products",
-            sub: "Earn points at any vendor store",
+            sub: "Points accumulate with every transaction across all Outsyde-powered stores.",
             badge: "Points back",
           },
           {
             icon: "calendar" as const,
             title: "Book a service",
-            sub: "Earn points on appointments",
+            sub: "Redeem points at checkout for a discount on your next purchase.",
             badge: "Points back",
           },
           {
             icon: "users" as const,
             title: "Refer a friend",
-            sub: "When they complete their first purchase",
-            badge: "500 pts",
+            sub: "The more you shop, the more you save.",
+            badge: "Points back",
           },
         ].map((row) => (
           <View key={row.title} style={styles.earnRow}>
