@@ -231,13 +231,19 @@ export default function SubscriptionPlanScreen() {
       setSubscribeError("Selected plan not found. Please refresh and try again.");
       return;
     }
-    await Linking.openURL("https://www.goutsyde.com/subscription");
+    const token = await getToken();
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+    await Linking.openURL(
+      `https://www.goutsyde.com/subscription/manage?tier=${selectedTierId}${tokenParam}`
+    );
   };
 
   const handleManageBilling = async () => {
     const token = await getToken();
     if (!token) return;
-    await Linking.openURL("https://www.goutsyde.com/subscription/manage");
+    await Linking.openURL(
+      `https://www.goutsyde.com/subscription/manage?token=${encodeURIComponent(token)}`
+    );
   };
 
   const statusColor = () => {
