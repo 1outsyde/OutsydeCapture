@@ -915,7 +915,7 @@ export default function StorefrontEditorScreen() {
     }
     try {
       setSaving(true);
-      const result = await uploadImage(uri, "image/jpeg", "logos", token);
+      const result = await uploadImage(uri, "image/jpeg", "profiles", token);
       setLogoImage(result.url);
     } catch (error: any) {
       Alert.alert("Upload Error", error.message || "Failed to upload logo image");
