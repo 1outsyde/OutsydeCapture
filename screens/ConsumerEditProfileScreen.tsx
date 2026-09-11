@@ -47,6 +47,9 @@ export default function ConsumerEditProfileScreen() {
     `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
   const origBio = user?.bio || "";
   const origUsername = user?.username || "";
+  const origFirstName = user?.firstName ?? "";
+  const origLastName = user?.lastName ?? "";
+  const origPhone = user?.phone ?? "";
 
   // ─── Local editable state seeded from current user ───────────────────────
   const [profileImageUrl, setProfileImageUrl] = useState<string>(origProfileImageUrl);
@@ -55,6 +58,9 @@ export default function ConsumerEditProfileScreen() {
   const [displayName, setDisplayName] = useState<string>(origDisplayName);
   const [bio, setBio] = useState<string>(origBio);
   const [username, setUsername] = useState<string>(origUsername);
+  const [firstName, setFirstName] = useState<string>(origFirstName);
+  const [lastName, setLastName] = useState<string>(origLastName);
+  const [phone, setPhone] = useState<string>(origPhone);
 
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -207,6 +213,15 @@ export default function ConsumerEditProfileScreen() {
     if (bio.trim() !== origBio.trim()) {
       mePayload.bio = bio.trim();
     }
+    if (firstName.trim() !== origFirstName.trim()) {
+      mePayload.firstName = firstName.trim() || null;
+    }
+    if (lastName.trim() !== origLastName.trim()) {
+      mePayload.lastName = lastName.trim() || null;
+    }
+    if (phone.trim() !== origPhone.trim()) {
+      mePayload.phone = phone.trim() || null;
+    }
 
     const identityPayload: { username?: string; displayName?: string } = {};
     if (displayNameChanged) identityPayload.displayName = displayName.trim();
@@ -254,6 +269,9 @@ export default function ConsumerEditProfileScreen() {
     displayName,
     bio,
     username,
+    firstName,
+    lastName,
+    phone,
     usernameCheck,
     canChangeUsername,
     canChangeDisplayName,
@@ -265,6 +283,9 @@ export default function ConsumerEditProfileScreen() {
     origDisplayName,
     origBio,
     origUsername,
+    origFirstName,
+    origLastName,
+    origPhone,
     refreshUser,
     navigation,
   ]);
@@ -503,6 +524,79 @@ export default function ConsumerEditProfileScreen() {
             multiline
             maxLength={200}
             textAlignVertical="top"
+          />
+        </View>
+
+        {/* ── First Name ───────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+            FIRST NAME
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.brandBgElevated,
+                color: theme.brandCream,
+                borderColor: theme.brandSurfaceBorder,
+              },
+            ]}
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="First name"
+            placeholderTextColor={theme.brandTextDim}
+            maxLength={100}
+            returnKeyType="next"
+            autoCapitalize="words"
+          />
+        </View>
+
+        {/* ── Last Name ────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+            LAST NAME
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.brandBgElevated,
+                color: theme.brandCream,
+                borderColor: theme.brandSurfaceBorder,
+              },
+            ]}
+            value={lastName}
+            onChangeText={setLastName}
+            placeholder="Last name"
+            placeholderTextColor={theme.brandTextDim}
+            maxLength={100}
+            returnKeyType="next"
+            autoCapitalize="words"
+          />
+        </View>
+
+        {/* ── Phone ────────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+            PHONE
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.brandBgElevated,
+                color: theme.brandCream,
+                borderColor: theme.brandSurfaceBorder,
+              },
+            ]}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="Phone number"
+            placeholderTextColor={theme.brandTextDim}
+            maxLength={30}
+            returnKeyType="done"
+            keyboardType="phone-pad"
+            autoCapitalize="none"
           />
         </View>
 
