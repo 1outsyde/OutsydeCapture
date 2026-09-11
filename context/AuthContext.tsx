@@ -855,9 +855,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const data = await response.json();
       
-      // /api/auth/me returns a flat object { userId, username, displayName, bio,
-      // profilePhotoUrl, coverMediaUrl, coverMediaType, ... } with no nested .user
-      const backendUser = data;
+      // /api/auth/me returns { user: { ... } } — unwrap before checking fields
+      const backendUser = data.user || data;
       if (!backendUser?.userId && !backendUser?.id) {
         return;
       }
@@ -873,6 +872,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profileImageUrl: backendUser.profilePhotoUrl || backendUser.profileImageUrl || user.profileImageUrl,
           coverMediaUrl: backendUser.coverMediaUrl ?? user.coverMediaUrl,
           coverMediaType: (backendUser.coverMediaType as "image" | "video" | undefined) ?? user.coverMediaType,
+          firstName: backendUser.firstName ?? user.firstName,
+          lastName: backendUser.lastName ?? user.lastName,
+          phone: backendUser.phone ?? user.phone,
           city: backendUser.city ?? user.city,
           state: backendUser.state ?? user.state,
           bio: backendUser.bio ?? user.bio,

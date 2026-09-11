@@ -2333,15 +2333,18 @@ class ApiService {
   }
 
   // PATCH /api/users/me - Update current user profile (for consumers/influencers)
-  async updateUserMe(authToken: string, data: { 
-    profileImageUrl?: string | null; 
-    coverMediaUrl?: string | null; 
+  async updateUserMe(authToken: string, data: {
+    profileImageUrl?: string | null;
+    coverMediaUrl?: string | null;
     coverMediaType?: "image" | "video" | null;
     displayName?: string;
     username?: string;
     bio?: string;
     city?: string;
     state?: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
   }): Promise<{ success: boolean; user?: any; message?: string }> {
     console.log("[API] updateUserMe payload:", JSON.stringify(data, null, 2));
     
