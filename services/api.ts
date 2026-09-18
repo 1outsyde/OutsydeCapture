@@ -19,16 +19,65 @@ export const API_BASE_URL = "https://outsyde-backend.onrender.com";
 let _isRefreshing = false;
 let _refreshQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
 
+// AuthContext registers this so a failed refresh can clear React user state.
+// api.ts cannot call setUser(null) itself — it is not a React module.
+let _onAuthSessionCleared: (() => void) | null = null;
+
+export function setOnAuthSessionCleared(handler: (() => void) | null): void {
+  _onAuthSessionCleared = handler;
+}
+
+const RECOVERABLE_TOKEN_CODES = new Set(["TOKEN_EXPIRED", "TOKEN_INVALID"]);
+
+/**
+ * True when a 401 body means the access JWT is expired or invalid and a
+ * refresh-token retry may recover the session.
+ *
+ * Backend shapes (all must match):
+ *   authMiddleware:      { error: { code: "TOKEN_EXPIRED" | "TOKEN_INVALID", message } }
+ *   hybridAuthMiddleware:{ error: { code: "TOKEN_INVALID", message: "Invalid or expired token" } }
+ *   legacy/string:       { error: "TOKEN_EXPIRED" }
+ *
+ * TOKEN_MISSING / NO_AUTH are not recoverable — no access token was sent.
+ */
+export function isRecoverableAccessTokenError(
+  errorBody: Record<string, any> | undefined,
+): boolean {
+  if (!errorBody) return false;
+  const err = errorBody.error;
+  if (typeof err === "string" && RECOVERABLE_TOKEN_CODES.has(err)) return true;
+  const nestedCode = err && typeof err === "object" ? err.code : undefined;
+  if (typeof nestedCode === "string" && RECOVERABLE_TOKEN_CODES.has(nestedCode)) {
+    return true;
+  }
+  if (typeof errorBody.code === "string" && RECOVERABLE_TOKEN_CODES.has(errorBody.code)) {
+    return true;
+  }
+  return false;
+}
+
+async function invalidateSessionAfterFailedRefresh(): Promise<void> {
+  await clearAuthStorage();
+  try {
+    _onAuthSessionCleared?.();
+  } catch (handlerErr) {
+    console.error("[API] onAuthSessionCleared handler failed:", handlerErr);
+  }
+}
+
 async function runRefresh(): Promise<string> {
   const refreshToken = await getRefreshToken();
-  if (!refreshToken) throw new Error("No refresh token");
+  if (!refreshToken) {
+    await invalidateSessionAfterFailedRefresh();
+    throw new Error("No refresh token");
+  }
   const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
   });
   if (!res.ok) {
-    await clearAuthStorage();
+    await invalidateSessionAfterFailedRefresh();
     throw new Error("Refresh failed");
   }
   const data = await res.json();
@@ -1436,9 +1485,12 @@ class ApiService {
         }
 
         // ── TOKEN_EXPIRED interceptor ──────────────────────────────────────
+        // Match nested `{ error: { code } }` (current backend) as well as a
+        // legacy string `{ error: "TOKEN_EXPIRED" }`. hybridAuthMiddleware
+        // reports expired JWTs as TOKEN_INVALID, not TOKEN_EXPIRED.
         const isExpired =
           response.status === 401 &&
-          errorBody?.error === "TOKEN_EXPIRED" &&
+          isRecoverableAccessTokenError(errorBody) &&
           !endpoint.includes("/api/auth/refresh");
 
         if (isExpired) {
