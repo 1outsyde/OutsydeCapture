@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppStateStatus, Linking } from "react-native";
-import { api } from "../services/api";
+import { api, setOnAuthSessionCleared } from "../services/api";
 import { captureReferralFromURL, captureReferralFromInitialURL } from "../services/referral";
 import {
   storeTokens,
@@ -343,6 +343,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "@outsyde_refresh_token",
     ]);
   };
+
+  // When api.ts runRefresh() fails it clears SecureStore but cannot touch
+  // React state. Register a handler so isAuthenticated becomes false and
+  // screens (e.g. Account) can show the sign-in prompt instead of a stuck
+  // "Unable to load profile" session.
+  useEffect(() => {
+    setOnAuthSessionCleared(() => {
+      void (async () => {
+        try {
+          await _clearAllAuth();
+        } catch (err) {
+          console.error("[Auth] Failed to clear session after refresh failure:", err);
+        } finally {
+          setUser(null);
+        }
+      })();
+    });
+    return () => setOnAuthSessionCleared(null);
+  }, []);
 
   const loadStoredAuth = async () => {
     try {
