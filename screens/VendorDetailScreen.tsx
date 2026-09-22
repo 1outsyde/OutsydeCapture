@@ -433,6 +433,10 @@ const CoverMediaHero = ({
           source={{ uri: profile.coverMediaUrl }}
           style={styles.coverMedia}
           contentFit="cover"
+          onLoadStart={() => console.log("[COVER] start", profile.coverMediaUrl)}
+          onLoad={(e) => console.log("[COVER] load", e.source?.width, e.source?.height)}
+          onError={(e) => console.log("[COVER] error", JSON.stringify(e))}
+          onLayout={(e) => console.log("[COVER] layout", JSON.stringify(e.nativeEvent.layout))}
         />
       ) : null}
       {!isMuxVideo && !isProcessingVideo && !isImage ? (

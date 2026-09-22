@@ -164,6 +164,10 @@ export default function ProductDetailScreen() {
               source={{ uri: imageUrl }}
               style={StyleSheet.absoluteFillObject}
               contentFit="cover"
+              onLoadStart={() => console.log("[PRODUCT] start", imageUrl)}
+              onLoad={(e) => console.log("[PRODUCT] load", e.source?.width, e.source?.height)}
+              onError={(e) => console.log("[PRODUCT] error", JSON.stringify(e))}
+              onLayout={(e) => console.log("[PRODUCT] layout", JSON.stringify(e.nativeEvent.layout))}
             />
           ) : (
             <LinearGradient
