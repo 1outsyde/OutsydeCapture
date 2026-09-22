@@ -718,7 +718,7 @@ export default function CartOrdersScreen() {
           ))}
 
           <Pressable
-            onPress={() => navigation.navigate("CartCheckout")}
+            onPress={() => navigation.navigate("CheckoutScreen", { mode: "cart" })}
             disabled={cart.length === 0}
             style={({ pressed }) => [
               styles.proceedButton,
