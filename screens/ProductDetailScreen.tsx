@@ -1,27 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { useStripePayment } from "@/hooks/useStripePayment";
-import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
-import { apiPost } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
 import api, { ProductVariant } from "@/services/api";
 
@@ -34,12 +30,10 @@ const formatCents = (cents?: number | null): string => {
 
 export default function ProductDetailScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const { addItem } = useCart();
-  const { getToken } = useAuth();
-  const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
 
   const {
     id,
@@ -55,7 +49,6 @@ export default function ProductDetailScreen() {
   const hasInventoryCap = inventory != null && inventory > 0;
 
   const [quantity, setQuantity] = useState(1);
-  const [buyingNow, setBuyingNow] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,83 +119,21 @@ export default function ProductDetailScreen() {
     });
   };
 
-  const handleBuyNow = async () => {
-    if (!canAddToCart || buyingNow) return;
-
-    const token = await getToken();
-    if (!token) {
-      Alert.alert("Sign in required", "Please sign in to buy this product.");
-      return;
-    }
-
-    setBuyingNow(true);
-    try {
-      const unitPriceCents = selectedVariant ? selectedVariant.priceCents : priceCents;
-      const paymentIntentResponse = await apiPost(
-        "/api/cart/payment-intent",
-        {
-          items: [
-            {
-              productId: String(id),
-              vendorId: businessId,
-              priceCents: unitPriceCents,
-              quantity,
-              name,
-            },
-          ],
-          vendorId: businessId,
-          isEphemeral: true,
-        },
-        token
-      ) as { clientSecret?: string };
-
-      const clientSecret = paymentIntentResponse?.clientSecret;
-      if (!clientSecret) throw new Error("Missing clientSecret");
-
-      const { error: initError } = await initPaymentSheet({
-        merchantDisplayName: "Outsyde",
-        paymentIntentClientSecret: clientSecret,
-      });
-      if (initError) throw new Error(initError.message);
-
-      const { error: presentError } = await presentPaymentSheet();
-      if (presentError) {
-        if ((presentError as { code?: string }).code === "Canceled") {
-          Alert.alert("Payment cancelled.");
-          return;
-        }
-        throw new Error(presentError.message);
-      }
-
-      Alert.alert("Order placed!", undefined, [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "";
-      if (message.includes("ADDRESS_REQUIRED")) {
-        Alert.alert(
-          "Shipping Address Required",
-          "Please add a shipping address to continue."
-        );
-      } else if (message.includes("INVALID_ADDRESS")) {
-        Alert.alert(
-          "Invalid Address",
-          "Please check your shipping address and try again."
-        );
-      } else if (message.includes("STRIPE_NOT_ONBOARDED")) {
-        Alert.alert(
-          "Vendor Unavailable",
-          "This item cannot be purchased at this time. Please try again later, or contact support."
-        );
-      } else {
-        Alert.alert(
-          "Checkout Failed",
-          "Something went wrong. Please try again or contact support if the issue continues."
-        );
-      }
-    } finally {
-      setBuyingNow(false);
-    }
+  const handleBuyNow = () => {
+    if (!canAddToCart) return;
+    navigation.navigate("CheckoutScreen", {
+      mode: "buyNow",
+      buyNowItem: {
+        productId: String(id),
+        name,
+        priceCents: selectedVariant ? selectedVariant.priceCents : (priceCents ?? 0),
+        quantity,
+        vendorId: businessId,
+        imageUrl: imageUrl ?? undefined,
+        variantId: selectedVariant?.id,
+        variantLabel: selectedVariant?.label,
+      },
+    });
   };
 
   return (
@@ -374,56 +305,88 @@ export default function ProductDetailScreen() {
             </View>
           </View>
 
-          {/* Buy Now + Add to Cart */}
+          {/* ── Dual CTA block ── */}
           <View
-            style={[
-              styles.ctaBlock,
-              {
-                backgroundColor: theme.gray,
-                borderColor: "rgba(255,255,255,0.06)",
-                opacity: canAddToCart ? 1 : 0.4,
-              },
-            ]}
+            style={{
+              backgroundColor: theme.brandSurface,
+              borderRadius: BorderRadius.lg,
+              padding: Spacing.sm,
+              marginTop: Spacing.xl,
+              borderWidth: 1,
+              borderColor: theme.brandSurfaceBorder,
+              gap: Spacing.sm,
+            }}
           >
-            <TouchableOpacity
-              activeOpacity={0.85}
+            {/* Buy Now — primary */}
+            <Pressable
               onPress={handleBuyNow}
-              disabled={!canAddToCart || buyingNow}
+              disabled={!canAddToCart}
               accessibilityLabel="Buy Now — instant purchase, skips cart"
-              style={[
-                styles.buyNowButton,
-                { backgroundColor: theme.brandGold },
-              ]}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: Spacing.sm,
+                paddingVertical: Spacing.md,
+                borderRadius: BorderRadius.full,
+                backgroundColor: canAddToCart ? theme.brandGold : theme.brandSurface,
+                opacity: !canAddToCart ? 0.4 : pressed ? 0.85 : 1,
+              })}
             >
-              <View style={styles.ctaRow}>
-                <Text style={[styles.buyNowEmoji, { color: theme.black }]}>⚡</Text>
-                <Text style={[styles.buyNowText, { color: theme.black }]}>
-                  {buyingNow ? "Processing…" : "Buy Now"}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              <Feather
+                name="zap"
+                size={16}
+                color={canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999")}
+              />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "900",
+                  letterSpacing: -0.3,
+                  color: canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999"),
+                }}
+              >
+                {isOutOfStock
+                  ? "Out of Stock"
+                  : variants.length > 0 && selectedVariant === null
+                  ? "Select an option"
+                  : "Buy Now"}
+              </Text>
+            </Pressable>
 
-            <TouchableOpacity
-              activeOpacity={0.85}
+            {/* Add to Cart — secondary */}
+            <Pressable
               onPress={handleAddToCart}
               disabled={!canAddToCart}
               accessibilityLabel="Add to Cart"
-              style={[
-                styles.addToCartButton,
-                { borderColor: theme.brandGold },
-              ]}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: Spacing.sm,
+                paddingVertical: Spacing.md,
+                borderRadius: BorderRadius.full,
+                borderWidth: 1.5,
+                borderColor: canAddToCart ? theme.brandGold : theme.brandSurfaceBorder,
+                backgroundColor: "transparent",
+                opacity: !canAddToCart ? 0.4 : pressed ? 0.7 : 1,
+              })}
             >
-              <View style={styles.ctaRow}>
-                <Feather name="shopping-cart" size={14} color={theme.brandGold} />
-                <Text style={[styles.addToCartText, { color: theme.brandGold }]}>
-                  {isOutOfStock
-                    ? "Out of Stock"
-                    : variants.length > 0 && selectedVariant === null
-                      ? "Select an option"
-                      : "Add to Cart"}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              <Feather
+                name="shopping-cart"
+                size={16}
+                color={canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999")}
+              />
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "700",
+                  color: canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999"),
+                }}
+              >
+                Add to Cart
+              </Text>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
@@ -511,43 +474,6 @@ const styles = StyleSheet.create({
   stepperCount: {
     minWidth: 28,
     textAlign: "center",
-  },
-  ctaBlock: {
-    marginTop: Spacing.xl,
-    marginBottom: 16,
-    padding: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  buyNowButton: {
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  buyNowEmoji: {
-    fontSize: 14,
-  },
-  buyNowText: {
-    fontSize: 15,
-    fontWeight: "900",
-    letterSpacing: -0.01,
-  },
-  addToCartButton: {
-    backgroundColor: "transparent",
-    borderWidth: 1.5,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  addToCartText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  ctaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
   },
   toast: {
     position: "absolute",

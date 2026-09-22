@@ -18,6 +18,7 @@ import PostDetailScreen from "@/screens/PostDetailScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
+import CheckoutScreen from "@/screens/CheckoutScreen";
 import ProductDetailScreen from "@/screens/ProductDetailScreen";
 import ProductOrderDetailScreen from "@/screens/ProductOrderDetailScreen";
 import OrderSuccessScreen from "@/screens/OrderSuccessScreen";
@@ -393,6 +394,12 @@ export default function RootNavigator() {
         name="CartCheckout"
         component={CartCheckoutScreen}
         options={{ headerShown: false, presentation: "fullScreenModal" }}
+      />
+
+      <Stack.Screen
+        name="CheckoutScreen"
+        component={CheckoutScreen}
+        options={{ headerShown: false }}
       />
 
       <Stack.Screen
