@@ -166,12 +166,13 @@ function AppContent() {
 export default function App() {
   useEffect(() => {
     setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: "mixWithOthers",
+      interruptionModeAndroid: "duckOthers",
+      shouldRouteThroughEarpiece: false,
     })
-      .then(() => console.log("[Audio] session configured: playsInSilentModeIOS"))
+      .then(() => console.log("[Audio] session configured: playsInSilentMode"))
       .catch((e) => console.warn("[Audio] setAudioMode failed", e));
   }, []);
 
