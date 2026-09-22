@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -29,7 +30,7 @@ const formatCents = (cents?: number | null): string => {
 
 export default function ProductDetailScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const { addItem } = useCart();
@@ -115,6 +116,23 @@ export default function ProductDetailScreen() {
           setToastVisible(false);
         });
       }, 1200);
+    });
+  };
+
+  const handleBuyNow = () => {
+    if (!canAddToCart) return;
+    navigation.navigate("CheckoutScreen", {
+      mode: "buyNow",
+      buyNowItem: {
+        productId: String(id),
+        name,
+        priceCents: selectedVariant ? selectedVariant.priceCents : (priceCents ?? 0),
+        quantity,
+        vendorId: businessId,
+        imageUrl: imageUrl ?? undefined,
+        variantId: selectedVariant?.id,
+        variantLabel: selectedVariant?.label,
+      },
     });
   };
 
@@ -287,36 +305,89 @@ export default function ProductDetailScreen() {
             </View>
           </View>
 
-          {/* Add to Cart button */}
-          <Pressable
-            onPress={handleAddToCart}
-            disabled={!canAddToCart}
-            style={({ pressed }) => [
-              styles.addButton,
-              {
-                backgroundColor: canAddToCart ? theme.brandGold : theme.brandSurface,
-                opacity: pressed && canAddToCart ? 0.85 : canAddToCart ? 1 : 0.4,
-              },
-            ]}
+          {/* ── Dual CTA block ── */}
+          <View
+            style={{
+              backgroundColor: theme.brandSurface,
+              borderRadius: BorderRadius.lg,
+              padding: Spacing.sm,
+              marginTop: Spacing.xl,
+              borderWidth: 1,
+              borderColor: theme.brandSurfaceBorder,
+              gap: Spacing.sm,
+            }}
           >
-            <Feather
-              name="shopping-cart"
-              size={18}
-              color={canAddToCart ? "#000" : (theme.brandTextDim ?? "#999")}
-            />
-            <Text
-              style={[
-                styles.addButtonText,
-                { color: canAddToCart ? "#000" : (theme.brandTextDim ?? "#999") },
-              ]}
+            {/* Buy Now — primary */}
+            <Pressable
+              onPress={handleBuyNow}
+              disabled={!canAddToCart}
+              accessibilityLabel="Buy Now — instant purchase, skips cart"
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: Spacing.sm,
+                paddingVertical: Spacing.md,
+                borderRadius: BorderRadius.full,
+                backgroundColor: canAddToCart ? theme.brandGold : theme.brandSurface,
+                opacity: !canAddToCart ? 0.4 : pressed ? 0.85 : 1,
+              })}
             >
-              {isOutOfStock
-                ? "Out of Stock"
-                : variants.length > 0 && selectedVariant === null
+              <Feather
+                name="zap"
+                size={16}
+                color={canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999")}
+              />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "900",
+                  letterSpacing: -0.3,
+                  color: canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999"),
+                }}
+              >
+                {isOutOfStock
+                  ? "Out of Stock"
+                  : variants.length > 0 && selectedVariant === null
                   ? "Select an option"
-                  : "Add to Cart"}
-            </Text>
-          </Pressable>
+                  : "Buy Now"}
+              </Text>
+            </Pressable>
+
+            {/* Add to Cart — secondary */}
+            <Pressable
+              onPress={handleAddToCart}
+              disabled={!canAddToCart}
+              accessibilityLabel="Add to Cart"
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: Spacing.sm,
+                paddingVertical: Spacing.md,
+                borderRadius: BorderRadius.full,
+                borderWidth: 1.5,
+                borderColor: canAddToCart ? theme.brandGold : theme.brandSurfaceBorder,
+                backgroundColor: "transparent",
+                opacity: !canAddToCart ? 0.4 : pressed ? 0.7 : 1,
+              })}
+            >
+              <Feather
+                name="shopping-cart"
+                size={16}
+                color={canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999")}
+              />
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "700",
+                  color: canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999"),
+                }}
+              >
+                Add to Cart
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
 
@@ -403,19 +474,6 @@ const styles = StyleSheet.create({
   stepperCount: {
     minWidth: 28,
     textAlign: "center",
-  },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    marginTop: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
   },
   toast: {
     position: "absolute",

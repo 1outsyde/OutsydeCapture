@@ -33,6 +33,19 @@ export type RootStackParamList = {
   };
   CartOrders: { openTab?: "cart" | "bookings" | "orders"; _ts?: number } | undefined;
   CartCheckout: undefined;
+  CheckoutScreen: {
+    mode: "cart" | "buyNow";
+    buyNowItem?: {
+      productId: string;
+      name: string;
+      priceCents: number;
+      quantity: number;
+      vendorId: string;
+      imageUrl?: string;
+      variantId?: string;
+      variantLabel?: string;
+    };
+  };
   ProductDetail: {
     id: string;
     businessId: string;

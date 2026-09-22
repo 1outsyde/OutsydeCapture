@@ -49,6 +49,8 @@ export const Colors = {
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",
     brandInfo:          "#007AFF",
+    gray:               "#2A2A2A",
+    black:              "#0A0A0A",
   },
   dark: {
     text: "#FFFFFF",
@@ -100,6 +102,8 @@ export const Colors = {
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",
     brandInfo:          "#007AFF",
+    gray:               "#2A2A2A",
+    black:              "#0A0A0A",
   },
 };
 
