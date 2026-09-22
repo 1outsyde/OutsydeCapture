@@ -4,7 +4,7 @@ import {
   AppStateStatus,
   StyleSheet,
 } from "react-native";
-import { Audio } from "expo-av";
+import { setAudioModeAsync } from "expo-audio";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -165,7 +165,7 @@ function AppContent() {
 
 export default function App() {
   useEffect(() => {
-    Audio.setAudioModeAsync({
+    setAudioModeAsync({
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
