@@ -1546,7 +1546,7 @@ export default function AccountScreen() {
               style={[styles.editProfileButton, { backgroundColor: accentColor }]}
               onPress={onEditProfilePress}
             >
-              <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
+              <Text style={styles.editProfileText}>Edit Profile</Text>
             </Pressable>
           ) : (
             <Pressable
