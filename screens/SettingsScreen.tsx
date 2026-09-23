@@ -63,6 +63,7 @@ export default function SettingsScreen() {
         style: "destructive",
         onPress: async () => {
           await logout();
+          navigation.getParent()?.navigate("Home");
         },
       },
     ]);
@@ -151,7 +152,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingTop: insets.top + 80, paddingBottom: 40 }}
+      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 40 }}
       contentInsetAdjustmentBehavior="automatic"
     >
       {/* ADDRESS */}
@@ -232,6 +233,21 @@ export default function SettingsScreen() {
             <Feather name="chevron-right" size={18} color="#444444" />
           </Pressable>
         )}
+        <Pressable
+          style={({ pressed }) => [styles.row, { opacity: pressed ? 0.75 : 1 }]}
+          onPress={() => navigation.navigate("ChangeEmail")}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: "#0d2020" }]}>
+              <Feather name="mail" size={18} color="#4ad4a8" />
+            </View>
+            <View style={styles.rowTextBlock}>
+              <ThemedText style={styles.rowLabel}>Change email</ThemedText>
+              <ThemedText style={styles.rowSubLabel}>Update your email address</ThemedText>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={18} color="#444444" />
+        </Pressable>
         <Pressable
           style={({ pressed }) => [styles.row, { opacity: pressed ? 0.75 : 1 }]}
           onPress={handleLogout}
