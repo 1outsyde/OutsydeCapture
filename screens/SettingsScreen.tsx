@@ -63,7 +63,7 @@ export default function SettingsScreen() {
         style: "destructive",
         onPress: async () => {
           await logout();
-          navigation.getParent()?.navigate("Home");
+          navigation.getParent()?.navigate("DiscoverTab");
         },
       },
     ]);
