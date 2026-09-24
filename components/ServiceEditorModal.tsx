@@ -121,8 +121,10 @@ export default function ServiceEditorModal({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const [formData, setFormData] = useState<ServiceFormData>(EMPTY_FORM);
+  const [durationError, setDurationError] = useState<string | null>(null);
 
   useEffect(() => {
+    setDurationError(null);
     if (initialData) {
       setFormData({
         id: initialData.id,
@@ -162,9 +164,20 @@ export default function ServiceEditorModal({
       return;
     }
 
+    let dataToSave = formData;
+    if (formData.pricingModel === "package") {
+      const trimmed = formData.duration.trim();
+      const parsed = parseInt(trimmed, 10);
+      if (trimmed === "" || isNaN(parsed) || parsed < 1) {
+        setDurationError("Duration is required");
+        return;
+      }
+      dataToSave = { ...formData, duration: String(parsed) };
+    }
+
     try {
       setSaving(true);
-      await onSave(formData);
+      await onSave(dataToSave);
       onClose();
     } catch (error) {
       console.error("Failed to save service:", error);
@@ -370,20 +383,30 @@ export default function ServiceEditorModal({
                     {
                       backgroundColor: theme.card,
                       color: theme.text,
-                      borderColor: theme.border,
+                      borderColor:
+                        formData.pricingModel === "package" && durationError
+                          ? theme.error
+                          : theme.border,
                     },
                   ]}
                   value={formData.pricingModel === "hourly" ? formData.packageHours : formData.duration}
-                  onChangeText={(text) =>
+                  onChangeText={(text) => {
+                    if (formData.pricingModel !== "hourly")
+                      setDurationError(null);
                     setFormData((prev) => ({
                       ...prev,
                       [formData.pricingModel === "hourly" ? "packageHours" : "duration"]: text,
-                    }))
-                  }
-                  placeholder={formData.pricingModel === "hourly" ? "2" : "60"}
+                    }));
+                  }}
+                  placeholder={formData.pricingModel === "hourly" ? "2" : "e.g. 90"}
                   placeholderTextColor={theme.textSecondary}
-                  keyboardType="number-pad"
+                  keyboardType="numeric"
                 />
+                {formData.pricingModel === "package" && durationError && (
+                  <Text style={[styles.errorText, { color: theme.error }]}>
+                    {durationError}
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -718,6 +741,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 16,
     fontSize: 16,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 6,
   },
   textArea: {
     height: 100,
