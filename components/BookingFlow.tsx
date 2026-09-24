@@ -341,6 +341,9 @@ export default function BookingFlow({
   const piCalledHoldIdsRef = useRef<Set<string>>(new Set());
   // Holds that have a PaymentIntent (create-payment-intent returned).
   const piCreatedHoldIdsRef = useRef<Set<string>>(new Set());
+  // create-payment-intent attempts per hold. Only a HOLD_EXPIRED on the first
+  // attempt proves nothing was created for the hold.
+  const piAttemptsRef = useRef<Map<string, number>>(new Map());
   // Bumped on every hold request and on back/unmount; a hold response from an
   // older request is released instead of used.
   const holdReqSeqRef = useRef(0);
@@ -372,12 +375,10 @@ export default function BookingFlow({
   // A PaymentIntent exists for the current hold: only Pay or Close remain.
   const paymentIntentExists =
     !!hold && piCreatedHoldIdsRef.current.has(hold.holdId);
-  // Deposit policy wording: the hold is authoritative once loaded; before
-  // that, the stored deposit on the selected service.
-  const serviceHasDeposit =
-    typeof hold?.depositNonRefundable === "boolean"
-      ? hold.depositNonRefundable
-      : (selectedService?.depositAmountCents ?? 0) > 0;
+  // Deposit policy wording comes from the hold only; the policy is not shown
+  // until the hold is ready.
+  const serviceHasDeposit = hold?.depositNonRefundable === true;
+  const policyReady = holdStatus === "ready" && !!hold;
 
   const monthDate = useMemo(() => {
     const [year, month] = currentMonth.split("-").map(Number);
@@ -699,6 +700,7 @@ export default function BookingFlow({
       dueAtAppointmentCents: currentHold.dueAtAppointmentCents,
       depositAmountCents: currentHold.depositAmountCents ?? null,
     };
+    let attempt = 0;
 
     try {
       const customerAddress =
@@ -714,6 +716,8 @@ export default function BookingFlow({
       // From here on the backend has a booking for this hold, so it is never
       // released; a retry reuses the same hold and PaymentIntent.
       piCalledHoldIdsRef.current.add(currentHold.holdId);
+      attempt = (piAttemptsRef.current.get(currentHold.holdId) ?? 0) + 1;
+      piAttemptsRef.current.set(currentHold.holdId, attempt);
       const pd = await api.createHoldPaymentIntent(
         currentHold.holdId,
         customerAddress,
@@ -742,13 +746,15 @@ export default function BookingFlow({
     } catch (err: any) {
       console.warn("[BookingFlow] payment failed", err?.message);
       if (err?.body?.errorCode === "HOLD_EXPIRED") {
-        // The backend rejects an expired hold before creating a booking, so
-        // without a PaymentIntent the customer can simply hold again.
-        if (piCreatedHoldIdsRef.current.has(currentHold.holdId)) {
-          setHoldStatus("expiredAfterPayment");
-        } else {
+        // The backend rejects an expired hold before it looks for or creates
+        // a booking, so HOLD_EXPIRED on the first attempt proves nothing was
+        // created and the customer may hold again. After any earlier attempt
+        // (which may have created a booking) only Close is offered.
+        if (attempt === 1) {
           applyHold(null);
           setHoldStatus("expired");
+        } else {
+          setHoldStatus("expiredAfterPayment");
         }
       } else if (err?.sheetError) {
         setError(
@@ -972,6 +978,38 @@ export default function BookingFlow({
       </ThemedText>
     );
   };
+
+  // Stands in for the cancellation-policy checkbox until the hold is ready, so
+  // no policy text is shown before the deposit rule is known.
+  const renderPolicyPlaceholder = (withDivider: boolean) => (
+    <View
+      key="cancellation"
+      accessible
+      accessibilityLabel="Loading cancellation policy"
+    >
+      {withDivider && (
+        <View
+          style={{
+            height: 1,
+            backgroundColor: theme.brandSurfaceBorder,
+            marginVertical: Spacing.sm,
+          }}
+        />
+      )}
+      <View
+        style={[
+          styles.amountSkeleton,
+          { backgroundColor: theme.brandSurfaceBorder },
+        ]}
+      />
+      <View
+        style={[
+          styles.amountSkeleton,
+          { backgroundColor: theme.brandSurfaceBorder, width: "60%" },
+        ]}
+      />
+    </View>
+  );
 
   const renderPaySection = () => {
     if (!selectedService) return null;
@@ -1843,7 +1881,9 @@ export default function BookingFlow({
             }
 
             // Cancellation policy row — shown when service has a policy
-            if (hasCancellationPolicy) {
+            if (hasCancellationPolicy && !policyReady) {
+              rows.push(renderPolicyPlaceholder(rows.length > 0));
+            } else if (hasCancellationPolicy) {
               rows.push(
                 <View key="cancellation">
                   {rows.length > 0 && <View style={{ height: 1, backgroundColor: theme.brandSurfaceBorder, marginVertical: Spacing.sm }} />}
@@ -1972,7 +2012,7 @@ export default function BookingFlow({
 
       {/* Cancellation policy detail modal */}
       <Modal
-        visible={showCancellationModal}
+        visible={showCancellationModal && policyReady}
         transparent
         animationType="fade"
         onRequestClose={() => setShowCancellationModal(false)}
