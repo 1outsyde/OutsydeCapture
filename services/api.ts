@@ -139,6 +139,7 @@ export interface ApiBusinessDetail {
   twitter?: string;
   brandColors?: string;
   isMultiStaff?: boolean;
+  autoAcceptBookings?: boolean;
 }
 
 export interface ApiBusinessStaffMember {
@@ -4496,12 +4497,24 @@ class ApiService {
       serviceId: string;
       date: string;
       startTime: string;
+      staffMemberId?: string;
     }
   ): Promise<BookingHoldResponse> {
     return this.request<BookingHoldResponse>("/api/booking/hold", {
       method: "POST",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/booking/hold/:holdId - Release a hold the customer no longer needs
+  async releaseBookingHold(
+    authToken: string,
+    holdId: string,
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/booking/hold/${holdId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -4533,12 +4546,23 @@ class ApiService {
     captureMethod: "automatic" | "manual";
     requiresApproval?: boolean;
     status?: string;
+    bookingNumber?: number;
+    depositAmountCents?: number | null;
+    servicePriceCents?: number;
+    chargeAmountCents?: number;
     feeBreakdown?: {
       subtotal: number;
       consumerFee: number;
       bookingFee: number;
       vendorNet: number;
       grossCharge: number;
+      // Keys the backend actually sends (routes.ts create-payment-intent).
+      subtotalAmount?: number;
+      consumerServiceFeeAmount?: number;
+      bookingFeeAmount?: number;
+      vendorNetAmount?: number;
+      grossChargeAmount?: number;
+      feeModelVersion?: string;
     };
   }> {
     return this.request(`/api/booking/${holdId}/create-payment-intent`, {
@@ -4997,6 +5021,7 @@ export interface BookingService {
   hasCancellationFee?: boolean | null;
   cancellationFeeType?: string | null;
   cancellationFeeAmount?: number | null;
+  depositAmountCents?: number | null;
 }
 
 export interface BookingValidationResponse {
@@ -5020,18 +5045,34 @@ export interface BookingHoldResponse {
   success: boolean;
   holdId: string;
   expiresAt: string;
+  // Not sent by the backend; kept (required) so existing callers compile.
   service: {
     id: string;
     name: string;
     durationMinutes: number;
     priceCents: number;
   };
+  // Not sent by the backend; kept (required) so existing callers compile.
   slot: {
     date: string;
     startTime: string;
     endTime: string;
   };
+  // Legacy fee preview on the full service price — not what is due now.
   feeBreakdown?: FeeBreakdown;
+  serviceName?: string;
+  servicePriceCents?: number;
+  durationMinutes?: number;
+  startTime?: string;
+  endTime?: string;
+  // Deposit-aware amounts: what is charged now and what is paid in person.
+  serviceTotalCents?: number;
+  depositAmountCents?: number | null;
+  chargeAmountCents?: number;
+  dueNowCents?: number;
+  dueAtAppointmentCents?: number;
+  depositNonRefundable?: boolean;
+  dueNowFeeBreakdown?: FeeBreakdown;
 }
 
 export interface BookingConfirmResponse {
