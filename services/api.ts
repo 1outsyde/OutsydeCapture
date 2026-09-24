@@ -634,6 +634,7 @@ export interface VendorService {
   reviewCount?: number | null;
   createdAt?: string;
   updatedAt?: string;
+  depositAmountCents?: number | null;
 }
 
 // Create/Update Product Request
@@ -666,6 +667,7 @@ export interface VendorServiceInput {
   alternateState?: string | null;
   alternateZipCode?: string | null;
   virtualLink?: string | null;
+  depositAmountCents?: number | null;
 }
 
 export interface StaffServiceInput {

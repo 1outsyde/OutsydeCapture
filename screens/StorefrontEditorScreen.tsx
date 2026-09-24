@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -13,10 +13,11 @@ import {
   Switch,
   FlatList,
   Image,
+  AppState,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -75,6 +76,31 @@ const SPECIALTY_OPTIONS = [
   "Best Price",
   "Custom Orders",
 ];
+
+const MIN_DEPOSIT_CENTS = 700;
+
+const normalizeService = (s: any): VendorService => ({
+  ...s,
+  priceCents:
+    Number.isFinite(Number(s.priceCents)) && s.priceCents > 0
+      ? Number(s.priceCents)
+      : Number.isFinite(Number(s.price)) && s.price > 0
+        ? Number(s.price)
+        : 0,
+});
+
+// Strict dollar parsing for the deposit input: "$30", "30,50" and "30.5" are
+// accepted; partial numbers like "12abc" or "3.555" are rejected.
+const parseDepositInput = (
+  raw: string,
+): { cents: number } | { error: string } => {
+  const s = raw.trim().replace(/^\$/, "").trim().replace(",", ".");
+  if (s === "") return { error: "Enter a deposit amount." };
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) {
+    return { error: "Enter a valid amount, like 30.00." };
+  }
+  return { cents: Math.round(parseFloat(s) * 100) };
+};
 
 export default function StorefrontEditorScreen() {
   const { theme, isDark } = useTheme();
@@ -284,7 +310,56 @@ export default function StorefrontEditorScreen() {
     alternateState: null,
     alternateZipCode: null,
     virtualLink: null,
+    depositAmountCents: null,
   });
+
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositInput, setDepositInput] = useState("");
+  const [depositTouched, setDepositTouched] = useState(false);
+  const [depositServerError, setDepositServerError] = useState<string | null>(
+    null,
+  );
+
+  // Request counter: a services response only writes the list if no newer
+  // services request has started since.
+  const servicesReqRef = useRef(0);
+  const serviceModalOpenRef = useRef(false);
+  const savingRef = useRef(false);
+  const didInitialFocusRef = useRef(false);
+
+  useEffect(() => {
+    serviceModalOpenRef.current = serviceModalVisible;
+  }, [serviceModalVisible]);
+
+  useEffect(() => {
+    savingRef.current = saving;
+  }, [saving]);
+
+  // Sets the deposit toggle and input from a stored value. A stored 0 means
+  // no deposit.
+  const applyLoadedDeposit = (loaded: number | null | undefined) => {
+    const on = typeof loaded === "number" && loaded > 0;
+    setDepositEnabled(on);
+    setDepositInput(on ? (loaded / 100).toFixed(2) : "");
+    setDepositTouched(false);
+    setDepositServerError(null);
+  };
+
+  const loadServicesList = async (token: string) => {
+    const reqId = ++servicesReqRef.current;
+    const res = await api.getVendorServices(token).catch(() => null);
+    if (!res || reqId !== servicesReqRef.current) return null;
+    setServices((res.services || []).map(normalizeService));
+    return res;
+  };
+
+  // Refreshes only the services list; never touches the open form.
+  const refreshServicesOnly = async () => {
+    if (serviceModalOpenRef.current || savingRef.current) return;
+    const token = await getToken();
+    if (!token) return;
+    await loadServicesList(token);
+  };
 
   const fetchData = useCallback(async () => {
     const token = await getToken();
@@ -292,6 +367,7 @@ export default function StorefrontEditorScreen() {
 
     try {
       setLoading(true);
+      const servicesReqId = ++servicesReqRef.current;
       const [businessRes, productsRes, servicesRes, eligibilityRes] =
         await Promise.all([
           api.getVendorMyBusiness(token),
@@ -314,18 +390,11 @@ export default function StorefrontEditorScreen() {
               ? Number(p.price)
               : 0,
       });
-      const normalizeService = (s: any): VendorService => ({
-        ...s,
-        priceCents:
-          Number.isFinite(Number(s.priceCents)) && s.priceCents > 0
-            ? Number(s.priceCents)
-            : Number.isFinite(Number(s.price)) && s.price > 0
-              ? Number(s.price)
-              : 0,
-      });
-
       setProducts((productsRes.products || []).map(normalizeProduct));
-      setServices((servicesRes.services || []).map(normalizeService));
+      // Only the latest services request may write the list.
+      if (servicesReqId === servicesReqRef.current) {
+        setServices((servicesRes.services || []).map(normalizeService));
+      }
 
       const isVideo = biz.coverMediaType === "video";
       if (isVideo) {
@@ -399,6 +468,31 @@ export default function StorefrontEditorScreen() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const refreshServicesRef = useRef(refreshServicesOnly);
+  refreshServicesRef.current = refreshServicesOnly;
+
+  // Pick up service changes made elsewhere (another device, the website) when
+  // the screen regains focus. The first focus is covered by the mount load.
+  useFocusEffect(
+    useCallback(() => {
+      if (!didInitialFocusRef.current) {
+        didInitialFocusRef.current = true;
+        return;
+      }
+      refreshServicesRef.current();
+    }, []),
+  );
+
+  // Same when the app returns to the foreground while this screen is shown.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active" && navigation.isFocused()) {
+        refreshServicesRef.current();
+      }
+    });
+    return () => subscription.remove();
+  }, [navigation]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -782,7 +876,9 @@ export default function StorefrontEditorScreen() {
         alternateState: s.alternateState ?? null,
         alternateZipCode: s.alternateZipCode ?? null,
         virtualLink: s.virtualLink ?? null,
+        depositAmountCents: s.depositAmountCents ?? null,
       });
+      applyLoadedDeposit(s.depositAmountCents);
     } else {
       const biz = business as any;
       setEditingService(null);
@@ -805,10 +901,23 @@ export default function StorefrontEditorScreen() {
         alternateState: null,
         alternateZipCode: null,
         virtualLink: null,
+        depositAmountCents: null,
       });
+      applyLoadedDeposit(null);
     }
     setServiceModalVisible(true);
   };
+
+  const parsedDeposit = parseDepositInput(depositInput);
+  const depositError = !depositEnabled
+    ? null
+    : "error" in parsedDeposit
+      ? parsedDeposit.error
+      : parsedDeposit.cents < MIN_DEPOSIT_CENTS
+        ? "Deposit must be at least $7.00."
+        : parsedDeposit.cents >= (serviceForm.priceCents || 0)
+          ? "Deposit must be less than the service price."
+          : null;
 
   const handleSaveService = async () => {
     const token = await getToken();
@@ -824,6 +933,9 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
+    // The deposit error is already shown inline under the field.
+    if (depositError) return;
+
     if (serviceForm.status === "live" && !canPublishServices) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
       setServiceForm({
@@ -836,14 +948,30 @@ export default function StorefrontEditorScreen() {
 
     const shouldGoLive = serviceForm.status === "live";
 
+    // Deposit: sent on create; on edit only when the vendor changed it, so a
+    // deposit set elsewhere is never overwritten by an untouched form.
+    const { depositAmountCents: _loadedDeposit, ...baseServiceForm } =
+      serviceForm;
+    const depositValue =
+      depositEnabled && "cents" in parsedDeposit ? parsedDeposit.cents : null;
+
     try {
       setSaving(true);
       let serviceId: string;
       if (editingService) {
-        await api.updateVendorService(token, editingService.id, serviceForm);
+        await api.updateVendorService(
+          token,
+          editingService.id,
+          depositTouched
+            ? { ...baseServiceForm, depositAmountCents: depositValue }
+            : baseServiceForm,
+        );
         serviceId = editingService.id;
       } else {
-        const response = await api.createVendorService(token, serviceForm);
+        const response = await api.createVendorService(token, {
+          ...baseServiceForm,
+          depositAmountCents: depositValue,
+        });
         serviceId = response.service.id;
       }
 
@@ -866,6 +994,28 @@ export default function StorefrontEditorScreen() {
         Alert.alert(title, message);
       }
     } catch (error: any) {
+      if (error.status === 400 && error.body?.code === "INVALID_DEPOSIT") {
+        setDepositServerError(error.message);
+        if (editingService) {
+          // Reload the saved deposit and status; keep the vendor's typed price
+          // and other unsaved fields so the conflict shows inline.
+          const res = await loadServicesList(token);
+          const fresh = res?.services
+            .map(normalizeService)
+            .find((s) => s.id === editingService.id);
+          if (fresh && serviceModalOpenRef.current) {
+            setEditingService(fresh);
+            setServiceForm((f) => ({
+              ...f,
+              status: fresh.status,
+              depositAmountCents: fresh.depositAmountCents ?? null,
+            }));
+            applyLoadedDeposit(fresh.depositAmountCents);
+            setDepositServerError(error.message);
+          }
+        }
+        return;
+      }
       if (error.status === 403) {
         Alert.alert("Cannot Publish", getPublishBlockerMessage(error.body));
       } else {
@@ -2346,6 +2496,10 @@ export default function StorefrontEditorScreen() {
                     style={[styles.serviceDetailText, { color: theme.brandGold }]}
                   >
                     {formatPrice(service.priceCents)}
+                    {typeof service.depositAmountCents === "number" &&
+                    service.depositAmountCents > 0
+                      ? ` · ${formatPrice(service.depositAmountCents)} deposit`
+                      : ""}
                   </Text>
                 </View>
                 {service.durationMinutes && (
@@ -2613,16 +2767,87 @@ export default function StorefrontEditorScreen() {
                 ? (serviceForm.priceCents / 100).toString()
                 : ""
             }
-            onChangeText={(v) =>
+            onChangeText={(v) => {
               setServiceForm({
                 ...serviceForm,
                 priceCents: Math.round(parseFloat(v || "0") * 100),
-              })
-            }
+              });
+              setDepositServerError(null);
+            }}
             placeholder="0.00"
             placeholderTextColor={theme.brandTextDim}
             keyboardType="decimal-pad"
           />
+
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.inputLabel}>Require deposit at booking</Text>
+              <Text style={{ fontSize: 13, color: theme.brandTextDim }}>
+                Collect a deposit at booking, balance due at appointment
+              </Text>
+            </View>
+            <Switch
+              value={depositEnabled}
+              onValueChange={(v) => {
+                // Turning it off keeps the typed amount so turning it back on
+                // restores it; an off toggle always saves as no deposit.
+                setDepositEnabled(v);
+                setDepositTouched(true);
+                setDepositServerError(null);
+              }}
+              trackColor={{ true: theme.brandGold }}
+              accessibilityLabel="Require deposit at booking"
+            />
+          </View>
+
+          {depositServerError && !depositError && (
+            <Text
+              style={{
+                fontSize: 12,
+                color: theme.brandError,
+                marginTop: -8,
+                marginBottom: 12,
+              }}
+            >
+              {depositServerError}
+            </Text>
+          )}
+
+          {depositEnabled && (
+            <>
+              <Text style={styles.inputLabel}>Deposit (in dollars)</Text>
+              <TextInput
+                style={styles.input}
+                value={depositInput}
+                onChangeText={(v) => {
+                  setDepositInput(v);
+                  setDepositTouched(true);
+                  setDepositServerError(null);
+                }}
+                onBlur={() => {
+                  if ("cents" in parsedDeposit) {
+                    setDepositInput((parsedDeposit.cents / 100).toFixed(2));
+                  }
+                }}
+                placeholder="0.00"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="decimal-pad"
+                accessibilityLabel="Deposit amount in dollars"
+              />
+              {depositError && (
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: theme.brandError,
+                    marginTop: -6,
+                    marginBottom: 12,
+                  }}
+                >
+                  {depositError}
+                </Text>
+              )}
+            </>
+          )}
 
           <Text style={styles.inputLabel}>Duration (minutes)</Text>
           <TextInput
