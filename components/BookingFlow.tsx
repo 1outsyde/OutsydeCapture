@@ -1445,10 +1445,6 @@ export default function BookingFlow({
                 <View style={styles.servicePrice}>
                   <ThemedText style={[styles.priceText, { color: accent }]}>
                     {formatPrice(service.priceCents)}
-                    {typeof service.depositAmountCents === "number" &&
-                    service.depositAmountCents > 0
-                      ? ` · ${formatPrice(service.depositAmountCents)} deposit`
-                      : ""}
                   </ThemedText>
                   <Feather name="chevron-right" size={20} color={theme.brandTextDim} />
                 </View>
