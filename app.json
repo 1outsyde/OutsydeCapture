@@ -72,7 +72,8 @@
           "merchantIdentifier": "merchant.com.outsyde.app",
           "enableGooglePay": false
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "reactCompiler": true
