@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
 
 const SERVICE_CATEGORIES = [
   "Portrait",
@@ -75,7 +76,13 @@ export interface ServiceFormData {
   hasCancellationFee?: boolean;
   cancellationFeeType?: "flat" | "percentage" | null;
   cancellationFeeAmount?: number | null;
+  // Loaded deposit on input; on save, cents or null plus whether the provider
+  // changed it (edits only send the deposit when touched).
+  depositAmountCents?: number | null;
+  depositTouched?: boolean;
 }
+
+export type DepositMode = "always" | "packageOnly" | "hidden";
 
 interface ServiceEditorModalProps {
   visible: boolean;
@@ -83,6 +90,9 @@ interface ServiceEditorModalProps {
   onSave: (data: ServiceFormData) => Promise<void>;
   initialData?: ServiceFormData | null;
   brandColor?: string;
+  depositMode?: DepositMode;
+  depositServerError?: string | null;
+  onClearDepositServerError?: () => void;
 }
 
 const EMPTY_FORM: ServiceFormData = {
@@ -106,6 +116,8 @@ const EMPTY_FORM: ServiceFormData = {
   hasCancellationFee: false,
   cancellationFeeType: null,
   cancellationFeeAmount: null,
+  depositAmountCents: null,
+  depositTouched: false,
 };
 
 export default function ServiceEditorModal({
@@ -114,6 +126,9 @@ export default function ServiceEditorModal({
   onSave,
   initialData,
   brandColor = "#D4A84B",
+  depositMode = "hidden",
+  depositServerError = null,
+  onClearDepositServerError,
 }: ServiceEditorModalProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -123,8 +138,26 @@ export default function ServiceEditorModal({
   const [formData, setFormData] = useState<ServiceFormData>(EMPTY_FORM);
   const [durationError, setDurationError] = useState<string | null>(null);
 
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositInput, setDepositInput] = useState("");
+  const [depositTouched, setDepositTouched] = useState(false);
+  const loadedDepositRef = useRef(false);
+
+  // Sets the deposit toggle and input from a stored value. A stored 0 means
+  // no deposit.
+  const applyLoadedDeposit = (loaded: number | null | undefined) => {
+    const on = typeof loaded === "number" && loaded > 0;
+    loadedDepositRef.current = on;
+    setDepositEnabled(on);
+    setDepositInput(on ? (loaded / 100).toFixed(2) : "");
+    setDepositTouched(false);
+  };
+
+  const clearDepositServerError = () => onClearDepositServerError?.();
+
   useEffect(() => {
     setDurationError(null);
+    applyLoadedDeposit(initialData?.depositAmountCents);
     if (initialData) {
       setFormData({
         id: initialData.id,
@@ -149,11 +182,32 @@ export default function ServiceEditorModal({
         hasCancellationFee: initialData.hasCancellationFee ?? false,
         cancellationFeeType: initialData.cancellationFeeType ?? null,
         cancellationFeeAmount: initialData.cancellationFeeAmount ?? null,
+        depositAmountCents: initialData.depositAmountCents ?? null,
+        depositTouched: false,
       });
     } else {
       setFormData(EMPTY_FORM);
     }
   }, [initialData, visible]);
+
+  const depositVisible =
+    depositMode === "always" ||
+    (depositMode === "packageOnly" && formData.pricingModel === "package");
+  const priceCents = Math.round(parseFloat(formData.price || "0") * 100);
+  const parsedDeposit = parseDepositInput(depositInput);
+  // The "less than price" check applies to package prices only; an hourly
+  // rate is not the booking total.
+  const depositError =
+    !depositVisible || !depositEnabled
+      ? null
+      : "error" in parsedDeposit
+        ? parsedDeposit.error
+        : parsedDeposit.cents < MIN_DEPOSIT_CENTS
+          ? "Deposit must be at least $7.00."
+          : formData.pricingModel === "package" &&
+              parsedDeposit.cents >= (priceCents || 0)
+            ? "Deposit must be less than the service price."
+            : null;
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
@@ -164,7 +218,24 @@ export default function ServiceEditorModal({
       return;
     }
 
-    let dataToSave = formData;
+    // The deposit error is already shown inline under the field.
+    if (depositError) return;
+
+    // A hidden deposit (hourly photographer service) always saves as none; a
+    // deposit loaded from the server counts as touched so it is cleared.
+    const depositAmountCents =
+      depositVisible && depositEnabled && "cents" in parsedDeposit
+        ? parsedDeposit.cents
+        : null;
+    const depositWasTouched = depositVisible
+      ? depositTouched
+      : depositMode !== "hidden" && (loadedDepositRef.current || depositTouched);
+
+    let dataToSave: ServiceFormData = {
+      ...formData,
+      depositAmountCents,
+      depositTouched: depositWasTouched,
+    };
     if (formData.pricingModel === "package") {
       const trimmed = formData.duration.trim();
       const parsed = parseInt(trimmed, 10);
@@ -172,7 +243,7 @@ export default function ServiceEditorModal({
         setDurationError("Duration is required");
         return;
       }
-      dataToSave = { ...formData, duration: String(parsed) };
+      dataToSave = { ...dataToSave, duration: String(parsed) };
     }
 
     try {
@@ -330,12 +401,13 @@ export default function ServiceEditorModal({
                           formData.pricingModel === model.value ? brandColor : theme.border,
                       },
                     ]}
-                    onPress={() =>
+                    onPress={() => {
                       setFormData((prev) => ({
                         ...prev,
                         pricingModel: model.value as "package" | "hourly",
-                      }))
-                    }
+                      }));
+                      clearDepositServerError();
+                    }}
                   >
                     <Text
                       style={[
@@ -367,7 +439,10 @@ export default function ServiceEditorModal({
                     },
                   ]}
                   value={formData.price}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, price: text }))}
+                  onChangeText={(text) => {
+                    setFormData((prev) => ({ ...prev, price: text }));
+                    clearDepositServerError();
+                  }}
                   placeholder="0.00"
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="decimal-pad"
@@ -409,6 +484,73 @@ export default function ServiceEditorModal({
                 )}
               </View>
             </View>
+
+            {depositVisible && (
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={[styles.label, { color: theme.text, marginBottom: 0 }]}>
+                    Require deposit at booking
+                  </Text>
+                  <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                    Collect a deposit at booking, balance due at appointment
+                  </Text>
+                </View>
+                <Switch
+                  value={depositEnabled}
+                  onValueChange={(v) => {
+                    // Turning it off keeps the typed amount so turning it back on
+                    // restores it; an off toggle always saves as no deposit.
+                    setDepositEnabled(v);
+                    setDepositTouched(true);
+                    clearDepositServerError();
+                  }}
+                  trackColor={{ true: brandColor }}
+                  accessibilityLabel="Require deposit at booking"
+                />
+              </View>
+            )}
+
+            {depositServerError && !depositError && (
+              <Text
+                style={[styles.errorText, { color: theme.error, marginTop: -8, marginBottom: 12 }]}
+              >
+                {depositServerError}
+              </Text>
+            )}
+
+            {depositVisible && depositEnabled && (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: theme.text }]}>Deposit (in dollars)</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.card,
+                      color: theme.text,
+                      borderColor: depositError ? theme.error : theme.border,
+                    },
+                  ]}
+                  value={depositInput}
+                  onChangeText={(v) => {
+                    setDepositInput(v);
+                    setDepositTouched(true);
+                    clearDepositServerError();
+                  }}
+                  onBlur={() => {
+                    if ("cents" in parsedDeposit) {
+                      setDepositInput((parsedDeposit.cents / 100).toFixed(2));
+                    }
+                  }}
+                  placeholder="0.00"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                  accessibilityLabel="Deposit amount in dollars"
+                />
+                {depositError && (
+                  <Text style={[styles.errorText, { color: theme.error }]}>{depositError}</Text>
+                )}
+              </View>
+            )}
 
             {/* ── Service Location ── */}
             <View style={styles.field}>
