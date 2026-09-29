@@ -61,9 +61,55 @@ type CalendarGridCell = {
   isToday: boolean;
 };
 
+// ─── Hold / payment ───────────────────────────────────────────────────────────
+
+// Matches the backend hold TTL; the countdown runs on the device clock from
+// when the hold was requested.
+const HOLD_TTL_MS = 10 * 60 * 1000;
+
+type HoldStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+  | "expired"
+  | "expiredAfterPayment";
+
+type HoldPaymentIntentResponse = Awaited<
+  ReturnType<typeof api.createHoldPaymentIntent>
+>;
+
+// Amounts captured when the customer taps Pay; the confirmation screen reads
+// these so a hold expiring during the Payment Sheet cannot blank them.
+interface PaidSnapshot {
+  serviceTotalCents: number | undefined;
+  dueNowCents: number;
+  dueAtAppointmentCents: number | undefined;
+  depositAmountCents: number | null;
+}
+
+// Customer-facing copy for hold errors. Raw messages go to the console only.
+const mapHoldError = (err: any): string => {
+  const code = err?.body?.errorCode;
+  if (code === "HOLD_EXPIRED") return "Your hold on this time expired.";
+  if (code === "SLOT_UNAVAILABLE") {
+    return "This time was just taken. Please choose another time.";
+  }
+  if (!err?.status) {
+    return "Couldn't reach Outsyde. Check your connection and try again.";
+  }
+  return "Something went wrong holding this time.";
+};
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 const formatPrice = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+
+const formatHoldTime = (ms: number): string => {
+  const mins = Math.floor(ms / 60000);
+  const secs = Math.floor((ms % 60000) / 1000);
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+};
 
 const formatTime = (time24: string): string => {
   const [hourStr, minuteStr] = time24.split(":");
@@ -239,13 +285,18 @@ export default function BookingScreen() {
   const [validatedEndTime, setValidatedEndTime] = useState<string | null>(null);
   const [hold, setHold] = useState<BookingHoldResponse | null>(null);
   const [holdTimeRemaining, setHoldTimeRemaining] = useState<number>(0);
+  const [holdStatus, setHoldStatus] = useState<HoldStatus>("idle");
+  const [holdErrorCopy, setHoldErrorCopy] = useState<string | null>(null);
+  const [paymentData, setPaymentData] =
+    useState<HoldPaymentIntentResponse | null>(null);
+  const [paidSnapshot, setPaidSnapshot] = useState<PaidSnapshot | null>(null);
 
   // ─── Loading / error ───────────────────────────────────────────────────────
   const [isLoadingServices, setIsLoadingServices] = useState(true);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
-  const [isCreatingHold, setIsCreatingHold] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // ─── Review step acknowledgment state ─────────────────────────────────────
@@ -270,6 +321,48 @@ export default function BookingScreen() {
   const [bookingPending, setBookingPending] = useState(false);
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // holdRef always mirrors `hold` (set only through applyHold) so cleanup and
+  // async callbacks see the current hold.
+  const holdRef = useRef<BookingHoldResponse | null>(null);
+  const holdLocalExpiresAtRef = useRef<number>(0);
+  // Holds that create-payment-intent was called for: never released, since
+  // the backend has already created a booking for them.
+  const piCalledHoldIdsRef = useRef<Set<string>>(new Set());
+  // Holds that have a PaymentIntent (create-payment-intent returned).
+  const piCreatedHoldIdsRef = useRef<Set<string>>(new Set());
+  // create-payment-intent attempts per hold. Only a HOLD_EXPIRED on the first
+  // attempt proves nothing was created for the hold.
+  const piAttemptsRef = useRef<Map<string, number>>(new Map());
+  // Bumped on every hold request and on back/unmount; a hold response from an
+  // older request is released instead of used.
+  const holdReqSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  const stepRef = useRef<Step>(step);
+  const payingRef = useRef(false);
+
+  const invalidateHoldRequests = () => {
+    holdReqSeqRef.current++;
+  };
+
+  const applyHold = (h: BookingHoldResponse | null) => {
+    holdRef.current = h;
+    setHold(h);
+  };
+
+  const releaseHoldIfSafe = (h: BookingHoldResponse | null) => {
+    if (!h || piCalledHoldIdsRef.current.has(h.holdId)) return;
+    getToken()
+      .then((token) => {
+        if (token) return api.releaseBookingHold(token, h.holdId);
+      })
+      .catch(() => {});
+  };
+
+  // Payment was started for the current hold: the countdown stops.
+  const paymentStarted = !!hold && piCalledHoldIdsRef.current.has(hold.holdId);
+  // A PaymentIntent exists for the current hold: only Pay or leaving remain.
+  const paymentIntentExists =
+    !!hold && piCreatedHoldIdsRef.current.has(hold.holdId);
 
   // ─── Accent color ─────────────────────────────────────────────────────────
   const colorMode = colorScheme === "dark" ? "dark" : "light";
@@ -348,16 +441,42 @@ export default function BookingScreen() {
   }, [step, selectedDate]);
 
   useEffect(() => {
-    if (!hold) return;
+    stepRef.current = step;
+  }, [step]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      // Leaving the screen releases a hold that has not reached payment; late
+      // hold responses are dropped.
+      mountedRef.current = false;
+      invalidateHoldRequests();
+      releaseHoldIfSafe(holdRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Create the hold when the customer reaches the review step.
+  useEffect(() => {
+    if (step === 4 && selectedSlot && !hold && holdStatus === "idle") {
+      requestHold();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selectedSlot, hold, holdStatus]);
+
+  useEffect(() => {
+    // Once payment has started for this hold the countdown stops; the backend
+    // decides expiry from then on.
+    if (!hold || paymentStarted) return;
     const updateTimer = () => {
-      const remaining = Math.max(0, new Date(hold.expiresAt).getTime() - Date.now());
+      const remaining = Math.max(0, holdLocalExpiresAtRef.current - Date.now());
       setHoldTimeRemaining(remaining);
       if (remaining <= 0) handleHoldExpired();
     };
     updateTimer();
     holdTimerRef.current = setInterval(updateTimer, 1000);
     return () => { if (holdTimerRef.current) clearInterval(holdTimerRef.current); };
-  }, [hold]);
+  }, [hold, paymentStarted]);
 
   // ─── Data fetching ────────────────────────────────────────────────────────
 
@@ -525,31 +644,90 @@ export default function BookingScreen() {
 
   // ─── Hold + payment ───────────────────────────────────────────────────────
 
-  const createHoldAndPay = async () => {
+  // Holds the selected slot for the review step. A response that arrives after
+  // the customer went back or left is released straight away.
+  const requestHold = async () => {
     if (!selectedService || !selectedDate || !selectedSlot || !photographer) return;
-    const token = await getToken();
-    if (!token) return;
-
-    setIsCreatingHold(true);
+    const seq = ++holdReqSeqRef.current;
+    setHoldStatus("loading");
+    setHoldErrorCopy(null);
+    const requestStartedAt = Date.now();
     try {
-      const holdResponse = await api.createBookingHold(token, {
+      const token = await getToken();
+      if (!token) throw { status: 401, message: "Not signed in" };
+      const response = await api.createBookingHold(token, {
         providerId: photographer.id,
         providerType: "photographer",
         serviceId: selectedService.id,
         date: selectedDate,
         startTime: selectedSlot.startTime,
       });
-      if (!holdResponse.success) throw new Error("Failed to hold slot");
-      setHold(holdResponse);
 
+      const stale =
+        !mountedRef.current ||
+        stepRef.current !== 4 ||
+        seq !== holdReqSeqRef.current;
+      if (stale) {
+        releaseHoldIfSafe(response);
+        return;
+      }
+      if (!response.success) throw { status: 500, message: "Hold failed" };
+
+      holdLocalExpiresAtRef.current = requestStartedAt + HOLD_TTL_MS;
+      applyHold(response);
+      setHoldStatus("ready");
+    } catch (err: any) {
+      if (!mountedRef.current || seq !== holdReqSeqRef.current) return;
+      console.warn("[BookingScreen] hold failed", err?.message);
+      setHoldErrorCopy(mapHoldError(err));
+      setHoldStatus("error");
+    }
+  };
+
+  const handlePay = async () => {
+    // Guard before any await so a double tap cannot start two payments.
+    if (payingRef.current) return;
+    const currentHold = holdRef.current;
+    if (
+      !currentHold ||
+      holdStatus !== "ready" ||
+      typeof currentHold.dueNowCents !== "number" ||
+      !selectedService ||
+      !selectedDate ||
+      !selectedSlot ||
+      !photographer
+    ) {
+      return;
+    }
+    payingRef.current = true;
+    setPaying(true);
+
+    const snapshot: PaidSnapshot = {
+      serviceTotalCents: currentHold.serviceTotalCents,
+      dueNowCents: currentHold.dueNowCents,
+      dueAtAppointmentCents: currentHold.dueAtAppointmentCents,
+      depositAmountCents: currentHold.depositAmountCents ?? null,
+    };
+    let attempt = 0;
+
+    try {
       const customerAddress = selectedService.serviceLocationType === "customer"
         ? { customerServiceAddress, customerServiceCity, customerServiceState, customerServiceZipCode }
         : undefined;
 
-      const paymentData = await api.createHoldPaymentIntent(holdResponse.holdId, customerAddress);
+      // From here on the backend has a booking for this hold, so it is never
+      // released; a retry reuses the same hold and PaymentIntent.
+      piCalledHoldIdsRef.current.add(currentHold.holdId);
+      attempt = (piAttemptsRef.current.get(currentHold.holdId) ?? 0) + 1;
+      piAttemptsRef.current.set(currentHold.holdId, attempt);
+      const pd = await api.createHoldPaymentIntent(
+        currentHold.holdId,
+        customerAddress,
+      );
+      piCreatedHoldIdsRef.current.add(currentHold.holdId);
 
       const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: paymentData.clientSecret,
+        paymentIntentClientSecret: pd.clientSecret,
         merchantDisplayName: "Outsyde",
         allowsDelayedPaymentMethods: false,
       });
@@ -557,22 +735,23 @@ export default function BookingScreen() {
 
       const { error: presentError } = await presentPaymentSheet();
       if (presentError) {
-        if ((presentError as any).code === "Canceled") {
-          setIsCreatingHold(false);
-          return;
-        }
+        if ((presentError as any).code === "Canceled") return;
         throw new Error((presentError as any).message || "Payment failed");
       }
 
       // Payment succeeded
       if (holdTimerRef.current) clearInterval(holdTimerRef.current);
 
-      const isPending = !(photographer.autoAcceptBookings);
+      const isPending = Boolean(
+        pd.requiresApproval ?? !photographer.autoAcceptBookings,
+      );
       setBookingPending(isPending);
+      setPaidSnapshot(snapshot);
+      setPaymentData(pd);
 
       const locationStr = deriveLocationString();
-      const endTime = validatedEndTime || holdResponse.slot.endTime || selectedSlot.endTime;
-      const price = holdResponse.feeBreakdown?.grossChargeAmount ?? selectedService.priceCents / 100;
+      const endTime =
+        validatedEndTime || currentHold.slot?.endTime || selectedSlot.endTime;
       const photographerName = photographer.name || "the photographer";
       const formattedDate = formatDate(selectedDate);
       const formattedTime = selectedSlot.startTime;
@@ -604,18 +783,36 @@ export default function BookingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep(5);
     } catch (err: any) {
-      Alert.alert("Booking Error", err.message || "Something went wrong. Please try again.");
+      if (err?.body?.errorCode === "HOLD_EXPIRED") {
+        // The backend rejects an expired hold before it looks for or creates
+        // a booking, so HOLD_EXPIRED on the first attempt proves nothing was
+        // created and the customer may hold again. After any earlier attempt
+        // (which may have created a booking) only leaving is offered.
+        if (attempt === 1) {
+          applyHold(null);
+          setHoldStatus("expired");
+        } else {
+          setHoldStatus("expiredAfterPayment");
+        }
+      } else {
+        Alert.alert(
+          "Booking Error",
+          err.message || "Something went wrong. Please try again.",
+        );
+      }
     } finally {
-      setIsCreatingHold(false);
+      payingRef.current = false;
+      setPaying(false);
     }
   };
 
   const handleHoldExpired = () => {
+    const current = holdRef.current;
+    // After payment starts the backend decides whether the hold is still good.
+    if (current && piCalledHoldIdsRef.current.has(current.holdId)) return;
     if (holdTimerRef.current) clearInterval(holdTimerRef.current);
-    setHold(null);
-    setSelectedSlot(null);
-    setStep(3);
-    Alert.alert("Slot Expired", "Your held slot has expired. Please select a new time slot.");
+    applyHold(null);
+    setHoldStatus("expired");
   };
 
   // ─── Navigation handlers ──────────────────────────────────────────────────
@@ -654,7 +851,20 @@ export default function BookingScreen() {
       setSelectedDate(null);
       setSlots([]);
     } else if (step === 4) {
+      if (payingRef.current) return;
+      // Once a PaymentIntent exists the hold belongs to a booking; back leaves
+      // the screen instead of choosing another time.
+      if (paymentIntentExists || holdStatus === "expiredAfterPayment") {
+        navigation.goBack();
+        return;
+      }
       resetReviewState();
+      // Drop any in-flight hold request and release the current hold.
+      invalidateHoldRequests();
+      releaseHoldIfSafe(holdRef.current);
+      applyHold(null);
+      setHoldStatus("idle");
+      setHoldErrorCopy(null);
       setStep(3);
     }
   };
@@ -941,6 +1151,249 @@ export default function BookingScreen() {
     );
   };
 
+  const renderAmountRow = (
+    label: string,
+    cents: number,
+    emphasized: boolean = false,
+  ) => (
+    <View key={label} style={styles.amountRow}>
+      <ThemedText
+        style={{
+          color: emphasized ? theme.text : theme.textSecondary,
+          fontWeight: emphasized ? "600" : "400",
+        }}
+      >
+        {label}
+      </ThemedText>
+      <ThemedText
+        style={[
+          styles.amountValue,
+          {
+            color: emphasized ? theme.text : theme.textSecondary,
+            fontWeight: emphasized ? "600" : "400",
+          },
+        ]}
+      >
+        {formatPrice(cents)}
+      </ThemedText>
+    </View>
+  );
+
+  const renderHoldActions = (primaryLabel: string | null) => (
+    <View style={{ marginTop: Spacing.md }}>
+      {primaryLabel && (
+        <Pressable
+          onPress={requestHold}
+          style={[styles.primaryButton, { backgroundColor: accent }]}
+          accessibilityRole="button"
+        >
+          <ThemedText style={{ color: theme.background, fontWeight: "600" }}>
+            {primaryLabel}
+          </ThemedText>
+        </Pressable>
+      )}
+      <Pressable
+        onPress={handleBack}
+        style={styles.secondaryAction}
+        accessibilityRole="button"
+      >
+        <ThemedText style={{ color: accent }}>Choose another time</ThemedText>
+      </Pressable>
+    </View>
+  );
+
+  const renderCountdown = () => {
+    if (!hold || paymentStarted) return null;
+    const endingSoon = holdTimeRemaining <= 120_000;
+    return (
+      <ThemedText
+        style={{
+          color: theme.textSecondary,
+          fontSize: FontSizes.xs,
+          marginTop: Spacing.sm,
+        }}
+      >
+        {`Time held: ${formatHoldTime(holdTimeRemaining)}${endingSoon ? " · ending soon" : ""}`}
+      </ThemedText>
+    );
+  };
+
+  // All amounts come from the hold; nothing is computed on the device.
+  const renderAmountsBlock = () => {
+    if (holdStatus === "idle" || holdStatus === "loading") {
+      return (
+        <View accessibilityLabel="Holding your time" accessible>
+          {[0, 1, 2].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.amountSkeleton,
+                { backgroundColor: theme.backgroundSecondary },
+              ]}
+            />
+          ))}
+          <ThemedText
+            style={{ color: theme.textSecondary, marginTop: Spacing.sm }}
+          >
+            Holding your time…
+          </ThemedText>
+        </View>
+      );
+    }
+    if (holdStatus === "error") {
+      return (
+        <>
+          <ThemedText style={{ color: theme.text }}>
+            {holdErrorCopy || "Something went wrong holding this time."}
+          </ThemedText>
+          {renderHoldActions("Retry")}
+        </>
+      );
+    }
+    if (holdStatus === "expired") {
+      return (
+        <>
+          <ThemedText style={{ color: theme.text }}>
+            Your hold on this time expired.
+          </ThemedText>
+          {renderHoldActions("Hold this time again")}
+        </>
+      );
+    }
+    if (holdStatus === "expiredAfterPayment") {
+      return (
+        <ThemedText style={{ color: theme.text }}>
+          This booking session timed out. Close and start again.
+        </ThemedText>
+      );
+    }
+    if (!hold || typeof hold.dueNowCents !== "number") {
+      return (
+        <>
+          <ThemedText style={{ color: theme.text }}>
+            Something went wrong holding this time.
+          </ThemedText>
+          {renderHoldActions("Retry")}
+        </>
+      );
+    }
+
+    const hasDeposit =
+      typeof hold.depositAmountCents === "number" &&
+      hold.depositAmountCents > 0;
+    const feeCents = hold.dueNowFeeBreakdown?.consumerServiceFeeAmount;
+    return (
+      <>
+        {typeof hold.serviceTotalCents === "number" &&
+          renderAmountRow("Service total", hold.serviceTotalCents)}
+        {!hasDeposit &&
+          typeof feeCents === "number" &&
+          renderAmountRow("Service fee", feeCents)}
+        {renderAmountRow("Due now", hold.dueNowCents, true)}
+        {hasDeposit && typeof feeCents === "number" && (
+          <ThemedText
+            style={{
+              color: theme.textSecondary,
+              fontSize: FontSizes.xs,
+              textAlign: "right",
+            }}
+          >
+            {`${formatPrice(hold.depositAmountCents as number)} deposit + ${formatPrice(feeCents)} service fee`}
+          </ThemedText>
+        )}
+        {hasDeposit &&
+          typeof hold.dueAtAppointmentCents === "number" &&
+          renderAmountRow("Due at appointment", hold.dueAtAppointmentCents)}
+        {renderCountdown()}
+      </>
+    );
+  };
+
+  // Confirmation amounts come from the snapshot taken at Pay time; the
+  // PaymentIntent total is only used to cross-check what was charged.
+  const renderConfirmationDetails = () => {
+    const name = photographer?.name || "the photographer";
+    const dimCenter = {
+      color: theme.textSecondary,
+      marginTop: Spacing.sm,
+      textAlign: "center" as const,
+      paddingHorizontal: Spacing.xl,
+    };
+    if (!paidSnapshot) {
+      return (
+        <ThemedText style={dimCenter}>
+          {bookingPending
+            ? `Your card has been authorized but not charged. ${name} has 48 hours to accept or decline your request. You'll be notified either way.`
+            : `Your session with ${name} has been booked for ${selectedDate ? formatDate(selectedDate) : ""}.`}
+        </ThemedText>
+      );
+    }
+
+    let nowCents = paidSnapshot.dueNowCents;
+    const piGross = paymentData?.feeBreakdown?.grossChargeAmount;
+    if (typeof piGross === "number" && piGross !== nowCents) {
+      console.warn(
+        "[BookingScreen] hold due-now differs from PaymentIntent amount",
+        nowCents,
+        piGross,
+      );
+      nowCents = piGross;
+    }
+    const deposit = paidSnapshot.depositAmountCents;
+    const hasDeposit = typeof deposit === "number" && deposit > 0;
+    const atAppointment = paidSnapshot.dueAtAppointmentCents;
+    const bookingNumber = paymentData?.bookingNumber;
+
+    return (
+      <View
+        style={{
+          alignSelf: "stretch",
+          marginTop: Spacing.md,
+          paddingHorizontal: Spacing.xl,
+        }}
+      >
+        {renderAmountRow(
+          bookingPending ? "Authorized now" : "Paid now",
+          nowCents,
+          true,
+        )}
+        {typeof atAppointment === "number" &&
+          atAppointment > 0 &&
+          renderAmountRow("Due at appointment", atAppointment)}
+        {typeof paidSnapshot.serviceTotalCents === "number" &&
+          renderAmountRow("Service total", paidSnapshot.serviceTotalCents)}
+        {bookingPending ? (
+          <>
+            <ThemedText style={dimCenter}>
+              {`${formatPrice(nowCents)} is authorized on your card, not charged. You're only charged if ${name} accepts.`}
+            </ThemedText>
+            {hasDeposit && (
+              <ThemedText style={dimCenter}>
+                {`If ${name} accepts, your deposit becomes non-refundable.`}
+              </ThemedText>
+            )}
+            <ThemedText style={dimCenter}>
+              {`${name} has 48 hours to accept or decline your request. You'll be notified either way.`}
+            </ThemedText>
+          </>
+        ) : hasDeposit && typeof atAppointment === "number" ? (
+          <ThemedText style={dimCenter}>
+            {`Your ${formatPrice(deposit as number)} deposit is non-refundable if you cancel. Pay the remaining ${formatPrice(atAppointment)} at your appointment.`}
+          </ThemedText>
+        ) : (
+          <ThemedText style={dimCenter}>
+            {`Your session with ${name} has been booked for ${selectedDate ? formatDate(selectedDate) : ""}.`}
+          </ThemedText>
+        )}
+        {typeof bookingNumber === "number" && (
+          <ThemedText
+            style={dimCenter}
+          >{`Booking #${bookingNumber}`}</ThemedText>
+        )}
+      </View>
+    );
+  };
+
   const renderReviewStep = () => {
     if (!selectedService || !selectedSlot || !selectedDate) {
       return (
@@ -968,8 +1421,22 @@ export default function BookingScreen() {
         <ThemedText style={{ color: theme.textSecondary, marginTop: 2 }}>
           {formatDate(selectedDate)} at {formatTime(selectedSlot.startTime)}
           {" · "}{formatDuration(selectedService.durationMinutes)}
-          {" · "}{formatPrice(selectedService.priceCents)}
         </ThemedText>
+      </View>
+    );
+
+    const amountsSection = (
+      <View
+        style={[
+          styles.reviewSection,
+          {
+            backgroundColor: theme.backgroundDefault,
+            borderWidth: 1,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        {renderAmountsBlock()}
       </View>
     );
 
@@ -1171,36 +1638,78 @@ export default function BookingScreen() {
       : locType === "virtual" ? virtualLinkAcknowledged
       : true;
 
-    const canConfirm = locationReady && universalReady && !isCreatingHold;
+    // Pay stays disabled until the hold's amounts have loaded.
+    const dueNowCents =
+      typeof hold?.dueNowCents === "number" ? hold.dueNowCents : null;
+    const amountsReady = holdStatus === "ready" && dueNowCents !== null;
+    const canConfirm =
+      amountsReady && locationReady && universalReady && !paying;
+    const holdFailed =
+      holdStatus === "error" ||
+      holdStatus === "expired" ||
+      holdStatus === "expiredAfterPayment";
+    const showNonRefundable = amountsReady && !!hold?.depositNonRefundable;
 
     return (
       <View>
         <ThemedText type="h3" style={styles.stepTitle}>Review & Confirm</ThemedText>
         {summarySection}
+        {amountsSection}
         {locationSection}
         <View style={[styles.reviewSection, { backgroundColor: theme.backgroundDefault, borderWidth: 1, borderColor: theme.border, marginTop: Spacing.sm }]}>
           {ackRows}
         </View>
 
-        {isCreatingHold ? (
+        {paying ? (
           <View style={[styles.centered, { paddingVertical: Spacing.lg }]}>
             <ActivityIndicator size="small" color={accent} />
-            <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>Processing payment...</ThemedText>
+            <ThemedText
+              style={{ color: theme.textSecondary, marginTop: Spacing.xs }}
+            >
+              Starting payment...
+            </ThemedText>
           </View>
+        ) : holdFailed ? (
+          <View style={{ marginBottom: Spacing.xl }} />
         ) : (
           <>
+            {showNonRefundable ? (
+              <ThemedText
+                style={{
+                  color: theme.text,
+                  textAlign: "center",
+                  marginTop: Spacing.lg,
+                }}
+              >
+                Deposit is non-refundable once your booking is confirmed.
+              </ThemedText>
+            ) : null}
             <Pressable
-              onPress={createHoldAndPay}
+              onPress={() => canConfirm && handlePay()}
               disabled={!canConfirm}
-              style={[styles.primaryButton, { backgroundColor: canConfirm ? accent : theme.backgroundSecondary, marginTop: Spacing.lg }]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canConfirm }}
+              style={[
+                styles.primaryButton,
+                {
+                  backgroundColor: canConfirm
+                    ? accent
+                    : theme.backgroundSecondary,
+                  marginTop: showNonRefundable ? Spacing.sm : Spacing.lg,
+                },
+              ]}
             >
               <ThemedText style={{ color: canConfirm ? theme.background : theme.textSecondary, fontWeight: "600" }}>
-                Confirm & Pay
+                {amountsReady && dueNowCents !== null
+                  ? `Pay ${formatPrice(dueNowCents)}`
+                  : "Pay"}
               </ThemedText>
             </Pressable>
             {!canConfirm ? (
               <ThemedText style={{ color: theme.textSecondary, fontSize: FontSizes.xs, textAlign: "center", marginTop: Spacing.sm }}>
-                Complete all required items above to continue
+                {amountsReady
+                  ? "Complete all required items above to continue"
+                  : "Holding your time…"}
               </ThemedText>
             ) : null}
             <View style={{ marginBottom: Spacing.xl }} />
@@ -1220,18 +1729,7 @@ export default function BookingScreen() {
       <ThemedText type="h3" style={{ marginTop: Spacing.xl, textAlign: "center" }}>
         {bookingPending ? "Booking Submitted!" : "Booking Confirmed!"}
       </ThemedText>
-      <ThemedText style={{ marginTop: Spacing.md, color: theme.textSecondary, textAlign: "center", paddingHorizontal: Spacing.xl }}>
-        {bookingPending
-          ? `Your booking request with ${photographer?.name || "the photographer"} has been submitted. You'll be notified within 48 hours once confirmed.`
-          : `Your session with ${photographer?.name || "the photographer"} has been booked for ${selectedDate ? formatDate(selectedDate) : ""}.`}
-      </ThemedText>
-      {bookingPending ? (
-        <View style={{ backgroundColor: "#FF950015", padding: 12, borderRadius: BorderRadius.md, marginTop: Spacing.lg, marginHorizontal: Spacing.xl }}>
-          <ThemedText style={{ color: "#FF9500", fontSize: FontSizes.sm, textAlign: "center" }}>
-            Payment will only be processed after the provider confirms your booking.
-          </ThemedText>
-        </View>
-      ) : null}
+      {renderConfirmationDetails()}
       <Pressable
         onPress={() => navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))}
         style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl, minWidth: 200 }]}
@@ -1486,6 +1984,27 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
+  },
+  secondaryAction: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    marginTop: Spacing.xs,
+  },
+  amountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.xs,
+  },
+  amountValue: {
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  amountSkeleton: {
+    height: 16,
+    borderRadius: BorderRadius.sm,
+    marginVertical: Spacing.sm,
   },
   modalOverlay: {
     flex: 1,
