@@ -25,6 +25,7 @@ import api, {
   VendorEligibility,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
 import { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
@@ -795,7 +796,7 @@ export default function BusinessDashboardScreen() {
             <View style={styles.statIcon}>
               <Feather name="star" size={14} color={DASHBOARD_COLORS.gold} />
             </View>
-            <Text style={styles.statValue}>{stats.reviewCount > 0 ? stats.rating.toFixed(1) : "—"}</Text>
+            <Text style={styles.statValue}>{stats.reviewCount > 0 ? displayRating(stats.rating) : "—"}</Text>
             <Text style={styles.statLabel}>Rating</Text>
           </View>
         </View>

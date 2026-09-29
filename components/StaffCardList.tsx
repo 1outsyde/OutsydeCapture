@@ -8,6 +8,7 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { displayRating } from "@/types/ratings";
 
 // Mirrors VendorDetailScreen's local COLORS palette so the staff cards
 // match the screen's dark theme without introducing a circular import.
@@ -134,7 +135,7 @@ export default function StaffCardList({
                 <View style={styles.ratingInlineRow}>
                   <StaffStarRow rating={member.rating} color={accentColor} />
                   <Text style={styles.ratingText}>
-                    {member.rating.toFixed(1)}
+                    {displayRating(member.rating)}
                   </Text>
                   <Text style={styles.ratingMeta}>({member.reviewCount})</Text>
                 </View>

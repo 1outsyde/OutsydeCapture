@@ -34,6 +34,7 @@ import { Image } from "expo-image";
 import apiClient from "@/services/api";
 import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
 import { useTheme } from "@/hooks/useTheme";
 import {
   BrandColorSpec,
@@ -386,7 +387,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           <View style={styles.tabContent}>
             <View style={[styles.reviewSummaryCard, { backgroundColor: cardSurfaceStrong }]}>
               <Text style={[styles.reviewScore, { color: textPrimary }]}>
-                {staff.rating.toFixed(1)}
+                {displayRating(staff.rating)}
               </Text>
               <StarRow rating={staff.rating} color={accentColor} inactiveColor={textMuted} />
               <Text style={[styles.reviewCountLabel, { color: textMuted }]}>

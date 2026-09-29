@@ -63,6 +63,7 @@ import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
 import { StarDisplay, RatingBottomSheet } from "@/components/ratings";
 import type { PurchaseItem, RatingCheckResponse, RatingsResponse } from "@/types/ratings";
+import { displayRating } from "@/types/ratings";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -1681,7 +1682,7 @@ export default function VendorDetailScreen({ route }: Props) {
 
         <View style={styles.ratingInlineRow}>
           <StarDisplay rating={ratingsData?.average ?? Math.round(profile.rating * 10)} size={13} color={accentColor} />
-          <Text style={styles.ratingText}>{ratingsData ? (ratingsData.average / 10).toFixed(1) : profile.rating.toFixed(1)}</Text>
+          <Text style={styles.ratingText}>{ratingsData ? (ratingsData.average / 10).toFixed(1) : displayRating(profile.rating)}</Text>
           <Text style={styles.ratingMeta}>({ratingsData?.count ?? profile.reviewCount})</Text>
           {profile.responseTime ? (
             <Text style={styles.ratingMeta}>⚡ {profile.responseTime}</Text>
@@ -2212,7 +2213,7 @@ export default function VendorDetailScreen({ route }: Props) {
       <View style={styles.reviewSummaryCard}>
         <View style={styles.reviewSummaryLeft}>
           <Text style={styles.reviewScore}>
-            {ratingsData ? (ratingsData.average / 10).toFixed(1) : (profile?.rating?.toFixed(1) || "0.0")}
+            {ratingsData ? (ratingsData.average / 10).toFixed(1) : displayRating(profile?.rating)}
           </Text>
           <StarDisplay
             rating={ratingsData?.average ?? Math.round((profile?.rating || 0) * 10)}

@@ -39,6 +39,7 @@ import api, {
   BlockedDate,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
 import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hour } from "@/components/HoursEditor";
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
@@ -3236,7 +3237,7 @@ export default function PhotographerDashboardScreen() {
           <View style={styles.statsRowBottom}>
             <View style={styles.statCard}>
               <View style={styles.statIcon}><Feather name="star" size={14} color={DASHBOARD_COLORS.gold} /></View>
-              <Text style={styles.statValue}>{stats.rating > 0 ? stats.rating.toFixed(1) : "—"}</Text>
+              <Text style={styles.statValue}>{stats.rating > 0 ? displayRating(stats.rating) : "—"}</Text>
               <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
             </View>
             <View style={styles.statCard}>

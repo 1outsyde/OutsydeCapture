@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "@/context/AuthContext";
 import api, { API_BASE_URL } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
 
 const COLORS = {
   black: "#000000",
@@ -651,7 +652,7 @@ export default function DashboardAnalyticsScreen() {
                           {p.name}
                         </Text>
                         <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 2 }}>
-                          {p.specialty ?? "Photographer"}{p.rating ? ` · ★ ${p.rating.toFixed(1)}` : ""}
+                          {p.specialty ?? "Photographer"}{p.rating ? ` · ★ ${displayRating(p.rating)}` : ""}
                         </Text>
                       </View>
                       <View
