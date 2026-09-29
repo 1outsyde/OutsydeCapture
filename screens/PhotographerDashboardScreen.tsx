@@ -198,6 +198,7 @@ export default function PhotographerDashboardScreen() {
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [editingService, setEditingService] = useState<ServiceFormData | null>(null);
   const [rawServices, setRawServices] = useState<VendorBookerPhotographerService[]>([]);
+  const [depositServerError, setDepositServerError] = useState<string | null>(null);
 
   // CTA Button config — photographers only have Book Now, we just pick which service
   const [ctaServiceTarget, setCtaServiceTarget] = useState<"first_available" | "specific">("first_available");
@@ -434,6 +435,7 @@ export default function PhotographerDashboardScreen() {
           status: s.status || "draft",
           pricingModel: s.pricingModel || "package",
           category: s.category || "Other",
+          depositAmountCents: s.depositAmountCents ?? null,
         })));
 
         // Parse CTA config
@@ -1036,6 +1038,7 @@ export default function PhotographerDashboardScreen() {
   const handleAddService = () => {
     setActiveModal(null); // Close services modal first to prevent freeze
     setEditingService(null);
+    setDepositServerError(null);
     setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
   };
 
@@ -1065,7 +1068,9 @@ export default function PhotographerDashboardScreen() {
       hasCancellationFee: rawService?.hasCancellationFee ?? false,
       cancellationFeeType: rawService?.cancellationFeeType ?? null,
       cancellationFeeAmount: rawService?.cancellationFeeAmount ?? null,
+      depositAmountCents: rawService?.depositAmountCents ?? null,
     });
+    setDepositServerError(null);
     setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
   };
 
@@ -1095,11 +1100,17 @@ export default function PhotographerDashboardScreen() {
         cancellationFeeType: data.cancellationFeeType,
         cancellationFeeAmount: data.cancellationFeeAmount,
       };
+      // Sent on create; on edit only when changed, so an untouched form never
+      // overwrites a deposit set elsewhere.
+      if (!data.id || data.depositTouched) {
+        payload.depositAmountCents = data.depositAmountCents ?? null;
+      }
 
       if (data.pricingModel === "hourly" && data.packageHours) {
         payload.packageHours = parseInt(data.packageHours);
       }
 
+      setDepositServerError(null);
       if (data.id) {
         await api.updatePhotographerMeService(token, data.id, payload);
         Alert.alert("Success", "Service updated successfully");
@@ -1112,6 +1123,11 @@ export default function PhotographerDashboardScreen() {
       setEditingService(null);
       fetchDashboard();
     } catch (error: any) {
+      if (error.status === 400 && error.body?.code === "INVALID_DEPOSIT") {
+        // Rethrown so the editor stays open with the message inline.
+        setDepositServerError(error.message);
+        throw error;
+      }
       console.error("[Dashboard] Failed to save service:", error);
       Alert.alert("Error", error.message || "Failed to save service");
       throw error;
@@ -2608,6 +2624,9 @@ export default function PhotographerDashboardScreen() {
                                 style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 1 }}
                               >
                                 ${service.price.toFixed(2)}
+                                {service.depositAmountCents && service.depositAmountCents > 0
+                                  ? ` · $${(service.depositAmountCents / 100).toFixed(2)} deposit`
+                                  : ""}
                               </Text>
                             </View>
                           </Pressable>
@@ -2929,6 +2948,14 @@ export default function PhotographerDashboardScreen() {
                         <Feather name="tag" size={14} color={theme.textSecondary} />
                         <Text style={styles.bookingDateText}>{(service as any).category || "Other"}</Text>
                       </View>
+                      {service.depositAmountCents && service.depositAmountCents > 0 ? (
+                        <View style={[styles.bookingDate, { marginLeft: 12 }]}>
+                          <Feather name="lock" size={14} color={theme.textSecondary} />
+                          <Text style={styles.bookingDateText}>
+                            ${(service.depositAmountCents / 100).toFixed(2)} deposit
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                     <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                       <Pressable
@@ -3537,10 +3564,14 @@ export default function PhotographerDashboardScreen() {
         onClose={() => {
           setShowServiceEditor(false);
           setEditingService(null);
+          setDepositServerError(null);
         }}
         onSave={handleSaveService}
         initialData={editingService}
         brandColor={(COLOR_VALUES[profile?.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? theme.primary}
+        depositMode="packageOnly"
+        depositServerError={depositServerError}
+        onClearDepositServerError={() => setDepositServerError(null)}
       />
 
       <RefundModal
