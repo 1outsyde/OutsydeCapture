@@ -35,6 +35,7 @@ import apiClient from "@/services/api";
 import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
+import { StarDisplay } from "@/components/ratings";
 import { useTheme } from "@/hooks/useTheme";
 import {
   BrandColorSpec,
@@ -88,32 +89,15 @@ const getInitials = (name?: string): string => {
 const slugify = (name: string): string =>
   name.trim().toLowerCase().replace(/\s+/g, "");
 
-const scoreToStars = (rating: number): number =>
-  Math.max(0, Math.min(5, Math.round(rating)));
-
 const StarRow = ({
   rating,
   color,
-  inactiveColor,
 }: {
   rating: number;
   color: string;
-  inactiveColor: string;
-}) => {
-  const stars = scoreToStars(rating);
-  return (
-    <View style={styles.starRow}>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Feather
-          key={`star-${index}`}
-          name="star"
-          size={14}
-          color={index < stars ? color : inactiveColor}
-        />
-      ))}
-    </View>
-  );
-};
+}) => (
+  <StarDisplay rating={rating} size={14} color={color} />
+);
 
 const tabLabel = (tab: StaffTab): string => {
   switch (tab) {
@@ -389,7 +373,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
               <Text style={[styles.reviewScore, { color: textPrimary }]}>
                 {displayRating(staff.rating)}
               </Text>
-              <StarRow rating={staff.rating} color={accentColor} inactiveColor={textMuted} />
+              <StarRow rating={staff.rating} color={accentColor} />
               <Text style={[styles.reviewCountLabel, { color: textMuted }]}>
                 {staff.reviewCount} {staff.reviewCount === 1 ? "review" : "reviews"}
               </Text>
