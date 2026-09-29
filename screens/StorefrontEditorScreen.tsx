@@ -52,6 +52,7 @@ import MediaUploader from "@/components/MediaUploader";
 import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
+import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
 
 type TabType = "branding" | "profile" | "hours" | "products" | "services";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
@@ -77,8 +78,6 @@ const SPECIALTY_OPTIONS = [
   "Custom Orders",
 ];
 
-const MIN_DEPOSIT_CENTS = 700;
-
 const normalizeService = (s: any): VendorService => ({
   ...s,
   priceCents:
@@ -88,19 +87,6 @@ const normalizeService = (s: any): VendorService => ({
         ? Number(s.price)
         : 0,
 });
-
-// Strict dollar parsing for the deposit input: "$30", "30,50" and "30.5" are
-// accepted; partial numbers like "12abc" or "3.555" are rejected.
-const parseDepositInput = (
-  raw: string,
-): { cents: number } | { error: string } => {
-  const s = raw.trim().replace(/^\$/, "").trim().replace(",", ".");
-  if (s === "") return { error: "Enter a deposit amount." };
-  if (!/^\d+(\.\d{1,2})?$/.test(s)) {
-    return { error: "Enter a valid amount, like 30.00." };
-  }
-  return { cents: Math.round(parseFloat(s) * 100) };
-};
 
 export default function StorefrontEditorScreen() {
   const { theme, isDark } = useTheme();

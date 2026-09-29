@@ -99,6 +99,7 @@ export default function StaffDashboardScreen() {
 
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [editingStaffService, setEditingStaffService] = useState<ServiceFormData | null>(null);
+  const [depositServerError, setDepositServerError] = useState<string | null>(null);
 
   const [weeklyHours, setWeeklyHours] = useState<DayHours[]>(getDefaultHours());
   const [savingWeeklyHours, setSavingWeeklyHours] = useState(false);
@@ -337,9 +338,15 @@ export default function StaffDashboardScreen() {
       hasCancellationFee: data.hasCancellationFee,
       cancellationFeeType: data.cancellationFeeType,
       cancellationFeeAmount: data.cancellationFeeAmount,
+      // Sent on create; on edit only when changed, so an untouched form never
+      // overwrites a deposit set elsewhere.
+      ...(!data.id || data.depositTouched
+        ? { depositAmountCents: data.depositAmountCents ?? null }
+        : {}),
     };
 
     try {
+      setDepositServerError(null);
       if (data.id) {
         await api.updateStaffService(token, data.id, payload, businessId);
         Alert.alert("Success", "Service updated");
@@ -351,6 +358,11 @@ export default function StaffDashboardScreen() {
       setEditingStaffService(null);
       load();
     } catch (error: any) {
+      if (error.status === 400 && error.body?.code === "INVALID_DEPOSIT") {
+        // Rethrown so the editor stays open with the message inline.
+        setDepositServerError(error.message);
+        throw error;
+      }
       console.error("[StaffDashboard] Failed to save service:", error);
       Alert.alert("Error", error.message || "Failed to save service");
       throw error;
@@ -656,6 +668,7 @@ export default function StaffDashboardScreen() {
               <Pressable
                 style={[styles.addButton, { marginBottom: Spacing.lg }]}
                 onPress={() => {
+                  setDepositServerError(null);
                   setEditingStaffService(null);
                   setActiveModal(null);
                   setTimeout(() => setShowServiceEditor(true), 100);
@@ -693,6 +706,9 @@ export default function StaffDashboardScreen() {
                         <Text style={styles.listRowSubtitle}>
                           {formatCurrency(service.priceCents)}
                           {service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}
+                          {service.depositAmountCents && service.depositAmountCents > 0
+                            ? ` · ${formatCurrency(service.depositAmountCents)} deposit`
+                            : ""}
                         </Text>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -730,7 +746,9 @@ export default function StaffDashboardScreen() {
                               hasCancellationFee: (service as any).hasCancellationFee ?? false,
                               cancellationFeeType: (service as any).cancellationFeeType ?? null,
                               cancellationFeeAmount: (service as any).cancellationFeeAmount ?? null,
+                              depositAmountCents: service.depositAmountCents ?? null,
                             };
+                            setDepositServerError(null);
                             setEditingStaffService(formData);
                             setActiveModal(null);
                             setTimeout(() => setShowServiceEditor(true), 100);
@@ -944,10 +962,14 @@ export default function StaffDashboardScreen() {
         onClose={() => {
           setShowServiceEditor(false);
           setEditingStaffService(null);
+          setDepositServerError(null);
         }}
         onSave={handleSaveStaffService}
         initialData={editingStaffService}
         brandColor={DASHBOARD_COLORS.gold}
+        depositMode="always"
+        depositServerError={depositServerError}
+        onClearDepositServerError={() => setDepositServerError(null)}
       />
     </>
   );
