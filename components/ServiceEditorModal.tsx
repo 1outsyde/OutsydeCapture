@@ -229,7 +229,8 @@ export default function ServiceEditorModal({
         : null;
     const depositWasTouched = depositVisible
       ? depositTouched
-      : depositMode !== "hidden" && (loadedDepositRef.current || depositTouched);
+      : depositMode !== "hidden" &&
+        (loadedDepositRef.current || depositTouched);
 
     let dataToSave: ServiceFormData = {
       ...formData,
@@ -488,7 +489,12 @@ export default function ServiceEditorModal({
             {depositVisible && (
               <View style={styles.switchRow}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
-                  <Text style={[styles.label, { color: theme.text, marginBottom: 0 }]}>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: theme.text, marginBottom: 0 },
+                    ]}
+                  >
                     Require deposit at booking
                   </Text>
                   <Text style={{ fontSize: 13, color: theme.textSecondary }}>
@@ -512,7 +518,10 @@ export default function ServiceEditorModal({
 
             {depositServerError && !depositError && (
               <Text
-                style={[styles.errorText, { color: theme.error, marginTop: -8, marginBottom: 12 }]}
+                style={[
+                  styles.errorText,
+                  { color: theme.error, marginTop: -8, marginBottom: 12 },
+                ]}
               >
                 {depositServerError}
               </Text>
@@ -520,7 +529,9 @@ export default function ServiceEditorModal({
 
             {depositVisible && depositEnabled && (
               <View style={styles.field}>
-                <Text style={[styles.label, { color: theme.text }]}>Deposit (in dollars)</Text>
+                <Text style={[styles.label, { color: theme.text }]}>
+                  Deposit (in dollars)
+                </Text>
                 <TextInput
                   style={[
                     styles.input,
@@ -547,7 +558,9 @@ export default function ServiceEditorModal({
                   accessibilityLabel="Deposit amount in dollars"
                 />
                 {depositError && (
-                  <Text style={[styles.errorText, { color: theme.error }]}>{depositError}</Text>
+                  <Text style={[styles.errorText, { color: theme.error }]}>
+                    {depositError}
+                  </Text>
                 )}
               </View>
             )}
