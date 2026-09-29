@@ -23,6 +23,7 @@ import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
 import { RatingBottomSheet } from "@/components/ratings";
 import type { RatingCheckResponse } from "@/types/ratings";
+import { displayRating } from "@/types/ratings";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "PhotographerDetail">;
@@ -538,7 +539,7 @@ export default function PhotographerDetailScreen() {
             <View style={styles.statValue}>
               <Ionicons name="star" size={18} color="#C9933A" />
               <ThemedText type="h4" style={styles.statNumber}>
-                {photographer.rating?.toFixed(1) || "New"}
+                {displayRating(photographer.rating)}
               </ThemedText>
             </View>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>

@@ -57,6 +57,16 @@ export function ratingToDisplay(stored: number): number {
   return stored / 10;
 }
 
+/**
+ * Converts a stored ×10 rating (5–50) to a display string (0.0–5.0).
+ * Safe for raw values, already-divided values, null, and undefined.
+ * Never write this back to state — only use inside JSX text elements.
+ */
+export const displayRating = (raw?: number | null): string => {
+  if (!raw || raw === 0) return '0.0';
+  return (raw > 5 ? raw / 10 : raw).toFixed(1);
+};
+
 export function displayToRating(display: number): number {
   return Math.round(display * 10);
 }

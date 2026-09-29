@@ -41,6 +41,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 
 import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
+import { StarDisplay } from "@/components/ratings";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
@@ -323,11 +325,6 @@ const tabsForRole = (profile: ProfileData): ProfileTab[] => {
   return ["posts", "reviews"];
 };
 
-const scoreToStars = (rating: number): number => {
-  if (!Number.isFinite(rating) || rating <= 0) return 0;
-  return rating > 5 ? Math.round(rating / 10) : Math.round(rating);
-};
-
 const StarRating = ({
   rating,
   color,
@@ -336,21 +333,9 @@ const StarRating = ({
   rating: number;
   color: string;
   size?: number;
-}) => {
-  const stars = scoreToStars(rating);
-  return (
-    <View style={styles.starRow}>
-      {Array.from({ length: 5 }).map((_, idx) => (
-        <Feather
-          key={`star-${idx}`}
-          name="star"
-          size={size}
-          color={idx < stars ? color : COLORS.grayMid}
-        />
-      ))}
-    </View>
-  );
-};
+}) => (
+  <StarDisplay rating={rating} size={size} color={color} />
+);
 
 const AvatarWithInitials = ({
   name,
@@ -1662,7 +1647,7 @@ export default function AccountScreen() {
         profile.rating > 0 ? (
           <View style={styles.ratingInlineRow}>
             <StarRating rating={profile.rating} color={accentColor} />
-            <Text style={styles.ratingText}>{profile.rating.toFixed(1)}</Text>
+            <Text style={styles.ratingText}>{displayRating(profile.rating)}</Text>
             <Text style={styles.ratingMeta}>({profile.reviewCount})</Text>
             {profile.responseTime ? (
               <Text style={styles.ratingMeta}>⚡ {profile.responseTime}</Text>
@@ -2375,18 +2360,7 @@ export default function AccountScreen() {
                             gap: 4,
                           }}
                         >
-                          {Array.from({ length: 5 }).map((_, idx) => (
-                            <Feather
-                              key={`staff-star-${member.id}-${idx}`}
-                              name="star"
-                              size={11}
-                              color={
-                                idx < Math.round(member.rating)
-                                  ? accentColor
-                                  : COLORS.grayMid
-                              }
-                            />
-                          ))}
+                          <StarDisplay rating={member.rating} size={11} color={accentColor} />
                           <Text
                             style={{
                               color: COLORS.white,
@@ -2395,7 +2369,7 @@ export default function AccountScreen() {
                               marginLeft: 2,
                             }}
                           >
-                            {member.rating.toFixed(1)}
+                            {displayRating(member.rating)}
                           </Text>
                           <Text
                             style={{ color: COLORS.grayLight, fontSize: 11 }}
@@ -2755,7 +2729,7 @@ export default function AccountScreen() {
       <View style={styles.reviewSummaryCard}>
         <View style={styles.reviewSummaryLeft}>
           <Text style={styles.reviewScore}>
-            {profile?.rating?.toFixed(1) || "0.0"}
+            {displayRating(profile?.rating)}
           </Text>
           <StarRating
             rating={profile?.rating || 0}

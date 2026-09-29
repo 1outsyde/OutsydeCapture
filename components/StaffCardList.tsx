@@ -8,6 +8,8 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { displayRating } from "@/types/ratings";
+import { StarDisplay } from "@/components/ratings";
 
 // Mirrors VendorDetailScreen's local COLORS palette so the staff cards
 // match the screen's dark theme without introducing a circular import.
@@ -47,24 +49,9 @@ const getInitials = (name: string): string => {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 };
 
-const scoreToStars = (rating: number): number =>
-  Math.max(0, Math.min(5, Math.round(rating)));
-
-const StaffStarRow = ({ rating, color }: { rating: number; color: string }) => {
-  const stars = scoreToStars(rating);
-  return (
-    <View style={styles.starRow}>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Feather
-          key={`staff-star-${index}`}
-          name="star"
-          size={13}
-          color={index < stars ? color : COLORS.grayMid}
-        />
-      ))}
-    </View>
-  );
-};
+const StaffStarRow = ({ rating, color }: { rating: number; color: string }) => (
+  <StarDisplay rating={rating} size={13} color={color} />
+);
 
 const WORK_IMAGE_PLACEHOLDER_COUNT = 3;
 
@@ -134,7 +121,7 @@ export default function StaffCardList({
                 <View style={styles.ratingInlineRow}>
                   <StaffStarRow rating={member.rating} color={accentColor} />
                   <Text style={styles.ratingText}>
-                    {member.rating.toFixed(1)}
+                    {displayRating(member.rating)}
                   </Text>
                   <Text style={styles.ratingMeta}>({member.reviewCount})</Text>
                 </View>

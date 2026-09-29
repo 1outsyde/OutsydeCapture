@@ -25,6 +25,7 @@ import api, {
   VendorService,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
 import ProviderCalendar, {
   CalendarBooking,
   CalendarBlockedDate,
@@ -523,7 +524,7 @@ export default function StaffDashboardScreen() {
                 <Feather name="star" size={14} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.statValue}>
-                {staff.rating && staff.rating > 0 ? staff.rating.toFixed(1) : "N/A"}
+                {staff.rating && staff.rating > 0 ? displayRating(staff.rating) : "N/A"}
               </Text>
               <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
             </View>
