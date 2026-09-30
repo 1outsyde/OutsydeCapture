@@ -36,7 +36,9 @@ function resolveNotificationInitial(
   triggeringUser?: NotificationTriggeringUser | null
 ): string {
   if (!triggeringUser) return "?";
-  return (triggeringUser.displayName || "?").charAt(0).toUpperCase();
+  // Array.from splits by code point, so astral characters stay whole.
+  const first = Array.from((triggeringUser.displayName || "").trim())[0];
+  return first ? first.toUpperCase() : "?";
 }
 
 function getNotificationBadgeColor(
@@ -81,13 +83,20 @@ export default function NotificationsScreen() {
 
   // Notification id -> the avatar URL that failed to load for that row. Keyed
   // by URL too so a row retries if its actor's image later changes.
-  const [failedAvatarUrls, setFailedAvatarUrls] = useState<Record<string, string>>({});
+  const [failedAvatarUrls, setFailedAvatarUrls] = useState<
+    Record<string, string>
+  >({});
 
-  const markAvatarFailed = useCallback((notificationId: string, url: string) => {
-    setFailedAvatarUrls((prev) =>
-      prev[notificationId] === url ? prev : { ...prev, [notificationId]: url }
-    );
-  }, []);
+  const markAvatarFailed = useCallback(
+    (notificationId: string, url: string) => {
+      setFailedAvatarUrls((prev) =>
+        prev[notificationId] === url
+          ? prev
+          : { ...prev, [notificationId]: url },
+      );
+    },
+    [],
+  );
 
   const handleToggleNotifications = async (value: boolean) => {
     if (value) {
@@ -471,14 +480,16 @@ export default function NotificationsScreen() {
                   {(() => {
                     const resolvedAvatarUrl = resolveNotificationAvatar(notification.triggeringUser);
                     const avatarUrl =
-                      resolvedAvatarUrl && failedAvatarUrls[notification.id] !== resolvedAvatarUrl
+                      resolvedAvatarUrl &&
+                      failedAvatarUrls[notification.id] !== resolvedAvatarUrl
                         ? resolvedAvatarUrl
                         : null;
                     const initial = notification.triggeringUser
                       ? resolveNotificationInitial(notification.triggeringUser)
                       : null;
                     // resolveNotificationInitial returns "?" when there is no displayName.
-                    const hasInitial = !!initial && initial.trim() !== "" && initial !== "?";
+                    const hasInitial =
+                      !!initial && initial.trim() !== "" && initial !== "?";
                     const badge = (
                       <View
                         style={[
@@ -502,7 +513,9 @@ export default function NotificationsScreen() {
                             style={styles.notificationAvatar}
                             contentFit="cover"
                             transition={200}
-                            onError={() => markAvatarFailed(notification.id, avatarUrl)}
+                            onError={() =>
+                              markAvatarFailed(notification.id, avatarUrl)
+                            }
                           />
                           {badge}
                         </View>
@@ -519,7 +532,9 @@ export default function NotificationsScreen() {
                               { backgroundColor: theme.primary },
                             ]}
                           >
-                            <ThemedText style={styles.notificationInitial}>{initial}</ThemedText>
+                            <ThemedText style={styles.notificationInitial}>
+                              {initial}
+                            </ThemedText>
                           </View>
                           {badge}
                         </View>
