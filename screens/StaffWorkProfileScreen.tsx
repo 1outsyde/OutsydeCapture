@@ -92,11 +92,13 @@ const slugify = (name: string): string =>
 const StarRow = ({
   rating,
   color,
+  emptyColor,
 }: {
   rating: number;
   color: string;
+  emptyColor: string;
 }) => (
-  <StarDisplay rating={rating} size={14} color={color} />
+  <StarDisplay rating={rating} size={14} color={color} emptyColor={emptyColor} />
 );
 
 const tabLabel = (tab: StaffTab): string => {
@@ -373,7 +375,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
               <Text style={[styles.reviewScore, { color: textPrimary }]}>
                 {displayRating(staff.rating)}
               </Text>
-              <StarRow rating={staff.rating} color={accentColor} />
+              <StarRow rating={staff.rating} color={accentColor} emptyColor={textMuted} />
               <Text style={[styles.reviewCountLabel, { color: textMuted }]}>
                 {staff.reviewCount} {staff.reviewCount === 1 ? "review" : "reviews"}
               </Text>

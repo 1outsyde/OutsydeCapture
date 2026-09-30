@@ -50,7 +50,7 @@ const getInitials = (name: string): string => {
 };
 
 const StaffStarRow = ({ rating, color }: { rating: number; color: string }) => (
-  <StarDisplay rating={rating} size={13} color={color} />
+  <StarDisplay rating={rating} size={13} color={color} emptyColor="#555555" />
 );
 
 const WORK_IMAGE_PLACEHOLDER_COUNT = 3;
