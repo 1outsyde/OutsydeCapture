@@ -637,6 +637,7 @@ export interface VendorService {
   createdAt?: string;
   updatedAt?: string;
   depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 // Create/Update Product Request
@@ -670,6 +671,7 @@ export interface VendorServiceInput {
   alternateZipCode?: string | null;
   virtualLink?: string | null;
   depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface StaffServiceInput {
