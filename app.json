@@ -44,7 +44,13 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.outsyde.app",
-      "permissions": ["android.permission.CAMERA", "android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"]
+      "permissions": ["android.permission.CAMERA", "android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+      ]
     },
     "web": {
       "output": "single",
@@ -66,6 +72,14 @@
       "expo-web-browser",
       "expo-secure-store",
       ["expo-camera", { "enableMicrophonePermission": true }],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Outsyde uses your photo library to let you upload profile photos, post images, and share content with the community. For example, you can select photos from your library when creating a post or setting up your profile.",
+          "savePhotosPermission": false,
+          "granularPermissions": ["photo"]
+        }
+      ],
       [
         "@stripe/stripe-react-native",
         {

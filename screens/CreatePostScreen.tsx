@@ -8,9 +8,12 @@ import {
   ActivityIndicator,
   ScrollView,
   Linking,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
+import * as Haptics from "expo-haptics";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -32,6 +35,24 @@ import { RootStackParamList } from "@/navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+// Most recent library photo as a renderable URI, or null if unavailable. Never throws.
+const fetchLatestPhotoUri = async (): Promise<string | null> => {
+  try {
+    const perm = await MediaLibrary.getPermissionsAsync();
+    if (!perm.granted && perm.accessPrivileges !== "limited") return null;
+    const { assets } = await MediaLibrary.getAssetsAsync({
+      first: 1,
+      mediaType: ["photo"],
+      sortBy: [MediaLibrary.SortBy.creationTime],
+    });
+    if (!assets[0]) return null;
+    const info = await MediaLibrary.getAssetInfoAsync(assets[0]);
+    return info.localUri ?? info.uri ?? null;
+  } catch {
+    return null;
+  }
+};
+
 export default function CreatePostScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -51,6 +72,8 @@ export default function CreatePostScreen() {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  const [thumbUri, setThumbUri] = useState<string | null>(null);
+  const [libraryChecked, setLibraryChecked] = useState(false);
 
   type AttachType = "product" | "service" | "photographerService";
   type AttachItem = { type: AttachType; id: string; name: string; priceCents: number | null };
@@ -78,9 +101,39 @@ export default function CreatePostScreen() {
       else if (e.translationX > 50) runOnJS(switchMode)("post");
     });
 
+  // Camera prompt first; the library prompt (iOS, only if undetermined) runs after it resolves.
   useEffect(() => {
-    requestCameraPermission();
+    let cancelled = false;
+    const requestPermissions = async () => {
+      try {
+        await requestCameraPermission();
+      } catch {}
+      if (Platform.OS !== "ios") return;
+      try {
+        const perm = await MediaLibrary.getPermissionsAsync();
+        if (!cancelled && perm.status === MediaLibrary.PermissionStatus.UNDETERMINED) {
+          await MediaLibrary.requestPermissionsAsync();
+        }
+      } catch {}
+      if (!cancelled) setLibraryChecked(true);
+    };
+    requestPermissions();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Refresh the gallery thumbnail whenever the user is on step 1.
+  useEffect(() => {
+    if (step !== 1 || !libraryChecked) return;
+    let cancelled = false;
+    fetchLatestPhotoUri().then((uri) => {
+      if (!cancelled) setThumbUri(uri);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, libraryChecked]);
 
   useEffect(() => {
     return () => {
@@ -505,10 +558,30 @@ export default function CreatePostScreen() {
               <View style={styles.controlsRow}>
                 <Pressable
                   onPress={mode === "story" ? handlePickStoryMedia : handlePickPostImage}
+                  onPressIn={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  }}
                   disabled={isRecording}
-                  style={[styles.galleryButton, isRecording && { opacity: 0.4 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open photo library"
+                  style={({ pressed }) => [
+                    styles.galleryButton,
+                    thumbUri ? styles.galleryButtonThumb : null,
+                    isRecording && { opacity: 0.4 },
+                    pressed && styles.galleryButtonPressed,
+                  ]}
                 >
-                  <Feather name="image" size={24} color="#fff" />
+                  {thumbUri ? (
+                    <Image
+                      source={{ uri: thumbUri }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={200}
+                      onError={() => setThumbUri(null)}
+                    />
+                  ) : (
+                    <Feather name="image" size={24} color="#fff" />
+                  )}
                 </Pressable>
 
                 <GestureDetector gesture={shutterGesture}>
@@ -898,6 +971,15 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  galleryButtonThumb: {
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.85)",
+  },
+  galleryButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.96 }],
   },
   shutterButton: {
     width: 72,
