@@ -12,6 +12,7 @@ import {
   TextInput,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -35,6 +36,7 @@ import DateBlocker, { BlockedDate } from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
+import { uploadImage } from "@/services/mediaUpload";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
 
@@ -314,6 +316,13 @@ export default function StaffDashboardScreen() {
     }
   };
 
+  const handleUploadServiceImage = async (uri: string): Promise<string> => {
+    const token = await getToken();
+    if (!token) throw new Error("Authentication required. Please log in again.");
+    const result = await uploadImage(uri, "image/jpeg", "services", token);
+    return result.url;
+  };
+
   const handleSaveStaffService = async (data: ServiceFormData) => {
     const token = await getToken();
     if (!token || !businessId) return;
@@ -344,6 +353,11 @@ export default function StaffDashboardScreen() {
       ...(!data.id || data.depositTouched
         ? { depositAmountCents: data.depositAmountCents ?? null }
         : {}),
+      // Edit sends the image only when it was uploaded or removed; create only
+      // when one is set. Removing sends null, never "".
+      ...(data.id
+        ? (data.imageTouched ? { imageUrl: data.imageUrl ?? null } : {})
+        : (data.imageUrl ? { imageUrl: data.imageUrl } : {})),
     };
 
     try {
@@ -690,6 +704,13 @@ export default function StaffDashboardScreen() {
                     : "#FF9500";
                   return (
                     <View key={service.id} style={styles.listRow}>
+                      {service.imageUrl ? (
+                        <Image
+                          source={{ uri: service.imageUrl }}
+                          style={styles.serviceThumb}
+                          contentFit="cover"
+                        />
+                      ) : null}
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <Text style={styles.listRowTitle}>{service.name}</Text>
@@ -748,6 +769,7 @@ export default function StaffDashboardScreen() {
                               cancellationFeeType: (service as any).cancellationFeeType ?? null,
                               cancellationFeeAmount: (service as any).cancellationFeeAmount ?? null,
                               depositAmountCents: service.depositAmountCents ?? null,
+                              imageUrl: service.imageUrl ?? null,
                             };
                             setDepositServerError(null);
                             setEditingStaffService(formData);
@@ -971,6 +993,7 @@ export default function StaffDashboardScreen() {
         depositMode="always"
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
+        onUploadImage={handleUploadServiceImage}
       />
     </>
   );
@@ -1175,6 +1198,13 @@ function createStyles(theme: any, insets: { top: number; bottom: number }) {
       paddingVertical: Spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
+    },
+    serviceThumb: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      marginRight: 10,
+      backgroundColor: theme.border,
     },
     listRowTitle: {
       fontSize: 15,

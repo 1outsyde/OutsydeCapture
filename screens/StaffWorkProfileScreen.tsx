@@ -30,6 +30,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 
 import apiClient from "@/services/api";
 import BookingFlow from "@/components/BookingFlow";
@@ -59,6 +60,7 @@ type StaffServiceCard = {
   description?: string;
   priceCents: number;
   durationMinutes?: number;
+  imageUrl?: string;
 };
 
 type StaffProfileViewModel = {
@@ -127,6 +129,9 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const [brandColors, setBrandColors] = useState<BrandColorSpec | null>(null);
   const [businessMeta, setBusinessMeta] = useState<{ address?: string | null; city?: string | null; state?: string | null } | null>(null);
   const [services, setServices] = useState<StaffServiceCard[]>([]);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
+    new Set(),
+  );
   const [activeTab, setActiveTab] = useState<StaffTab>("posts");
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
 
@@ -193,6 +198,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           description: service.description || undefined,
           priceCents: Number(service.priceCents ?? 0),
           durationMinutes: service.durationMinutes || undefined,
+          imageUrl: service.imageUrl || undefined,
         }));
         setServices(liveStaffServices);
       } else {
@@ -337,6 +343,33 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                   style={[styles.serviceCard, { backgroundColor: cardSurfaceStrong }]}
                   onPress={goToBookingEntryPoint}
                 >
+                  <View
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      marginRight: 12,
+                    }}
+                  >
+                    {service.imageUrl && !failedServiceImages.has(service.id) ? (
+                      <Image
+                        source={{ uri: service.imageUrl }}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                        onError={() =>
+                          setFailedServiceImages((prev) =>
+                            new Set(prev).add(service.id),
+                          )
+                        }
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={["#2a2a2a", "#111111"]}
+                        style={StyleSheet.absoluteFillObject}
+                      />
+                    )}
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.serviceName, { color: textPrimary }]}>
                       {service.name}

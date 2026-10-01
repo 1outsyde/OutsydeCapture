@@ -14,6 +14,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import ImageUploader from "@/components/ImageUploader";
 import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
 
 const SERVICE_CATEGORIES = [
@@ -80,6 +81,10 @@ export interface ServiceFormData {
   // changed it (edits only send the deposit when touched).
   depositAmountCents?: number | null;
   depositTouched?: boolean;
+  // One optional image. imageTouched is true once the provider uploaded or
+  // removed one, and edits only send imageUrl when it is touched.
+  imageUrl?: string | null;
+  imageTouched?: boolean;
 }
 
 export type DepositMode = "always" | "packageOnly" | "hidden";
@@ -93,6 +98,9 @@ interface ServiceEditorModalProps {
   depositMode?: DepositMode;
   depositServerError?: string | null;
   onClearDepositServerError?: () => void;
+  // Uploads a picked image and returns its URL. The image picker is only shown
+  // when this is provided.
+  onUploadImage?: (uri: string) => Promise<string>;
 }
 
 const EMPTY_FORM: ServiceFormData = {
@@ -118,6 +126,8 @@ const EMPTY_FORM: ServiceFormData = {
   cancellationFeeAmount: null,
   depositAmountCents: null,
   depositTouched: false,
+  imageUrl: null,
+  imageTouched: false,
 };
 
 export default function ServiceEditorModal({
@@ -129,6 +139,7 @@ export default function ServiceEditorModal({
   depositMode = "hidden",
   depositServerError = null,
   onClearDepositServerError,
+  onUploadImage,
 }: ServiceEditorModalProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -136,6 +147,10 @@ export default function ServiceEditorModal({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const [formData, setFormData] = useState<ServiceFormData>(EMPTY_FORM);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  // Bumped on every open/close/initialData change so an upload that finishes
+  // after the form was reset cannot write into the next service.
+  const uploadSeqRef = useRef(0);
   const [durationError, setDurationError] = useState<string | null>(null);
 
   const [depositEnabled, setDepositEnabled] = useState(false);
@@ -157,6 +172,8 @@ export default function ServiceEditorModal({
 
   useEffect(() => {
     setDurationError(null);
+    uploadSeqRef.current += 1;
+    setUploadingImage(false);
     applyLoadedDeposit(initialData?.depositAmountCents);
     if (initialData) {
       setFormData({
@@ -184,6 +201,8 @@ export default function ServiceEditorModal({
         cancellationFeeAmount: initialData.cancellationFeeAmount ?? null,
         depositAmountCents: initialData.depositAmountCents ?? null,
         depositTouched: false,
+        imageUrl: initialData.imageUrl ?? null,
+        imageTouched: false,
       });
     } else {
       setFormData(EMPTY_FORM);
@@ -208,6 +227,22 @@ export default function ServiceEditorModal({
               parsedDeposit.cents >= (priceCents || 0)
             ? "Deposit must be less than the service price."
             : null;
+
+  const handleImageSelected = async (uri: string) => {
+    if (!onUploadImage) return;
+    const seq = uploadSeqRef.current;
+    try {
+      setUploadingImage(true);
+      const url = await onUploadImage(uri);
+      if (seq !== uploadSeqRef.current) return;
+      setFormData((f) => ({ ...f, imageUrl: url, imageTouched: true }));
+    } catch (error: any) {
+      if (seq !== uploadSeqRef.current) return;
+      Alert.alert("Upload Error", error?.message || "Failed to upload service image");
+    } finally {
+      if (seq === uploadSeqRef.current) setUploadingImage(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
@@ -338,6 +373,24 @@ export default function ServiceEditorModal({
                 textAlignVertical="top"
               />
             </View>
+
+            {onUploadImage ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: theme.text }]}>Service Image</Text>
+                <ImageUploader
+                  currentImage={formData.imageUrl || undefined}
+                  onImageSelected={handleImageSelected}
+                  onRemove={() =>
+                    setFormData((f) => ({ ...f, imageUrl: null, imageTouched: true }))
+                  }
+                  aspectRatio="product"
+                  placeholder="Upload Service Image"
+                />
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={brandColor} style={{ marginTop: 8 }} />
+                ) : null}
+              </View>
+            ) : null}
 
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Category</Text>
@@ -827,10 +880,10 @@ export default function ServiceEditorModal({
               style={[
                 styles.saveButton,
                 { backgroundColor: brandColor },
-                saving && styles.buttonDisabled,
+                (saving || uploadingImage) && styles.buttonDisabled,
               ]}
               onPress={handleSave}
-              disabled={saving}
+              disabled={saving || uploadingImage}
             >
               {saving ? (
                 <ActivityIndicator size="small" color="#000" />
