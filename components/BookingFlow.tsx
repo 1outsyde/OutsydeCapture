@@ -13,6 +13,8 @@ import {
   AccessibilityInfo,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import { useNavigation, CommonActions } from "@react-navigation/native";
@@ -258,6 +260,70 @@ function shortCancellationSummary(
     : `Free cancellation until ${label} before appointment`;
 }
 
+// Service image tile; falls back to the gradient placeholder when there is no
+// image or it failed to load.
+function ServiceThumb({
+  service,
+  showImage,
+  size,
+  radius,
+  onFail,
+}: {
+  service: BookingService;
+  showImage: boolean;
+  size: number;
+  radius: number;
+  onFail: (serviceId: string) => void;
+}) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius,
+        overflow: "hidden",
+        marginRight: Spacing.md,
+      }}
+    >
+      {showImage ? (
+        <Image
+          source={{ uri: service.imageUrl! }}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          onError={() => onFail(service.id)}
+        />
+      ) : (
+        <LinearGradient
+          colors={["#2a2a2a", "#111111"]}
+          style={StyleSheet.absoluteFillObject}
+        />
+      )}
+    </View>
+  );
+}
+
+// Wraps a summary box's content in a row with a 56px thumbnail, only when the
+// service has a usable image; otherwise renders the children unchanged.
+function ServiceSummaryRow({
+  service,
+  showImage,
+  onFail,
+  children,
+}: {
+  service: BookingService | null;
+  showImage: boolean;
+  onFail: (serviceId: string) => void;
+  children: React.ReactNode;
+}) {
+  if (!service || !showImage) return <>{children}</>;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <ServiceThumb service={service} showImage size={56} radius={8} onFail={onFail} />
+      <View style={{ flex: 1 }}>{children}</View>
+    </View>
+  );
+}
+
 export default function BookingFlow({
   providerId,
   providerType,
@@ -282,6 +348,12 @@ export default function BookingFlow({
   const [step, setStep] = useState<Step>(1);
   const [services, setServices] = useState<BookingService[]>([]);
   const [selectedService, setSelectedService] = useState<BookingService | null>(null);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(new Set());
+  const hasServiceImage = (s?: BookingService | null) =>
+    !!s?.imageUrl && !failedServiceImages.has(s.id);
+  const showServiceImages = useMemo(() => services.some((s) => !!s.imageUrl), [services]);
+  const markServiceImageFailed = (id: string) =>
+    setFailedServiceImages((prev) => new Set(prev).add(id));
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -1424,6 +1496,15 @@ export default function BookingFlow({
                   },
                 ]}
               >
+                {showServiceImages ? (
+                  <ServiceThumb
+                    service={service}
+                    showImage={hasServiceImage(service)}
+                    size={72}
+                    radius={10}
+                    onFail={markServiceImageFailed}
+                  />
+                ) : null}
                 <View style={styles.serviceInfo}>
                   <ThemedText style={[styles.serviceName, { color: theme.brandCream }]}>
                     {service.name}
@@ -1460,10 +1541,12 @@ export default function BookingFlow({
             Select a Date
           </ThemedText>
           <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft }]}>
-            <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
-            <ThemedText style={{ color: theme.brandTextDim }}>
-              {formatDuration(selectedService?.durationMinutes || 0)} • {formatPrice(selectedService?.priceCents || 0)}
-            </ThemedText>
+            <ServiceSummaryRow service={selectedService} showImage={hasServiceImage(selectedService)} onFail={markServiceImageFailed}>
+              <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
+              <ThemedText style={{ color: theme.brandTextDim }}>
+                {formatDuration(selectedService?.durationMinutes || 0)} • {formatPrice(selectedService?.priceCents || 0)}
+              </ThemedText>
+            </ServiceSummaryRow>
           </View>
 
           <View style={styles.monthNav}>
@@ -1542,10 +1625,12 @@ export default function BookingFlow({
             Select a Time
           </ThemedText>
           <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft }]}>
-            <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
-            <ThemedText style={{ color: theme.brandTextDim }}>
-              {selectedDateDisplay} • {formatPrice(selectedService?.priceCents || 0)}
-            </ThemedText>
+            <ServiceSummaryRow service={selectedService} showImage={hasServiceImage(selectedService)} onFail={markServiceImageFailed}>
+              <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
+              <ThemedText style={{ color: theme.brandTextDim }}>
+                {selectedDateDisplay} • {formatPrice(selectedService?.priceCents || 0)}
+              </ThemedText>
+            </ServiceSummaryRow>
           </View>
 
           {loadingSlots || validating ? (
@@ -1697,11 +1782,13 @@ export default function BookingFlow({
 
           {/* Booking summary */}
           <View style={[styles.reviewSection, { backgroundColor: accentSoft, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md }]}>
-            <ThemedText style={[styles.reviewLabel, { color: theme.brandTextDim }]}>Service</ThemedText>
-            <ThemedText style={[styles.reviewValue, { color: theme.brandCream, fontWeight: "600" }]}>{selectedService.name}</ThemedText>
-            <ThemedText style={{ color: theme.brandTextDim, marginTop: 2 }}>
-              {selectedDateDisplay} at {formatTime(selectedSlot.startTime)} · {formatDuration(selectedService.durationMinutes)}
-            </ThemedText>
+            <ServiceSummaryRow service={selectedService} showImage={hasServiceImage(selectedService)} onFail={markServiceImageFailed}>
+              <ThemedText style={[styles.reviewLabel, { color: theme.brandTextDim }]}>Service</ThemedText>
+              <ThemedText style={[styles.reviewValue, { color: theme.brandCream, fontWeight: "600" }]}>{selectedService.name}</ThemedText>
+              <ThemedText style={{ color: theme.brandTextDim, marginTop: 2 }}>
+                {selectedDateDisplay} at {formatTime(selectedSlot.startTime)} · {formatDuration(selectedService.durationMinutes)}
+              </ThemedText>
+            </ServiceSummaryRow>
           </View>
 
           {/* Amounts — every value comes from the hold (no math here) */}
