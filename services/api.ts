@@ -5216,6 +5216,8 @@ export interface CurrentSubscription {
   tierDisplayName: string;
   priceInCents: number;
   status: string;
+  // Free (complimentary) plan only: true once the business can receive payouts. null on paid rows.
+  connectReady?: boolean | null;
 }
 
 export function canChangeUsername(user: { username_updated_at?: string | null }): boolean {

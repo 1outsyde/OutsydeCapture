@@ -24,6 +24,7 @@ import api, {
   BusinessDashboardProfile,
   VendorEligibility,
 } from "@/services/api";
+import { consumeStripeReturn, markStripeReturn } from "@/utils/stripeReturnSignal";
 import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
 import { DayHours, getDefaultHours } from "@/components/HoursEditor";
@@ -72,6 +73,9 @@ export default function BusinessDashboardScreen() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [eligibility, setEligibility] = useState<VendorEligibility | null>(null);
+  // Free plan only: true/false from GET /api/vendor/subscription; null on paid plans, undefined until loaded.
+  const [connectReady, setConnectReady] = useState<boolean | null | undefined>(undefined);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const [stats, setStats] = useState<BusinessDashboardStats>({
     earnings: 0,
@@ -262,6 +266,17 @@ export default function BusinessDashboardScreen() {
     }
   }, [getToken]);
 
+  const fetchConnectReady = useCallback(async () => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      const res = await api.getCurrentSubscription(token);
+      setConnectReady(res.subscription?.connectReady ?? null);
+    } catch (err) {
+      console.warn("[Dashboard] Failed to fetch connectReady:", err);
+    }
+  }, [getToken]);
+
   const fetchBookingsForCalendar = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
@@ -325,54 +340,68 @@ export default function BusinessDashboardScreen() {
   const STRIPE_RETURN_URL = "outsyde://stripe-return";
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
-  const refreshStripeStatus = useCallback(async () => {
+  // Free plan: connectReady decides. Paid plans (null) and not-yet-loaded fall back to today's logic.
+  const stripeOk = connectReady ?? profile?.stripeConnected;
+  const stripeOkRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => { stripeOkRef.current = stripeOk; }, [stripeOk]);
+
+  // `fromReturn`: the vendor just came back from Stripe onboarding. The "now connected" alert is
+  // shown only then, and only when this is a change from not-connected; never on a plain foreground refresh.
+  const refreshStripeStatus = useCallback(async (fromReturn = false) => {
     const token = await getToken();
     if (!token) return;
     try {
       const stripeStatus = await api.getVendorStripeStatus(token);
       const isConnected = stripeStatus.onboardingComplete || (stripeStatus.chargesEnabled && stripeStatus.payoutsEnabled);
       setProfile(prev => prev ? { ...prev, stripeConnected: isConnected } : prev);
-      if (isConnected) {
+      if (fromReturn) await fetchConnectReady();
+      if (fromReturn && isConnected && stripeOkRef.current !== true) {
         Alert.alert("Success", "Your Stripe account is now connected! You can start accepting payments.");
       }
     } catch (error) {
       console.error("[Dashboard] Failed to fetch Stripe status:", error);
     }
-  }, [getToken]);
+  }, [getToken, fetchConnectReady]);
 
+  // Free-plan check on every focus; plus the one-shot post-return refresh.
+  useFocusEffect(
+    useCallback(() => {
+      if (authLoading || user?.role !== "business") return;
+      fetchConnectReady();
+      if (consumeStripeReturn()) refreshStripeStatus(true);
+    }, [authLoading, user?.role, fetchConnectReady, refreshStripeStatus])
+  );
+
+  // MainTabNavigator resets navigation on a Stripe return, which remounts this screen; the focus
+  // effect above then does the refresh. Here we only record that a return happened.
   useEffect(() => {
-    const handleDeepLink = async (event: { url: string }) => {
-      if (event.url.includes("stripe-return")) {
-        await refreshStripeStatus();
-      }
-    };
-    const subscription = Linking.addEventListener("url", handleDeepLink);
-    Linking.getInitialURL().then((url) => {
-      if (url && url.includes("stripe-return")) handleDeepLink({ url });
+    const subscription = Linking.addEventListener("url", (event: { url: string }) => {
+      if (event.url.includes("stripe-return")) markStripeReturn();
     });
     return () => { subscription.remove(); };
-  }, [refreshStripeStatus]);
+  }, []);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", async (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === "active") {
-        await Promise.all([fetchEligibility(), refreshStripeStatus()]);
+        await Promise.all([fetchEligibility(), fetchConnectReady(), refreshStripeStatus(consumeStripeReturn())]);
       }
       appStateRef.current = nextAppState;
     });
     return () => { subscription.remove(); };
-  }, [fetchEligibility, refreshStripeStatus]);
+  }, [fetchEligibility, fetchConnectReady, refreshStripeStatus]);
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
   const handleConnectStripe = async () => {
     const token = await getToken();
     if (!token) return;
+    setConnectError(null);
     try {
       const { url } = await api.startVendorStripeOnboarding(token, STRIPE_RETURN_URL);
-      if (url) Linking.openURL(url);
+      if (url) await Linking.openURL(url);
     } catch (error) {
-      Alert.alert("Error", "Failed to connect Stripe. Please try again.");
+      setConnectError("Failed to connect Stripe. Please try again.");
     }
   };
 
@@ -514,6 +543,7 @@ export default function BusinessDashboardScreen() {
     stripeContent: { flex: 1 },
     stripeTitle: { fontSize: 16, fontWeight: "600", color: DASHBOARD_COLORS.cream },
     stripeDescription: { fontSize: 13, color: DASHBOARD_COLORS.creamDim, marginTop: 2 },
+    stripeInlineError: { fontSize: 13, color: "#E5484D", marginTop: 6 },
     setupLink: { fontSize: 13, fontWeight: "600", color: DASHBOARD_COLORS.gold, alignSelf: "flex-end", marginTop: 12 },
     // Stats 2×2
     statsRow: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
@@ -744,8 +774,28 @@ export default function BusinessDashboardScreen() {
         </View>
       )}
 
+      {/* Free plan, payouts not set up: connect Stripe (paid vendors never see this) */}
+      {connectReady === false && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Connect with Stripe"
+          onPress={handleConnectStripe}
+          style={styles.stripeCard}
+        >
+          <View style={styles.stripeIcon}>
+            <Feather name="credit-card" size={20} color={DASHBOARD_COLORS.gold} />
+          </View>
+          <View style={styles.stripeContent}>
+            <Text style={styles.stripeTitle}>Connect with Stripe</Text>
+            <Text style={styles.stripeDescription}>Set up Stripe so you get paid</Text>
+            {connectError ? <Text style={styles.stripeInlineError}>{connectError}</Text> : null}
+          </View>
+          <Feather name="chevron-right" size={20} color={DASHBOARD_COLORS.gold} />
+        </Pressable>
+      )}
+
       {/* Manage Payouts banner */}
-      {profile?.stripeConnected && (
+      {stripeOk && (
         <Pressable
           onPress={handleManagePayouts}
           disabled={loadingPayoutLink}
