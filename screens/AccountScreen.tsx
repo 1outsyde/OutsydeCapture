@@ -334,7 +334,7 @@ const StarRating = ({
   color: string;
   size?: number;
 }) => (
-  <StarDisplay rating={rating} size={size} color={color} />
+  <StarDisplay rating={rating} size={size} color={color} emptyColor="#555555" />
 );
 
 const AvatarWithInitials = ({
@@ -2360,7 +2360,7 @@ export default function AccountScreen() {
                             gap: 4,
                           }}
                         >
-                          <StarDisplay rating={member.rating} size={11} color={accentColor} />
+                          <StarDisplay rating={member.rating} size={11} color={accentColor} emptyColor="#555555" />
                           <Text
                             style={{
                               color: COLORS.white,

@@ -1681,7 +1681,7 @@ export default function VendorDetailScreen({ route }: Props) {
         ) : null}
 
         <View style={styles.ratingInlineRow}>
-          <StarDisplay rating={ratingsData?.average ?? profile.rating} size={13} color={accentColor} />
+          <StarDisplay rating={ratingsData?.average ?? profile.rating} size={13} color={accentColor} emptyColor="#555555" />
           <Text style={styles.ratingText}>{ratingsData ? (ratingsData.average / 10).toFixed(1) : displayRating(profile.rating)}</Text>
           <Text style={styles.ratingMeta}>({ratingsData?.count ?? profile.reviewCount})</Text>
           {profile.responseTime ? (
@@ -2219,6 +2219,7 @@ export default function VendorDetailScreen({ route }: Props) {
             rating={ratingsData?.average ?? (profile?.rating || 0)}
             size={14}
             color={accentColor}
+            emptyColor="#555555"
           />
           <Text style={styles.reviewCountLabel}>
             {ratingsData?.count ?? profile?.reviewCount ?? 0} reviews
@@ -2277,7 +2278,7 @@ export default function VendorDetailScreen({ route }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewUser}>{review.userName}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-                  <StarDisplay rating={review.rating} size={11} color={accentColor} />
+                  <StarDisplay rating={review.rating} size={11} color={accentColor} emptyColor="#555555" />
                   <Text style={styles.reviewMeta}>
                     {new Date(review.createdAt).toLocaleDateString()}
                   </Text>
