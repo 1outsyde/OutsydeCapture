@@ -5027,6 +5027,7 @@ export interface BookingService {
   cancellationFeeType?: string | null;
   cancellationFeeAmount?: number | null;
   depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface BookingValidationResponse {
