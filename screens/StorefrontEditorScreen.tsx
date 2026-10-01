@@ -306,6 +306,11 @@ export default function StorefrontEditorScreen() {
     null,
   );
 
+  // Kept out of serviceForm: the form is sent whole on edit, so the image is
+  // only sent once the vendor uploads or removes one.
+  const [serviceImageUrl, setServiceImageUrl] = useState<string | null>(null);
+  const [serviceImageTouched, setServiceImageTouched] = useState(false);
+
   // Request counter: a services response only writes the list if no newer
   // services request has started since.
   const servicesReqRef = useRef(0);
@@ -865,6 +870,7 @@ export default function StorefrontEditorScreen() {
         depositAmountCents: s.depositAmountCents ?? null,
       });
       applyLoadedDeposit(s.depositAmountCents);
+      setServiceImageUrl(s.imageUrl ?? null);
     } else {
       const biz = business as any;
       setEditingService(null);
@@ -890,7 +896,9 @@ export default function StorefrontEditorScreen() {
         depositAmountCents: null,
       });
       applyLoadedDeposit(null);
+      setServiceImageUrl(null);
     }
+    setServiceImageTouched(false);
     setServiceModalVisible(true);
   };
 
@@ -949,14 +957,22 @@ export default function StorefrontEditorScreen() {
           token,
           editingService.id,
           depositTouched
-            ? { ...baseServiceForm, depositAmountCents: depositValue }
-            : baseServiceForm,
+            ? {
+                ...baseServiceForm,
+                depositAmountCents: depositValue,
+                ...(serviceImageTouched ? { imageUrl: serviceImageUrl } : {}),
+              }
+            : {
+                ...baseServiceForm,
+                ...(serviceImageTouched ? { imageUrl: serviceImageUrl } : {}),
+              },
         );
         serviceId = editingService.id;
       } else {
         const response = await api.createVendorService(token, {
           ...baseServiceForm,
           depositAmountCents: depositValue,
+          ...(serviceImageUrl ? { imageUrl: serviceImageUrl } : {}),
         });
         serviceId = response.service.id;
       }
@@ -1072,6 +1088,24 @@ export default function StorefrontEditorScreen() {
       setProductForm((prev) => ({ ...prev, imageUrl: result.url }));
     } catch (error: any) {
       Alert.alert("Upload Error", error.message || "Failed to upload product image");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleServiceImageSelected = async (uri: string) => {
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Error", "Authentication required. Please log in again.");
+      return;
+    }
+    try {
+      setSaving(true);
+      const result = await uploadImage(uri, "image/jpeg", "services", token);
+      setServiceImageUrl(result.url);
+      setServiceImageTouched(true);
+    } catch (error: any) {
+      Alert.alert("Upload Error", error.message || "Failed to upload service image");
     } finally {
       setSaving(false);
     }
@@ -1441,6 +1475,13 @@ export default function StorefrontEditorScreen() {
       fontWeight: "600",
       color: theme.brandCream,
       flex: 1,
+    },
+    serviceThumb: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      marginRight: 10,
+      backgroundColor: theme.brandSurface,
     },
     serviceDetails: {
       flexDirection: "row",
@@ -2446,6 +2487,12 @@ export default function StorefrontEditorScreen() {
           services.map((service) => (
             <View key={service.id} style={styles.serviceCard}>
               <View style={styles.serviceHeader}>
+                {service.imageUrl ? (
+                  <Image
+                    source={{ uri: service.imageUrl }}
+                    style={styles.serviceThumb}
+                  />
+                ) : null}
                 <Text style={styles.serviceName}>{service.name}</Text>
                 <View
                   style={[
@@ -2848,6 +2895,18 @@ export default function StorefrontEditorScreen() {
             placeholder="60"
             placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
+          />
+
+          <Text style={styles.inputLabel}>Service Image</Text>
+          <ImageUploader
+            currentImage={serviceImageUrl || undefined}
+            onImageSelected={handleServiceImageSelected}
+            onRemove={() => {
+              setServiceImageUrl(null);
+              setServiceImageTouched(true);
+            }}
+            aspectRatio="product"
+            placeholder="Upload Service Image"
           />
 
           {/* ── Service Location ── */}

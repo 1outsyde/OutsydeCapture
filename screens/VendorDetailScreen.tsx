@@ -124,6 +124,7 @@ type ServiceCard = {
   durationMinutes?: number;
   rating?: number;
   reviewCount?: number;
+  imageUrl?: string;
 };
 
 type AvailabilitySlot = {
@@ -486,6 +487,9 @@ export default function VendorDetailScreen({ route }: Props) {
   const [profile, setProfile] = useState<ProfileViewModel | null>(null);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
+    new Set(),
+  );
   const [staff, setStaff] = useState<StaffCardVM[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
@@ -632,6 +636,7 @@ export default function VendorDetailScreen({ route }: Props) {
               undefined,
             rating: Number(item.rating ?? 0),
             reviewCount: Number(item.reviewCount ?? 0),
+            imageUrl: item.imageUrl || undefined,
           }));
 
         resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
@@ -2017,10 +2022,37 @@ export default function VendorDetailScreen({ route }: Props) {
                   padding: 16,
                   marginBottom: 10,
                   flexDirection: "row",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   justifyContent: "space-between",
                 }}
               >
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    marginRight: 12,
+                  }}
+                >
+                  {service.imageUrl && !failedServiceImages.has(service.id) ? (
+                    <Image
+                      source={{ uri: service.imageUrl }}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="cover"
+                      onError={() =>
+                        setFailedServiceImages((prev) =>
+                          new Set(prev).add(service.id),
+                        )
+                      }
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={["#2a2a2a", "#111111"]}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  )}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
