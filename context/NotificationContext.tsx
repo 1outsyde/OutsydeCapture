@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { registerWhile } from "@/utils/modalCoordinator";
 import * as Notifications from "expo-notifications";
 import { useAuth } from "./AuthContext";
 import api from "@/services/api";
@@ -91,6 +92,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [seenBusinessIds, setSeenBusinessIds] = useState<string[]>([]);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [showPrimingModal, setShowPrimingModal] = useState(false);
+  useEffect(() => registerWhile("notification-priming", showPrimingModal), [showPrimingModal]);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notificationListenerRef = useRef<any>(null);

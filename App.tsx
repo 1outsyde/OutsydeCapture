@@ -28,12 +28,14 @@ import { ThemeProvider, useThemeContext } from "@/context/ThemeContext";
 import { RatingPromptOverlay } from "@/components/ratings";
 import { PurchaseItem } from "@/types/ratings";
 import api from "@/services/api";
+import { registerWhile } from "@/utils/modalCoordinator";
 
 // Inner shell: has access to all context providers, owns rating-prompt state.
 function AppShell() {
   const { isAuthenticated, getToken } = useAuth();
   const [promptPurchases, setPromptPurchases] = useState<PurchaseItem[]>([]);
   const [promptVisible, setPromptVisible] = useState(false);
+  useEffect(() => registerWhile("rating-prompt", promptVisible), [promptVisible]);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   useEffect(() => {

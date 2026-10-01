@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api, { VendorEligibility, SubscriptionTier } from "@/services/api";
+import { registerWhile } from "@/utils/modalCoordinator";
 
 const STRIPE_RETURN_URL = "outsyde://stripe-return";
 
@@ -79,6 +80,8 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
       eligibility.requiresOnboarding ||
       eligibility.requiresSubscription)
   );
+
+  useEffect(() => registerWhile("eligibility-gate", isVisible), [isVisible]);
 
   const currentStep = (): "approval" | "plan" | "onboarding" | "subscription" | null => {
     if (!eligibility) return null;

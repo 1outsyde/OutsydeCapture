@@ -1,12 +1,12 @@
-import React, { useEffect } from "react";
-import { StyleSheet, View, Platform, Alert, Pressable } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { StyleSheet, View, Platform, Alert, Pressable, AppState, AppStateStatus } from "react-native";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { api } from "@/services/api";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, CommonActions } from "@react-navigation/native";
+import { useNavigation, useIsFocused, CommonActions } from "@react-navigation/native";
 
 import DiscoverStackNavigator from "@/navigation/DiscoverStackNavigator";
 import SearchScreen from "@/screens/SearchScreen";
@@ -18,6 +18,22 @@ import { useAuth } from "@/context/AuthContext";
 import { useMessaging } from "@/context/MessagingContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { MainTabParamList } from "@/navigation/types";
+import { StripeConnectPrompt, isStripePromptSnoozed } from "@/components/StripeConnectPrompt";
+import { shouldShowConnectPrompt, type ConnectPromptEligibility, type ConnectPromptStripeStatus } from "@/utils/connectPrompt";
+import { isAnyOpen, subscribe as subscribeModals } from "@/utils/modalCoordinator";
+import { markStripeReturn } from "@/utils/stripeReturnSignal";
+
+// At most one "can this vendor get paid?" check per 10 minutes (a forced check after a Stripe return skips this).
+const CONNECT_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+// Set on a vendor stripe-return; consumed by the next check, which may run in a remounted navigator.
+let forceNextConnectCheck = false;
+
+interface ConnectPromptData {
+  connectReady: boolean | null;
+  stripeStatus: ConnectPromptStripeStatus | null;
+  eligibility: ConnectPromptEligibility | null;
+}
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 83;
@@ -54,6 +70,72 @@ export default function MainTabNavigator() {
   const navigation = useNavigation<any>();
   const isGuest = user?.isGuest || !user;
 
+  // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──
+  const mainFocused = useIsFocused();
+  const [promptData, setPromptData] = useState<ConnectPromptData | null>(null);
+  const [snoozed, setSnoozed] = useState(isStripePromptSnoozed());
+  const [blockingModalOpen, setBlockingModalOpen] = useState(isAnyOpen());
+  const lastCheckAtRef = useRef(0);
+  const checkingRef = useRef(false);
+  const isBusiness = !!user && !user.isGuest && user.role === "business";
+
+  useEffect(() => {
+    const sync = () => setBlockingModalOpen(isAnyOpen());
+    sync();
+    return subscribeModals(sync);
+  }, []);
+
+  const runConnectCheck = useCallback(async (force: boolean) => {
+    if (!isBusiness || checkingRef.current) return;
+    const mustForce = force || forceNextConnectCheck;
+    if (!mustForce && Date.now() - lastCheckAtRef.current < CONNECT_CHECK_INTERVAL_MS) return;
+    forceNextConnectCheck = false;
+    checkingRef.current = true;
+    lastCheckAtRef.current = Date.now();
+    try {
+      const token = await getToken();
+      if (!token) { setPromptData(null); return; }
+      const [subRes, eligibility] = await Promise.all([
+        api.getCurrentSubscription(token).catch(() => null),
+        api.getVendorEligibility(token).catch(() => null),
+      ]);
+      const connectReady = subRes ? (subRes.subscription?.connectReady ?? null) : null;
+      if (connectReady !== false || !eligibility) {
+        setPromptData(null);
+        return;
+      }
+      // Confirm with live Stripe status; if that call fails the prompt stays hidden (fail quiet).
+      const stripeStatus = await api.getVendorStripeStatus(token).catch(() => null);
+      setPromptData({ connectReady, stripeStatus, eligibility });
+    } catch {
+      setPromptData(null);
+    } finally {
+      checkingRef.current = false;
+    }
+  }, [isBusiness, getToken]);
+
+  useEffect(() => {
+    if (!isBusiness) { setPromptData(null); return; }
+    runConnectCheck(false);
+    const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
+      if (next === "active") runConnectCheck(false);
+    });
+    return () => sub.remove();
+  }, [user?.id, user?.role, isBusiness, runConnectCheck]);
+
+  const showConnectPrompt =
+    !!promptData &&
+    !isAnyOpen() &&
+    shouldShowConnectPrompt({
+      role: user?.role,
+      connectReady: promptData.connectReady,
+      stripeStatus: promptData.stripeStatus,
+      eligibility: promptData.eligibility,
+      snoozed,
+      blockingModalOpen,
+      mainFocused,
+    });
+
   // Handle password reset deep link for authenticated users
   useEffect(() => {
     if (pendingResetParams) {
@@ -83,6 +165,13 @@ export default function MainTabNavigator() {
     if (!pendingStripeReturn) return;
     const { status, type } = pendingStripeReturn;
     clearPendingStripeReturn();
+
+    if (type === "vendor" || type === "business") {
+      // Re-check payout readiness (skips the throttle) and let the dashboard show the one success alert.
+      markStripeReturn();
+      forceNextConnectCheck = true;
+      runConnectCheck(true);
+    }
 
     console.log("[DeepLink] Parsed params:", { status, type });
 
@@ -140,6 +229,10 @@ export default function MainTabNavigator() {
         );
       };
       handleSuccess();
+    } else if (status === "complete") {
+      // Backend connect-return redirect. Same destination as "success", but no /connect/complete call
+      // (it always 400s without an accountId) and no alert here: the dashboard owns the message.
+      resetToTarget();
     } else if (status === "refresh") {
       // Stripe link expired — route to dashboard so user can retry from the Stripe CTA
       console.log("[DeepLink] Stripe link expired — routing to dashboard to retry");
@@ -268,6 +361,7 @@ export default function MainTabNavigator() {
           }}
         />
       </Tab.Navigator>
+      <StripeConnectPrompt visible={showConnectPrompt} onSnooze={() => setSnoozed(true)} />
     </View>
   );
 }
