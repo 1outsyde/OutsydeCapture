@@ -503,6 +503,7 @@ export interface VendorBookerPhotographerService {
   cancellationFeeType?: 'flat' | 'percentage' | null;
   cancellationFeeAmount?: number | null;
   depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 // Photographer availability slot
@@ -696,6 +697,7 @@ export interface StaffServiceInput {
   cancellationFeeType?: "flat" | "percentage" | null;
   cancellationFeeAmount?: number | null;
   depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface AdminStats {
@@ -972,6 +974,7 @@ export interface PhotographerService {
   reviewCount?: number | null;
   durationMinutes?: number | null;
   depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface PhotographerHours {

@@ -437,6 +437,7 @@ export default function PhotographerDashboardScreen() {
           pricingModel: s.pricingModel || "package",
           category: s.category || "Other",
           depositAmountCents: s.depositAmountCents ?? null,
+          imageUrl: s.imageUrl ?? null,
         })));
 
         // Parse CTA config
@@ -1070,9 +1071,17 @@ export default function PhotographerDashboardScreen() {
       cancellationFeeType: rawService?.cancellationFeeType ?? null,
       cancellationFeeAmount: rawService?.cancellationFeeAmount ?? null,
       depositAmountCents: rawService?.depositAmountCents ?? null,
+      imageUrl: rawService?.imageUrl ?? null,
     });
     setDepositServerError(null);
     setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
+  };
+
+  const handleUploadServiceImage = async (uri: string): Promise<string> => {
+    const token = await getToken();
+    if (!token) throw new Error("Authentication required. Please log in again.");
+    const result = await uploadImage(uri, "image/jpeg", "services", token);
+    return result.url;
   };
 
   const handleSaveService = async (data: ServiceFormData) => {
@@ -1105,6 +1114,14 @@ export default function PhotographerDashboardScreen() {
       // overwrites a deposit set elsewhere.
       if (!data.id || data.depositTouched) {
         payload.depositAmountCents = data.depositAmountCents ?? null;
+      }
+
+      // Edit sends the image only when it was uploaded or removed; create only
+      // when one is set. Removing sends null, never "".
+      if (data.id) {
+        if (data.imageTouched) payload.imageUrl = data.imageUrl ?? null;
+      } else if (data.imageUrl) {
+        payload.imageUrl = data.imageUrl;
       }
 
       if (data.pricingModel === "hourly" && data.packageHours) {
@@ -1716,6 +1733,13 @@ export default function PhotographerDashboardScreen() {
     },
 
     // ── Booking cards (inside modal) ───────────────────────────────────────
+    serviceThumb: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      marginRight: 10,
+      backgroundColor: DASHBOARD_COLORS.cardBorder,
+    },
     bookingCard: {
       backgroundColor: DASHBOARD_COLORS.surface,
       borderColor: DASHBOARD_COLORS.cardBorder,
@@ -2918,6 +2942,13 @@ export default function PhotographerDashboardScreen() {
                 return (
                   <View key={service.id} style={styles.bookingCard}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      {service.imageUrl ? (
+                        <Image
+                          source={{ uri: service.imageUrl }}
+                          style={styles.serviceThumb}
+                          contentFit="cover"
+                        />
+                      ) : null}
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <Text style={styles.bookingClient}>{service.name}</Text>
@@ -3573,6 +3604,7 @@ export default function PhotographerDashboardScreen() {
         depositMode="packageOnly"
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
+        onUploadImage={handleUploadServiceImage}
       />
 
       <RefundModal

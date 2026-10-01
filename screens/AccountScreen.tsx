@@ -164,6 +164,7 @@ type ServiceCard = {
   priceCents: number;
   durationMinutes?: number;
   rating?: number;
+  imageUrl?: string;
 };
 
 type OwnerStaffMember = {
@@ -449,6 +450,9 @@ export default function AccountScreen() {
   }[]>([]);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
+    new Set(),
+  );
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [savedItems, setSavedItems] = useState<PostCard[]>([]);
   const [availability, setAvailability] = useState<WeeklyAvailabilitySlot[]>(
@@ -662,6 +666,7 @@ export default function AccountScreen() {
                 (item as any).estimatedDurationMinutes ||
                 undefined,
               rating: Number(item.rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -784,6 +789,7 @@ export default function AccountScreen() {
                 item.estimatedDurationMinutes ||
                 undefined,
               rating: Number((item as any).rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -976,6 +982,7 @@ export default function AccountScreen() {
                 (item as any).estimatedDurationMinutes ||
                 undefined,
               rating: Number(item.rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -1084,6 +1091,7 @@ export default function AccountScreen() {
               priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
               durationMinutes: (item as any).durationMinutes || undefined,
               rating: Number((item as any).rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -1189,6 +1197,7 @@ export default function AccountScreen() {
                 (item as any).estimatedDurationMinutes ||
                 undefined,
               rating: Number(item.rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedServices = mappedServices;
@@ -1992,10 +2001,37 @@ export default function AccountScreen() {
                   padding: 16,
                   marginBottom: 10,
                   flexDirection: "row",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   justifyContent: "space-between",
                 }}
               >
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    marginRight: 12,
+                  }}
+                >
+                  {service.imageUrl && !failedServiceImages.has(service.id) ? (
+                    <Image
+                      source={{ uri: service.imageUrl }}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="cover"
+                      onError={() =>
+                        setFailedServiceImages((prev) =>
+                          new Set(prev).add(service.id),
+                        )
+                      }
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={["#2a2a2a", "#111111"]}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  )}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{

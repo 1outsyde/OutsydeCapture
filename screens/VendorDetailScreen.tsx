@@ -786,6 +786,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 durationMinutes: (item as any).durationMinutes || undefined,
                 rating: Number((item as any).rating ?? 0),
                 reviewCount: Number((item as any).reviewCount ?? 0),
+                imageUrl: item.imageUrl || undefined,
               }));
 
             resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);

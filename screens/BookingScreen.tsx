@@ -4,6 +4,7 @@ import {
   Alert, Modal, ActivityIndicator, useColorScheme,
 } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -273,6 +274,9 @@ export default function BookingScreen() {
   // ─── Booking flow state ────────────────────────────────────────────────────
   const [step, setStep] = useState<Step>(preselectedServiceId ? 2 : 1);
   const [services, setServices] = useState<BookingService[]>([]);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
+    new Set(),
+  );
   const [selectedService, setSelectedService] = useState<BookingService | null>(null);
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -969,6 +973,33 @@ export default function BookingScreen() {
             ]}
           >
             <View style={styles.serviceHeader}>
+              <View
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  marginRight: 12,
+                }}
+              >
+                {service.imageUrl && !failedServiceImages.has(service.id) ? (
+                  <Image
+                    source={{ uri: service.imageUrl }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                    onError={() =>
+                      setFailedServiceImages((prev) =>
+                        new Set(prev).add(service.id),
+                      )
+                    }
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={["#2a2a2a", "#111111"]}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                )}
+              </View>
               <View style={{ flex: 1 }}>
                 <ThemedText type="h4">{service.name}</ThemedText>
                 {service.description ? (
