@@ -63,6 +63,8 @@ import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
 import { StarDisplay, RatingBottomSheet } from "@/components/ratings";
 import type { PurchaseItem, RatingCheckResponse, RatingsResponse } from "@/types/ratings";
+import { displayRating } from "@/types/ratings";
+import { formatDuration } from "@/utils/duration";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -123,6 +125,7 @@ type ServiceCard = {
   durationMinutes?: number;
   rating?: number;
   reviewCount?: number;
+  imageUrl?: string;
 };
 
 type AvailabilitySlot = {
@@ -485,6 +488,9 @@ export default function VendorDetailScreen({ route }: Props) {
   const [profile, setProfile] = useState<ProfileViewModel | null>(null);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
+    new Set(),
+  );
   const [staff, setStaff] = useState<StaffCardVM[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
@@ -631,6 +637,7 @@ export default function VendorDetailScreen({ route }: Props) {
               undefined,
             rating: Number(item.rating ?? 0),
             reviewCount: Number(item.reviewCount ?? 0),
+            imageUrl: item.imageUrl || undefined,
           }));
 
         resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
@@ -780,6 +787,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 durationMinutes: (item as any).durationMinutes || undefined,
                 rating: Number((item as any).rating ?? 0),
                 reviewCount: Number((item as any).reviewCount ?? 0),
+                imageUrl: item.imageUrl || undefined,
               }));
 
             resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
@@ -1680,8 +1688,8 @@ export default function VendorDetailScreen({ route }: Props) {
         ) : null}
 
         <View style={styles.ratingInlineRow}>
-          <StarDisplay rating={ratingsData?.average ?? Math.round(profile.rating * 10)} size={13} color={accentColor} />
-          <Text style={styles.ratingText}>{ratingsData ? (ratingsData.average / 10).toFixed(1) : profile.rating.toFixed(1)}</Text>
+          <StarDisplay rating={ratingsData?.average ?? profile.rating} size={13} color={accentColor} emptyColor="#555555" />
+          <Text style={styles.ratingText}>{ratingsData ? (ratingsData.average / 10).toFixed(1) : displayRating(profile.rating)}</Text>
           <Text style={styles.ratingMeta}>({ratingsData?.count ?? profile.reviewCount})</Text>
           {profile.responseTime ? (
             <Text style={styles.ratingMeta}>⚡ {profile.responseTime}</Text>
@@ -2016,10 +2024,37 @@ export default function VendorDetailScreen({ route }: Props) {
                   padding: 16,
                   marginBottom: 10,
                   flexDirection: "row",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   justifyContent: "space-between",
                 }}
               >
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    marginRight: 12,
+                  }}
+                >
+                  {service.imageUrl && !failedServiceImages.has(service.id) ? (
+                    <Image
+                      source={{ uri: service.imageUrl }}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="cover"
+                      onError={() =>
+                        setFailedServiceImages((prev) =>
+                          new Set(prev).add(service.id),
+                        )
+                      }
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={["#2a2a2a", "#111111"]}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  )}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
@@ -2051,7 +2086,7 @@ export default function VendorDetailScreen({ route }: Props) {
                         marginTop: 6,
                       }}
                     >
-                      {service.durationMinutes} min
+                      {formatDuration(service.durationMinutes)}
                     </Text>
                   ) : null}
                 </View>
@@ -2212,12 +2247,13 @@ export default function VendorDetailScreen({ route }: Props) {
       <View style={styles.reviewSummaryCard}>
         <View style={styles.reviewSummaryLeft}>
           <Text style={styles.reviewScore}>
-            {ratingsData ? (ratingsData.average / 10).toFixed(1) : (profile?.rating?.toFixed(1) || "0.0")}
+            {ratingsData ? (ratingsData.average / 10).toFixed(1) : displayRating(profile?.rating)}
           </Text>
           <StarDisplay
-            rating={ratingsData?.average ?? Math.round((profile?.rating || 0) * 10)}
+            rating={ratingsData?.average ?? (profile?.rating || 0)}
             size={14}
             color={accentColor}
+            emptyColor="#555555"
           />
           <Text style={styles.reviewCountLabel}>
             {ratingsData?.count ?? profile?.reviewCount ?? 0} reviews
@@ -2276,7 +2312,7 @@ export default function VendorDetailScreen({ route }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewUser}>{review.userName}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-                  <StarDisplay rating={Math.round(review.rating * 10)} size={11} color={accentColor} />
+                  <StarDisplay rating={review.rating} size={11} color={accentColor} emptyColor="#555555" />
                   <Text style={styles.reviewMeta}>
                     {new Date(review.createdAt).toLocaleDateString()}
                   </Text>

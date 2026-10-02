@@ -12,6 +12,7 @@ import {
   TextInput,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -25,6 +26,7 @@ import api, {
   VendorService,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
 import ProviderCalendar, {
   CalendarBooking,
   CalendarBlockedDate,
@@ -34,6 +36,8 @@ import DateBlocker, { BlockedDate } from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
+import { uploadImage } from "@/services/mediaUpload";
+import { formatDuration } from "@/utils/duration";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
 
@@ -99,6 +103,7 @@ export default function StaffDashboardScreen() {
 
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [editingStaffService, setEditingStaffService] = useState<ServiceFormData | null>(null);
+  const [depositServerError, setDepositServerError] = useState<string | null>(null);
 
   const [weeklyHours, setWeeklyHours] = useState<DayHours[]>(getDefaultHours());
   const [savingWeeklyHours, setSavingWeeklyHours] = useState(false);
@@ -312,6 +317,13 @@ export default function StaffDashboardScreen() {
     }
   };
 
+  const handleUploadServiceImage = async (uri: string): Promise<string> => {
+    const token = await getToken();
+    if (!token) throw new Error("Authentication required. Please log in again.");
+    const result = await uploadImage(uri, "image/jpeg", "services", token);
+    return result.url;
+  };
+
   const handleSaveStaffService = async (data: ServiceFormData) => {
     const token = await getToken();
     if (!token || !businessId) return;
@@ -337,9 +349,20 @@ export default function StaffDashboardScreen() {
       hasCancellationFee: data.hasCancellationFee,
       cancellationFeeType: data.cancellationFeeType,
       cancellationFeeAmount: data.cancellationFeeAmount,
+      // Sent on create; on edit only when changed, so an untouched form never
+      // overwrites a deposit set elsewhere.
+      ...(!data.id || data.depositTouched
+        ? { depositAmountCents: data.depositAmountCents ?? null }
+        : {}),
+      // Edit sends the image only when it was uploaded or removed; create only
+      // when one is set. Removing sends null, never "".
+      ...(data.id
+        ? (data.imageTouched ? { imageUrl: data.imageUrl ?? null } : {})
+        : (data.imageUrl ? { imageUrl: data.imageUrl } : {})),
     };
 
     try {
+      setDepositServerError(null);
       if (data.id) {
         await api.updateStaffService(token, data.id, payload, businessId);
         Alert.alert("Success", "Service updated");
@@ -351,6 +374,11 @@ export default function StaffDashboardScreen() {
       setEditingStaffService(null);
       load();
     } catch (error: any) {
+      if (error.status === 400 && error.body?.code === "INVALID_DEPOSIT") {
+        // Rethrown so the editor stays open with the message inline.
+        setDepositServerError(error.message);
+        throw error;
+      }
       console.error("[StaffDashboard] Failed to save service:", error);
       Alert.alert("Error", error.message || "Failed to save service");
       throw error;
@@ -511,7 +539,7 @@ export default function StaffDashboardScreen() {
                 <Feather name="star" size={14} color={DASHBOARD_COLORS.gold} />
               </View>
               <Text style={styles.statValue}>
-                {staff.rating && staff.rating > 0 ? staff.rating.toFixed(1) : "N/A"}
+                {staff.rating && staff.rating > 0 ? displayRating(staff.rating) : "N/A"}
               </Text>
               <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
             </View>
@@ -656,6 +684,7 @@ export default function StaffDashboardScreen() {
               <Pressable
                 style={[styles.addButton, { marginBottom: Spacing.lg }]}
                 onPress={() => {
+                  setDepositServerError(null);
                   setEditingStaffService(null);
                   setActiveModal(null);
                   setTimeout(() => setShowServiceEditor(true), 100);
@@ -676,6 +705,13 @@ export default function StaffDashboardScreen() {
                     : "#FF9500";
                   return (
                     <View key={service.id} style={styles.listRow}>
+                      {service.imageUrl ? (
+                        <Image
+                          source={{ uri: service.imageUrl }}
+                          style={styles.serviceThumb}
+                          contentFit="cover"
+                        />
+                      ) : null}
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <Text style={styles.listRowTitle}>{service.name}</Text>
@@ -692,7 +728,10 @@ export default function StaffDashboardScreen() {
                         </View>
                         <Text style={styles.listRowSubtitle}>
                           {formatCurrency(service.priceCents)}
-                          {service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}
+                          {service.durationMinutes ? ` · ${formatDuration(service.durationMinutes)}` : ""}
+                          {service.depositAmountCents && service.depositAmountCents > 0
+                            ? ` · ${formatCurrency(service.depositAmountCents)} deposit`
+                            : ""}
                         </Text>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -730,7 +769,10 @@ export default function StaffDashboardScreen() {
                               hasCancellationFee: (service as any).hasCancellationFee ?? false,
                               cancellationFeeType: (service as any).cancellationFeeType ?? null,
                               cancellationFeeAmount: (service as any).cancellationFeeAmount ?? null,
+                              depositAmountCents: service.depositAmountCents ?? null,
+                              imageUrl: service.imageUrl ?? null,
                             };
+                            setDepositServerError(null);
                             setEditingStaffService(formData);
                             setActiveModal(null);
                             setTimeout(() => setShowServiceEditor(true), 100);
@@ -944,10 +986,17 @@ export default function StaffDashboardScreen() {
         onClose={() => {
           setShowServiceEditor(false);
           setEditingStaffService(null);
+          setDepositServerError(null);
         }}
         onSave={handleSaveStaffService}
         initialData={editingStaffService}
         brandColor={DASHBOARD_COLORS.gold}
+        depositMode="always"
+        hidePricingModelToggle
+        minDurationMinutes={5}
+        depositServerError={depositServerError}
+        onClearDepositServerError={() => setDepositServerError(null)}
+        onUploadImage={handleUploadServiceImage}
       />
     </>
   );
@@ -1152,6 +1201,13 @@ function createStyles(theme: any, insets: { top: number; bottom: number }) {
       paddingVertical: Spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.border,
+    },
+    serviceThumb: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      marginRight: 10,
+      backgroundColor: theme.border,
     },
     listRowTitle: {
       fontSize: 15,

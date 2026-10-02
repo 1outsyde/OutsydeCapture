@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,9 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import ImageUploader from "@/components/ImageUploader";
+import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
+import { joinMinutes, splitMinutes } from "@/utils/duration";
 
 const SERVICE_CATEGORIES = [
   "Portrait",
@@ -75,7 +78,17 @@ export interface ServiceFormData {
   hasCancellationFee?: boolean;
   cancellationFeeType?: "flat" | "percentage" | null;
   cancellationFeeAmount?: number | null;
+  // Loaded deposit on input; on save, cents or null plus whether the provider
+  // changed it (edits only send the deposit when touched).
+  depositAmountCents?: number | null;
+  depositTouched?: boolean;
+  // One optional image. imageTouched is true once the provider uploaded or
+  // removed one, and edits only send imageUrl when it is touched.
+  imageUrl?: string | null;
+  imageTouched?: boolean;
 }
+
+export type DepositMode = "always" | "packageOnly" | "hidden";
 
 interface ServiceEditorModalProps {
   visible: boolean;
@@ -83,7 +96,25 @@ interface ServiceEditorModalProps {
   onSave: (data: ServiceFormData) => Promise<void>;
   initialData?: ServiceFormData | null;
   brandColor?: string;
+  depositMode?: DepositMode;
+  // Hides the Package/Hourly toggle (the service is always a package). Shown by default.
+  hidePricingModelToggle?: boolean;
+  // Shortest package duration in minutes (the backend minimum for the service type).
+  minDurationMinutes?: number;
+  depositServerError?: string | null;
+  onClearDepositServerError?: () => void;
+  // Uploads a picked image and returns its URL. The image picker is only shown
+  // when this is provided.
+  onUploadImage?: (uri: string) => Promise<string>;
 }
+
+// Minimum hours for an hourly service: a whole number of 1 or more, else null.
+const parseMinHours = (raw: string | undefined): number | null => {
+  const t = (raw ?? "").trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = parseInt(t, 10);
+  return n >= 1 ? n : null;
+};
 
 const EMPTY_FORM: ServiceFormData = {
   name: "",
@@ -106,6 +137,10 @@ const EMPTY_FORM: ServiceFormData = {
   hasCancellationFee: false,
   cancellationFeeType: null,
   cancellationFeeAmount: null,
+  depositAmountCents: null,
+  depositTouched: false,
+  imageUrl: null,
+  imageTouched: false,
 };
 
 export default function ServiceEditorModal({
@@ -114,6 +149,12 @@ export default function ServiceEditorModal({
   onSave,
   initialData,
   brandColor = "#D4A84B",
+  depositMode = "hidden",
+  hidePricingModelToggle = false,
+  minDurationMinutes = 1,
+  depositServerError = null,
+  onClearDepositServerError,
+  onUploadImage,
 }: ServiceEditorModalProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -121,8 +162,43 @@ export default function ServiceEditorModal({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const [formData, setFormData] = useState<ServiceFormData>(EMPTY_FORM);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  // Bumped on every open/close/initialData change so an upload that finishes
+  // after the form was reset cannot write into the next service.
+  const uploadSeqRef = useRef(0);
+  const [durationError, setDurationError] = useState<string | null>(null);
+  const [hoursError, setHoursError] = useState<string | null>(null);
+  // Package duration boxes. formData.duration keeps the total minutes as a string.
+  const [durationHoursText, setDurationHoursText] = useState("1");
+  const [durationMinutesText, setDurationMinutesText] = useState("0");
+
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositInput, setDepositInput] = useState("");
+  const [depositTouched, setDepositTouched] = useState(false);
+  const loadedDepositRef = useRef(false);
+
+  // Sets the deposit toggle and input from a stored value. A stored 0 means
+  // no deposit.
+  const applyLoadedDeposit = (loaded: number | null | undefined) => {
+    const on = typeof loaded === "number" && loaded > 0;
+    loadedDepositRef.current = on;
+    setDepositEnabled(on);
+    setDepositInput(on ? (loaded / 100).toFixed(2) : "");
+    setDepositTouched(false);
+  };
+
+  const clearDepositServerError = () => onClearDepositServerError?.();
 
   useEffect(() => {
+    setDurationError(null);
+    setHoursError(null);
+    const loadedMinutes = parseInt(initialData?.duration || "60", 10);
+    const loadedSplit = splitMinutes(Number.isFinite(loadedMinutes) ? loadedMinutes : 60);
+    setDurationHoursText(String(loadedSplit.hours));
+    setDurationMinutesText(String(loadedSplit.minutes));
+    uploadSeqRef.current += 1;
+    setUploadingImage(false);
+    applyLoadedDeposit(initialData?.depositAmountCents);
     if (initialData) {
       setFormData({
         id: initialData.id,
@@ -147,11 +223,57 @@ export default function ServiceEditorModal({
         hasCancellationFee: initialData.hasCancellationFee ?? false,
         cancellationFeeType: initialData.cancellationFeeType ?? null,
         cancellationFeeAmount: initialData.cancellationFeeAmount ?? null,
+        depositAmountCents: initialData.depositAmountCents ?? null,
+        depositTouched: false,
+        imageUrl: initialData.imageUrl ?? null,
+        imageTouched: false,
       });
     } else {
       setFormData(EMPTY_FORM);
     }
   }, [initialData, visible]);
+
+  const depositVisible =
+    depositMode === "always" ||
+    (depositMode === "packageOnly" && formData.pricingModel === "package");
+  const priceCents = Math.round(parseFloat(formData.price || "0") * 100);
+  const parsedDeposit = parseDepositInput(depositInput);
+  // Whole minimum hours for an hourly service, or null when missing or invalid.
+  const minHours = parseMinHours(formData.packageHours);
+  // The booking total is the price for a package and the hourly rate times the
+  // minimum hours for an hourly service, so the deposit is checked against that.
+  const depositError =
+    !depositVisible || !depositEnabled
+      ? null
+      : "error" in parsedDeposit
+        ? parsedDeposit.error
+        : parsedDeposit.cents < MIN_DEPOSIT_CENTS
+          ? "Deposit must be at least $7.00."
+          : formData.pricingModel === "hourly"
+            ? minHours === null
+              ? "Enter the minimum hours to set a deposit."
+              : parsedDeposit.cents >= (priceCents || 0) * minHours
+                ? "Deposit must be less than the service price (hourly rate × minimum hours)."
+                : null
+            : parsedDeposit.cents >= (priceCents || 0)
+              ? "Deposit must be less than the service price."
+              : null;
+
+  const handleImageSelected = async (uri: string) => {
+    if (!onUploadImage) return;
+    const seq = uploadSeqRef.current;
+    try {
+      setUploadingImage(true);
+      const url = await onUploadImage(uri);
+      if (seq !== uploadSeqRef.current) return;
+      setFormData((f) => ({ ...f, imageUrl: url, imageTouched: true }));
+    } catch (error: any) {
+      if (seq !== uploadSeqRef.current) return;
+      Alert.alert("Upload Error", error?.message || "Failed to upload service image");
+    } finally {
+      if (seq === uploadSeqRef.current) setUploadingImage(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
@@ -162,9 +284,51 @@ export default function ServiceEditorModal({
       return;
     }
 
+    if (formData.pricingModel === "hourly" && minHours === null) {
+      setHoursError("Enter the minimum hours (a whole number, 1 or more)");
+      return;
+    }
+
+    // The deposit error is already shown inline under the field.
+    if (depositError) return;
+
+    // A hidden deposit always saves as none; a deposit loaded from the server
+    // counts as touched so it is cleared. Photographer and staff editors use
+    // depositMode "always", so the deposit is never hidden there.
+    const depositAmountCents =
+      depositVisible && depositEnabled && "cents" in parsedDeposit
+        ? parsedDeposit.cents
+        : null;
+    const depositWasTouched = depositVisible
+      ? depositTouched
+      : depositMode !== "hidden" &&
+        (loadedDepositRef.current || depositTouched);
+
+    let dataToSave: ServiceFormData = {
+      ...formData,
+      depositAmountCents,
+      depositTouched: depositWasTouched,
+    };
+    if (formData.pricingModel === "package") {
+      if (parseInt(durationMinutesText || "0", 10) > 59) {
+        setDurationError("Minutes must be between 0 and 59.");
+        return;
+      }
+      const totalMinutes = joinMinutes(durationHoursText, durationMinutesText);
+      if (totalMinutes < minDurationMinutes) {
+        setDurationError(
+          minDurationMinutes <= 1
+            ? "Duration is required"
+            : `Duration must be at least ${minDurationMinutes} minutes.`,
+        );
+        return;
+      }
+      dataToSave = { ...dataToSave, duration: String(totalMinutes) };
+    }
+
     try {
       setSaving(true);
-      await onSave(formData);
+      await onSave(dataToSave);
       onClose();
     } catch (error) {
       console.error("Failed to save service:", error);
@@ -254,6 +418,24 @@ export default function ServiceEditorModal({
               />
             </View>
 
+            {onUploadImage ? (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: theme.text }]}>Service Image</Text>
+                <ImageUploader
+                  currentImage={formData.imageUrl || undefined}
+                  onImageSelected={handleImageSelected}
+                  onRemove={() =>
+                    setFormData((f) => ({ ...f, imageUrl: null, imageTouched: true }))
+                  }
+                  aspectRatio="product"
+                  placeholder="Upload Service Image"
+                />
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={brandColor} style={{ marginTop: 8 }} />
+                ) : null}
+              </View>
+            ) : null}
+
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Category</Text>
               <Pressable
@@ -302,6 +484,7 @@ export default function ServiceEditorModal({
               )}
             </View>
 
+            {!hidePricingModelToggle && (
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Pricing Model</Text>
               <View style={styles.pricingModelRow}>
@@ -317,12 +500,13 @@ export default function ServiceEditorModal({
                           formData.pricingModel === model.value ? brandColor : theme.border,
                       },
                     ]}
-                    onPress={() =>
+                    onPress={() => {
                       setFormData((prev) => ({
                         ...prev,
                         pricingModel: model.value as "package" | "hourly",
-                      }))
-                    }
+                      }));
+                      clearDepositServerError();
+                    }}
                   >
                     <Text
                       style={[
@@ -338,6 +522,7 @@ export default function ServiceEditorModal({
                 ))}
               </View>
             </View>
+            )}
 
             <View style={styles.row}>
               <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
@@ -354,15 +539,140 @@ export default function ServiceEditorModal({
                     },
                   ]}
                   value={formData.price}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, price: text }))}
+                  onChangeText={(text) => {
+                    setFormData((prev) => ({ ...prev, price: text }));
+                    clearDepositServerError();
+                  }}
                   placeholder="0.00"
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="decimal-pad"
                 />
               </View>
-              <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+              {formData.pricingModel === "hourly" ? (
+                <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={[styles.label, { color: theme.text }]}>Min Hours</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.card,
+                        color: theme.text,
+                        borderColor: hoursError ? theme.error : theme.border,
+                      },
+                    ]}
+                    value={formData.packageHours}
+                    onChangeText={(text) => {
+                      setHoursError(null);
+                      setFormData((prev) => ({ ...prev, packageHours: text }));
+                    }}
+                    placeholder="2"
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="numeric"
+                  />
+                  {hoursError && (
+                    <Text style={[styles.errorText, { color: theme.error }]}>
+                      {hoursError}
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={[styles.label, { color: theme.text }]}>Duration</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {(
+                      [
+                        ["Hours", durationHoursText, "hours"],
+                        ["Minutes", durationMinutesText, "minutes"],
+                      ] as const
+                    ).map(([caption, text, which]) => (
+                      <View key={which} style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}>
+                          {caption}
+                        </Text>
+                        <TextInput
+                          style={[
+                            styles.input,
+                            {
+                              backgroundColor: theme.card,
+                              color: theme.text,
+                              borderColor: durationError ? theme.error : theme.border,
+                            },
+                          ]}
+                          value={text}
+                          onChangeText={(v) => {
+                            const digits = v.replace(/\D/g, "");
+                            const nextHours = which === "hours" ? digits : durationHoursText;
+                            const nextMinutes = which === "minutes" ? digits : durationMinutesText;
+                            setDurationError(null);
+                            setDurationHoursText(nextHours);
+                            setDurationMinutesText(nextMinutes);
+                            setFormData((prev) => ({
+                              ...prev,
+                              duration: String(joinMinutes(nextHours, nextMinutes)),
+                            }));
+                          }}
+                          placeholder="0"
+                          placeholderTextColor={theme.textSecondary}
+                          keyboardType="number-pad"
+                          accessibilityLabel={`Duration ${which}`}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                  {durationError && (
+                    <Text style={[styles.errorText, { color: theme.error }]}>
+                      {durationError}
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {depositVisible && (
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: theme.text, marginBottom: 0 },
+                    ]}
+                  >
+                    Require deposit at booking
+                  </Text>
+                  <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                    Collect a deposit at booking, balance due at appointment
+                  </Text>
+                </View>
+                <Switch
+                  value={depositEnabled}
+                  onValueChange={(v) => {
+                    // Turning it off keeps the typed amount so turning it back on
+                    // restores it; an off toggle always saves as no deposit.
+                    setDepositEnabled(v);
+                    setDepositTouched(true);
+                    clearDepositServerError();
+                  }}
+                  trackColor={{ true: brandColor }}
+                  accessibilityLabel="Require deposit at booking"
+                />
+              </View>
+            )}
+
+            {depositServerError && !depositError && (
+              <Text
+                style={[
+                  styles.errorText,
+                  { color: theme.error, marginTop: -8, marginBottom: 12 },
+                ]}
+              >
+                {depositServerError}
+              </Text>
+            )}
+
+            {depositVisible && depositEnabled && (
+              <View style={styles.field}>
                 <Text style={[styles.label, { color: theme.text }]}>
-                  {formData.pricingModel === "hourly" ? "Min Hours" : "Duration (min)"}
+                  Deposit (in dollars)
                 </Text>
                 <TextInput
                   style={[
@@ -370,22 +680,32 @@ export default function ServiceEditorModal({
                     {
                       backgroundColor: theme.card,
                       color: theme.text,
-                      borderColor: theme.border,
+                      borderColor: depositError ? theme.error : theme.border,
                     },
                   ]}
-                  value={formData.pricingModel === "hourly" ? formData.packageHours : formData.duration}
-                  onChangeText={(text) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      [formData.pricingModel === "hourly" ? "packageHours" : "duration"]: text,
-                    }))
-                  }
-                  placeholder={formData.pricingModel === "hourly" ? "2" : "60"}
+                  value={depositInput}
+                  onChangeText={(v) => {
+                    setDepositInput(v);
+                    setDepositTouched(true);
+                    clearDepositServerError();
+                  }}
+                  onBlur={() => {
+                    if ("cents" in parsedDeposit) {
+                      setDepositInput((parsedDeposit.cents / 100).toFixed(2));
+                    }
+                  }}
+                  placeholder="0.00"
                   placeholderTextColor={theme.textSecondary}
-                  keyboardType="number-pad"
+                  keyboardType="decimal-pad"
+                  accessibilityLabel="Deposit amount in dollars"
                 />
+                {depositError && (
+                  <Text style={[styles.errorText, { color: theme.error }]}>
+                    {depositError}
+                  </Text>
+                )}
               </View>
-            </View>
+            )}
 
             {/* ── Service Location ── */}
             <View style={styles.field}>
@@ -649,10 +969,10 @@ export default function ServiceEditorModal({
               style={[
                 styles.saveButton,
                 { backgroundColor: brandColor },
-                saving && styles.buttonDisabled,
+                (saving || uploadingImage) && styles.buttonDisabled,
               ]}
               onPress={handleSave}
-              disabled={saving}
+              disabled={saving || uploadingImage}
             >
               {saving ? (
                 <ActivityIndicator size="small" color="#000" />
@@ -718,6 +1038,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 16,
     fontSize: 16,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 6,
   },
   textArea: {
     height: 100,

@@ -398,7 +398,6 @@ function NewMessageModal({
 export default function MessagesScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { conversations, isLoading, refreshConversations, createOrGetConversation } = useMessaging();
   const [showNewMessage, setShowNewMessage] = useState(false);
@@ -453,7 +452,7 @@ export default function MessagesScreen() {
   };
 
   const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+    <View style={[styles.header, { paddingTop: Spacing.sm }]}>
       <ThemedText type="h2">Messages</ThemedText>
       <Pressable
         onPress={() => setShowNewMessage(true)}
@@ -569,6 +568,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
+    paddingTop: 0,
   },
   conversationItem: {
     flexDirection: "row",

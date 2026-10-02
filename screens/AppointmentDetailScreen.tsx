@@ -13,6 +13,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { BusinessAppointment } from "@/services/api";
 import { RatingBottomSheet } from "@/components/ratings";
+import { formatDuration } from "@/utils/duration";
 import type { PurchaseItem, RatingCheckResponse } from "@/types/ratings";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -297,7 +298,7 @@ export default function AppointmentDetailScreen() {
           <Row icon="user" label={`with ${appt.staffDisplayName}`} />
         ) : null}
         {appt.serviceDurationMinutes ? (
-          <Row icon="clock" label={`${appt.serviceDurationMinutes} min`} />
+          <Row icon="clock" label={formatDuration(appt.serviceDurationMinutes)} />
         ) : null}
         <Row icon="calendar" label={formatDate(appt.appointmentDate)} />
         <Row icon="clock" label={timeStr} />

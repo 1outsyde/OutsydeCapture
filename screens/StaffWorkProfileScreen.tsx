@@ -30,11 +30,15 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 
 import apiClient from "@/services/api";
 import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
+import { StarDisplay } from "@/components/ratings";
 import { useTheme } from "@/hooks/useTheme";
+import { formatDuration } from "@/utils/duration";
 import {
   BrandColorSpec,
   resolveBrandColor,
@@ -57,6 +61,7 @@ type StaffServiceCard = {
   description?: string;
   priceCents: number;
   durationMinutes?: number;
+  imageUrl?: string;
 };
 
 type StaffProfileViewModel = {
@@ -87,32 +92,17 @@ const getInitials = (name?: string): string => {
 const slugify = (name: string): string =>
   name.trim().toLowerCase().replace(/\s+/g, "");
 
-const scoreToStars = (rating: number): number =>
-  Math.max(0, Math.min(5, Math.round(rating)));
-
 const StarRow = ({
   rating,
   color,
-  inactiveColor,
+  emptyColor,
 }: {
   rating: number;
   color: string;
-  inactiveColor: string;
-}) => {
-  const stars = scoreToStars(rating);
-  return (
-    <View style={styles.starRow}>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Feather
-          key={`star-${index}`}
-          name="star"
-          size={14}
-          color={index < stars ? color : inactiveColor}
-        />
-      ))}
-    </View>
-  );
-};
+  emptyColor: string;
+}) => (
+  <StarDisplay rating={rating} size={14} color={color} emptyColor={emptyColor} />
+);
 
 const tabLabel = (tab: StaffTab): string => {
   switch (tab) {
@@ -140,6 +130,9 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const [brandColors, setBrandColors] = useState<BrandColorSpec | null>(null);
   const [businessMeta, setBusinessMeta] = useState<{ address?: string | null; city?: string | null; state?: string | null } | null>(null);
   const [services, setServices] = useState<StaffServiceCard[]>([]);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
+    new Set(),
+  );
   const [activeTab, setActiveTab] = useState<StaffTab>("posts");
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
 
@@ -206,6 +199,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           description: service.description || undefined,
           priceCents: Number(service.priceCents ?? 0),
           durationMinutes: service.durationMinutes || undefined,
+          imageUrl: service.imageUrl || undefined,
         }));
         setServices(liveStaffServices);
       } else {
@@ -350,6 +344,33 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                   style={[styles.serviceCard, { backgroundColor: cardSurfaceStrong }]}
                   onPress={goToBookingEntryPoint}
                 >
+                  <View
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      marginRight: 12,
+                    }}
+                  >
+                    {service.imageUrl && !failedServiceImages.has(service.id) ? (
+                      <Image
+                        source={{ uri: service.imageUrl }}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                        onError={() =>
+                          setFailedServiceImages((prev) =>
+                            new Set(prev).add(service.id),
+                          )
+                        }
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={["#2a2a2a", "#111111"]}
+                        style={StyleSheet.absoluteFillObject}
+                      />
+                    )}
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.serviceName, { color: textPrimary }]}>
                       {service.name}
@@ -364,7 +385,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                     ) : null}
                     {service.durationMinutes ? (
                       <Text style={[styles.serviceMeta, { color: textMuted }]}>
-                        {service.durationMinutes} min
+                        {formatDuration(service.durationMinutes)}
                       </Text>
                     ) : null}
                   </View>
@@ -386,9 +407,9 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           <View style={styles.tabContent}>
             <View style={[styles.reviewSummaryCard, { backgroundColor: cardSurfaceStrong }]}>
               <Text style={[styles.reviewScore, { color: textPrimary }]}>
-                {staff.rating.toFixed(1)}
+                {displayRating(staff.rating)}
               </Text>
-              <StarRow rating={staff.rating} color={accentColor} inactiveColor={textMuted} />
+              <StarRow rating={staff.rating} color={accentColor} emptyColor={textMuted} />
               <Text style={[styles.reviewCountLabel, { color: textMuted }]}>
                 {staff.reviewCount} {staff.reviewCount === 1 ? "review" : "reviews"}
               </Text>

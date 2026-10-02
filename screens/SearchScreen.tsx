@@ -12,6 +12,7 @@ import { ScreenFlatList } from "@/components/ScreenFlatList";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
+import { displayRating } from "@/types/ratings";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
@@ -563,7 +564,7 @@ export default function SearchScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
               <Feather name="star" size={10} color="#E8B930" />
               <ThemedText style={{ color: "#E8B930", fontSize: 11, marginLeft: 3, fontWeight: "600" }}>
-                {item.rating.toFixed(1)}
+                {displayRating(item.rating)}
               </ThemedText>
             </View>
           )}

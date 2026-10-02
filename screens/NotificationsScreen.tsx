@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -36,7 +36,9 @@ function resolveNotificationInitial(
   triggeringUser?: NotificationTriggeringUser | null
 ): string {
   if (!triggeringUser) return "?";
-  return (triggeringUser.displayName || "?").charAt(0).toUpperCase();
+  // Array.from splits by code point, so astral characters stay whole.
+  const first = Array.from((triggeringUser.displayName || "").trim())[0];
+  return first ? first.toUpperCase() : "?";
 }
 
 function getNotificationBadgeColor(
@@ -78,6 +80,23 @@ export default function NotificationsScreen() {
     markAllAsRead,
     clearNotifications,
   } = useNotifications();
+
+  // Notification id -> the avatar URL that failed to load for that row. Keyed
+  // by URL too so a row retries if its actor's image later changes.
+  const [failedAvatarUrls, setFailedAvatarUrls] = useState<
+    Record<string, string>
+  >({});
+
+  const markAvatarFailed = useCallback(
+    (notificationId: string, url: string) => {
+      setFailedAvatarUrls((prev) =>
+        prev[notificationId] === url
+          ? prev
+          : { ...prev, [notificationId]: url },
+      );
+    },
+    [],
+  );
 
   const handleToggleNotifications = async (value: boolean) => {
     if (value) {
@@ -307,6 +326,15 @@ export default function NotificationsScreen() {
       height: 44,
       borderRadius: 22,
     },
+    notificationInitialFallback: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    notificationInitial: {
+      color: "#000000",
+      fontSize: 16,
+      fontWeight: "bold",
+    },
     notificationBadge: {
       position: "absolute",
       bottom: -2,
@@ -450,30 +478,70 @@ export default function NotificationsScreen() {
                   onPress={() => handleNotificationPress(notification)}
                 >
                   {(() => {
-                    const avatarUrl = resolveNotificationAvatar(notification.triggeringUser);
-                    return avatarUrl ? (
-                      <View style={styles.notificationAvatarWrap}>
-                        <Image
-                          source={{ uri: avatarUrl }}
-                          style={styles.notificationAvatar}
-                          contentFit="cover"
-                          transition={200}
-                          onError={() => {}}
+                    const resolvedAvatarUrl = resolveNotificationAvatar(notification.triggeringUser);
+                    const avatarUrl =
+                      resolvedAvatarUrl &&
+                      failedAvatarUrls[notification.id] !== resolvedAvatarUrl
+                        ? resolvedAvatarUrl
+                        : null;
+                    const initial = notification.triggeringUser
+                      ? resolveNotificationInitial(notification.triggeringUser)
+                      : null;
+                    // resolveNotificationInitial returns "?" when there is no displayName.
+                    const hasInitial =
+                      !!initial && initial.trim() !== "" && initial !== "?";
+                    const badge = (
+                      <View
+                        style={[
+                          styles.notificationBadge,
+                          { backgroundColor: getNotificationBadgeColor(notification.type, theme) },
+                        ]}
+                      >
+                        <Feather
+                          name={getNotificationIcon(notification.type)}
+                          size={10}
+                          color={theme.background}
                         />
-                        <View
-                          style={[
-                            styles.notificationBadge,
-                            { backgroundColor: getNotificationBadgeColor(notification.type, theme) },
-                          ]}
-                        >
-                          <Feather
-                            name={getNotificationIcon(notification.type)}
-                            size={10}
-                            color={theme.background}
-                          />
-                        </View>
                       </View>
-                    ) : (
+                    );
+
+                    if (avatarUrl) {
+                      return (
+                        <View style={styles.notificationAvatarWrap}>
+                          <Image
+                            source={{ uri: avatarUrl }}
+                            style={styles.notificationAvatar}
+                            contentFit="cover"
+                            transition={200}
+                            onError={() =>
+                              markAvatarFailed(notification.id, avatarUrl)
+                            }
+                          />
+                          {badge}
+                        </View>
+                      );
+                    }
+
+                    if (hasInitial) {
+                      return (
+                        <View style={styles.notificationAvatarWrap}>
+                          <View
+                            style={[
+                              styles.notificationAvatar,
+                              styles.notificationInitialFallback,
+                              { backgroundColor: theme.primary },
+                            ]}
+                          >
+                            <ThemedText style={styles.notificationInitial}>
+                              {initial}
+                            </ThemedText>
+                          </View>
+                          {badge}
+                        </View>
+                      );
+                    }
+
+                    return (
                       <View
                         style={[
                           styles.notificationIconContainer,

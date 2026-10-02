@@ -139,6 +139,7 @@ export interface ApiBusinessDetail {
   twitter?: string;
   brandColors?: string;
   isMultiStaff?: boolean;
+  autoAcceptBookings?: boolean;
 }
 
 export interface ApiBusinessStaffMember {
@@ -501,6 +502,8 @@ export interface VendorBookerPhotographerService {
   hasCancellationFee?: boolean;
   cancellationFeeType?: 'flat' | 'percentage' | null;
   cancellationFeeAmount?: number | null;
+  depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 // Photographer availability slot
@@ -634,6 +637,8 @@ export interface VendorService {
   reviewCount?: number | null;
   createdAt?: string;
   updatedAt?: string;
+  depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 // Create/Update Product Request
@@ -666,6 +671,8 @@ export interface VendorServiceInput {
   alternateState?: string | null;
   alternateZipCode?: string | null;
   virtualLink?: string | null;
+  depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface StaffServiceInput {
@@ -689,6 +696,8 @@ export interface StaffServiceInput {
   hasCancellationFee?: boolean;
   cancellationFeeType?: "flat" | "percentage" | null;
   cancellationFeeAmount?: number | null;
+  depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface AdminStats {
@@ -964,6 +973,8 @@ export interface PhotographerService {
   rating?: number | null;
   reviewCount?: number | null;
   durationMinutes?: number | null;
+  depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface PhotographerHours {
@@ -4464,8 +4475,21 @@ class ApiService {
     const endpoint = providerType === "photographer"
       ? `/api/photographers/${providerId}/services`
       : `/api/businesses/${providerId}/services`;
-    const response = await this.request<{ services: Array<BookingService & { price?: number }> }>(endpoint);
-    return (response.services || []).map(s => ({ ...s, priceCents: s.price ?? s.priceCents ?? 0 }));
+    const response = await this.request<{
+      services: Array<BookingService & { price?: number; estimatedDurationMinutes?: number | null; packageHours?: number | null }>;
+    }>(endpoint);
+    const isPositive = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+    return (response.services || []).map(s => ({
+      ...s,
+      priceCents: s.price ?? s.priceCents ?? 0,
+      // Photographer services carry estimatedDurationMinutes (or packageHours for
+      // hourly), not durationMinutes. First positive value, else undefined.
+      durationMinutes: [
+        s.durationMinutes,
+        s.estimatedDurationMinutes,
+        typeof s.packageHours === "number" ? s.packageHours * 60 : undefined,
+      ].find(isPositive) as number,
+    }));
   }
 
   async validateBookingSlot(
@@ -4494,12 +4518,24 @@ class ApiService {
       serviceId: string;
       date: string;
       startTime: string;
+      staffMemberId?: string;
     }
   ): Promise<BookingHoldResponse> {
     return this.request<BookingHoldResponse>("/api/booking/hold", {
       method: "POST",
       body: JSON.stringify(data),
       headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/booking/hold/:holdId - Release a hold the customer no longer needs
+  async releaseBookingHold(
+    authToken: string,
+    holdId: string,
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/booking/hold/${holdId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
@@ -4531,12 +4567,23 @@ class ApiService {
     captureMethod: "automatic" | "manual";
     requiresApproval?: boolean;
     status?: string;
+    bookingNumber?: number;
+    depositAmountCents?: number | null;
+    servicePriceCents?: number;
+    chargeAmountCents?: number;
     feeBreakdown?: {
       subtotal: number;
       consumerFee: number;
       bookingFee: number;
       vendorNet: number;
       grossCharge: number;
+      // Keys the backend actually sends (routes.ts create-payment-intent).
+      subtotalAmount?: number;
+      consumerServiceFeeAmount?: number;
+      bookingFeeAmount?: number;
+      vendorNetAmount?: number;
+      grossChargeAmount?: number;
+      feeModelVersion?: string;
     };
   }> {
     return this.request(`/api/booking/${holdId}/create-payment-intent`, {
@@ -4995,6 +5042,8 @@ export interface BookingService {
   hasCancellationFee?: boolean | null;
   cancellationFeeType?: string | null;
   cancellationFeeAmount?: number | null;
+  depositAmountCents?: number | null;
+  imageUrl?: string | null;
 }
 
 export interface BookingValidationResponse {
@@ -5018,18 +5067,34 @@ export interface BookingHoldResponse {
   success: boolean;
   holdId: string;
   expiresAt: string;
+  // Not sent by the backend; kept (required) so existing callers compile.
   service: {
     id: string;
     name: string;
     durationMinutes: number;
     priceCents: number;
   };
+  // Not sent by the backend; kept (required) so existing callers compile.
   slot: {
     date: string;
     startTime: string;
     endTime: string;
   };
+  // Legacy fee preview on the full service price — not what is due now.
   feeBreakdown?: FeeBreakdown;
+  serviceName?: string;
+  servicePriceCents?: number;
+  durationMinutes?: number;
+  startTime?: string;
+  endTime?: string;
+  // Deposit-aware amounts: what is charged now and what is paid in person.
+  serviceTotalCents?: number;
+  depositAmountCents?: number | null;
+  chargeAmountCents?: number;
+  dueNowCents?: number;
+  dueAtAppointmentCents?: number;
+  depositNonRefundable?: boolean;
+  dueNowFeeBreakdown?: FeeBreakdown;
 }
 
 export interface BookingConfirmResponse {
@@ -5168,6 +5233,8 @@ export interface CurrentSubscription {
   tierDisplayName: string;
   priceInCents: number;
   status: string;
+  // Free (complimentary) plan only: true once the business can receive payouts. null on paid rows.
+  connectReady?: boolean | null;
 }
 
 export function canChangeUsername(user: { username_updated_at?: string | null }): boolean {

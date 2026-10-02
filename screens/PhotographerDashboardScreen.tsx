@@ -39,6 +39,7 @@ import api, {
   BlockedDate,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
 import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hour } from "@/components/HoursEditor";
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
@@ -51,6 +52,7 @@ import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
+import { formatDuration } from "@/utils/duration";
 // Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
 const DASHBOARD_COLORS = {
   background: "#080C08",
@@ -198,6 +200,7 @@ export default function PhotographerDashboardScreen() {
   const [showServiceEditor, setShowServiceEditor] = useState(false);
   const [editingService, setEditingService] = useState<ServiceFormData | null>(null);
   const [rawServices, setRawServices] = useState<VendorBookerPhotographerService[]>([]);
+  const [depositServerError, setDepositServerError] = useState<string | null>(null);
 
   // CTA Button config — photographers only have Book Now, we just pick which service
   const [ctaServiceTarget, setCtaServiceTarget] = useState<"first_available" | "specific">("first_available");
@@ -429,11 +432,20 @@ export default function PhotographerDashboardScreen() {
           name: s.name,
           description: s.description || "",
           duration: s.estimatedDurationMinutes || s.durationMinutes || 60,
-          price: s.priceCents ? s.priceCents / 100 : 0,
+          // Hourly services show the rate (hourlyRateCents); legacy hourly rows that
+          // only have priceCents, and package services, show priceCents.
+          price:
+            s.pricingModel === "hourly" && typeof s.hourlyRateCents === "number"
+              ? s.hourlyRateCents / 100
+              : s.priceCents
+                ? s.priceCents / 100
+                : 0,
           isActive: s.status === "active",
           status: s.status || "draft",
           pricingModel: s.pricingModel || "package",
           category: s.category || "Other",
+          depositAmountCents: s.depositAmountCents ?? null,
+          imageUrl: s.imageUrl ?? null,
         })));
 
         // Parse CTA config
@@ -1036,6 +1048,7 @@ export default function PhotographerDashboardScreen() {
   const handleAddService = () => {
     setActiveModal(null); // Close services modal first to prevent freeze
     setEditingService(null);
+    setDepositServerError(null);
     setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
   };
 
@@ -1048,7 +1061,10 @@ export default function PhotographerDashboardScreen() {
       description: service.description || "",
       category: rawService?.category || "Other",
       pricingModel: (rawService?.pricingModel as "package" | "hourly") || "package",
-      price: service.price.toString(),
+      price:
+        rawService?.pricingModel === "hourly" && typeof rawService.hourlyRateCents === "number"
+          ? (rawService.hourlyRateCents / 100).toString()
+          : service.price.toString(),
       duration: service.duration.toString(),
       packageHours: rawService?.packageHours?.toString() || "",
       status: rawService?.status || "draft",
@@ -1065,8 +1081,18 @@ export default function PhotographerDashboardScreen() {
       hasCancellationFee: rawService?.hasCancellationFee ?? false,
       cancellationFeeType: rawService?.cancellationFeeType ?? null,
       cancellationFeeAmount: rawService?.cancellationFeeAmount ?? null,
+      depositAmountCents: rawService?.depositAmountCents ?? null,
+      imageUrl: rawService?.imageUrl ?? null,
     });
+    setDepositServerError(null);
     setTimeout(() => setShowServiceEditor(true), 100); // Small delay for modal transition
+  };
+
+  const handleUploadServiceImage = async (uri: string): Promise<string> => {
+    const token = await getToken();
+    if (!token) throw new Error("Authentication required. Please log in again.");
+    const result = await uploadImage(uri, "image/jpeg", "services", token);
+    return result.url;
   };
 
   const handleSaveService = async (data: ServiceFormData) => {
@@ -1079,8 +1105,17 @@ export default function PhotographerDashboardScreen() {
         description: data.description || null,
         category: data.category || null,
         pricingModel: data.pricingModel || "package",
-        priceCents: Math.round(parseFloat(data.price) * 100),
-        estimatedDurationMinutes: parseInt(data.duration) || 60,
+        // Hourly sends the rate and minimum hours; the backend computes the
+        // price (rate x hours) and duration (hours x 60). Package is unchanged.
+        ...(data.pricingModel === "hourly"
+          ? {
+              hourlyRateCents: Math.round(parseFloat(data.price) * 100),
+              packageHours: parseInt(data.packageHours ?? "", 10),
+            }
+          : {
+              priceCents: Math.round(parseFloat(data.price) * 100),
+              estimatedDurationMinutes: parseInt(data.duration) || 60,
+            }),
         serviceLocationType: data.serviceLocationType,
         alternateAddress: data.alternateAddress,
         alternateCity: data.alternateCity,
@@ -1095,11 +1130,21 @@ export default function PhotographerDashboardScreen() {
         cancellationFeeType: data.cancellationFeeType,
         cancellationFeeAmount: data.cancellationFeeAmount,
       };
-
-      if (data.pricingModel === "hourly" && data.packageHours) {
-        payload.packageHours = parseInt(data.packageHours);
+      // Sent on create; on edit only when changed, so an untouched form never
+      // overwrites a deposit set elsewhere.
+      if (!data.id || data.depositTouched) {
+        payload.depositAmountCents = data.depositAmountCents ?? null;
       }
 
+      // Edit sends the image only when it was uploaded or removed; create only
+      // when one is set. Removing sends null, never "".
+      if (data.id) {
+        if (data.imageTouched) payload.imageUrl = data.imageUrl ?? null;
+      } else if (data.imageUrl) {
+        payload.imageUrl = data.imageUrl;
+      }
+
+      setDepositServerError(null);
       if (data.id) {
         await api.updatePhotographerMeService(token, data.id, payload);
         Alert.alert("Success", "Service updated successfully");
@@ -1112,6 +1157,11 @@ export default function PhotographerDashboardScreen() {
       setEditingService(null);
       fetchDashboard();
     } catch (error: any) {
+      if (error.status === 400 && error.body?.code === "INVALID_DEPOSIT") {
+        // Rethrown so the editor stays open with the message inline.
+        setDepositServerError(error.message);
+        throw error;
+      }
       console.error("[Dashboard] Failed to save service:", error);
       Alert.alert("Error", error.message || "Failed to save service");
       throw error;
@@ -1699,6 +1749,13 @@ export default function PhotographerDashboardScreen() {
     },
 
     // ── Booking cards (inside modal) ───────────────────────────────────────
+    serviceThumb: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      marginRight: 10,
+      backgroundColor: DASHBOARD_COLORS.cardBorder,
+    },
     bookingCard: {
       backgroundColor: DASHBOARD_COLORS.surface,
       borderColor: DASHBOARD_COLORS.cardBorder,
@@ -2608,6 +2665,9 @@ export default function PhotographerDashboardScreen() {
                                 style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 1 }}
                               >
                                 ${service.price.toFixed(2)}
+                                {service.depositAmountCents && service.depositAmountCents > 0
+                                  ? ` · $${(service.depositAmountCents / 100).toFixed(2)} deposit`
+                                  : ""}
                               </Text>
                             </View>
                           </Pressable>
@@ -2898,6 +2958,13 @@ export default function PhotographerDashboardScreen() {
                 return (
                   <View key={service.id} style={styles.bookingCard}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      {service.imageUrl ? (
+                        <Image
+                          source={{ uri: service.imageUrl }}
+                          style={styles.serviceThumb}
+                          contentFit="cover"
+                        />
+                      ) : null}
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <Text style={styles.bookingClient}>{service.name}</Text>
@@ -2923,12 +2990,20 @@ export default function PhotographerDashboardScreen() {
                     <View style={[styles.bookingDetails, { marginTop: 12 }]}>
                       <View style={styles.bookingDate}>
                         <Feather name="clock" size={14} color={theme.textSecondary} />
-                        <Text style={styles.bookingDateText}>{service.duration} min</Text>
+                        <Text style={styles.bookingDateText}>{formatDuration(service.duration)}</Text>
                       </View>
                       <View style={[styles.bookingDate, { marginLeft: 12 }]}>
                         <Feather name="tag" size={14} color={theme.textSecondary} />
                         <Text style={styles.bookingDateText}>{(service as any).category || "Other"}</Text>
                       </View>
+                      {service.depositAmountCents && service.depositAmountCents > 0 ? (
+                        <View style={[styles.bookingDate, { marginLeft: 12 }]}>
+                          <Feather name="lock" size={14} color={theme.textSecondary} />
+                          <Text style={styles.bookingDateText}>
+                            ${(service.depositAmountCents / 100).toFixed(2)} deposit
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                     <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                       <Pressable
@@ -3236,7 +3311,7 @@ export default function PhotographerDashboardScreen() {
           <View style={styles.statsRowBottom}>
             <View style={styles.statCard}>
               <View style={styles.statIcon}><Feather name="star" size={14} color={DASHBOARD_COLORS.gold} /></View>
-              <Text style={styles.statValue}>{stats.rating > 0 ? stats.rating.toFixed(1) : "—"}</Text>
+              <Text style={styles.statValue}>{stats.rating > 0 ? displayRating(stats.rating) : "—"}</Text>
               <Text style={styles.statLabel} numberOfLines={1}>Rating</Text>
             </View>
             <View style={styles.statCard}>
@@ -3537,10 +3612,15 @@ export default function PhotographerDashboardScreen() {
         onClose={() => {
           setShowServiceEditor(false);
           setEditingService(null);
+          setDepositServerError(null);
         }}
         onSave={handleSaveService}
         initialData={editingService}
         brandColor={(COLOR_VALUES[profile?.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? theme.primary}
+        depositMode="always"
+        depositServerError={depositServerError}
+        onClearDepositServerError={() => setDepositServerError(null)}
+        onUploadImage={handleUploadServiceImage}
       />
 
       <RefundModal

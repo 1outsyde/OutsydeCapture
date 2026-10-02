@@ -41,6 +41,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 
 import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
+import { displayRating } from "@/types/ratings";
+import { StarDisplay } from "@/components/ratings";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
@@ -58,6 +60,7 @@ import { feedEvents } from "@/services/feedEvents";
 import { useTheme } from "@/hooks/useTheme";
 import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
+import { formatDuration } from "@/utils/duration";
 import {
   BrandColorSpec,
   resolveBrandColor,
@@ -162,6 +165,7 @@ type ServiceCard = {
   priceCents: number;
   durationMinutes?: number;
   rating?: number;
+  imageUrl?: string;
 };
 
 type OwnerStaffMember = {
@@ -323,11 +327,6 @@ const tabsForRole = (profile: ProfileData): ProfileTab[] => {
   return ["posts", "reviews"];
 };
 
-const scoreToStars = (rating: number): number => {
-  if (!Number.isFinite(rating) || rating <= 0) return 0;
-  return rating > 5 ? Math.round(rating / 10) : Math.round(rating);
-};
-
 const StarRating = ({
   rating,
   color,
@@ -336,21 +335,9 @@ const StarRating = ({
   rating: number;
   color: string;
   size?: number;
-}) => {
-  const stars = scoreToStars(rating);
-  return (
-    <View style={styles.starRow}>
-      {Array.from({ length: 5 }).map((_, idx) => (
-        <Feather
-          key={`star-${idx}`}
-          name="star"
-          size={size}
-          color={idx < stars ? color : COLORS.grayMid}
-        />
-      ))}
-    </View>
-  );
-};
+}) => (
+  <StarDisplay rating={rating} size={size} color={color} emptyColor="#555555" />
+);
 
 const AvatarWithInitials = ({
   name,
@@ -464,6 +451,9 @@ export default function AccountScreen() {
   }[]>([]);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
+    new Set(),
+  );
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [savedItems, setSavedItems] = useState<PostCard[]>([]);
   const [availability, setAvailability] = useState<WeeklyAvailabilitySlot[]>(
@@ -677,6 +667,7 @@ export default function AccountScreen() {
                 (item as any).estimatedDurationMinutes ||
                 undefined,
               rating: Number(item.rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -799,6 +790,7 @@ export default function AccountScreen() {
                 item.estimatedDurationMinutes ||
                 undefined,
               rating: Number((item as any).rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -991,6 +983,7 @@ export default function AccountScreen() {
                 (item as any).estimatedDurationMinutes ||
                 undefined,
               rating: Number(item.rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -1099,6 +1092,7 @@ export default function AccountScreen() {
               priceCents: Number(item.priceCents ?? (item as any).price ?? 0),
               durationMinutes: (item as any).durationMinutes || undefined,
               rating: Number((item as any).rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -1204,6 +1198,7 @@ export default function AccountScreen() {
                 (item as any).estimatedDurationMinutes ||
                 undefined,
               rating: Number(item.rating ?? 0),
+              imageUrl: item.imageUrl || undefined,
             }));
 
           resolvedServices = mappedServices;
@@ -1546,7 +1541,7 @@ export default function AccountScreen() {
               style={[styles.editProfileButton, { backgroundColor: accentColor }]}
               onPress={onEditProfilePress}
             >
-              <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
+              <Text style={styles.editProfileText}>Edit Profile</Text>
             </Pressable>
           ) : (
             <Pressable
@@ -1662,7 +1657,7 @@ export default function AccountScreen() {
         profile.rating > 0 ? (
           <View style={styles.ratingInlineRow}>
             <StarRating rating={profile.rating} color={accentColor} />
-            <Text style={styles.ratingText}>{profile.rating.toFixed(1)}</Text>
+            <Text style={styles.ratingText}>{displayRating(profile.rating)}</Text>
             <Text style={styles.ratingMeta}>({profile.reviewCount})</Text>
             {profile.responseTime ? (
               <Text style={styles.ratingMeta}>⚡ {profile.responseTime}</Text>
@@ -2007,10 +2002,37 @@ export default function AccountScreen() {
                   padding: 16,
                   marginBottom: 10,
                   flexDirection: "row",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   justifyContent: "space-between",
                 }}
               >
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    marginRight: 12,
+                  }}
+                >
+                  {service.imageUrl && !failedServiceImages.has(service.id) ? (
+                    <Image
+                      source={{ uri: service.imageUrl }}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="cover"
+                      onError={() =>
+                        setFailedServiceImages((prev) =>
+                          new Set(prev).add(service.id),
+                        )
+                      }
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={["#2a2a2a", "#111111"]}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  )}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
@@ -2042,7 +2064,7 @@ export default function AccountScreen() {
                         marginTop: 6,
                       }}
                     >
-                      {service.durationMinutes} min
+                      {formatDuration(service.durationMinutes)}
                     </Text>
                   ) : null}
                 </View>
@@ -2375,18 +2397,7 @@ export default function AccountScreen() {
                             gap: 4,
                           }}
                         >
-                          {Array.from({ length: 5 }).map((_, idx) => (
-                            <Feather
-                              key={`staff-star-${member.id}-${idx}`}
-                              name="star"
-                              size={11}
-                              color={
-                                idx < Math.round(member.rating)
-                                  ? accentColor
-                                  : COLORS.grayMid
-                              }
-                            />
-                          ))}
+                          <StarDisplay rating={member.rating} size={11} color={accentColor} emptyColor="#555555" />
                           <Text
                             style={{
                               color: COLORS.white,
@@ -2395,7 +2406,7 @@ export default function AccountScreen() {
                               marginLeft: 2,
                             }}
                           >
-                            {member.rating.toFixed(1)}
+                            {displayRating(member.rating)}
                           </Text>
                           <Text
                             style={{ color: COLORS.grayLight, fontSize: 11 }}
@@ -2755,7 +2766,7 @@ export default function AccountScreen() {
       <View style={styles.reviewSummaryCard}>
         <View style={styles.reviewSummaryLeft}>
           <Text style={styles.reviewScore}>
-            {profile?.rating?.toFixed(1) || "0.0"}
+            {displayRating(profile?.rating)}
           </Text>
           <StarRating
             rating={profile?.rating || 0}
