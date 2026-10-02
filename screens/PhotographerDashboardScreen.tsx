@@ -431,7 +431,14 @@ export default function PhotographerDashboardScreen() {
           name: s.name,
           description: s.description || "",
           duration: s.estimatedDurationMinutes || s.durationMinutes || 60,
-          price: s.priceCents ? s.priceCents / 100 : 0,
+          // Hourly services show the rate (hourlyRateCents); legacy hourly rows that
+          // only have priceCents, and package services, show priceCents.
+          price:
+            s.pricingModel === "hourly" && typeof s.hourlyRateCents === "number"
+              ? s.hourlyRateCents / 100
+              : s.priceCents
+                ? s.priceCents / 100
+                : 0,
           isActive: s.status === "active",
           status: s.status || "draft",
           pricingModel: s.pricingModel || "package",
@@ -1053,7 +1060,10 @@ export default function PhotographerDashboardScreen() {
       description: service.description || "",
       category: rawService?.category || "Other",
       pricingModel: (rawService?.pricingModel as "package" | "hourly") || "package",
-      price: service.price.toString(),
+      price:
+        rawService?.pricingModel === "hourly" && typeof rawService.hourlyRateCents === "number"
+          ? (rawService.hourlyRateCents / 100).toString()
+          : service.price.toString(),
       duration: service.duration.toString(),
       packageHours: rawService?.packageHours?.toString() || "",
       status: rawService?.status || "draft",
@@ -1094,8 +1104,17 @@ export default function PhotographerDashboardScreen() {
         description: data.description || null,
         category: data.category || null,
         pricingModel: data.pricingModel || "package",
-        priceCents: Math.round(parseFloat(data.price) * 100),
-        estimatedDurationMinutes: parseInt(data.duration) || 60,
+        // Hourly sends the rate and minimum hours; the backend computes the
+        // price (rate x hours) and duration (hours x 60). Package is unchanged.
+        ...(data.pricingModel === "hourly"
+          ? {
+              hourlyRateCents: Math.round(parseFloat(data.price) * 100),
+              packageHours: parseInt(data.packageHours ?? "", 10),
+            }
+          : {
+              priceCents: Math.round(parseFloat(data.price) * 100),
+              estimatedDurationMinutes: parseInt(data.duration) || 60,
+            }),
         serviceLocationType: data.serviceLocationType,
         alternateAddress: data.alternateAddress,
         alternateCity: data.alternateCity,
@@ -1122,10 +1141,6 @@ export default function PhotographerDashboardScreen() {
         if (data.imageTouched) payload.imageUrl = data.imageUrl ?? null;
       } else if (data.imageUrl) {
         payload.imageUrl = data.imageUrl;
-      }
-
-      if (data.pricingModel === "hourly" && data.packageHours) {
-        payload.packageHours = parseInt(data.packageHours);
       }
 
       setDepositServerError(null);
@@ -3601,7 +3616,7 @@ export default function PhotographerDashboardScreen() {
         onSave={handleSaveService}
         initialData={editingService}
         brandColor={(COLOR_VALUES[profile?.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? theme.primary}
-        depositMode="packageOnly"
+        depositMode="always"
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
         onUploadImage={handleUploadServiceImage}

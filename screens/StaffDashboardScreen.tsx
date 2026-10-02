@@ -991,6 +991,7 @@ export default function StaffDashboardScreen() {
         initialData={editingStaffService}
         brandColor={DASHBOARD_COLORS.gold}
         depositMode="always"
+        hidePricingModelToggle
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
         onUploadImage={handleUploadServiceImage}

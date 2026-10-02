@@ -96,12 +96,22 @@ interface ServiceEditorModalProps {
   initialData?: ServiceFormData | null;
   brandColor?: string;
   depositMode?: DepositMode;
+  // Hides the Package/Hourly toggle (the service is always a package). Shown by default.
+  hidePricingModelToggle?: boolean;
   depositServerError?: string | null;
   onClearDepositServerError?: () => void;
   // Uploads a picked image and returns its URL. The image picker is only shown
   // when this is provided.
   onUploadImage?: (uri: string) => Promise<string>;
 }
+
+// Minimum hours for an hourly service: a whole number of 1 or more, else null.
+const parseMinHours = (raw: string | undefined): number | null => {
+  const t = (raw ?? "").trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = parseInt(t, 10);
+  return n >= 1 ? n : null;
+};
 
 const EMPTY_FORM: ServiceFormData = {
   name: "",
@@ -137,6 +147,7 @@ export default function ServiceEditorModal({
   initialData,
   brandColor = "#D4A84B",
   depositMode = "hidden",
+  hidePricingModelToggle = false,
   depositServerError = null,
   onClearDepositServerError,
   onUploadImage,
@@ -152,6 +163,7 @@ export default function ServiceEditorModal({
   // after the form was reset cannot write into the next service.
   const uploadSeqRef = useRef(0);
   const [durationError, setDurationError] = useState<string | null>(null);
+  const [hoursError, setHoursError] = useState<string | null>(null);
 
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositInput, setDepositInput] = useState("");
@@ -172,6 +184,7 @@ export default function ServiceEditorModal({
 
   useEffect(() => {
     setDurationError(null);
+    setHoursError(null);
     uploadSeqRef.current += 1;
     setUploadingImage(false);
     applyLoadedDeposit(initialData?.depositAmountCents);
@@ -214,8 +227,10 @@ export default function ServiceEditorModal({
     (depositMode === "packageOnly" && formData.pricingModel === "package");
   const priceCents = Math.round(parseFloat(formData.price || "0") * 100);
   const parsedDeposit = parseDepositInput(depositInput);
-  // The "less than price" check applies to package prices only; an hourly
-  // rate is not the booking total.
+  // Whole minimum hours for an hourly service, or null when missing or invalid.
+  const minHours = parseMinHours(formData.packageHours);
+  // The booking total is the price for a package and the hourly rate times the
+  // minimum hours for an hourly service, so the deposit is checked against that.
   const depositError =
     !depositVisible || !depositEnabled
       ? null
@@ -223,10 +238,15 @@ export default function ServiceEditorModal({
         ? parsedDeposit.error
         : parsedDeposit.cents < MIN_DEPOSIT_CENTS
           ? "Deposit must be at least $7.00."
-          : formData.pricingModel === "package" &&
-              parsedDeposit.cents >= (priceCents || 0)
-            ? "Deposit must be less than the service price."
-            : null;
+          : formData.pricingModel === "hourly"
+            ? minHours === null
+              ? "Enter the minimum hours to set a deposit."
+              : parsedDeposit.cents >= (priceCents || 0) * minHours
+                ? "Deposit must be less than the service price (hourly rate × minimum hours)."
+                : null
+            : parsedDeposit.cents >= (priceCents || 0)
+              ? "Deposit must be less than the service price."
+              : null;
 
   const handleImageSelected = async (uri: string) => {
     if (!onUploadImage) return;
@@ -253,11 +273,17 @@ export default function ServiceEditorModal({
       return;
     }
 
+    if (formData.pricingModel === "hourly" && minHours === null) {
+      setHoursError("Enter the minimum hours (a whole number, 1 or more)");
+      return;
+    }
+
     // The deposit error is already shown inline under the field.
     if (depositError) return;
 
-    // A hidden deposit (hourly photographer service) always saves as none; a
-    // deposit loaded from the server counts as touched so it is cleared.
+    // A hidden deposit always saves as none; a deposit loaded from the server
+    // counts as touched so it is cleared. Photographer and staff editors use
+    // depositMode "always", so the deposit is never hidden there.
     const depositAmountCents =
       depositVisible && depositEnabled && "cents" in parsedDeposit
         ? parsedDeposit.cents
@@ -440,6 +466,7 @@ export default function ServiceEditorModal({
               )}
             </View>
 
+            {!hidePricingModelToggle && (
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Pricing Model</Text>
               <View style={styles.pricingModelRow}>
@@ -477,6 +504,7 @@ export default function ServiceEditorModal({
                 ))}
               </View>
             </View>
+            )}
 
             <View style={styles.row}>
               <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
@@ -513,7 +541,8 @@ export default function ServiceEditorModal({
                       backgroundColor: theme.card,
                       color: theme.text,
                       borderColor:
-                        formData.pricingModel === "package" && durationError
+                        (formData.pricingModel === "package" && durationError) ||
+                        (formData.pricingModel === "hourly" && hoursError)
                           ? theme.error
                           : theme.border,
                     },
@@ -522,6 +551,7 @@ export default function ServiceEditorModal({
                   onChangeText={(text) => {
                     if (formData.pricingModel !== "hourly")
                       setDurationError(null);
+                    else setHoursError(null);
                     setFormData((prev) => ({
                       ...prev,
                       [formData.pricingModel === "hourly" ? "packageHours" : "duration"]: text,
@@ -534,6 +564,11 @@ export default function ServiceEditorModal({
                 {formData.pricingModel === "package" && durationError && (
                   <Text style={[styles.errorText, { color: theme.error }]}>
                     {durationError}
+                  </Text>
+                )}
+                {formData.pricingModel === "hourly" && hoursError && (
+                  <Text style={[styles.errorText, { color: theme.error }]}>
+                    {hoursError}
                   </Text>
                 )}
               </View>
