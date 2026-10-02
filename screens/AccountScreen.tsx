@@ -60,6 +60,7 @@ import { feedEvents } from "@/services/feedEvents";
 import { useTheme } from "@/hooks/useTheme";
 import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
+import { formatDuration } from "@/utils/duration";
 import {
   BrandColorSpec,
   resolveBrandColor,
@@ -2063,7 +2064,7 @@ export default function AccountScreen() {
                         marginTop: 6,
                       }}
                     >
-                      {service.durationMinutes} min
+                      {formatDuration(service.durationMinutes)}
                     </Text>
                   ) : null}
                 </View>

@@ -37,6 +37,7 @@ import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorM
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { uploadImage } from "@/services/mediaUpload";
+import { formatDuration } from "@/utils/duration";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
 
@@ -727,7 +728,7 @@ export default function StaffDashboardScreen() {
                         </View>
                         <Text style={styles.listRowSubtitle}>
                           {formatCurrency(service.priceCents)}
-                          {service.durationMinutes ? ` · ${service.durationMinutes} min` : ""}
+                          {service.durationMinutes ? ` · ${formatDuration(service.durationMinutes)}` : ""}
                           {service.depositAmountCents && service.depositAmountCents > 0
                             ? ` · ${formatCurrency(service.depositAmountCents)} deposit`
                             : ""}
@@ -992,6 +993,7 @@ export default function StaffDashboardScreen() {
         brandColor={DASHBOARD_COLORS.gold}
         depositMode="always"
         hidePricingModelToggle
+        minDurationMinutes={5}
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
         onUploadImage={handleUploadServiceImage}

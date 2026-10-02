@@ -52,6 +52,7 @@ import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
+import { formatDuration } from "@/utils/duration";
 // Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
 const DASHBOARD_COLORS = {
   background: "#080C08",
@@ -2989,7 +2990,7 @@ export default function PhotographerDashboardScreen() {
                     <View style={[styles.bookingDetails, { marginTop: 12 }]}>
                       <View style={styles.bookingDate}>
                         <Feather name="clock" size={14} color={theme.textSecondary} />
-                        <Text style={styles.bookingDateText}>{service.duration} min</Text>
+                        <Text style={styles.bookingDateText}>{formatDuration(service.duration)}</Text>
                       </View>
                       <View style={[styles.bookingDate, { marginLeft: 12 }]}>
                         <Feather name="tag" size={14} color={theme.textSecondary} />

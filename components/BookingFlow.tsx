@@ -34,6 +34,7 @@ import api, {
   BookingHoldResponse,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import { formatDuration } from "@/utils/duration";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DAY_SIZE = (SCREEN_WIDTH - Spacing.md * 2 - Spacing.xs * 6) / 7;
@@ -122,13 +123,6 @@ const mapPayError = (err: any): string => {
 
 const formatAmount = (dollars: number): string => {
   return `$${dollars.toFixed(2)}`;
-};
-
-const formatDuration = (minutes: number): string => {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
 const formatTime = (time24: string): string => {
@@ -1544,7 +1538,8 @@ export default function BookingFlow({
             <ServiceSummaryRow service={selectedService} showImage={hasServiceImage(selectedService)} onFail={markServiceImageFailed}>
               <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
               <ThemedText style={{ color: theme.brandTextDim }}>
-                {formatDuration(selectedService?.durationMinutes || 0)} • {formatPrice(selectedService?.priceCents || 0)}
+                {formatDuration(selectedService?.durationMinutes) ? `${formatDuration(selectedService?.durationMinutes)} • ` : ""}
+                {formatPrice(selectedService?.priceCents || 0)}
               </ThemedText>
             </ServiceSummaryRow>
           </View>

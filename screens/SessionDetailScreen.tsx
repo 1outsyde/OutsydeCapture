@@ -14,6 +14,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { CATEGORY_LABELS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
 import api from "@/services/api";
+import { formatDuration } from "@/utils/duration";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "SessionDetail">;
@@ -298,7 +299,7 @@ export default function SessionDetailScreen() {
         </ThemedText>
         <Row icon="camera" label={session.serviceName ?? (CATEGORY_LABELS[session.sessionType as keyof typeof CATEGORY_LABELS] ?? session.sessionType)} />
         {session.serviceDurationMinutes ? (
-          <Row icon="clock" label={`${session.serviceDurationMinutes} min`} />
+          <Row icon="clock" label={formatDuration(session.serviceDurationMinutes)} />
         ) : null}
         <Row icon="calendar" label={formatDate(session.date)} />
         <Row icon="clock" label={timeStr} />

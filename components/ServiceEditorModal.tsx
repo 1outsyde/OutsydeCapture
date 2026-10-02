@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import ImageUploader from "@/components/ImageUploader";
 import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
+import { joinMinutes, splitMinutes } from "@/utils/duration";
 
 const SERVICE_CATEGORIES = [
   "Portrait",
@@ -98,6 +99,8 @@ interface ServiceEditorModalProps {
   depositMode?: DepositMode;
   // Hides the Package/Hourly toggle (the service is always a package). Shown by default.
   hidePricingModelToggle?: boolean;
+  // Shortest package duration in minutes (the backend minimum for the service type).
+  minDurationMinutes?: number;
   depositServerError?: string | null;
   onClearDepositServerError?: () => void;
   // Uploads a picked image and returns its URL. The image picker is only shown
@@ -148,6 +151,7 @@ export default function ServiceEditorModal({
   brandColor = "#D4A84B",
   depositMode = "hidden",
   hidePricingModelToggle = false,
+  minDurationMinutes = 1,
   depositServerError = null,
   onClearDepositServerError,
   onUploadImage,
@@ -164,6 +168,9 @@ export default function ServiceEditorModal({
   const uploadSeqRef = useRef(0);
   const [durationError, setDurationError] = useState<string | null>(null);
   const [hoursError, setHoursError] = useState<string | null>(null);
+  // Package duration boxes. formData.duration keeps the total minutes as a string.
+  const [durationHoursText, setDurationHoursText] = useState("1");
+  const [durationMinutesText, setDurationMinutesText] = useState("0");
 
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositInput, setDepositInput] = useState("");
@@ -185,6 +192,10 @@ export default function ServiceEditorModal({
   useEffect(() => {
     setDurationError(null);
     setHoursError(null);
+    const loadedMinutes = parseInt(initialData?.duration || "60", 10);
+    const loadedSplit = splitMinutes(Number.isFinite(loadedMinutes) ? loadedMinutes : 60);
+    setDurationHoursText(String(loadedSplit.hours));
+    setDurationMinutesText(String(loadedSplit.minutes));
     uploadSeqRef.current += 1;
     setUploadingImage(false);
     applyLoadedDeposit(initialData?.depositAmountCents);
@@ -299,13 +310,20 @@ export default function ServiceEditorModal({
       depositTouched: depositWasTouched,
     };
     if (formData.pricingModel === "package") {
-      const trimmed = formData.duration.trim();
-      const parsed = parseInt(trimmed, 10);
-      if (trimmed === "" || isNaN(parsed) || parsed < 1) {
-        setDurationError("Duration is required");
+      if (parseInt(durationMinutesText || "0", 10) > 59) {
+        setDurationError("Minutes must be between 0 and 59.");
         return;
       }
-      dataToSave = { ...dataToSave, duration: String(parsed) };
+      const totalMinutes = joinMinutes(durationHoursText, durationMinutesText);
+      if (totalMinutes < minDurationMinutes) {
+        setDurationError(
+          minDurationMinutes <= 1
+            ? "Duration is required"
+            : `Duration must be at least ${minDurationMinutes} minutes.`,
+        );
+        return;
+      }
+      dataToSave = { ...dataToSave, duration: String(totalMinutes) };
     }
 
     try {
@@ -530,48 +548,84 @@ export default function ServiceEditorModal({
                   keyboardType="decimal-pad"
                 />
               </View>
-              <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
-                <Text style={[styles.label, { color: theme.text }]}>
-                  {formData.pricingModel === "hourly" ? "Min Hours" : "Duration (min)"}
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.text,
-                      borderColor:
-                        (formData.pricingModel === "package" && durationError) ||
-                        (formData.pricingModel === "hourly" && hoursError)
-                          ? theme.error
-                          : theme.border,
-                    },
-                  ]}
-                  value={formData.pricingModel === "hourly" ? formData.packageHours : formData.duration}
-                  onChangeText={(text) => {
-                    if (formData.pricingModel !== "hourly")
-                      setDurationError(null);
-                    else setHoursError(null);
-                    setFormData((prev) => ({
-                      ...prev,
-                      [formData.pricingModel === "hourly" ? "packageHours" : "duration"]: text,
-                    }));
-                  }}
-                  placeholder={formData.pricingModel === "hourly" ? "2" : "e.g. 90"}
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="numeric"
-                />
-                {formData.pricingModel === "package" && durationError && (
-                  <Text style={[styles.errorText, { color: theme.error }]}>
-                    {durationError}
-                  </Text>
-                )}
-                {formData.pricingModel === "hourly" && hoursError && (
-                  <Text style={[styles.errorText, { color: theme.error }]}>
-                    {hoursError}
-                  </Text>
-                )}
-              </View>
+              {formData.pricingModel === "hourly" ? (
+                <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={[styles.label, { color: theme.text }]}>Min Hours</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.card,
+                        color: theme.text,
+                        borderColor: hoursError ? theme.error : theme.border,
+                      },
+                    ]}
+                    value={formData.packageHours}
+                    onChangeText={(text) => {
+                      setHoursError(null);
+                      setFormData((prev) => ({ ...prev, packageHours: text }));
+                    }}
+                    placeholder="2"
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="numeric"
+                  />
+                  {hoursError && (
+                    <Text style={[styles.errorText, { color: theme.error }]}>
+                      {hoursError}
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={[styles.label, { color: theme.text }]}>Duration</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {(
+                      [
+                        ["Hours", durationHoursText, "hours"],
+                        ["Minutes", durationMinutesText, "minutes"],
+                      ] as const
+                    ).map(([caption, text, which]) => (
+                      <View key={which} style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 4 }}>
+                          {caption}
+                        </Text>
+                        <TextInput
+                          style={[
+                            styles.input,
+                            {
+                              backgroundColor: theme.card,
+                              color: theme.text,
+                              borderColor: durationError ? theme.error : theme.border,
+                            },
+                          ]}
+                          value={text}
+                          onChangeText={(v) => {
+                            const digits = v.replace(/\D/g, "");
+                            const nextHours = which === "hours" ? digits : durationHoursText;
+                            const nextMinutes = which === "minutes" ? digits : durationMinutesText;
+                            setDurationError(null);
+                            setDurationHoursText(nextHours);
+                            setDurationMinutesText(nextMinutes);
+                            setFormData((prev) => ({
+                              ...prev,
+                              duration: String(joinMinutes(nextHours, nextMinutes)),
+                            }));
+                          }}
+                          placeholder="0"
+                          placeholderTextColor={theme.textSecondary}
+                          keyboardType="number-pad"
+                          accessibilityLabel={`Duration ${which}`}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                  {durationError && (
+                    <Text style={[styles.errorText, { color: theme.error }]}>
+                      {durationError}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
 
             {depositVisible && (
