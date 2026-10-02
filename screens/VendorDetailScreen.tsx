@@ -64,6 +64,7 @@ import StoryRing from "@/components/StoryRing";
 import { StarDisplay, RatingBottomSheet } from "@/components/ratings";
 import type { PurchaseItem, RatingCheckResponse, RatingsResponse } from "@/types/ratings";
 import { displayRating } from "@/types/ratings";
+import { formatDuration } from "@/utils/duration";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -2085,7 +2086,7 @@ export default function VendorDetailScreen({ route }: Props) {
                         marginTop: 6,
                       }}
                     >
-                      {service.durationMinutes} min
+                      {formatDuration(service.durationMinutes)}
                     </Text>
                   ) : null}
                 </View>

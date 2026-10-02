@@ -38,6 +38,7 @@ import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
 import { StarDisplay } from "@/components/ratings";
 import { useTheme } from "@/hooks/useTheme";
+import { formatDuration } from "@/utils/duration";
 import {
   BrandColorSpec,
   resolveBrandColor,
@@ -384,7 +385,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                     ) : null}
                     {service.durationMinutes ? (
                       <Text style={[styles.serviceMeta, { color: textMuted }]}>
-                        {service.durationMinutes} min
+                        {formatDuration(service.durationMinutes)}
                       </Text>
                     ) : null}
                   </View>

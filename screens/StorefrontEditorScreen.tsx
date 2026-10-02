@@ -53,6 +53,10 @@ import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
+import { formatDuration, joinMinutes, splitMinutes } from "@/utils/duration";
+
+// The backend rejects vendor service durations under 5 minutes.
+const MIN_SERVICE_DURATION_MINUTES = 5;
 
 type TabType = "branding" | "profile" | "hours" | "products" | "services";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
@@ -301,6 +305,11 @@ export default function StorefrontEditorScreen() {
 
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositInput, setDepositInput] = useState("");
+  // The duration is stored as total minutes in serviceForm.durationMinutes; the
+  // two boxes hold what the vendor typed so a box can be cleared while editing.
+  const [durationHoursText, setDurationHoursText] = useState("1");
+  const [durationMinutesText, setDurationMinutesText] = useState("0");
+  const [durationError, setDurationError] = useState<string | null>(null);
   const [depositTouched, setDepositTouched] = useState(false);
   const [depositServerError, setDepositServerError] = useState<string | null>(
     null,
@@ -871,6 +880,7 @@ export default function StorefrontEditorScreen() {
       });
       applyLoadedDeposit(s.depositAmountCents);
       setServiceImageUrl(s.imageUrl ?? null);
+      applyLoadedDuration(service.durationMinutes || 60);
     } else {
       const biz = business as any;
       setEditingService(null);
@@ -897,6 +907,7 @@ export default function StorefrontEditorScreen() {
       });
       applyLoadedDeposit(null);
       setServiceImageUrl(null);
+      applyLoadedDuration(60);
     }
     setServiceImageTouched(false);
     setServiceModalVisible(true);
@@ -913,6 +924,23 @@ export default function StorefrontEditorScreen() {
           ? "Deposit must be less than the service price."
           : null;
 
+  const applyLoadedDuration = (minutes: number) => {
+    const split = splitMinutes(minutes);
+    setDurationHoursText(String(split.hours));
+    setDurationMinutesText(String(split.minutes));
+    setDurationError(null);
+  };
+
+  const changeDuration = (hoursText: string, minutesText: string) => {
+    setDurationHoursText(hoursText);
+    setDurationMinutesText(minutesText);
+    setDurationError(null);
+    setServiceForm((f) => ({
+      ...f,
+      durationMinutes: joinMinutes(hoursText, minutesText),
+    }));
+  };
+
   const handleSaveService = async () => {
     const token = await getToken();
     if (!token) return;
@@ -924,6 +952,17 @@ export default function StorefrontEditorScreen() {
 
     if (!serviceForm.priceCents || serviceForm.priceCents < 700) {
       Alert.alert("Invalid Price", "Price must be at least $7.00");
+      return;
+    }
+
+    // The duration error is shown inline under the boxes.
+    if (durationError) return;
+    if (parseInt(durationMinutesText || "0", 10) > 59) {
+      setDurationError("Minutes must be between 0 and 59.");
+      return;
+    }
+    if (joinMinutes(durationHoursText, durationMinutesText) < MIN_SERVICE_DURATION_MINUTES) {
+      setDurationError(`Duration must be at least ${MIN_SERVICE_DURATION_MINUTES} minutes.`);
       return;
     }
 
@@ -1485,6 +1524,7 @@ export default function StorefrontEditorScreen() {
     },
     serviceDetails: {
       flexDirection: "row",
+      flexWrap: "wrap",
       gap: 16,
     },
     serviceDetail: {
@@ -2543,7 +2583,7 @@ export default function StorefrontEditorScreen() {
                       color={theme.brandTextDim}
                     />
                     <Text style={styles.serviceDetailText}>
-                      {service.durationMinutes} min
+                      {formatDuration(service.durationMinutes)}
                     </Text>
                   </View>
                 )}
@@ -2882,20 +2922,49 @@ export default function StorefrontEditorScreen() {
             </>
           )}
 
-          <Text style={styles.inputLabel}>Duration (minutes)</Text>
-          <TextInput
-            style={styles.input}
-            value={serviceForm.durationMinutes?.toString() || ""}
-            onChangeText={(v) =>
-              setServiceForm({
-                ...serviceForm,
-                durationMinutes: parseInt(v || "60", 10),
-              })
-            }
-            placeholder="60"
-            placeholderTextColor={theme.brandTextDim}
-            keyboardType="number-pad"
-          />
+          <Text style={styles.inputLabel}>Duration</Text>
+          <View style={styles.row}>
+            <View style={styles.flex1}>
+              <Text style={[styles.inputLabel, { fontWeight: "400" }]}>Hours</Text>
+              <TextInput
+                style={styles.input}
+                value={durationHoursText}
+                onChangeText={(v) =>
+                  changeDuration(v.replace(/\D/g, ""), durationMinutesText)
+                }
+                placeholder="0"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+                accessibilityLabel="Duration hours"
+              />
+            </View>
+            <View style={styles.flex1}>
+              <Text style={[styles.inputLabel, { fontWeight: "400" }]}>Minutes</Text>
+              <TextInput
+                style={styles.input}
+                value={durationMinutesText}
+                onChangeText={(v) =>
+                  changeDuration(durationHoursText, v.replace(/\D/g, ""))
+                }
+                placeholder="0"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+                accessibilityLabel="Duration minutes"
+              />
+            </View>
+          </View>
+          {durationError && (
+            <Text
+              style={{
+                fontSize: 12,
+                color: theme.brandError,
+                marginTop: -6,
+                marginBottom: 12,
+              }}
+            >
+              {durationError}
+            </Text>
+          )}
 
           <Text style={styles.inputLabel}>Service Image</Text>
           <ImageUploader

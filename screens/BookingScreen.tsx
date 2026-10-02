@@ -22,6 +22,7 @@ import { useData } from "@/context/DataContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius, FontSizes } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { formatDuration } from "@/utils/duration";
 import { resolveBrandColor, parseBrandColorSpec } from "@/constants/colorOptions";
 import api, {
   BookingService,
@@ -123,13 +124,6 @@ const formatTime = (time24: string): string => {
 const formatDate = (dateString: string): string => {
   const d = new Date(dateString + "T00:00:00");
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-};
-
-const formatDuration = (minutes: number): string => {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
 const groupSlots = (slots: AvailabilitySlot[]) => ({
