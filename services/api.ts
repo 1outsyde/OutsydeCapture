@@ -4475,8 +4475,21 @@ class ApiService {
     const endpoint = providerType === "photographer"
       ? `/api/photographers/${providerId}/services`
       : `/api/businesses/${providerId}/services`;
-    const response = await this.request<{ services: Array<BookingService & { price?: number }> }>(endpoint);
-    return (response.services || []).map(s => ({ ...s, priceCents: s.price ?? s.priceCents ?? 0 }));
+    const response = await this.request<{
+      services: Array<BookingService & { price?: number; estimatedDurationMinutes?: number | null; packageHours?: number | null }>;
+    }>(endpoint);
+    const isPositive = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+    return (response.services || []).map(s => ({
+      ...s,
+      priceCents: s.price ?? s.priceCents ?? 0,
+      // Photographer services carry estimatedDurationMinutes (or packageHours for
+      // hourly), not durationMinutes. First positive value, else undefined.
+      durationMinutes: [
+        s.durationMinutes,
+        s.estimatedDurationMinutes,
+        typeof s.packageHours === "number" ? s.packageHours * 60 : undefined,
+      ].find(isPositive) as number,
+    }));
   }
 
   async validateBookingSlot(
