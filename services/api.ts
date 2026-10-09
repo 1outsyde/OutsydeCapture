@@ -1067,6 +1067,9 @@ export interface BusinessBooking {
   vendorNetAmount?: number;
   isInfluencerAttributed?: boolean;
   attributedInfluencerId?: string;
+  addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
+  customerDetails?: string | null;
+  inPersonDueCents?: number | null;
 }
 
 export interface BusinessProduct {
@@ -4434,7 +4437,9 @@ class ApiService {
     providerType: "photographer" | "business",
     date: string, // Format: YYYY-MM-DD
     serviceDurationMinutes: number = 60, // Default to 60 minutes if not provided
-    staffMemberId?: string
+    staffMemberId?: string,
+    serviceId?: string,
+    addonIds?: string[]
   ): Promise<AvailabilitySlotResponse> {
     // Backend returns { date, slots: [{ startTime, endTime, available }], totalAvailable }
     // Frontend expects { date, slots: [{ id, startTime, endTime, status }] }
@@ -4444,7 +4449,11 @@ class ApiService {
       date,
       serviceDurationMinutes: serviceDurationMinutes.toString(),
       ...(staffMemberId ? { staffMemberId } : {}),
+      ...(serviceId ? { serviceId } : {}),
     });
+    if (addonIds?.length) {
+      slotsParams.set("addonIds", addonIds.join(","));
+    }
     const rawResponse = await this.request<{
       date: string;
       slots: Array<{ startTime: string; endTime: string; available: boolean }>;
@@ -4519,11 +4528,17 @@ class ApiService {
       date: string;
       startTime: string;
       staffMemberId?: string;
+      addonIds?: string[];
+      customerDetails?: string;
     }
   ): Promise<BookingHoldResponse> {
+    const { addonIds, customerDetails, ...rest } = data;
+    const body: Record<string, unknown> = { ...rest };
+    if (addonIds?.length) body.addonIds = addonIds;
+    if (customerDetails?.trim()) body.customerDetails = customerDetails.trim();
     return this.request<BookingHoldResponse>("/api/booking/hold", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(body),
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
@@ -5021,6 +5036,15 @@ export interface AvailabilitySlotResponse {
   slots: AvailabilitySlot[];
 }
 
+export interface ServiceAddon {
+  id: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  durationMinutes: number;
+  sortOrder: number;
+}
+
 // Booking Flow types
 export interface BookingService {
   id: string;
@@ -5044,6 +5068,7 @@ export interface BookingService {
   cancellationFeeAmount?: number | null;
   depositAmountCents?: number | null;
   imageUrl?: string | null;
+  addons?: ServiceAddon[];
 }
 
 export interface BookingValidationResponse {
@@ -5095,6 +5120,12 @@ export interface BookingHoldResponse {
   dueAtAppointmentCents?: number;
   depositNonRefundable?: boolean;
   dueNowFeeBreakdown?: FeeBreakdown;
+  addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
+  addonsTotalCents?: number | null;
+  addonsDurationMinutes?: number | null;
+  totalPriceCents?: number | null;
+  customerDetails?: string | null;
+  inPersonDueCents?: number | null;
 }
 
 export interface BookingConfirmResponse {
@@ -5271,6 +5302,9 @@ export interface BusinessAppointment {
   serviceHasCancellationFee?: boolean | null;
   serviceCancellationFeeType?: string | null;
   serviceCancellationFeeAmount?: number | null;
+  addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
+  customerDetails?: string | null;
+  inPersonDueCents?: number | null;
 }
 
 export async function getMyAppointments(token: string): Promise<BusinessAppointment[]> {
@@ -5455,4 +5489,46 @@ export async function getPointsHistory(token: string): Promise<PointsHistoryResp
 
 export async function redeemPointsForCode(token: string, pointsToRedeem: number): Promise<RedeemPointsResponse> {
   return apiPost("/api/points/redeem", { pointsToRedeem }, token) as Promise<RedeemPointsResponse>;
+}
+
+// ==========================================
+// Vendor Service Add-ons
+// ==========================================
+
+export async function getServiceAddons(token: string, serviceId: string): Promise<ServiceAddon[]> {
+  const response: any = await apiGet(`/api/vendor/services/${serviceId}/addons`, token);
+  return Array.isArray(response?.addons) ? response.addons : [];
+}
+
+export interface ServiceAddonPayload {
+  name: string;
+  description?: string | null;
+  priceCents: number;
+  durationMinutes: number;
+  sortOrder?: number;
+}
+
+export async function createServiceAddon(
+  token: string,
+  serviceId: string,
+  payload: ServiceAddonPayload
+): Promise<ServiceAddon> {
+  return apiPost(`/api/vendor/services/${serviceId}/addons`, payload, token) as Promise<ServiceAddon>;
+}
+
+export async function updateServiceAddon(
+  token: string,
+  serviceId: string,
+  addonId: string,
+  payload: Partial<ServiceAddonPayload & { isActive?: boolean }>
+): Promise<ServiceAddon> {
+  return apiPatch(`/api/vendor/services/${serviceId}/addons/${addonId}`, payload, token) as Promise<ServiceAddon>;
+}
+
+export async function deleteServiceAddon(
+  token: string,
+  serviceId: string,
+  addonId: string
+): Promise<{ success: boolean }> {
+  return apiDelete(`/api/vendor/services/${serviceId}/addons/${addonId}`, token) as Promise<{ success: boolean }>;
 }

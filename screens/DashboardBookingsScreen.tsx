@@ -577,7 +577,24 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow,
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.serviceName}>{booking.serviceName}</Text>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.serviceName}>{booking.serviceName}</Text>
+          {(booking.addons ?? []).map((addon) => (
+            <Text key={addon.id} style={{ color: CREAM_DIM, fontSize: 11, marginTop: 2 }}>
+              + {addon.name} (${(addon.priceCents / 100).toFixed(2)})
+            </Text>
+          ))}
+          {booking.customerDetails ? (
+            <Text style={{ color: CREAM_DIM, fontSize: 11, marginTop: 4, fontStyle: "italic" }} numberOfLines={2}>
+              {booking.customerDetails}
+            </Text>
+          ) : null}
+          {typeof booking.inPersonDueCents === "number" && booking.inPersonDueCents > 0 ? (
+            <Text style={{ color: "#D4AF37", fontSize: 11, marginTop: 4, fontWeight: "600" }}>
+              Collect in person: ${(booking.inPersonDueCents / 100).toFixed(2)}
+            </Text>
+          ) : null}
+        </View>
         <View style={styles.earningsCol}>
           {booking.subtotalAmount != null && (
             <Text style={styles.earningsLine}>Subtotal: ${booking.subtotalAmount.toFixed(2)}</Text>

@@ -456,6 +456,21 @@ export default function SessionsScreen() {
           <ThemedText type="small" style={{ color: theme.textSecondary }}>
             {appt.serviceName ?? "Service"}
           </ThemedText>
+          {(appt.addons ?? []).map((addon) => (
+            <ThemedText key={addon.id} type="caption" style={{ color: theme.textSecondary }}>
+              + {addon.name} (${(addon.priceCents / 100).toFixed(2)})
+            </ThemedText>
+          ))}
+          {appt.customerDetails ? (
+            <ThemedText type="caption" style={{ color: theme.textSecondary, fontStyle: "italic" }} numberOfLines={2}>
+              {appt.customerDetails}
+            </ThemedText>
+          ) : null}
+          {typeof appt.inPersonDueCents === "number" && appt.inPersonDueCents > 0 ? (
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              Pay at appointment: ${(appt.inPersonDueCents / 100).toFixed(2)}
+            </ThemedText>
+          ) : null}
           <View style={styles.sessionMeta}>
             <View style={styles.metaItem}>
               <Feather name="calendar" size={14} color={theme.textSecondary} />

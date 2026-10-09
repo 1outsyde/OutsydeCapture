@@ -303,6 +303,20 @@ export default function AppointmentDetailScreen() {
         <Row icon="calendar" label={formatDate(appt.appointmentDate)} />
         <Row icon="clock" label={timeStr} />
         <Row icon="dollar-sign" label={`Amount paid: $${(grossCents / 100).toFixed(2)}`} />
+        {(appt.addons ?? []).map((addon) => (
+          <Row key={addon.id} icon="plus-circle" label={`${addon.name} (+$${(addon.priceCents / 100).toFixed(2)})`} />
+        ))}
+        {appt.customerDetails ? (
+          <View style={styles.row}>
+            <Feather name="file-text" size={16} color={theme.textSecondary} style={styles.rowIcon} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, flex: 1 }}>
+              {appt.customerDetails}
+            </ThemedText>
+          </View>
+        ) : null}
+        {typeof appt.inPersonDueCents === "number" && appt.inPersonDueCents > 0 ? (
+          <Row icon="credit-card" label={`Pay at appointment: $${(appt.inPersonDueCents / 100).toFixed(2)}`} />
+        ) : null}
       </View>
 
       {/* Location */}
