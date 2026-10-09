@@ -93,6 +93,7 @@ interface PaidSnapshot {
   dueNowCents: number;
   dueAtAppointmentCents: number | undefined;
   depositAmountCents: number | null;
+  addons?: { id: string; name: string; priceCents: number }[] | null;
 }
 
 // Customer-facing copy for hold errors. Raw messages go to the console only.
@@ -748,7 +749,8 @@ export default function BookingFlow({
           return;
         }
       } catch {
-        // non-blocking: proceed to hold
+        setAddonFitError("Couldn't check the time, try again.");
+        return;
       } finally {
         setCheckingAddonFit(false);
       }
@@ -822,6 +824,7 @@ export default function BookingFlow({
       dueNowCents: currentHold.dueNowCents,
       dueAtAppointmentCents: currentHold.dueAtAppointmentCents,
       depositAmountCents: currentHold.depositAmountCents ?? null,
+      addons: currentHold.addons ?? null,
     };
     let attempt = 0;
 
@@ -1031,6 +1034,14 @@ export default function BookingFlow({
       setHoldStatus("idle");
       setHoldErrorCopy(null);
       setError(null);
+      setAddonFitError(null);
+      const hasAddons =
+        providerType === "business" &&
+        !staffMemberId &&
+        (selectedService?.addons?.length ?? 0) > 0;
+      if (hasAddons) {
+        setShowAddonsStep(true);
+      }
       setStep(3);
     }
   };
@@ -1312,12 +1323,9 @@ export default function BookingFlow({
           renderAmountRow("Due at appointment", atAppointment)}
         {typeof paidSnapshot.serviceTotalCents === "number" &&
           renderAmountRow("Service total", paidSnapshot.serviceTotalCents)}
-        {selectedAddonIds.length > 0 && selectedService && (
+        {(paidSnapshot.addons ?? []).length > 0 && (
           <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.xs, fontSize: FontSizes.sm }}>
-            {selectedAddonIds
-              .map((id) => selectedService.addons?.find((a) => a.id === id)?.name)
-              .filter(Boolean)
-              .join(", ")}
+            {(paidSnapshot.addons ?? []).map((a) => a.name).join(", ")}
           </ThemedText>
         )}
         {bookingPending ? (
@@ -1417,10 +1425,19 @@ export default function BookingFlow({
     const feeCents = hold.dueNowFeeBreakdown?.consumerServiceFeeAmount;
     return (
       <>
-        {typeof hold.serviceTotalCents === "number" &&
-          renderAmountRow("Service total", hold.serviceTotalCents)}
-        {(hold.addons ?? []).map((addon) =>
-          renderAmountRow(`+ ${addon.name}`, addon.priceCents)
+        {(hold.addons ?? []).length > 0 ? (
+          <>
+            {typeof hold.servicePriceCents === "number" &&
+              renderAmountRow("Service", hold.servicePriceCents)}
+            {(hold.addons ?? []).map((addon) =>
+              renderAmountRow(`+ ${addon.name}`, addon.priceCents)
+            )}
+            {typeof hold.serviceTotalCents === "number" &&
+              renderAmountRow("Subtotal", hold.serviceTotalCents)}
+          </>
+        ) : (
+          typeof hold.serviceTotalCents === "number" &&
+            renderAmountRow("Service total", hold.serviceTotalCents)
         )}
         {!hasDeposit &&
           typeof feeCents === "number" &&
@@ -1698,7 +1715,7 @@ export default function BookingFlow({
         </View>
       )}
 
-      {step === 3 && (
+      {step === 3 && !showAddonsStep && (
         <View style={styles.stepContent}>
           <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Select a Time
@@ -1895,7 +1912,7 @@ export default function BookingFlow({
                     </ThemedText>
                   ) : null}
                   <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
-                    {formatPrice(addon.priceCents)} · +{formatDuration(addon.durationMinutes)}
+                    {formatPrice(addon.priceCents)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
                   </ThemedText>
                 </View>
                 <View
@@ -1979,18 +1996,6 @@ export default function BookingFlow({
                 {selectedDateDisplay} at {formatTime(selectedSlot.startTime)} · {formatDuration(selectedService.durationMinutes)}
               </ThemedText>
             </ServiceSummaryRow>
-            {selectedAddonIds.length > 0 && (
-              <View style={{ marginTop: Spacing.xs }}>
-                {selectedAddonIds.map((id) => {
-                  const addon = selectedService.addons?.find((a) => a.id === id);
-                  return addon ? (
-                    <ThemedText key={id} style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
-                      + {addon.name} ({formatPrice(addon.priceCents)})
-                    </ThemedText>
-                  ) : null;
-                })}
-              </View>
-            )}
             {bookingCustomerDetails.trim() ? (
               <View style={{ marginTop: Spacing.sm }}>
                 <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm, fontStyle: "italic" }}>

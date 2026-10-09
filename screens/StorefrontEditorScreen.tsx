@@ -331,6 +331,7 @@ export default function StorefrontEditorScreen() {
   const [addonModalVisible, setAddonModalVisible] = useState(false);
   const [editingAddon, setEditingAddon] = useState<ServiceAddon | null>(null);
   const [addonForm, setAddonForm] = useState({ name: "", description: "", priceCents: "", durationMinutes: "", sortOrder: "" });
+  const [addonAddsTime, setAddonAddsTime] = useState(false);
   const [addonSaving, setAddonSaving] = useState(false);
   const [addonError, setAddonError] = useState<string | null>(null);
 
@@ -3019,6 +3020,7 @@ export default function StorefrontEditorScreen() {
                   <Pressable
                     onPress={() => {
                       setEditingAddon(null);
+                      setAddonAddsTime(false);
                       setAddonForm({ name: "", description: "", priceCents: "", durationMinutes: "", sortOrder: String(serviceAddons.length + 1) });
                       setAddonError(null);
                       setAddonModalVisible(true);
@@ -3063,17 +3065,18 @@ export default function StorefrontEditorScreen() {
                       <Text style={{ color: theme.brandTextDim, fontSize: 12 }}>{addon.description}</Text>
                     ) : null}
                     <Text style={{ color: theme.brandTextDim, fontSize: 12 }}>
-                      ${(addon.priceCents / 100).toFixed(2)} · +{formatDuration(addon.durationMinutes)}
+                      ${(addon.priceCents / 100).toFixed(2)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
                     </Text>
                   </View>
                   <Pressable
                     onPress={() => {
                       setEditingAddon(addon);
+                      setAddonAddsTime(addon.durationMinutes > 0);
                       setAddonForm({
                         name: addon.name,
                         description: addon.description ?? "",
                         priceCents: (addon.priceCents / 100).toFixed(2),
-                        durationMinutes: String(addon.durationMinutes),
+                        durationMinutes: addon.durationMinutes > 0 ? String(addon.durationMinutes) : "",
                         sortOrder: String(addon.sortOrder),
                       });
                       setAddonError(null);
@@ -3732,7 +3735,7 @@ export default function StorefrontEditorScreen() {
               onChangeText={(v) => setAddonForm({ ...addonForm, name: v })}
               placeholder="e.g. Deep Condition"
               placeholderTextColor={theme.brandTextDim}
-              maxLength={100}
+              maxLength={80}
             />
             <Text style={styles.inputLabel}>Description</Text>
             <TextInput
@@ -3742,7 +3745,7 @@ export default function StorefrontEditorScreen() {
               placeholder="Optional details"
               placeholderTextColor={theme.brandTextDim}
               multiline
-              maxLength={500}
+              maxLength={300}
             />
             <Text style={styles.inputLabel}>Price ($) *</Text>
             <TextInput
@@ -3753,15 +3756,31 @@ export default function StorefrontEditorScreen() {
               placeholderTextColor={theme.brandTextDim}
               keyboardType="decimal-pad"
             />
-            <Text style={styles.inputLabel}>Duration (minutes) *</Text>
-            <TextInput
-              style={styles.input}
-              value={addonForm.durationMinutes}
-              onChangeText={(v) => setAddonForm({ ...addonForm, durationMinutes: v })}
-              placeholder="15"
-              placeholderTextColor={theme.brandTextDim}
-              keyboardType="number-pad"
-            />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: addonAddsTime ? 4 : 0 }}>
+              <Text style={{ color: theme.brandCream, fontSize: 14 }}>Adds time to the appointment</Text>
+              <Switch
+                value={addonAddsTime}
+                onValueChange={(v) => {
+                  setAddonAddsTime(v);
+                  if (!v) setAddonForm((f) => ({ ...f, durationMinutes: "" }));
+                }}
+                trackColor={{ false: theme.brandSurface, true: theme.brandGold }}
+                thumbColor={theme.brandBg}
+              />
+            </View>
+            {addonAddsTime && (
+              <>
+                <Text style={[styles.inputLabel, { marginTop: 8 }]}>Duration (minutes) *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={addonForm.durationMinutes}
+                  onChangeText={(v) => setAddonForm({ ...addonForm, durationMinutes: v.replace(/\D/g, "") })}
+                  placeholder="e.g. 30"
+                  placeholderTextColor={theme.brandTextDim}
+                  keyboardType="number-pad"
+                />
+              </>
+            )}
             <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
               <Pressable
                 onPress={() => { setAddonModalVisible(false); setAddonError(null); }}
@@ -3773,12 +3792,18 @@ export default function StorefrontEditorScreen() {
                 onPress={async () => {
                   setAddonError(null);
                   const name = addonForm.name.trim();
-                  if (!name) { setAddonError("Name is required."); return; }
+                  if (!name || name.length > 80) { setAddonError("Name is required (max 80 characters)."); return; }
+                  const desc = addonForm.description.trim();
+                  if (desc.length > 300) { setAddonError("Description must be 300 characters or fewer."); return; }
                   const priceVal = parseFloat(addonForm.priceCents);
-                  if (isNaN(priceVal) || priceVal < 0) { setAddonError("Enter a valid price."); return; }
+                  if (isNaN(priceVal) || priceVal < 0 || priceVal > 1000) { setAddonError("Price must be between $0 and $1,000."); return; }
                   const priceCents = Math.round(priceVal * 100);
-                  const durationVal = parseInt(addonForm.durationMinutes, 10);
-                  if (isNaN(durationVal) || durationVal < 1) { setAddonError("Enter a valid duration (min 1 minute)."); return; }
+                  let durationMinutes = 0;
+                  if (addonAddsTime) {
+                    const durationVal = parseInt(addonForm.durationMinutes, 10);
+                    if (isNaN(durationVal) || durationVal < 5 || durationVal > 480) { setAddonError("Duration must be between 5 and 480 minutes."); return; }
+                    durationMinutes = durationVal;
+                  }
                   const sortOrder = parseInt(addonForm.sortOrder, 10) || (serviceAddons.length + 1);
                   setAddonSaving(true);
                   try {
@@ -3786,9 +3811,9 @@ export default function StorefrontEditorScreen() {
                     if (!token || !editingService?.id) throw new Error("Not authenticated");
                     const payload = {
                       name,
-                      description: addonForm.description.trim() || null,
+                      description: desc || null,
                       priceCents,
-                      durationMinutes: durationVal,
+                      durationMinutes,
                       sortOrder,
                     };
                     if (editingAddon) {

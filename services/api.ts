@@ -5513,7 +5513,10 @@ export async function createServiceAddon(
   serviceId: string,
   payload: ServiceAddonPayload
 ): Promise<ServiceAddon> {
-  return apiPost(`/api/vendor/services/${serviceId}/addons`, payload, token) as Promise<ServiceAddon>;
+  // Backend wraps the created record: routes.ts:12895 res.status(201).json({ addon })
+  const response: any = await apiPost(`/api/vendor/services/${serviceId}/addons`, payload, token);
+  if (!response?.addon) throw new Error("Unexpected response from server");
+  return response.addon;
 }
 
 export async function updateServiceAddon(
@@ -5522,7 +5525,10 @@ export async function updateServiceAddon(
   addonId: string,
   payload: Partial<ServiceAddonPayload & { isActive?: boolean }>
 ): Promise<ServiceAddon> {
-  return apiPatch(`/api/vendor/services/${serviceId}/addons/${addonId}`, payload, token) as Promise<ServiceAddon>;
+  // Backend wraps the updated record: routes.ts:12913 res.json({ addon })
+  const response: any = await apiPatch(`/api/vendor/services/${serviceId}/addons/${addonId}`, payload, token);
+  if (!response?.addon) throw new Error("Unexpected response from server");
+  return response.addon;
 }
 
 export async function deleteServiceAddon(
