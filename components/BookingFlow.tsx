@@ -93,6 +93,7 @@ interface PaidSnapshot {
   dueNowCents: number;
   dueAtAppointmentCents: number | undefined;
   depositAmountCents: number | null;
+  addons?: { id: string; name: string; priceCents: number }[] | null;
 }
 
 // Customer-facing copy for hold errors. Raw messages go to the console only.
@@ -380,6 +381,13 @@ export default function BookingFlow({
 
   const [showIncompatibleModal, setShowIncompatibleModal] = useState(false);
   const [incompatibleReason, setIncompatibleReason] = useState<string>("");
+
+  // Add-ons step (business, no staff member, service has add-ons)
+  const [showAddonsStep, setShowAddonsStep] = useState(false);
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const [addonFitError, setAddonFitError] = useState<string | null>(null);
+  const [checkingAddonFit, setCheckingAddonFit] = useState(false);
+  const [bookingCustomerDetails, setBookingCustomerDetails] = useState<string>("");
 
   // Review step state
   const [businessLocationAcknowledged, setBusinessLocationAcknowledged] = useState(false);
@@ -689,7 +697,18 @@ export default function BookingFlow({
       if (response.valid) {
         setSelectedSlot(slot);
         setValidatedEndTime(response.endTime || null);
-        setStep(4);
+        const hasAddons =
+          providerType === "business" &&
+          !staffMemberId &&
+          (selectedService?.addons?.length ?? 0) > 0;
+        if (hasAddons) {
+          setSelectedAddonIds([]);
+          setBookingCustomerDetails("");
+          setAddonFitError(null);
+          setShowAddonsStep(true);
+        } else {
+          setStep(4);
+        }
       } else {
         setIncompatibleReason(response.reason || "This service requires more time than this slot allows.");
         setShowIncompatibleModal(true);
@@ -700,6 +719,44 @@ export default function BookingFlow({
     } finally {
       setValidating(false);
     }
+  };
+
+  const handleAddonsContinue = async () => {
+    if (!selectedService || !selectedDate || !selectedSlot) return;
+    const timeAdding = selectedAddonIds.reduce((sum, id) => {
+      const addon = selectedService.addons?.find((a) => a.id === id);
+      return sum + (addon?.durationMinutes ?? 0);
+    }, 0);
+    if (timeAdding > 0) {
+      setCheckingAddonFit(true);
+      setAddonFitError(null);
+      try {
+        const serviceDuration = selectedService.durationMinutes || 60;
+        const response = await api.getAvailabilitySlots(
+          providerId, "business", selectedDate,
+          serviceDuration, undefined, selectedService.id, selectedAddonIds
+        );
+        const available = (response.slots || []).filter((s) => s.status === "available");
+        const stillAvailable = available.some((s) => s.startTime === selectedSlot.startTime);
+        if (!stillAvailable) {
+          const totalMins = serviceDuration + timeAdding;
+          const h = Math.floor(totalMins / 60);
+          const m = totalMins % 60;
+          const durationStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
+          setAddonFitError(
+            `With selected add-ons, this service needs ${durationStr} total — not available at ${formatTime(selectedSlot.startTime)}. Please change your time.`
+          );
+          return;
+        }
+      } catch {
+        setAddonFitError("Couldn't check the time, try again.");
+        return;
+      } finally {
+        setCheckingAddonFit(false);
+      }
+    }
+    setShowAddonsStep(false);
+    setStep(4);
   };
 
   // Holds the selected slot for the review step. A response that arrives after
@@ -720,6 +777,8 @@ export default function BookingFlow({
         date: selectedDate,
         startTime: selectedSlot.startTime,
         ...(staffMemberId ? { staffMemberId } : {}),
+        ...(selectedAddonIds.length ? { addonIds: selectedAddonIds } : {}),
+        ...(bookingCustomerDetails.trim() ? { customerDetails: bookingCustomerDetails.trim() } : {}),
       } as Parameters<typeof api.createBookingHold>[1]);
 
       const stale =
@@ -765,6 +824,7 @@ export default function BookingFlow({
       dueNowCents: currentHold.dueNowCents,
       dueAtAppointmentCents: currentHold.dueAtAppointmentCents,
       depositAmountCents: currentHold.depositAmountCents ?? null,
+      addons: currentHold.addons ?? null,
     };
     let attempt = 0;
 
@@ -897,6 +957,10 @@ export default function BookingFlow({
     setStep(2);
     setSelectedDate(null);
     setSelectedSlot(null);
+    setShowAddonsStep(false);
+    setSelectedAddonIds([]);
+    setBookingCustomerDetails("");
+    setAddonFitError(null);
   };
 
   const handleDateSelect = (date: string, status: string) => {
@@ -905,6 +969,11 @@ export default function BookingFlow({
     setSelectedDate(date);
     setSlots([]);
     setStep(3);
+    setSelectedSlot(null);
+    setShowAddonsStep(false);
+    setSelectedAddonIds([]);
+    setBookingCustomerDetails("");
+    setAddonFitError(null);
   };
 
   const handleSlotSelect = (slot: AvailabilitySlot) => {
@@ -935,6 +1004,13 @@ export default function BookingFlow({
 
   const goBack = () => {
     Haptics.selectionAsync();
+    if (showAddonsStep) {
+      setShowAddonsStep(false);
+      setSelectedAddonIds([]);
+      setBookingCustomerDetails("");
+      setAddonFitError(null);
+      return;
+    }
     if (step === 2) {
       setStep(1);
       setSelectedService(null);
@@ -958,6 +1034,14 @@ export default function BookingFlow({
       setHoldStatus("idle");
       setHoldErrorCopy(null);
       setError(null);
+      setAddonFitError(null);
+      const hasAddons =
+        providerType === "business" &&
+        !staffMemberId &&
+        (selectedService?.addons?.length ?? 0) > 0;
+      if (hasAddons) {
+        setShowAddonsStep(true);
+      }
       setStep(3);
     }
   };
@@ -1239,6 +1323,11 @@ export default function BookingFlow({
           renderAmountRow("Due at appointment", atAppointment)}
         {typeof paidSnapshot.serviceTotalCents === "number" &&
           renderAmountRow("Service total", paidSnapshot.serviceTotalCents)}
+        {(paidSnapshot.addons ?? []).length > 0 && (
+          <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.xs, fontSize: FontSizes.sm }}>
+            {(paidSnapshot.addons ?? []).map((a) => a.name).join(", ")}
+          </ThemedText>
+        )}
         {bookingPending ? (
           <>
             <ThemedText style={dimCenter}>
@@ -1336,8 +1425,20 @@ export default function BookingFlow({
     const feeCents = hold.dueNowFeeBreakdown?.consumerServiceFeeAmount;
     return (
       <>
-        {typeof hold.serviceTotalCents === "number" &&
-          renderAmountRow("Service total", hold.serviceTotalCents)}
+        {(hold.addons ?? []).length > 0 ? (
+          <>
+            {typeof hold.servicePriceCents === "number" &&
+              renderAmountRow("Service", hold.servicePriceCents)}
+            {(hold.addons ?? []).map((addon) =>
+              renderAmountRow(`+ ${addon.name}`, addon.priceCents)
+            )}
+            {typeof hold.serviceTotalCents === "number" &&
+              renderAmountRow("Subtotal", hold.serviceTotalCents)}
+          </>
+        ) : (
+          typeof hold.serviceTotalCents === "number" &&
+            renderAmountRow("Service total", hold.serviceTotalCents)
+        )}
         {!hasDeposit &&
           typeof feeCents === "number" &&
           renderAmountRow("Service fee", feeCents)}
@@ -1614,7 +1715,7 @@ export default function BookingFlow({
         </View>
       )}
 
-      {step === 3 && (
+      {step === 3 && !showAddonsStep && (
         <View style={styles.stepContent}>
           <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Select a Time
@@ -1769,7 +1870,118 @@ export default function BookingFlow({
         </View>
       )}
 
-      {step === 4 && selectedSlot && selectedService && (
+      {showAddonsStep && selectedService && selectedSlot && (
+        <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
+          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
+            Add-ons
+          </ThemedText>
+          <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft, marginBottom: Spacing.md }]}>
+            <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService.name}</ThemedText>
+            <ThemedText style={{ color: theme.brandTextDim }}>
+              {selectedDateDisplay} at {formatTime(selectedSlot.startTime)}
+            </ThemedText>
+          </View>
+          <ThemedText style={{ color: theme.brandTextDim, marginBottom: Spacing.sm }}>
+            Optional extras for your appointment:
+          </ThemedText>
+          {(selectedService.addons ?? []).map((addon) => {
+            const isSelected = selectedAddonIds.includes(addon.id);
+            return (
+              <Pressable
+                key={addon.id}
+                onPress={() => {
+                  setAddonFitError(null);
+                  setSelectedAddonIds((prev) =>
+                    isSelected ? prev.filter((id) => id !== addon.id) : [...prev, addon.id]
+                  );
+                }}
+                style={[
+                  styles.slotListRow,
+                  {
+                    backgroundColor: isSelected ? accentSoft : theme.brandBgElevated,
+                    borderColor: isSelected ? accent : theme.brandSurfaceBorder,
+                    marginBottom: Spacing.xs,
+                  },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{addon.name}</ThemedText>
+                  {addon.description ? (
+                    <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
+                      {addon.description}
+                    </ThemedText>
+                  ) : null}
+                  <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
+                    {formatPrice(addon.priceCents)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
+                  </ThemedText>
+                </View>
+                <View
+                  style={[
+                    styles.slotCheckCircle,
+                    { backgroundColor: isSelected ? accent : "transparent", borderWidth: 2, borderColor: isSelected ? accent : theme.brandSurfaceBorder },
+                  ]}
+                >
+                  {isSelected && <Feather name="check" size={14} color={theme.brandBg} />}
+                </View>
+              </Pressable>
+            );
+          })}
+
+          <ThemedText style={{ color: theme.brandCream, fontWeight: "600", marginTop: Spacing.md, marginBottom: Spacing.xs }}>
+            Details for your provider <ThemedText style={{ fontWeight: "400", color: theme.brandTextDim }}>(optional)</ThemedText>
+          </ThemedText>
+          <TextInput
+            value={bookingCustomerDetails}
+            onChangeText={(t) => setBookingCustomerDetails(t.slice(0, 1000))}
+            placeholder="Allergy notes, prep instructions, preferences…"
+            placeholderTextColor={theme.brandTextDim}
+            multiline
+            numberOfLines={4}
+            maxLength={1000}
+            style={{
+              backgroundColor: theme.brandBgElevated,
+              borderWidth: 1,
+              borderColor: theme.brandSurfaceBorder,
+              borderRadius: BorderRadius.md,
+              color: theme.brandCream,
+              padding: Spacing.sm,
+              minHeight: 96,
+              textAlignVertical: "top",
+              marginBottom: Spacing.xs,
+            }}
+          />
+          <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs, textAlign: "right", marginBottom: Spacing.md }}>
+            {bookingCustomerDetails.length}/1000
+          </ThemedText>
+
+          {addonFitError ? (
+            <View style={{ backgroundColor: (theme.brandError || "#FF3B30") + "22", borderRadius: BorderRadius.sm, padding: Spacing.sm, marginBottom: Spacing.md }}>
+              <ThemedText style={{ color: theme.brandError || "#FF3B30" }}>
+                {addonFitError}
+              </ThemedText>
+              <Pressable onPress={() => { setShowAddonsStep(false); setAddonFitError(null); }} style={{ marginTop: Spacing.xs }}>
+                <ThemedText style={{ color: accent, fontWeight: "600" }}>Change time</ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <Pressable
+            onPress={handleAddonsContinue}
+            disabled={checkingAddonFit}
+            style={[styles.primaryButton, { backgroundColor: accent, opacity: checkingAddonFit ? 0.6 : 1 }]}
+          >
+            {checkingAddonFit ? (
+              <ActivityIndicator color={theme.brandBg} />
+            ) : (
+              <ThemedText style={[styles.primaryButtonText, { color: theme.brandBg }]}>
+                Continue
+              </ThemedText>
+            )}
+          </Pressable>
+        </ScrollView>
+      )}
+
+      {!showAddonsStep && step === 4 && selectedSlot && selectedService && (
         <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
           <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
             Review & Confirm
@@ -1784,6 +1996,13 @@ export default function BookingFlow({
                 {selectedDateDisplay} at {formatTime(selectedSlot.startTime)} · {formatDuration(selectedService.durationMinutes)}
               </ThemedText>
             </ServiceSummaryRow>
+            {bookingCustomerDetails.trim() ? (
+              <View style={{ marginTop: Spacing.sm }}>
+                <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm, fontStyle: "italic" }}>
+                  {bookingCustomerDetails.trim()}
+                </ThemedText>
+              </View>
+            ) : null}
           </View>
 
           {/* Amounts — every value comes from the hold (no math here) */}
