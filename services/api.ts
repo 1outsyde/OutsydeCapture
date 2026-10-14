@@ -1070,6 +1070,9 @@ export interface BusinessBooking {
   addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
   customerDetails?: string | null;
   inPersonDueCents?: number | null;
+  // Integer cents from GET /api/business/bookings (appointmentChargeFields); null when no deposit.
+  depositAmountCents?: number | null;
+  addonsTotalCents?: number;
 }
 
 export interface BusinessProduct {
