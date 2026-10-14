@@ -55,6 +55,12 @@ import {
   deletePhotographerServiceAddon,
 } from "@/services/api";
 import type { ServiceAddonsApi } from "@/components/ServiceAddonsEditor";
+import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
+import { uploadImage } from "@/services/mediaUpload";
+import { availabilityEvents } from "@/services/availabilityEvents";
+import { useVideoPlayer, VideoView } from "expo-video";
+import MediaUploader from "@/components/MediaUploader";
+import { formatDuration } from "@/utils/duration";
 
 // Photographer add-on routes (backend photographers router, migration 041).
 const PHOTOGRAPHER_ADDONS_API: ServiceAddonsApi = {
@@ -63,12 +69,7 @@ const PHOTOGRAPHER_ADDONS_API: ServiceAddonsApi = {
   update: updatePhotographerServiceAddon,
   remove: deletePhotographerServiceAddon,
 };
-import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
-import { uploadImage } from "@/services/mediaUpload";
-import { availabilityEvents } from "@/services/availabilityEvents";
-import { useVideoPlayer, VideoView } from "expo-video";
-import MediaUploader from "@/components/MediaUploader";
-import { formatDuration } from "@/utils/duration";
+
 // Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
 const DASHBOARD_COLORS = {
   background: "#080C08",

@@ -316,7 +316,7 @@ export default function ServiceAddonsEditor({
       {copyPrompt && copyTargets.length > 0 && addons.some((a) => a.id === copyPrompt.id) ? (
         <View style={[styles.promptBox, { borderColor: accentColor }]}>
           <Text style={{ color: theme.text, fontSize: 14, marginBottom: 10 }}>
-            Use "{copyPrompt.name}" on your other services too?
+            {`Use "${copyPrompt.name}" on your other services too?`}
           </Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
             <Pressable
@@ -458,7 +458,7 @@ export default function ServiceAddonsEditor({
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheet, { backgroundColor: theme.background, maxHeight: "80%" }]}>
             <Text style={{ color: theme.text, fontWeight: "700", fontSize: 17, marginBottom: 4 }}>
-              Add "{copySource?.name}" to other services
+              {`Add "${copySource?.name ?? ""}" to other services`}
             </Text>
             {copySource ? (
               <Text style={{ color: theme.textSecondary, fontSize: 13, marginBottom: 12 }}>
@@ -505,7 +505,7 @@ export default function ServiceAddonsEditor({
               })}
             </ScrollView>
             <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 16 }}>
-              Each service gets its own copy. Changing this add-on later won't change the copies.
+              {"Each service gets its own copy. Changing this add-on later won't change the copies."}
             </Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Pressable

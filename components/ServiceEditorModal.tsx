@@ -452,7 +452,7 @@ export default function ServiceEditorModal({
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: theme.text }]}>Add-ons</Text>
                   <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
-                    Add-ons aren't available on contact-for-pricing services.
+                    {"Add-ons aren't available on contact-for-pricing services."}
                   </Text>
                 </View>
               ) : (
