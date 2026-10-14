@@ -88,6 +88,7 @@ interface PaidSnapshot {
   dueNowCents: number;
   dueAtAppointmentCents: number | undefined;
   depositAmountCents: number | null;
+  addons?: { id: string; name: string; priceCents: number }[] | null;
 }
 
 // Customer-facing copy for hold errors. Raw messages go to the console only.
@@ -288,6 +289,15 @@ export default function BookingScreen() {
   const [paymentData, setPaymentData] =
     useState<HoldPaymentIntentResponse | null>(null);
   const [paidSnapshot, setPaidSnapshot] = useState<PaidSnapshot | null>(null);
+
+  // ─── Add-ons & details step (after a time is picked, before review) ───────
+  // Every photographer booking gets it: the add-on list when the service has
+  // add-ons, and always the "Details for your provider" box.
+  const [showAddonsStep, setShowAddonsStep] = useState(false);
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const [bookingCustomerDetails, setBookingCustomerDetails] = useState("");
+  const [addonFitError, setAddonFitError] = useState<string | null>(null);
+  const [checkingAddonFit, setCheckingAddonFit] = useState(false);
 
   // ─── Loading / error ───────────────────────────────────────────────────────
   const [isLoadingServices, setIsLoadingServices] = useState(true);
@@ -588,8 +598,10 @@ export default function BookingScreen() {
         Haptics.selectionAsync();
         setSelectedSlot(slot);
         setValidatedEndTime(response.endTime || null);
-        resetReviewState();
-        setStep(4);
+        setSelectedAddonIds([]);
+        setBookingCustomerDetails("");
+        setAddonFitError(null);
+        setShowAddonsStep(true);
       } else {
         setIncompatibleReason(response.reason || "This service requires more time than this slot allows.");
         setShowIncompatibleModal(true);
@@ -610,6 +622,45 @@ export default function BookingScreen() {
     setCancellationPolicyAcknowledged(false);
     setPlatformTermsAcknowledged(false);
     setVendorTermsAcknowledged(false);
+  };
+
+  const selectedAddons = (selectedService?.addons ?? []).filter((a) => selectedAddonIds.includes(a.id));
+  const selectedAddonsMinutes = selectedAddons.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+
+  // Add-ons step → review. Time-adding add-ons must still fit at the chosen
+  // start time (same check as BookingFlow: slots with serviceId + addonIds).
+  // The hold is the real guard; this only gives a clear message first.
+  const handleAddonsContinue = async () => {
+    if (!selectedService || !selectedDate || !selectedSlot || !photographer) return;
+    if (selectedAddonsMinutes > 0) {
+      setCheckingAddonFit(true);
+      setAddonFitError(null);
+      try {
+        const serviceDuration = selectedService.durationMinutes || 60;
+        const response = await api.getAvailabilitySlots(
+          photographer.id, "photographer", selectedDate,
+          serviceDuration, undefined, selectedService.id, selectedAddonIds
+        );
+        const stillAvailable = (response.slots || []).some(
+          (s) => s.status === "available" && s.startTime === selectedSlot.startTime,
+        );
+        if (!stillAvailable) {
+          setAddonFitError(
+            `With the add-ons you picked this session needs ${formatDuration(serviceDuration + selectedAddonsMinutes)} — that doesn't fit at ${formatTime(selectedSlot.startTime)}. Remove a time-adding add-on or change the time.`
+          );
+          return;
+        }
+      } catch {
+        setAddonFitError("Couldn't check the time, try again.");
+        return;
+      } finally {
+        setCheckingAddonFit(false);
+      }
+    }
+    Haptics.selectionAsync();
+    resetReviewState();
+    setShowAddonsStep(false);
+    setStep(4);
   };
 
   // ─── Location string for addSession ───────────────────────────────────────
@@ -659,6 +710,9 @@ export default function BookingScreen() {
         serviceId: selectedService.id,
         date: selectedDate,
         startTime: selectedSlot.startTime,
+        // Sent only when present, so a booking without them is unchanged.
+        ...(selectedAddonIds.length ? { addonIds: selectedAddonIds } : {}),
+        ...(bookingCustomerDetails.trim() ? { customerDetails: bookingCustomerDetails.trim() } : {}),
       });
 
       const stale =
@@ -705,6 +759,7 @@ export default function BookingScreen() {
       dueNowCents: currentHold.dueNowCents,
       dueAtAppointmentCents: currentHold.dueAtAppointmentCents,
       depositAmountCents: currentHold.depositAmountCents ?? null,
+      addons: currentHold.addons ?? null,
     };
     let attempt = 0;
 
@@ -821,6 +876,9 @@ export default function BookingScreen() {
     setSelectedDate(null);
     setSelectedSlot(null);
     setCalendarDays([]);
+    setShowAddonsStep(false);
+    setSelectedAddonIds([]);
+    setBookingCustomerDetails("");
     setStep(2);
   };
 
@@ -830,6 +888,7 @@ export default function BookingScreen() {
     setSelectedDate(date);
     setSlots([]);
     setSelectedSlot(null);
+    setShowAddonsStep(false);
     setStep(3);
   };
 
@@ -839,6 +898,14 @@ export default function BookingScreen() {
 
   const handleBack = () => {
     Haptics.selectionAsync();
+    if (step === 3 && showAddonsStep) {
+      // Back to the time list; picking a time starts the add-ons step fresh.
+      setShowAddonsStep(false);
+      setSelectedAddonIds([]);
+      setBookingCustomerDetails("");
+      setAddonFitError(null);
+      return;
+    }
     if (step === 1) {
       navigation.goBack();
     } else if (step === 2) {
@@ -863,6 +930,9 @@ export default function BookingScreen() {
       applyHold(null);
       setHoldStatus("idle");
       setHoldErrorCopy(null);
+      // Back from review returns to the add-ons step with the choices kept.
+      setAddonFitError(null);
+      setShowAddonsStep(true);
       setStep(3);
     }
   };
@@ -1176,6 +1246,110 @@ export default function BookingScreen() {
     );
   };
 
+  const renderAddonsStep = () => {
+    if (!selectedService || !selectedSlot || !selectedDate) return null;
+    const addons = selectedService.addons ?? [];
+    return (
+      <View>
+        <ThemedText type="h3" style={styles.stepTitle}>{addons.length > 0 ? "Add-ons" : "Details"}</ThemedText>
+        <ThemedText style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
+          {selectedService.name} · {formatDate(selectedDate)} at {formatTime(selectedSlot.startTime)}
+        </ThemedText>
+
+        {addons.length > 0 ? (
+          <ThemedText style={{ color: theme.textSecondary, marginBottom: Spacing.sm }}>
+            Optional extras for your session:
+          </ThemedText>
+        ) : null}
+        {addons.map((addon) => {
+          const isSelected = selectedAddonIds.includes(addon.id);
+          return (
+            <Pressable
+              key={addon.id}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setAddonFitError(null);
+                setSelectedAddonIds((prev) =>
+                  isSelected ? prev.filter((id) => id !== addon.id) : [...prev, addon.id]
+                );
+              }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isSelected }}
+              style={[
+                styles.addonRow,
+                {
+                  backgroundColor: isSelected ? accentSoft : theme.backgroundDefault,
+                  borderColor: isSelected ? accent : theme.border,
+                },
+              ]}
+            >
+              <View style={{ flex: 1 }}>
+                <ThemedText style={{ fontWeight: "600", color: theme.text }}>{addon.name}</ThemedText>
+                {addon.description ? (
+                  <ThemedText style={{ color: theme.textSecondary, fontSize: FontSizes.sm }}>{addon.description}</ThemedText>
+                ) : null}
+                <ThemedText style={{ color: theme.textSecondary, fontSize: FontSizes.sm }}>
+                  {formatPrice(addon.priceCents)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
+                </ThemedText>
+              </View>
+              <View
+                style={[
+                  styles.addonCheck,
+                  { backgroundColor: isSelected ? accent : "transparent", borderColor: isSelected ? accent : theme.border },
+                ]}
+              >
+                {isSelected ? <Feather name="check" size={14} color={theme.background} /> : null}
+              </View>
+            </Pressable>
+          );
+        })}
+
+        <ThemedText style={{ color: theme.text, fontWeight: "600", marginTop: Spacing.md, marginBottom: Spacing.xs }}>
+          Details for your provider <ThemedText style={{ fontWeight: "400", color: theme.textSecondary }}>(optional)</ThemedText>
+        </ThemedText>
+        <TextInput
+          value={bookingCustomerDetails}
+          onChangeText={(t) => setBookingCustomerDetails(t.slice(0, 1000))}
+          placeholder="Shot list, locations, who's in the photos, preferences…"
+          placeholderTextColor={theme.textSecondary}
+          multiline
+          maxLength={1000}
+          style={[
+            styles.detailsInput,
+            { backgroundColor: theme.backgroundDefault, borderColor: theme.border, color: theme.text },
+          ]}
+        />
+        <ThemedText style={{ color: theme.textSecondary, fontSize: FontSizes.xs, textAlign: "right", marginBottom: Spacing.md }}>
+          {bookingCustomerDetails.length}/1000
+        </ThemedText>
+
+        {addonFitError ? (
+          <View style={[styles.addonFitError, { backgroundColor: theme.error + "22" }]}>
+            <ThemedText style={{ color: theme.error }}>{addonFitError}</ThemedText>
+            <Pressable
+              onPress={() => { setShowAddonsStep(false); setAddonFitError(null); }}
+              style={{ marginTop: Spacing.xs }}
+            >
+              <ThemedText style={{ color: accent, fontWeight: "600" }}>Change time</ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <Pressable
+          onPress={handleAddonsContinue}
+          disabled={checkingAddonFit}
+          style={[styles.primaryButton, { backgroundColor: accent, opacity: checkingAddonFit ? 0.6 : 1 }]}
+        >
+          {checkingAddonFit ? (
+            <ActivityIndicator color={theme.background} />
+          ) : (
+            <ThemedText style={{ color: theme.background, fontWeight: "600" }}>Continue</ThemedText>
+          )}
+        </Pressable>
+      </View>
+    );
+  };
+
   const renderAmountRow = (
     label: string,
     cents: number,
@@ -1307,10 +1481,21 @@ export default function BookingScreen() {
       typeof hold.depositAmountCents === "number" &&
       hold.depositAmountCents > 0;
     const feeCents = hold.dueNowFeeBreakdown?.consumerServiceFeeAmount;
+    const holdAddons = hold.addons ?? [];
     return (
       <>
-        {typeof hold.serviceTotalCents === "number" &&
-          renderAmountRow("Service total", hold.serviceTotalCents)}
+        {holdAddons.length > 0 ? (
+          <>
+            {typeof hold.servicePriceCents === "number" &&
+              renderAmountRow("Service", hold.servicePriceCents)}
+            {holdAddons.map((addon) => renderAmountRow(`+ ${addon.name}`, addon.priceCents))}
+            {typeof hold.serviceTotalCents === "number" &&
+              renderAmountRow("Subtotal", hold.serviceTotalCents)}
+          </>
+        ) : (
+          typeof hold.serviceTotalCents === "number" &&
+            renderAmountRow("Service total", hold.serviceTotalCents)
+        )}
         {!hasDeposit &&
           typeof feeCents === "number" &&
           renderAmountRow("Service fee", feeCents)}
@@ -1387,6 +1572,11 @@ export default function BookingScreen() {
           renderAmountRow("Due at appointment", atAppointment)}
         {typeof paidSnapshot.serviceTotalCents === "number" &&
           renderAmountRow("Service total", paidSnapshot.serviceTotalCents)}
+        {(paidSnapshot.addons ?? []).length > 0 && (
+          <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.xs, fontSize: FontSizes.sm }}>
+            {`Add-ons: ${(paidSnapshot.addons ?? []).map((a) => a.name).join(", ")}`}
+          </ThemedText>
+        )}
         {bookingPending ? (
           <>
             <ThemedText style={dimCenter}>
@@ -1445,8 +1635,14 @@ export default function BookingScreen() {
         <ThemedText style={[styles.reviewValue, { color: theme.text, fontWeight: "600" }]}>{selectedService.name}</ThemedText>
         <ThemedText style={{ color: theme.textSecondary, marginTop: 2 }}>
           {formatDate(selectedDate)} at {formatTime(selectedSlot.startTime)}
-          {" · "}{formatDuration(selectedService.durationMinutes)}
+          {" · "}{formatDuration((selectedService.durationMinutes || 0) + selectedAddonsMinutes)}
         </ThemedText>
+        {bookingCustomerDetails.trim() ? (
+          <>
+            <ThemedText style={[styles.reviewLabel, { color: theme.textSecondary, marginTop: Spacing.sm }]}>Your details</ThemedText>
+            <ThemedText style={{ color: theme.text }}>{bookingCustomerDetails.trim()}</ThemedText>
+          </>
+        ) : null}
       </View>
     );
 
@@ -1819,7 +2015,8 @@ export default function BookingScreen() {
       >
         {step === 1 ? renderServiceStep() : null}
         {step === 2 ? renderDateStep() : null}
-        {step === 3 ? renderSlotStep() : null}
+        {step === 3 && !showAddonsStep ? renderSlotStep() : null}
+        {step === 3 && showAddonsStep ? renderAddonsStep() : null}
         {step === 4 ? renderReviewStep() : null}
         {step === 5 ? renderStep5() : null}
       </ScreenKeyboardAwareScrollView>
@@ -1936,6 +2133,32 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   contentContainer: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl },
   stepTitle: { marginBottom: Spacing.xs },
+  addonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  addonCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: Spacing.sm,
+  },
+  detailsInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    minHeight: 96,
+    textAlignVertical: "top",
+    marginBottom: Spacing.xs,
+  },
+  addonFitError: { borderRadius: BorderRadius.sm, padding: Spacing.sm, marginBottom: Spacing.md },
   stepSubtitle: { marginBottom: Spacing.xl },
   serviceCard: {
     padding: Spacing.lg,

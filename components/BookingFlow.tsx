@@ -697,11 +697,7 @@ export default function BookingFlow({
       if (response.valid) {
         setSelectedSlot(slot);
         setValidatedEndTime(response.endTime || null);
-        const hasAddons =
-          providerType === "business" &&
-          !staffMemberId &&
-          (selectedService?.addons?.length ?? 0) > 0;
-        if (hasAddons) {
+        if (showsAddonsStep(selectedService)) {
           setSelectedAddonIds([]);
           setBookingCustomerDetails("");
           setAddonFitError(null);
@@ -721,6 +717,16 @@ export default function BookingFlow({
     }
   };
 
+  // The add-ons step runs after a time is picked:
+  //  - business-owned services (no staff member) that have add-ons;
+  //  - every photographer service, so the customer always gets the
+  //    "Details for your provider" box (add-on list only when there are any).
+  const showsAddonsStep = (service: BookingService | null | undefined): boolean => {
+    if (!service) return false;
+    if (providerType === "photographer") return true;
+    return providerType === "business" && !staffMemberId && (service.addons?.length ?? 0) > 0;
+  };
+
   const handleAddonsContinue = async () => {
     if (!selectedService || !selectedDate || !selectedSlot) return;
     const timeAdding = selectedAddonIds.reduce((sum, id) => {
@@ -733,7 +739,7 @@ export default function BookingFlow({
       try {
         const serviceDuration = selectedService.durationMinutes || 60;
         const response = await api.getAvailabilitySlots(
-          providerId, "business", selectedDate,
+          providerId, providerType, selectedDate,
           serviceDuration, undefined, selectedService.id, selectedAddonIds
         );
         const available = (response.slots || []).filter((s) => s.status === "available");
@@ -1035,11 +1041,7 @@ export default function BookingFlow({
       setHoldErrorCopy(null);
       setError(null);
       setAddonFitError(null);
-      const hasAddons =
-        providerType === "business" &&
-        !staffMemberId &&
-        (selectedService?.addons?.length ?? 0) > 0;
-      if (hasAddons) {
+      if (showsAddonsStep(selectedService)) {
         setShowAddonsStep(true);
       }
       setStep(3);
@@ -1873,7 +1875,7 @@ export default function BookingFlow({
       {showAddonsStep && selectedService && selectedSlot && (
         <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
           <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
-            Add-ons
+            {(selectedService.addons?.length ?? 0) > 0 ? "Add-ons" : "Details"}
           </ThemedText>
           <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft, marginBottom: Spacing.md }]}>
             <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService.name}</ThemedText>
@@ -1881,9 +1883,11 @@ export default function BookingFlow({
               {selectedDateDisplay} at {formatTime(selectedSlot.startTime)}
             </ThemedText>
           </View>
-          <ThemedText style={{ color: theme.brandTextDim, marginBottom: Spacing.sm }}>
-            Optional extras for your appointment:
-          </ThemedText>
+          {(selectedService.addons?.length ?? 0) > 0 ? (
+            <ThemedText style={{ color: theme.brandTextDim, marginBottom: Spacing.sm }}>
+              Optional extras for your appointment:
+            </ThemedText>
+          ) : null}
           {(selectedService.addons ?? []).map((addon) => {
             const isSelected = selectedAddonIds.includes(addon.id);
             return (
