@@ -3512,6 +3512,138 @@ export default function StorefrontEditorScreen() {
           </View>
         </ScreenKeyboardAwareScrollView>
       </View>
+      {/* Nested inside the service modal: iOS can't present a second sibling Modal while this one is open. */}
+      {/* Add-on editor modal */}
+      <Modal
+        visible={addonModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAddonModalVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}>
+          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 36 }}>
+            <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17, marginBottom: 16 }}>
+              {editingAddon ? "Edit Add-on" : "New Add-on"}
+            </Text>
+            {addonError ? (
+              <Text style={{ color: "#FF3B30", fontSize: 13, marginBottom: 10 }}>{addonError}</Text>
+            ) : null}
+            <Text style={[styles.inputLabel, { marginTop: 0 }]}>Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={addonForm.name}
+              onChangeText={(v) => setAddonForm({ ...addonForm, name: v })}
+              placeholder="e.g. Deep Condition"
+              placeholderTextColor={theme.brandTextDim}
+              maxLength={80}
+            />
+            <Text style={styles.inputLabel}>Description</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
+              value={addonForm.description}
+              onChangeText={(v) => setAddonForm({ ...addonForm, description: v })}
+              placeholder="Optional details"
+              placeholderTextColor={theme.brandTextDim}
+              multiline
+              maxLength={300}
+            />
+            <Text style={styles.inputLabel}>Price ($) *</Text>
+            <TextInput
+              style={styles.input}
+              value={addonForm.priceCents}
+              onChangeText={(v) => setAddonForm({ ...addonForm, priceCents: v })}
+              placeholder="0.00"
+              placeholderTextColor={theme.brandTextDim}
+              keyboardType="decimal-pad"
+            />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: addonAddsTime ? 4 : 0 }}>
+              <Text style={{ color: theme.brandCream, fontSize: 14 }}>Adds time to the appointment</Text>
+              <Switch
+                value={addonAddsTime}
+                onValueChange={(v) => {
+                  setAddonAddsTime(v);
+                  if (!v) setAddonForm((f) => ({ ...f, durationMinutes: "" }));
+                }}
+                trackColor={{ false: theme.brandSurface, true: theme.brandGold }}
+                thumbColor={theme.brandBg}
+              />
+            </View>
+            {addonAddsTime && (
+              <>
+                <Text style={[styles.inputLabel, { marginTop: 8 }]}>Duration (minutes) *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={addonForm.durationMinutes}
+                  onChangeText={(v) => setAddonForm({ ...addonForm, durationMinutes: v.replace(/\D/g, "") })}
+                  placeholder="e.g. 30"
+                  placeholderTextColor={theme.brandTextDim}
+                  keyboardType="number-pad"
+                />
+              </>
+            )}
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+              <Pressable
+                onPress={() => { setAddonModalVisible(false); setAddonError(null); }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandSurface, alignItems: "center" }}
+              >
+                <Text style={{ color: theme.brandTextDim, fontWeight: "600" }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  setAddonError(null);
+                  const name = addonForm.name.trim();
+                  if (!name || name.length > 80) { setAddonError("Name is required (max 80 characters)."); return; }
+                  const desc = addonForm.description.trim();
+                  if (desc.length > 300) { setAddonError("Description must be 300 characters or fewer."); return; }
+                  const priceVal = parseFloat(addonForm.priceCents);
+                  if (isNaN(priceVal) || priceVal < 0 || priceVal > 1000) { setAddonError("Price must be between $0 and $1,000."); return; }
+                  const priceCents = Math.round(priceVal * 100);
+                  let durationMinutes = 0;
+                  if (addonAddsTime) {
+                    const durationVal = parseInt(addonForm.durationMinutes, 10);
+                    if (isNaN(durationVal) || durationVal < 5 || durationVal > 480) { setAddonError("Duration must be between 5 and 480 minutes."); return; }
+                    durationMinutes = durationVal;
+                  }
+                  const sortOrder = parseInt(addonForm.sortOrder, 10) || (serviceAddons.length + 1);
+                  setAddonSaving(true);
+                  try {
+                    const token = await getToken();
+                    if (!token || !editingService?.id) throw new Error("Not authenticated");
+                    const payload = {
+                      name,
+                      description: desc || null,
+                      priceCents,
+                      durationMinutes,
+                      sortOrder,
+                    };
+                    if (editingAddon) {
+                      const updated = await updateServiceAddon(token, editingService.id, editingAddon.id, payload);
+                      setServiceAddons((prev) => prev.map((a) => a.id === editingAddon.id ? updated : a).sort((a, b) => a.sortOrder - b.sortOrder));
+                    } else {
+                      const created = await createServiceAddon(token, editingService.id, payload);
+                      setServiceAddons((prev) => [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder));
+                    }
+                    setAddonModalVisible(false);
+                  } catch (e: any) {
+                    const msg = e?.body?.message || e?.message || "Failed to save add-on";
+                    setAddonError(msg);
+                  } finally {
+                    setAddonSaving(false);
+                  }
+                }}
+                disabled={addonSaving}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.brandGold, alignItems: "center", opacity: addonSaving ? 0.6 : 1 }}
+              >
+                {addonSaving ? (
+                  <ActivityIndicator color={theme.brandBg} />
+                ) : (
+                  <Text style={{ color: theme.brandBg, fontWeight: "700" }}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 
@@ -3712,138 +3844,6 @@ export default function StorefrontEditorScreen() {
 
       {renderProductModal()}
       {renderServiceModal()}
-
-      {/* Add-on editor modal */}
-      <Modal
-        visible={addonModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setAddonModalVisible(false)}
-      >
-        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}>
-          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 36 }}>
-            <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17, marginBottom: 16 }}>
-              {editingAddon ? "Edit Add-on" : "New Add-on"}
-            </Text>
-            {addonError ? (
-              <Text style={{ color: "#FF3B30", fontSize: 13, marginBottom: 10 }}>{addonError}</Text>
-            ) : null}
-            <Text style={[styles.inputLabel, { marginTop: 0 }]}>Name *</Text>
-            <TextInput
-              style={styles.input}
-              value={addonForm.name}
-              onChangeText={(v) => setAddonForm({ ...addonForm, name: v })}
-              placeholder="e.g. Deep Condition"
-              placeholderTextColor={theme.brandTextDim}
-              maxLength={80}
-            />
-            <Text style={styles.inputLabel}>Description</Text>
-            <TextInput
-              style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
-              value={addonForm.description}
-              onChangeText={(v) => setAddonForm({ ...addonForm, description: v })}
-              placeholder="Optional details"
-              placeholderTextColor={theme.brandTextDim}
-              multiline
-              maxLength={300}
-            />
-            <Text style={styles.inputLabel}>Price ($) *</Text>
-            <TextInput
-              style={styles.input}
-              value={addonForm.priceCents}
-              onChangeText={(v) => setAddonForm({ ...addonForm, priceCents: v })}
-              placeholder="0.00"
-              placeholderTextColor={theme.brandTextDim}
-              keyboardType="decimal-pad"
-            />
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: addonAddsTime ? 4 : 0 }}>
-              <Text style={{ color: theme.brandCream, fontSize: 14 }}>Adds time to the appointment</Text>
-              <Switch
-                value={addonAddsTime}
-                onValueChange={(v) => {
-                  setAddonAddsTime(v);
-                  if (!v) setAddonForm((f) => ({ ...f, durationMinutes: "" }));
-                }}
-                trackColor={{ false: theme.brandSurface, true: theme.brandGold }}
-                thumbColor={theme.brandBg}
-              />
-            </View>
-            {addonAddsTime && (
-              <>
-                <Text style={[styles.inputLabel, { marginTop: 8 }]}>Duration (minutes) *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={addonForm.durationMinutes}
-                  onChangeText={(v) => setAddonForm({ ...addonForm, durationMinutes: v.replace(/\D/g, "") })}
-                  placeholder="e.g. 30"
-                  placeholderTextColor={theme.brandTextDim}
-                  keyboardType="number-pad"
-                />
-              </>
-            )}
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-              <Pressable
-                onPress={() => { setAddonModalVisible(false); setAddonError(null); }}
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandSurface, alignItems: "center" }}
-              >
-                <Text style={{ color: theme.brandTextDim, fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={async () => {
-                  setAddonError(null);
-                  const name = addonForm.name.trim();
-                  if (!name || name.length > 80) { setAddonError("Name is required (max 80 characters)."); return; }
-                  const desc = addonForm.description.trim();
-                  if (desc.length > 300) { setAddonError("Description must be 300 characters or fewer."); return; }
-                  const priceVal = parseFloat(addonForm.priceCents);
-                  if (isNaN(priceVal) || priceVal < 0 || priceVal > 1000) { setAddonError("Price must be between $0 and $1,000."); return; }
-                  const priceCents = Math.round(priceVal * 100);
-                  let durationMinutes = 0;
-                  if (addonAddsTime) {
-                    const durationVal = parseInt(addonForm.durationMinutes, 10);
-                    if (isNaN(durationVal) || durationVal < 5 || durationVal > 480) { setAddonError("Duration must be between 5 and 480 minutes."); return; }
-                    durationMinutes = durationVal;
-                  }
-                  const sortOrder = parseInt(addonForm.sortOrder, 10) || (serviceAddons.length + 1);
-                  setAddonSaving(true);
-                  try {
-                    const token = await getToken();
-                    if (!token || !editingService?.id) throw new Error("Not authenticated");
-                    const payload = {
-                      name,
-                      description: desc || null,
-                      priceCents,
-                      durationMinutes,
-                      sortOrder,
-                    };
-                    if (editingAddon) {
-                      const updated = await updateServiceAddon(token, editingService.id, editingAddon.id, payload);
-                      setServiceAddons((prev) => prev.map((a) => a.id === editingAddon.id ? updated : a).sort((a, b) => a.sortOrder - b.sortOrder));
-                    } else {
-                      const created = await createServiceAddon(token, editingService.id, payload);
-                      setServiceAddons((prev) => [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder));
-                    }
-                    setAddonModalVisible(false);
-                  } catch (e: any) {
-                    const msg = e?.body?.message || e?.message || "Failed to save add-on";
-                    setAddonError(msg);
-                  } finally {
-                    setAddonSaving(false);
-                  }
-                }}
-                disabled={addonSaving}
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.brandGold, alignItems: "center", opacity: addonSaving ? 0.6 : 1 }}
-              >
-                {addonSaving ? (
-                  <ActivityIndicator color={theme.brandBg} />
-                ) : (
-                  <Text style={{ color: theme.brandBg, fontWeight: "700" }}>Save</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
