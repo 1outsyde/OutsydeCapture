@@ -46,7 +46,22 @@ import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorM
 import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
-import { VendorBookerPhotographerService } from "@/services/api";
+import {
+  VendorBookerPhotographerService,
+  getPhotographerServiceAddons,
+  createPhotographerServiceAddon,
+  updatePhotographerServiceAddon,
+  deletePhotographerServiceAddon,
+} from "@/services/api";
+import type { ServiceAddonsApi } from "@/components/ServiceAddonsEditor";
+
+// Photographer add-on routes (backend photographers router, migration 041).
+const PHOTOGRAPHER_ADDONS_API: ServiceAddonsApi = {
+  list: getPhotographerServiceAddons,
+  create: createPhotographerServiceAddon,
+  update: updatePhotographerServiceAddon,
+  remove: deletePhotographerServiceAddon,
+};
 import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
 import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
@@ -3621,6 +3636,23 @@ export default function PhotographerDashboardScreen() {
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
         onUploadImage={handleUploadServiceImage}
+        addons={{
+          api: PHOTOGRAPHER_ADDONS_API,
+          // Other services the photographer still offers: not archived, not
+          // deleted, not contact-for-pricing (those can't have add-ons).
+          copyTargets: rawServices
+            .filter(
+              (s) =>
+                s.id !== editingService?.id &&
+                s.status !== "archived" &&
+                s.isActive !== false &&
+                !s.isContactForPricing,
+            )
+            .map((s) => ({ id: s.id, name: s.name })),
+          isContactForPricing: Boolean(
+            rawServices.find((s) => s.id === editingService?.id)?.isContactForPricing,
+          ),
+        }}
       />
 
       <RefundModal
