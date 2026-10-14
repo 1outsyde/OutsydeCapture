@@ -43,6 +43,7 @@ import { displayRating } from "@/types/ratings";
 import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hour } from "@/components/HoursEditor";
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
+import BookingExtrasBlock from "@/components/BookingExtrasBlock";
 import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
@@ -387,6 +388,11 @@ export default function PhotographerDashboardScreen() {
             vendorNetAmount,
             influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
             isInfluencerAttributed: b.isInfluencerAttributed ?? false,
+            // Add-ons, customer notes and in-person remainder (cents); absent
+            // on older backends.
+            addons: Array.isArray(b.addons) ? b.addons : null,
+            customerDetails: typeof b.customerDetails === "string" ? b.customerDetails : null,
+            inPersonDueCents: typeof b.inPersonDueCents === "number" ? b.inPersonDueCents : null,
           };
         });
         setBookings(mappedBookings);
@@ -2836,6 +2842,16 @@ export default function PhotographerDashboardScreen() {
                         </Text>
                       </View>
                     </View>
+                    <BookingExtrasBlock
+                      addons={booking.addons}
+                      customerDetails={booking.customerDetails}
+                      inPersonDueCents={booking.inPersonDueCents}
+                      inPersonLabel="Collect in person"
+                      textColor={DASHBOARD_COLORS.cream}
+                      dimColor={DASHBOARD_COLORS.creamDim}
+                      accentColor={DASHBOARD_COLORS.gold}
+                      borderColor={DASHBOARD_COLORS.cardBorder}
+                    />
                     {isPending && (
                       <View style={styles.bookingActions}>
                         <Pressable
