@@ -93,6 +93,13 @@ export interface Session {
   serviceHasCancellationFee?: boolean | null;
   serviceCancellationFeeType?: string | null;
   serviceCancellationFeeAmount?: number | null;
+  // From GET /api/my-shoot-bookings (integer cents). Optional: older backends
+  // don't send the add-on fields.
+  depositAmountCents?: number | null;
+  chargedAmountCents?: number | null;
+  addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
+  customerDetails?: string | null;
+  inPersonDueCents?: number | null;
 }
 
 export interface Comment {
