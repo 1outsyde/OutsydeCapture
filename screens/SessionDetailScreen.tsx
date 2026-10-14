@@ -15,6 +15,7 @@ import { CATEGORY_LABELS } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
 import api from "@/services/api";
 import { formatDuration } from "@/utils/duration";
+import BookingExtrasBlock from "@/components/BookingExtrasBlock";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "SessionDetail">;
@@ -190,8 +191,13 @@ export default function SessionDetailScreen() {
   const statusColor = getStatusColor(session.status, theme);
   const statusLabel = session.status.charAt(0).toUpperCase() + session.status.slice(1);
   const initials = (session.photographerName ?? "?").slice(0, 2).toUpperCase();
+  // What was actually charged online (incl. the 8% fee; the deposit on
+  // deposit bookings), from the backend. Older backends: the old estimate.
   const subtotalCents = Math.round(session.price * 100);
-  const grossCents = subtotalCents + Math.round(subtotalCents * 0.03);
+  const grossCents =
+    typeof session.chargedAmountCents === "number"
+      ? session.chargedAmountCents
+      : subtotalCents + Math.round(subtotalCents * 0.03);
   const timeStr = session.endTime
     ? `${formatTimeStr(session.time)} – ${formatTimeStr(session.endTime)}`
     : formatTimeStr(session.time);
@@ -305,6 +311,16 @@ export default function SessionDetailScreen() {
         <Row icon="clock" label={timeStr} />
         <Row icon="map-pin" label={session.location} />
         <Row icon="dollar-sign" label={`Amount paid: $${(grossCents / 100).toFixed(2)}`} />
+        <BookingExtrasBlock
+          addons={session.addons}
+          customerDetails={session.customerDetails}
+          inPersonDueCents={session.inPersonDueCents}
+          inPersonLabel="Pay at appointment"
+          textColor={theme.text}
+          dimColor={theme.textSecondary}
+          accentColor={theme.brandGold}
+          borderColor={theme.border}
+        />
       </View>
 
       {/* Notes */}

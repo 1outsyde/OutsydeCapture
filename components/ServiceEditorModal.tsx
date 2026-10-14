@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import ImageUploader from "@/components/ImageUploader";
+import ServiceAddonsEditor, { ServiceAddonsApi } from "@/components/ServiceAddonsEditor";
 import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
 import { joinMinutes, splitMinutes } from "@/utils/duration";
 
@@ -106,6 +107,15 @@ interface ServiceEditorModalProps {
   // Uploads a picked image and returns its URL. The image picker is only shown
   // when this is provided.
   onUploadImage?: (uri: string) => Promise<string>;
+  // Shows the add-ons section (saved services only). Omitted → no add-ons
+  // section (staff services have no add-ons).
+  addons?: {
+    api: ServiceAddonsApi;
+    // Other services an add-on can be copied to (caller filters them).
+    copyTargets: { id: string; name: string }[];
+    // Contact-for-pricing services can't have add-ons.
+    isContactForPricing?: boolean;
+  };
 }
 
 // Minimum hours for an hourly service: a whole number of 1 or more, else null.
@@ -155,6 +165,7 @@ export default function ServiceEditorModal({
   depositServerError = null,
   onClearDepositServerError,
   onUploadImage,
+  addons,
 }: ServiceEditorModalProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -434,6 +445,24 @@ export default function ServiceEditorModal({
                   <ActivityIndicator size="small" color={brandColor} style={{ marginTop: 8 }} />
                 ) : null}
               </View>
+            ) : null}
+
+            {addons ? (
+              addons.isContactForPricing ? (
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: theme.text }]}>Add-ons</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
+                    {"Add-ons aren't available on contact-for-pricing services."}
+                  </Text>
+                </View>
+              ) : (
+                <ServiceAddonsEditor
+                  serviceId={visible ? initialData?.id : undefined}
+                  copyTargets={addons.copyTargets}
+                  api={addons.api}
+                  accentColor={brandColor}
+                />
+              )
             ) : null}
 
             <View style={styles.field}>

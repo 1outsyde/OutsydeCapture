@@ -15,6 +15,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { PhotographerBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
+import BookingExtrasBlock from "@/components/BookingExtrasBlock";
 
 const BG = "#0F0F0F";
 const GOLD = "#C9933A";
@@ -138,6 +139,11 @@ function mapRawBooking(b: any): PhotographerBooking {
     vendorNetAmount,
     influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
     isInfluencerAttributed: b.isInfluencerAttributed ?? false,
+    // Add-ons, customer notes and in-person remainder (cents); absent on
+    // older backends.
+    addons: Array.isArray(b.addons) ? b.addons : null,
+    customerDetails: typeof b.customerDetails === "string" ? b.customerDetails : null,
+    inPersonDueCents: typeof b.inPersonDueCents === "number" ? b.inPersonDueCents : null,
   };
 }
 
@@ -614,6 +620,18 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, actionLoa
           )}
         </View>
       </View>
+
+      <BookingExtrasBlock
+        addons={booking.addons}
+        customerDetails={booking.customerDetails}
+        inPersonDueCents={booking.inPersonDueCents}
+        inPersonLabel="Collect in person"
+        textColor={CREAM}
+        dimColor={CREAM_DIM}
+        accentColor={GOLD}
+        borderColor={BORDER}
+        style={{ marginTop: 0, marginHorizontal: 14, marginBottom: 12 }}
+      />
 
       {isPending && (
         <View style={styles.actions}>

@@ -43,16 +43,33 @@ import { displayRating } from "@/types/ratings";
 import HoursEditor, { DayHours, getDefaultHours, convertTo24Hour, convertTo12Hour } from "@/components/HoursEditor";
 import DateBlocker from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
+import BookingExtrasBlock from "@/components/BookingExtrasBlock";
 import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
-import { VendorBookerPhotographerService } from "@/services/api";
+import {
+  VendorBookerPhotographerService,
+  getPhotographerServiceAddons,
+  createPhotographerServiceAddon,
+  updatePhotographerServiceAddon,
+  deletePhotographerServiceAddon,
+} from "@/services/api";
+import type { ServiceAddonsApi } from "@/components/ServiceAddonsEditor";
 import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
 import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
 import { formatDuration } from "@/utils/duration";
+
+// Photographer add-on routes (backend photographers router, migration 041).
+const PHOTOGRAPHER_ADDONS_API: ServiceAddonsApi = {
+  list: getPhotographerServiceAddons,
+  create: createPhotographerServiceAddon,
+  update: updatePhotographerServiceAddon,
+  remove: deletePhotographerServiceAddon,
+};
+
 // Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
 const DASHBOARD_COLORS = {
   background: "#080C08",
@@ -372,6 +389,11 @@ export default function PhotographerDashboardScreen() {
             vendorNetAmount,
             influencerCommissionAmount: b.influencerCommissionAmount ?? undefined,
             isInfluencerAttributed: b.isInfluencerAttributed ?? false,
+            // Add-ons, customer notes and in-person remainder (cents); absent
+            // on older backends.
+            addons: Array.isArray(b.addons) ? b.addons : null,
+            customerDetails: typeof b.customerDetails === "string" ? b.customerDetails : null,
+            inPersonDueCents: typeof b.inPersonDueCents === "number" ? b.inPersonDueCents : null,
           };
         });
         setBookings(mappedBookings);
@@ -2821,6 +2843,16 @@ export default function PhotographerDashboardScreen() {
                         </Text>
                       </View>
                     </View>
+                    <BookingExtrasBlock
+                      addons={booking.addons}
+                      customerDetails={booking.customerDetails}
+                      inPersonDueCents={booking.inPersonDueCents}
+                      inPersonLabel="Collect in person"
+                      textColor={DASHBOARD_COLORS.cream}
+                      dimColor={DASHBOARD_COLORS.creamDim}
+                      accentColor={DASHBOARD_COLORS.gold}
+                      borderColor={DASHBOARD_COLORS.cardBorder}
+                    />
                     {isPending && (
                       <View style={styles.bookingActions}>
                         <Pressable
@@ -3621,6 +3653,23 @@ export default function PhotographerDashboardScreen() {
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
         onUploadImage={handleUploadServiceImage}
+        addons={{
+          api: PHOTOGRAPHER_ADDONS_API,
+          // Other services the photographer still offers: not archived, not
+          // deleted, not contact-for-pricing (those can't have add-ons).
+          copyTargets: rawServices
+            .filter(
+              (s) =>
+                s.id !== editingService?.id &&
+                s.status !== "archived" &&
+                s.isActive !== false &&
+                !s.isContactForPricing,
+            )
+            .map((s) => ({ id: s.id, name: s.name })),
+          isContactForPricing: Boolean(
+            rawServices.find((s) => s.id === editingService?.id)?.isContactForPricing,
+          ),
+        }}
       />
 
       <RefundModal

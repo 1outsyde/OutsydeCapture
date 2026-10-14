@@ -482,6 +482,8 @@ export interface VendorBookerPhotographerService {
   category?: string | null;
   priceCents?: number | null;
   isContactForPricing: boolean;
+  // false = deleted by the photographer (the backend soft-deletes services).
+  isActive?: boolean;
   estimatedDurationMinutes?: number | null;
   pricingModel?: string | null;
   hourlyRateCents?: number | null;
@@ -939,6 +941,11 @@ export interface PhotographerBooking {
   influencerCommissionAmount?: number;
   vendorNetAmount?: number;
   isInfluencerAttributed?: boolean;
+  // From GET /api/photographers/me/bookings (migration 041). Optional: older
+  // backends don't send them. Money in integer cents.
+  addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
+  customerDetails?: string | null;
+  inPersonDueCents?: number | null;
 }
 
 export interface AvailableSlot {
@@ -5543,4 +5550,44 @@ export async function deleteServiceAddon(
   addonId: string
 ): Promise<{ success: boolean }> {
   return apiDelete(`/api/vendor/services/${serviceId}/addons/${addonId}`, token) as Promise<{ success: boolean }>;
+}
+
+// ==========================================
+// Photographer Service Add-ons
+// Same shapes as the vendor add-on routes; backend: photographers router
+// /api/photographers/me/services/:serviceId/addons (migration 041).
+// ==========================================
+
+export async function getPhotographerServiceAddons(token: string, serviceId: string): Promise<ServiceAddon[]> {
+  const response: any = await apiGet(`/api/photographers/me/services/${serviceId}/addons`, token);
+  return Array.isArray(response?.addons) ? response.addons : [];
+}
+
+export async function createPhotographerServiceAddon(
+  token: string,
+  serviceId: string,
+  payload: ServiceAddonPayload
+): Promise<ServiceAddon> {
+  const response: any = await apiPost(`/api/photographers/me/services/${serviceId}/addons`, payload, token);
+  if (!response?.addon) throw new Error("Unexpected response from server");
+  return response.addon;
+}
+
+export async function updatePhotographerServiceAddon(
+  token: string,
+  serviceId: string,
+  addonId: string,
+  payload: Partial<ServiceAddonPayload & { isActive?: boolean }>
+): Promise<ServiceAddon> {
+  const response: any = await apiPatch(`/api/photographers/me/services/${serviceId}/addons/${addonId}`, payload, token);
+  if (!response?.addon) throw new Error("Unexpected response from server");
+  return response.addon;
+}
+
+export async function deletePhotographerServiceAddon(
+  token: string,
+  serviceId: string,
+  addonId: string
+): Promise<{ success: boolean }> {
+  return apiDelete(`/api/photographers/me/services/${serviceId}/addons/${addonId}`, token) as Promise<{ success: boolean }>;
 }
