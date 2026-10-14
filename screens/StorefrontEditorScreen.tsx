@@ -334,6 +334,10 @@ export default function StorefrontEditorScreen() {
   const [addonAddsTime, setAddonAddsTime] = useState(false);
   const [addonSaving, setAddonSaving] = useState(false);
   const [addonError, setAddonError] = useState<string | null>(null);
+  // "Add to other services": one-time copies of a saved add-on (copies don't sync later edits)
+  const [copyAddonSource, setCopyAddonSource] = useState<ServiceAddon | null>(null);
+  const [copyTargetIds, setCopyTargetIds] = useState<string[]>([]);
+  const [copyingAddon, setCopyingAddon] = useState(false);
 
   // Request counter: a services response only writes the list if no newer
   // services request has started since.
@@ -2823,6 +2827,61 @@ export default function StorefrontEditorScreen() {
     </Modal>
   );
 
+  // Services an add-on can be copied to: every other service that isn't deleted (archived).
+  const copyTargetServices = services.filter(
+    (svc) => svc.id !== editingService?.id && svc.status !== "archived"
+  );
+
+  const handleCopyAddon = async () => {
+    const source = copyAddonSource;
+    if (!source || copyTargetIds.length === 0) return;
+    const token = await getToken();
+    if (!token) return;
+    setCopyingAddon(true);
+    const added: string[] = [];
+    const alreadyHas: string[] = [];
+    const atLimit: string[] = [];
+    const failed: string[] = [];
+    const sourceName = source.name.trim().toLowerCase();
+    // One at a time so a failure on one service doesn't stop the rest.
+    for (const targetId of copyTargetIds) {
+      const target = services.find((svc) => svc.id === targetId);
+      const label = target?.name || "Service";
+      try {
+        const existing = await getServiceAddons(token, targetId);
+        if (existing.some((a) => a.name.trim().toLowerCase() === sourceName)) {
+          alreadyHas.push(label);
+          continue;
+        }
+        if (existing.length >= 20) {
+          atLimit.push(label);
+          continue;
+        }
+        await createServiceAddon(token, targetId, {
+          name: source.name,
+          description: source.description ?? null,
+          priceCents: source.priceCents,
+          durationMinutes: source.durationMinutes,
+          sortOrder: existing.length + 1,
+          // Keep a switched-off add-on switched off in the copies.
+          ...(source.isActive === false ? { isActive: false } : {}),
+        });
+        added.push(label);
+      } catch {
+        failed.push(label);
+      }
+    }
+    setCopyingAddon(false);
+    setCopyAddonSource(null);
+    const lines = [
+      `Added to ${added.length} service${added.length === 1 ? "" : "s"}.`,
+      alreadyHas.length ? `Skipped (already has it): ${alreadyHas.join(", ")}` : "",
+      atLimit.length ? `Skipped (20 add-on limit): ${atLimit.join(", ")}` : "",
+      failed.length ? `Couldn't add, try again: ${failed.join(", ")}` : "",
+    ].filter(Boolean);
+    Alert.alert(failed.length ? "Partly done" : "Done", lines.join("\n"));
+  };
+
   const renderServiceModal = () => (
     <Modal visible={serviceModalVisible} animationType="slide">
       <View style={styles.modal}>
@@ -3068,6 +3127,18 @@ export default function StorefrontEditorScreen() {
                       ${(addon.priceCents / 100).toFixed(2)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
                     </Text>
                   </View>
+                  {copyTargetServices.length > 0 ? (
+                    <Pressable
+                      onPress={() => {
+                        setCopyAddonSource(addon);
+                        setCopyTargetIds(copyTargetServices.map((svc) => svc.id));
+                      }}
+                      style={{ padding: 8 }}
+                      accessibilityLabel={`Add ${addon.name} to other services`}
+                    >
+                      <Feather name="copy" size={16} color={theme.brandGold} />
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     onPress={() => {
                       setEditingAddon(addon);
@@ -3638,6 +3709,108 @@ export default function StorefrontEditorScreen() {
                   <ActivityIndicator color={theme.brandBg} />
                 ) : (
                   <Text style={{ color: theme.brandBg, fontWeight: "700" }}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* "Add to other services" sheet — also nested so it opens over the service modal on iOS. */}
+      <Modal
+        visible={copyAddonSource !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          if (!copyingAddon) setCopyAddonSource(null);
+        }}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}>
+          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 36, maxHeight: "80%" }}>
+            <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17, marginBottom: 4 }}>
+              Add "{copyAddonSource?.name}" to other services
+            </Text>
+            {copyAddonSource ? (
+              <Text style={{ color: theme.brandTextDim, fontSize: 13, marginBottom: 12 }}>
+                ${(copyAddonSource.priceCents / 100).toFixed(2)}
+                {copyAddonSource.durationMinutes > 0 ? ` · +${formatDuration(copyAddonSource.durationMinutes)}` : " · price only"}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <Text style={{ color: theme.brandCream, fontSize: 14, fontWeight: "600" }}>
+                {copyTargetIds.length} of {copyTargetServices.length} selected
+              </Text>
+              <Pressable
+                disabled={copyingAddon}
+                onPress={() =>
+                  setCopyTargetIds(
+                    copyTargetIds.length === copyTargetServices.length ? [] : copyTargetServices.map((svc) => svc.id)
+                  )
+                }
+                style={{ paddingVertical: 6, paddingHorizontal: 4 }}
+              >
+                <Text style={{ color: theme.brandGold, fontSize: 13, fontWeight: "600" }}>
+                  {copyTargetIds.length === copyTargetServices.length ? "Select none" : "Select all"}
+                </Text>
+              </Pressable>
+            </View>
+            <ScrollView style={{ flexGrow: 0, marginBottom: 12 }}>
+              {copyTargetServices.map((svc) => {
+                const checked = copyTargetIds.includes(svc.id);
+                return (
+                  <Pressable
+                    key={svc.id}
+                    disabled={copyingAddon}
+                    onPress={() =>
+                      setCopyTargetIds((prev) =>
+                        prev.includes(svc.id) ? prev.filter((id) => id !== svc.id) : [...prev, svc.id]
+                      )
+                    }
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 8,
+                      backgroundColor: theme.brandSurface,
+                      marginBottom: 8,
+                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked }}
+                  >
+                    <Feather
+                      name={checked ? "check-square" : "square"}
+                      size={20}
+                      color={checked ? theme.brandGold : theme.brandTextDim}
+                    />
+                    <Text style={{ color: theme.brandCream, fontSize: 14, marginLeft: 12, flex: 1 }} numberOfLines={1}>
+                      {svc.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Text style={{ color: theme.brandTextDim, fontSize: 12, marginBottom: 16 }}>
+              Each service gets its own copy. Changing this add-on later won't change the copies.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <Pressable
+                disabled={copyingAddon}
+                onPress={() => setCopyAddonSource(null)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandTextDim, alignItems: "center", opacity: copyingAddon ? 0.6 : 1 }}
+              >
+                <Text style={{ color: theme.brandCream, fontWeight: "600" }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={copyingAddon || copyTargetIds.length === 0}
+                onPress={handleCopyAddon}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.brandGold, alignItems: "center", opacity: copyingAddon || copyTargetIds.length === 0 ? 0.6 : 1 }}
+              >
+                {copyingAddon ? (
+                  <ActivityIndicator color={theme.brandBg} />
+                ) : (
+                  <Text style={{ color: theme.brandBg, fontWeight: "700" }}>
+                    Add to {copyTargetIds.length} service{copyTargetIds.length === 1 ? "" : "s"}
+                  </Text>
                 )}
               </Pressable>
             </View>
