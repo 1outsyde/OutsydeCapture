@@ -14,6 +14,10 @@ import {
   FlatList,
   Image,
   AppState,
+  KeyboardAvoidingView,
+  Keyboard,
+  InputAccessoryView,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -96,6 +100,9 @@ const normalizeService = (s: any): VendorService => ({
         ? Number(s.price)
         : 0,
 });
+
+// Keyboard toolbar with a "Done" button for the add-on sheet (number pads have no return key on iOS).
+const ADDON_KEYBOARD_DONE_ID = "addonKeyboardDone";
 
 export default function StorefrontEditorScreen() {
   const { theme, isDark } = useTheme();
@@ -334,6 +341,12 @@ export default function StorefrontEditorScreen() {
   const [addonAddsTime, setAddonAddsTime] = useState(false);
   const [addonSaving, setAddonSaving] = useState(false);
   const [addonError, setAddonError] = useState<string | null>(null);
+  // "Add to other services": one-time copies of a saved add-on (copies don't sync later edits)
+  const [copyAddonSource, setCopyAddonSource] = useState<ServiceAddon | null>(null);
+  const [copyTargetIds, setCopyTargetIds] = useState<string[]>([]);
+  const [copyingAddon, setCopyingAddon] = useState(false);
+  // Shown inline under the list right after a new add-on is saved: "Use it on your other services too?"
+  const [copyPromptAddon, setCopyPromptAddon] = useState<ServiceAddon | null>(null);
 
   // Request counter: a services response only writes the list if no newer
   // services request has started since.
@@ -2823,6 +2836,67 @@ export default function StorefrontEditorScreen() {
     </Modal>
   );
 
+  // Services an add-on can be copied to: every other service that isn't deleted (archived).
+  const copyTargetServices = services.filter(
+    (svc) => svc.id !== editingService?.id && svc.status !== "archived"
+  );
+
+  const openCopySheet = (addon: ServiceAddon) => {
+    setCopyPromptAddon(null);
+    setCopyAddonSource(addon);
+    setCopyTargetIds(copyTargetServices.map((svc) => svc.id));
+  };
+
+  const handleCopyAddon = async () => {
+    const source = copyAddonSource;
+    if (!source || copyTargetIds.length === 0) return;
+    const token = await getToken();
+    if (!token) return;
+    setCopyingAddon(true);
+    const added: string[] = [];
+    const alreadyHas: string[] = [];
+    const atLimit: string[] = [];
+    const failed: string[] = [];
+    const sourceName = source.name.trim().toLowerCase();
+    // One at a time so a failure on one service doesn't stop the rest.
+    for (const targetId of copyTargetIds) {
+      const target = services.find((svc) => svc.id === targetId);
+      const label = target?.name || "Service";
+      try {
+        const existing = await getServiceAddons(token, targetId);
+        if (existing.some((a) => a.name.trim().toLowerCase() === sourceName)) {
+          alreadyHas.push(label);
+          continue;
+        }
+        if (existing.length >= 20) {
+          atLimit.push(label);
+          continue;
+        }
+        await createServiceAddon(token, targetId, {
+          name: source.name,
+          description: source.description ?? null,
+          priceCents: source.priceCents,
+          durationMinutes: source.durationMinutes,
+          sortOrder: existing.length + 1,
+          // Keep a switched-off add-on switched off in the copies.
+          ...(source.isActive === false ? { isActive: false } : {}),
+        });
+        added.push(label);
+      } catch {
+        failed.push(label);
+      }
+    }
+    setCopyingAddon(false);
+    setCopyAddonSource(null);
+    const lines = [
+      `Added to ${added.length} service${added.length === 1 ? "" : "s"}.`,
+      alreadyHas.length ? `Skipped (already has it): ${alreadyHas.join(", ")}` : "",
+      atLimit.length ? `Skipped (20 add-on limit): ${atLimit.join(", ")}` : "",
+      failed.length ? `Couldn't add, try again: ${failed.join(", ")}` : "",
+    ].filter(Boolean);
+    Alert.alert(failed.length ? "Partly done" : "Done", lines.join("\n"));
+  };
+
   const renderServiceModal = () => (
     <Modal visible={serviceModalVisible} animationType="slide">
       <View style={styles.modal}>
@@ -3067,6 +3141,19 @@ export default function StorefrontEditorScreen() {
                     <Text style={{ color: theme.brandTextDim, fontSize: 12 }}>
                       ${(addon.priceCents / 100).toFixed(2)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
                     </Text>
+                    {copyTargetServices.length > 0 ? (
+                      <Pressable
+                        onPress={() => openCopySheet(addon)}
+                        hitSlop={8}
+                        style={{ alignSelf: "flex-start", marginTop: 6 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Use ${addon.name} on other services`}
+                      >
+                        <Text style={{ color: theme.brandGold, fontSize: 13, fontWeight: "600" }}>
+                          Use on other services
+                        </Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                   <Pressable
                     onPress={() => {
@@ -3117,6 +3204,36 @@ export default function StorefrontEditorScreen() {
                 </View>
               ))
             )}
+            {copyPromptAddon && copyTargetServices.length > 0 && serviceAddons.some((a) => a.id === copyPromptAddon.id) ? (
+              <View
+                style={{
+                  marginTop: 4,
+                  marginBottom: 8,
+                  padding: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: theme.brandGold,
+                }}
+              >
+                <Text style={{ color: theme.brandCream, fontSize: 14, marginBottom: 10 }}>
+                  Use "{copyPromptAddon.name}" on your other services too?
+                </Text>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <Pressable
+                    onPress={() => setCopyPromptAddon(null)}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: theme.brandTextDim, alignItems: "center" }}
+                  >
+                    <Text style={{ color: theme.brandCream, fontWeight: "600" }}>Not now</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => openCopySheet(copyPromptAddon)}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.brandGold, alignItems: "center" }}
+                  >
+                    <Text style={{ color: theme.brandBg, fontWeight: "700" }}>Choose services</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
           </View>
 
           {/* ── Service Location ── */}
@@ -3512,6 +3629,270 @@ export default function StorefrontEditorScreen() {
           </View>
         </ScreenKeyboardAwareScrollView>
       </View>
+      {/* Nested inside the service modal: iOS can't present a second sibling Modal while this one is open. */}
+      {/* Add-on editor modal */}
+      <Modal
+        visible={addonModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAddonModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}
+        >
+          {/* Tapping the dimmed area only hides the keyboard, so nothing typed is lost. */}
+          <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false} />
+          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36, maxHeight: "90%" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17 }}>
+                {editingAddon ? "Edit Add-on" : "New Add-on"}
+              </Text>
+              <Pressable onPress={Keyboard.dismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel="Hide keyboard">
+                <Text style={{ color: theme.brandGold, fontSize: 15, fontWeight: "600" }}>Done</Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              style={{ flexGrow: 0 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            >
+            {addonError ? (
+              <Text style={{ color: "#FF3B30", fontSize: 13, marginBottom: 10 }}>{addonError}</Text>
+            ) : null}
+            <Text style={[styles.inputLabel, { marginTop: 0 }]}>Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={addonForm.name}
+              onChangeText={(v) => setAddonForm({ ...addonForm, name: v })}
+              placeholder="e.g. Deep Condition"
+              placeholderTextColor={theme.brandTextDim}
+              maxLength={80}
+              returnKeyType="done"
+            />
+            <Text style={styles.inputLabel}>Description</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
+              value={addonForm.description}
+              onChangeText={(v) => setAddonForm({ ...addonForm, description: v })}
+              placeholder="Optional details"
+              placeholderTextColor={theme.brandTextDim}
+              multiline
+              maxLength={300}
+              inputAccessoryViewID={ADDON_KEYBOARD_DONE_ID}
+            />
+            <Text style={styles.inputLabel}>Price ($) *</Text>
+            <TextInput
+              style={styles.input}
+              value={addonForm.priceCents}
+              onChangeText={(v) => setAddonForm({ ...addonForm, priceCents: v })}
+              placeholder="0.00"
+              placeholderTextColor={theme.brandTextDim}
+              keyboardType="decimal-pad"
+              inputAccessoryViewID={ADDON_KEYBOARD_DONE_ID}
+            />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: addonAddsTime ? 4 : 0 }}>
+              <Text style={{ color: theme.brandCream, fontSize: 14 }}>Adds time to the appointment</Text>
+              <Switch
+                value={addonAddsTime}
+                onValueChange={(v) => {
+                  setAddonAddsTime(v);
+                  if (!v) setAddonForm((f) => ({ ...f, durationMinutes: "" }));
+                }}
+                trackColor={{ false: theme.brandSurface, true: theme.brandGold }}
+                thumbColor={theme.brandBg}
+              />
+            </View>
+            {addonAddsTime && (
+              <>
+                <Text style={[styles.inputLabel, { marginTop: 8 }]}>Duration (minutes) *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={addonForm.durationMinutes}
+                  onChangeText={(v) => setAddonForm({ ...addonForm, durationMinutes: v.replace(/\D/g, "") })}
+                  placeholder="e.g. 30"
+                  placeholderTextColor={theme.brandTextDim}
+                  keyboardType="number-pad"
+                  inputAccessoryViewID={ADDON_KEYBOARD_DONE_ID}
+                />
+              </>
+            )}
+            </ScrollView>
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+              <Pressable
+                onPress={() => { setAddonModalVisible(false); setAddonError(null); }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandSurface, alignItems: "center" }}
+              >
+                <Text style={{ color: theme.brandTextDim, fontWeight: "600" }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  setAddonError(null);
+                  const name = addonForm.name.trim();
+                  if (!name || name.length > 80) { setAddonError("Name is required (max 80 characters)."); return; }
+                  const desc = addonForm.description.trim();
+                  if (desc.length > 300) { setAddonError("Description must be 300 characters or fewer."); return; }
+                  const priceVal = parseFloat(addonForm.priceCents);
+                  if (isNaN(priceVal) || priceVal < 0 || priceVal > 1000) { setAddonError("Price must be between $0 and $1,000."); return; }
+                  const priceCents = Math.round(priceVal * 100);
+                  let durationMinutes = 0;
+                  if (addonAddsTime) {
+                    const durationVal = parseInt(addonForm.durationMinutes, 10);
+                    if (isNaN(durationVal) || durationVal < 5 || durationVal > 480) { setAddonError("Duration must be between 5 and 480 minutes."); return; }
+                    durationMinutes = durationVal;
+                  }
+                  const sortOrder = parseInt(addonForm.sortOrder, 10) || (serviceAddons.length + 1);
+                  setAddonSaving(true);
+                  try {
+                    const token = await getToken();
+                    if (!token || !editingService?.id) throw new Error("Not authenticated");
+                    const payload = {
+                      name,
+                      description: desc || null,
+                      priceCents,
+                      durationMinutes,
+                      sortOrder,
+                    };
+                    if (editingAddon) {
+                      const updated = await updateServiceAddon(token, editingService.id, editingAddon.id, payload);
+                      setServiceAddons((prev) => prev.map((a) => a.id === editingAddon.id ? updated : a).sort((a, b) => a.sortOrder - b.sortOrder));
+                    } else {
+                      const created = await createServiceAddon(token, editingService.id, payload);
+                      setServiceAddons((prev) => [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder));
+                      setCopyPromptAddon(created);
+                    }
+                    setAddonModalVisible(false);
+                  } catch (e: any) {
+                    const msg = e?.body?.message || e?.message || "Failed to save add-on";
+                    setAddonError(msg);
+                  } finally {
+                    setAddonSaving(false);
+                  }
+                }}
+                disabled={addonSaving}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.brandGold, alignItems: "center", opacity: addonSaving ? 0.6 : 1 }}
+              >
+                {addonSaving ? (
+                  <ActivityIndicator color={theme.brandBg} />
+                ) : (
+                  <Text style={{ color: theme.brandBg, fontWeight: "700" }}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+          {Platform.OS === "ios" ? (
+            <InputAccessoryView nativeID={ADDON_KEYBOARD_DONE_ID}>
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.brandSurface }}>
+                <Pressable onPress={Keyboard.dismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel="Hide keyboard">
+                  <Text style={{ color: theme.brandGold, fontSize: 16, fontWeight: "600" }}>Done</Text>
+                </Pressable>
+              </View>
+            </InputAccessoryView>
+          ) : null}
+        </KeyboardAvoidingView>
+      </Modal>
+      {/* "Add to other services" sheet — also nested so it opens over the service modal on iOS. */}
+      <Modal
+        visible={copyAddonSource !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          if (!copyingAddon) setCopyAddonSource(null);
+        }}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}>
+          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 36, maxHeight: "80%" }}>
+            <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17, marginBottom: 4 }}>
+              Add "{copyAddonSource?.name}" to other services
+            </Text>
+            {copyAddonSource ? (
+              <Text style={{ color: theme.brandTextDim, fontSize: 13, marginBottom: 12 }}>
+                ${(copyAddonSource.priceCents / 100).toFixed(2)}
+                {copyAddonSource.durationMinutes > 0 ? ` · +${formatDuration(copyAddonSource.durationMinutes)}` : " · doesn't add time"}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <Text style={{ color: theme.brandCream, fontSize: 14, fontWeight: "600" }}>
+                {copyTargetIds.length} of {copyTargetServices.length} selected
+              </Text>
+              <Pressable
+                disabled={copyingAddon}
+                onPress={() =>
+                  setCopyTargetIds(
+                    copyTargetIds.length === copyTargetServices.length ? [] : copyTargetServices.map((svc) => svc.id)
+                  )
+                }
+                style={{ paddingVertical: 6, paddingHorizontal: 4 }}
+              >
+                <Text style={{ color: theme.brandGold, fontSize: 13, fontWeight: "600" }}>
+                  {copyTargetIds.length === copyTargetServices.length ? "Select none" : "Select all"}
+                </Text>
+              </Pressable>
+            </View>
+            <ScrollView style={{ flexGrow: 0, marginBottom: 12 }}>
+              {copyTargetServices.map((svc) => {
+                const checked = copyTargetIds.includes(svc.id);
+                return (
+                  <Pressable
+                    key={svc.id}
+                    disabled={copyingAddon}
+                    onPress={() =>
+                      setCopyTargetIds((prev) =>
+                        prev.includes(svc.id) ? prev.filter((id) => id !== svc.id) : [...prev, svc.id]
+                      )
+                    }
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 8,
+                      backgroundColor: theme.brandSurface,
+                      marginBottom: 8,
+                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked }}
+                  >
+                    <Feather
+                      name={checked ? "check-square" : "square"}
+                      size={20}
+                      color={checked ? theme.brandGold : theme.brandTextDim}
+                    />
+                    <Text style={{ color: theme.brandCream, fontSize: 14, marginLeft: 12, flex: 1 }} numberOfLines={1}>
+                      {svc.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Text style={{ color: theme.brandTextDim, fontSize: 12, marginBottom: 16 }}>
+              Each service gets its own copy. Changing this add-on later won't change the copies.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <Pressable
+                disabled={copyingAddon}
+                onPress={() => setCopyAddonSource(null)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandTextDim, alignItems: "center", opacity: copyingAddon ? 0.6 : 1 }}
+              >
+                <Text style={{ color: theme.brandCream, fontWeight: "600" }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={copyingAddon || copyTargetIds.length === 0}
+                onPress={handleCopyAddon}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.brandGold, alignItems: "center", opacity: copyingAddon || copyTargetIds.length === 0 ? 0.6 : 1 }}
+              >
+                {copyingAddon ? (
+                  <ActivityIndicator color={theme.brandBg} />
+                ) : (
+                  <Text style={{ color: theme.brandBg, fontWeight: "700" }}>
+                    Add to {copyTargetIds.length} service{copyTargetIds.length === 1 ? "" : "s"}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 
@@ -3712,138 +4093,6 @@ export default function StorefrontEditorScreen() {
 
       {renderProductModal()}
       {renderServiceModal()}
-
-      {/* Add-on editor modal */}
-      <Modal
-        visible={addonModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setAddonModalVisible(false)}
-      >
-        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}>
-          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 36 }}>
-            <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17, marginBottom: 16 }}>
-              {editingAddon ? "Edit Add-on" : "New Add-on"}
-            </Text>
-            {addonError ? (
-              <Text style={{ color: "#FF3B30", fontSize: 13, marginBottom: 10 }}>{addonError}</Text>
-            ) : null}
-            <Text style={[styles.inputLabel, { marginTop: 0 }]}>Name *</Text>
-            <TextInput
-              style={styles.input}
-              value={addonForm.name}
-              onChangeText={(v) => setAddonForm({ ...addonForm, name: v })}
-              placeholder="e.g. Deep Condition"
-              placeholderTextColor={theme.brandTextDim}
-              maxLength={80}
-            />
-            <Text style={styles.inputLabel}>Description</Text>
-            <TextInput
-              style={[styles.input, { minHeight: 60, textAlignVertical: "top" }]}
-              value={addonForm.description}
-              onChangeText={(v) => setAddonForm({ ...addonForm, description: v })}
-              placeholder="Optional details"
-              placeholderTextColor={theme.brandTextDim}
-              multiline
-              maxLength={300}
-            />
-            <Text style={styles.inputLabel}>Price ($) *</Text>
-            <TextInput
-              style={styles.input}
-              value={addonForm.priceCents}
-              onChangeText={(v) => setAddonForm({ ...addonForm, priceCents: v })}
-              placeholder="0.00"
-              placeholderTextColor={theme.brandTextDim}
-              keyboardType="decimal-pad"
-            />
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: addonAddsTime ? 4 : 0 }}>
-              <Text style={{ color: theme.brandCream, fontSize: 14 }}>Adds time to the appointment</Text>
-              <Switch
-                value={addonAddsTime}
-                onValueChange={(v) => {
-                  setAddonAddsTime(v);
-                  if (!v) setAddonForm((f) => ({ ...f, durationMinutes: "" }));
-                }}
-                trackColor={{ false: theme.brandSurface, true: theme.brandGold }}
-                thumbColor={theme.brandBg}
-              />
-            </View>
-            {addonAddsTime && (
-              <>
-                <Text style={[styles.inputLabel, { marginTop: 8 }]}>Duration (minutes) *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={addonForm.durationMinutes}
-                  onChangeText={(v) => setAddonForm({ ...addonForm, durationMinutes: v.replace(/\D/g, "") })}
-                  placeholder="e.g. 30"
-                  placeholderTextColor={theme.brandTextDim}
-                  keyboardType="number-pad"
-                />
-              </>
-            )}
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-              <Pressable
-                onPress={() => { setAddonModalVisible(false); setAddonError(null); }}
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandSurface, alignItems: "center" }}
-              >
-                <Text style={{ color: theme.brandTextDim, fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={async () => {
-                  setAddonError(null);
-                  const name = addonForm.name.trim();
-                  if (!name || name.length > 80) { setAddonError("Name is required (max 80 characters)."); return; }
-                  const desc = addonForm.description.trim();
-                  if (desc.length > 300) { setAddonError("Description must be 300 characters or fewer."); return; }
-                  const priceVal = parseFloat(addonForm.priceCents);
-                  if (isNaN(priceVal) || priceVal < 0 || priceVal > 1000) { setAddonError("Price must be between $0 and $1,000."); return; }
-                  const priceCents = Math.round(priceVal * 100);
-                  let durationMinutes = 0;
-                  if (addonAddsTime) {
-                    const durationVal = parseInt(addonForm.durationMinutes, 10);
-                    if (isNaN(durationVal) || durationVal < 5 || durationVal > 480) { setAddonError("Duration must be between 5 and 480 minutes."); return; }
-                    durationMinutes = durationVal;
-                  }
-                  const sortOrder = parseInt(addonForm.sortOrder, 10) || (serviceAddons.length + 1);
-                  setAddonSaving(true);
-                  try {
-                    const token = await getToken();
-                    if (!token || !editingService?.id) throw new Error("Not authenticated");
-                    const payload = {
-                      name,
-                      description: desc || null,
-                      priceCents,
-                      durationMinutes,
-                      sortOrder,
-                    };
-                    if (editingAddon) {
-                      const updated = await updateServiceAddon(token, editingService.id, editingAddon.id, payload);
-                      setServiceAddons((prev) => prev.map((a) => a.id === editingAddon.id ? updated : a).sort((a, b) => a.sortOrder - b.sortOrder));
-                    } else {
-                      const created = await createServiceAddon(token, editingService.id, payload);
-                      setServiceAddons((prev) => [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder));
-                    }
-                    setAddonModalVisible(false);
-                  } catch (e: any) {
-                    const msg = e?.body?.message || e?.message || "Failed to save add-on";
-                    setAddonError(msg);
-                  } finally {
-                    setAddonSaving(false);
-                  }
-                }}
-                disabled={addonSaving}
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.brandGold, alignItems: "center", opacity: addonSaving ? 0.6 : 1 }}
-              >
-                {addonSaving ? (
-                  <ActivityIndicator color={theme.brandBg} />
-                ) : (
-                  <Text style={{ color: theme.brandBg, fontWeight: "700" }}>Save</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

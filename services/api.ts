@@ -5043,6 +5043,8 @@ export interface ServiceAddon {
   priceCents: number;
   durationMinutes: number;
   sortOrder: number;
+  // Vendor GET returns every add-on with isActive (web dashboards can switch one off); public lists omit it.
+  isActive?: boolean;
 }
 
 // Booking Flow types
@@ -5506,6 +5508,7 @@ export interface ServiceAddonPayload {
   priceCents: number;
   durationMinutes: number;
   sortOrder?: number;
+  isActive?: boolean;
 }
 
 export async function createServiceAddon(
