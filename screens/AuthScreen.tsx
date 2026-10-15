@@ -22,6 +22,8 @@ import { ThemedView } from "@/components/ThemedView";
 import { useAuth, UserRole } from "@/context/AuthContext";
 import { Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { api } from "@/services/api";
+import { shouldOpenFinishSetup } from "@/utils/accountSetup";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const DS = {
@@ -71,7 +73,7 @@ const ROLE_OPTIONS: {
 
 export default function AuthScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { login, loginAsGuest, isLoading, pendingResetParams, clearPendingResetParams } = useAuth();
+  const { login, loginAsGuest, isLoading, pendingResetParams, clearPendingResetParams, getToken } = useAuth();
   const insets = useSafeAreaInsets();
 
   // Handle password reset deep link for unauthenticated users
@@ -118,8 +120,27 @@ export default function AuthScreen() {
         });
         setShowPendingMessage(true);
       } else {
+        // Something left to set up (plan, payouts, username)? Show the checklist instead of
+        // closing. Never block sign-in on this check.
+        try {
+          const token = await getToken();
+          const status = token ? await api.getAccountSetupStatus(token) : null;
+          if (shouldOpenFinishSetup(status, result.user?.role)) {
+            navigation.replace("FinishSetup");
+            return;
+          }
+        } catch {
+          // fall through to the normal close
+        }
         navigation.goBack();
       }
+    } else if (result.needsSetup) {
+      // Account exists but has no password yet (e.g. an old website signup). The backend already
+      // emailed a 6-digit code; a username login doesn't tell us the email, so the screen asks.
+      navigation.navigate("ClaimAccount", {
+        email: result.needsSetup.email,
+        codeSent: true,
+      });
     } else if (result.isRejected) {
       Alert.alert(
         "Account Rejected",

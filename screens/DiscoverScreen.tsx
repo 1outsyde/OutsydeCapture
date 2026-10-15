@@ -47,6 +47,7 @@ import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
 import StoryRing from "@/components/StoryRing";
 import StoriesBar from "@/components/StoriesBar";
+import FinishSetupCard from "@/components/FinishSetupCard";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -609,9 +610,12 @@ export default function DiscoverScreen() {
               onViewableItemsChanged={onProViewableItemsChanged}
               viewabilityConfig={PRO_VIEWABILITY_CONFIG}
               ListHeaderComponent={
-                <Animated.View style={storiesBarAnimatedStyle}>
-                  <StoriesBar onVisibilityChange={handleStoriesVisibilityChange} />
-                </Animated.View>
+                <>
+                  <FinishSetupCard />
+                  <Animated.View style={storiesBarAnimatedStyle}>
+                    <StoriesBar onVisibilityChange={handleStoriesVisibilityChange} />
+                  </Animated.View>
+                </>
               }
             />
           ) : (

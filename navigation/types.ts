@@ -108,6 +108,10 @@ export type RootStackParamList = {
   StaffOnboarding: undefined;
   ForgotPassword: undefined;
   ResetPassword: { token: string; email: string };
+  /** Finish an account that has no password yet (login hand-off, signup, goutsyde.com/claim links). */
+  ClaimAccount: { email?: string; token?: string; codeSent?: boolean } | undefined;
+  /** Setup checklist: plan, payouts, username (same list as goutsyde.com/finish). */
+  FinishSetup: undefined;
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
   BlockedUsers: undefined;

@@ -91,6 +91,15 @@ export interface HealthCheckResponse {
   environment: string;
 }
 
+export type AccountSetupStepKey = "password" | "username" | "approval" | "plan" | "payouts";
+export interface AccountSetupStatus {
+  success?: boolean;
+  role: "consumer" | "business" | "photographer" | "staff";
+  complete: boolean;
+  next: AccountSetupStepKey | null;
+  steps: { key: AccountSetupStepKey; state: "done" | "todo" | "waiting"; label: string }[];
+}
+
 export interface ApiError {
   message: string;
   status?: number;
@@ -1665,6 +1674,49 @@ class ApiService {
       method: "POST",
       body: JSON.stringify({ email, code }),
     });
+  }
+
+  // ── Account setup (backend #289) ───────────────────────────────────────────
+  // POST /api/account-setup/send-code — emails a 6-digit code to an account with no password yet.
+  // Always 200, so it never reveals whether an account exists.
+  async sendClaimCode(email: string): Promise<{ success: boolean }> {
+    return this.request("/api/account-setup/send-code", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  // POST /api/account-setup/claim — sets the password (and username when the account has none).
+  // Errors arrive as ApiError with body.error.code: INVALID_TOKEN, ALREADY_CLAIMED, INVALID_PASSWORD,
+  // USERNAME_REQUIRED, INVALID_USERNAME, USERNAME_TAKEN.
+  async claimAccount(data: { email: string; resetToken: string; newPassword: string; username?: string }): Promise<{ success: boolean; user?: { username?: string | null } }> {
+    return this.request("/api/account-setup/claim", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // GET /api/account-setup/status — what this account still needs (same list as the website and emails).
+  async getAccountSetupStatus(authToken: string): Promise<AccountSetupStatus> {
+    return this.request<AccountSetupStatus>("/api/account-setup/status", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+  }
+
+  // POST /api/account-setup/username — sets a username only when the account has none.
+  async setAccountSetupUsername(authToken: string, username: string): Promise<{ success: boolean; username: string }> {
+    return this.request("/api/account-setup/username", {
+      method: "POST",
+      body: JSON.stringify({ username }),
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/users/check-username/:username — the backend's route takes the name in the path.
+  async checkUsernameAvailability(username: string): Promise<{ available: boolean; reason?: string }> {
+    return this.request<{ available: boolean; reason?: string }>(
+      `/api/users/check-username/${encodeURIComponent(username)}`
+    );
   }
 
   async resetPassword(token: string, email: string, newPassword: string): Promise<void> {
