@@ -59,6 +59,8 @@ import StoryViewerScreen from "@/screens/StoryViewerScreen";
 import StoryInsightsScreen from "@/screens/StoryInsightsScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
+import ClaimAccountScreen from "@/screens/ClaimAccountScreen";
+import FinishSetupScreen from "@/screens/FinishSetupScreen";
 import RateReviewScreen from "@/screens/RateReviewScreen";
 import StaffOnboardingStatusScreen from "@/screens/StaffOnboardingStatusScreen";
 import SupportContactScreen from "@/screens/SupportContactScreen";
@@ -923,6 +925,18 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ResetPassword"
         component={ResetPasswordScreen}
+        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+      />
+
+      <Stack.Screen
+        name="ClaimAccount"
+        component={ClaimAccountScreen}
+        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+      />
+
+      <Stack.Screen
+        name="FinishSetup"
+        component={FinishSetupScreen}
         options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
       />
 

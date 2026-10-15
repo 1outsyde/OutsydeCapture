@@ -11,6 +11,7 @@ import {
   getStoredUserData,
   clearAuthStorage,
 } from "../utils/tokenStorage";
+import { needsSetupFromLoginError, type NeedsSetup } from "@/utils/accountSetup";
 
 export type UserRole = "consumer" | "business" | "photographer" | "staff";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
@@ -131,6 +132,8 @@ export interface LoginResult {
   isPending: boolean;
   isRejected: boolean;
   user?: User;
+  /** Account exists but has no password yet; the backend already emailed a 6-digit code. */
+  needsSetup?: NeedsSetup;
 }
 
 interface SignupResult {
@@ -572,6 +575,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true, isPending: false, isRejected: false, user: newUser };
     } catch (error: any) {
       console.error("Login failed:", error);
+      const needsSetup = needsSetupFromLoginError(error, type, identifier);
+      if (needsSetup) {
+        return { success: false, isPending: false, isRejected: false, needsSetup };
+      }
       const status = error?.status;
       if (status === 401 || status === 403) {
         return { success: false, isPending: false, isRejected: false };

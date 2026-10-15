@@ -22,6 +22,7 @@ import { StripeConnectPrompt, isStripePromptSnoozed } from "@/components/StripeC
 import { shouldShowConnectPrompt, type ConnectPromptEligibility, type ConnectPromptStripeStatus } from "@/utils/connectPrompt";
 import { isAnyOpen, subscribe as subscribeModals } from "@/utils/modalCoordinator";
 import { markStripeReturn } from "@/utils/stripeReturnSignal";
+import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
 
 // At most one "can this vendor get paid?" check per 10 minutes (a forced check after a Stripe return skips this).
 const CONNECT_CHECK_INTERVAL_MS = 10 * 60 * 1000;
@@ -68,6 +69,8 @@ export default function MainTabNavigator() {
   const combinedUnread = (unreadCount || 0) + (totalUnreadCount || 0);
   const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
   const navigation = useNavigation<any>();
+  // goutsyde.com/claim + /finish links and account-setup reminder push taps
+  useAccountSetupLinks();
   const isGuest = user?.isGuest || !user;
 
   // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──

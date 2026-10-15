@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.outsyde.app",
+      "associatedDomains": ["applinks:goutsyde.com", "applinks:www.goutsyde.com"],
       "infoPlist": {
         "NSCameraUsageDescription": "Outsyde uses your camera to create posts and stories.",
         "NSMicrophoneUsageDescription": "Outsyde uses your microphone to record videos.",

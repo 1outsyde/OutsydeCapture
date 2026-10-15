@@ -415,7 +415,21 @@ export default function ConsumerSignupScreen() {
         setUsernameAvailable(null);
         setCurrentStep(1);
       } else {
-        Alert.alert("Error", msg || "Registration failed. Please try again.");
+        if (/already registered/i.test(msg)) {
+          // Some of these accounts were made for the person (old website signups) and have no
+          // password yet — ClaimAccount emails a code to finish it. Others just need to sign in.
+          Alert.alert(
+            "You already have an account",
+            "This email is already registered. Sign in, or if you never created a password, finish your account.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Sign in", onPress: () => navigation.navigate("Auth", {}) },
+              { text: "Finish my account", onPress: () => navigation.navigate("ClaimAccount", { email: email.trim().toLowerCase() }) },
+            ],
+          );
+        } else {
+          Alert.alert("Error", msg || "Registration failed. Please try again.");
+        }
       }
     }
   };
