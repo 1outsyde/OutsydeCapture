@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/services/api";
+import { showChoiceSheet } from "@/utils/choiceSheet";
 
 // ── Story shape ───────────────────────────────────────────────────────────────
 // Mirrors the backend row returned by GET /api/stories/:userId.
@@ -120,18 +121,26 @@ export default function StoryRing({
           }
         );
       } else {
-        Alert.alert("My Story", undefined, [
+        // Android alerts show at most 3 buttons (Cancel was dropped), so use the choice sheet.
+        const options = [
           {
-            text: "View My Story",
+            label: "View My Story",
             onPress: () => {
               markAllSeen();
               onViewStory(stories);
             },
           },
-          { text: "Add to Story", onPress: onAddStory },
-          { text: "Story Insights", onPress: () => onViewInsights?.() },
-          { text: "Cancel", style: "cancel" },
-        ]);
+          { label: "Add to Story", onPress: onAddStory },
+          { label: "Story Insights", onPress: () => onViewInsights?.() },
+        ];
+        if (!showChoiceSheet({ title: "My Story", options })) {
+          Alert.alert(
+            "My Story",
+            undefined,
+            options.map((o) => ({ text: o.label, onPress: o.onPress })),
+            { cancelable: true }
+          );
+        }
       }
       return;
     }
