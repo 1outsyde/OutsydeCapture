@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   AppState,
   AppStateStatus,
+  Platform,
   StyleSheet,
 } from "react-native";
 import { setAudioModeAsync } from "expo-audio";
@@ -29,6 +30,7 @@ import { RatingPromptOverlay } from "@/components/ratings";
 import { PurchaseItem } from "@/types/ratings";
 import api from "@/services/api";
 import { registerWhile } from "@/utils/modalCoordinator";
+import ChoiceSheetHost from "@/components/ChoiceSheetHost";
 
 // Inner shell: has access to all context providers, owns rating-prompt state.
 function AppShell() {
@@ -160,6 +162,7 @@ function AppContent() {
           </DataProvider>
         </AuthProvider>
         <StatusBar style={isDark ? "light" : "dark"} />
+        {Platform.OS === "android" ? <ChoiceSheetHost /> : null}
       </KeyboardProvider>
     </GestureHandlerRootView>
   );

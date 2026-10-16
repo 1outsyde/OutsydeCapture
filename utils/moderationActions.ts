@@ -1,5 +1,6 @@
 import { Alert, Platform, ActionSheetIOS } from "react-native";
 import { api } from "../services/api";
+import { showChoiceSheet } from "./choiceSheet";
 
 export type ModerationTarget =
   | { type: "post"; postId: string; authorId: string; authorName: string }
@@ -8,7 +9,8 @@ export type ModerationTarget =
 
 /**
  * Prompt the user for a free-text report reason.
- * On iOS uses Alert.prompt; on Android falls back to a fixed choice sheet.
+ * On iOS uses Alert.prompt; on Android shows a fixed list of reasons in a bottom sheet
+ * (Android alerts show at most 3 buttons, which dropped 4 reasons and Cancel).
  * Returns the reason string, or null if the user cancelled.
  */
 export function promptForReportReason(
@@ -40,13 +42,20 @@ export function promptForReportReason(
       "Misinformation",
       "Other",
     ];
-    Alert.alert("Report", "Why are you reporting this content?", [
-      ...choices.map((label) => ({
-        text: label,
-        onPress: () => onSubmit(label),
-      })),
-      { text: "Cancel", style: "cancel" },
-    ]);
+    const shown = showChoiceSheet({
+      title: "Report",
+      message: "Why are you reporting this content?",
+      options: choices.map((label) => ({ label, onPress: () => onSubmit(label) })),
+    });
+    if (!shown) {
+      // No sheet host mounted: previous behaviour (first 3 reasons only).
+      Alert.alert(
+        "Report",
+        "Why are you reporting this content?",
+        choices.map((label) => ({ text: label, onPress: () => onSubmit(label) })),
+        { cancelable: true }
+      );
+    }
   }
 }
 
