@@ -31,6 +31,16 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   try {
+    // Android 13+: the channel must exist before asking for permission, or the prompt may not show.
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#D4A752",
+      });
+    }
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -53,15 +63,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
     const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
     console.log("[PushNotifications] Push token:", token);
-
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("default", {
-        name: "default",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#D4A752",
-      });
-    }
 
     return token;
   } catch (error) {
