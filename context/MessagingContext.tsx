@@ -36,14 +36,18 @@ interface MessagingContextType {
 
 const MessagingContext = createContext<MessagingContextType | undefined>(undefined);
 
-function mapApiConversation(conv: ApiConversation): Conversation {
+// POST /api/conversations returns { conversation, otherParticipant }, not a flat conversation.
+// Reading conv.id off that shape gave an undefined id, so "+ New message" opened a broken chat.
+function mapApiConversation(raw: ApiConversation | any): Conversation {
+  const conv: any = raw?.conversation ? { ...raw.conversation, otherParticipant: raw.otherParticipant } : raw;
+  const otherP: any = conv?.otherParticipant || {};
   return {
     id: conv.id,
-    participantId: conv.participantId,
-    participantName: conv.participantName,
-    participantAvatar: conv.otherParticipant?.profileImageUrl || conv.otherParticipant?.avatar || conv.participantAvatar || undefined,
-    participantType: conv.participantType,
-    lastMessage: conv.lastMessage,
+    participantId: otherP.id || conv.participantId || "",
+    participantName: otherP.publicName || otherP.displayName || otherP.name || conv.participantName || "Unknown",
+    participantAvatar: otherP.avatarUrl || otherP.avatar || otherP.profileImageUrl || conv.participantAvatar || undefined,
+    participantType: (otherP.type as Conversation["participantType"]) || conv.participantType || "consumer",
+    lastMessage: conv.lastMessagePreview || conv.lastMessage,
     lastMessageAt: conv.lastMessageAt,
     unreadCount: conv.unreadCount || 0,
   };
@@ -104,8 +108,9 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
         const mapped = {
           id: conv.id,
           participantId: otherP.id || "",
-          participantName: otherP.displayName || otherP.name || otherP.username || "Unknown",
-          participantAvatar: otherP.profileImageUrl || otherP.avatar || undefined,
+          // publicName/avatarUrl = business name + logo for vendors (backend #300); older backends fall back
+          participantName: otherP.publicName || otherP.displayName || otherP.name || otherP.username || "Unknown",
+          participantAvatar: otherP.avatarUrl || otherP.avatar || otherP.profileImageUrl || undefined,
           participantType: (otherP.type as "business" | "photographer" | "consumer") || "consumer",
           lastMessage: conv.lastMessagePreview || conv.lastMessage || "",
           lastMessageAt: conv.lastMessageAt || conv.updatedAt || conv.createdAt || "",
@@ -202,6 +207,10 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
       const token = await getToken();
       const apiConversation = await api.createOrGetConversation(data, token);
       const conversation = mapApiConversation(apiConversation);
+      if (!conversation.id) {
+        console.warn("[MessagingContext] createOrGetConversation: no conversation id in response");
+        return null;
+      }
       
       // Immediately add to local state for instant UI feedback
       setConversations(prev => {

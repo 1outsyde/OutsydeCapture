@@ -58,6 +58,19 @@ function formatRelativeTime(timestamp: string): string | null {
   }
 }
 
+const AVATAR_SIZE = 52;
+// StoryRing wraps the avatar in (3 + 2) * 2 = 10 extra pixels, ring or not.
+const AVATAR_OUTER = AVATAR_SIZE + 10;
+const ROW_INSET = Spacing.lg;
+const TEXT_GAP = Spacing.md;
+
+function initialsFor(name?: string): string {
+  const words = (name || "").replace(/^@/, "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : words[0][0];
+  return letters.toUpperCase();
+}
+
 function ConversationItem({
   conversation,
   onPress,
@@ -82,8 +95,9 @@ function ConversationItem({
   } else if (conversation.lastMessage) {
     messagePreview = conversation.lastMessage;
   } else {
-    messagePreview = "";
+    messagePreview = "No messages yet";
   }
+  const isEmptyPreview = !conversation.lastMessage && !hasUnread;
 
   return (
     <Pressable
@@ -95,7 +109,7 @@ function ConversationItem({
     >
       <StoryRing
         userId={conversation.participantId}
-        size={48}
+        size={AVATAR_SIZE}
         isOwnProfile={false}
         onAddStory={() => {}}
         onViewStory={(stories) =>
@@ -116,9 +130,9 @@ function ConversationItem({
             onError={() => {}}
           />
         ) : (
-          <View style={[styles.avatar, { backgroundColor: theme.brandSurface }]}>
-            <ThemedText type="h4" style={{ color: theme.brandTextDim }}>
-              {conversation.participantName?.charAt(0)?.toUpperCase() || "?"}
+          <View style={[styles.avatar, { backgroundColor: theme.brandPrimary }]}>
+            <ThemedText type="h4" style={{ color: theme.brandGold, fontWeight: "700" }}>
+              {initialsFor(conversation.participantName)}
             </ThemedText>
           </View>
         )}
@@ -128,14 +142,14 @@ function ConversationItem({
           <ThemedText
             type="body"
             numberOfLines={1}
-            style={[styles.participantName, { fontWeight: hasUnread ? "700" : "600" }]}
+            style={[styles.participantName, { fontWeight: hasUnread ? "700" : "600", color: theme.brandCream }]}
           >
             {conversation.participantName}
           </ThemedText>
           {relativeTime && (
             <ThemedText
               type="caption"
-              style={[styles.timestamp, { color: theme.brandTextDim }]}
+              style={[styles.timestamp, { color: hasUnread ? theme.brandGold : theme.brandTextDim }]}
             >
               {relativeTime}
             </ThemedText>
@@ -148,14 +162,15 @@ function ConversationItem({
             styles.previewText,
             { color: hasUnread ? theme.brandCream : theme.brandTextDim },
             hasUnread && { fontWeight: "500" },
+            isEmptyPreview && { fontStyle: "italic" },
           ]}
         >
           {messagePreview}
         </ThemedText>
       </View>
       {hasUnread && (
-        <View style={[styles.unreadBadge, { backgroundColor: theme.brandPrimary }]}>
-          <ThemedText type="small" style={{ color: theme.brandPrimaryText, fontSize: 10, fontWeight: "700" }}>
+        <View style={[styles.unreadBadge, { backgroundColor: theme.brandGold }]}>
+          <ThemedText type="small" style={{ color: "#000000", fontSize: 11, fontWeight: "700" }}>
             {unreadCount > 9 ? "9+" : unreadCount}
           </ThemedText>
         </View>
@@ -264,9 +279,12 @@ function NewMessageModal({
         const response = await api.unifiedSearch({ q: searchQuery, scope: "all" });
 
         const mapped: SearchResult[] = response.results
+          // POST /api/conversations resolves business and photographer ids; other result
+          // types (products, services, staff, consumers) were sent as "photographer" and 404'd.
+          .filter((item: UnifiedSearchItem) => item.type === "business" || item.type === "photographer")
           .filter((item: UnifiedSearchItem) => {
-            const userId = item.userId || item.id;
-            return userId !== currentUserId;
+            const ownerId = item.providerUserId || item.userId || item.id;
+            return ownerId !== currentUserId;
           })
           .map((item: UnifiedSearchItem) => ({
             id: item.id,
@@ -452,16 +470,24 @@ export default function MessagesScreen() {
   };
 
   const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: Spacing.sm }]}>
-      <ThemedText type="h2">Messages</ThemedText>
+    <View style={styles.header}>
       <Pressable
         onPress={() => setShowNewMessage(true)}
+        accessibilityRole="button"
+        accessibilityLabel="New message"
         style={({ pressed }) => [
-          styles.newMessageButton,
-          { backgroundColor: theme.brandPrimary, opacity: pressed ? 0.8 : 1 },
+          styles.newMessageBar,
+          {
+            backgroundColor: theme.brandSurface,
+            borderColor: theme.brandSurfaceBorder,
+            opacity: pressed ? 0.8 : 1,
+          },
         ]}
       >
-        <Feather name="plus" size={20} color={theme.brandPrimaryText} />
+        <Feather name="edit-3" size={16} color={theme.brandGold} />
+        <ThemedText type="body" style={[styles.newMessageText, { color: theme.brandTextDim }]}>
+          New message
+        </ThemedText>
       </Pressable>
     </View>
   );
@@ -469,7 +495,6 @@ export default function MessagesScreen() {
   if (!user) {
     return (
       <ThemedView style={styles.container}>
-        {renderHeader()}
         <SignInPrompt />
       </ThemedView>
     );
@@ -548,18 +573,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingHorizontal: ROW_INSET,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
-  newMessageButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  newMessageBar: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    height: 44,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.sm,
+  },
+  newMessageText: {
+    fontSize: 15,
   },
   loadingContainer: {
     flex: 1,
@@ -568,24 +596,27 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
-    paddingTop: 0,
+    // ScreenFlatList adds 24pt sides + header-height top; the Inbox already lays out
+    // around this list, and each row carries its own inset.
+    paddingHorizontal: 0,
+    paddingTop: Spacing.xs,
   },
   conversationItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: ROW_INSET,
+    paddingVertical: Spacing.sm + 2,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
   },
   conversationContent: {
     flex: 1,
-    marginLeft: Spacing.md,
+    marginLeft: TEXT_GAP,
   },
   nameRow: {
     flexDirection: "row",
@@ -599,6 +630,7 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     marginLeft: Spacing.sm,
+    fontVariant: ["tabular-nums"],
   },
   previewText: {
     fontSize: 14,
@@ -616,7 +648,9 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: 84,
+    // Lines up with the name/preview column: row inset + avatar (incl. ring) + gap
+    marginLeft: ROW_INSET + AVATAR_OUTER + TEXT_GAP,
+    marginRight: ROW_INSET,
   },
   emptyState: {
     flex: 1,
