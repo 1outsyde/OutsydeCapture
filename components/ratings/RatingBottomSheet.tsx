@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StarPicker } from './StarPicker';
 import { PurchaseItem, RatingTargetType } from '../../types/ratings';
 
@@ -33,6 +34,7 @@ export function RatingBottomSheet({
   purchases,
   existingRating,
 }: RatingBottomSheetProps) {
+  const insets = useSafeAreaInsets();
   const [selectedRating, setSelectedRating] = useState<number>(existingRating ?? 0);
   const [selectedPurchase, setSelectedPurchase] = useState<PurchaseItem | null>(
     purchases.length === 1 ? purchases[0] : null,
@@ -68,7 +70,13 @@ export function RatingBottomSheet({
       onRequestClose={onClose}
     >
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={styles.sheet}>
+      <View
+        style={[
+          styles.sheet,
+          // Android: clear the system navigation bar (edge-to-edge). iOS keeps 34.
+          Platform.OS === 'android' && { paddingBottom: 16 + insets.bottom },
+        ]}
+      >
         <View style={styles.handle} />
         <View style={styles.header}>
           <Text style={styles.title}>Rate {targetName}</Text>
