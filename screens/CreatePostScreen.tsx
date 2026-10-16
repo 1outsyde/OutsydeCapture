@@ -80,6 +80,12 @@ export default function CreatePostScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Android only: expo-camera binds the video pipeline only in mode="video" (and the photo
+  // pipeline only in "picture"), so a hold switches to video, waits for the camera to
+  // re-open, then records. iOS records in the default mode and never uses these.
+  const [androidCameraMode, setAndroidCameraMode] = useState<"picture" | "video">("picture");
+  const androidCameraReadyRef = useRef<(() => void) | null>(null);
+  const androidHoldingRef = useRef(false);
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [thumbUri, setThumbUri] = useState<string | null>(null);
   const [libraryChecked, setLibraryChecked] = useState(false);
@@ -292,15 +298,7 @@ export default function CreatePostScreen() {
     }
   };
 
-  const handleShutterPressIn = async () => {
-    if (!cameraPermission?.granted) {
-      await requestCameraPermission();
-      return;
-    }
-    if (!micPermission?.granted) {
-      await requestMicPermission();
-      return;
-    }
+  const startRecording = async () => {
     setIsRecording(true);
     recordingTimerRef.current = setTimeout(async () => {
       await cameraRef.current?.stopRecording();
@@ -324,7 +322,57 @@ export default function CreatePostScreen() {
     }
   };
 
+  const handleCameraReady = () => {
+    const resolve = androidCameraReadyRef.current;
+    androidCameraReadyRef.current = null;
+    resolve?.();
+  };
+
+  const startAndroidRecording = async () => {
+    androidHoldingRef.current = true;
+    setIsRecording(true);
+    // Switch to video and wait for the camera to re-open (or 3s, whichever first).
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        androidCameraReadyRef.current = null;
+        resolve();
+      }, 3000);
+      androidCameraReadyRef.current = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      setAndroidCameraMode("video");
+    });
+    try {
+      if (androidHoldingRef.current) {
+        await startRecording();
+      } else {
+        setIsRecording(false); // released before the camera was ready: no video
+      }
+    } finally {
+      androidHoldingRef.current = false;
+      setAndroidCameraMode("picture");
+    }
+  };
+
+  const handleShutterPressIn = async () => {
+    if (!cameraPermission?.granted) {
+      await requestCameraPermission();
+      return;
+    }
+    if (!micPermission?.granted) {
+      await requestMicPermission();
+      return;
+    }
+    if (Platform.OS === "android") {
+      await startAndroidRecording();
+      return;
+    }
+    await startRecording();
+  };
+
   const handleShutterPressOut = async () => {
+    if (Platform.OS === "android") androidHoldingRef.current = false;
     if (!isRecording) return;
     if (recordingTimerRef.current) {
       clearTimeout(recordingTimerRef.current);
@@ -597,6 +645,8 @@ export default function CreatePostScreen() {
                       ref={cameraRef}
                       style={StyleSheet.absoluteFill}
                       facing={facing}
+                      mode={Platform.OS === "android" ? androidCameraMode : undefined}
+                      onCameraReady={Platform.OS === "android" ? handleCameraReady : undefined}
                     />
                   ) : (
                     <View style={styles.cameraPlaceholder}>
