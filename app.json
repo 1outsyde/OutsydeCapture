@@ -45,6 +45,19 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.outsyde.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "www.goutsyde.com", "path": "/claim" },
+            { "scheme": "https", "host": "www.goutsyde.com", "path": "/finish" },
+            { "scheme": "https", "host": "goutsyde.com", "path": "/claim" },
+            { "scheme": "https", "host": "goutsyde.com", "path": "/finish" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": ["android.permission.CAMERA", "android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"],
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
