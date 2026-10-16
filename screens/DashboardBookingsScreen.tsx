@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Image,
   Modal,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +18,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { BusinessBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
+import DeclineReasonModal from "@/components/DeclineReasonModal";
 
 const BG = "#080C08";
 const GOLD = "#C9933A";
@@ -87,6 +89,7 @@ export default function DashboardBookingsScreen() {
   const [sort, setSort] = useState<SortMode>("action");
 
   const [refundModalVisible, setRefundModalVisible] = useState(false);
+  const [declineReasonFor, setDeclineReasonFor] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<BusinessBooking | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   // Booking shown in the full-details sheet (read-only; actions stay on the card).
@@ -138,22 +141,39 @@ export default function DashboardBookingsScreen() {
     }
   };
 
+  const doDecline = async (bookingId: string, reason?: string) => {
+    if (actionLoading) return;
+    setActionLoading(bookingId);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      await api.declineBooking(token, "business", bookingId, reason?.trim() || undefined);
+      setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
+      fetchBookings(true);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to decline booking. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const confirmDecline = (bookingId: string, reason?: string) => {
+    Alert.alert(
+      "Confirm Decline",
+      "The customer's card hold will be released. They will not be charged.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Decline", style: "destructive", onPress: () => doDecline(bookingId, reason) },
+      ]
+    );
+  };
+
   const handleDecline = (bookingId: string) => {
-    const doDecline = async (reason?: string) => {
-      if (actionLoading) return;
-      setActionLoading(bookingId);
-      try {
-        const token = await getToken();
-        if (!token) throw new Error("Not authenticated");
-        await api.declineBooking(token, "business", bookingId, reason?.trim() || undefined);
-        setBookings((prev: BusinessBooking[]) => prev.filter((b: BusinessBooking) => b.id !== bookingId));
-        fetchBookings(true);
-      } catch (err: any) {
-        Alert.alert("Error", err?.message || "Failed to decline booking. Please try again.");
-      } finally {
-        setActionLoading(null);
-      }
-    };
+    // Alert.prompt only exists on iOS; Android uses DeclineReasonModal (same text, same next step).
+    if (Platform.OS !== "ios") {
+      setDeclineReasonFor(bookingId);
+      return;
+    }
 
     Alert.prompt(
       "Decline Booking",
@@ -163,16 +183,7 @@ export default function DashboardBookingsScreen() {
         {
           text: "Decline",
           style: "destructive",
-          onPress: (reason?: string) => {
-            Alert.alert(
-              "Confirm Decline",
-              "The customer's card hold will be released. They will not be charged.",
-              [
-                { text: "Cancel", style: "cancel" },
-                { text: "Decline", style: "destructive", onPress: () => doDecline(reason) },
-              ]
-            );
-          },
+          onPress: (reason?: string) => confirmDecline(bookingId, reason),
         },
       ],
       "plain-text",
@@ -526,6 +537,16 @@ export default function DashboardBookingsScreen() {
       )}
 
       <BookingDetailSheet booking={detailBooking} onClose={() => setDetailBooking(null)} />
+
+      <DeclineReasonModal
+        visible={declineReasonFor !== null}
+        onCancel={() => setDeclineReasonFor(null)}
+        onSubmit={(reason) => {
+          const bookingId = declineReasonFor;
+          setDeclineReasonFor(null);
+          if (bookingId) confirmDecline(bookingId, reason);
+        }}
+      />
 
       {selectedBooking && (
         <RefundModal
