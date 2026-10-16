@@ -123,6 +123,11 @@ export default function StorefrontEditorScreen() {
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<VendorService[]>([]);
   const [hours, setHours] = useState<DayHours[]>(getDefaultHours());
+  // "Run past closing" (backend #294). null = backend didn't send the field, so the switch is hidden.
+  const [allowPastClosing, setAllowPastClosing] = useState<boolean | null>(
+    null,
+  );
+  const [savingPastClosing, setSavingPastClosing] = useState(false);
 
   const [coverImage, setCoverImage] = useState("");
   const [coverVideo, setCoverVideo] = useState("");
@@ -408,6 +413,9 @@ export default function StorefrontEditorScreen() {
 
       const biz = businessRes.business;
       setBusiness(biz);
+      setAllowPastClosing(
+        typeof biz.allowPastClosing === "boolean" ? biz.allowPastClosing : null,
+      );
 
       const normalizeProduct = (p: any): VendorProduct => ({
         ...p,
@@ -609,6 +617,30 @@ export default function StorefrontEditorScreen() {
       Alert.alert("Error", error.message || "Failed to save profile");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTogglePastClosing = async (next: boolean) => {
+    const token = await getToken();
+    if (!token || savingPastClosing) return;
+    const previous = allowPastClosing;
+    setAllowPastClosing(next);
+    setSavingPastClosing(true);
+    try {
+      const res = await api.updateVendorMyBusiness(token, {
+        allowPastClosing: next,
+      });
+      const saved = res?.business?.allowPastClosing;
+      if (typeof saved === "boolean") setAllowPastClosing(saved);
+      availabilityEvents.emit();
+    } catch (error: any) {
+      setAllowPastClosing(previous);
+      Alert.alert(
+        "Error",
+        error?.message || "Could not save this setting. Please try again.",
+      );
+    } finally {
+      setSavingPastClosing(false);
     }
   };
 
@@ -2463,6 +2495,25 @@ export default function StorefrontEditorScreen() {
           onSave={handleSaveHours}
           isSaving={saving}
         />
+        {allowPastClosing !== null && (
+          <View style={[styles.card, { marginTop: 16 }]}>
+            <View style={styles.visibilityLabelRow}>
+              <Text style={styles.inputLabel}>Run past closing</Text>
+              <Switch
+                value={allowPastClosing}
+                onValueChange={handleTogglePastClosing}
+                disabled={savingPastClosing}
+                trackColor={{ true: theme.brandGold }}
+                accessibilityLabel="Run past closing"
+              />
+            </View>
+            <Text style={styles.visibilityHelp}>
+              When this is on, clients can book a service that starts during
+              your open hours and finishes after you close. Bookings never run
+              past midnight.
+            </Text>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
