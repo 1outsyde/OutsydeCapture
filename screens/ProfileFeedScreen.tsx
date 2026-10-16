@@ -133,6 +133,12 @@ export default function ProfileFeedScreen() {
             <Feather name="play" size={20} color="#fff" />
           </View>
         )}
+        {/* Multi-photo posts */}
+        {!isVideo && (item.mediaItems?.length ?? 0) > 1 && (
+          <View style={styles.multiPhotoBadge} accessibilityLabel={`${item.mediaItems!.length} photos`}>
+            <Feather name="layers" size={12} color="#fff" />
+          </View>
+        )}
         <View style={styles.postOverlay}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Feather name="heart" size={14} color="#fff" />
@@ -292,6 +298,15 @@ const styles = StyleSheet.create({
   postImage: {
     width: "100%",
     height: "100%",
+  },
+  multiPhotoBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.56)",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
   videoPlayOverlay: {
     position: "absolute",

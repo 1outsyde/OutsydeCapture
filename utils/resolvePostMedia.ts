@@ -25,12 +25,15 @@ export interface ResolvablePostMedia {
   mediaUrl?: string;
   videoUrl?: string;
   images?: string[];
+  mediaItems?: { url: string }[];
 }
 
 export interface ResolvedPostMedia {
   type: "image" | "video";
   imageUrl: string;
   videoUrl: string | null;
+  /** Multi-photo posts: every photo URL in order. Empty for single-media and video posts. */
+  images: string[];
 }
 
 export function resolvePostMedia(post: ResolvablePostMedia): ResolvedPostMedia {
@@ -45,9 +48,15 @@ export function resolvePostMedia(post: ResolvablePostMedia): ResolvedPostMedia {
 
   const videoUrl = isVideo ? post.videoUrl || post.mediaUrl || null : null;
 
+  const multi = !isVideo && Array.isArray(post.mediaItems)
+    ? post.mediaItems.map((m) => m?.url).filter((u): u is string => typeof u === "string" && u.length > 0)
+    : [];
+  const images = multi.length > 1 ? multi : [];
+
   return {
     type: isVideo ? "video" : "image",
     imageUrl,
     videoUrl,
+    images,
   };
 }

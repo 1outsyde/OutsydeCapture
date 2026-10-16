@@ -40,6 +40,7 @@ import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { ProFeedCard } from "@/components/ProFeedCard";
+import { FeedSwipeGestureContext } from "@/components/PostMediaCarousel";
 import { RatingBottomSheet } from "@/components/ratings";
 import type { RatingCheckResponse, RatingTargetType } from "@/types/ratings";
 import { feedEvents } from "@/services/feedEvents";
@@ -168,6 +169,7 @@ export default function DiscoverScreen() {
       rating: (apiPost.author as any)?.rating || 0,
       reviewCount: (apiPost.author as any)?.reviewCount || 0,
       image: media.imageUrl,
+      mediaImages: media.images.length > 1 ? media.images : undefined,
       videoUrl: media.videoUrl ?? undefined,
       caption: apiPost.content || "",
       likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
@@ -535,14 +537,18 @@ export default function DiscoverScreen() {
     );
   };
 
-  // Swipe gesture
-  const horizontalSwipe = Gesture.Pan()
-    .activeOffsetX([-20, 20])
-    .failOffsetY([-10, 10])
-    .onEnd((event) => {
-      if (event.translationX < -50) runOnJS(swipeToToggle)("left");
-      else if (event.translationX > 50) runOnJS(swipeToToggle)("right");
-    });
+  // Swipe gesture (memoized so multi-photo carousels can reference a stable gesture to block)
+  const horizontalSwipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-20, 20])
+        .failOffsetY([-10, 10])
+        .onEnd((event) => {
+          if (event.translationX < -50) runOnJS(swipeToToggle)("left");
+          else if (event.translationX > 50) runOnJS(swipeToToggle)("right");
+        }),
+    [swipeToToggle]
+  );
 
   // ─── Loading / empty states (Pro feed) ───────────────────────────────────
   if (feedLoading && feedPosts.length === 0) {
@@ -587,6 +593,7 @@ export default function DiscoverScreen() {
         </View>
       ) : null}
 
+      <FeedSwipeGestureContext.Provider value={horizontalSwipe}>
       <GestureDetector gesture={horizontalSwipe}>
         <View style={styles.feedPage}>
           {feedMode === "pro" ? (
@@ -623,6 +630,7 @@ export default function DiscoverScreen() {
           )}
         </View>
       </GestureDetector>
+      </FeedSwipeGestureContext.Provider>
 
       {feedMode === "pulse" ? (
         <View style={[styles.pulseToggleOverlay, { top: headerHeight }]} pointerEvents="box-none">

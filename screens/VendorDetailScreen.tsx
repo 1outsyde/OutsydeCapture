@@ -115,6 +115,7 @@ type PostCard = {
   aspect: "portrait" | "square";
   displayLayout?: "pro" | "pulse";
   authorUserId?: string;
+  mediaCount?: number; // multi-photo posts: number of photos (badge when > 1)
 };
 
 type ServiceCard = {
@@ -319,6 +320,7 @@ const normalizePosts = (posts: ApiPost[], ownerId?: string): PostCard[] =>
       aspect: index % 3 === 0 ? "portrait" : "square",
       displayLayout: post.displayLayout || undefined,
       authorUserId: post.userId || post.authorId || ownerId,
+      mediaCount: Array.isArray(post.mediaItems) ? post.mediaItems.length : 0,
     };
   });
 
@@ -1873,6 +1875,10 @@ export default function VendorDetailScreen({ route }: Props) {
                 {post.mediaType === "video" ? (
                   <View style={styles.videoBadge}>
                     <Text style={styles.videoBadgeText}>▶</Text>
+                  </View>
+                ) : (post.mediaCount ?? 0) > 1 ? (
+                  <View style={styles.videoBadge} accessibilityLabel={`${post.mediaCount} photos`}>
+                    <Feather name="layers" size={12} color={COLORS.white} />
                   </View>
                 ) : null}
                 <LinearGradient

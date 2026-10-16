@@ -148,6 +148,7 @@ type PostCard = {
   mediaUrl?: string;
   mediaType: "image" | "video";
   aspect: "portrait" | "square";
+  mediaCount?: number; // multi-photo posts: number of photos (badge when > 1)
 };
 
 type ReviewCard = {
@@ -299,6 +300,7 @@ const toPosts = (items: ApiPost[]): PostCard[] =>
       mediaUrl,
       mediaType,
       aspect: index % 3 === 0 ? "portrait" : "square",
+      mediaCount: Array.isArray(item.mediaItems) ? item.mediaItems.length : 0,
     };
   });
 
@@ -1863,6 +1865,10 @@ export default function AccountScreen() {
                 {typedCell.mediaType === "video" ? (
                   <View style={styles.videoBadge}>
                     <Text style={styles.videoBadgeText}>▶</Text>
+                  </View>
+                ) : (typedCell.mediaCount ?? 0) > 1 ? (
+                  <View style={styles.videoBadge} accessibilityLabel={`${typedCell.mediaCount} photos`}>
+                    <Feather name="layers" size={12} color={COLORS.white} />
                   </View>
                 ) : null}
                 <LinearGradient

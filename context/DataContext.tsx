@@ -129,6 +129,8 @@ export interface Post {
   rating: number;
   reviewCount: number;
   image: string;
+  // Multi-photo posts: every photo in display order (only set when the post has 2+ photos).
+  mediaImages?: string[];
   videoUrl?: string;
   caption: string;
   likes: number;

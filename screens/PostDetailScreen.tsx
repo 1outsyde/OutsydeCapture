@@ -39,6 +39,13 @@ const VIEWABILITY_CONFIG = {
   minimumViewTime: 100,
 };
 
+function multiPhotoUrls(apiPost: ApiPost): string[] | undefined {
+  const urls = (apiPost.mediaItems ?? [])
+    .map((m) => m?.url)
+    .filter((u): u is string => typeof u === "string" && u.length > 0);
+  return urls.length > 1 ? urls : undefined;
+}
+
 function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
   const displayName = author.name || author.username || "Unknown";
   const authorAvatar = author.profilePhotoUrl || author.avatarUrl || author.profileImageUrl || "";
@@ -73,9 +80,11 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     image: isVideoPost
       ? (apiPost.thumbnailUrl || apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "")
       : (apiPost.imageUrl || apiPost.thumbnailUrl || (apiPost.images && apiPost.images[0]) || apiPost.mediaUrl || ""),
+    mediaImages: isVideoPost ? undefined : multiPhotoUrls(apiPost),
     videoUrl: isVideoPost ? (apiPost.videoUrl || apiPost.mediaUrl) : undefined,
     displayLayout: (apiPost.displayLayout || apiPost.feedSurface) as ("pro" | "pulse" | undefined),
-    caption: apiPost.content || "",
+    // /api/profiles/:userId/posts returns the caption as `caption`; other routes use `content`.
+    caption: apiPost.content || (apiPost as any).caption || "",
     likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
     isLiked: (apiPost as any).isLiked ?? false,
     comments: [],
