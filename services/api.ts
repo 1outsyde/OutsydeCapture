@@ -381,6 +381,7 @@ export interface VendorBookerPhotographer {
 export interface VendorBookerBusiness {
   id: string;
   ownerId: string;
+  allowPastClosing?: boolean; // Backend migration 044 (#294); absent on older backends
   name: string;
   category: string;
   description?: string | null;
@@ -473,6 +474,7 @@ export interface BusinessOnboardingData {
   coverImage?: string;
   coverMediaType?: "image" | "video";
   logoImage?: string;
+  allowPastClosing?: boolean; // Backend migration 044: bookings may end after closing
 }
 
 // Stripe onboarding status
