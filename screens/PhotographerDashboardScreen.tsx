@@ -2033,7 +2033,7 @@ export default function PhotographerDashboardScreen() {
   });
 
   const renderProfileModal = () => (
-    <Modal visible={activeModal === "profile"} animationType="slide" transparent>
+    <Modal visible={activeModal === "profile"} animationType="slide" transparent onRequestClose={() => setActiveModal(null)}>
       <View style={styles.modalOverlay}>
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
@@ -2709,7 +2709,7 @@ export default function PhotographerDashboardScreen() {
   );
 
   const renderHoursModal = () => (
-    <Modal visible={activeModal === "hours"} animationType="slide" transparent>
+    <Modal visible={activeModal === "hours"} animationType="slide" transparent onRequestClose={() => setActiveModal(null)}>
       <View style={styles.modalOverlay}>
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
@@ -2736,7 +2736,7 @@ export default function PhotographerDashboardScreen() {
   );
 
   const renderBlockedDatesModal = () => (
-    <Modal visible={activeModal === "blocked"} animationType="slide" transparent>
+    <Modal visible={activeModal === "blocked"} animationType="slide" transparent onRequestClose={() => setActiveModal(null)}>
       <View style={styles.modalOverlay}>
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
@@ -2762,7 +2762,7 @@ export default function PhotographerDashboardScreen() {
   );
 
   const renderBookingsModal = () => (
-    <Modal visible={activeModal === "bookings"} animationType="slide" transparent>
+    <Modal visible={activeModal === "bookings"} animationType="slide" transparent onRequestClose={() => setActiveModal(null)}>
       <View style={styles.modalOverlay}>
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>
@@ -2901,7 +2901,7 @@ export default function PhotographerDashboardScreen() {
   };
 
   const renderServicesModal = () => (
-    <Modal visible={activeModal === "services"} animationType="slide" transparent>
+    <Modal visible={activeModal === "services"} animationType="slide" transparent onRequestClose={() => setActiveModal(null)}>
       <View style={styles.modalOverlay}>
         <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
         <View style={styles.modalContent}>

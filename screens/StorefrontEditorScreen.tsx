@@ -2707,7 +2707,7 @@ export default function StorefrontEditorScreen() {
   );
 
   const renderProductModal = () => (
-    <Modal visible={productModalVisible} animationType="slide">
+    <Modal visible={productModalVisible} animationType="slide" onRequestClose={() => setProductModalVisible(false)}>
       <View style={styles.modal}>
         <View style={styles.modalHeader}>
           <Pressable onPress={() => setProductModalVisible(false)}>
@@ -2949,7 +2949,7 @@ export default function StorefrontEditorScreen() {
   };
 
   const renderServiceModal = () => (
-    <Modal visible={serviceModalVisible} animationType="slide">
+    <Modal visible={serviceModalVisible} animationType="slide" onRequestClose={() => setServiceModalVisible(false)}>
       <View style={styles.modal}>
         <View style={styles.modalHeader}>
           <Pressable onPress={() => setServiceModalVisible(false)}>

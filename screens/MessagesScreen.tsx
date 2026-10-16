@@ -9,6 +9,7 @@ import {
   TextInput,
   FlatList,
   Keyboard,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -343,7 +344,13 @@ function NewMessageModal({
   );
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      // Android back button. iOS pageSheet keeps its current behaviour (no handler).
+      onRequestClose={Platform.OS === "android" ? onClose : undefined}
+    >
       <View
         style={[
           styles.modalContainer,

@@ -366,7 +366,7 @@ export default function ServiceEditorModal({
   });
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
         <View
           style={[
