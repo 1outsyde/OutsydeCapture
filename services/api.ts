@@ -5121,6 +5121,10 @@ export interface ServiceAddon {
   sortOrder: number;
   // Vendor GET returns every add-on with isActive (web dashboards can switch one off); public lists omit it.
   isActive?: boolean;
+  // Add-on library (backend migration 046). Vendor GET/POST/PATCH only; never in public lists.
+  businessAddonId?: string | null;
+  libraryPriceCents?: number | null;
+  needsPriceReview?: boolean;
 }
 
 // Booking Flow types
@@ -5616,6 +5620,101 @@ export async function deleteServiceAddon(
   addonId: string
 ): Promise<{ success: boolean }> {
   return apiDelete(`/api/vendor/services/${serviceId}/addons/${addonId}`, token) as Promise<{ success: boolean }>;
+}
+
+// ==========================================
+// Add-on library (backend migration 046)
+// A vendor creates an add-on once and attaches it to the services she picks.
+// Each attachment is still that service's own add-on (bookings never change).
+// Backend: /api/vendor/addon-library* and .../addons/:addonId/price-review
+// ==========================================
+
+export interface LibraryAddonService {
+  serviceId: string;
+  serviceName: string;
+  serviceStatus: string;
+  addonId: string; // the service's own add-on id (what bookings use)
+  priceCents: number;
+  isActive: boolean;
+  priceSynced: boolean;
+  needsPriceReview: boolean;
+}
+
+export interface LibraryAddon {
+  id: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  durationMinutes: number;
+  isActive: boolean;
+  sortOrder: number;
+  services: LibraryAddonService[];
+}
+
+export interface LibraryAddonFields {
+  name: string;
+  description: string | null;
+  priceCents: number;
+  durationMinutes: number;
+}
+
+export interface LibraryAttachResult {
+  added: string[];
+  skipped: { serviceId: string; reason: "archived" | "already_added" | "limit" }[];
+}
+
+export async function getAddonLibrary(token: string): Promise<LibraryAddon[]> {
+  const response: any = await apiGet("/api/vendor/addon-library", token);
+  return Array.isArray(response?.addons) ? response.addons : [];
+}
+
+export async function createLibraryAddon(token: string, fields: LibraryAddonFields): Promise<LibraryAddon> {
+  const response: any = await apiPost("/api/vendor/addon-library", fields, token);
+  if (!response?.addon) throw new Error("Unexpected response from server");
+  return response.addon;
+}
+
+export async function updateLibraryAddon(
+  token: string,
+  libraryId: string,
+  fields: Partial<LibraryAddonFields>
+): Promise<{ updatedServiceIds: string[]; customPriceServices: { serviceId: string; serviceName: string; priceCents: number }[] }> {
+  const response: any = await apiPatch(`/api/vendor/addon-library/${libraryId}`, fields, token);
+  return {
+    updatedServiceIds: Array.isArray(response?.updatedServiceIds) ? response.updatedServiceIds : [],
+    customPriceServices: Array.isArray(response?.customPriceServices) ? response.customPriceServices : [],
+  };
+}
+
+export async function deleteLibraryAddon(token: string, libraryId: string): Promise<{ removedFromServiceIds: string[] }> {
+  const response: any = await apiDelete(`/api/vendor/addon-library/${libraryId}`, token);
+  return { removedFromServiceIds: Array.isArray(response?.removedFromServiceIds) ? response.removedFromServiceIds : [] };
+}
+
+export async function setLibraryAddonActive(
+  token: string,
+  libraryId: string,
+  isActive: boolean,
+  serviceIds: string[]
+): Promise<void> {
+  await apiPost(`/api/vendor/addon-library/${libraryId}/active`, { isActive, serviceIds }, token);
+}
+
+export async function attachLibraryAddon(token: string, libraryId: string, serviceIds: string[]): Promise<LibraryAttachResult> {
+  const response: any = await apiPost(`/api/vendor/addon-library/${libraryId}/services`, { serviceIds }, token);
+  return {
+    added: Array.isArray(response?.added) ? response.added : [],
+    skipped: Array.isArray(response?.skipped) ? response.skipped : [],
+  };
+}
+
+export async function reviewServiceAddonPrice(
+  token: string,
+  serviceId: string,
+  addonId: string,
+  action: "sync" | "keep"
+): Promise<void> {
+  await apiPost(`/api/vendor/services/${serviceId}/addons/${addonId}/price-review`, { action }, token);
 }
 
 // ==========================================

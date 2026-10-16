@@ -46,6 +46,8 @@ import api, {
   createServiceAddon,
   updateServiceAddon,
   deleteServiceAddon,
+  attachLibraryAddon,
+  reviewServiceAddonPrice,
 } from "@/services/api";
 import VariantBuilderSection from "@/components/products/VariantBuilderSection";
 import { RootStackParamList } from "@/navigation/types";
@@ -63,11 +65,14 @@ import { availabilityEvents } from "@/services/availabilityEvents";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
 import { formatDuration, joinMinutes, splitMinutes } from "@/utils/duration";
+import AddonLibraryTab from "@/components/addons/AddonLibraryTab";
+import { readableApiError } from "@/utils/apiError";
+import { money } from "@/utils/addonLibrary";
 
 // The backend rejects vendor service durations under 5 minutes.
 const MIN_SERVICE_DURATION_MINUTES = 5;
 
-type TabType = "branding" | "profile" | "hours" | "products" | "services";
+type TabType = "branding" | "profile" | "hours" | "products" | "services" | "addons";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
 
 const RESPONSE_TIME_VALUES = [1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60];
@@ -348,6 +353,7 @@ export default function StorefrontEditorScreen() {
   const [addonError, setAddonError] = useState<string | null>(null);
   // "Add to other services": one-time copies of a saved add-on (copies don't sync later edits)
   const [copyAddonSource, setCopyAddonSource] = useState<ServiceAddon | null>(null);
+  const [priceReviewBusy, setPriceReviewBusy] = useState<string | null>(null);
   const [copyTargetIds, setCopyTargetIds] = useState<string[]>([]);
   const [copyingAddon, setCopyingAddon] = useState(false);
   // Shown inline under the list right after a new add-on is saved: "Use it on your other services too?"
@@ -2898,6 +2904,24 @@ export default function StorefrontEditorScreen() {
     setCopyTargetIds(copyTargetServices.map((svc) => svc.id));
   };
 
+  // Answer to "Your add-on price is now $X" for this service (Use = follow the library again).
+  const handleAddonPriceReview = async (addon: ServiceAddon, action: "sync" | "keep") => {
+    const serviceId = editingService?.id;
+    if (!serviceId) return;
+    const token = await getToken();
+    if (!token) return;
+    setPriceReviewBusy(addon.id);
+    try {
+      await reviewServiceAddonPrice(token, serviceId, addon.id, action);
+      const fresh = await getServiceAddons(token, serviceId);
+      setServiceAddons(fresh.slice().sort((a, b) => a.sortOrder - b.sortOrder));
+    } catch (e) {
+      Alert.alert("Couldn't update the price", readableApiError(e));
+    } finally {
+      setPriceReviewBusy(null);
+    }
+  };
+
   const handleCopyAddon = async () => {
     const source = copyAddonSource;
     if (!source || copyTargetIds.length === 0) return;
@@ -2909,8 +2933,21 @@ export default function StorefrontEditorScreen() {
     const atLimit: string[] = [];
     const failed: string[] = [];
     const sourceName = source.name.trim().toLowerCase();
-    // One at a time so a failure on one service doesn't stop the rest.
-    for (const targetId of copyTargetIds) {
+    const labelOf = (id: string) => services.find((svc) => svc.id === id)?.name || "Service";
+    if (source.businessAddonId) {
+      // In the add-on library: attach the library add-on, so every copy follows
+      // later changes made in the Add-ons tab (backend skips duplicates and the 20 limit).
+      try {
+        const result = await attachLibraryAddon(token, source.businessAddonId, copyTargetIds);
+        result.added.forEach((id) => added.push(labelOf(id)));
+        result.skipped.forEach((x) => (x.reason === "limit" ? atLimit : alreadyHas).push(labelOf(x.serviceId)));
+      } catch {
+        copyTargetIds.forEach((id) => failed.push(labelOf(id)));
+      }
+    }
+    // Not in the library (older add-ons): copy one service at a time so a failure
+    // on one doesn't stop the rest.
+    for (const targetId of source.businessAddonId ? [] : copyTargetIds) {
       const target = services.find((svc) => svc.id === targetId);
       const label = target?.name || "Service";
       try {
@@ -3192,6 +3229,28 @@ export default function StorefrontEditorScreen() {
                     <Text style={{ color: theme.brandTextDim, fontSize: 12 }}>
                       ${(addon.priceCents / 100).toFixed(2)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
                     </Text>
+                    {addon.needsPriceReview && addon.libraryPriceCents != null && editingService?.id ? (
+                      <View style={{ marginTop: 6 }}>
+                        <Text style={{ color: theme.brandCream, fontSize: 12, marginBottom: 6 }}>
+                          Your add-on price is now {money(addon.libraryPriceCents)}. This service charges {money(addon.priceCents)}.
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          {(["sync", "keep"] as const).map((action) => (
+                            <Pressable
+                              key={action}
+                              disabled={priceReviewBusy === addon.id}
+                              onPress={() => handleAddonPriceReview(addon, action)}
+                              style={{ paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: action === "sync" ? theme.brandGold : theme.brandSurfaceBorder, opacity: priceReviewBusy === addon.id ? 0.6 : 1 }}
+                              accessibilityRole="button"
+                            >
+                              <Text style={{ color: action === "sync" ? theme.brandGold : theme.brandTextDim, fontSize: 12, fontWeight: "600" }}>
+                                {action === "sync" ? `Use ${money(addon.libraryPriceCents ?? 0)}` : `Keep ${money(addon.priceCents)}`}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    ) : null}
                     {copyTargetServices.length > 0 ? (
                       <Pressable
                         onPress={() => openCopySheet(addon)}
@@ -3814,8 +3873,7 @@ export default function StorefrontEditorScreen() {
                     }
                     setAddonModalVisible(false);
                   } catch (e: any) {
-                    const msg = e?.body?.message || e?.message || "Failed to save add-on";
-                    setAddonError(msg);
+                    setAddonError(e?.body?.message || readableApiError(e, "Failed to save add-on"));
                   } finally {
                     setAddonSaving(false);
                   }
@@ -3917,7 +3975,7 @@ export default function StorefrontEditorScreen() {
               })}
             </ScrollView>
             <Text style={{ color: theme.brandTextDim, fontSize: 12, marginBottom: 16 }}>
-              Each service gets its own copy. Changing this add-on later won't change the copies.
+              {"It comes from your add-ons, so changes you make in the Add-ons tab reach every service it's on."}
             </Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Pressable
@@ -3957,6 +4015,7 @@ export default function StorefrontEditorScreen() {
     { key: "hours", icon: "clock", label: "Hours" },
     { key: "products", icon: "package", label: "Products" },
     { key: "services", icon: "briefcase", label: "Services" },
+    { key: "addons", icon: "plus-circle", label: "Add-ons" },
   ];
 
   const getApprovalBannerConfig = () => {
@@ -4141,6 +4200,7 @@ export default function StorefrontEditorScreen() {
       {activeTab === "hours" && renderHoursTab()}
       {activeTab === "products" && renderProductsTab()}
       {activeTab === "services" && renderServicesTab()}
+      {activeTab === "addons" && <AddonLibraryTab services={services} getToken={getToken} />}
 
       {renderProductModal()}
       {renderServiceModal()}
