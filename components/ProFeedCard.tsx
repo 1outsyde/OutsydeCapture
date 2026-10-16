@@ -15,6 +15,7 @@ import StoryRing from "@/components/StoryRing";
 import { sendClickEvent } from "@/services/referral";
 import { promptForReportReason } from "@/utils/moderationActions";
 import { StarDisplay } from "@/components/ratings";
+import { PostMediaCarousel } from "@/components/PostMediaCarousel";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 0.85;
@@ -138,6 +139,7 @@ export function ProFeedCard({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [menuVisible, setMenuVisible] = useState(false);
   const hasVideo = post.videoUrl && post.videoUrl.length > 0;
+  const hasMultiplePhotos = !hasVideo && Array.isArray(post.mediaImages) && post.mediaImages.length > 1;
   const hasCommerce = post.serviceId || post.productId;
   
   const isOwner = currentUserId && (post.userId === currentUserId || post.authorId === currentUserId);
@@ -382,6 +384,8 @@ export function ProFeedCard({
             muted={muted}
             onToggleMute={onToggleMute}
           />
+        ) : hasMultiplePhotos ? (
+          <PostMediaCarousel images={post.mediaImages!} height={mediaHeight} />
         ) : (
           <Image
             source={{ uri: post.image }}

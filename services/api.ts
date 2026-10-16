@@ -242,6 +242,14 @@ export interface ApiMessage {
   createdAt: string;
 }
 
+export interface PostMediaItem {
+  url: string;
+  type: "image";
+  width?: number;
+  height?: number;
+  aspectRatio?: number;
+}
+
 export interface ApiPost {
   id: string;
   userId?: string;
@@ -259,6 +267,8 @@ export interface ApiPost {
   images?: string[];
   videoUrl?: string;
   mediaUrl?: string; // Added: alternative field name from backend (snake_case → camelCase)
+  // Multi-photo posts (backend migration 045): ordered photos; [] or absent = single media (mediaUrl).
+  mediaItems?: PostMediaItem[];
   taggedBusinessId?: string;
   taggedPhotographerId?: string;
   aspectRatio?: number;
@@ -3935,6 +3945,8 @@ class ApiService {
     serviceId?: string;
     displayLayout?: "pro" | "pulse";
     feedSurface?: "pro" | "pulse";
+    // Multi-photo posts: 2-10 photos (photos only). Send imageUrl = first URL too.
+    mediaItems?: PostMediaItem[];
   }): Promise<{ post: ApiPost }> {
     // DEBUG: Log exactly what we're sending to the backend
     console.log("[API.createPost] ===== SENDING TO BACKEND =====");

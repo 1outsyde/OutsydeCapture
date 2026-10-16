@@ -53,6 +53,12 @@ const fetchLatestPhotoUri = async (): Promise<string | null> => {
   }
 };
 
+const MAX_POST_PHOTOS = 10;
+type PickedImage = { uri: string; width?: number; height?: number };
+
+const isVideoAsset = (asset: ImagePicker.ImagePickerAsset) =>
+  asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
+
 export default function CreatePostScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -60,6 +66,9 @@ export default function CreatePostScreen() {
   const { user, getToken } = useAuth();
 
   const [postImage, setPostImage] = useState<string>("");
+  // Multi-photo posts: 2-10 photos picked from the library (photos only). Empty = single media (postImage).
+  const [pickedImages, setPickedImages] = useState<PickedImage[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [postCaption, setPostCaption] = useState("");
   const [postLayout, setPostLayout] = useState<"pro" | "pulse" | null>(null);
   const [postSaving, setPostSaving] = useState(false);
@@ -89,6 +98,7 @@ export default function CreatePostScreen() {
     setMode(newMode);
     setStep(1);
     setPostImage("");
+    setPickedImages([]);
     setPostCaption("");
     setSelectedAttach(null);
   };
@@ -189,19 +199,61 @@ export default function CreatePostScreen() {
       Alert.alert("Permission Required", "Please allow access to your photo library.");
       return;
     }
+    // Multi-select: cropping is not available while selecting several items (expo-image-picker),
+    // so the picker no longer crops; the feed card already crops photos to fill.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_POST_PHOTOS,
+      orderedSelection: true,
       quality: 0.8,
     });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
+    if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+    const assets = result.assets;
+    if (assets.length === 1) {
+      // Single photo or video: same post as before.
+      const asset = assets[0];
+      setPickedImages([]);
       setPostImage(asset.uri);
-      const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
-      setPostLayout(isVideo ? "pulse" : "pro");
+      setPostLayout(isVideoAsset(asset) ? "pulse" : "pro");
       setStep(2);
+      return;
     }
+
+    // Several items: photos only for now.
+    const photos = assets.filter((a) => !isVideoAsset(a)).slice(0, MAX_POST_PHOTOS);
+    if (photos.length < assets.length) {
+      Alert.alert(
+        "Photos only",
+        "Posts with several items can only contain photos for now, so the videos were left out.",
+      );
+    }
+    if (photos.length === 0) return;
+
+    setPickedImages(
+      photos.length > 1
+        ? photos.map((a) => ({ uri: a.uri, width: a.width || undefined, height: a.height || undefined }))
+        : [],
+    );
+    setPostImage(photos[0].uri);
+    setPostLayout("pro");
+    setStep(2);
+  };
+
+  const handleRemovePickedImage = (index: number) => {
+    const remaining = pickedImages.filter((_, i) => i !== index);
+    if (remaining.length <= 1) {
+      setPickedImages([]);
+      setPostImage(remaining[0]?.uri ?? "");
+      if (remaining.length === 0) {
+        setPostLayout(null);
+        setStep(1);
+      }
+      return;
+    }
+    setPickedImages(remaining);
+    setPostImage(remaining[0].uri);
   };
 
   const handlePickStoryMedia = async () => {
@@ -233,6 +285,7 @@ export default function CreatePostScreen() {
     }
     const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
     if (photo?.uri) {
+      setPickedImages([]);
       setPostImage(photo.uri);
       setPostLayout("pro");
       setStep(2);
@@ -260,6 +313,7 @@ export default function CreatePostScreen() {
       return;
     }
     if (mode === "post") {
+      setPickedImages([]);
       setPostImage(result.uri);
       setPostLayout("pulse");
       setStep(2);
@@ -307,6 +361,7 @@ export default function CreatePostScreen() {
         productId?: string;
         serviceId?: string;
         photographerServiceId?: string;
+        mediaItems?: { url: string; type: "image"; width?: number; height?: number; aspectRatio?: number }[];
       } = {
         content: postCaption.trim() || " ",
         displayLayout: postLayout,
@@ -317,6 +372,37 @@ export default function CreatePostScreen() {
         if (!uploadResult.uploadId) throw new Error("Failed to upload video. Please try again.");
         postData.videoUrl = uploadResult.uploadId;
         postData.mediaType = "video";
+      } else if (pickedImages.length > 1 && pickedImages[0].uri === postImage) {
+        // Multi-photo post: upload every photo (3 at a time), then create the post once.
+        // Nothing is created unless every upload succeeds.
+        const total = pickedImages.length;
+        const urls: string[] = new Array(total);
+        const queue = pickedImages.map((photo, index) => ({ photo, index }));
+        let done = 0;
+        setUploadProgress(`Uploading 0 of ${total}`);
+        const worker = async () => {
+          while (queue.length > 0) {
+            const next = queue.shift()!;
+            const result = await uploadImage(next.photo.uri, "image/jpeg", "posts", authToken);
+            if (!result.url) throw new Error("Failed to upload a photo. Please try again.");
+            urls[next.index] = result.url;
+            done += 1;
+            setUploadProgress(`Uploading ${done} of ${total}`);
+          }
+        };
+        await Promise.all([worker(), worker(), worker()]);
+        postData.imageUrl = urls[0]; // older backends still create a valid one-photo post
+        postData.mediaItems = pickedImages.map((photo, i) => ({
+          url: urls[i],
+          type: "image" as const,
+          ...(photo.width && photo.height
+            ? {
+                width: Math.round(photo.width),
+                height: Math.round(photo.height),
+                aspectRatio: photo.width / photo.height,
+              }
+            : {}),
+        }));
       } else {
         const uploadResult = await uploadImage(postImage, "image/jpeg", "posts", authToken);
         if (!uploadResult.url) throw new Error("Failed to upload image. Please try again.");
@@ -329,6 +415,7 @@ export default function CreatePostScreen() {
       }
       await apiClient.createPost(authToken, postData);
       setPostImage("");
+      setPickedImages([]);
       setPostCaption("");
       setPostLayout(null);
       feedEvents.emitRefresh(isVideo ? "pulse" : "pro");
@@ -342,6 +429,7 @@ export default function CreatePostScreen() {
       Alert.alert("Error", error.message || "Failed to create post. Please try again.");
     } finally {
       setPostSaving(false);
+      setUploadProgress(null);
     }
   };
 
@@ -392,6 +480,7 @@ export default function CreatePostScreen() {
 
   const handleClose = () => {
     setPostImage("");
+    setPickedImages([]);
     setPostCaption("");
     setPostLayout(null);
     setStep(1);
@@ -439,7 +528,13 @@ export default function CreatePostScreen() {
       ]}
     >
       {postSaving ? (
-        <ActivityIndicator size="small" color={theme.brandPrimaryText} />
+        uploadProgress ? (
+          <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
+            {uploadProgress}
+          </ThemedText>
+        ) : (
+          <ActivityIndicator size="small" color={theme.brandPrimaryText} />
+        )
       ) : (
         <ThemedText type="button" style={{ color: theme.brandPrimaryText }}>
           Share Post
@@ -488,7 +583,7 @@ export default function CreatePostScreen() {
                     />
                   )}
                   <Pressable
-                    onPress={() => { setPostImage(""); setPostLayout(null); }}
+                    onPress={() => { setPostImage(""); setPickedImages([]); setPostLayout(null); }}
                     style={styles.retakeButton}
                     hitSlop={12}
                   >
@@ -612,6 +707,41 @@ export default function CreatePostScreen() {
 
       {step === 2 && mode === "post" && (
         <>
+          {pickedImages.length > 1 ? (
+            <View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.pickedStrip}
+              >
+                {pickedImages.map((photo, index) => (
+                  <View
+                    key={`${photo.uri}-${index}`}
+                    style={[
+                      styles.pickedThumb,
+                      { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+                    ]}
+                  >
+                    <Image source={{ uri: photo.uri }} style={styles.mediaPreview} contentFit="cover" />
+                    <View style={styles.pickedIndex}>
+                      <ThemedText type="caption" style={{ color: "#fff" }}>{index + 1}</ThemedText>
+                    </View>
+                    <Pressable
+                      onPress={() => handleRemovePickedImage(index)}
+                      style={styles.pickedRemove}
+                      hitSlop={10}
+                      disabled={postSaving}
+                    >
+                      <Feather name="x" size={14} color="#fff" />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+              <ThemedText type="caption" style={[styles.pickedCount, { color: theme.brandTextDim }]}>
+                {pickedImages.length} photos
+              </ThemedText>
+            </View>
+          ) : (
           <View
             style={[
               styles.detailsThumbnail,
@@ -629,6 +759,7 @@ export default function CreatePostScreen() {
               <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
             )}
           </View>
+          )}
 
           <ScreenKeyboardAwareScrollView contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}>
             <TextInput
@@ -862,6 +993,45 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
+  },
+  pickedStrip: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  pickedThumb: {
+    height: 120,
+    width: 120,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  pickedIndex: {
+    position: "absolute",
+    left: 6,
+    top: 6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickedRemove: {
+    position: "absolute",
+    right: 6,
+    top: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickedCount: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
   },
   detailsThumbnail: {
     marginHorizontal: Spacing.lg,
