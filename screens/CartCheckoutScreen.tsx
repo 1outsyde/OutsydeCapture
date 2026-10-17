@@ -152,8 +152,9 @@ export default function CartCheckoutScreen() {
   // ─── Price computation ────────────────────────────────────────────────────
   const clientServiceFee = useMemo(() => (subtotal / 100) * 0.08, [subtotal]);
 const clientTotal = useMemo(() => (subtotal / 100) * 1.08, [subtotal]);
-const clientPointsRate = 0.04; // matches backend points-earning rate, separate from the 8% consumer fee
-const clientPoints = useMemo(() => Math.round((subtotal / 100) * clientPointsRate * 100), [subtotal]);
+// Fallback until the backend fee breakdown arrives. Points are worth half the service fee
+// (4% of the subtotal) at 500 points per $1, so points = subtotal cents x 0.2 (backend loyaltyLedger.ts).
+const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
   const displayedSubtotal = backendFeeBreakdown ? backendFeeBreakdown.basePriceCents / 100 : subtotal / 100;
   const displayedServiceFee = backendFeeBreakdown ? backendFeeBreakdown.consumerUpchargeCents / 100 : clientServiceFee;
