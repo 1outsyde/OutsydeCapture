@@ -630,6 +630,49 @@ export interface ProductVariant {
 
 export interface VendorProductWithVariants extends VendorProduct {
   variants: ProductVariant[];
+  /** Product options (Length, Size, Color); empty for products without options. Backend #310. */
+  options?: ProductOption[];
+}
+
+// ── Product options (backend #310, migration 049) ─────────────────────────
+export interface ProductOptionValue {
+  value: string;
+  swatchHex?: string | null;
+}
+export interface ProductOption {
+  id: string;
+  productId: string;
+  position: number; // 1..3 → variant option1..option3
+  name: string;
+  values: ProductOptionValue[];
+}
+/** A variation as the vendor editor sees it (switched-off ones included). */
+export interface EditorVariant extends ProductVariant {
+  option1: string | null;
+  option2: string | null;
+  option3: string | null;
+  imageUrl: string | null;
+  /** false = no price of its own; priceCents then shows the product price */
+  hasOwnPrice: boolean;
+}
+export interface ProductOptionsResponse {
+  productPriceCents: number;
+  options: ProductOption[];
+  variants: EditorVariant[];
+}
+export interface SaveProductOptionsBody {
+  options: Array<{ name: string; values: ProductOptionValue[] }>;
+  variants: Array<{
+    id?: string;
+    option1?: string | null;
+    option2?: string | null;
+    option3?: string | null;
+    /** null = use the product's price */
+    priceCents: number | null;
+    inventory: number | null;
+    imageUrl?: string | null;
+    isActive: boolean;
+  }>;
 }
 
 export interface LocalVariant {
@@ -3258,6 +3301,26 @@ class ApiService {
     return this.request<{ success: boolean }>(
       `/api/business/products/${productId}/variants/${variantId}`,
       { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+  }
+
+  /** Vendor: options + every variation (switched-off too). Backend #310. */
+  async getProductOptions(authToken: string, productId: string): Promise<ProductOptionsResponse> {
+    return this.request<ProductOptionsResponse>(
+      `/api/business/products/${productId}/options`,
+      { method: 'GET', headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+  }
+
+  /** Vendor: save options + the full variation list in one go. Left-out variations are switched off. */
+  async saveProductOptions(
+    authToken: string,
+    productId: string,
+    body: SaveProductOptionsBody,
+  ): Promise<ProductOptionsResponse> {
+    return this.request<ProductOptionsResponse>(
+      `/api/business/products/${productId}/options`,
+      { method: 'PUT', body: JSON.stringify(body), headers: { 'Authorization': `Bearer ${authToken}` } }
     );
   }
 
