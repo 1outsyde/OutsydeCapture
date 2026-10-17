@@ -364,7 +364,6 @@ const AvatarWithInitials = ({
         </View>
       )}
     </View>
-    <View style={styles.onlineDot} />
   </View>
 );
 
@@ -3196,17 +3195,6 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     fontSize: 28,
     fontWeight: "800",
-  },
-  onlineDot: {
-    position: "absolute",
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    right: 2,
-    bottom: 2,
-    backgroundColor: "#22c55e",
-    borderWidth: 2,
-    borderColor: COLORS.black,
   },
   editProfileButton: {
     borderRadius: 22,
