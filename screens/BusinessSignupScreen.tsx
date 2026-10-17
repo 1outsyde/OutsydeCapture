@@ -16,22 +16,15 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api, { API_BASE_URL } from "@/services/api";
+import api, { API_BASE_URL, type BusinessTaxonomy, type TaxonomySpecialty } from "@/services/api";
 import UsernameField from "@/components/UsernameField";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const BUSINESS_CATEGORIES = [
-  "Food & Dining",
-  "Beauty & Hair",
-  "Art & Design",
-  "Health & Wellness",
-  "Fashion & Apparel",
-  "Home Services",
-  "Events & Entertainment",
-  "Retail & Shopping",
-  "Professional Services",
-];
+// Industries come from the shared list (GET /api/taxonomy/business-categories), the same
+// list goutsyde.com uses. Codes are stored by the backend and never change.
+const OTHER_DESCRIPTION_MAX = 500;
+const isOtherCode = (code: string) => code === "other" || code.endsWith(".other");
 
 const OFFER_TYPES = [
   { id: "products", name: "Products Only", description: "I sell physical or digital products" },
@@ -114,6 +107,7 @@ export default function BusinessSignupScreen() {
   }, [prefillName]);
 
   const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
+  const [profilePhotoMimeType, setProfilePhotoMimeType] = useState<string | undefined>(undefined);
 
   const handlePickProfilePhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -126,16 +120,82 @@ export default function BusinessSignupScreen() {
     });
     if (!result.canceled) {
       setProfilePhotoUri(result.assets[0].uri);
+      setProfilePhotoMimeType(result.assets[0].mimeType ?? undefined);
     }
   };
 
   const [businessName, setBusinessName] = useState("");
-  const [businessCategory, setBusinessCategory] = useState("");
+  // Industry (shared list)
+  const [taxonomy, setTaxonomy] = useState<BusinessTaxonomy | null>(null);
+  const [taxonomyError, setTaxonomyError] = useState(false);
+  const [categoryCode, setCategoryCode] = useState("");
+  const [businessSpecialties, setBusinessSpecialties] = useState<string[]>([]);
+  const [otherDescription, setOtherDescription] = useState("");
+
+  const loadTaxonomy = async (isCancelled: () => boolean = () => false) => {
+    try {
+      const data = await api.getBusinessTaxonomy();
+      if (isCancelled()) return;
+      if (data && Array.isArray(data.categories)) {
+        setTaxonomy(data);
+        setTaxonomyError(false);
+      } else {
+        setTaxonomyError(true);
+      }
+    } catch {
+      if (!isCancelled()) setTaxonomyError(true);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    loadTaxonomy(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedCategory = taxonomy?.categories.find((c) => c.code === categoryCode);
+  // Readable label (shown on review / pending screens and sent as businessCategory).
+  const businessCategory = selectedCategory?.label ?? "";
+  const maxSpecialties = taxonomy?.maxSpecialties ?? 3;
+  const needsOtherDescription = categoryCode === "other" || businessSpecialties.some(isOtherCode);
   const [businessDescription, setBusinessDescription] = useState("");
 
   const [offerType, setOfferType] = useState<"products" | "services" | "both" | "">("");
   const [isStartup, setIsStartup] = useState(false);
   const [isMultiStaff, setIsMultiStaff] = useState(false);
+
+  // "What do you do?" choices for the chosen industry, filtered by what the business offers.
+  const specialtiesForOffer = (offer: typeof offerType): TaxonomySpecialty[] => {
+    if (!selectedCategory || !offer) return [];
+    return selectedCategory.specialties.filter((sp) =>
+      offer === "both" ? true : offer === "services" ? sp.kind === "service" : sp.kind === "product",
+    );
+  };
+  const availableSpecialties = specialtiesForOffer(offerType);
+
+  const chooseCategory = (code: string) => {
+    if (code === categoryCode) return;
+    setCategoryCode(code);
+    setBusinessSpecialties([]);
+  };
+
+  const chooseOffer = (next: "products" | "services" | "both") => {
+    setOfferType(next);
+    if (next === "products") setIsMultiStaff(false);
+    // Drop picks that no longer fit (e.g. product picks after switching to services only).
+    const allowed = new Set(specialtiesForOffer(next).map((sp) => sp.code));
+    setBusinessSpecialties((prev) => prev.filter((c) => allowed.has(c)));
+  };
+
+  const toggleSpecialty = (code: string) => {
+    setBusinessSpecialties((prev) => {
+      if (prev.includes(code)) return prev.filter((c) => c !== code);
+      if (prev.length >= maxSpecialties) return prev;
+      return [...prev, code];
+    });
+  };
 
   const [yearsInBusiness, setYearsInBusiness] = useState("");
   const [employeeCount, setEmployeeCount] = useState("");
@@ -203,14 +263,25 @@ export default function BusinessSignupScreen() {
         }
         return true;
       case 2:
-        if (!businessName.trim() || !businessCategory) {
-          Alert.alert("Error", "Please enter business name and select a category");
+        if (!businessName.trim() || !selectedCategory) {
+          Alert.alert(
+            "Error",
+            taxonomyError ? "We couldn't load the industry list. Please try again." : "Please enter business name and select your industry",
+          );
           return false;
         }
         return true;
       case 3:
         if (!offerType) {
           Alert.alert("Error", "Please select what you offer");
+          return false;
+        }
+        if (categoryCode !== "other" && businessSpecialties.length === 0) {
+          Alert.alert("Error", "Please choose at least one thing you do");
+          return false;
+        }
+        if (needsOtherDescription && !otherDescription.trim()) {
+          Alert.alert("Error", "Please tell us what your business does");
           return false;
         }
         return true;
@@ -290,7 +361,8 @@ export default function BusinessSignupScreen() {
   const handleSubmit = async () => {
     const logoImage =
       profilePhotoUri && /^https?:\/\//i.test(profilePhotoUri) ? profilePhotoUri : null;
-    // TODO: Upload local device URIs and send the hosted URL instead of null.
+    // A logo picked on the device is uploaded right after the account exists (AuthContext.signup).
+    const logoLocalUri = profilePhotoUri && !logoImage ? profilePhotoUri : undefined;
 
     const businessDetailsPayload = {
       phone: phone.replace(/\D/g, ""),
@@ -347,6 +419,11 @@ export default function BusinessSignupScreen() {
       socialMedia: businessDetailsPayload.socialMedia,
       vendorAgreementAccepted: agreementChecked,
       vendorAgreementAcceptedAt: new Date().toISOString(),
+      categoryCode,
+      businessSpecialties,
+      otherDescription: needsOtherDescription ? otherDescription.trim() : undefined,
+      logoLocalUri,
+      logoMimeType: profilePhotoMimeType,
     });
 
     if (result.success) {
@@ -598,29 +675,41 @@ export default function BusinessSignupScreen() {
             </View>
 
             <View style={styles.field}>
-              <ThemedText type="small" style={styles.label}>Category *</ThemedText>
-              <View style={styles.categoryGrid}>
-                {BUSINESS_CATEGORIES.map((cat) => (
-                  <Pressable
-                    key={cat}
-                    onPress={() => setBusinessCategory(cat)}
-                    style={[
-                      styles.categoryButton,
-                      {
-                        backgroundColor: businessCategory === cat ? theme.primary : theme.backgroundDefault,
-                        borderColor: businessCategory === cat ? theme.primary : theme.border,
-                      },
-                    ]}
-                  >
-                    <ThemedText
-                      type="small"
-                      style={{ color: businessCategory === cat ? "#FFFFFF" : theme.text }}
+              <ThemedText type="small" style={styles.label}>Industry *</ThemedText>
+              {taxonomyError ? (
+                <Pressable onPress={() => { setTaxonomyError(false); loadTaxonomy(); }}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                    {"We couldn't load the industry list. Tap to try again."}
+                  </ThemedText>
+                </Pressable>
+              ) : !taxonomy ? (
+                <ActivityIndicator color={theme.primary} style={{ alignSelf: "flex-start", marginTop: Spacing.sm }} />
+              ) : (
+                <View style={styles.categoryGrid}>
+                  {taxonomy.categories.map((cat) => (
+                    <Pressable
+                      key={cat.code}
+                      onPress={() => chooseCategory(cat.code)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: categoryCode === cat.code }}
+                      style={[
+                        styles.categoryButton,
+                        {
+                          backgroundColor: categoryCode === cat.code ? theme.primary : theme.backgroundDefault,
+                          borderColor: categoryCode === cat.code ? theme.primary : theme.border,
+                        },
+                      ]}
                     >
-                      {cat}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </View>
+                      <ThemedText
+                        type="small"
+                        style={{ color: categoryCode === cat.code ? "#FFFFFF" : theme.text }}
+                      >
+                        {cat.label}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.field}>
@@ -649,13 +738,7 @@ export default function BusinessSignupScreen() {
               {OFFER_TYPES.map((offer) => (
                 <Pressable
                   key={offer.id}
-                  onPress={() => {
-                    const nextOfferType = offer.id as "products" | "services" | "both";
-                    setOfferType(nextOfferType);
-                    if (nextOfferType === "products") {
-                      setIsMultiStaff(false);
-                    }
-                  }}
+                  onPress={() => chooseOffer(offer.id as "products" | "services" | "both")}
                   style={[
                     styles.offerCard,
                     {
@@ -676,6 +759,73 @@ export default function BusinessSignupScreen() {
                 </Pressable>
               ))}
             </View>
+
+            {selectedCategory && selectedCategory.code !== "other" && offerType ? (
+              <View style={[styles.field, { marginTop: Spacing.xl }]}>
+                <ThemedText type="small" style={styles.label}>
+                  What do you do? * (pick up to {maxSpecialties})
+                </ThemedText>
+                {(offerType === "both"
+                  ? [
+                      { title: "Services", list: availableSpecialties.filter((sp) => sp.kind === "service") },
+                      { title: "Products", list: availableSpecialties.filter((sp) => sp.kind === "product") },
+                    ]
+                  : [{ title: "", list: availableSpecialties }]
+                ).map((group) => (
+                  <View key={group.title || "all"}>
+                    {group.title ? (
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
+                        {group.title}
+                      </ThemedText>
+                    ) : null}
+                    <View style={styles.categoryGrid}>
+                      {group.list.map((sp) => {
+                        const active = businessSpecialties.includes(sp.code);
+                        const full = !active && businessSpecialties.length >= maxSpecialties;
+                        return (
+                          <Pressable
+                            key={sp.code}
+                            onPress={() => toggleSpecialty(sp.code)}
+                            disabled={full}
+                            accessibilityState={{ selected: active, disabled: full }}
+                            style={[
+                              styles.categoryButton,
+                              {
+                                backgroundColor: active ? theme.primary : theme.backgroundDefault,
+                                borderColor: active ? theme.primary : theme.border,
+                                opacity: full ? 0.4 : 1,
+                              },
+                            ]}
+                          >
+                            <ThemedText type="small" style={{ color: active ? "#FFFFFF" : theme.text }}>
+                              {sp.label}
+                            </ThemedText>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            {needsOtherDescription ? (
+              <View style={[styles.field, { marginTop: Spacing.lg }]}>
+                <ThemedText type="small" style={styles.label}>Tell us what you do *</ThemedText>
+                <TextInput
+                  style={[inputStyle, { height: 100, textAlignVertical: "top", paddingTop: Spacing.md }]}
+                  value={otherDescription}
+                  onChangeText={(t) => setOtherDescription(t.slice(0, OTHER_DESCRIPTION_MAX))}
+                  placeholder="Describe your business in your own words"
+                  placeholderTextColor={theme.textSecondary}
+                  maxLength={OTHER_DESCRIPTION_MAX}
+                  multiline
+                />
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+                  {otherDescription.length}/{OTHER_DESCRIPTION_MAX}
+                </ThemedText>
+              </View>
+            ) : null}
 
             <View style={[styles.switchRow, { marginTop: Spacing.xl }]}>
               <View style={styles.switchContent}>
@@ -698,8 +848,8 @@ export default function BusinessSignupScreen() {
                     Do multiple team members each take their own appointments?
                   </ThemedText>
                   <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                    Choose No if one person manages and approves all bookings for the team (e.g. barbers,
-                    stylists, or tattoo artists who each book their own clients).
+                    Choose Yes if each person books their own clients, like barbers or stylists in one shop.
+                    Choose No if one person manages all bookings.
                   </ThemedText>
                 </View>
                 <Switch
@@ -993,9 +1143,19 @@ export default function BusinessSignupScreen() {
                 <ThemedText type="body">@{username}</ThemedText>
               </View>
               <View style={styles.reviewRow}>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>Category</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>Industry</ThemedText>
                 <ThemedText type="body">{businessCategory}</ThemedText>
               </View>
+              {businessSpecialties.length > 0 ? (
+                <View style={styles.reviewRow}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>What You Do</ThemedText>
+                  <ThemedText type="body" style={{ flexShrink: 1, textAlign: "right" }}>
+                    {businessSpecialties
+                      .map((code) => selectedCategory?.specialties.find((sp) => sp.code === code)?.label ?? code)
+                      .join(", ")}
+                  </ThemedText>
+                </View>
+              ) : null}
               <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Offer Type</ThemedText>
                 <ThemedText type="body">{OFFER_TYPES.find(o => o.id === offerType)?.name}</ThemedText>

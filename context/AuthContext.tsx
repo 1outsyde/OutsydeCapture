@@ -12,6 +12,7 @@ import {
   clearAuthStorage,
 } from "../utils/tokenStorage";
 import { needsSetupFromLoginError, type NeedsSetup } from "@/utils/accountSetup";
+import { uploadImage } from "@/services/mediaUpload";
 
 export type UserRole = "consumer" | "business" | "photographer" | "staff";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
@@ -62,6 +63,31 @@ export interface User {
   subscriptionTier?: string;
 }
 
+/**
+ * Business signup with a logo (2026-10-17): upload, save as the business logo, then send the
+ * admin alert (the backend held it so the email shows the logo). The alert is attempted even
+ * if the upload or save fails. Never throws.
+ */
+async function finishBusinessSignupLogo(
+  businessId: string,
+  localUri: string,
+  mimeType: string | undefined,
+  accessToken: string | undefined,
+): Promise<void> {
+  if (accessToken) {
+    try {
+      const uploaded = await uploadImage(localUri, mimeType || "image/jpeg", "logos", accessToken);
+      if (uploaded?.url) {
+        await api.updateVendorMyBusiness(accessToken, { logoImage: uploaded.url });
+      }
+    } catch (err) {
+      console.warn("[Signup] Logo upload failed (signup still succeeded):", err);
+    }
+  }
+  // Without a token the vendor signup session cookie is used.
+  await api.notifyAdminOfBusinessApplication(businessId, accessToken);
+}
+
 export interface SignupData {
   firstName: string;
   lastName: string;
@@ -97,6 +123,13 @@ export interface SignupData {
   billingZip?: string;
   websiteUrl?: string;
   socialMedia?: string;
+  // Business industry from the shared list (2026-10-17)
+  categoryCode?: string;
+  businessSpecialties?: string[];
+  otherDescription?: string;
+  // Logo picked on the device: uploaded right after signup, then the admin alert is sent
+  logoLocalUri?: string;
+  logoMimeType?: string;
   username?: string;
   vendorAgreementAccepted?: boolean;
   vendorAgreementAcceptedAt?: string;
@@ -641,6 +674,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         billingZip: data.billingZip,
         websiteUrl: data.websiteUrl,
         socialMedia: data.socialMedia,
+        categoryCode: data.categoryCode,
+        businessSpecialties: data.businessSpecialties,
+        otherDescription: data.otherDescription,
+        deferAdminNotification: data.role === "business" && !!data.logoLocalUri ? true : undefined,
         // Consumer-specific fields
         gender: data.gender,
         ethnicity: data.ethnicity,
@@ -650,6 +687,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         industryValues: data.industryValues,
       });
       
+      // Logo picked at signup: upload it as the new owner, save it on the business, then send
+      // the admin alert the backend held back. Best effort: never fails the signup.
+      if (data.role === "business" && data.logoLocalUri && response.signupBusinessId) {
+        await finishBusinessSignupLogo(response.signupBusinessId, data.logoLocalUri, data.logoMimeType, response.accessToken);
+      }
+
       const backendUser = response.user;
       const newUser: User = {
         id: backendUser.id,

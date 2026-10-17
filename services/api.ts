@@ -764,10 +764,30 @@ export interface AdminBusinessDetailOwner {
   phone?: string;
 }
 
+// Every signup answer as labelled rows (backend server/adminApplicationDetails.ts), 2026-10-17.
+export interface AdminSignupDetailRow {
+  label: string;
+  value: string;
+  kind?: "text" | "image" | "link";
+}
+export interface AdminSignupDetails {
+  industry?: {
+    categoryCode: string | null;
+    categoryLabel: string | null;
+    specialties: { code: string; label: string; kind: "service" | "product" | null }[];
+    otherDescription: string | null;
+  };
+  offers?: string;
+  sections: { title: string; rows: AdminSignupDetailRow[] }[];
+}
+
 export interface AdminBusinessDetail {
   id: string;
   name: string;
   category: string;
+  /** What the backend actually returns for the website (`website` is never set). */
+  websiteUrl?: string | null;
+  signupDetails?: AdminSignupDetails;
   city: string;
   state: string;
   address?: string;
@@ -1239,6 +1259,8 @@ export interface MobileLoginRequest {
 }
 
 export interface MobileLoginResponse {
+  // Set by roleBasedSignupAndLogin for business signups only (not from the server)
+  signupBusinessId?: string;
   accessToken?: string; // JWT access token (1 hour expiry)
   refreshToken?: string; // JWT refresh token (7 day expiry)
   user: {
@@ -1305,6 +1327,13 @@ export interface MobileSignupRequest {
   phone?: string;
   dateOfBirth?: string;
   businessName?: string;
+  // Industry from the shared list (GET /api/taxonomy/business-categories), 2026-10-17
+  categoryCode?: string;
+  // Named apart from photographer `specialties`; sent to the backend as `specialties`.
+  businessSpecialties?: string[];
+  otherDescription?: string;
+  // Logo picked at signup: uploaded after the account exists (see AuthContext.signup)
+  deferAdminNotification?: boolean;
   businessCategory?: string;
   businessDescription?: string;
   logoImage?: string | null;
@@ -1407,6 +1436,12 @@ export interface VendorSignupRequest {
   username?: string;
   vendorAgreementAccepted?: boolean;
   vendorAgreementAcceptedAt?: string;
+  // Industry (backend validates against the shared list), 2026-10-17
+  categoryCode?: string;
+  specialties?: string[];
+  otherDescription?: string;
+  // true = the app sends the admin alert itself after uploading the logo
+  deferAdminNotification?: boolean;
 }
 
 export interface PhotographerSignupRequest {
@@ -1429,6 +1464,27 @@ export interface SessionSignupResponse {
     id: string;
     email: string;
   };
+  // Vendor signup returns the new business (used for the logo upload + admin alert)
+  business?: { id: string };
+}
+
+// Shared business industry list (backend shared/businessTaxonomy.ts), 2026-10-17.
+// Codes are stored and never change; labels may.
+export type TaxonomySpecialtyKind = "service" | "product";
+export interface TaxonomySpecialty {
+  code: string;
+  label: string;
+  kind: TaxonomySpecialtyKind;
+}
+export interface TaxonomyCategory {
+  code: string;
+  label: string;
+  specialties: TaxonomySpecialty[];
+}
+export interface BusinessTaxonomy {
+  version: number;
+  maxSpecialties: number;
+  categories: TaxonomyCategory[];
 }
 
 export interface UnifiedSearchResult {
@@ -1630,6 +1686,11 @@ class ApiService {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  /** Shared business industry list (public). Same list goutsyde.com uses. */
+  async getBusinessTaxonomy(): Promise<BusinessTaxonomy> {
+    return this.request<BusinessTaxonomy>("/api/taxonomy/business-categories", { method: "GET" });
   }
 
   async vendorSignup(data: VendorSignupRequest): Promise<SessionSignupResponse> {
@@ -1835,18 +1896,34 @@ class ApiService {
         username: data.username,
         vendorAgreementAccepted: data.vendorAgreementAccepted ?? true,
         vendorAgreementAcceptedAt: data.vendorAgreementAcceptedAt ?? new Date().toISOString(),
+        categoryCode: data.categoryCode,
+        specialties: data.businessSpecialties,
+        otherDescription: data.otherDescription,
+        deferAdminNotification: data.deferAdminNotification === true ? true : undefined,
       };
       console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
-      await this.vendorSignup(vendorPayload);
-      
-      // Login to get JWT (backend already notifies admins during signup)
+      const signupResponse = await this.vendorSignup(vendorPayload);
+      const signupBusinessId = signupResponse?.business?.id;
+
+      // Login to get JWT. The backend notifies admins during signup, unless the app deferred it
+      // to upload the logo first (AuthContext.signup sends it after the upload).
       console.log("[Signup] Business created, logging in to get JWT...");
-      const loginResponse = await this.mobileLogin({
-        email: data.email,
-        password: data.password,
-      });
-      
-      return loginResponse;
+      let loginResponse: MobileLoginResponse;
+      try {
+        loginResponse = await this.mobileLogin({
+          email: data.email,
+          password: data.password,
+        });
+      } catch (err) {
+        // The account exists but login failed: never leave a deferred admin alert unsent.
+        // The vendor signup set a session cookie, which the notify route accepts.
+        if (data.deferAdminNotification === true && signupBusinessId) {
+          await this.notifyAdminOfBusinessApplication(signupBusinessId);
+        }
+        throw err;
+      }
+
+      return { ...loginResponse, signupBusinessId };
     } else if (data.role === "photographer") {
       // Ensure hourlyRate is a valid positive number
       const rawHourlyRate = data.hourlyRate;

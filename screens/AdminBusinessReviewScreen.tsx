@@ -162,6 +162,16 @@ export default function AdminBusinessReviewScreen() {
     }
   };
 
+  /** Only http(s) links/images from signup answers are opened or loaded. */
+  const safeHttpUrl = (value: string): string | null => {
+    try {
+      const u = new URL(value);
+      return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+    } catch {
+      return null;
+    }
+  };
+
   const openUrl = (url: string) => {
     const fullUrl = url.startsWith("http") ? url : `https://${url}`;
     Linking.openURL(fullUrl).catch(() => {
@@ -275,6 +285,12 @@ export default function AdminBusinessReviewScreen() {
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 2,
+    },
+    signupLogo: {
+      width: 72,
+      height: 72,
+      borderRadius: 10,
+      marginTop: 4,
     },
     infoValue: {
       fontSize: 15,
@@ -533,6 +549,10 @@ export default function AdminBusinessReviewScreen() {
   const businessStatus = business.approvalStatus || business.status || "pending";
   const isPending = businessStatus === "pending";
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  // The backend sends `websiteUrl`; `website` is kept as a fallback for older responses.
+  const websiteUrl = business.websiteUrl || business.website || "";
+  // Every signup answer (same rows as the admin email), from backend #304.
+  const signupSections = business.signupDetails?.sections ?? [];
 
   return (
     <View style={styles.container}>
@@ -591,6 +611,32 @@ export default function AdminBusinessReviewScreen() {
           ) : null}
         </View>
 
+        {signupSections.map((section) => (
+          <View style={styles.section} key={`signup-${section.title}`}>
+            <Text style={styles.sectionTitle}>Signup: {section.title}</Text>
+            {section.rows.map((row) => {
+              const url = row.kind === "image" || row.kind === "link" ? safeHttpUrl(row.value) : null;
+              const empty = row.value === "Not provided";
+              return (
+                <View style={styles.infoRow} key={`${section.title}-${row.label}`}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.infoLabel}>{row.label}</Text>
+                    {row.kind === "image" && url ? (
+                      <Image source={{ uri: url }} style={styles.signupLogo} contentFit="cover" />
+                    ) : row.kind === "link" && url ? (
+                      <Text style={[styles.infoValue, styles.linkText]} onPress={() => openUrl(url)}>
+                        {row.label === "Look them up" ? "Search Google" : row.value}
+                      </Text>
+                    ) : (
+                      <Text style={[styles.infoValue, empty && { opacity: 0.5 }]}>{row.value}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ))}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Contact Information</Text>
           
@@ -630,13 +676,13 @@ export default function AdminBusinessReviewScreen() {
             </View>
           ) : null}
 
-          {business.website ? (
+          {websiteUrl ? (
             <View style={styles.infoRow}>
               <Feather name="globe" size={16} color={theme.textSecondary} style={styles.infoIcon} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.infoLabel}>Website</Text>
-                <Text style={[styles.infoValue, styles.linkText]} onPress={() => openUrl(business.website!)}>
-                  {business.website}
+                <Text style={[styles.infoValue, styles.linkText]} onPress={() => openUrl(websiteUrl)}>
+                  {websiteUrl}
                 </Text>
               </View>
             </View>
