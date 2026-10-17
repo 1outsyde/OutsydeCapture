@@ -51,7 +51,13 @@ export default function MediaUploader({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
 
-  const videoPlayer = useVideoPlayer(currentVideo || null, player => {
+  // Right after upload the value is the Mux upload id (not playable yet); the
+  // backend swaps it for the stream URL when Mux finishes processing.
+  const playableVideo =
+    currentVideo && /^https?:\/\//i.test(currentVideo) ? currentVideo : null;
+  const isProcessingVideo = !!currentVideo && !playableVideo;
+
+  const videoPlayer = useVideoPlayer(playableVideo, player => {
     player.loop = true;
     player.muted = true;
     player.play();
@@ -392,12 +398,19 @@ export default function MediaUploader({
     if (activeTab === "video" && currentVideo) {
       return (
         <View style={styles.mediaContainer}>
-          <VideoView
-            player={videoPlayer}
-            style={styles.media}
-            contentFit="cover"
-            nativeControls={false}
-          />
+          {isProcessingVideo ? (
+            <View style={styles.uploadingContainer}>
+              <Feather name="check-circle" size={28} color={theme.brandPrimary} />
+              <Text style={styles.uploadingText}>Video uploaded. Processing, it will play once ready.</Text>
+            </View>
+          ) : (
+            <VideoView
+              player={videoPlayer}
+              style={styles.media}
+              contentFit="cover"
+              nativeControls={false}
+            />
+          )}
           <View style={styles.videoBadge}>
             <Feather name="video" size={12} color="#fff" />
             <Text style={styles.videoBadgeText}>Video</Text>
