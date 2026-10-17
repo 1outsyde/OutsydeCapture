@@ -1981,6 +1981,7 @@ export default function VendorDetailScreen({ route }: Props) {
           providerVendorTerms={profile?.vendorTermsAndConditions}
           staffMemberId={selectedStaffId}
           accentColor={accentColor}
+          onExit={() => setBookingFlowActive(false)}
         />
       );
     }

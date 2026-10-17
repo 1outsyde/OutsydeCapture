@@ -65,9 +65,43 @@ type CalendarGridCell = {
 
 // ─── Hold / payment ───────────────────────────────────────────────────────────
 
-// Matches the backend hold TTL; the countdown runs on the device clock from
-// when the hold was requested.
+// Matches the backend hold TTL. Fallback only: the countdown uses the server's
+// expiry (create-payment-intent holdExpiresAt, else the hold's expiresAt) and
+// falls back to the device clock from when the hold was requested.
 const HOLD_TTL_MS = 10 * 60 * 1000;
+
+// Server expiry when it parses and is still in the future on this device,
+// otherwise the fallback (old backend, or a device clock far off the server's).
+const resolveHoldExpiry = (
+  serverIso: string | null | undefined,
+  fallbackMs: number,
+): number => {
+  if (typeof serverIso === "string") {
+    const ms = Date.parse(serverIso);
+    if (Number.isFinite(ms) && ms > Date.now()) return ms;
+  }
+  return fallbackMs;
+};
+
+// Stripe errors that mean the PaymentIntent can no longer be paid, e.g. the
+// backend cancelled it after the hold expired.
+const isPaymentIntentGoneError = (
+  e:
+    | {
+        message?: string;
+        localizedMessage?: string;
+        stripeErrorCode?: string;
+      }
+    | null
+    | undefined,
+): boolean => {
+  if (!e) return false;
+  if (e.stripeErrorCode === "payment_intent_unexpected_state") return true;
+  const text = `${e.message ?? ""} ${e.localizedMessage ?? ""}`;
+  return /payment_intent_unexpected_state|unexpected state|status of cancell?ed|payment ?intent.*\bcancell?ed\b|\bcancell?ed\b.*payment ?intent/i.test(
+    text,
+  );
+};
 
 type HoldStatus =
   | "idle"
@@ -323,6 +357,7 @@ export default function BookingScreen() {
   const [showVendorTermsModal, setShowVendorTermsModal] = useState(false);
   const [showIncompatibleModal, setShowIncompatibleModal] = useState(false);
   const [incompatibleReason, setIncompatibleReason] = useState("");
+  const [showHoldExpiredModal, setShowHoldExpiredModal] = useState(false);
 
   // ─── Step 5 state ──────────────────────────────────────────────────────────
   const [bookedSessionId, setBookedSessionId] = useState<string>("");
@@ -332,7 +367,8 @@ export default function BookingScreen() {
   // holdRef always mirrors `hold` (set only through applyHold) so cleanup and
   // async callbacks see the current hold.
   const holdRef = useRef<BookingHoldResponse | null>(null);
-  const holdLocalExpiresAtRef = useRef<number>(0);
+  // Expiry of the current hold in device-clock ms (see HOLD_TTL_MS).
+  const holdExpiresAtRef = useRef<number>(0);
   // Holds that create-payment-intent was called for: never released, since
   // the backend has already created a booking for them.
   const piCalledHoldIdsRef = useRef<Set<string>>(new Set());
@@ -366,8 +402,6 @@ export default function BookingScreen() {
       .catch(() => {});
   };
 
-  // Payment was started for the current hold: the countdown stops.
-  const paymentStarted = !!hold && piCalledHoldIdsRef.current.has(hold.holdId);
   // A PaymentIntent exists for the current hold: only Pay or leaving remain.
   const paymentIntentExists =
     !!hold && piCreatedHoldIdsRef.current.has(hold.holdId);
@@ -473,18 +507,18 @@ export default function BookingScreen() {
   }, [step, selectedSlot, hold, holdStatus]);
 
   useEffect(() => {
-    // Once payment has started for this hold the countdown stops; the backend
-    // decides expiry from then on.
-    if (!hold || paymentStarted) return;
+    // The countdown runs on the review step, before and after payment starts,
+    // until the hold expires or the booking is paid.
+    if (!hold || step !== 4 || holdStatus !== "ready") return;
     const updateTimer = () => {
-      const remaining = Math.max(0, holdLocalExpiresAtRef.current - Date.now());
+      const remaining = Math.max(0, holdExpiresAtRef.current - Date.now());
       setHoldTimeRemaining(remaining);
       if (remaining <= 0) handleHoldExpired();
     };
     updateTimer();
     holdTimerRef.current = setInterval(updateTimer, 1000);
     return () => { if (holdTimerRef.current) clearInterval(holdTimerRef.current); };
-  }, [hold, paymentStarted]);
+  }, [hold, step, holdStatus]);
 
   // ─── Data fetching ────────────────────────────────────────────────────────
 
@@ -725,7 +759,10 @@ export default function BookingScreen() {
       }
       if (!response.success) throw { status: 500, message: "Hold failed" };
 
-      holdLocalExpiresAtRef.current = requestStartedAt + HOLD_TTL_MS;
+      holdExpiresAtRef.current = resolveHoldExpiry(
+        response.expiresAt,
+        requestStartedAt + HOLD_TTL_MS,
+      );
       applyHold(response);
       setHoldStatus("ready");
     } catch (err: any) {
@@ -778,17 +815,40 @@ export default function BookingScreen() {
         customerAddress,
       );
       piCreatedHoldIdsRef.current.add(currentHold.holdId);
+      // Newer backends send the hold's expiry with the PaymentIntent.
+      holdExpiresAtRef.current = resolveHoldExpiry(
+        pd.holdExpiresAt,
+        holdExpiresAtRef.current,
+      );
 
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: pd.clientSecret,
         merchantDisplayName: "Outsyde",
         allowsDelayedPaymentMethods: false,
       });
-      if (initError) throw new Error(initError.message || "Failed to initialize payment");
+      if (initError) {
+        if (isHoldExpiredNow() || isPaymentIntentGoneError(initError as any)) {
+          throw { holdExpired: true, message: initError.message };
+        }
+        throw new Error(initError.message || "Failed to initialize payment");
+      }
 
-      const { error: presentError } = await presentPaymentSheet();
+      // The Payment Sheet closes itself when the hold expires.
+      const msLeft = holdExpiresAtRef.current - Date.now();
+      if (msLeft <= 0) throw { holdExpired: true, message: "Hold expired" };
+      const { error: presentError } = await presentPaymentSheet({
+        timeout: Math.max(1, Math.floor(msLeft)),
+      });
       if (presentError) {
-        if ((presentError as any).code === "Canceled") return;
+        const code = (presentError as any).code as string;
+        if (
+          code === "Timeout" ||
+          isHoldExpiredNow() ||
+          (code !== "Canceled" && isPaymentIntentGoneError(presentError as any))
+        ) {
+          throw { holdExpired: true, message: (presentError as any).message };
+        }
+        if (code === "Canceled") return;
         throw new Error((presentError as any).message || "Payment failed");
       }
 
@@ -836,17 +896,20 @@ export default function BookingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep(5);
     } catch (err: any) {
-      if (err?.body?.errorCode === "HOLD_EXPIRED") {
+      const backendHoldExpired = err?.body?.errorCode === "HOLD_EXPIRED";
+      if (backendHoldExpired || err?.holdExpired || isHoldExpiredNow()) {
         // The backend rejects an expired hold before it looks for or creates
         // a booking, so HOLD_EXPIRED on the first attempt proves nothing was
         // created and the customer may hold again. After any earlier attempt
         // (which may have created a booking) only leaving is offered.
-        if (attempt === 1) {
+        if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+        if (backendHoldExpired && attempt === 1) {
           applyHold(null);
           setHoldStatus("expired");
         } else {
           setHoldStatus("expiredAfterPayment");
         }
+        setShowHoldExpiredModal(true);
       } else {
         Alert.alert(
           "Booking Error",
@@ -859,13 +922,65 @@ export default function BookingScreen() {
     }
   };
 
+  const isHoldExpiredNow = () =>
+    holdExpiresAtRef.current > 0 && Date.now() >= holdExpiresAtRef.current;
+
   const handleHoldExpired = () => {
-    const current = holdRef.current;
-    // After payment starts the backend decides whether the hold is still good.
-    if (current && piCalledHoldIdsRef.current.has(current.holdId)) return;
+    if (stepRef.current !== 4) return;
+    // While a payment is running handlePay decides: the Payment Sheet closes
+    // itself at expiry, and anything still in flight checks expiry on return.
+    if (payingRef.current) return;
     if (holdTimerRef.current) clearInterval(holdTimerRef.current);
-    applyHold(null);
-    setHoldStatus("expired");
+    const current = holdRef.current;
+    if (current && piCalledHoldIdsRef.current.has(current.holdId)) {
+      // A booking may exist for this hold, so it is kept, not cleared.
+      setHoldStatus("expiredAfterPayment");
+    } else {
+      applyHold(null);
+      setHoldStatus("expired");
+    }
+    setShowHoldExpiredModal(true);
+  };
+
+  // "Back to {photographer}": the photographer's profile. Goes back when the
+  // profile is the previous screen, otherwise replaces this screen with it.
+  const handleHoldExpiredBack = () => {
+    setShowHoldExpiredModal(false);
+    const state = navigation.getState();
+    const prev = state?.routes?.[state.index - 1];
+    if (prev?.name === "PhotographerDetail" && navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    if (!photographer) {
+      if (navigation.canGoBack()) navigation.goBack();
+      return;
+    }
+    const target = (routePhotographer ?? {
+      id: photographer.id,
+      name: photographer.name,
+      avatar: photographer.avatar,
+      specialty: photographer.specialty,
+      location: photographer.location,
+      rating: photographer.rating,
+      reviewCount: photographer.reviewCount,
+      priceRange: photographer.priceRange,
+      bio: photographer.bio,
+      portfolio: [],
+      availability: [],
+    }) as RootStackParamList["PhotographerDetail"]["photographer"];
+    navigation.replace("PhotographerDetail", { photographer: target });
+  };
+
+  // X: close and go to the home screen.
+  const handleHoldExpiredClose = () => {
+    setShowHoldExpiredModal(false);
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: "Main",
+        params: { screen: "DiscoverTab", params: { screen: "Discover" } },
+      }),
+    );
   };
 
   // ─── Navigation handlers ──────────────────────────────────────────────────
@@ -1402,7 +1517,7 @@ export default function BookingScreen() {
   );
 
   const renderCountdown = () => {
-    if (!hold || paymentStarted) return null;
+    if (!hold) return null;
     const endingSoon = holdTimeRemaining <= 120_000;
     return (
       <ThemedText
@@ -2095,6 +2210,51 @@ export default function BookingScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Hold expired pop-up */}
+      <Modal
+        visible={showHoldExpiredModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleHoldExpiredBack}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            accessibilityViewIsModal
+            style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}
+          >
+            <Pressable
+              onPress={handleHoldExpiredClose}
+              style={styles.modalCloseButton}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={8}
+            >
+              <Feather name="x" size={22} color={theme.textSecondary} />
+            </Pressable>
+            <Feather name="clock" size={40} color={accent} />
+            <ThemedText
+              type="h4"
+              accessibilityRole="header"
+              style={{ marginTop: Spacing.md, marginBottom: Spacing.sm, textAlign: "center" }}
+            >
+              Your booking hold expired
+            </ThemedText>
+            <ThemedText style={{ color: theme.textSecondary, textAlign: "center" }}>
+              We held this time for 10 minutes, so it has been released. Please book again.
+            </ThemedText>
+            <Pressable
+              onPress={handleHoldExpiredBack}
+              style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl, width: "100%" }]}
+              accessibilityRole="button"
+            >
+              <ThemedText style={{ color: theme.background }}>
+                {photographer.name?.trim() ? `Back to ${photographer.name.trim()}` : "Back"}
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -2267,5 +2427,15 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: "center",
+  },
+  modalCloseButton: {
+    position: "absolute",
+    top: Spacing.xs,
+    right: Spacing.xs,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
   },
 });

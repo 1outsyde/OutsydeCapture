@@ -4852,6 +4852,9 @@ class ApiService {
     depositAmountCents?: number | null;
     servicePriceCents?: number;
     chargeAmountCents?: number;
+    // When the hold behind this PaymentIntent expires (ISO). Sent by newer
+    // backends only; older ones leave it out.
+    holdExpiresAt?: string;
     feeBreakdown?: {
       subtotal: number;
       consumerFee: number;
