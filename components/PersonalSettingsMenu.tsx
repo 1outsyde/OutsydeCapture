@@ -28,6 +28,8 @@ interface PersonalSettingsMenuProps {
   showLocationVisible?: boolean;
   onToggleLocationVisibility?: () => void;
   isMultiStaff?: boolean;
+  /** Opens the Saved tab on your own profile. Without it, "Saved Items" falls back to Favorites. */
+  onOpenSaved?: () => void;
 }
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -40,6 +42,7 @@ export function PersonalSettingsMenu({
   showLocationVisible,
   onToggleLocationVisibility,
   isMultiStaff,
+  onOpenSaved,
 }: PersonalSettingsMenuProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -397,6 +400,19 @@ export function PersonalSettingsMenu({
               <MenuItem
                 icon="bookmark"
                 label="Saved Items"
+                onPress={() => {
+                  if (onOpenSaved) {
+                    onClose();
+                    onOpenSaved();
+                  } else {
+                    handleNavigate("Favorites");
+                  }
+                }}
+              />
+
+              <MenuItem
+                icon="heart"
+                label="Favorites"
                 onPress={() => handleNavigate("Favorites")}
               />
 

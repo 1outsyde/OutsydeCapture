@@ -24,7 +24,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useData, Post } from "@/context/DataContext";
-import { useFavorites } from "@/context/FavoritesContext";
+import { useSavedPosts } from "@/context/SavedPostsContext";
 import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost, PulseEngagement } from "@/services/api";
 import { feedEvents } from "@/services/feedEvents";
@@ -123,7 +123,7 @@ export default function PulseFeedScreenV2() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { getPhotographer } = useData();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isSaved: isPostSaved, toggleSave } = useSavedPosts();
   const { getToken, user } = useAuth();
 
   // Feed state
@@ -294,20 +294,9 @@ export default function PulseFeedScreenV2() {
 
   // ─── Bookmark ───────────────────────────────────────────────────────────────
   const handleBookmark = useCallback((post: Post) => {
-    const isVendor = post.type === "vendor";
-    toggleFavorite({
-      id: post.id,
-      type: isVendor ? "product" : "photographer",
-      name:
-        isVendor && (post as any).productName
-          ? (post as any).productName
-          : post.authorName,
-      image: post.image,
-      subtitle: isVendor
-        ? `$${(post as any).productPrice?.toFixed(2)}`
-        : post.caption?.substring(0, 50),
-    });
-  }, [toggleFavorite]);
+    // Saved to the account (backend), not the phone. See SavedPostsContext.
+    toggleSave(post.id);
+  }, [toggleSave]);
 
   // ─── Comments ───────────────────────────────────────────────────────────────
   const handleCloseComments = useCallback(() => {
@@ -420,8 +409,7 @@ export default function PulseFeedScreenV2() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   const renderItem = useCallback(
     ({ item, index }: { item: Post; index: number }) => {
-      const isVendor = item.type === "vendor";
-      const isSaved = isFavorite(item.id, isVendor ? "product" : "photographer");
+      const isSaved = isPostSaved(item.id);
 
       return (
         <PulseVideoCard
@@ -447,7 +435,7 @@ export default function PulseFeedScreenV2() {
       activeIndex,
       muted,
       likedIds,
-      isFavorite,
+      isPostSaved,
       user?.id,
       handleLike,
       handleComment,

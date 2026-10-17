@@ -81,10 +81,10 @@ export default function FavoritesScreen() {
     <View style={styles.emptyState}>
       <Feather name="bookmark" size={64} color={theme.textSecondary} />
       <ThemedText type="h3" style={styles.emptyTitle}>
-        No Saved Items
+        No Favorites Yet
       </ThemedText>
       <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-        Tap the bookmark icon on posts and businesses to save them here
+        Tap the bookmark on a business or photographer to keep them here
       </ThemedText>
     </View>
   );
@@ -98,7 +98,7 @@ export default function FavoritesScreen() {
         >
           <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
-        <ThemedText type="h2">Saved</ThemedText>
+        <ThemedText type="h2">Favorites</ThemedText>
         <View style={styles.placeholder} />
       </View>
 

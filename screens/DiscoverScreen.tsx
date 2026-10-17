@@ -35,7 +35,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useData, Post, PostType } from "@/context/DataContext";
 import { useRatingEligibility } from "@/hooks/useRatingEligibility";
-import { useFavorites } from "@/context/FavoritesContext";
+import { useSavedPosts } from "@/context/SavedPostsContext";
 import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
@@ -84,7 +84,7 @@ export default function DiscoverScreen() {
   const headerHeight = useHeaderHeight();
   const { getPhotographer } = useData();
   const { checkEligibility } = useRatingEligibility();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isSaved: isPostSaved, toggleSave } = useSavedPosts();
   const { user, getToken, isAuthenticated } = useAuth();
 
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
@@ -380,17 +380,8 @@ export default function DiscoverScreen() {
   );
 
   const handleSavePost = (post: Post) => {
-    const favoriteType = post.type === "vendor" ? "product" : "photographer";
-    toggleFavorite({
-      id: post.id,
-      type: favoriteType,
-      name: post.type === "vendor" && (post as any).productName ? (post as any).productName : post.authorName,
-      image: post.image,
-      subtitle:
-        post.type === "vendor"
-          ? `$${(post as any).productPrice?.toFixed(2)}`
-          : post.caption?.substring(0, 50),
-    });
+    // Saved to the account (backend), not the phone. See SavedPostsContext.
+    toggleSave(post.id);
   };
 
   const handleCloseComments = () => {
@@ -512,8 +503,7 @@ export default function DiscoverScreen() {
 
   // ─── Pro feed render item ──────────────────────────────────────────────────
   const renderProFeedItem = ({ item: post, index }: { item: Post; index: number }) => {
-    const isVendor = post.type === "vendor";
-    const isSaved = isFavorite(post.id, isVendor ? "product" : "photographer");
+    const isSaved = isPostSaved(post.id);
     const isVisible = visibleProIndices.has(index);
     return (
       <ProFeedCard
