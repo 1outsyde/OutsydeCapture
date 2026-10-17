@@ -626,6 +626,12 @@ export interface ProductVariant {
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
+  /** Option values this variation is made of (backend #310); null on older label-only variations. */
+  option1?: string | null;
+  option2?: string | null;
+  option3?: string | null;
+  imageUrl?: string | null;
+  hasOwnPrice?: boolean;
 }
 
 export interface VendorProductWithVariants extends VendorProduct {

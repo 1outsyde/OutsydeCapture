@@ -20,7 +20,20 @@ import { useTheme } from "@/hooks/useTheme";
 import { useCart } from "@/context/CartContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import api, { ProductVariant } from "@/services/api";
+import api, { ProductOption, ProductVariant } from "@/services/api";
+import {
+  findVariant,
+  initialPicks,
+  isColorOption,
+  liveVariants,
+  photoFor,
+  pick,
+  sortedOptions,
+  swatchFor,
+  uniformPriceFor,
+  valueState,
+  type Picks,
+} from "@/components/products/productPickerLogic";
 
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
 
@@ -56,6 +69,9 @@ export default function ProductDetailScreen() {
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [variantsLoading, setVariantsLoading] = useState(Boolean(id));
+  // Products with options (Length, Size, Color) get one picker per option.
+  const [options, setOptions] = useState<ProductOption[]>([]);
+  const [picks, setPicks] = useState<Picks>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -64,9 +80,21 @@ export default function ProductDetailScreen() {
       setVariantsLoading(true);
       try {
         const product = await api.getProductWithVariants(String(id));
-        if (!cancelled) setVariants(product.variants ?? []);
+        if (!cancelled) {
+          const loadedVariants = product.variants ?? [];
+          const loadedOptions = sortedOptions(product.options);
+          setVariants(loadedVariants);
+          // Use the per-option pickers only when the variations are built from options.
+          const useOptions = loadedOptions.length > 0 && liveVariants(loadedVariants).length > 0;
+          setOptions(useOptions ? loadedOptions : []);
+          setPicks(useOptions ? initialPicks(loadedOptions) : []);
+        }
       } catch {
-        if (!cancelled) setVariants([]);
+        if (!cancelled) {
+          setVariants([]);
+          setOptions([]);
+          setPicks([]);
+        }
       } finally {
         if (!cancelled) setVariantsLoading(false);
       }
@@ -84,18 +112,28 @@ export default function ProductDetailScreen() {
   };
   const isVariantSoldOut = (v: ProductVariant): boolean => variantStock(v) === 0;
 
-  const hasVariants = variants.length > 0;
-  const isOutOfStock = hasVariants ? variants.every(isVariantSoldOut) : inventory === 0;
+  const optionMode = options.length > 0;
+  // In option mode the bought variation is the one matching every pick;
+  // otherwise it is the tapped chip (older label-only variations).
+  const activeVariant: ProductVariant | null = optionMode
+    ? (findVariant(variants, picks, options.length) as ProductVariant | null)
+    : selectedVariant;
+  const buyableVariants = optionMode ? (liveVariants(variants) as ProductVariant[]) : variants;
 
-  const effectiveInventory = selectedVariant ? variantStock(selectedVariant) : inventory;
+  const hasVariants = buyableVariants.length > 0;
+  const isOutOfStock = hasVariants ? buyableVariants.every(isVariantSoldOut) : inventory === 0;
+
+  const shownImageUrl = (optionMode ? photoFor(variants, picks, activeVariant) : null) ?? imageUrl;
+
+  const effectiveInventory = activeVariant ? variantStock(activeVariant) : inventory;
   const effectiveHasInventoryCap = effectiveInventory != null && effectiveInventory > 0;
 
   // ── Price: selected variant, else "From $lowest" when prices differ ──────
-  const variantPrices = variants.map((v) => v.priceCents);
+  const variantPrices = buyableVariants.map((v) => v.priceCents);
   const minVariantPrice = hasVariants ? Math.min(...variantPrices) : null;
   const maxVariantPrice = hasVariants ? Math.max(...variantPrices) : null;
-  const displayPrice = selectedVariant
-    ? formatCents(selectedVariant.priceCents)
+  const displayPrice = activeVariant
+    ? formatCents(activeVariant.priceCents)
     : hasVariants && minVariantPrice !== null
     ? minVariantPrice !== maxVariantPrice
       ? `From ${formatCents(minVariantPrice)}`
@@ -104,7 +142,7 @@ export default function ProductDetailScreen() {
 
   // ── Option grid: 4 per row for short labels (lengths, sizes), fewer when
   //    labels are long so nothing is cut off ─────────────────────────────────
-  const longestLabel = variants.reduce((n, v) => Math.max(n, (v.label ?? "").length), 0);
+  const longestLabel = buyableVariants.reduce((n, v) => Math.max(n, (v.label ?? "").length), 0);
   const optionColumns = longestLabel > 8 ? 2 : longestLabel > 4 ? 3 : 4;
   const optionGap = Spacing.sm;
   const optionChipWidth =
@@ -117,6 +155,26 @@ export default function ProductDetailScreen() {
     if (stock != null && stock > 0) setQuantity((q) => Math.min(q, stock));
   };
 
+  // Product inventory only limits variations when the product tracks it (same as checkout).
+  const productStockForPicker = inventory ?? null;
+  const pickOption = (optionIndex: number, value: string) => {
+    const state = valueState(variants, picks, optionIndex, value, productStockForPicker);
+    if (state === "unavailable" && !picks.some((p, i) => i !== optionIndex && p)) return;
+    // Tapping a value that doesn't fit the other picks starts over from that value.
+    const base = state === "available" ? picks : picks.map((p, i) => (i === optionIndex ? p : null));
+    const next = pick(variants, base, optionIndex, value, productStockForPicker);
+    setPicks(next);
+    const v = findVariant(variants, next, options.length) as ProductVariant | null;
+    const stock = v ? variantStock(v) : null;
+    if (stock != null && stock > 0) setQuantity((q) => Math.min(q, stock));
+  };
+  const firstUnpicked = optionMode ? options.find((_, i) => !picks[i]) : undefined;
+  // A price under each chip only helps when prices differ (Dia Lux lengths), not 15 colors at one price.
+  const pricesDiffer = (() => {
+    const set = new Set(buyableVariants.map((v) => v.priceCents));
+    return set.size > 1;
+  })();
+
   const decrement = () => setQuantity((q) => Math.max(1, q - 1));
   const increment = () => {
     setQuantity((q) => (effectiveHasInventoryCap ? Math.min(effectiveInventory!, q + 1) : q + 1));
@@ -128,16 +186,16 @@ export default function ProductDetailScreen() {
   const canAddToCart =
     !variantsLoading &&
     !isOutOfStock &&
-    (!hasVariants || (selectedVariant !== null && !isVariantSoldOut(selectedVariant)));
+    (!hasVariants || (activeVariant !== null && !isVariantSoldOut(activeVariant)));
 
   const stockLine: { text: string; low: boolean } | null = (() => {
     if (isOutOfStock) return null;
-    if (hasVariants && !selectedVariant) return null;
+    if (hasVariants && !activeVariant) return null;
     if (!effectiveHasInventoryCap) return null;
     const n = effectiveInventory!;
     if (n <= 3) {
       return {
-        text: selectedVariant ? `Only ${n} left in ${selectedVariant.label}` : `Only ${n} left`,
+        text: activeVariant ? `Only ${n} left in ${activeVariant.label}` : `Only ${n} left`,
         low: true,
       };
     }
@@ -146,10 +204,12 @@ export default function ProductDetailScreen() {
 
   const buyNowLabel = isOutOfStock
     ? "Out of Stock"
-    : hasVariants && !selectedVariant
+    : firstUnpicked
+    ? `Choose ${firstUnpicked.name.toLowerCase()}`
+    : hasVariants && !activeVariant
     ? "Select an option"
-    : selectedVariant
-    ? `Buy Now · ${selectedVariant.label}`
+    : activeVariant
+    ? `Buy Now · ${activeVariant.label}`
     : "Buy Now";
 
   const handleAddToCart = () => {
@@ -158,12 +218,12 @@ export default function ProductDetailScreen() {
     addItem({
       productId: String(id),
       name,
-      price: selectedVariant ? selectedVariant.priceCents : priceCents,
+      price: activeVariant ? activeVariant.priceCents : priceCents,
       quantity,
       vendorId: businessId,
-      imageUrl: imageUrl ?? undefined,
-      variantId: selectedVariant?.id,
-      variantLabel: selectedVariant?.label,
+      imageUrl: shownImageUrl ?? undefined,
+      variantId: activeVariant?.id,
+      variantLabel: activeVariant?.label,
     });
 
     // Toast: fade in → hold → fade out
@@ -187,12 +247,12 @@ export default function ProductDetailScreen() {
       buyNowItem: {
         productId: String(id),
         name,
-        priceCents: selectedVariant ? selectedVariant.priceCents : (priceCents ?? 0),
+        priceCents: activeVariant ? activeVariant.priceCents : (priceCents ?? 0),
         quantity,
         vendorId: businessId,
-        imageUrl: imageUrl ?? undefined,
-        variantId: selectedVariant?.id,
-        variantLabel: selectedVariant?.label,
+        imageUrl: shownImageUrl ?? undefined,
+        variantId: activeVariant?.id,
+        variantLabel: activeVariant?.label,
       },
     });
   };
@@ -220,9 +280,10 @@ export default function ProductDetailScreen() {
       >
         {/* Product image */}
         <View style={styles.imageContainer}>
-          {imageUrl ? (
+          {shownImageUrl ? (
             <Image
-              source={{ uri: imageUrl }}
+              source={{ uri: shownImageUrl }}
+              transition={150}
               style={StyleSheet.absoluteFillObject}
               contentFit="cover"
             />
@@ -254,8 +315,114 @@ export default function ProductDetailScreen() {
             </ThemedText>
           ) : null}
 
-          {/* Option picker */}
-          {hasVariants && (
+          {/* Option pickers: one row per option (Length, Size, Color) */}
+          {optionMode &&
+            options.map((option, optionIndex) => {
+              const picked = picks[optionIndex];
+              const asSwatches = isColorOption(option);
+              const showChipPrice = pricesDiffer && optionIndex === 0;
+              const longest = option.values.reduce((n, ov) => Math.max(n, ov.value.length), 0);
+              const cols = longest > 8 ? 2 : longest > 4 ? 3 : 4;
+              const chipWidth = (screenWidth - Spacing.lg * 2 - optionGap * (cols - 1)) / cols;
+              return (
+                <View key={`${option.position}-${option.name}`} style={styles.optionSection}>
+                  <Text style={[styles.optionHeading, { color: theme.brandCream }]}>
+                    {picked ? `${option.name.toUpperCase()}: ` : `CHOOSE ${option.name.toUpperCase()}`}
+                    {picked ? <Text style={{ color: theme.brandGold }}>{picked}</Text> : null}
+                  </Text>
+                  <View style={[styles.optionGrid, { gap: asSwatches ? Spacing.md : optionGap }]}>
+                    {option.values.map((ov) => {
+                      const selected = !!picked && picked.toLowerCase() === ov.value.toLowerCase();
+                      const state = valueState(variants, picks, optionIndex, ov.value, productStockForPicker);
+                      const blocked = state !== "available";
+                      const chipPrice = showChipPrice ? uniformPriceFor(variants, optionIndex, ov.value) : null;
+                      const a11y = `${option.name} ${ov.value}${
+                        state === "soldout" ? ", sold out" : state === "unavailable" ? ", not available with this pick" : chipPrice != null ? `, ${formatCents(chipPrice)}` : ""
+                      }`;
+                      if (asSwatches) {
+                        return (
+                          <Pressable
+                            key={ov.value}
+                            onPress={() => pickOption(optionIndex, ov.value)}
+                            disabled={state === "soldout"}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected, disabled: blocked }}
+                            accessibilityLabel={a11y}
+                            style={({ pressed }) => [
+                              styles.swatchRing,
+                              {
+                                borderColor: selected ? theme.brandGold : "transparent",
+                                opacity: blocked ? 0.35 : pressed ? 0.75 : 1,
+                              },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.swatch,
+                                { backgroundColor: swatchFor(ov) ?? theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+                              ]}
+                            />
+                            {blocked ? <View pointerEvents="none" style={[styles.swatchSlash, { backgroundColor: theme.brandCream }]} /> : null}
+                          </Pressable>
+                        );
+                      }
+                      return (
+                        <Pressable
+                          key={ov.value}
+                          onPress={() => pickOption(optionIndex, ov.value)}
+                          disabled={state === "soldout"}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected, disabled: blocked }}
+                          accessibilityLabel={a11y}
+                          style={({ pressed }) => [
+                            styles.optionChip,
+                            {
+                              width: chipWidth,
+                              height: showChipPrice ? 56 : 46,
+                              borderWidth: selected ? 2 : 1,
+                              borderStyle: blocked ? "dashed" : "solid",
+                              borderColor: selected
+                                ? theme.brandGold
+                                : blocked
+                                ? "rgba(255,255,255,0.15)"
+                                : theme.brandSurfaceBorder,
+                              backgroundColor: selected
+                                ? "rgba(232,185,48,0.14)"
+                                : blocked
+                                ? "transparent"
+                                : theme.brandSurface,
+                              opacity: pressed && !blocked ? 0.75 : 1,
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            style={[
+                              styles.optionLabel,
+                              {
+                                color: selected ? theme.brandGold : blocked ? theme.brandTextDim : theme.brandCream,
+                                textDecorationLine: blocked ? "line-through" : "none",
+                              },
+                            ]}
+                          >
+                            {ov.value}
+                          </Text>
+                          {showChipPrice || state === "soldout" ? (
+                            <Text style={[styles.optionPrice, { color: theme.brandTextDim }]}>
+                              {state === "soldout" ? "Sold out" : chipPrice != null ? formatCents(chipPrice) : ""}
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
+
+          {/* Option picker (older variations with a label only) */}
+          {!optionMode && hasVariants && (
             <View style={styles.optionSection}>
               <Text style={[styles.optionHeading, { color: theme.brandCream }]}>
                 {selectedVariant ? "OPTION: " : "CHOOSE AN OPTION"}
@@ -546,6 +713,26 @@ const styles = StyleSheet.create({
   },
   optionPrice: {
     fontSize: 11,
+  },
+  swatchRing: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  swatch: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+  },
+  swatchSlash: {
+    position: "absolute",
+    width: 44,
+    height: 2,
+    transform: [{ rotate: "-45deg" }],
   },
   outOfStockBadge: {
     flexDirection: "row",
