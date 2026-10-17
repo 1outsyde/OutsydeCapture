@@ -169,7 +169,7 @@ export default function OutsydePointsScreen() {
       closeModal();
       // Optimistic update
       setBalance(result.newBalance);
-      setDollarValue((result.newBalance / 100).toFixed(2));
+      setDollarValue((result.newBalance / 500).toFixed(2)); // 500 points = $1
       setCanRedeem(result.newBalance >= 2500);
       setActiveCodes((prev: PointsActiveCode[]) => [
         {
@@ -332,7 +332,7 @@ export default function OutsydePointsScreen() {
                 </View>
                 <View style={styles.codeInfo}>
                   <Text style={styles.codeValue}>
-                    ${(c.discountCents / 100).toFixed(0)} off any purchase
+                    ${(c.discountCents / 100).toFixed(0)} off any order of ${((c.discountCents * 10) / 100).toFixed(0)} or more
                   </Text>
                   <Text style={styles.codeExpiry}>
                     Expires {formatDate(c.expiresAt)}
