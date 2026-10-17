@@ -848,7 +848,10 @@ export default function RootNavigator() {
         name="ProductDetail"
         component={ProductDetailScreen}
         options={{
-          presentation: "modal",
+          // Full screen (not a sheet). Same presentation CartCheckout and
+          // OrderSuccess already use; opened from VendorDetail (a modal) and
+          // the Search tab, closed by the in-screen back arrow (goBack).
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: false,
         }}

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -45,8 +46,7 @@ export default function ProductDetailScreen() {
     inventory,
   } = route.params;
 
-  const isOutOfStock = inventory === 0;
-  const hasInventoryCap = inventory != null && inventory > 0;
+  const { width: screenWidth } = useWindowDimensions();
 
   const [quantity, setQuantity] = useState(1);
   const [toastVisible, setToastVisible] = useState(false);
@@ -55,7 +55,7 @@ export default function ProductDetailScreen() {
 
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-  const [variantsLoading, setVariantsLoading] = useState(false);
+  const [variantsLoading, setVariantsLoading] = useState(Boolean(id));
 
   useEffect(() => {
     if (!id) return;
@@ -75,21 +75,82 @@ export default function ProductDetailScreen() {
     return () => { cancelled = true; };
   }, [id]);
 
-  const effectiveInventory =
-    selectedVariant?.inventory !== undefined && selectedVariant?.inventory !== null
-      ? selectedVariant.inventory
-      : inventory;
+  // ── Stock ────────────────────────────────────────────────────────────────
+  // A variant with its own stock count uses it; a variant without one falls
+  // back to the product's count (same rule as the backend's decrementInventory).
+  const variantStock = (v: ProductVariant): number | null | undefined => {
+    if (v.trackInventory === false) return null;
+    return v.inventory !== undefined && v.inventory !== null ? v.inventory : inventory;
+  };
+  const isVariantSoldOut = (v: ProductVariant): boolean => variantStock(v) === 0;
 
+  const hasVariants = variants.length > 0;
+  const isOutOfStock = hasVariants ? variants.every(isVariantSoldOut) : inventory === 0;
+
+  const effectiveInventory = selectedVariant ? variantStock(selectedVariant) : inventory;
   const effectiveHasInventoryCap = effectiveInventory != null && effectiveInventory > 0;
+
+  // ── Price: selected variant, else "From $lowest" when prices differ ──────
+  const variantPrices = variants.map((v) => v.priceCents);
+  const minVariantPrice = hasVariants ? Math.min(...variantPrices) : null;
+  const maxVariantPrice = hasVariants ? Math.max(...variantPrices) : null;
+  const displayPrice = selectedVariant
+    ? formatCents(selectedVariant.priceCents)
+    : hasVariants && minVariantPrice !== null
+    ? minVariantPrice !== maxVariantPrice
+      ? `From ${formatCents(minVariantPrice)}`
+      : formatCents(minVariantPrice)
+    : formatCents(priceCents);
+
+  // ── Option grid: 4 per row for short labels (lengths, sizes), fewer when
+  //    labels are long so nothing is cut off ─────────────────────────────────
+  const longestLabel = variants.reduce((n, v) => Math.max(n, (v.label ?? "").length), 0);
+  const optionColumns = longestLabel > 8 ? 2 : longestLabel > 4 ? 3 : 4;
+  const optionGap = Spacing.sm;
+  const optionChipWidth =
+    (screenWidth - Spacing.lg * 2 - optionGap * (optionColumns - 1)) / optionColumns;
+
+  const selectVariant = (v: ProductVariant) => {
+    if (isVariantSoldOut(v)) return;
+    setSelectedVariant(v);
+    const stock = variantStock(v);
+    if (stock != null && stock > 0) setQuantity((q) => Math.min(q, stock));
+  };
 
   const decrement = () => setQuantity((q) => Math.max(1, q - 1));
   const increment = () => {
     setQuantity((q) => (effectiveHasInventoryCap ? Math.min(effectiveInventory!, q + 1) : q + 1));
   };
+  const atMaxQuantity = effectiveHasInventoryCap && quantity >= effectiveInventory!;
 
+  // Options must finish loading first, so a product with variants can't be
+  // bought at its base price by tapping before the options appear.
   const canAddToCart =
+    !variantsLoading &&
     !isOutOfStock &&
-    (variants.length === 0 || selectedVariant !== null);
+    (!hasVariants || (selectedVariant !== null && !isVariantSoldOut(selectedVariant)));
+
+  const stockLine: { text: string; low: boolean } | null = (() => {
+    if (isOutOfStock) return null;
+    if (hasVariants && !selectedVariant) return null;
+    if (!effectiveHasInventoryCap) return null;
+    const n = effectiveInventory!;
+    if (n <= 3) {
+      return {
+        text: selectedVariant ? `Only ${n} left in ${selectedVariant.label}` : `Only ${n} left`,
+        low: true,
+      };
+    }
+    return { text: `${n} in stock`, low: false };
+  })();
+
+  const buyNowLabel = isOutOfStock
+    ? "Out of Stock"
+    : hasVariants && !selectedVariant
+    ? "Select an option"
+    : selectedVariant
+    ? `Buy Now · ${selectedVariant.label}`
+    : "Buy Now";
 
   const handleAddToCart = () => {
     if (!canAddToCart) return;
@@ -180,7 +241,7 @@ export default function ProductDetailScreen() {
             type="h4"
             style={[styles.price, { color: theme.brandGold }]}
           >
-            {formatCents(selectedVariant ? selectedVariant.priceCents : priceCents)}
+            {displayPrice}
           </ThemedText>
 
           {/* Description */}
@@ -193,61 +254,71 @@ export default function ProductDetailScreen() {
             </ThemedText>
           ) : null}
 
-          {/* Variant pill selector */}
-          {variants.length > 0 && (
-            <View style={{ marginBottom: Spacing.md }}>
-              <Text style={{
-                fontSize: 13,
-                color: theme.brandTextDim,
-                marginBottom: Spacing.sm,
-                letterSpacing: 0.5,
-              }}>
-                Choose an option
+          {/* Option picker */}
+          {hasVariants && (
+            <View style={styles.optionSection}>
+              <Text style={[styles.optionHeading, { color: theme.brandCream }]}>
+                {selectedVariant ? "OPTION: " : "CHOOSE AN OPTION"}
+                {selectedVariant ? (
+                  <Text style={{ color: theme.brandGold }}>{selectedVariant.label}</Text>
+                ) : null}
               </Text>
-              {variantsLoading ? (
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {[80, 64, 96].map((w) => (
-                    <View key={w} style={{
-                      width: w, height: 36, borderRadius: 20,
-                      backgroundColor: theme.brandSurface, opacity: 0.4,
-                    }} />
-                  ))}
-                </View>
-              ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-                >
-                  {variants.map((v: ProductVariant) => {
-                    const selected = selectedVariant?.id === v.id;
-                    return (
-                      <Pressable
-                        key={v.id}
-                        onPress={() => setSelectedVariant(selected ? null : v)}
-                        style={{
-                          paddingHorizontal: 16,
-                          paddingVertical: 8,
-                          minHeight: 44,
-                          justifyContent: "center",
-                          borderRadius: BorderRadius.full,
-                          borderWidth: 1.5,
-                          borderColor: selected ? theme.brandGold : "rgba(255,255,255,0.2)",
-                          backgroundColor: selected ? "rgba(201,147,58,0.15)" : "transparent",
-                        }}
+              <View style={[styles.optionGrid, { gap: optionGap }]}>
+                {variants.map((v: ProductVariant) => {
+                  const selected = selectedVariant?.id === v.id;
+                  const soldOut = isVariantSoldOut(v);
+                  return (
+                    <Pressable
+                      key={v.id}
+                      onPress={() => selectVariant(v)}
+                      disabled={soldOut}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected, disabled: soldOut }}
+                      accessibilityLabel={`${v.label}, ${soldOut ? "sold out" : formatCents(v.priceCents)}`}
+                      style={({ pressed }) => [
+                        styles.optionChip,
+                        {
+                          width: optionChipWidth,
+                          borderWidth: selected ? 2 : 1,
+                          borderStyle: soldOut ? "dashed" : "solid",
+                          borderColor: selected
+                            ? theme.brandGold
+                            : soldOut
+                            ? "rgba(255,255,255,0.15)"
+                            : theme.brandSurfaceBorder,
+                          backgroundColor: selected
+                            ? "rgba(232,185,48,0.14)"
+                            : soldOut
+                            ? "transparent"
+                            : theme.brandSurface,
+                          opacity: pressed && !soldOut ? 0.75 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        style={[
+                          styles.optionLabel,
+                          {
+                            color: selected
+                              ? theme.brandGold
+                              : soldOut
+                              ? theme.brandTextDim
+                              : theme.brandCream,
+                            textDecorationLine: soldOut ? "line-through" : "none",
+                          },
+                        ]}
                       >
-                        <Text style={{
-                          fontSize: 14,
-                          fontWeight: selected ? "600" : "400",
-                          color: selected ? theme.brandGold : theme.brandCream,
-                        }}>
-                          {v.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              )}
+                        {v.label}
+                      </Text>
+                      <Text style={[styles.optionPrice, { color: theme.brandTextDim }]}>
+                        {soldOut ? "Sold out" : formatCents(v.priceCents)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           )}
 
@@ -262,9 +333,15 @@ export default function ProductDetailScreen() {
                 Out of stock
               </ThemedText>
             </View>
-          ) : hasInventoryCap ? (
-            <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-              {inventory} in stock
+          ) : stockLine ? (
+            <ThemedText
+              type="caption"
+              style={{
+                color: stockLine.low ? theme.brandPending : theme.brandTextDim,
+                marginTop: Spacing.sm,
+              }}
+            >
+              {stockLine.text}
             </ThemedText>
           ) : null}
 
@@ -290,12 +367,12 @@ export default function ProductDetailScreen() {
               </ThemedText>
               <Pressable
                 onPress={increment}
-                disabled={isOutOfStock || (hasInventoryCap && quantity >= inventory!)}
+                disabled={isOutOfStock || atMaxQuantity}
                 style={({ pressed }) => [
                   styles.stepperBtn,
                   {
                     backgroundColor: theme.brandSurface,
-                    opacity: (isOutOfStock || (hasInventoryCap && quantity >= inventory!)) ? 0.4 : pressed ? 0.7 : 1,
+                    opacity: (isOutOfStock || atMaxQuantity) ? 0.4 : pressed ? 0.7 : 1,
                   },
                 ]}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -339,18 +416,16 @@ export default function ProductDetailScreen() {
                 color={canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999")}
               />
               <Text
+                numberOfLines={1}
                 style={{
+                  flexShrink: 1,
                   fontSize: 16,
                   fontWeight: "900",
                   letterSpacing: -0.3,
                   color: canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999"),
                 }}
               >
-                {isOutOfStock
-                  ? "Out of Stock"
-                  : variants.length > 0 && selectedVariant === null
-                  ? "Select an option"
-                  : "Buy Now"}
+                {buyNowLabel}
               </Text>
             </Pressable>
 
@@ -443,6 +518,34 @@ const styles = StyleSheet.create({
   description: {
     marginTop: Spacing.sm,
     lineHeight: 22,
+  },
+  optionSection: {
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  optionHeading: {
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  optionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  optionChip: {
+    height: 56,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    gap: 2,
+  },
+  optionLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  optionPrice: {
+    fontSize: 11,
   },
   outOfStockBadge: {
     flexDirection: "row",
