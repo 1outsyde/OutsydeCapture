@@ -3388,6 +3388,25 @@ class ApiService {
     });
   }
 
+  // Schedule this account for deletion (30-day grace period). Throws on non-2xx; refreshes an expired token.
+  async requestAccountDeletion(
+    authToken: string
+  ): Promise<{ blocked: boolean; reason?: string; alreadyPending?: boolean; scheduledDeletionAt?: string }> {
+    return this.request("/api/account/delete-request", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({}),
+    });
+  }
+
+  // Cancel a pending account deletion. Throws on non-2xx; refreshes an expired token.
+  async cancelAccountDeletion(authToken: string): Promise<{ success?: boolean }> {
+    return this.request("/api/account/cancel-deletion", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // Decline a pending booking (triggers refund/void)
   async declineBooking(
     authToken: string, 

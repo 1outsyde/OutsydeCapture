@@ -2989,20 +2989,12 @@ export default function AccountScreen() {
               onPress={async () => {
                 try {
                   const token = await getToken();
-                  const res = await fetch(
-                    `${require("@/constants/config").BASE_URL}/api/account/cancel-deletion`,
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                      },
-                    }
-                  );
-                  if (res.ok) {
-                    await refreshUser();
-                    Alert.alert("Deletion cancelled", "Your account will remain active.");
-                  }
+                  if (!token) throw new Error("Not signed in");
+                  // API client: refreshes an expired session and throws on failure
+                  // (the old raw fetch did nothing at all when the request failed).
+                  await apiClient.cancelAccountDeletion(token);
+                  await refreshUser();
+                  Alert.alert("Deletion cancelled", "Your account will remain active.");
                 } catch {
                   Alert.alert("Error", "Could not cancel deletion. Please try again.");
                 }

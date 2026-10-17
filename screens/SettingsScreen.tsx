@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as SecureStore from "expo-secure-store";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,8 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { getSavedAddresses, SavedAddress } from "@/services/api";
-import { BASE_URL } from "@/constants/config";
+import api, { getSavedAddresses, SavedAddress } from "@/services/api";
 import { AccountStackParamList } from "@/navigation/types";
 
 type SettingsNavigationProp = NativeStackNavigationProp<AccountStackParamList, "Settings">;
@@ -98,20 +96,19 @@ export default function SettingsScreen() {
 
   const confirmDeleteAccount = async () => {
     try {
-      const token = await SecureStore.getItemAsync("outsyde_access_token");
-      const response = await fetch(`${BASE_URL}/api/account/delete-request`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({}),
-      });
-      const data = await response.json();
+      const token = await getToken();
+      if (!token) throw new Error("Not signed in");
+      // Uses the API client so an expired session is refreshed and any error is reported
+      // (the old raw fetch showed "scheduled" even when the request failed).
+      const data = await api.requestAccountDeletion(token);
 
       if (data.blocked) {
-        Alert.alert("Cannot Delete Account", data.reason);
+        Alert.alert("Cannot Delete Account", data.reason ?? "Your account can't be deleted right now.");
         return;
+      }
+
+      if (!data.scheduledDeletionAt) {
+        throw new Error("Missing deletion date");
       }
 
       if (data.alreadyPending) {
@@ -131,7 +128,10 @@ export default function SettingsScreen() {
       );
       await logout();
     } catch {
-      Alert.alert("Error", "Something went wrong. Please try again.");
+      Alert.alert(
+        "Error",
+        "We couldn't schedule your account deletion. Please try again, or email info@goutsyde.com."
+      );
     }
   };
 
