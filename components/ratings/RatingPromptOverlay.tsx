@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +19,8 @@ interface RatingPromptOverlayProps {
 
 const GOLD = '#C9933A';
 // Approximate tab-bar height so the card sits above it
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 83 : 60;
+// Same base height as the tab bar on both platforms (MainTabNavigator TAB_BAR_HEIGHT = 83).
+const TAB_BAR_HEIGHT = 83;
 
 export function RatingPromptOverlay({
   visible,

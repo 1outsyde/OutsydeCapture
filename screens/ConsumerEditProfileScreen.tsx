@@ -350,7 +350,7 @@ export default function ConsumerEditProfileScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: theme.brandBg }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
         contentContainerStyle={[

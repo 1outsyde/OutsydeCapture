@@ -368,7 +368,7 @@ export default function DashboardAnalyticsScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           {/* 1. AUTHORITY */}
