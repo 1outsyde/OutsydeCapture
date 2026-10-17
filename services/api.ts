@@ -4072,6 +4072,29 @@ class ApiService {
     });
   }
 
+  // POST /api/feed/:postId/save - Save a post to the account (idempotent; 404 if the post doesn't exist)
+  async savePost(authToken: string, postId: string): Promise<{ success: boolean; saved: boolean }> {
+    return this.request<{ success: boolean; saved: boolean }>(`/api/feed/${postId}/save`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // DELETE /api/feed/:postId/save - Remove a saved post
+  async unsavePost(authToken: string, postId: string): Promise<{ success: boolean; saved: boolean }> {
+    return this.request<{ success: boolean; saved: boolean }>(`/api/feed/${postId}/save`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // GET /api/users/me/saved-posts - The signed-in user's saved posts, newest save first
+  async getSavedPosts(authToken: string): Promise<{ posts: ApiPost[] }> {
+    return this.request<{ posts: ApiPost[] }>("/api/users/me/saved-posts", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
   // POST /api/feed/:postId/report - Report a post for admin review
   async reportPost(
     authToken: string, 

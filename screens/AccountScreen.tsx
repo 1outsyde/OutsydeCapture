@@ -44,6 +44,7 @@ import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
 import { StarDisplay } from "@/components/ratings";
 import { useAuth } from "@/context/AuthContext";
+import { useSavedPosts } from "@/context/SavedPostsContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import InviteTeamModal from "@/components/InviteTeamModal";
@@ -468,7 +469,6 @@ export default function AccountScreen() {
     new Set(),
   );
   const [posts, setPosts] = useState<PostCard[]>([]);
-  const [savedItems, setSavedItems] = useState<PostCard[]>([]);
   const [availability, setAvailability] = useState<WeeklyAvailabilitySlot[]>(
     [],
   );
@@ -623,7 +623,6 @@ export default function AccountScreen() {
       let resolvedProducts: VendorProduct[] = [];
       let resolvedServices: ServiceCard[] = [];
       let resolvedPosts: PostCard[] = [];
-      let resolvedSaved: PostCard[] = [];
       let resolvedAvailability: WeeklyAvailabilitySlot[] = [];
       let resolvedReviews: ReviewCard[] = [];
 
@@ -1000,7 +999,6 @@ export default function AccountScreen() {
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
-          resolvedSaved = [];
           resolvedAvailability = weeklyResponse;
           resolvedProducts = liveProducts;
           resolvedServices = liveServices;
@@ -1109,7 +1107,6 @@ export default function AccountScreen() {
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
-          resolvedSaved = [];
           resolvedServices = mappedServices;
           resolvedAvailability = weeklyResponse;
           resolvedReviews = Array.isArray((photographer as any).reviews)
@@ -1251,7 +1248,6 @@ export default function AccountScreen() {
           ]);
           const publicUser = publicUserResult?.user;
           resolvedPosts = toPosts(profilePosts.posts || []);
-          resolvedSaved = [];
 
           try {
             const reviewToken = await getToken();
@@ -1320,7 +1316,6 @@ export default function AccountScreen() {
       setProducts(resolvedProducts);
       setServices(resolvedServices);
       setPosts(resolvedPosts);
-      setSavedItems(resolvedSaved);
       setAvailability(resolvedAvailability);
       setReviews(resolvedReviews);
     } catch (error) {
@@ -1363,10 +1358,25 @@ export default function AccountScreen() {
     return () => { active = false; };
   }, [isOwner, getToken]);
 
-  const tabList = useMemo<ProfileTab[]>(
-    () => (profile ? tabsForRole(profile) : ["posts"]),
-    [profile],
-  );
+  // Saved posts come from the account (SavedPostsContext) and are shown only to the owner.
+  const { savedPosts, refreshSaved } = useSavedPosts();
+  const savedItems = useMemo(() => toPosts(savedPosts), [savedPosts]);
+  const savedAuthorById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of savedPosts) map.set(String(p.id), String(p.userId || p.authorId || ""));
+    return map;
+  }, [savedPosts]);
+
+  const tabList = useMemo<ProfileTab[]>(() => {
+    if (!profile) return ["posts"];
+    const tabs = tabsForRole(profile);
+    if (!isOwner) return tabs;
+    return [tabs[0], "saved", ...tabs.slice(1)];
+  }, [profile, isOwner]);
+
+  useEffect(() => {
+    if (isOwner && activeTab === "saved") refreshSaved();
+  }, [isOwner, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!tabList.includes(activeTab)) {
@@ -2746,12 +2756,17 @@ export default function AccountScreen() {
       ) : (
         <View style={styles.mediaGrid}>
           {savedItems.map((item) => (
-            <View
+            <Pressable
               key={item.id}
               style={[
                 styles.mediaCell,
                 { width: postCellWidth, height: postCellWidth },
               ]}
+              onPress={() => {
+                const authorId = savedAuthorById.get(item.id);
+                if (!authorId) return;
+                navigation.navigate("PostDetail", { userId: authorId, initialPostId: item.id });
+              }}
             >
               {item.mediaUrl ? (
                 <Image
@@ -2760,7 +2775,7 @@ export default function AccountScreen() {
                   contentFit="cover"
                 />
               ) : null}
-            </View>
+            </Pressable>
           ))}
         </View>
       )}
@@ -3035,6 +3050,7 @@ export default function AccountScreen() {
           isOwner && profile?.role !== "business" ? onEditProfilePress : undefined
         }
         isMultiStaff={Boolean(profile?.isMultiStaff)}
+        onOpenSaved={() => setActiveTab("saved")}
       />
 
       <InviteTeamModal

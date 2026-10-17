@@ -22,6 +22,7 @@ import { PaymentProvider } from "@/context/PaymentContext";
 import { LoyaltyProvider } from "@/context/LoyaltyContext";
 import { OrdersProvider } from "@/context/OrdersContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
+import { SavedPostsProvider } from "@/context/SavedPostsContext";
 import { HealthCheckProvider } from "@/context/HealthCheckContext";
 import { CalendarProvider } from "@/context/CalendarContext";
 import { CartProvider } from "@/context/CartContext";
@@ -138,6 +139,7 @@ function AppContent() {
             <OrdersProvider>
               <CartProvider>
               <FavoritesProvider>
+              <SavedPostsProvider>
                 <PaymentProvider>
                   <LoyaltyProvider>
                     <NotificationProvider>
@@ -156,6 +158,7 @@ function AppContent() {
                     </NotificationProvider>
                   </LoyaltyProvider>
                 </PaymentProvider>
+              </SavedPostsProvider>
               </FavoritesProvider>
               </CartProvider>
             </OrdersProvider>

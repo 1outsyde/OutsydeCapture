@@ -19,7 +19,7 @@ import { Image } from "expo-image";
 
 import apiClient, { ApiPost } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
-import { useFavorites } from "@/context/FavoritesContext";
+import { useSavedPosts } from "@/context/SavedPostsContext";
 import { useData, Post, PostType } from "@/context/DataContext";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
@@ -104,7 +104,7 @@ export default function PostDetailScreen() {
   const { userId, initialPostId } = route.params;
   const { theme } = useTheme();
   const { user, getToken } = useAuth();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isSaved: isPostSaved, toggleSave } = useSavedPosts();
   const { getPhotographer } = useData();
   const insets = useSafeAreaInsets();
   const NAV_BAR_HEIGHT = insets.top + 52;
@@ -216,19 +216,10 @@ export default function PostDetailScreen() {
 
   const handleSave = useCallback(
     (post: Post) => {
-      const favoriteType = post.type === "vendor" ? "product" : "photographer";
-      toggleFavorite({
-        id: post.id,
-        type: favoriteType,
-        name: post.type === "vendor" && (post as any).productName ? (post as any).productName : post.authorName,
-        image: post.image,
-        subtitle:
-          post.type === "vendor"
-            ? `$${(post as any).productPrice?.toFixed(2)}`
-            : post.caption?.substring(0, 50),
-      });
+      // Saved to the account (backend), not the phone. See SavedPostsContext.
+      toggleSave(post.id);
     },
-    [toggleFavorite]
+    [toggleSave]
   );
 
   const handleComment = useCallback((_post: Post) => {
@@ -347,8 +338,7 @@ export default function PostDetailScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: Post; index: number }) => {
-      const isVendor = item.type === "vendor";
-      const isSaved = isFavorite(item.id, isVendor ? "product" : "photographer");
+      const isSaved = isPostSaved(item.id);
       const isVideo = item.displayLayout === "pulse";
 
       return isVideo ? (
@@ -396,7 +386,7 @@ export default function PostDetailScreen() {
     [
       activeIndex,
       muted,
-      isFavorite,
+      isPostSaved,
       handleLike,
       handleComment,
       handleSave,
