@@ -1439,6 +1439,8 @@ export interface UnifiedSearchResult {
   username?: string;
   avatar: string;
   coverImage?: string;
+  /** True when the backend sent the separate cover field (backend #302+). */
+  coverKnown?: boolean;
   city: string;
   state: string;
   rating: number;
@@ -1978,8 +1980,13 @@ class ApiService {
       // Backend returns: title, imageUrl, subtitle, providerUserId, ratingAvg, ratingCount, baseScore
       // Map these to our normalized fields
       
-      // Get valid avatar URL - check imageUrl first (actual backend field), then fallbacks
-      const avatarUrl = 
+      // Newer backends send avatarUrl (logo / profile photo only, never the cover) and a
+      // separate coverImage. Older ones only send imageUrl (logo, else cover).
+      const hasSeparateFields = Object.prototype.hasOwnProperty.call(item, "avatarUrl")
+        || Object.prototype.hasOwnProperty.call(item, "coverImage");
+      const avatarUrl = hasSeparateFields
+        ? isValidImageUrl(item.avatarUrl ?? undefined)
+        :
         isValidImageUrl(item.imageUrl) ||
         isValidImageUrl(item.profileImage) || 
         isValidImageUrl(item.avatarUrl) || 
@@ -2022,6 +2029,7 @@ class ApiService {
         username: resolvedUsername || undefined,
         avatar: avatarUrl || "https://via.placeholder.com/100",
         coverImage: coverUrl,
+        coverKnown: hasSeparateFields,
         city: resolvedCity || "Unknown",
         state: resolvedState || "",
         rating: item.rating || item.ratingAvg || 0,

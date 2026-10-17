@@ -113,6 +113,8 @@ export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
+  // Card backgrounds that failed to load (e.g. a video thumbnail) fall back to the gradient
+  const [failedCovers, setFailedCovers] = useState<Set<string>>(() => new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [personalized, setPersonalized] = useState(true);
@@ -391,10 +393,16 @@ export default function SearchScreen() {
     };
     const accentColor = typeColors[item.resultType] || "#E8B930";
 
+    // Background = cover media; the small circle below = logo / profile photo.
+    // Older backends don't send a separate cover, so keep the old picture there.
     const imageUrl = item.resultType === "product"
       ? (item.productImage || item.avatar)
-      : item.avatar;
-    const hasImage = isValidImageUrl(imageUrl);
+      : item.coverKnown
+        ? (item.coverImage || "")
+        : item.avatar;
+    const coverKey = `${item.resultType}:${item.id}`;
+    const hasImage = isValidImageUrl(imageUrl) && !failedCovers.has(coverKey);
+    const hasAvatar = isValidImageUrl(item.avatar);
 
     const fallbackGradientColors: [string, string] =
       item.resultType === "product"
@@ -434,6 +442,14 @@ export default function SearchScreen() {
                 style={{ width: "100%", height: 160 }}
                 contentFit="cover"
                 transition={200}
+                onError={() =>
+                  setFailedCovers((prev) => {
+                    if (prev.has(coverKey)) return prev;
+                    const next = new Set(prev);
+                    next.add(coverKey);
+                    return next;
+                  })
+                }
               />
               <LinearGradient
                 colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.5)"]}
@@ -516,7 +532,7 @@ export default function SearchScreen() {
                 }
               >
                 <View style={{ width: 40, height: 40, borderRadius: 20, overflow: "hidden", borderWidth: 2, borderColor: "#0d0d0d", backgroundColor: "#222" }}>
-                  {item.avatar ? (
+                  {hasAvatar ? (
                     <Image source={{ uri: item.avatar }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                   ) : (
                     <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
