@@ -189,22 +189,27 @@ export default function StaffOnboardingStatusScreen() {
     ]);
   };
 
-  // When the gate opened this screen there is no back button, so add a "Not now" one.
+  // Back arrow on every visit while payouts are unfinished, so nobody is ever stuck here.
+  // From sign-in (no history) it opens the app; from the red bar or Finish Setup it goes back.
   useLayoutEffect(() => {
-    if (onboardingComplete || navigation.canGoBack()) {
+    if (onboardingComplete) {
       navigation.setOptions({ headerLeft: undefined });
       return;
     }
     navigation.setOptions({
       headerLeft: () => (
-        <Pressable onPress={handleNotNow} hitSlop={12} accessibilityRole="button" accessibilityLabel="Not now">
-          <ThemedText type="body" style={{ color: theme.brandGold ?? "#D4A84B" }}>
-            Not now
-          </ThemedText>
+        <Pressable
+          onPress={handleNotNow}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={styles.backButton}
+        >
+          <Feather name="chevron-left" size={28} color={theme.text} />
         </Pressable>
       ),
     });
-  }, [navigation, onboardingComplete, handleNotNow, theme.brandGold]);
+  }, [navigation, onboardingComplete, handleNotNow, theme.text]);
 
   const handleCompleteStripeSetup = async () => {
     const token = await getToken();
@@ -407,6 +412,9 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: "100%",
     marginTop: Spacing.sm,
+  },
+  backButton: {
+    paddingRight: Spacing.sm,
   },
   textButton: {
     marginTop: Spacing.lg,
