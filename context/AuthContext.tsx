@@ -181,6 +181,9 @@ interface AuthContextType {
   clearPendingResetParams: () => void;
   pendingStripeReturn: { status: string; type: string } | null;
   clearPendingStripeReturn: () => void;
+  /** Staff without payouts chose "browse for now" this session. Not persisted: Staff Setup shows again on next launch. */
+  staffSetupSkipped: boolean;
+  skipStaffSetup: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -273,6 +276,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearPendingResetParams = () => setPendingResetParams(null);
   const clearPendingStripeReturn = () => setPendingStripeReturn(null);
+  // Session-only, keyed to the user who skipped, so another account signing in never inherits it.
+  const [staffSetupSkippedFor, setStaffSetupSkippedFor] = useState<string | null>(null);
 
   function parseStripeReturnURL(url: string): { status: string; type: string } | null {
     try {
@@ -745,10 +750,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         "@outsyde_notifications",
       ]);
       
+      setStaffSetupSkippedFor(null);
       setUser(null);
       console.log("[Auth] Logout complete - all state cleared");
     } catch (error) {
       console.error("Failed to logout:", error);
+      setStaffSetupSkippedFor(null);
       setUser(null);
     }
   };
@@ -989,6 +996,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearPendingResetParams,
         pendingStripeReturn,
         clearPendingStripeReturn,
+        staffSetupSkipped: !!user?.id && staffSetupSkippedFor === user.id,
+        skipStaffSetup: () => setStaffSetupSkippedFor(user?.id ?? null),
       }}
     >
       {children}

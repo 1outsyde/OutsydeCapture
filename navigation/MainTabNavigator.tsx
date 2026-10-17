@@ -5,7 +5,7 @@ import { api } from "@/services/api";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { useNavigation, useIsFocused, CommonActions } from "@react-navigation/native";
 
 import DiscoverStackNavigator from "@/navigation/DiscoverStackNavigator";
@@ -23,6 +23,7 @@ import { shouldShowConnectPrompt, type ConnectPromptEligibility, type ConnectPro
 import { isAnyOpen, subscribe as subscribeModals } from "@/utils/modalCoordinator";
 import { markStripeReturn } from "@/utils/stripeReturnSignal";
 import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
+import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 
 // At most one "can this vendor get paid?" check per 10 minutes (a forced check after a Stripe return skips this).
 const CONNECT_CHECK_INTERVAL_MS = 10 * 60 * 1000;
@@ -67,7 +68,7 @@ export default function MainTabNavigator() {
   const { unreadCount } = useNotifications();
   console.log("[NOTIF-DEBUG] MainTabNavigator sees unreadCount =", unreadCount, "| totalUnreadCount =", totalUnreadCount);
   const combinedUnread = (unreadCount || 0) + (totalUnreadCount || 0);
-  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken } = useAuth();
+  const { user, pendingResetParams, clearPendingResetParams, pendingStripeReturn, clearPendingStripeReturn, getToken, staffSetupSkipped } = useAuth();
   const navigation = useNavigation<any>();
   // goutsyde.com/claim + /finish links and account-setup reminder push taps
   useAccountSetupLinks();
@@ -152,8 +153,10 @@ export default function MainTabNavigator() {
   // completed onboarding and navigate back to Main via "Continue to App" are
   // not bounced back. The gate value is kept in sync by StaffOnboardingStatusScreen's
   // useFocusEffect (which awaits updateProfile before showing the Continue button).
+  // staffSetupSkipped: the person tapped "Browse the app for now" this session, so let them in
+  // (StaffPayoutsBanner keeps a way back). Session-only, so the next launch shows Staff Setup again.
   useEffect(() => {
-    if (user && !user.isGuest && user.role === "staff" && user.staffStripeOnboardingComplete !== true) {
+    if (user && !user.isGuest && user.role === "staff" && user.staffStripeOnboardingComplete !== true && !staffSetupSkipped) {
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
@@ -161,11 +164,18 @@ export default function MainTabNavigator() {
         })
       );
     }
-  }, [user?.role]);
+  }, [user?.role, staffSetupSkipped]);
 
   // Handle Stripe Connect return deep links (outsyde://stripe-return?status=...&type=...)
   useEffect(() => {
     if (!pendingStripeReturn) return;
+    // Staff returns are owned by StaffOnboardingStatusScreen (it refreshes the flag). A staff member
+    // who skipped setup can come back from Stripe while browsing Main: open that screen and leave
+    // the return pending so it consumes it.
+    if (pendingStripeReturn.type === "staff") {
+      navigation.navigate("StaffOnboarding");
+      return;
+    }
     const { status, type } = pendingStripeReturn;
     clearPendingStripeReturn();
 
@@ -261,8 +271,13 @@ export default function MainTabNavigator() {
     }
   }, [pendingStripeReturn]);
 
+  const showStaffBanner = shouldShowStaffPayoutsBanner(user);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      {showStaffBanner ? <StaffPayoutsBanner topInset={insets.top} /> : null}
+      {/* Banner already covers the status bar, so screens below it get top inset 0. */}
+      <SafeAreaInsetsContext.Provider value={showStaffBanner ? { ...insets, top: 0 } : insets}>
       <Tab.Navigator
         initialRouteName="DiscoverTab"
         screenOptions={{
@@ -364,6 +379,7 @@ export default function MainTabNavigator() {
           }}
         />
       </Tab.Navigator>
+      </SafeAreaInsetsContext.Provider>
       <StripeConnectPrompt visible={showConnectPrompt} onSnooze={() => setSnoozed(true)} />
     </View>
   );

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import {
   StyleSheet,
   View,
   ActivityIndicator,
   Alert,
   Linking,
+  Pressable,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect, CommonActions } from "@react-navigation/native";
@@ -20,9 +21,14 @@ import api from "@/services/api";
 
 const SUCCESS_COLOR = "#34C759";
 
+// Backend catch-all from POST /api/staff/stripe-onboarding/create-link (500). Shown in plain words instead.
+const GENERIC_LINK_ERROR = "Failed to create onboarding link";
+const FRIENDLY_LINK_ERROR =
+  "We couldn't open Stripe right now. Please try again in a few minutes, or contact us at info@goutsyde.com.";
+
 export default function StaffOnboardingStatusScreen() {
   const { theme } = useTheme();
-  const { user, getToken, updateProfile, pendingStripeReturn, clearPendingStripeReturn } = useAuth();
+  const { user, getToken, updateProfile, pendingStripeReturn, clearPendingStripeReturn, logout, skipStaffSetup } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(false);
@@ -160,6 +166,46 @@ export default function StaffOnboardingStatusScreen() {
     );
   };
 
+  // Leave Staff Setup without finishing payouts. Pushed from the banner or Finish Setup: just go back.
+  // Reached through the sign-in gate (no history): mark skipped for this session, then open the app.
+  const handleNotNow = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    skipStaffSetup();
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "Main" }],
+      })
+    );
+  }, [navigation, skipStaffSetup]);
+
+  const handleSignOut = () => {
+    Alert.alert("Sign out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Sign out", style: "destructive", onPress: () => logout() },
+    ]);
+  };
+
+  // When the gate opened this screen there is no back button, so add a "Not now" one.
+  useLayoutEffect(() => {
+    if (onboardingComplete || navigation.canGoBack()) {
+      navigation.setOptions({ headerLeft: undefined });
+      return;
+    }
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable onPress={handleNotNow} hitSlop={12} accessibilityRole="button" accessibilityLabel="Not now">
+          <ThemedText type="body" style={{ color: theme.brandGold ?? "#D4A84B" }}>
+            Not now
+          </ThemedText>
+        </Pressable>
+      ),
+    });
+  }, [navigation, onboardingComplete, handleNotNow, theme.brandGold]);
+
   const handleCompleteStripeSetup = async () => {
     const token = await getToken();
     if (!token) {
@@ -174,7 +220,9 @@ export default function StaffOnboardingStatusScreen() {
         Linking.openURL(url);
       }
     } catch (error: any) {
-      Alert.alert("Error", error?.message || "Failed to start Stripe setup. Please try again.");
+      const raw = error?.message;
+      const message = !raw || raw === GENERIC_LINK_ERROR ? FRIENDLY_LINK_ERROR : raw;
+      Alert.alert("Couldn't open Stripe", message);
     } finally {
       setLoading(false);
     }
@@ -264,6 +312,21 @@ export default function StaffOnboardingStatusScreen() {
                 </Button>
               )}
             </View>
+
+            <Pressable onPress={handleNotNow} hitSlop={8} style={styles.textButton} accessibilityRole="button">
+              <ThemedText type="body" style={{ color: theme.brandGold ?? "#D4A84B", fontWeight: "600" }}>
+                Browse the app for now
+              </ThemedText>
+            </Pressable>
+            <ThemedText type="caption" style={[styles.browseNote, { color: theme.textSecondary }]}>
+              You can finish payouts any time from the red bar at the top of the app.
+            </ThemedText>
+
+            <Pressable onPress={handleSignOut} hitSlop={8} style={styles.signOutButton} accessibilityRole="button">
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                Sign out
+              </ThemedText>
+            </Pressable>
           </>
         )}
       </View>
@@ -344,5 +407,17 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: "100%",
     marginTop: Spacing.sm,
+  },
+  textButton: {
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.xs,
+  },
+  browseNote: {
+    textAlign: "center",
+    marginTop: Spacing.xs,
+  },
+  signOutButton: {
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.xs,
   },
 });
