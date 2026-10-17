@@ -35,6 +35,29 @@ import {
   type SavedAddress,
 } from "@/services/api";
 
+// Checkout refusals from the server (POST /api/cart/payment-intent) that carry
+// a message written for the customer: sold out, pick an option, no longer
+// available. Returns that message, or null for any other error.
+const CUSTOMER_FACING_CHECKOUT_CODES = [
+  "INSUFFICIENT_STOCK",
+  "VARIANT_REQUIRED",
+  "INVALID_VARIANT",
+  "PRODUCT_UNAVAILABLE",
+  "PRODUCT_VENDOR_MISMATCH",
+];
+function checkoutRefusalMessage(errMessage: string): string | null {
+  if (!CUSTOMER_FACING_CHECKOUT_CODES.some((c) => errMessage.includes(c))) return null;
+  const jsonStart = errMessage.indexOf("{");
+  if (jsonStart === -1) return null;
+  try {
+    const body = JSON.parse(errMessage.slice(jsonStart));
+    const msg = body?.error?.message;
+    return typeof msg === "string" && msg.length > 0 ? msg : null;
+  } catch {
+    return null;
+  }
+}
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type CheckoutRoute = RouteProp<RootStackParamList, "CheckoutScreen">;
 
@@ -64,6 +87,7 @@ export default function CheckoutScreen() {
         priceCents: buyNowItem.priceCents,
         quantity: buyNowItem.quantity,
         name: buyNowItem.name,
+        ...(buyNowItem.variantId ? { variantId: buyNowItem.variantId } : {}),
       }]
     : cartItems.map((item) => ({
         productId: item.productId,
@@ -71,6 +95,7 @@ export default function CheckoutScreen() {
         priceCents: item.price,
         quantity: item.quantity,
         name: item.name,
+        ...(item.variantId ? { variantId: item.variantId } : {}),
       }));
 
   const subtotal = mode === "buyNow" && buyNowItem
@@ -336,6 +361,12 @@ const clientPoints = useMemo(() => Math.round((subtotal / 100) * clientPointsRat
         Alert.alert(
           "Invalid Address",
           "Please check your shipping address and try again.",
+          [{ text: "OK" }]
+        );
+      } else if (checkoutRefusalMessage(message)) {
+        Alert.alert(
+          "Can't Complete Checkout",
+          checkoutRefusalMessage(message)!,
           [{ text: "OK" }]
         );
       } else if (message.includes("STRIPE_NOT_ONBOARDED")) {
