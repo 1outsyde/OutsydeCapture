@@ -377,7 +377,14 @@ const CoverMediaHero = ({
   primaryColor: string;
   accentColor: string;
 }) => {
-  const isVideo = profile.coverMediaType === "video" && !!profile.coverMediaUrl;
+  // Same rule as VendorDetailScreen: only a playable https URL is handed to the
+  // player; a Mux upload id means the video is still processing.
+  const isVideo =
+    profile.coverMediaType === "video" &&
+    !!profile.coverMediaUrl &&
+    /^https?:\/\//i.test(profile.coverMediaUrl);
+  const isProcessingVideo =
+    profile.coverMediaType === "video" && !!profile.coverMediaUrl && !isVideo;
   const isImage = profile.coverMediaType === "image" && !!profile.coverMediaUrl;
 
   const videoPlayer = useVideoPlayer(
@@ -418,6 +425,11 @@ const CoverMediaHero = ({
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         />
+      ) : null}
+      {isProcessingVideo ? (
+        <View style={styles.coverProcessingOverlay}>
+          <Text style={styles.coverProcessingText}>Processing video...</Text>
+        </View>
       ) : null}
       <LinearGradient
         colors={["transparent", COLORS.black]}
@@ -3146,6 +3158,17 @@ const styles = StyleSheet.create({
   },
   coverMedia: {
     ...StyleSheet.absoluteFillObject,
+  },
+  coverProcessingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coverProcessingText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.4,
   },
   coverFade: {
     position: "absolute",
