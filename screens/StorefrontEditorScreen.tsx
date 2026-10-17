@@ -41,6 +41,7 @@ import api, {
   VendorEligibility,
   ProductVariant,
   LocalVariant,
+  ProductOptionsResponse,
   ServiceAddon,
   getServiceAddons,
   createServiceAddon,
@@ -50,6 +51,7 @@ import api, {
   reviewServiceAddonPrice,
 } from "@/services/api";
 import VariantBuilderSection from "@/components/products/VariantBuilderSection";
+import ProductOptionsEditor, { ProductOptionsEditorHandle } from "@/components/products/ProductOptionsEditor";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, {
   DayHours,
@@ -297,6 +299,12 @@ export default function StorefrontEditorScreen() {
   });
   const [localVariants, setLocalVariants] = useState<LocalVariant[]>([]);
   const [initialVariants, setInitialVariants] = useState<ProductVariant[]>([]);
+  // Product options editor (backend #310). If the options route can't be
+  // reached, the modal falls back to the older label-only variant editor.
+  const optionsEditorRef = useRef<ProductOptionsEditorHandle>(null);
+  const [optionsInitial, setOptionsInitial] = useState<ProductOptionsResponse | null>(null);
+  const [optionsFallback, setOptionsFallback] = useState(false);
+  const [productModalSession, setProductModalSession] = useState(0);
   const [productModalToken, setProductModalToken] = useState<string>("");
 
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
@@ -710,6 +718,9 @@ export default function StorefrontEditorScreen() {
     // Reset variant state before populating
     setLocalVariants([]);
     setInitialVariants([]);
+    setOptionsInitial(null);
+    setOptionsFallback(false);
+    setProductModalSession((n) => n + 1);
 
     // Capture token for the modal session (used by VariantBuilderSection)
     const modalToken = await getToken();
@@ -734,12 +745,19 @@ export default function StorefrontEditorScreen() {
         status: product.status,
       });
 
-      // Fetch variants for existing products (non-fatal)
+      // Load options + variations for the editor (vendor route, includes
+      // switched-off variations). Fall back to the older editor if it fails.
       try {
-        const full = await api.getProductWithVariants(product.id);
-        setInitialVariants(full.variants ?? []);
+        const opts = await api.getProductOptions(modalToken ?? "", product.id);
+        setOptionsInitial(opts);
       } catch {
-        setInitialVariants([]);
+        setOptionsFallback(true);
+        try {
+          const full = await api.getProductWithVariants(product.id);
+          setInitialVariants(full.variants ?? []);
+        } catch {
+          setInitialVariants([]);
+        }
       }
     } else {
       setEditingProduct(null);
@@ -775,7 +793,14 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
-    const hasVariantRows = localVariants.some((v: LocalVariant) => !v.isDeleted);
+    // Options editor: check it before saving anything (null = untouched).
+    const optionsSave = optionsFallback ? null : optionsEditorRef.current?.getSaveBody() ?? null;
+    if (optionsSave && "error" in optionsSave) {
+      Alert.alert("Check your options", optionsSave.error);
+      return;
+    }
+
+    const hasVariantRows = optionsFallback && localVariants.some((v: LocalVariant) => !v.isDeleted);
     if (hasVariantRows) {
       const validVariants = localVariants.filter(
         (v: LocalVariant) => !v.isDeleted && v.label.trim().length > 0 && v.priceCents > 0
@@ -829,10 +854,25 @@ export default function StorefrontEditorScreen() {
         productId = response.product.id;
       }
 
-      // Save variants in parallel (new → POST, dirty existing → PATCH)
-      const validVariants = localVariants.filter(
-        (v: LocalVariant) => !v.isDeleted && v.label.trim().length > 0 && v.priceCents > 0
-      );
+      // Options + variations (one call, backend #310)
+      if (optionsSave && "body" in optionsSave) {
+        try {
+          await api.saveProductOptions(token, productId, optionsSave.body);
+        } catch (optErr: any) {
+          const msg = optErr?.body?.error?.message || optErr?.message || "Please try again.";
+          setProductModalVisible(false);
+          fetchData();
+          Alert.alert("Product saved, options not saved", String(msg));
+          return;
+        }
+      }
+
+      // Older editor only (fallback): new → POST, dirty existing → PATCH
+      const validVariants = optionsFallback
+        ? localVariants.filter(
+            (v: LocalVariant) => !v.isDeleted && v.label.trim().length > 0 && v.priceCents > 0
+          )
+        : [];
       if (validVariants.length > 0) {
         await Promise.all([
           ...validVariants
@@ -2787,12 +2827,30 @@ export default function StorefrontEditorScreen() {
             keyboardType="number-pad"
           />
 
-          <VariantBuilderSection
-            productId={editingProduct?.id}
-            initialVariants={initialVariants}
-            onVariantsChange={setLocalVariants}
-            authToken={productModalToken}
-          />
+          {optionsFallback ? (
+            <VariantBuilderSection
+              productId={editingProduct?.id}
+              initialVariants={initialVariants}
+              onVariantsChange={setLocalVariants}
+              authToken={productModalToken}
+            />
+          ) : (
+            <ProductOptionsEditor
+              key={`options-${productModalSession}-${optionsInitial ? "loaded" : "empty"}`}
+              ref={optionsEditorRef}
+              initial={optionsInitial}
+              productPriceCents={(() => {
+                const n = parseFloat(priceInput);
+                return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
+              })()}
+              productInventory={
+                productForm.inventory === undefined || productForm.inventory === null
+                  ? null
+                  : Number(productForm.inventory)
+              }
+              authToken={productModalToken}
+            />
+          )}
 
           <Text style={styles.inputLabel}>Product Image</Text>
           <ImageUploader
