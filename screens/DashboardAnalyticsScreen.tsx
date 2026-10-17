@@ -454,15 +454,12 @@ export default function DashboardAnalyticsScreen() {
                       {performancePeriod === 'daily'
                         ? `$${(((dailyData ?? []).slice(-1)[0]?.revenue_cents ?? 0) / 100).toFixed(0)}`
                         : performancePeriod === 'weekly'
-                        ? `$${((weeklyData ?? []).reduce((s: number, d: DailyDay) => s + d.revenue_cents, 0) / 100).toFixed(0)}`
-                        : `$${((monthlyData ?? []).slice(-1)[0]?.revenue_cents ?? 0 / 100).toFixed(0)}`}
+                        ? `$${(((weeklyData ?? []).slice(-1)[0]?.revenue_cents ?? 0) / 100).toFixed(0)}`
+                        : `$${(((monthlyData ?? []).slice(-1)[0]?.revenue_cents ?? 0) / 100).toFixed(0)}`}
                     </Text>
                     <Text style={{ color: COLORS.textMuted, fontSize: 11, fontWeight: '600', marginTop: 2, letterSpacing: 0.5 }}>
                       {performancePeriod === 'daily' ? "TODAY'S REVENUE" : performancePeriod === 'weekly' ? "THIS WEEK'S REVENUE" : "MONTHLY REVENUE"}
                     </Text>
-                  </View>
-                  <View style={{ backgroundColor: 'rgba(52,199,89,0.14)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-                    <Text style={{ color: '#34C759', fontSize: 12, fontWeight: '700' }}>▲ 18%</Text>
                   </View>
                 </View>
 
