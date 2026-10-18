@@ -16,28 +16,12 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import UsernameField from "@/components/UsernameField";
-import { API_BASE_URL } from "@/services/api";
+import api, { type PhotographerTaxonomy } from "@/services/api";
+import {
+  PHOTO_OTHER_CODE, pickableSpecialties, toggleSpecialtyCode, specialtyProblem, specialtyLabel, optionsFor,
+} from "@/utils/photographerTaxonomy";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-const SPECIALTIES = [
-  "Weddings",
-  "Portraits",
-  "Events",
-  "Product",
-  "Real Estate",
-  "Fashion",
-  "Sports",
-  "Food",
-  "Landscape",
-  "Street",
-  "Newborn",
-  "Boudoir",
-  "Corporate",
-  "Concert",
-  "Travel",
-  "Wildlife",
-];
 
 const STEPS = [
   { id: 1, name: "Account" },
@@ -49,16 +33,23 @@ const STEPS = [
   { id: 7, name: "Finish" },
 ];
 
+// Values are stored as typed; labels come from the shared list when it loads.
 const ADDITIONAL_SERVICES = [
-  "Photo editing & retouching",
-  "Same-day previews",
-  "Prints & albums",
-  "Videography / Reels",
-  "Drone photography",
-  "Makeup artist coordination",
-  "Model sourcing",
-  "Wardrobe styling assistance",
-  "Rush delivery",
+  { value: "Photo editing & retouching", label: "Photo editing & retouching" },
+  { value: "Same-day previews", label: "Same day previews" },
+  { value: "Prints & albums", label: "Prints & albums" },
+  { value: "Videography / Reels", label: "Videography and reels" },
+  { value: "Drone photography", label: "Drone photography" },
+  { value: "Makeup artist coordination", label: "Makeup artist coordination" },
+  { value: "Model sourcing", label: "Model sourcing" },
+  { value: "Wardrobe styling assistance", label: "Wardrobe styling assistance" },
+  { value: "Rush delivery", label: "Rush delivery" },
+];
+
+const SHOOT_LOCATIONS = [
+  { label: "I come to you", value: "on-location" },
+  { label: "I have a studio", value: "studio" },
+  { label: "Both", value: "both" },
 ];
 
 const TRAVEL_RADIUS_OPTIONS = [
@@ -70,11 +61,11 @@ const TRAVEL_RADIUS_OPTIONS = [
 ];
 
 const PRICING_TYPES = [
-  { label: "Hourly Rate", value: "hourly" },
-  { label: "Per Session", value: "per_session" },
-  { label: "Per Project", value: "per_project" },
-  { label: "Custom Packages", value: "packages" },
-  { label: "Contact for Pricing", value: "contact" },
+  { label: "Hourly rate", value: "hourly" },
+  { label: "Per session", value: "per_session" },
+  { label: "Per project", value: "per_project" },
+  { label: "Custom packages", value: "packages" },
+  { label: "Contact for pricing", value: "contact" },
 ];
 
 const MIN_BOOKING_OPTIONS = [
@@ -87,23 +78,23 @@ const MIN_BOOKING_OPTIONS = [
 
 const EXPERIENCE_OPTIONS = [
   { label: "Just starting out", value: "beginner" },
-  { label: "1–2 years", value: "1_2_years" },
-  { label: "3–5 years", value: "3_5_years" },
-  { label: "5–10 years", value: "5_10_years" },
+  { label: "1 to 2 years", value: "1_2_years" },
+  { label: "3 to 5 years", value: "3_5_years" },
+  { label: "5 to 10 years", value: "5_10_years" },
   { label: "10+ years", value: "10_plus_years" },
 ];
 
 const EQUIPMENT_OPTIONS = [
-  { label: "Professional camera + studio lighting", value: "pro_studio" },
+  { label: "Professional camera and studio lighting", value: "pro_studio" },
   { label: "Professional camera, natural light", value: "pro_natural" },
   { label: "Building my kit", value: "building" },
 ];
 
 const DELIVERY_OPTIONS = [
   { label: "Same day", value: "same_day" },
-  { label: "24–48 hours", value: "24_48_hours" },
-  { label: "3–5 business days", value: "3_5_days" },
-  { label: "1–2 weeks", value: "1_2_weeks" },
+  { label: "24 to 48 hours", value: "24_48_hours" },
+  { label: "3 to 5 business days", value: "3_5_days" },
+  { label: "1 to 2 weeks", value: "1_2_weeks" },
   { label: "Varies by project", value: "varies" },
 ];
 
@@ -141,6 +132,39 @@ export default function PhotographerSignupScreen() {
   }, [prefillName]);
 
   const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
+  const [profilePhotoMime, setProfilePhotoMime] = useState<string | undefined>(undefined);
+
+  // Shared photographer list (specialties + answer choices), backend #320.
+  const [taxonomy, setTaxonomy] = useState<PhotographerTaxonomy | null>(null);
+  const [taxonomyError, setTaxonomyError] = useState(false);
+  const loadTaxonomy = async (isCancelled: () => boolean = () => false) => {
+    try {
+      const data = await api.getPhotographerTaxonomy();
+      if (isCancelled()) return;
+      if (data && Array.isArray(data.specialties)) {
+        setTaxonomy(data);
+        setTaxonomyError(false);
+      } else {
+        setTaxonomyError(true);
+      }
+    } catch {
+      if (!isCancelled()) setTaxonomyError(true);
+    }
+  };
+  useEffect(() => {
+    let cancelled = false;
+    loadTaxonomy(() => cancelled);
+    return () => { cancelled = true; };
+  }, []);
+  const maxSpecialties = taxonomy?.maxSpecialties ?? 5;
+  const travelOptions = optionsFor(taxonomy, "travelRadius", TRAVEL_RADIUS_OPTIONS);
+  const pricingOptions = optionsFor(taxonomy, "pricingType", PRICING_TYPES);
+  const minBookingOptions = optionsFor(taxonomy, "minimumBooking", MIN_BOOKING_OPTIONS);
+  const experienceOptions = optionsFor(taxonomy, "experienceLevel", EXPERIENCE_OPTIONS);
+  const equipmentOptions = optionsFor(taxonomy, "equipmentLevel", EQUIPMENT_OPTIONS);
+  const deliveryOptions = optionsFor(taxonomy, "deliveryTime", DELIVERY_OPTIONS);
+  const shootOptions = optionsFor(taxonomy, "shootLocation", SHOOT_LOCATIONS);
+  const extraServiceOptions = optionsFor(taxonomy, "additionalServices", ADDITIONAL_SERVICES);
 
   const handlePickProfilePhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -153,6 +177,7 @@ export default function PhotographerSignupScreen() {
     });
     if (!result.canceled) {
       setProfilePhotoUri(result.assets[0].uri);
+      setProfilePhotoMime(result.assets[0].mimeType || undefined);
     }
   };
 
@@ -180,7 +205,8 @@ export default function PhotographerSignupScreen() {
   const [minimumBooking, setMinimumBooking] = useState("");
   const [portfolioUrl, setPortfolioUrl] = useState("");
 
-  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [specialtyCodes, setSpecialtyCodes] = useState<string[]>([]);
+  const [specialtyOther, setSpecialtyOther] = useState("");
   const [additionalServices, setAdditionalServices] = useState<string[]>([]);
 
   const [experienceLevel, setExperienceLevel] = useState("");
@@ -200,10 +226,8 @@ export default function PhotographerSignupScreen() {
     return text;
   };
 
-  const toggleSpecialty = (specialty: string) => {
-    setSpecialties(prev =>
-      prev.includes(specialty) ? prev.filter(s => s !== specialty) : [...prev, specialty]
-    );
+  const toggleSpecialty = (code: string) => {
+    setSpecialtyCodes(prev => toggleSpecialtyCode(prev, code, maxSpecialties));
   };
 
   const toggleShootLocation = (loc: string) => {
@@ -265,12 +289,18 @@ export default function PhotographerSignupScreen() {
           return false;
         }
         return true;
-      case 5:
-        if (specialties.length === 0) {
-          Alert.alert("Error", "Please select at least one specialty");
+      case 5: {
+        if (!taxonomy) {
+          Alert.alert("Error", "We couldn't load the specialty list. Please try again.");
+          return false;
+        }
+        const problem = specialtyProblem(specialtyCodes, specialtyOther, taxonomy);
+        if (problem) {
+          Alert.alert("Error", problem);
           return false;
         }
         return true;
+      }
       case 6:
         if (!experienceLevel) {
           Alert.alert("Error", "Please select your years of experience");
@@ -333,6 +363,11 @@ export default function PhotographerSignupScreen() {
   };
 
   const handleSubmit = async () => {
+    // The app keeps rates in cents. Only an hourly price is a rate; other prices go in startingPrice.
+    const priceNumber = parseFloat(startingPrice);
+    const hourlyRateCents = pricingType === "hourly" && Number.isFinite(priceNumber) && priceNumber > 0
+      ? Math.round(priceNumber * 100)
+      : undefined;
     const newFieldPayload = {
       shootLocation,
       studioName: studioName.trim() || null,
@@ -340,7 +375,7 @@ export default function PhotographerSignupScreen() {
       usesSharedStudio,
       travelRadius,
       pricingType,
-      startingPrice: startingPrice.trim() ? parseFloat(startingPrice) : null,
+      startingPrice: Number.isFinite(priceNumber) && priceNumber > 0 ? priceNumber : null,
       minimumBooking: minimumBooking || null,
       additionalServices,
       experienceLevel,
@@ -362,8 +397,11 @@ export default function PhotographerSignupScreen() {
       city,
       state,
       portfolioUrl: portfolioUrl.trim() || undefined,
-      specialties,
-      profileImageUrl: profilePhotoUri || undefined,
+      hourlyRate: hourlyRateCents,
+      specialtyCodes,
+      specialtyOther: specialtyCodes.includes(PHOTO_OTHER_CODE) ? specialtyOther.trim() : undefined,
+      profilePhotoLocalUri: profilePhotoUri || undefined,
+      profilePhotoMimeType: profilePhotoMime,
       ...newFieldPayload,
     });
 
@@ -373,7 +411,7 @@ export default function PhotographerSignupScreen() {
       const msg = result.errorMessage || "";
       if (msg.toLowerCase().includes("username")) {
         const isTaken = msg.toLowerCase().includes("taken") || msg.toLowerCase().includes("already");
-        setUsernameError(isTaken ? "That username was just taken — please choose another" : msg);
+        setUsernameError(isTaken ? "That username was just taken. Please choose another." : msg);
         setUsernameAvailable(null);
         setCurrentStep(1);
       } else {
@@ -632,11 +670,7 @@ export default function PhotographerSignupScreen() {
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Where do you shoot? *</ThemedText>
               <View style={styles.chipRow}>
-                {[
-                  { label: "I come to you", value: "on-location" },
-                  { label: "I have a studio", value: "studio" },
-                  { label: "Both", value: "both" },
-                ].map(opt => (
+                {shootOptions.map(opt => (
                   <Pressable
                     key={opt.value}
                     onPress={() => toggleShootLocation(opt.value)}
@@ -679,7 +713,7 @@ export default function PhotographerSignupScreen() {
                     autoCapitalize="words"
                   />
                 </View>
-                <ThemedText type="small" style={[{ color: theme.textSecondary, textAlign: "center", marginBottom: Spacing.md }]}>— OR —</ThemedText>
+                <ThemedText type="small" style={[{ color: theme.textSecondary, textAlign: "center", marginBottom: Spacing.md }]}>or</ThemedText>
                 <Pressable onPress={() => setUsesSharedStudio(v => !v)} style={styles.checkRow}>
                   <View style={[styles.checkbox, { borderColor: theme.border, backgroundColor: usesSharedStudio ? "#2D7A2D" : "transparent" }]}>
                     {usesSharedStudio ? <Feather name="check" size={14} color="#FFF" /> : null}
@@ -691,7 +725,7 @@ export default function PhotographerSignupScreen() {
 
             <View style={[styles.field, { marginTop: Spacing.md }]}>
               <ThemedText type="small" style={styles.label}>How far will you travel? *</ThemedText>
-              {TRAVEL_RADIUS_OPTIONS.map(opt => (
+              {travelOptions.map(opt => (
                 <Pressable
                   key={opt.value}
                   onPress={() => setTravelRadius(opt.value)}
@@ -717,7 +751,7 @@ export default function PhotographerSignupScreen() {
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Pricing Type *</ThemedText>
-              {PRICING_TYPES.map(opt => (
+              {pricingOptions.map(opt => (
                 <Pressable
                   key={opt.value}
                   onPress={() => { setPricingType(opt.value); setStartingPrice(""); }}
@@ -763,7 +797,7 @@ export default function PhotographerSignupScreen() {
               <View style={styles.field}>
                 <ThemedText type="small" style={styles.label}>Minimum Booking Duration</ThemedText>
                 <View style={styles.chipRow}>
-                  {MIN_BOOKING_OPTIONS.map(opt => (
+                  {minBookingOptions.map(opt => (
                     <Pressable
                       key={opt.value}
                       onPress={() => setMinimumBooking(minimumBooking === opt.value ? "" : opt.value)}
@@ -809,41 +843,69 @@ export default function PhotographerSignupScreen() {
               What types of photography do you specialize in?
             </ThemedText>
 
-            <View style={styles.specialtyGrid}>
-              {SPECIALTIES.map((specialty) => (
-                <Pressable
-                  key={specialty}
-                  onPress={() => toggleSpecialty(specialty)}
-                  style={[
-                    styles.specialtyChip,
-                    {
-                      backgroundColor: specialties.includes(specialty)
-                        ? theme.primary
-                        : theme.backgroundDefault,
-                      borderColor: specialties.includes(specialty)
-                        ? theme.primary
-                        : theme.border,
-                    },
-                  ]}
-                >
-                  <ThemedText
-                    type="small"
-                    style={{ color: specialties.includes(specialty) ? "#FFFFFF" : theme.text }}
-                  >
-                    {specialty}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
+            {taxonomyError ? (
+              <Pressable onPress={() => { setTaxonomyError(false); loadTaxonomy(); }}>
+                <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.lg }}>
+                  {"We couldn't load the specialty list. Tap to try again."}
+                </ThemedText>
+              </Pressable>
+            ) : !taxonomy ? (
+              <ActivityIndicator color={theme.primary} style={{ alignSelf: "flex-start", marginBottom: Spacing.lg }} />
+            ) : (
+              <View style={styles.specialtyGrid}>
+                {pickableSpecialties(taxonomy).map((s) => {
+                  const selected = specialtyCodes.includes(s.code);
+                  const disabled = !selected && specialtyCodes.length >= maxSpecialties;
+                  return (
+                    <Pressable
+                      key={s.code}
+                      onPress={() => toggleSpecialty(s.code)}
+                      disabled={disabled}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected, disabled }}
+                      style={[
+                        styles.specialtyChip,
+                        {
+                          backgroundColor: selected ? theme.primary : theme.backgroundDefault,
+                          borderColor: selected ? theme.primary : theme.border,
+                          opacity: disabled ? 0.4 : 1,
+                        },
+                      ]}
+                    >
+                      <ThemedText type="small" style={{ color: selected ? "#FFFFFF" : theme.text }}>
+                        {s.label}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
 
-            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.md, marginBottom: Spacing.xl }}>
-              Selected: {specialties.length}
+            <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.md, marginBottom: Spacing.md }}>
+              Selected: {specialtyCodes.length} of {maxSpecialties}
             </ThemedText>
+
+            {specialtyCodes.includes(PHOTO_OTHER_CODE) ? (
+              <View style={[styles.field, { marginBottom: Spacing.xl }]}>
+                <ThemedText type="small" style={styles.label}>What do you shoot? *</ThemedText>
+                <TextInput
+                  style={[inputStyle, { height: 90, textAlignVertical: "top", paddingTop: Spacing.md }]}
+                  value={specialtyOther}
+                  onChangeText={setSpecialtyOther}
+                  placeholder="For example, pet portraits"
+                  placeholderTextColor={theme.textSecondary}
+                  multiline
+                  maxLength={taxonomy?.otherMax ?? 500}
+                />
+              </View>
+            ) : (
+              <View style={{ marginBottom: Spacing.md }} />
+            )}
 
             <ThemedText type="small" style={[styles.label, { marginBottom: Spacing.sm }]}>Additional Services</ThemedText>
             <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: Spacing.md }}>Select all that apply</ThemedText>
             <View style={styles.specialtyGrid}>
-              {ADDITIONAL_SERVICES.map((svc) => (
+              {extraServiceOptions.map(({ value: svc, label: svcLabel }) => (
                 <Pressable
                   key={svc}
                   onPress={() => toggleAdditionalService(svc)}
@@ -863,7 +925,7 @@ export default function PhotographerSignupScreen() {
                     type="small"
                     style={{ color: additionalServices.includes(svc) ? "#FFFFFF" : theme.text }}
                   >
-                    {svc}
+                    {svcLabel}
                   </ThemedText>
                 </Pressable>
               ))}
@@ -881,7 +943,7 @@ export default function PhotographerSignupScreen() {
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Years of Experience *</ThemedText>
-              {EXPERIENCE_OPTIONS.map(opt => (
+              {experienceOptions.map(opt => (
                 <Pressable
                   key={opt.value}
                   onPress={() => setExperienceLevel(opt.value)}
@@ -897,7 +959,7 @@ export default function PhotographerSignupScreen() {
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Equipment Level</ThemedText>
-              {EQUIPMENT_OPTIONS.map(opt => (
+              {equipmentOptions.map(opt => (
                 <Pressable
                   key={opt.value}
                   onPress={() => setEquipmentLevel(equipmentLevel === opt.value ? "" : opt.value)}
@@ -913,7 +975,7 @@ export default function PhotographerSignupScreen() {
 
             <View style={styles.field}>
               <ThemedText type="small" style={styles.label}>Typical Photo Delivery Time *</ThemedText>
-              {DELIVERY_OPTIONS.map(opt => (
+              {deliveryOptions.map(opt => (
                 <Pressable
                   key={opt.value}
                   onPress={() => setDeliveryTime(opt.value)}
@@ -955,36 +1017,32 @@ export default function PhotographerSignupScreen() {
               </View>
               <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Travel Range</ThemedText>
-                <ThemedText type="body">{TRAVEL_RADIUS_OPTIONS.find(o => o.value === travelRadius)?.label ?? "—"}</ThemedText>
+                <ThemedText type="body">{travelOptions.find(o => o.value === travelRadius)?.label ?? "Not set"}</ThemedText>
               </View>
               <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Pricing</ThemedText>
                 <ThemedText type="body" style={{ flex: 1, textAlign: "right", flexWrap: "wrap" }}>
-                  {pricingType === "contact"
-                    ? "Contact for pricing"
-                    : pricingType === "packages"
-                    ? "Custom Packages"
-                    : `${PRICING_TYPES.find(o => o.value === pricingType)?.label ?? pricingType}${startingPrice ? ` — $${startingPrice}` : ""}`}
+                  {`${pricingOptions.find(o => o.value === pricingType)?.label ?? pricingType}${pricingNeedsAmount && startingPrice ? `, $${startingPrice}${pricingType === "hourly" ? " an hour" : ""}` : ""}`}
                 </ThemedText>
               </View>
               <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Specialties</ThemedText>
-                <ThemedText type="body">{specialties.slice(0, 3).join(", ")}{specialties.length > 3 ? "…" : ""}</ThemedText>
+                <ThemedText type="body" style={{ flex: 1, textAlign: "right", flexWrap: "wrap" }}>{specialtyCodes.map((c) => specialtyLabel(taxonomy, c)).join(", ")}</ThemedText>
               </View>
               <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Experience</ThemedText>
-                <ThemedText type="body">{EXPERIENCE_OPTIONS.find(o => o.value === experienceLevel)?.label ?? "—"}</ThemedText>
+                <ThemedText type="body">{experienceOptions.find(o => o.value === experienceLevel)?.label ?? "Not set"}</ThemedText>
               </View>
               <View style={styles.reviewRow}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>Delivery Time</ThemedText>
-                <ThemedText type="body">{DELIVERY_OPTIONS.find(o => o.value === deliveryTime)?.label ?? "—"}</ThemedText>
+                <ThemedText type="body">{deliveryOptions.find(o => o.value === deliveryTime)?.label ?? "Not set"}</ThemedText>
               </View>
             </View>
 
             <View style={[styles.noticeBox, { backgroundColor: "rgba(45,122,45,0.12)", borderColor: "rgba(45,122,45,0.4)", borderWidth: 1 }]}>
               <Feather name="check-circle" size={20} color="#3A9E3A" />
               <ThemedText type="small" style={{ color: "#3A9E3A", marginLeft: Spacing.sm, flex: 1 }}>
-                Photographer accounts are auto-approved! You can start accepting bookings immediately.
+                Clients can book you once you connect a Stripe account for payouts. You can connect it from your photographer dashboard right after you sign up.
               </ThemedText>
             </View>
           </View>
