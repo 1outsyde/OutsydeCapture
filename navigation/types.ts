@@ -82,6 +82,7 @@ export type RootStackParamList = {
   AdminDashboard: undefined;
   AdminUserDetail: { userId: string };
   AdminBusinessReview: { businessId: string };
+  AdminPhotographerDetail: { photographerId: string };
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
   BusinessBillingAddress: undefined;

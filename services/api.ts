@@ -377,6 +377,9 @@ export interface VendorBookerPhotographer {
   portfolioUrl?: string | null;
   hourlyRate: number; // stored in cents
   specialties?: string[] | null;
+  /** Shared photographer list codes (backend #320); names in `specialties` follow them. */
+  specialtyCodes?: string[] | null;
+  specialtyOther?: string | null;
   coverImage?: string | null;
   logoImage?: string | null;
   brandColors?: string | null;
@@ -886,16 +889,40 @@ export interface AdminBusinessDetail {
 
 export interface AdminPhotographer {
   id: string;
+  userId?: string;
   name?: string;
   displayName?: string;
   specialty?: string;
-  city?: string;
-  state?: string;
+  /** Readable specialties from the shared list (backend #320). */
+  specialtyLabels?: string[];
+  city?: string | null;
+  state?: string | null;
   email?: string;
   phone?: string;
+  ownerName?: string | null;
+  ownerEmail?: string | null;
+  ownerPhone?: string | null;
+  ownerUsername?: string | null;
+  /** Account state (backend #324): false after a ban. */
+  ownerIsActive?: boolean | null;
+  ownerDeletionStatus?: "active" | "pending_deletion" | "deleted" | string | null;
+  ownerScheduledDeletionAt?: string | null;
+  visibilityStatus?: "public" | "hidden" | "flagged" | string | null;
+  logoImage?: string | null;
   createdAt: string;
   earnings?: number;
 }
+
+/** GET /api/admin/photographers/:id — every signup answer as labelled rows (same as the admin email). */
+export interface AdminPhotographerDetail {
+  photographer: AdminPhotographer;
+  signupDetails: {
+    specialties: { codes: string[]; labels: string[]; other: string | null };
+    sections: { title: string; rows: AdminSignupDetailRow[] }[];
+  };
+}
+
+export type AdminPhotographerAction = "ban" | "unban" | "schedule-deletion" | "cancel-deletion";
 
 export interface AdminInfluencer {
   id: string;
@@ -1434,6 +1461,22 @@ export interface MobileSignupRequest {
   selectedIndustries?: string[];
   industryNiches?: Record<string, string[]>;
   industryValues?: Record<string, string[]>;
+  // Photographer answers (2026-10-18): every signup answer is sent, nothing is made up.
+  bio?: string;
+  specialtyCodes?: string[];
+  specialtyOther?: string;
+  shootLocation?: string[];
+  studioName?: string | null;
+  studioAddress?: string | null;
+  usesSharedStudio?: boolean;
+  travelRadius?: string;
+  pricingType?: string;
+  startingPrice?: number | null;
+  minimumBooking?: string | null;
+  additionalServices?: string[];
+  experienceLevel?: string;
+  equipmentLevel?: string | null;
+  deliveryTime?: string;
 }
 
 export interface MobileSignupResponse {
@@ -1513,12 +1556,45 @@ export interface PhotographerSignupRequest {
   email: string;
   password: string;
   name: string;
+  phone?: string;
   displayName: string;
-  city: string;
-  state: string;
-  hourlyRate: number;
-  portfolioUrl: string;
+  bio?: string;
+  city?: string;
+  state?: string;
+  /** In cents, only when they price by the hour (optional since backend #324). */
+  hourlyRate?: number;
+  portfolioUrl?: string;
   username?: string;
+  specialtyCodes?: string[];
+  specialtyOther?: string;
+  shootLocation?: string[];
+  studioName?: string | null;
+  studioAddress?: string | null;
+  usesSharedStudio?: boolean;
+  travelRadius?: string;
+  pricingType?: string;
+  /** In dollars; the backend stores cents. */
+  startingPrice?: number | null;
+  minimumBooking?: string | null;
+  additionalServices?: string[];
+  experienceLevel?: string;
+  equipmentLevel?: string | null;
+  deliveryTime?: string;
+}
+
+// Shared photographer list (GET /api/taxonomy/photographer, backend #320). Codes never change.
+export interface PhotographerSpecialtyOption {
+  code: string;
+  label: string;
+  aliases?: string[];
+  retired?: boolean;
+}
+export interface PhotographerTaxonomy {
+  version: number;
+  maxSpecialties: number;
+  otherMax: number;
+  specialties: PhotographerSpecialtyOption[];
+  options: Record<string, { value: string; label: string }[]>;
 }
 
 // Session signup response (just confirms account created, no JWT yet)
@@ -1758,6 +1834,10 @@ class ApiService {
     return this.request<BusinessTaxonomy>("/api/taxonomy/business-categories", { method: "GET" });
   }
 
+  async getPhotographerTaxonomy(): Promise<PhotographerTaxonomy> {
+    return this.request<PhotographerTaxonomy>("/api/taxonomy/photographer", { method: "GET" });
+  }
+
   async vendorSignup(data: VendorSignupRequest): Promise<SessionSignupResponse> {
     return this.request<SessionSignupResponse>("/api/auth/vendor/signup", {
       method: "POST",
@@ -1990,40 +2070,39 @@ class ApiService {
 
       return { ...loginResponse, signupBusinessId };
     } else if (data.role === "photographer") {
-      // Ensure hourlyRate is a valid positive number
-      const rawHourlyRate = data.hourlyRate;
-      let hourlyRate: number;
-      if (typeof rawHourlyRate === "number" && !isNaN(rawHourlyRate) && rawHourlyRate > 0) {
-        hourlyRate = rawHourlyRate;
-      } else {
-        // Fallback to a default rate if invalid
-        console.warn("[Signup] Invalid hourlyRate received:", rawHourlyRate, "- defaulting to 5000 (50/hr)");
-        hourlyRate = 5000; // $50/hr in cents as fallback
-      }
-      
-      // Handle portfolioUrl - use valid URL or placeholder
-      let portfolioUrl: string;
-      if (data.portfolioUrl && data.portfolioUrl.trim().length > 0) {
-        // Ensure it has a protocol
-        const url = data.portfolioUrl.trim();
-        portfolioUrl = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
-      } else {
-        // Backend might require a valid URL - use a placeholder
-        portfolioUrl = "https://outsyde.app";
-      }
-      
-      const photographerPayload = {
+      // Every answer is sent as given (2026-10-18). Nothing is made up: no placeholder rate,
+      // portfolio, city or state. The rate is optional on the backend (#324) and only sent
+      // when they price by the hour.
+      const rate = data.hourlyRate;
+      const portfolio = data.portfolioUrl?.trim();
+      const photographerPayload: PhotographerSignupRequest = {
         email: data.email,
         password: data.password,
         name: fullName,
+        phone: data.phone || undefined,
         displayName: data.displayName || fullName,
-        city: data.city || "Unknown",
-        state: data.state || "NA",
-        hourlyRate,
-        portfolioUrl,
+        bio: data.bio?.trim() || undefined,
+        city: data.city?.trim() || undefined,
+        state: data.state?.trim() || undefined,
+        hourlyRate: typeof rate === "number" && Number.isFinite(rate) && rate >= 1 ? Math.round(rate) : undefined,
+        portfolioUrl: portfolio ? (/^https?:\/\//i.test(portfolio) ? portfolio : `https://${portfolio}`) : undefined,
         username: data.username,
+        specialtyCodes: data.specialtyCodes,
+        specialtyOther: data.specialtyOther?.trim() || undefined,
+        shootLocation: data.shootLocation,
+        studioName: data.studioName,
+        studioAddress: data.studioAddress,
+        usesSharedStudio: data.usesSharedStudio,
+        travelRadius: data.travelRadius || undefined,
+        pricingType: data.pricingType || undefined,
+        startingPrice: data.startingPrice,
+        minimumBooking: data.minimumBooking,
+        additionalServices: data.additionalServices,
+        experienceLevel: data.experienceLevel || undefined,
+        equipmentLevel: data.equipmentLevel,
+        deliveryTime: data.deliveryTime || undefined,
       };
-      console.log("[Signup] Photographer payload:", JSON.stringify(photographerPayload, null, 2));
+      console.log("[Signup] Photographer payload:", JSON.stringify({ ...photographerPayload, password: "***" }, null, 2));
       await this.photographerSignup(photographerPayload);
     }
 
@@ -2357,6 +2436,37 @@ class ApiService {
   async getAdminPhotographers(authToken: string, search?: string): Promise<AdminPhotographer[]> {
     const query = search ? `?search=${encodeURIComponent(search)}` : "";
     return this.request<AdminPhotographer[]>(`/api/admin/photographers${query}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async getAdminPhotographerDetail(authToken: string, photographerId: string): Promise<AdminPhotographerDetail> {
+    return this.request<AdminPhotographerDetail>(`/api/admin/photographers/${encodeURIComponent(photographerId)}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  /** Hide, Flag or Restore (same route as goutsyde.com). */
+  async setAdminPhotographerVisibility(
+    authToken: string,
+    photographerId: string,
+    visibilityStatus: "public" | "hidden" | "flagged",
+  ): Promise<{ photographer: unknown; message?: string }> {
+    return this.request(`/api/admin/photographers/${encodeURIComponent(photographerId)}/visibility`, {
+      method: "PATCH",
+      body: JSON.stringify({ visibilityStatus }),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  /** Ban, Unban, Delete (30 days) or Cancel deletion (backend #324). */
+  async adminPhotographerAction(
+    authToken: string,
+    photographerId: string,
+    action: AdminPhotographerAction,
+  ): Promise<{ success: boolean; photographer?: AdminPhotographer; scheduledDeletionAt?: string; alreadyPending?: boolean }> {
+    return this.request(`/api/admin/photographers/${encodeURIComponent(photographerId)}/${action}`, {
+      method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

@@ -37,6 +37,7 @@ import api, {
   PhotographerService,
   PhotographerHours,
   BlockedDate,
+  type PhotographerTaxonomy,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
@@ -61,6 +62,9 @@ import { availabilityEvents } from "@/services/availabilityEvents";
 import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
 import { formatDuration } from "@/utils/duration";
+import {
+  PHOTO_OTHER_CODE, pickableSpecialties, codesForProfile, toggleSpecialtyCode, specialtyProblem,
+} from "@/utils/photographerTaxonomy";
 
 // Photographer add-on routes (backend photographers router, migration 041).
 const PHOTOGRAPHER_ADDONS_API: ServiceAddonsApi = {
@@ -83,10 +87,6 @@ const DASHBOARD_COLORS = {
   creamDim: "rgba(200,191,168,0.6)",
 };
 
-const SPECIALTIES = [
-  "Portraits", "Weddings", "Events", "Products",
-  "Fashion", "Real Estate", "Concerts", "Sports",
-];
 
 // Photographer color picker uses the same 16-swatch SOLID_COLOR_IDS list as
 // the business StorefrontEditorScreen for consistency.
@@ -131,6 +131,25 @@ export default function PhotographerDashboardScreen() {
   });
   const [profile, setProfile] = useState<PhotographerDashboardProfile | null>(null);
   const [rawPhotographer, setRawPhotographer] = useState<any>(null); // Store raw API response for accurate comparison
+  // Shared photographer list (GET /api/taxonomy/photographer, backend #320)
+  const [photographerTaxonomy, setPhotographerTaxonomy] = useState<PhotographerTaxonomy | null>(null);
+  const loadPhotographerTaxonomy = useCallback(async () => {
+    try {
+      const data = await api.getPhotographerTaxonomy();
+      if (data && Array.isArray(data.specialties)) setPhotographerTaxonomy(data);
+    } catch (err) {
+      console.log("[Dashboard] Could not load the photographer specialty list:", err);
+    }
+  }, []);
+  useEffect(() => { loadPhotographerTaxonomy(); }, [loadPhotographerTaxonomy]);
+  // A profile saved before the shared list has names only: show them as picks once the list loads.
+  useEffect(() => {
+    if (!photographerTaxonomy || !rawPhotographer) return;
+    const stored = Array.isArray(rawPhotographer.specialtyCodes) ? rawPhotographer.specialtyCodes : [];
+    if (stored.length) return;
+    const mapped = codesForProfile(photographerTaxonomy, rawPhotographer);
+    if (mapped.length) setEditProfile(prev => (prev.specialtyCodes.length ? prev : { ...prev, specialtyCodes: mapped }));
+  }, [photographerTaxonomy, rawPhotographer]);
   const [bookings, setBookings] = useState<PhotographerBooking[]>([]);
   const [services, setServices] = useState<PhotographerService[]>([]);
   const [publishingServiceId, setPublishingServiceId] = useState<string | null>(null);
@@ -152,6 +171,9 @@ export default function PhotographerDashboardScreen() {
     state: "",
     portfolioUrl: "",
     specialties: [] as string[],
+    // Shared photographer list (backend #320): codes are what's saved, names follow them.
+    specialtyCodes: [] as string[],
+    specialtyOther: "",
     profileTheme: "sunset_gold",
     avatar: "" as string,
     bannerType: "color" as "color" | "image" | "video" | "mock",
@@ -281,6 +303,8 @@ export default function PhotographerDashboardScreen() {
         state: photographer.state || "",
         portfolioUrl: photographer.portfolioUrl || "",
         specialties: photographer.specialties || [],
+        specialtyCodes: Array.isArray(photographer.specialtyCodes) ? photographer.specialtyCodes : [],
+        specialtyOther: photographer.specialtyOther || "",
         profileTheme: originalThemeId,
         avatar: photographer.logoImage || "",
         bannerType: photographer.coverMediaType === "video" 
@@ -562,6 +586,8 @@ export default function PhotographerDashboardScreen() {
           state: defaultProfile.state || "",
           portfolioUrl: defaultProfile.portfolioUrl || "",
           specialties: defaultProfile.specialties,
+          specialtyCodes: [],
+          specialtyOther: "",
           profileTheme: "sunset_gold",
           avatar: "",
           bannerType: "color",
@@ -842,14 +868,22 @@ export default function PhotographerDashboardScreen() {
         updateData.portfolioUrl = currentPortfolioUrl;
       }
       
-      // specialties
-      const currentSpecialties = editProfile.specialties || [];
-      const originalSpecialties = rawPhotographer?.specialties || [];
-      const currentSorted = [...currentSpecialties].sort();
-      const originalSorted = [...originalSpecialties].sort();
-      console.log(`[Dashboard] specialties: current=${JSON.stringify(currentSorted)} vs original=${JSON.stringify(originalSorted)}`);
-      if (JSON.stringify(currentSorted) !== JSON.stringify(originalSorted)) {
-        updateData.specialties = currentSpecialties;
+      // specialties (shared list codes; the backend rewrites the readable names from them)
+      const currentCodes = editProfile.specialtyCodes || [];
+      const originalCodes = codesForProfile(photographerTaxonomy, rawPhotographer);
+      const currentOther = currentCodes.includes(PHOTO_OTHER_CODE) ? editProfile.specialtyOther.trim() : "";
+      const originalOther = (rawPhotographer?.specialtyOther ?? "").trim();
+      const codesChanged = JSON.stringify([...currentCodes].sort()) !== JSON.stringify([...originalCodes].sort());
+      // Unchanged picks are left alone (a profile with older names only keeps them until edited).
+      if (codesChanged || currentOther !== originalOther) {
+        const problem = specialtyProblem(currentCodes, editProfile.specialtyOther, photographerTaxonomy);
+        if (problem && currentCodes.length) {
+          Alert.alert("Specialties", problem);
+          setSaving(false);
+          return;
+        }
+        updateData.specialtyCodes = currentCodes;
+        updateData.specialtyOther = currentOther || null;
       }
       
       // brandColors - compare IDs; send new { type, id } shape
@@ -1306,12 +1340,10 @@ export default function PhotographerDashboardScreen() {
     );
   };
 
-  const toggleSpecialty = (specialty: string) => {
+  const toggleSpecialty = (code: string) => {
     setEditProfile(prev => ({
       ...prev,
-      specialties: prev.specialties.includes(specialty)
-        ? prev.specialties.filter(s => s !== specialty)
-        : [...prev.specialties, specialty],
+      specialtyCodes: toggleSpecialtyCode(prev.specialtyCodes, code, photographerTaxonomy?.maxSpecialties ?? 5),
     }));
   };
 
@@ -2399,25 +2431,50 @@ export default function PhotographerDashboardScreen() {
 
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Specialties</Text>
-              <View style={styles.specialtiesGrid}>
-                {SPECIALTIES.map(specialty => (
-                  <Pressable
-                    key={specialty}
-                    onPress={() => toggleSpecialty(specialty)}
-                    style={[
-                      styles.specialtyChip,
-                      editProfile.specialties.includes(specialty) && styles.specialtyChipActive,
-                    ]}
-                  >
-                    <Text style={[
-                      styles.specialtyChipText,
-                      editProfile.specialties.includes(specialty) && styles.specialtyChipTextActive,
-                    ]}>
-                      {specialty}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={styles.formHint}>Choose up to {photographerTaxonomy?.maxSpecialties ?? 5}</Text>
+              {!photographerTaxonomy ? (
+                <Pressable onPress={() => loadPhotographerTaxonomy()}>
+                  <Text style={styles.formHint}>{"Loading the specialty list. Tap to try again."}</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.specialtiesGrid}>
+                  {pickableSpecialties(photographerTaxonomy).map(s => {
+                    const selected = editProfile.specialtyCodes.includes(s.code);
+                    const disabled = !selected && editProfile.specialtyCodes.length >= photographerTaxonomy.maxSpecialties;
+                    return (
+                      <Pressable
+                        key={s.code}
+                        onPress={() => toggleSpecialty(s.code)}
+                        disabled={disabled}
+                        accessibilityState={{ checked: selected, disabled }}
+                        style={[
+                          styles.specialtyChip,
+                          selected && styles.specialtyChipActive,
+                          disabled && { opacity: 0.4 },
+                        ]}
+                      >
+                        <Text style={[
+                          styles.specialtyChipText,
+                          selected && styles.specialtyChipTextActive,
+                        ]}>
+                          {s.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+              {editProfile.specialtyCodes.includes(PHOTO_OTHER_CODE) ? (
+                <TextInput
+                  style={[styles.formInput, { marginTop: 10, minHeight: 70, textAlignVertical: "top" }]}
+                  value={editProfile.specialtyOther}
+                  onChangeText={(text) => setEditProfile({ ...editProfile, specialtyOther: text })}
+                  placeholder="What do you shoot?"
+                  placeholderTextColor={theme.brandTextDim}
+                  multiline
+                  maxLength={photographerTaxonomy?.otherMax ?? 500}
+                />
+              ) : null}
             </View>
 
             <View style={styles.formGroup}>
