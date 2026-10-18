@@ -311,6 +311,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           providerState={businessMeta?.state}
           staffMemberId={staffId}
           accentColor={accentColor}
+          onExit={() => setBookingFlowActive(false)}
         />
       </SafeAreaView>
     );

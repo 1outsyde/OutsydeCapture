@@ -3089,6 +3089,7 @@ export default function AccountScreen() {
             providerId={bookingProviderId || ""}
             providerType="business"
             providerName={bookingProviderName}
+            onExit={() => setBookingFlowActive(false)}
           />
         </SafeAreaView>
       </Modal>
