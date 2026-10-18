@@ -22,6 +22,7 @@ import { StripeConnectPrompt, isStripePromptSnoozed } from "@/components/StripeC
 import { shouldShowConnectPrompt, type ConnectPromptEligibility, type ConnectPromptStripeStatus } from "@/utils/connectPrompt";
 import { isAnyOpen, subscribe as subscribeModals } from "@/utils/modalCoordinator";
 import { markStripeReturn } from "@/utils/stripeReturnSignal";
+import { useMessagePushLinks } from "@/hooks/useMessagePushLinks";
 import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 
@@ -72,6 +73,8 @@ export default function MainTabNavigator() {
   const navigation = useNavigation<any>();
   // goutsyde.com/claim + /finish links and account-setup reminder push taps
   useAccountSetupLinks();
+  // Tapped message push → that chat
+  useMessagePushLinks();
   const isGuest = user?.isGuest || !user;
 
   // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──

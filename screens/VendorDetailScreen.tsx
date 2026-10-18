@@ -63,6 +63,7 @@ import { hoursObjectToArray } from "@/components/HoursEditor";
 import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
 import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
+import { useStartChat } from "@/hooks/useStartChat";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { showReportBlockMenu } from "@/utils/moderationActions";
@@ -600,6 +601,18 @@ export default function VendorDetailScreen({ route }: Props) {
       String(user.id) === String(profile.userId ?? "")
     );
   }, [profile, user?.id]);
+
+  // Message button: open (or start) a chat with this business or photographer.
+  const { startChat, starting: startingChat } = useStartChat();
+  const handleMessage = useCallback(() => {
+    if (!profile || isOwnProfile) return;
+    startChat({
+      participantId: profile.role === "consumer" ? String(profile.userId || profile.id) : profile.id,
+      participantType: profile.role === "photographer" ? "photographer" : profile.role === "consumer" ? "user" : "business",
+      name: profile.name,
+      avatar: profile.avatarUrl || profile.logoImage,
+    });
+  }, [profile, isOwnProfile, startChat]);
 
   const colorMode = isDark ? "dark" : "light";
   const accentColor =
@@ -1486,10 +1499,9 @@ export default function VendorDetailScreen({ route }: Props) {
     // Fallback
     return {
       label: "Message",
-      onPress: () =>
-        Alert.alert("Coming soon", "Messaging will be available soon."),
+      onPress: handleMessage,
     };
-  }, [navigation, profile, products, addItem, openProduct]);
+  }, [navigation, profile, products, addItem, openProduct, handleMessage]);
 
   const reviewBreakdown = useMemo(() => {
     const dist = ratingsData?.distribution as Record<string, number> | undefined;
@@ -1651,9 +1663,18 @@ export default function VendorDetailScreen({ route }: Props) {
               </Text>
             </Pressable>
 
-            <Pressable style={styles.messageButton}>
-              <Feather name="message-circle" size={15} color={COLORS.white} />
-            </Pressable>
+            {!isOwnProfile ? (
+              <Pressable
+                style={styles.messageButton}
+                onPress={handleMessage}
+                disabled={startingChat}
+                accessibilityRole="button"
+                accessibilityLabel={`Message ${profile.name}`}
+                hitSlop={6}
+              >
+                <Feather name="message-circle" size={15} color={COLORS.white} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
