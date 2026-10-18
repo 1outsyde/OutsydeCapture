@@ -1500,6 +1500,7 @@ export interface MobileSignupRequest {
   selectedIndustries?: string[];
   industryNiches?: Record<string, string[]>;
   industryValues?: Record<string, string[]>;
+  interestOther?: string;
   // Photographer answers (2026-10-18): every signup answer is sent, nothing is made up.
   bio?: string;
   specialtyCodes?: string[];
@@ -1545,6 +1546,7 @@ export interface CustomerSignupRequest {
   selectedIndustries?: string[];
   industryNiches?: Record<string, string[]>;
   industryValues?: Record<string, string[]>;
+  interestOther?: string;
   billingSameAsHome?: boolean;
   billingStreet?: string;
   billingAptUnit?: string;
@@ -1660,6 +1662,18 @@ export interface TaxonomyCategory {
   code: string;
   label: string;
   specialties: TaxonomySpecialty[];
+}
+/** Shared customer interests list (backend GET /api/taxonomy/customer-interests, 2026-10-18). */
+export interface CustomerInterestCategory {
+  code: string;
+  label: string;
+  specialties: TaxonomySpecialty[];
+  values: { id: string; label: string }[];
+}
+export interface CustomerInterestTaxonomy {
+  version: number;
+  otherMax: number;
+  categories: CustomerInterestCategory[];
 }
 export interface BusinessTaxonomy {
   version: number;
@@ -1873,6 +1887,10 @@ class ApiService {
     return this.request<BusinessTaxonomy>("/api/taxonomy/business-categories", { method: "GET" });
   }
 
+  async getCustomerInterestTaxonomy(): Promise<CustomerInterestTaxonomy> {
+    return this.request<CustomerInterestTaxonomy>("/api/taxonomy/customer-interests", { method: "GET" });
+  }
+
   async getPhotographerTaxonomy(): Promise<PhotographerTaxonomy> {
     return this.request<PhotographerTaxonomy>("/api/taxonomy/photographer", { method: "GET" });
   }
@@ -2043,6 +2061,7 @@ class ApiService {
         selectedIndustries: data.selectedIndustries,
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
+        interestOther: data.interestOther,
         dateOfBirth: signupData.dateOfBirth,
         shoppingFrequency: signupData.shoppingFrequency,
         ethnicity: signupData.ethnicity,

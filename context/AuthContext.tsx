@@ -162,6 +162,7 @@ export interface SignupData {
   selectedIndustries?: string[];
   industryNiches?: Record<string, string[]>;
   industryValues?: Record<string, string[]>;
+  interestOther?: string;
   displayName?: string;
   bio?: string;
   hourlyRate?: number;
@@ -729,6 +730,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         selectedIndustries: data.selectedIndustries,
         industryNiches: data.industryNiches,
         industryValues: data.industryValues,
+        interestOther: data.interestOther,
       });
       
       // Logo picked at signup: upload it as the new owner, save it on the business, then send
