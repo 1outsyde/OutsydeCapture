@@ -410,6 +410,10 @@ export interface VendorBookerBusiness {
   contactPhone?: string | null;
   websiteUrl?: string | null;
   knownFor?: string[] | string | null;
+  // Industry from the shared list (migration 047). Editable from the storefront editor since 2026-10-18.
+  categoryCode?: string | null;
+  specialties?: string[] | null;
+  otherDescription?: string | null;
   socialMedia?: Record<string, string> | string | null;
   stripeAccountId?: string | null;
   stripeOnboardingComplete?: boolean | null;

@@ -49,6 +49,8 @@ import api, {
   deleteServiceAddon,
   attachLibraryAddon,
   reviewServiceAddonPrice,
+  type BusinessTaxonomy,
+  type TaxonomySpecialty,
 } from "@/services/api";
 import VariantBuilderSection from "@/components/products/VariantBuilderSection";
 import ProductOptionsEditor, { ProductOptionsEditorHandle } from "@/components/products/ProductOptionsEditor";
@@ -70,6 +72,17 @@ import { formatDuration, joinMinutes, splitMinutes } from "@/utils/duration";
 import AddonLibraryTab from "@/components/addons/AddonLibraryTab";
 import { readableApiError } from "@/utils/apiError";
 import { money } from "@/utils/addonLibrary";
+import {
+  OTHER_DESCRIPTION_MAX,
+  findCategory,
+  industryFrom,
+  industryPayload,
+  industryProblem,
+  needsOtherDescription,
+  offerTypeOf,
+  specialtiesFor,
+  type IndustryValue,
+} from "@/utils/industry";
 
 // The backend rejects vendor service durations under 5 minutes.
 const MIN_SERVICE_DURATION_MINUTES = 5;
@@ -148,6 +161,12 @@ export default function StorefrontEditorScreen() {
   const [profileTagline, setProfileTagline] = useState("");
   const [profileDescription, setProfileDescription] = useState("");
   const [profileSpecialties, setProfileSpecialties] = useState<string[]>([]);
+  // Industry from the shared list. Sent with Save Profile only after the business changes it,
+  // so ordinary profile saves stay exactly as they were.
+  const [industry, setIndustry] = useState<IndustryValue>(industryFrom(null));
+  const [industryDirty, setIndustryDirty] = useState(false);
+  const [taxonomy, setTaxonomy] = useState<BusinessTaxonomy | null>(null);
+  const [taxonomyError, setTaxonomyError] = useState(false);
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
   const [profileWebsite, setProfileWebsite] = useState("");
@@ -427,6 +446,8 @@ export default function StorefrontEditorScreen() {
 
       const biz = businessRes.business;
       setBusiness(biz);
+      setIndustry(industryFrom(biz));
+      setIndustryDirty(false);
       setAllowPastClosing(
         typeof biz.allowPastClosing === "boolean" ? biz.allowPastClosing : null,
       );
@@ -594,9 +615,37 @@ export default function StorefrontEditorScreen() {
     }
   };
 
+  const loadTaxonomy = useCallback(async () => {
+    setTaxonomyError(false);
+    try {
+      const data = await api.getBusinessTaxonomy();
+      if (data && Array.isArray(data.categories)) setTaxonomy(data);
+      else setTaxonomyError(true);
+    } catch {
+      setTaxonomyError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "profile" && !taxonomy && !taxonomyError) loadTaxonomy();
+  }, [activeTab, taxonomy, taxonomyError, loadTaxonomy]);
+
+  const changeIndustry = (next: IndustryValue) => {
+    setIndustry(next);
+    setIndustryDirty(true);
+  };
+
   const handleSaveProfile = async () => {
     const token = await getToken();
     if (!token) return;
+
+    if (industryDirty) {
+      const problem = industryProblem(industry, offerTypeOf(business?.hasProducts, business?.hasServices));
+      if (problem) {
+        Alert.alert("Industry", problem);
+        return;
+      }
+    }
 
     try {
       setSaving(true);
@@ -621,6 +670,7 @@ export default function StorefrontEditorScreen() {
         address: profileAddress || undefined,
         city: profileCity || undefined,
         state: profileState || undefined,
+        ...(industryDirty ? industryPayload(industry) : {}),
       };
       console.log("[Storefront] Saving profile:", profileData);
       await api.updateVendorMyBusiness(token, profileData);
@@ -2196,6 +2246,114 @@ export default function StorefrontEditorScreen() {
     </Pressable>
   );
 
+  const renderIndustryChips = (list: TaxonomySpecialty[], max: number) => (
+    <View style={styles.specialtyGrid}>
+      {list.map((sp) => {
+        const active = industry.specialties.includes(sp.code);
+        const full = !active && industry.specialties.length >= max;
+        return (
+          <Pressable
+            key={sp.code}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active, disabled: full }}
+            disabled={full}
+            style={[styles.specialtyChip, active && styles.specialtyChipActive, full && { opacity: 0.4 }]}
+            onPress={() =>
+              changeIndustry({
+                ...industry,
+                specialties: active
+                  ? industry.specialties.filter((c) => c !== sp.code)
+                  : [...industry.specialties, sp.code],
+              })
+            }
+          >
+            <Text style={[styles.specialtyText, active && styles.specialtyTextActive]}>{sp.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const renderIndustryCard = () => {
+    const offer = offerTypeOf(business?.hasProducts, business?.hasServices);
+    const category = findCategory(taxonomy, industry.categoryCode);
+    const max = taxonomy?.maxSpecialties ?? 3;
+    const available = specialtiesFor(category, offer);
+    const offerText =
+      offer === "both" ? "You offer services and sell products." : offer === "services" ? "You offer services." : offer === "products" ? "You sell products." : "";
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Industry</Text>
+        <Text style={styles.cardDesc}>
+          Helps customers who are looking for what you do find you. {offerText}
+        </Text>
+        {taxonomyError ? (
+          <Pressable onPress={loadTaxonomy} accessibilityRole="button">
+            <Text style={styles.cardDesc}>
+              We couldn{"\u2019"}t load the industry list. <Text style={{ color: theme.brandGold }}>Try again</Text>
+            </Text>
+          </Pressable>
+        ) : !taxonomy ? (
+          <ActivityIndicator color={theme.brandGold} />
+        ) : (
+          <>
+            <Text style={styles.inputLabel}>Your industry</Text>
+            <View style={[styles.specialtyGrid, { marginBottom: 12 }]}>
+              {taxonomy.categories.map((c) => {
+                const active = industry.categoryCode === c.code;
+                return (
+                  <Pressable
+                    key={c.code}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: active }}
+                    style={[styles.specialtyChip, active && styles.specialtyChipActive]}
+                    onPress={() => {
+                      if (!active) changeIndustry({ ...industry, categoryCode: c.code, specialties: [] });
+                    }}
+                  >
+                    <Text style={[styles.specialtyText, active && styles.specialtyTextActive]}>{c.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {category && category.code !== "other" && offer ? (
+              <>
+                <Text style={styles.inputLabel}>What do you do? (pick up to {max})</Text>
+                {offer === "both" ? (
+                  <>
+                    <Text style={[styles.cardDesc, { marginBottom: 6 }]}>Services</Text>
+                    {renderIndustryChips(available.filter((s) => s.kind === "service"), max)}
+                    <Text style={[styles.cardDesc, { marginTop: 12, marginBottom: 6 }]}>Products</Text>
+                    {renderIndustryChips(available.filter((s) => s.kind === "product"), max)}
+                  </>
+                ) : (
+                  renderIndustryChips(available, max)
+                )}
+              </>
+            ) : null}
+
+            {needsOtherDescription(industry) ? (
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.inputLabel}>Tell us what you do</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={industry.otherDescription}
+                  onChangeText={(t) => changeIndustry({ ...industry, otherDescription: t.slice(0, OTHER_DESCRIPTION_MAX) })}
+                  placeholder="Describe your business in your own words"
+                  placeholderTextColor={theme.brandTextDim}
+                  maxLength={OTHER_DESCRIPTION_MAX}
+                  multiline
+                />
+                <Text style={styles.cardDesc}>{industry.otherDescription.length}/{OTHER_DESCRIPTION_MAX}</Text>
+              </View>
+            ) : null}
+          </>
+        )}
+      </View>
+    );
+  };
+
   const renderProfileTab = () => (
     <ScreenKeyboardAwareScrollView style={styles.content} contentContainerStyle={{ paddingTop: 0 }} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
@@ -2227,6 +2385,8 @@ export default function StorefrontEditorScreen() {
             multiline
           />
         </View>
+
+        {renderIndustryCard()}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Known For</Text>
