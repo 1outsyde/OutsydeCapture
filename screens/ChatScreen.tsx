@@ -340,7 +340,12 @@ export default function ChatScreen() {
           Array.isArray(response) ? response : response?.messages || []
         ).map(mapApiMessage);
         setMessages((prev) => {
-          const pending = prev.filter((m) => m.localStatus);
+          // Keep messages still sending or failed, but drop any the server already has
+          // (a poll can land after the server saved it and before the send response).
+          const serverIds = new Set(list.map((m: Message) => m.id));
+          const pending = prev.filter(
+            (m) => m.localStatus && !serverIds.has(m.id),
+          );
           const same =
             prev.length - pending.length === list.length &&
             list.every((m: Message, i: number) => prev[i]?.id === m.id);
@@ -470,7 +475,12 @@ export default function ChatScreen() {
           mediaItems: sent.mediaItems ?? urls,
           text: sent.text ?? text,
         });
-        setMessages((prev) => prev.map((m) => (m.id === tempId ? real : m)));
+        setMessages((prev) =>
+          // If a poll already brought the real message in, just drop the temp row.
+          prev.some((m) => m.id === real.id)
+            ? prev.filter((m) => m.id !== tempId)
+            : prev.map((m) => (m.id === tempId ? real : m)),
+        );
         noteMessageSent(conversationId, previewFor(text, urls), real.createdAt);
       } catch (err) {
         console.warn("[Chat] send failed", (err as any)?.message);

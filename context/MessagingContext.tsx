@@ -249,9 +249,12 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
   }, [getToken, refreshConversations]);
 
   const markConversationAsRead = useCallback((conversationId: string) => {
-    setConversations(prev => prev.map(conv =>
-      conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
-    ));
+    // Runs on every chat poll: keep the same array when nothing changes (no re-render).
+    setConversations(prev =>
+      prev.some(conv => conv.id === conversationId && conv.unreadCount > 0)
+        ? prev.map(conv => conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv)
+        : prev
+    );
   }, []);
 
   const totalUnreadCount = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
