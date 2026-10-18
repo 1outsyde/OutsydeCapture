@@ -637,6 +637,9 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow,
           {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null && (
             <Text style={styles.earningsLine}>Influencer: -${booking.influencerCommissionAmount.toFixed(2)}</Text>
           )}
+          {typeof booking.discountAmountCents === "number" && booking.discountAmountCents > 0 ? (
+            <Text style={styles.earningsLine}>{`Customer used $${(booking.discountAmountCents / 100).toFixed(2)} Outsyde rewards, paid by Outsyde`}</Text>
+          ) : null}
           {booking.vendorNetAmount != null ? (
             <Text style={styles.earningsPrimary}>You Earn: ${booking.vendorNetAmount.toFixed(2)}</Text>
           ) : (
@@ -793,6 +796,9 @@ function BookingDetailSheet({ booking, onClose }: { booking: BusinessBooking | n
               )}
               {typeof booking.depositAmountCents === "number" && booking.depositAmountCents > 0 ? (
                 <DetailRow label="Deposit paid online" value={money(booking.depositAmountCents)} />
+              ) : null}
+              {typeof booking.discountAmountCents === "number" && booking.discountAmountCents > 0 ? (
+                <DetailRow label="Outsyde rewards used" value={`${money(booking.discountAmountCents)}, paid by Outsyde`} />
               ) : null}
               {booking.vendorNetAmount != null ? (
                 <DetailRow label="You earn" value={`$${booking.vendorNetAmount.toFixed(2)}`} strong />

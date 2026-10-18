@@ -236,6 +236,11 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
               Influencer: -${order.influencerCommissionAmount.toFixed(2)}
             </Text>
           )}
+          {typeof order.discountAmountCents === "number" && order.discountAmountCents > 0 ? (
+            <Text style={styles.feeLabel}>
+              {`Customer used $${(order.discountAmountCents / 100).toFixed(2)} Outsyde rewards, paid by Outsyde`}
+            </Text>
+          ) : null}
           {order.vendorNetAmount != null ? (
             <Text style={styles.earnLabel}>
               You Earn: ${order.vendorNetAmount.toFixed(2)}
