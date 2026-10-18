@@ -90,7 +90,7 @@ export default function MediaUploader({
       setUploadProgress("Selecting image...");
       
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: aspectRatio === "logo" ? [1, 1] : aspectRatio === "product" ? [1, 1] : [16, 9],
         quality: 0.8,
@@ -172,7 +172,7 @@ export default function MediaUploader({
       setUploadProgress("Selecting video...");
       
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: ['videos'],
         allowsEditing: true,
         videoMaxDuration: maxVideoDuration,
         quality: 0.8,

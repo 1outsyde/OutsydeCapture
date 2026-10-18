@@ -671,9 +671,6 @@ export default function DiscoverScreen() {
                   const displayName =
                     comment.user?.name ||
                     comment.user?.username ||
-                    (comment.user?.firstName
-                      ? (comment.user.firstName + (comment.user.lastName ? ' ' + comment.user.lastName : '')).trim()
-                      : undefined) ||
                     comment.userName || comment.username || author.displayName || author.username || author.name || "User";
                   const avatarUri =
                     comment.userAvatar || author.profilePhotoUrl || author.profileImageUrl || comment.user?.profileImageUrl || "";
