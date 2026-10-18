@@ -4,6 +4,9 @@
 //   (the message appears in the chat instead) and isn't added to the Activity list.
 // - Listeners (MessagingContext, an open ChatScreen) subscribe to refresh when a message push arrives.
 
+/** AsyncStorage key for the Expo token this phone last registered (cleared from the account on sign out). */
+export const EXPO_PUSH_TOKEN_KEY = "@outsyde_expo_push_token";
+
 type PushData = { type?: unknown; conversationId?: unknown } | null | undefined;
 
 let activeConversationId: string | null = null;

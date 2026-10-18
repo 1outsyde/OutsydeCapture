@@ -28,6 +28,10 @@ export function useMessagePushLinks() {
       const key = response.notification.request.identifier;
       if (handled.current.has(key)) return;
       handled.current.add(key);
+      // So a later remount (e.g. after signing in again) doesn't reopen this chat.
+      try {
+        Notifications.clearLastNotificationResponse();
+      } catch {}
       setPending(id);
     };
     Notifications.getLastNotificationResponseAsync()

@@ -361,6 +361,9 @@ export default function RootNavigator() {
       <Stack.Screen
         name="Chat"
         component={ChatScreen}
+        // One screen per conversation: opening chat B (e.g. from a push) while chat A is open
+        // pushes a new screen instead of swapping A's params, so A's draft/photos never go to B.
+        getId={({ params }) => params?.conversationId}
         options={{
           presentation: "card",
           animation: "slide_from_right",

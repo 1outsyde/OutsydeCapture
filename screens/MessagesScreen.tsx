@@ -803,7 +803,7 @@ export default function MessagesScreen() {
     let cancelled = false;
     setSearchingServer(true);
     const t = setTimeout(async () => {
-      const token = await getToken();
+      const token = await getToken().catch(() => null);
       const [msgs, people] = await Promise.all([
         api
           .searchMyMessages(q, token)

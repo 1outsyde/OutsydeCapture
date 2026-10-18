@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { EXPO_PUSH_TOKEN_KEY } from "@/services/messagePush";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppStateStatus, Linking } from "react-native";
 import { api, setOnAuthSessionCleared } from "../services/api";
@@ -830,6 +831,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       } catch (e) {
         console.warn("[Auth] Backend logout failed (non-critical):", e);
+      }
+
+      // Stop this phone getting pushes (message previews) for the account that is signing out.
+      // Best effort: older backends answer 404 and the next sign in moves the token anyway.
+      try {
+        const pushToken = await AsyncStorage.getItem(EXPO_PUSH_TOKEN_KEY);
+        const accessToken = await getAccessToken();
+        if (pushToken && accessToken) {
+          await fetch("https://outsyde-backend.onrender.com/api/push/expo-token", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ expoPushToken: pushToken }),
+          });
+        }
+      } catch (e) {
+        console.warn("[Auth] Push token unregister failed (non-critical):", e);
       }
       
       // Clear SecureStore + AsyncStorage

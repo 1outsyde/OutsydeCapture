@@ -6,7 +6,7 @@ import * as Notifications from "expo-notifications";
 import { useAuth } from "./AuthContext";
 import api from "@/services/api";
 import { apiPost } from "@/api/client";
-import { isMessagePush, emitMessagePush } from "@/services/messagePush";
+import { isMessagePush, emitMessagePush, EXPO_PUSH_TOKEN_KEY } from "@/services/messagePush";
 import {
   registerForPushNotificationsAsync,
   scheduleBookingConfirmationNotification,
@@ -158,6 +158,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const authToken = await getToken();
           if (authToken) {
             await apiPost("/api/push/expo-token", { expoPushToken: token }, authToken);
+            // Remembered so sign out can stop this phone getting this account's pushes.
+            await AsyncStorage.setItem(EXPO_PUSH_TOKEN_KEY, token).catch(() => {});
           }
         } catch (err) {
           console.warn("[Push] Failed to register token with backend:", err);
