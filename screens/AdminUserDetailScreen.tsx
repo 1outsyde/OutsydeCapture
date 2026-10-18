@@ -6,13 +6,14 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import api, { AdminUser, AdminOrder, AdminBooking, AdminConversation } from "@/services/api";
+import api, { AdminUser, AdminOrder, AdminBooking, AdminConversation, AdminSignupDetailRow } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 
 type RouteType = RouteProp<RootStackParamList, "AdminUserDetail">;
 
 interface UserDetailData {
-  user: AdminUser;
+  user: AdminUser & { phone?: string };
+  signupDetails: { sections: { title: string; rows: AdminSignupDetailRow[] }[] };
   orders: AdminOrder[];
   bookings: AdminBooking[];
   conversations: AdminConversation[];
@@ -214,6 +215,19 @@ export default function AdminUserDetailScreen() {
       fontWeight: "600",
       color: theme.text,
     },
+    signupRow: {
+      marginBottom: 12,
+    },
+    signupValue: {
+      marginTop: 2,
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.text,
+    },
+    mutedValue: {
+      color: theme.textSecondary,
+      fontWeight: "400",
+    },
     sectionTitle: {
       fontSize: 12,
       fontWeight: "600",
@@ -279,7 +293,8 @@ export default function AdminUserDetailScreen() {
   const isDisabled = status === "suspended";
   const accountTypeLabel = user.accountType ? user.accountType.toUpperCase() : "UNKNOWN";
   const createdAtLabel = user.createdAt ? new Date(user.createdAt).toLocaleString() : "Unknown";
-  const phoneLabel = (user as AdminUser & { phone?: string }).phone || "Not provided";
+  const phoneLabel = user.phone || "Not provided";
+  const signupSections = data.signupDetails?.sections ?? [];
 
   return (
     <View style={styles.container}>
@@ -330,6 +345,18 @@ export default function AdminUserDetailScreen() {
             <Text style={styles.rowValue}>{createdAtLabel}</Text>
           </View>
         </View>
+
+        {signupSections.map((section) => (
+          <View style={styles.section} key={`signup-${section.title}`}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            {section.rows.map((row) => (
+              <View style={styles.signupRow} key={`${section.title}-${row.label}`}>
+                <Text style={styles.rowLabel}>{row.label}</Text>
+                <Text style={[styles.signupValue, row.value === "Not provided" && styles.mutedValue]}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+        ))}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Activity summary</Text>
