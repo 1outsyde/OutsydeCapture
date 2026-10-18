@@ -612,6 +612,8 @@ export interface VendorProduct {
   reviewCount?: number | null;
   createdAt?: string;
   updatedAt?: string;
+  /** From the public storefront list (backend #315): null or missing when the product has no variations. */
+  variantSummary?: import("@/components/products/productCardLogic").VariantSummary | null;
 }
 
 export interface ProductVariant {
