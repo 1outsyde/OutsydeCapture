@@ -57,6 +57,11 @@ import apiClient, {
   VendorBookerPhotographerService,
   WeeklyAvailabilitySlot,
 } from "@/services/api";
+import {
+  cardOptionsLine,
+  cardPriceCents,
+  cardPricePrefix,
+} from "@/components/products/productCardLogic";
 import { feedEvents } from "@/services/feedEvents";
 import { useTheme } from "@/hooks/useTheme";
 import { showReportBlockMenu } from "@/utils/moderationActions";
@@ -277,7 +282,9 @@ const getMinimumPrice = (
   services: ServiceCard[],
 ): number | undefined => {
   const prices = [
-    ...products.map((item) => priceCentsToDollars(item.priceCents)),
+    ...products.map((item) =>
+      priceCentsToDollars(cardPriceCents(item.priceCents, item.variantSummary)),
+    ),
     ...services.map((item) => priceCentsToDollars(item.priceCents)),
   ].filter((price): price is number => price != null);
 
@@ -1973,8 +1980,14 @@ export default function AccountScreen() {
                   {product.name}
                 </Text>
                 <Text style={[styles.productPrice, { color: accentColor }]}>
-                  {formatCents(product.priceCents)}
+                  {cardPricePrefix(product.variantSummary)}
+                  {formatCents(cardPriceCents(product.priceCents, product.variantSummary))}
                 </Text>
+                {cardOptionsLine(product.variantSummary) ? (
+                  <Text style={styles.productOptionsLine} numberOfLines={1}>
+                    {cardOptionsLine(product.variantSummary)}
+                  </Text>
+                ) : null}
               </View>
             </Pressable>
           ))}
@@ -3490,6 +3503,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     fontWeight: "800",
+  },
+  productOptionsLine: {
+    marginTop: 2,
+    color: COLORS.grayLight,
+    fontSize: 11,
+    fontWeight: "600",
   },
   serviceCard: {
     borderRadius: 14,
