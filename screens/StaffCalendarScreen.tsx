@@ -19,6 +19,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
+import {
+  bookingStatusLabel,
+  filterVisibleBookings,
+  isCanceledStatus,
+  isPendingRequestStatus,
+} from "@/utils/bookingStatus";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -69,7 +75,7 @@ interface RawBooking {
   date: string;
   customerName: string;
   serviceName: string;
-  status: "pending" | "confirmed" | "completed" | "canceled" | "no_show";
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired";
   amount: number;
   staffMemberId: string | null;
   startTime: string;
@@ -136,9 +142,11 @@ function formatMonthDay(dateStr: string): string {
 
 function statusPill(status: string): { bg: string; text: string } {
   if (status === "confirmed") return { bg: "rgba(63,203,110,0.15)", text: GREEN };
-  if (status === "pending") return { bg: "rgba(224,169,59,0.15)", text: AMBER };
+  // Amber only for a real request waiting on the business (pending_provider).
+  if (isPendingRequestStatus(status)) return { bg: "rgba(224,169,59,0.15)", text: AMBER };
   if (status === "completed") return { bg: "rgba(201,147,58,0.15)", text: GOLD };
-  if (status === "canceled") return { bg: "rgba(232,93,93,0.1)", text: RED };
+  if (isCanceledStatus(status) || status === "declined") return { bg: "rgba(232,93,93,0.1)", text: RED };
+  if (status === "expired" || status === "no_show") return { bg: "rgba(142,142,147,0.15)", text: "#8E8E93" };
   return { bg: "rgba(255,255,255,0.08)", text: CREAM_DIM };
 }
 
@@ -198,7 +206,8 @@ export default function StaffCalendarScreen() {
     }
 
     if (bookingsResult.status === "fulfilled") {
-      setBookings(bookingsResult.value.bookings.map((b: any) => ({
+      // Unpaid checkouts (draft, pending_payment) never show on the provider calendar.
+      setBookings(filterVisibleBookings(bookingsResult.value.bookings).map((b: any) => ({
         id: b.id,
         date: b.date,
         customerName: b.customerName,
@@ -662,7 +671,7 @@ export default function StaffCalendarScreen() {
                       </View>
                       <View style={[styles.listStatusPill, { backgroundColor: sp.bg }]}>
                         <Text style={[styles.listStatusText, { color: sp.text }]}>
-                          {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                          {bookingStatusLabel(b.status)}
                         </Text>
                       </View>
                     </View>

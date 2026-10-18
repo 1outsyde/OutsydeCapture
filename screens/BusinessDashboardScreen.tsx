@@ -25,6 +25,8 @@ import api, {
   VendorEligibility,
 } from "@/services/api";
 import { consumeStripeReturn, markStripeReturn } from "@/utils/stripeReturnSignal";
+import { filterVisibleBookings, isPendingRequestStatus } from "@/utils/bookingStatus";
+import { syncMyTimeZoneOnce } from "@/utils/timeZoneSync";
 import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
 import { DayHours, getDefaultHours } from "@/components/HoursEditor";
@@ -67,6 +69,9 @@ export default function BusinessDashboardScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { getToken, logout, user, isLoading: authLoading } = useAuth();
+  // Latest getToken without making it an effect dependency (it is recreated every render).
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -282,7 +287,8 @@ export default function BusinessDashboardScreen() {
     if (!token) return;
     try {
       const res = await api.getBusinessBookings(token) as any;
-      setBookings(Array.isArray(res) ? res : res?.bookings || []);
+      // Unpaid checkouts (draft, pending_payment) never reach the calendar or Up Next.
+      setBookings(filterVisibleBookings(Array.isArray(res) ? res : res?.bookings || []));
     } catch (err) {
       console.warn("[Dashboard] Could not load bookings for calendar:", err);
     }
@@ -308,6 +314,8 @@ export default function BusinessDashboardScreen() {
 
       fetchDashboard();
       fetchEligibility();
+      // Once per launch: fill in the business time zone if it is still empty. Fire and forget.
+      syncMyTimeZoneOnce("business", () => getTokenRef.current());
     }, [authLoading, user?.id, user?.role, fetchDashboard, fetchEligibility])
   );
 
@@ -724,7 +732,7 @@ export default function BusinessDashboardScreen() {
   }
 
   if (!upNextItem) {
-    const pendingBks = [...bookings].filter((b: any) => b.status === "pending" || b.status === "pending_provider").sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const pendingBks = [...bookings].filter((b: any) => isPendingRequestStatus(b.status)).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
     if (pendingBks.length > 0) {
       upNextItem = { title: "Booking awaiting confirmation", subtext: `Requested by ${pendingBks[0].customerName}`, iconName: "clock", urgency: "amber" };
     }

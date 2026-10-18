@@ -11,6 +11,7 @@ import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { bookingStatusLabel, isPendingRequestStatus, isUnpaidBookingStatus } from "@/utils/bookingStatus";
 
 export interface CalendarBooking {
   id: string;
@@ -19,7 +20,7 @@ export interface CalendarBooking {
   endTime?: string;
   clientName: string;
   serviceName: string;
-  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "declined";
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "declined" | "expired" | "no_show";
   amount: number;
 }
 
@@ -91,6 +92,8 @@ export default function ProviderCalendar({
   const bookingsByDate = useMemo(() => {
     const map: Record<string, CalendarBooking[]> = {};
     bookings.forEach(b => {
+      // Unpaid checkouts (draft, pending_payment) never show on the provider calendar.
+      if (isUnpaidBookingStatus(b.status)) return;
       if (!map[b.date]) map[b.date] = [];
       map[b.date].push(b);
     });
@@ -189,7 +192,7 @@ export default function ProviderCalendar({
     const isPast = date < today;
     const isToday = date.getTime() === today.getTime();
     const hasConfirmed = dayBookings.some(b => b.status === "confirmed");
-    const hasPending = dayBookings.some(b => b.status === "pending" || b.status === "pending_provider");
+    const hasPending = dayBookings.some(b => isPendingRequestStatus(b.status));
     const isFullyBlocked = dayBlocks.some(b => b.isFullDay);
     const hasPartialBlock = dayBlocks.some(b => !b.isFullDay);
     const isAvailableDay = weekdayAvail?.isAvailable ?? false;
@@ -350,10 +353,10 @@ export default function ProviderCalendar({
                       </View>
                       <View style={[
                         styles.statusBadge,
-                        { backgroundColor: booking.status === "confirmed" ? theme.success : (booking.status === "pending" || booking.status === "pending_provider") ? theme.warning : theme.textSecondary }
+                        { backgroundColor: booking.status === "confirmed" ? theme.success : isPendingRequestStatus(booking.status) ? theme.warning : theme.textSecondary }
                       ]}>
                         <ThemedText style={styles.statusText}>
-                          {booking.status === "pending_provider" ? "Pending Review" : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                          {bookingStatusLabel(booking.status)}
                         </ThemedText>
                       </View>
                     </Pressable>

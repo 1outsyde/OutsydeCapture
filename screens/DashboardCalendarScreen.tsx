@@ -14,6 +14,12 @@ import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
 import { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
+import {
+  bookingStatusLabel,
+  filterVisibleBookings,
+  isCanceledStatus,
+  isPendingRequestStatus,
+} from "@/utils/bookingStatus";
 
 const BG = "#0F0F0F";
 const GOLD = "#C9933A";
@@ -25,6 +31,7 @@ const RED = "#E85D5D";
 const SURFACE = "#1A1A1A";
 const SURFACE2 = "#1E1E1E";
 const BORDER = "rgba(255,255,255,0.06)";
+const GREY = "#8E8E93";
 
 const MONTHS = [
   "January","February","March","April","May","June",
@@ -91,21 +98,31 @@ function formatMonthDay(dateStr: string): string {
   return `${MONTHS[parts[1]-1]} ${parts[2]}`;
 }
 
+// Amber is only for real requests waiting on the provider (pending_provider).
+// Expired and no-show are neutral grey; cancelled and declined are red.
+function isGreyStatus(status: string): boolean {
+  return status === "expired" || status === "no_show";
+}
 function statusBg(status: string): string {
   if (status === "confirmed") return "#1a2e1a";
-  if (status === "pending") return "#2a2218";
+  if (isPendingRequestStatus(status)) return "#2a2218";
+  if (status === "completed") return "#262016";
+  if (isGreyStatus(status)) return "#1e1e1e";
   return "#2a1818";
 }
 function statusBorder(status: string): string {
   if (status === "confirmed") return GREEN;
-  if (status === "pending") return AMBER;
+  if (isPendingRequestStatus(status)) return AMBER;
+  if (status === "completed") return GOLD;
+  if (isGreyStatus(status)) return GREY;
   return RED;
 }
 function statusPill(status: string): { bg: string; text: string } {
   if (status === "confirmed") return { bg: "rgba(63,203,110,0.15)", text: GREEN };
-  if (status === "pending") return { bg: "rgba(224,169,59,0.15)", text: AMBER };
+  if (isPendingRequestStatus(status)) return { bg: "rgba(224,169,59,0.15)", text: AMBER };
   if (status === "completed") return { bg: "rgba(201,147,58,0.15)", text: GOLD };
-  if (status === "canceled") return { bg: "rgba(232,93,93,0.1)", text: RED };
+  if (isCanceledStatus(status) || status === "declined") return { bg: "rgba(232,93,93,0.1)", text: RED };
+  if (isGreyStatus(status)) return { bg: "rgba(142,142,147,0.15)", text: GREY };
   return { bg: "rgba(255,255,255,0.08)", text: CREAM_DIM };
 }
 
@@ -139,7 +156,8 @@ export default function DashboardCalendarScreen() {
     ]);
 
     if (bookingsResult.status === "fulfilled") {
-      setBookings(bookingsResult.value.bookings.map(b => ({
+      // Unpaid checkouts (draft, pending_payment) never show on the provider calendar.
+      setBookings(filterVisibleBookings(bookingsResult.value.bookings).map(b => ({
         id: b.id,
         date: b.date,
         startTime: (b as any).time ? convertTo12Hour((b as any).time) : "9:00 AM",
@@ -225,7 +243,7 @@ export default function DashboardCalendarScreen() {
             const dayNum = parseInt(dateStr.split("-")[2]);
             const dots = [
               ...dayBk.filter(b => b.status === "confirmed").slice(0,1).map(() => GREEN),
-              ...dayBk.filter(b => b.status === "pending").slice(0,1).map(() => AMBER),
+              ...dayBk.filter(b => isPendingRequestStatus(b.status)).slice(0,1).map(() => AMBER),
               ...(hasBlock ? [RED] : []),
             ].slice(0, 3);
             return (
@@ -256,7 +274,7 @@ export default function DashboardCalendarScreen() {
           </View>
           {!compact && (
             <View style={[styles.statusPill, { backgroundColor: sc.bg }]}>
-              <Text style={[styles.statusPillText, { color: sc.text }]}>{b.status.charAt(0).toUpperCase() + b.status.slice(1)}</Text>
+              <Text style={[styles.statusPillText, { color: sc.text }]}>{bookingStatusLabel(b.status)}</Text>
             </View>
           )}
         </View>
@@ -268,7 +286,7 @@ export default function DashboardCalendarScreen() {
     const dayBk = bookingsOnDate(selectedDay);
     const dayBlocks = blocksOnDate(selectedDay);
     const confirmed = dayBk.filter(b => b.status === "confirmed").length;
-    const pending = dayBk.filter(b => b.status === "pending").length;
+    const pending = dayBk.filter(b => isPendingRequestStatus(b.status)).length;
     const dow = WEEKDAY_LABELS[new Date(selectedDay + "T12:00:00").getDay()];
     return (
       <View style={styles.dayView}>
@@ -368,7 +386,7 @@ export default function DashboardCalendarScreen() {
           const dayBk = bookingsOnDate(dateStr);
           const isToday = dateStr === today;
           const confirmed = dayBk.filter(b => b.status === "confirmed").length;
-          const pending = dayBk.filter(b => b.status === "pending").length;
+          const pending = dayBk.filter(b => isPendingRequestStatus(b.status)).length;
           const dayNum = parseInt(dateStr.split("-")[2]);
           return (
             <View key={dateStr} style={styles.listDay}>

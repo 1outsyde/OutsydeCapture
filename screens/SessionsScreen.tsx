@@ -14,6 +14,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 import { RootStackParamList } from "@/navigation/types";
+import { isUnpaidBookingStatus } from "@/utils/bookingStatus";
 import api, { getMyAppointments, BusinessAppointment } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -25,7 +26,7 @@ type CombinedItem =
   | { kind: "business"; data: BusinessAppointment };
 
 const BUSINESS_UPCOMING_STATUSES = new Set(["confirmed", "pending_provider"]);
-const BUSINESS_PAST_STATUSES = new Set(["completed", "canceled", "no_show", "declined", "expired"]);
+const BUSINESS_PAST_STATUSES = new Set(["completed", "canceled", "cancelled", "no_show", "declined", "expired"]);
 
 function getItemDate(item: CombinedItem): string {
   return item.kind === "photographer" ? item.data.date : item.data.appointmentDate;
@@ -61,7 +62,8 @@ export default function SessionsScreen() {
   const pastCombined: CombinedItem[] = [
     ...pastSessions.map((s): CombinedItem => ({ kind: "photographer", data: s })),
     ...businessAppointments
-      .filter((a) => BUSINESS_PAST_STATUSES.has(a.status) || isPastDate(a.appointmentDate))
+      // Unpaid checkouts (draft, pending_payment) never show in Upcoming or Past.
+      .filter((a) => !isUnpaidBookingStatus(a.status) && (BUSINESS_PAST_STATUSES.has(a.status) || isPastDate(a.appointmentDate)))
       .map((a): CombinedItem => ({ kind: "business", data: a })),
   ].sort((a, b) => getItemDate(b).localeCompare(getItemDate(a)));
 
@@ -169,6 +171,7 @@ export default function SessionsScreen() {
       case "completed":
         return "#007AFF";
       case "canceled":
+      case "cancelled":
         return theme.error;
       default:
         return theme.textSecondary;

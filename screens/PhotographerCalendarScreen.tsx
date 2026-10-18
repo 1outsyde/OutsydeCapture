@@ -16,6 +16,12 @@ import api from "@/services/api";
 import { convertTo12Hour } from "@/components/HoursEditor";
 import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
 import { CalendarBooking, CalendarBlockedDate } from "@/components/ProviderCalendar";
+import {
+  bookingStatusLabel,
+  filterVisibleBookings,
+  isCanceledStatus,
+  isPendingRequestStatus,
+} from "@/utils/bookingStatus";
 
 const BG = "#0F0F0F";
 const GOLD = "#C9933A";
@@ -27,6 +33,7 @@ const RED = "#E85D5D";
 const SURFACE = "#1A1A1A";
 const SURFACE2 = "#1E1E1E";
 const BORDER = "rgba(255,255,255,0.06)";
+const GREY = "#8E8E93";
 
 const MONTHS = [
   "January","February","March","April","May","June",
@@ -46,17 +53,20 @@ const HOUR_LABELS: Record<number,string> = {
 
 type ViewMode = "day" | "week" | "list";
 
-// The backend enum has nine states (shared/schema.ts:123-133). pending_provider
-// means "awaiting provider accept/decline" and is treated as pending throughout
-// this screen — amber, and counted in pending totals.
+// The backend enum has nine states (shared/schema.ts). Only pending_provider
+// (and legacy "pending") means "awaiting provider accept/decline": amber, and
+// counted in pending totals. draft and pending_payment are dropped on load;
+// expired and no_show are neutral grey.
 function isPendingStatus(status: string): boolean {
-  return status === "pending" || status === "pending_provider";
+  return isPendingRequestStatus(status);
+}
+
+function isGreyStatus(status: string): boolean {
+  return status === "expired" || status === "no_show";
 }
 
 function statusLabel(status: string): string {
-  if (status === "pending_provider") return "Pending Review";
-  if (status === "no_show") return "No Show";
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return bookingStatusLabel(status);
 }
 
 function parseHour(timeStr: string): number {
@@ -107,19 +117,23 @@ function formatMonthDay(dateStr: string): string {
 function statusBg(status: string): string {
   if (status === "confirmed") return "#1a2e1a";
   if (isPendingStatus(status)) return "#2a2218";
+  if (status === "completed") return "#262016";
+  if (isGreyStatus(status)) return "#1e1e1e";
   return "#2a1818";
 }
 function statusBorder(status: string): string {
   if (status === "confirmed") return GREEN;
   if (isPendingStatus(status)) return AMBER;
+  if (status === "completed") return GOLD;
+  if (isGreyStatus(status)) return GREY;
   return RED;
 }
 function statusPill(status: string): { bg: string; text: string } {
   if (status === "confirmed") return { bg: "rgba(63,203,110,0.15)", text: GREEN };
   if (isPendingStatus(status)) return { bg: "rgba(224,169,59,0.15)", text: AMBER };
   if (status === "completed") return { bg: "rgba(201,147,58,0.15)", text: GOLD };
-  if (status === "canceled" || status === "declined") return { bg: "rgba(232,93,93,0.1)", text: RED };
-  if (status === "expired" || status === "no_show") return { bg: "rgba(255,255,255,0.08)", text: CREAM_DIM };
+  if (isCanceledStatus(status) || status === "declined") return { bg: "rgba(232,93,93,0.1)", text: RED };
+  if (isGreyStatus(status)) return { bg: "rgba(142,142,147,0.15)", text: GREY };
   return { bg: "rgba(255,255,255,0.08)", text: CREAM_DIM };
 }
 
@@ -154,7 +168,8 @@ export default function PhotographerCalendarScreen() {
     if (bookingsResult.status === "fulfilled") {
       const raw: any = bookingsResult.value;
       const rows: any[] = Array.isArray(raw) ? raw : raw?.bookings ?? [];
-      setBookings(rows.map((b: any) => {
+      // Unpaid checkouts (draft, pending_payment) never show on the provider calendar.
+      setBookings(filterVisibleBookings(rows).map((b: any) => {
         // bookingDateTime is `${date} ${startTime}` (server/storage.ts:1635) and
         // can carry seconds. convertTo12Hour matches strictly on ^HH:mm$ and
         // returns its input unchanged on failure, which would then make
@@ -188,7 +203,8 @@ export default function PhotographerCalendarScreen() {
           endTime: undefined,
           clientName,
           serviceName: b.serviceName || b.shootType || b.sessionType || "Session",
-          status: (b.status || "pending") as CalendarBooking["status"],
+          // Use the real value. A missing status must never turn into a pending request.
+          status: (typeof b.status === "string" ? b.status : "") as CalendarBooking["status"],
           amount: amountCents / 100,
         };
       }));

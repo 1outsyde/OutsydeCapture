@@ -16,6 +16,13 @@ import { useAuth } from "@/context/AuthContext";
 import api, { PhotographerBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
 import BookingExtrasBlock from "@/components/BookingExtrasBlock";
+import {
+  bookingStatusLabel,
+  filterVisibleBookings,
+  isCanceledStatus,
+  isExpiredStatus,
+  isPendingRequestStatus,
+} from "@/utils/bookingStatus";
 
 const BG = "#0F0F0F";
 const GOLD = "#C9933A";
@@ -45,12 +52,14 @@ const STATUS_PRIORITY: Record<string, number> = {
   confirmed: 1,
   completed: 2,
   canceled: 3,
+  cancelled: 3,
   no_show: 3,
   declined: 4,
   expired: 4,
 };
 
 function statusColors(status: PhotographerBooking["status"]): { bg: string; text: string } {
+  if (isCanceledStatus(status)) return { bg: "rgba(232,93,93,0.12)", text: RED };
   switch (status) {
     case "pending_provider":
     case "pending":
@@ -71,11 +80,7 @@ function statusColors(status: PhotographerBooking["status"]): { bg: string; text
 }
 
 function formatStatusLabel(status: PhotographerBooking["status"]): string {
-  switch (status) {
-    case "pending_provider": return "Pending Review";
-    case "no_show": return "No Show";
-    default: return status.charAt(0).toUpperCase() + status.slice(1);
-  }
+  return bookingStatusLabel(status);
 }
 
 // Photographer bookings endpoint uses different field names than the business endpoint.
@@ -132,7 +137,8 @@ function mapRawBooking(b: any): PhotographerBooking {
     date: datePart,
     time: timePart,
     sessionType,
-    status: b.status || "pending",
+    // Use the real value. A missing status must never turn into a pending request.
+    status: (typeof b.status === "string" ? b.status : "") as PhotographerBooking["status"],
     amount,
     subtotalAmount,
     bookingFeeAmount,
@@ -169,7 +175,8 @@ export default function PhotographerBookingsScreen() {
       const token = await getToken();
       if (!token) return;
       const res = await api.getPhotographerMeBookings(token);
-      const mapped = (res.bookings || []).map(mapRawBooking);
+      // Unpaid checkouts (draft, pending_payment) are never shown to the provider.
+      const mapped = filterVisibleBookings((res.bookings || []).map(mapRawBooking));
       setBookings(mapped);
     } catch {
       if (!silent) Alert.alert("Error", "Failed to load bookings");
@@ -248,18 +255,21 @@ export default function PhotographerBookingsScreen() {
 
   const FILTER_OPTIONS = [
     { key: "all" as FilterStatus,       label: "All",       count: bookings.length },
-    { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => b.status === "pending" || b.status === "pending_provider").length },
+    { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => isPendingRequestStatus(b.status)).length },
     { key: "confirmed" as FilterStatus, label: "Confirmed", count: bookings.filter(b => b.status === "confirmed").length },
     { key: "completed" as FilterStatus, label: "Completed", count: bookings.filter(b => b.status === "completed").length },
-    { key: "canceled" as FilterStatus,  label: "Cancelled", count: bookings.filter(b => b.status === "canceled").length },
+    { key: "canceled" as FilterStatus,  label: "Cancelled", count: bookings.filter(b => isCanceledStatus(b.status)).length },
     { key: "no_show" as FilterStatus,   label: "No Show",   count: bookings.filter(b => b.status === "no_show").length },
+    { key: "expired" as FilterStatus,   label: "Expired",   count: bookings.filter(b => isExpiredStatus(b.status)).length },
   ];
 
-  const filtered = bookings.filter(b =>
-    filter === "all" ||
-    b.status === filter ||
-    (filter === "pending" && b.status === "pending_provider")
-  );
+  const filtered = bookings.filter(b => {
+    if (filter === "all") return true;
+    if (filter === "pending") return isPendingRequestStatus(b.status);
+    if (filter === "canceled") return isCanceledStatus(b.status);
+    if (filter === "expired") return isExpiredStatus(b.status);
+    return b.status === filter;
+  });
 
   const sorted = [...filtered].sort((a, b) => {
     if (sort === "action") {
@@ -410,14 +420,18 @@ export default function PhotographerBookingsScreen() {
     }
 
     const groups: { label: string; items: PhotographerBooking[] }[] = [
-      { label: "Pending",   items: list.filter(b => b.status === "pending" || b.status === "pending_provider") },
+      { label: "Pending",   items: list.filter(b => isPendingRequestStatus(b.status)) },
       { label: "Confirmed", items: list.filter(b => b.status === "confirmed") },
       { label: "Completed", items: list.filter(b => b.status === "completed") },
-      { label: "Cancelled", items: list.filter(b => b.status === "canceled") },
+      { label: "Cancelled", items: list.filter(b => isCanceledStatus(b.status)) },
       { label: "No Show",   items: list.filter(b => b.status === "no_show") },
       { label: "Declined",  items: list.filter(b => b.status === "declined") },
-      { label: "Expired",   items: list.filter(b => b.status === "expired") },
+      { label: "Expired",   items: list.filter(b => isExpiredStatus(b.status)) },
     ];
+    // Any status not covered above (missing or unexpected value) still shows, never dropped.
+    const grouped = new Set(groups.flatMap(g => g.items.map(b => b.id)));
+    const other = list.filter(b => !grouped.has(b.id));
+    if (other.length > 0) groups.push({ label: "Other", items: other });
 
     return groups
       .filter(g => g.items.length > 0)
@@ -581,7 +595,7 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, actionLoa
     ? booking.clientName.charAt(0).toUpperCase()
     : "?";
 
-  const isPending = booking.status === "pending" || booking.status === "pending_provider";
+  const isPending = isPendingRequestStatus(booking.status);
 
   return (
     <View style={styles.card}>

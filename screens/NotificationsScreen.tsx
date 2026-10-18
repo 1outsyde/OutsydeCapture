@@ -20,6 +20,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNotifications, Notification, NotificationTriggeringUser } from "@/context/NotificationContext";
 import { Spacing, FontSizes, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { bookingPushTarget, isBookingPushType, openBookingPushTarget } from "@/services/bookingPush";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -111,7 +112,13 @@ export default function NotificationsScreen() {
 
   const handleNotificationPress = (notification: Notification) => {
     markAsRead(notification.id);
-    if (notification.type === "business_pending" && notification.metadata?.businessId) {
+    // Booking request types: same screen a tap on the push opens.
+    const bookingTarget = isBookingPushType(notification.type)
+      ? bookingPushTarget({ type: notification.type, screen: notification.metadata?.screen })
+      : null;
+    if (bookingTarget) {
+      openBookingPushTarget(navigation, user, bookingTarget);
+    } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
       navigation.navigate("AdminDashboard");
     } else if (notification.metadata?.sessionId) {
       navigation.navigate("SessionDetail", {
@@ -191,6 +198,11 @@ export default function NotificationsScreen() {
         return "check-circle";
       case "vendor_rejected":
         return "x-circle";
+      case "booking_request":
+      case "booking_request_sent":
+      case "booking_request_reminder":
+      case "booking_expired":
+        return "calendar";
       case "system":
       default:
         return "bell";
