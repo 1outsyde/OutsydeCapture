@@ -88,6 +88,28 @@ async function finishBusinessSignupLogo(
   await api.notifyAdminOfBusinessApplication(businessId, accessToken);
 }
 
+/**
+ * Photographer signup with a photo (2026-10-18): upload it as the new owner and save it as their
+ * profile photo, the same way the dashboard does. Best effort: never fails the signup.
+ */
+async function finishPhotographerSignupPhoto(
+  localUri: string,
+  mimeType: string | undefined,
+  accessToken: string | undefined,
+): Promise<string | null> {
+  if (!accessToken) return null;
+  try {
+    const uploaded = await uploadImage(localUri, mimeType || "image/jpeg", "profiles", accessToken);
+    if (uploaded?.url) {
+      await api.updatePhotographerMe(accessToken, { logoImage: uploaded.url });
+      return uploaded.url;
+    }
+  } catch (err) {
+    console.warn("[Signup] Photographer photo upload failed (signup still succeeded):", err);
+  }
+  return null;
+}
+
 export interface SignupData {
   firstName: string;
   lastName: string;
@@ -144,7 +166,13 @@ export interface SignupData {
   hourlyRate?: number;
   portfolioUrl?: string;
   specialties?: string[];
+  // Photographer specialties on the shared list (backend #320)
+  specialtyCodes?: string[];
+  specialtyOther?: string;
   profileImageUrl?: string;
+  // Photo picked on the device at photographer signup: uploaded right after the account exists
+  profilePhotoLocalUri?: string;
+  profilePhotoMimeType?: string;
   logoImage?: string | null;
   shootLocation?: string[];
   studioName?: string | null;
@@ -648,10 +676,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logoImage: data.logoImage,
         city: data.city,
         state: data.state,
-        // Photographer-specific fields
+        // Photographer-specific fields (every answer, 2026-10-18)
         displayName: data.displayName,
         hourlyRate: data.hourlyRate,
         portfolioUrl: data.portfolioUrl,
+        bio: data.bio,
+        specialtyCodes: data.specialtyCodes,
+        specialtyOther: data.specialtyOther,
+        shootLocation: data.shootLocation,
+        studioName: data.studioName,
+        studioAddress: data.studioAddress,
+        usesSharedStudio: data.usesSharedStudio,
+        travelRadius: data.travelRadius,
+        pricingType: data.pricingType,
+        startingPrice: data.startingPrice,
+        minimumBooking: data.minimumBooking,
+        additionalServices: data.additionalServices,
+        experienceLevel: data.experienceLevel,
+        equipmentLevel: data.equipmentLevel,
+        deliveryTime: data.deliveryTime,
         // Business-specific fields
         offerType: data.offerType,
         isStartup: data.isStartup,
@@ -693,6 +736,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await finishBusinessSignupLogo(response.signupBusinessId, data.logoLocalUri, data.logoMimeType, response.accessToken);
       }
 
+      // Photo picked at photographer signup: upload and save it now that the account exists.
+      let photographerPhotoUrl: string | null = null;
+      if (data.role === "photographer" && data.profilePhotoLocalUri) {
+        photographerPhotoUrl = await finishPhotographerSignupPhoto(data.profilePhotoLocalUri, data.profilePhotoMimeType, response.accessToken);
+      }
+
       const backendUser = response.user;
       const newUser: User = {
         id: backendUser.id,
@@ -704,7 +753,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: backendUser.role || data.role,
         approvalStatus: backendUser.approvalStatus || (data.role === "business" ? "pending" : "approved"),
         isProfileComplete: backendUser.isProfileComplete ?? (data.role === "consumer"),
-        avatar: backendUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
+        avatar: backendUser.avatar || photographerPhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
         city: backendUser.city || data.city,
         state: backendUser.state || data.state,
         businessName: backendUser.businessName || data.businessName,

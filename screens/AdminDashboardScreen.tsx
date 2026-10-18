@@ -937,18 +937,38 @@ export default function AdminDashboardScreen() {
   const renderPhotographerItem = ({ item }: { item: AdminPhotographer }) => {
     const displayName = item.displayName || item.name || "(No Name)";
     const location = item.city && item.state ? `${item.city}, ${item.state}` : item.city || item.state || null;
+    const specialties = item.specialtyLabels?.length ? item.specialtyLabels.join(", ") : item.specialty;
+    const email = item.ownerEmail || item.email;
+    const phone = item.ownerPhone || item.phone;
+    const flags = [
+      item.visibilityStatus && item.visibilityStatus !== "public" ? (item.visibilityStatus === "flagged" ? "Flagged" : "Hidden") : null,
+      item.ownerIsActive === false ? "Banned" : null,
+      item.ownerDeletionStatus === "pending_deletion" ? "Deletion scheduled" : null,
+    ].filter(Boolean).join(" · ");
     return (
-      <Pressable style={styles.listItem} onPress={() => navigateToUserDetail(item.id)}>
+      // The id here is the photographer's, not the user's: open the photographer detail screen.
+      <Pressable style={styles.listItem} onPress={() => navigation.navigate("AdminPhotographerDetail", { photographerId: item.id })}>
         <Text style={styles.listItemName}>{displayName}</Text>
-        {item.specialty ? <Text style={styles.listItemInfo}>{item.specialty}</Text> : null}
+        {flags ? <Text style={[styles.listItemInfo, { color: "#C62828", fontWeight: "600" }]}>{flags}</Text> : null}
+        {specialties ? <Text style={styles.listItemInfo}>{specialties}</Text> : null}
         {location ? <Text style={styles.listItemInfo}>{location}</Text> : null}
-        {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
+        {email ? <Text style={styles.listItemInfo}>{email}</Text> : null}
+        {phone ? <Text style={styles.listItemInfo}>{phone}</Text> : null}
         {item.earnings !== undefined ? (
           <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
         ) : null}
       </Pressable>
     );
   };
+
+  // The backend list ignores the search text, so photographers are filtered here.
+  const photographerQuery = searchQuery.trim().toLowerCase();
+  const filteredPhotographers = photographerQuery
+    ? photographers.filter((p) =>
+        [p.displayName, p.name, p.ownerName, p.ownerEmail, p.email, p.ownerPhone, p.phone, p.ownerUsername, p.city, p.state, ...(p.specialtyLabels ?? [])]
+          .some((v) => typeof v === "string" && v.toLowerCase().includes(photographerQuery)),
+      )
+    : photographers;
 
   const renderInfluencerItem = ({ item }: { item: AdminInfluencer }) => (
     <View style={styles.listItem}>
@@ -1309,7 +1329,7 @@ export default function AdminDashboardScreen() {
       case "photographers":
         return (
           <FlatList
-            data={photographers}
+            data={filteredPhotographers}
             renderItem={renderPhotographerItem}
             keyExtractor={(item) => item.id}
             style={{ flex: 1 }}
@@ -1318,7 +1338,7 @@ export default function AdminDashboardScreen() {
             showsVerticalScrollIndicator={true}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
             ListHeaderComponent={() => (
-              <Text style={styles.countBadge}>{photographers.length} photographers</Text>
+              <Text style={styles.countBadge}>{filteredPhotographers.length} photographers</Text>
             )}
             ListEmptyComponent={() => renderEmptyState("No Photographers", "No photographers found", "camera")}
           />
