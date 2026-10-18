@@ -2388,7 +2388,8 @@ class ApiService {
     const rows: any[] = Array.isArray(response) ? response : Array.isArray(response?.orders) ? response.orders : [];
     return rows.map((o) => {
       const discountCents = typeof o.discountAmountCents === "number" ? o.discountAmountCents : 0;
-      const grossCents = typeof o.grossChargeAmount === "number" ? o.grossChargeAmount : typeof o.totalAmount === "number" ? o.totalAmount : null;
+      // gross_charge_amount defaults to 0 on older rows: fall back to the order total then.
+      const grossCents = typeof o.grossChargeAmount === "number" && o.grossChargeAmount > 0 ? o.grossChargeAmount : typeof o.totalAmount === "number" ? o.totalAmount : null;
       return {
         ...o,
         userId: o.userId ?? o.customerId ?? "",

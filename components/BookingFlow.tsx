@@ -379,6 +379,7 @@ export default function BookingFlow({
   // "Use my points": the code applied to this booking (sent on every Pay).
   const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
   const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
+  const [refusedCodeIds, setRefusedCodeIds] = useState<Set<string>>(() => new Set());
   // Known before payment only for businesses (public profile); null = unknown.
   const [autoAcceptBookings, setAutoAcceptBookings] = useState<boolean | null>(
     null,
@@ -907,6 +908,8 @@ export default function BookingFlow({
           setHoldStatus("expiredAfterPayment");
         }
       } else if (isPromoError(err)) {
+        const refusedId = pointsCode?.id;
+        if (refusedId && err?.body?.code === "PROMO_IN_USE") setRefusedCodeIds((prev) => new Set(prev).add(refusedId));
         setPointsCode(null);
         setPointsRefreshKey((k) => k + 1);
         setError(mapPayError(err));
@@ -2081,6 +2084,7 @@ export default function BookingFlow({
               disabled={paying}
               accentColor={accent}
               refreshKey={pointsRefreshKey}
+              refusedCodeIds={refusedCodeIds}
             />
           )}
 

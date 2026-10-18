@@ -141,6 +141,7 @@ export default function CheckoutScreen() {
   // "Use my points": codes work on orders from one shop only (backend refuses multi-shop codes).
   const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
   const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
+  const [refusedCodeIds, setRefusedCodeIds] = useState<Set<string>>(() => new Set());
   // A changed code makes an earlier server breakdown stale; show the local preview again.
   useEffect(() => { setBackendFeeBreakdown(null); }, [pointsCode?.id]);
   const [cardError, setCardError] = useState<string | null>(null);
@@ -390,6 +391,8 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
         );
       } else if (checkoutRefusalMessage(message)) {
         if (PROMO_REFUSAL_CODES.some((c) => message.includes(c))) {
+          const refusedId = appliedCode?.id;
+          if (refusedId && message.includes("PROMO_IN_USE")) setRefusedCodeIds((prev) => new Set(prev).add(refusedId));
           setPointsCode(null);
           setPointsRefreshKey((k) => k + 1);
         }
@@ -768,6 +771,7 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
             onChange={setPointsCode}
             disabled={checkoutLoading}
             refreshKey={pointsRefreshKey}
+            refusedCodeIds={refusedCodeIds}
           />
         )}
 

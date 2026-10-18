@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
@@ -64,11 +64,33 @@ interface Props {
   accentColor?: string;
   /** Bump to reload codes (e.g. after checkout said a code was taken). */
   refreshKey?: number;
+  /** Codes checkout refused this session (e.g. held by a booking waiting for the business). */
+  refusedCodeIds?: ReadonlySet<string>;
 }
 
-export default function UsePointsPicker({ kind, amountCents, selected, onChange, disabled, accentColor, refreshKey }: Props) {
+// apiPost throws Error("API Error <status>: <body>"). Pull the backend's message out of it.
+function friendlyError(err: any): string {
+  const fallback = "Your points couldn't be used right now.";
+  const msg: string = typeof err?.message === "string" ? err.message : "";
+  const start = msg.indexOf("{");
+  if (start === -1) return fallback;
+  try {
+    const body = JSON.parse(msg.slice(start));
+    if (typeof body?.error === "string" && body.error.length > 0) return body.error;
+    if (typeof body?.error?.message === "string") return body.error.message;
+  } catch {
+    // not JSON
+  }
+  return fallback;
+}
+
+export default function UsePointsPicker({ kind, amountCents, selected, onChange, disabled, accentColor, refreshKey, refusedCodeIds }: Props) {
   const { theme } = useTheme();
-  const { getToken, isAuthenticated } = useAuth();
+  const { getToken: getTokenFn, isAuthenticated } = useAuth();
+  // getToken is not memoized by AuthContext; keep one stable reference so loads only rerun on purpose.
+  const getTokenRef = useRef(getTokenFn);
+  getTokenRef.current = getTokenFn;
+  const getToken = useCallback(() => getTokenRef.current(), []);
   const accent = accentColor ?? theme.brandGold;
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState(0);
@@ -126,7 +148,7 @@ export default function UsePointsPicker({ kind, amountCents, selected, onChange,
                 onChange({ id: res.codeId, code: res.code, discountCents: res.discountCents ?? tier.discountCents });
               }
             } catch (err: any) {
-              setMessage(err?.body?.error || err?.message || "Your points couldn't be used right now.");
+              setMessage(friendlyError(err));
             } finally {
               setWorking(null);
             }
@@ -185,7 +207,7 @@ export default function UsePointsPicker({ kind, amountCents, selected, onChange,
           `${whole(c.discountCents)} off`,
           "Code in your account",
           selected?.id === c.id,
-          pointsCodeBlockedReason(kind, amountCents, c.discountCents),
+          refusedCodeIds?.has(c.id!) ? "In use on another booking right now" : pointsCodeBlockedReason(kind, amountCents, c.discountCents),
           () => onChange({ id: c.id!, code: c.code, discountCents: c.discountCents }),
         ),
       )}

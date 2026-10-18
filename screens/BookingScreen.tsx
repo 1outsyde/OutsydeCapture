@@ -299,6 +299,7 @@ export default function BookingScreen() {
   // "Use my points": the code applied to this booking (sent on every Pay).
   const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
   const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
+  const [refusedCodeIds, setRefusedCodeIds] = useState<Set<string>>(() => new Set());
 
   // ─── Add-ons & details step (after a time is picked, before review) ───────
   // Every photographer booking gets it: the add-on list when the service has
@@ -863,6 +864,8 @@ export default function BookingScreen() {
           setHoldStatus("expiredAfterPayment");
         }
       } else if (isPromoError(err)) {
+        const refusedId = pointsCode?.id;
+        if (refusedId && err?.body?.code === "PROMO_IN_USE") setRefusedCodeIds((prev) => new Set(prev).add(refusedId));
         setPointsCode(null);
         setPointsRefreshKey((k) => k + 1);
         Alert.alert("Outsyde rewards", err?.body?.error || "That code can't be used here. Please pick another.");
@@ -1928,6 +1931,7 @@ export default function BookingScreen() {
             disabled={paying}
             accentColor={accent}
             refreshKey={pointsRefreshKey}
+            refusedCodeIds={refusedCodeIds}
           />
         )}
         {locationSection}
