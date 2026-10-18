@@ -238,8 +238,43 @@ export interface ApiMessage {
   id: string;
   conversationId: string;
   senderId: string;
+  /** Text, or "Sent a photo" for a photo only message (kept readable for older app builds). */
   content: string;
+  /** Real text ('' for a photo only message). Backend #322+; older backends omit it. */
+  text?: string;
+  /** Photo URLs (up to 10). Backend #322+; older backends omit it. */
+  mediaItems?: string[];
   createdAt: string;
+}
+
+/** Person you can message (GET /api/messages/recipients, backend #322+). */
+export interface ApiMessageRecipient {
+  userId: string;
+  participantId: string;
+  participantType: "user";
+  type: "business" | "photographer" | "consumer";
+  publicName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  businessId: string | null;
+  photographerId: string | null;
+  conversationId: string | null;
+}
+
+/** A message matching a text search (GET /api/messages/search, backend #322+). */
+export interface ApiMessageSearchResult {
+  messageId: string;
+  conversationId: string;
+  snippet: string;
+  fromMe: boolean;
+  createdAt: string;
+  otherParticipant: {
+    id: string;
+    publicName: string;
+    avatarUrl: string | null;
+    type: "business" | "photographer" | "consumer";
+    username: string | null;
+  };
 }
 
 export interface PostMediaItem {
@@ -327,7 +362,8 @@ export interface ApiPost {
 
 export interface CreateConversationRequest {
   participantId: string;
-  participantType: "business" | "photographer";
+  /** "user" = participantId is a user id (any kind of account). */
+  participantType: "business" | "photographer" | "user";
   participantName: string;
   participantAvatar?: string;
 }
@@ -2272,16 +2308,36 @@ class ApiService {
     });
   }
 
-  async sendMessage(conversationId: string, content: string, authToken?: string | null): Promise<ApiMessage> {
+  async sendMessage(conversationId: string, content: string, authToken?: string | null, mediaItems?: string[]): Promise<ApiMessage> {
     const headers: Record<string, string> = {};
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
-    return this.request<ApiMessage>(`/api/conversations/${conversationId}/messages`, {
+    const body: Record<string, unknown> = { content };
+    if (mediaItems && mediaItems.length > 0) body.mediaItems = mediaItems;
+    const response = await this.request<ApiMessage | { message: ApiMessage }>(`/api/conversations/${conversationId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(body),
       headers,
     });
+    // Backend answers { message }; older code read the body as the message itself.
+    return (response as any)?.message ?? (response as ApiMessage);
+  }
+
+  /** People you can message: customers, businesses, photographers (backend #322+). */
+  async searchMessageRecipients(q: string, authToken?: string | null): Promise<ApiMessageRecipient[]> {
+    const headers: Record<string, string> = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const res = await this.request<{ results: ApiMessageRecipient[] }>(`/api/messages/recipients?q=${encodeURIComponent(q)}`, { headers });
+    return res?.results || [];
+  }
+
+  /** Text search inside your own conversations (backend #322+). */
+  async searchMyMessages(q: string, authToken?: string | null): Promise<ApiMessageSearchResult[]> {
+    const headers: Record<string, string> = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const res = await this.request<{ results: ApiMessageSearchResult[] }>(`/api/messages/search?q=${encodeURIComponent(q)}`, { headers });
+    return res?.results || [];
   }
 
   async createBusiness(data: CreateBusinessRequest, authToken: string): Promise<ApiBusinessDetail> {

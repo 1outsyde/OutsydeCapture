@@ -26,10 +26,14 @@ export type RootStackParamList = {
   Conversation: { conversationId: string };
   Chat: {
     conversationId: string;
-    participantId: string;
-    participantName: string;
+    // Optional so a push tap can open a chat by id alone; ChatScreen fills them from the inbox.
+    participantId?: string;
+    participantName?: string;
     participantAvatar?: string;
-    participantType: "business" | "photographer" | "consumer";
+    participantType?: "business" | "photographer" | "consumer";
+    /** Business / photographer profile ids for "View profile" (backend #300 otherParticipant). */
+    businessId?: string | null;
+    photographerId?: string | null;
   };
   CartOrders: { openTab?: "cart" | "bookings" | "orders"; _ts?: number } | undefined;
   CartCheckout: undefined;

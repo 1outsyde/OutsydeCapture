@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { AppState, AppStateStatus } from "react-native";
 import { useAuth } from "./AuthContext";
 import api, { ApiConversation, ApiMessage, CreateConversationRequest } from "@/services/api";
+import { onMessagePush } from "@/services/messagePush";
 
 export interface Conversation {
   id: string;
@@ -12,6 +13,10 @@ export interface Conversation {
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount: number;
+  username?: string | null;
+  /** Business / photographer profile ids for "View profile" (backend #300). */
+  businessId?: string | null;
+  photographerId?: string | null;
 }
 
 export interface Message {
@@ -19,6 +24,9 @@ export interface Message {
   conversationId: string;
   senderId: string;
   content: string;
+  /** Real text ('' for a photo only message). Falls back to content on older backends. */
+  text: string;
+  mediaItems: string[];
   createdAt: string;
 }
 
@@ -28,9 +36,10 @@ interface MessagingContextType {
   error: string | null;
   refreshConversations: () => Promise<void>;
   getMessages: (conversationId: string) => Promise<Message[]>;
-  sendMessage: (conversationId: string, content: string) => Promise<Message | null>;
+  sendMessage: (conversationId: string, content: string, mediaItems?: string[]) => Promise<Message | null>;
   createOrGetConversation: (data: CreateConversationRequest) => Promise<Conversation | null>;
   markConversationAsRead: (conversationId: string) => void;
+  noteMessageSent: (conversationId: string, preview: string, at?: string) => void;
   totalUnreadCount: number;
 }
 
@@ -50,17 +59,33 @@ function mapApiConversation(raw: ApiConversation | any): Conversation {
     lastMessage: conv.lastMessagePreview || conv.lastMessage,
     lastMessageAt: conv.lastMessageAt,
     unreadCount: conv.unreadCount || 0,
+    username: otherP.username ?? null,
+    businessId: otherP.businessId ?? null,
+    photographerId: otherP.photographerId ?? null,
   };
 }
 
-function mapApiMessage(msg: ApiMessage): Message {
+export function mapApiMessage(msg: ApiMessage): Message {
+  const mediaItems = Array.isArray(msg.mediaItems) ? msg.mediaItems : [];
   return {
     id: msg.id,
     conversationId: msg.conversationId,
     senderId: msg.senderId,
     content: msg.content,
+    // Older backends have no `text`; their `content` is always the real text.
+    text: typeof msg.text === "string" ? msg.text : msg.content || "",
+    mediaItems,
     createdAt: msg.createdAt,
   };
+}
+
+/** Inbox preview for a message we just sent (matches the backend's wording). */
+export function previewFor(text: string, mediaItems: string[] = []): string {
+  const t = (text || "").trim();
+  if (t) return t;
+  if (mediaItems.length === 1) return "Sent a photo";
+  if (mediaItems.length > 1) return `Sent ${mediaItems.length} photos`;
+  return "";
 }
 
 export function MessagingProvider({ children }: { children: ReactNode }) {
@@ -72,7 +97,6 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
   const refreshConversations = useCallback(async () => {
     if (!isAuthenticated || !user) {
-      console.log("[MessagingContext] Not authenticated, clearing conversations");
       setConversations([]);
       return;
     }
@@ -82,13 +106,8 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
     try {
       const token = await getToken();
-      console.log("[MessagingContext] Fetching conversations with token:", token ? "present" : "missing");
-      
       const response = await api.getConversations(token);
-      
-      // TEMP DEBUG - log raw response
-      console.log("[MessagingContext] Raw API response:", JSON.stringify(response, null, 2));
-      
+
       // Normalize response - handle both array and wrapped object shapes
       let apiConversations: any[] = [];
       if (Array.isArray(response)) {
@@ -96,43 +115,28 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
       } else if (response && typeof response === 'object' && 'conversations' in response) {
         apiConversations = (response as any).conversations || [];
       }
-      
-      console.log("[MessagingContext] Normalized conversations count:", apiConversations.length);
-      if (apiConversations.length > 0) {
-        console.log("[MessagingContext] First raw conversation:", JSON.stringify(apiConversations[0], null, 2));
-      }
-      
-      // Map using otherParticipant ONLY (correct backend schema)
-      const mapped = apiConversations.map((conv: any) => {
+
+      // publicName/avatarUrl = business name + logo for vendors (backend #300); older backends fall back
+      const mapped: Conversation[] = apiConversations.map((conv: any) => {
         const otherP = conv.otherParticipant || {};
-        const mapped = {
+        return {
           id: conv.id,
           participantId: otherP.id || "",
-          // publicName/avatarUrl = business name + logo for vendors (backend #300); older backends fall back
           participantName: otherP.publicName || otherP.displayName || otherP.name || otherP.username || "Unknown",
           participantAvatar: otherP.avatarUrl || otherP.avatar || otherP.profileImageUrl || undefined,
           participantType: (otherP.type as "business" | "photographer" | "consumer") || "consumer",
           lastMessage: conv.lastMessagePreview || conv.lastMessage || "",
           lastMessageAt: conv.lastMessageAt || conv.updatedAt || conv.createdAt || "",
           unreadCount: conv.unreadCount || 0,
+          username: otherP.username ?? null,
+          businessId: otherP.businessId ?? null,
+          photographerId: otherP.photographerId ?? null,
         };
-        return mapped;
       });
-      
-      console.log("[MessagingContext] Mapped conversations count:", mapped.length);
-      if (mapped.length > 0) {
-        console.log("[MessagingContext] First mapped conversation:", JSON.stringify(mapped[0], null, 2));
-      }
-      
+
       setConversations(mapped);
     } catch (err: any) {
-      console.error("[MessagingContext] FETCH ERROR:", err);
-      console.error("[MessagingContext] Error details:", {
-        message: err?.message,
-        status: err?.status,
-        response: err?.response,
-        stack: err?.stack,
-      });
+      console.warn("[MessagingContext] Failed to load conversations:", err?.status, err?.message);
       if (err?.status === 404 || err?.status === 401) {
         setConversations([]);
       } else {
@@ -173,7 +177,8 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
   const getMessages = useCallback(async (conversationId: string): Promise<Message[]> => {
     try {
       const token = await getToken();
-      const apiMessages = await api.getMessages(conversationId, token);
+      const response: any = await api.getMessages(conversationId, token);
+      const apiMessages: ApiMessage[] = Array.isArray(response) ? response : response?.messages || [];
       return apiMessages.map(mapApiMessage);
     } catch (err: any) {
       console.error("Failed to fetch messages:", err);
@@ -184,23 +189,34 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
     }
   }, [getToken]);
 
-  const sendMessage = useCallback(async (conversationId: string, content: string): Promise<Message | null> => {
+  // Called by ChatScreen after its own send so the inbox row updates without a reload.
+  const noteMessageSent = useCallback((conversationId: string, preview: string, at?: string) => {
+    setConversations(prev => prev.map(conv =>
+      conv.id === conversationId
+        ? { ...conv, lastMessage: preview, lastMessageAt: at || new Date().toISOString() }
+        : conv
+    ));
+  }, []);
+
+  const sendMessage = useCallback(async (conversationId: string, content: string, mediaItems: string[] = []): Promise<Message | null> => {
     try {
       const token = await getToken();
-      const apiMessage = await api.sendMessage(conversationId, content, token);
-      
-      setConversations(prev => prev.map(conv => 
-        conv.id === conversationId
-          ? { ...conv, lastMessage: content, lastMessageAt: apiMessage.createdAt }
-          : conv
-      ));
-      
+      const apiMessage = await api.sendMessage(conversationId, content, token, mediaItems);
+      noteMessageSent(conversationId, previewFor(content, mediaItems), apiMessage.createdAt);
       return mapApiMessage(apiMessage);
     } catch (err: any) {
       console.error("Failed to send message:", err);
       return null;
     }
-  }, [getToken]);
+  }, [getToken, noteMessageSent]);
+
+  // A message push arrived (app open): refresh the inbox + unread badge.
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    return onMessagePush(() => {
+      refreshConversations();
+    });
+  }, [isAuthenticated, user, refreshConversations]);
 
   const createOrGetConversation = useCallback(async (data: CreateConversationRequest): Promise<Conversation | null> => {
     try {
@@ -251,6 +267,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
         sendMessage,
         createOrGetConversation,
         markConversationAsRead,
+        noteMessageSent,
         totalUnreadCount,
       }}
     >

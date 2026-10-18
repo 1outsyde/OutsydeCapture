@@ -2,15 +2,20 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { isPushForOpenChat } from "./messagePush";
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    // A message for the chat that's open right now: no banner or sound, it shows in the chat.
+    const forOpenChat = isPushForOpenChat(notification?.request?.content?.data as any);
+    return {
+      shouldShowAlert: !forOpenChat,
+      shouldPlaySound: !forOpenChat,
+      shouldSetBadge: true,
+      shouldShowBanner: !forOpenChat,
+      shouldShowList: !forOpenChat,
+    };
+  },
 });
 
 export interface PushNotificationData {

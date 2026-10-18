@@ -6,6 +6,7 @@ import * as Notifications from "expo-notifications";
 import { useAuth } from "./AuthContext";
 import api from "@/services/api";
 import { apiPost } from "@/api/client";
+import { isMessagePush, emitMessagePush } from "@/services/messagePush";
 import {
   registerForPushNotificationsAsync,
   scheduleBookingConfirmationNotification,
@@ -166,6 +167,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       notificationListenerRef.current = addNotificationReceivedListener(notification => {
         console.log("[NotificationContext] Notification received:", notification);
         const { title, body, data } = notification.request.content;
+        // Messages have their own unread badge (Messages tab); adding them to Activity too
+        // would count each message twice on the Inbox tab.
+        if (isMessagePush(data as any)) {
+          emitMessagePush(data as any);
+          return;
+        }
         if (title && body) {
           addNotification({
             title,
