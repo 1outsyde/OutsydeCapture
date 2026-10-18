@@ -35,7 +35,7 @@ export interface Notification {
     | "subscription_canceled" | "addon_charged" | "refund_issued"
     | "new_order" | "order_shipped" | "photographer_assigned"
     | "subscription_tier_changed" | "stripe_onboarding_complete"
-    | "new_photographer_application" | "new_follower"
+    | "new_photographer_application" | "new_influencer_application" | "new_follower"
     // Booking request pushes (backend manualRequests.ts); routed by services/bookingPush.ts.
     | "booking_request" | "booking_request_sent" | "booking_request_reminder"
     | "booking_expired";

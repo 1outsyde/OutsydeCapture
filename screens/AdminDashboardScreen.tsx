@@ -971,7 +971,7 @@ export default function AdminDashboardScreen() {
     : photographers;
 
   const renderInfluencerItem = ({ item }: { item: AdminInfluencer }) => (
-    <View style={styles.listItem}>
+    <Pressable style={styles.listItem} onPress={() => navigation.navigate("AdminInfluencerDetail", { applicationId: item.id })}>
       <View style={styles.listItemHeader}>
         <Text style={styles.listItemName}>{item.name}</Text>
         <View style={[
@@ -989,8 +989,12 @@ export default function AdminDashboardScreen() {
         </View>
       </View>
       {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
-      {item.instagram ? <Text style={styles.listItemInfo}>@{item.instagram}</Text> : null}
-      {item.followers ? <Text style={styles.listItemInfo}>{item.followers.toLocaleString()} followers</Text> : null}
+      {item.phone ? <Text style={styles.listItemInfo}>{item.phone}</Text> : null}
+      {[item.instagram && "Instagram", item.tiktok && "TikTok", item.youtube && "YouTube", item.twitter && "X"].filter(Boolean).length ? (
+        <Text style={styles.listItemInfo}>{[item.instagram && "Instagram", item.tiktok && "TikTok", item.youtube && "YouTube", item.twitter && "X"].filter(Boolean).join(", ")}</Text>
+      ) : null}
+      {typeof item.followers === "number" ? <Text style={styles.listItemInfo}>{item.followers.toLocaleString()} followers</Text> : null}
+      {item.contentCategoryLabels?.length ? <Text style={styles.listItemInfo}>{item.contentCategoryLabels.join(", ")}</Text> : null}
       {item.status === "pending" ? (
         <View style={styles.actionRow}>
           <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("influencer", item.id)}>
@@ -1003,7 +1007,7 @@ export default function AdminDashboardScreen() {
           </Pressable>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 
   const renderOrderItem = ({ item }: { item: AdminOrder }) => (
