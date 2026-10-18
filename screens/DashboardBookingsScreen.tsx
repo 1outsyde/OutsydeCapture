@@ -19,6 +19,13 @@ import { useAuth } from "@/context/AuthContext";
 import api, { BusinessBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
 import DeclineReasonModal from "@/components/DeclineReasonModal";
+import {
+  bookingStatusLabel,
+  filterVisibleBookings,
+  isCanceledStatus,
+  isExpiredStatus,
+  isPendingRequestStatus,
+} from "@/utils/bookingStatus";
 
 const BG = "#080C08";
 const GOLD = "#C9933A";
@@ -43,6 +50,7 @@ const STATUS_PRIORITY: Record<string, number> = {
   pending: 0,
   confirmed: 1,
   completed: 2,
+  canceled: 3,
   cancelled: 3,
   no_show: 3,
   declined: 4,
@@ -50,6 +58,7 @@ const STATUS_PRIORITY: Record<string, number> = {
 };
 
 function statusColors(status: BusinessBooking["status"]): { bg: string; text: string } {
+  if (isCanceledStatus(status)) return { bg: "rgba(255,59,48,0.12)", text: "#FF3B30" };
   switch (status) {
     case "pending_provider":
     case "pending":
@@ -70,11 +79,7 @@ function statusColors(status: BusinessBooking["status"]): { bg: string; text: st
 }
 
 function formatStatusLabel(status: BusinessBooking["status"]): string {
-  switch (status) {
-    case "pending_provider": return "Pending Review";
-    case "no_show": return "No Show";
-    default: return status.charAt(0).toUpperCase() + status.slice(1);
-  }
+  return bookingStatusLabel(status);
 }
 
 export default function DashboardBookingsScreen() {
@@ -101,7 +106,8 @@ export default function DashboardBookingsScreen() {
       const token = await getToken();
       if (!token) return;
       const res = await api.getBusinessBookings(token);
-      setBookings(res.bookings);
+      // Unpaid checkouts (draft, pending_payment) are never shown to the provider.
+      setBookings(filterVisibleBookings(res.bookings));
     } catch (err) {
       if (!silent) Alert.alert("Error", "Failed to load bookings");
     } finally {
@@ -244,18 +250,21 @@ export default function DashboardBookingsScreen() {
 
   const FILTER_OPTIONS = [
     { key: "all" as FilterStatus,       label: "All",       count: bookings.length },
-    { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => b.status === "pending" || b.status === "pending_provider").length },
+    { key: "pending" as FilterStatus,   label: "Pending",   count: bookings.filter(b => isPendingRequestStatus(b.status)).length },
     { key: "confirmed" as FilterStatus, label: "Confirmed", count: bookings.filter(b => b.status === "confirmed").length },
     { key: "completed" as FilterStatus, label: "Completed", count: bookings.filter(b => b.status === "completed").length },
-    { key: "canceled" as FilterStatus, label: "Cancelled", count: bookings.filter(b => b.status === "canceled").length },
+    { key: "canceled" as FilterStatus, label: "Cancelled", count: bookings.filter(b => isCanceledStatus(b.status)).length },
     { key: "no_show" as FilterStatus,   label: "No Show",   count: bookings.filter(b => b.status === "no_show").length },
+    { key: "expired" as FilterStatus,   label: "Expired",   count: bookings.filter(b => isExpiredStatus(b.status)).length },
   ];
 
-  const filtered = bookings.filter(b =>
-    filter === "all" ||
-    b.status === filter ||
-    (filter === "pending" && b.status === "pending_provider")
-  );
+  const filtered = bookings.filter(b => {
+    if (filter === "all") return true;
+    if (filter === "pending") return isPendingRequestStatus(b.status);
+    if (filter === "canceled") return isCanceledStatus(b.status);
+    if (filter === "expired") return isExpiredStatus(b.status);
+    return b.status === filter;
+  });
 
   const sorted = [...filtered].sort((a, b) => {
     if (sort === "action") {
@@ -395,12 +404,16 @@ export default function DashboardBookingsScreen() {
     }
 
     const groups: { label: string; items: BusinessBooking[] }[] = [
-      { label: "Pending", items: list.filter(b => b.status === "pending" || b.status === "pending_provider") },
+      { label: "Pending", items: list.filter(b => isPendingRequestStatus(b.status)) },
       { label: "Confirmed", items: list.filter(b => b.status === "confirmed") },
       { label: "Completed", items: list.filter(b => b.status === "completed") },
-      { label: "Cancelled / No Show", items: list.filter(b => b.status === "canceled" || b.status === "no_show") },
-      { label: "Declined / Expired", items: list.filter(b => b.status === "declined" || b.status === "expired") },
+      { label: "Cancelled / No Show", items: list.filter(b => isCanceledStatus(b.status) || b.status === "no_show") },
+      { label: "Declined / Expired", items: list.filter(b => b.status === "declined" || isExpiredStatus(b.status)) },
     ];
+    // Any status not covered above (unexpected value from a newer backend) still shows, never dropped.
+    const grouped = new Set(groups.flatMap(g => g.items.map(b => b.id)));
+    const other = list.filter(b => !grouped.has(b.id));
+    if (other.length > 0) groups.push({ label: "Other", items: other });
 
     return groups
       .filter(g => g.items.length > 0)
@@ -653,7 +666,7 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, onNoShow,
       </View>
       </Pressable>
 
-      {(booking.status === "pending" || booking.status === "pending_provider") && (
+      {isPendingRequestStatus(booking.status) && (
         <View style={styles.actions}>
           <Pressable
             style={[styles.actionBtn, { backgroundColor: "rgba(52,199,89,0.12)", opacity: actionLoading === booking.id ? 0.6 : 1 }]}

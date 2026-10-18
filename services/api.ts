@@ -1091,12 +1091,13 @@ export interface PhotographerBooking {
   time: string;
   sessionType: string;
   location?: string;
-  // Matches BusinessBooking["status"] character for character — two providers,
-  // one vocabulary. Source of truth is BOOKING_STATES in shared/schema.ts:123-133;
-  // `draft` and `pending_payment` are deliberately omitted here because neither
-  // reaches a provider-facing list (draft is a pre-payment slot lock,
-  // pending_payment is transient), which is also why BusinessBooking omits them.
-  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired";
+  // Matches BusinessBooking["status"] character for character: two providers,
+  // one vocabulary. Source of truth is BOOKING_STATES in shared/schema.ts.
+  // `draft` (pre-payment slot lock) and `pending_payment` (unpaid checkout) are
+  // listed because older backends did return them in the provider lists. The
+  // backend now leaves them out (PR #326) and the app also drops them with
+  // filterVisibleBookings (utils/bookingStatus.ts); they are never shown or counted.
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired" | "draft" | "pending_payment";
   amount: number;
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
@@ -1232,7 +1233,9 @@ export interface BusinessBooking {
   date: string;
   time: string;
   serviceName: string;
-  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired";
+  // draft and pending_payment can arrive from older backends; the app filters
+  // them out with filterVisibleBookings (utils/bookingStatus.ts).
+  status: "pending" | "pending_provider" | "confirmed" | "completed" | "canceled" | "no_show" | "declined" | "expired" | "draft" | "pending_payment";
   amount: number;
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
@@ -3921,6 +3924,21 @@ class ApiService {
       method: "PATCH",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify(settings),
+    });
+  }
+
+  // POST /api/me/time-zone: sets the caller's own business / photographer profile
+  // time zone. The backend only writes it when the profile has none yet, unless
+  // overwrite is true.
+  async setMyTimeZone(
+    authToken: string,
+    timeZone: string,
+    overwrite = false
+  ): Promise<unknown> {
+    return this.request<unknown>("/api/me/time-zone", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ timeZone, overwrite }),
     });
   }
 

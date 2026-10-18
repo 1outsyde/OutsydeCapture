@@ -63,6 +63,15 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import MediaUploader from "@/components/MediaUploader";
 import { formatDuration } from "@/utils/duration";
 import {
+  bookingStatusLabel,
+  filterVisibleBookings,
+  isActiveProviderStatus,
+  isCanceledStatus,
+  isExpiredStatus,
+  isPendingRequestStatus,
+} from "@/utils/bookingStatus";
+import { syncMyTimeZoneOnce } from "@/utils/timeZoneSync";
+import {
   PHOTO_OTHER_CODE, pickableSpecialties, codesForProfile, toggleSpecialtyCode, specialtyProblem,
 } from "@/utils/photographerTaxonomy";
 
@@ -99,6 +108,9 @@ export default function PhotographerDashboardScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { getToken, logout, user, isLoading: authLoading, refreshUser } = useAuth();
+  // Latest getToken without making it an effect dependency (it is recreated every render).
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -402,7 +414,8 @@ export default function PhotographerDashboardScreen() {
             date: datePart,
             time: timePart,
             sessionType,
-            status: b.status || "pending",
+            // Use the real value. A missing status must never turn into a pending request.
+            status: (typeof b.status === "string" ? b.status : "") as PhotographerBooking["status"],
             amount,
             // The record shape carries no subtotal field, so mirror what the
             // business serializer does (server/storage.ts:1799-1800) and set it
@@ -420,24 +433,30 @@ export default function PhotographerDashboardScreen() {
             inPersonDueCents: typeof b.inPersonDueCents === "number" ? b.inPersonDueCents : null,
           };
         });
-        setBookings(mappedBookings);
+        // Unpaid checkouts (draft, pending_payment) are never shown or counted.
+        const visibleBookings: PhotographerBooking[] = filterVisibleBookings(mappedBookings);
+        setBookings(visibleBookings);
 
         // Derive all stats from real booking data — never rely on totalEarnings from profile
-        const confirmedOrCompleted = mappedBookings.filter(
+        const confirmedOrCompleted = visibleBookings.filter(
           (b) => b.status === "confirmed" || b.status === "completed",
         );
         const totalEarnings = confirmedOrCompleted.reduce(
           (sum, b) => sum + (b.vendorNetAmount ?? b.amount ?? 0),
           0,
         );
-        // totalBookings: every booking that was not cancelled or declined,
-        // regardless of date. This is what the "Bookings" stat tile shows.
-        const totalBookingCount = mappedBookings.filter(
-          (b) => b.status !== "canceled" && b.status !== "declined",
+        // totalBookings: every real booking that was not cancelled, declined
+        // or expired, regardless of date. This is what the "Bookings" stat
+        // tile shows. draft and pending_payment were already dropped above.
+        const totalBookingCount = visibleBookings.filter(
+          (b) =>
+            !isCanceledStatus(b.status) &&
+            b.status !== "declined" &&
+            !isExpiredStatus(b.status),
         ).length;
 
-        // upcomingBookings: dated today or later AND still going to happen —
-        // confirmed, pending, or pending_provider. Excludes completed (a
+        // upcomingBookings: dated today or later AND still going to happen:
+        // confirmed, or a real request (pending_provider, legacy pending). Excludes completed (a
         // finished shoot is not upcoming even if it is dated today) and
         // cancelled / declined / expired / no_show. A booking with a missing or
         // malformed date does not count.
@@ -448,13 +467,12 @@ export default function PhotographerDashboardScreen() {
         // user west of Greenwich.
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const upcomingStatuses = ["confirmed", "pending", "pending_provider"];
-        const upcomingBookingCount = mappedBookings.filter(
+        const upcomingBookingCount = visibleBookings.filter(
           (b) =>
             typeof b.date === "string" &&
             /^\d{4}-\d{2}-\d{2}$/.test(b.date) &&
             b.date >= todayStr &&
-            upcomingStatuses.includes(b.status),
+            isActiveProviderStatus(b.status),
         ).length;
 
         setStats((prev) => ({
@@ -641,6 +659,8 @@ export default function PhotographerDashboardScreen() {
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
       fetchDashboard();
+      // Once per launch: fill in the photographer time zone if it is still empty. Fire and forget.
+      syncMyTimeZoneOnce("photographer", () => getTokenRef.current());
     }
   }, [authLoading, user?.id, user?.role]);
 
@@ -1347,20 +1367,31 @@ export default function PhotographerDashboardScreen() {
     }));
   };
 
+  // Same accept / decline calls as PhotographerBookingsScreen, with a guard against double taps.
+  const bookingActionInFlight = useRef<string | null>(null);
   const handleBookingAction = async (bookingId: string, action: "confirm" | "cancel") => {
-    const token = await getToken();
-    if (!token) return;
-
+    if (bookingActionInFlight.current) return;
+    bookingActionInFlight.current = bookingId;
     try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
       if (action === "confirm") {
         await api.acceptBooking(token, "photographer", bookingId);
       } else {
         await api.declineBooking(token, "photographer", bookingId);
       }
-      Alert.alert("Success", `Booking ${action}ed successfully`);
+      Alert.alert("Success", action === "confirm" ? "Booking accepted." : "Booking declined.");
       fetchDashboard();
-    } catch {
-      Alert.alert("Error", `Failed to ${action} booking`);
+    } catch (err: any) {
+      Alert.alert(
+        "Error",
+        err?.message ||
+          (action === "confirm"
+            ? "Failed to accept booking. Please try again."
+            : "Failed to decline booking. Please try again."),
+      );
+    } finally {
+      bookingActionInFlight.current = null;
     }
   };
 
@@ -2839,14 +2870,14 @@ export default function PhotographerDashboardScreen() {
               </View>
             ) : (
               bookings.map(booking => {
-                const isPending = booking.status === "pending";
+                const isPending = isPendingRequestStatus(booking.status);
                 const getStatusColor = (status: string) => {
-                  switch (status) {
-                    case "confirmed": return "#34C759";
-                    case "pending": return "#FF9500";
-                    case "canceled": return "#FF3B30";
-                    default: return DASHBOARD_COLORS.creamDim;
-                  }
+                  if (status === "confirmed") return "#34C759";
+                  if (isPendingRequestStatus(status)) return "#FF9500";
+                  if (isCanceledStatus(status) || status === "declined") return "#FF3B30";
+                  if (status === "completed") return DASHBOARD_COLORS.gold;
+                  if (isExpiredStatus(status) || status === "no_show") return "#8E8E93";
+                  return DASHBOARD_COLORS.creamDim;
                 };
                 return (
                   <View key={booking.id} style={styles.bookingCard}>
@@ -2896,7 +2927,7 @@ export default function PhotographerDashboardScreen() {
                       </View>
                       <View style={[styles.bookingStatusBadge, { backgroundColor: getStatusColor(booking.status) + "20" }]}>
                         <Text style={[styles.bookingStatusText, { color: getStatusColor(booking.status) }]}>
-                          {booking.status}
+                          {bookingStatusLabel(booking.status)}
                         </Text>
                       </View>
                     </View>
@@ -3285,7 +3316,7 @@ export default function PhotographerDashboardScreen() {
   // Priority 2: oldest pending booking awaiting confirmation
   if (!upNextItem) {
     const pendingBks = bookings
-      .filter((b) => b.status === "pending" || b.status === "pending_provider")
+      .filter((b) => isPendingRequestStatus(b.status))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     if (pendingBks.length > 0) {
       upNextItem = {
@@ -3652,7 +3683,7 @@ export default function PhotographerDashboardScreen() {
                 startTime: b.time || "9:00 AM",
                 clientName: b.clientName,
                 serviceName: b.sessionType,
-                status: b.status as "pending" | "confirmed" | "completed" | "canceled" | "declined",
+                status: b.status as CalendarBooking["status"],
                 amount: b.amount,
               }))}
               blockedDates={blockedDates.map(bd => ({

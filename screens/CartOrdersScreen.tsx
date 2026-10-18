@@ -23,6 +23,7 @@ import { useData } from "@/context/DataContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { apiGet } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
+import { isUnpaidBookingStatus } from "@/utils/bookingStatus";
 import api, { getMyAppointments, BusinessAppointment, ConsumerOrder } from "@/services/api";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
@@ -36,7 +37,7 @@ type CombinedItem =
   | { kind: "business"; data: BusinessAppointment };
 
 const BUSINESS_UPCOMING_STATUSES = new Set(["confirmed", "pending_provider"]);
-const BUSINESS_PAST_STATUSES = new Set(["completed", "canceled", "no_show", "declined", "expired"]);
+const BUSINESS_PAST_STATUSES = new Set(["completed", "canceled", "cancelled", "no_show", "declined", "expired"]);
 
 function getItemDate(item: CombinedItem): string {
   return item.kind === "photographer" ? item.data.date : item.data.appointmentDate;
@@ -85,7 +86,8 @@ export default function CartOrdersScreen() {
   const pastCombined: CombinedItem[] = [
     ...pastSessions.map((s): CombinedItem => ({ kind: "photographer", data: s })),
     ...businessAppointments
-      .filter((a) => BUSINESS_PAST_STATUSES.has(a.status) || isPastDate(a.appointmentDate))
+      // Unpaid checkouts (draft, pending_payment) never show in Upcoming or Past.
+      .filter((a) => !isUnpaidBookingStatus(a.status) && (BUSINESS_PAST_STATUSES.has(a.status) || isPastDate(a.appointmentDate)))
       .map((a): CombinedItem => ({ kind: "business", data: a })),
   ].sort((a, b) => getItemDate(b).localeCompare(getItemDate(a)));
 
@@ -227,7 +229,8 @@ export default function CartOrdersScreen() {
     switch (status) {
       case "upcoming": return theme.brandSuccess || "#34C759";
       case "completed": return "#007AFF";
-      case "canceled": return theme.brandError || "#FF3B30";
+      case "canceled":
+      case "cancelled": return theme.brandError || "#FF3B30";
       default: return theme.brandTextDim;
     }
   };

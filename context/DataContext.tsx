@@ -4,6 +4,7 @@ import { Alert } from "react-native";
 import { useAuth } from "./AuthContext";
 import { fetchPhotographers } from "@/api/photographers";
 import api, { getMyShootBookings } from "@/services/api";
+import { isCanceledStatus, isUnpaidBookingStatus } from "@/utils/bookingStatus";
 
 export type PhotographyCategory = "portrait" | "wedding" | "events" | "product" | "nature" | "fashion";
 
@@ -76,7 +77,9 @@ export interface Session {
   endTime?: string;
   location: string;
   sessionType: string;
-  status: "upcoming" | "completed" | "canceled";
+  // GET /api/my-shoot-bookings sends "cancelled" (double l); "canceled" is kept
+  // for locally stored sessions. Both are treated the same.
+  status: "upcoming" | "completed" | "canceled" | "cancelled";
   price: number;
   notes?: string;
   photos?: string[];
@@ -1117,7 +1120,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return sessions
-      .filter((s) => s.status === "completed" || s.status === "canceled" || new Date(s.date) < today)
+      // Both cancel spellings count, so a future dated expired / declined / cancelled
+      // session (backend sends "cancelled") lands in Past instead of disappearing.
+      // Unpaid checkouts (draft, pending_payment) never show.
+      .filter(
+        (s) =>
+          !isUnpaidBookingStatus(s.status) &&
+          (s.status === "completed" || isCanceledStatus(s.status) || new Date(s.date) < today),
+      )
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 

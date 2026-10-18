@@ -23,6 +23,7 @@ import { shouldShowConnectPrompt, type ConnectPromptEligibility, type ConnectPro
 import { isAnyOpen, subscribe as subscribeModals } from "@/utils/modalCoordinator";
 import { markStripeReturn } from "@/utils/stripeReturnSignal";
 import { useMessagePushLinks } from "@/hooks/useMessagePushLinks";
+import { useBookingPushLinks } from "@/hooks/useBookingPushLinks";
 import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 
@@ -75,6 +76,8 @@ export default function MainTabNavigator() {
   useAccountSetupLinks();
   // Tapped message push → that chat
   useMessagePushLinks();
+  // Tapped booking request push → the bookings list (provider or customer)
+  useBookingPushLinks();
   const isGuest = user?.isGuest || !user;
 
   // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──

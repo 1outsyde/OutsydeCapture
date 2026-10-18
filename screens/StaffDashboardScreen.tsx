@@ -38,6 +38,7 @@ import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { uploadImage } from "@/services/mediaUpload";
 import { formatDuration } from "@/utils/duration";
+import { bookingStatusLabel, filterVisibleBookings, isActiveProviderStatus } from "@/utils/bookingStatus";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
 
@@ -138,7 +139,8 @@ export default function StaffDashboardScreen() {
         api.getStaffWeeklyAvailability(token, staffData.businessId).catch(() => ({ availability: [] })),
       ]);
 
-      setBookings(bookingsRes.bookings || []);
+      // Unpaid checkouts (draft, pending_payment) are never shown or counted.
+      setBookings(filterVisibleBookings(bookingsRes.bookings || []));
       setAvailability(availabilityRes.availability || []);
       setEarnings(earningsRes);
       setServices(servicesRes.services || []);
@@ -193,9 +195,9 @@ export default function StaffDashboardScreen() {
   const serviceNameFor = (serviceId: string): string =>
     services.find((s) => String(s.id) === String(serviceId))?.name || "Service";
 
-  const upcomingBookings = bookings.filter(
-    (b) => b.status === "confirmed" || b.status === "pending",
-  );
+  // Upcoming = real pending requests (pending_provider) + confirmed. Never draft,
+  // pending_payment or expired.
+  const upcomingBookings = bookings.filter((b) => isActiveProviderStatus(b.status));
 
   // Base-hours slots — this backend has no weekly-recurring model for staff, only
   // specific-date "available" rows, so this approximates ProviderCalendar's
@@ -653,7 +655,7 @@ export default function StaffDashboardScreen() {
                       ) : null}
                     </View>
                     <View style={styles.statusPill}>
-                      <Text style={styles.statusPillText}>{booking.status}</Text>
+                      <Text style={styles.statusPillText}>{bookingStatusLabel(booking.status)}</Text>
                     </View>
                   </View>
                 ))
