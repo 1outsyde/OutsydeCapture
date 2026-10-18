@@ -25,6 +25,7 @@ import { useCart } from "@/context/CartContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { apiPost } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
+import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicker";
 import {
   getPaymentMethods,
   getSavedAddresses,
@@ -44,7 +45,14 @@ const CUSTOMER_FACING_CHECKOUT_CODES = [
   "INVALID_VARIANT",
   "PRODUCT_UNAVAILABLE",
   "PRODUCT_VENDOR_MISMATCH",
+  // Points code refusals (backend #308 / #314)
+  "INVALID_PROMO",
+  "PROMO_MINIMUM_NOT_MET",
+  "PROMO_SINGLE_SHOP_ONLY",
+  "PROMO_IN_USE",
+  "PROMO_CHECK_FAILED",
 ];
+const PROMO_REFUSAL_CODES = ["INVALID_PROMO", "PROMO_MINIMUM_NOT_MET", "PROMO_SINGLE_SHOP_ONLY", "PROMO_IN_USE", "PROMO_CHECK_FAILED"];
 function checkoutRefusalMessage(errMessage: string): string | null {
   if (!CUSTOMER_FACING_CHECKOUT_CODES.some((c) => errMessage.includes(c))) return null;
   const jsonStart = errMessage.indexOf("{");
@@ -68,6 +76,9 @@ interface FeeBreakdown {
   platformFeeCents: number;
   totalChargedToConsumerCents: number;
   outsydePointsEarned: number;
+  // Points code (backend #314): what the code took off, and what the card is charged.
+  discountCents?: number;
+  amountChargedCents?: number;
 }
 
 export default function CheckoutScreen() {
@@ -127,6 +138,12 @@ export default function CheckoutScreen() {
   // ─── Checkout state ───────────────────────────────────────────────────────
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [backendFeeBreakdown, setBackendFeeBreakdown] = useState<FeeBreakdown | null>(null);
+  // "Use my points": codes work on orders from one shop only (backend refuses multi-shop codes).
+  const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
+  const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
+  const [refusedCodeIds, setRefusedCodeIds] = useState<Set<string>>(() => new Set());
+  // A changed code makes an earlier server breakdown stale; show the local preview again.
+  useEffect(() => { setBackendFeeBreakdown(null); }, [pointsCode?.id]);
   const [cardError, setCardError] = useState<string | null>(null);
 
   // ─── Load saved cards + addresses on mount ────────────────────────────────
@@ -210,7 +227,14 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
   const displayedSubtotal = backendFeeBreakdown ? backendFeeBreakdown.basePriceCents / 100 : subtotal / 100;
   const displayedServiceFee = backendFeeBreakdown ? backendFeeBreakdown.consumerUpchargeCents / 100 : clientServiceFee;
-  const displayedTotal = backendFeeBreakdown ? backendFeeBreakdown.totalChargedToConsumerCents / 100 : clientTotal;
+  const singleShop = new Set(checkoutItems.map((i) => i.vendorId)).size === 1;
+  const appliedCode = singleShop ? pointsCode : null;
+  const displayedRewards = backendFeeBreakdown
+    ? (backendFeeBreakdown.discountCents ?? 0) / 100
+    : (appliedCode?.discountCents ?? 0) / 100;
+  const displayedTotal = backendFeeBreakdown
+    ? (backendFeeBreakdown.amountChargedCents ?? backendFeeBreakdown.totalChargedToConsumerCents) / 100
+    : clientTotal - displayedRewards;
   const displayedPoints = backendFeeBreakdown ? backendFeeBreakdown.outsydePointsEarned : clientPoints;
 
   // ─── Delete saved card ────────────────────────────────────────────────────
@@ -269,6 +293,7 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
         {
           items: checkoutItems,
           shippingAddress: resolvedAddress,
+          ...(appliedCode ? { promoCodeId: appliedCode.id } : {}),
         },
         token
       ) as { clientSecret?: string; feeBreakdown?: FeeBreakdown };
@@ -342,7 +367,7 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
       }
 
       const itemCount = checkoutItems.reduce((sum, i) => sum + i.quantity, 0);
-      const totalCharged = feeBreakdown?.totalChargedToConsumerCents ?? 0;
+      const totalCharged = feeBreakdown?.amountChargedCents ?? feeBreakdown?.totalChargedToConsumerCents ?? 0;
       const pointsEarned = feeBreakdown?.outsydePointsEarned ?? 0;
       if (mode === "cart") {
         Array.from(new Set(cartItems.map(i => i.vendorId))).forEach(vid => removeVendorItems(vid));
@@ -365,6 +390,12 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
           [{ text: "OK" }]
         );
       } else if (checkoutRefusalMessage(message)) {
+        if (PROMO_REFUSAL_CODES.some((c) => message.includes(c))) {
+          const refusedId = appliedCode?.id;
+          if (refusedId && message.includes("PROMO_IN_USE")) setRefusedCodeIds((prev) => new Set(prev).add(refusedId));
+          setPointsCode(null);
+          setPointsRefreshKey((k) => k + 1);
+        }
         Alert.alert(
           "Can't Complete Checkout",
           checkoutRefusalMessage(message)!,
@@ -731,6 +762,19 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
           )}
         </View>
 
+        {/* Use my points (Outsyde loyalty rewards): one shop per order */}
+        {!isEmpty && singleShop && (
+          <UsePointsPicker
+            kind="order"
+            amountCents={subtotal}
+            selected={pointsCode}
+            onChange={setPointsCode}
+            disabled={checkoutLoading}
+            refreshKey={pointsRefreshKey}
+            refusedCodeIds={refusedCodeIds}
+          />
+        )}
+
         {/* Price breakdown */}
         <View style={[styles.card, { marginTop: Spacing.md }]}>
           <View style={styles.row}>
@@ -741,6 +785,12 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
             <ThemedText type="body" style={{ color: theme.brandTextDim }}>Outsyde Service Fee</ThemedText>
             <ThemedText type="body">${displayedServiceFee.toFixed(2)}</ThemedText>
           </View>
+          {displayedRewards > 0 && (
+            <View style={styles.row}>
+              <ThemedText type="body" style={{ color: theme.brandTextDim }}>Outsyde rewards</ThemedText>
+              <ThemedText type="body">${displayedRewards.toFixed(2)} off</ThemedText>
+            </View>
+          )}
           <View style={[styles.row, { marginBottom: 0 }]}>
             <ThemedText type="h4">Total</ThemedText>
             <ThemedText type="h4" style={{ color: theme.brandGold }}>${displayedTotal.toFixed(2)}</ThemedText>

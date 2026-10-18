@@ -34,6 +34,7 @@ import api, {
   BookingHoldResponse,
 } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicker";
 import { formatDuration } from "@/utils/duration";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -131,6 +132,8 @@ interface PaidSnapshot {
   dueAtAppointmentCents: number | undefined;
   depositAmountCents: number | null;
   addons?: { id: string; name: string; priceCents: number }[] | null;
+  // Outsyde loyalty rewards taken off what was paid now (0 = none).
+  rewardsCents?: number;
 }
 
 // Customer-facing copy for hold errors. Raw messages go to the console only.
@@ -149,7 +152,14 @@ const mapHoldError = (err: any): string => {
   return "Something went wrong holding this time.";
 };
 
+// Points code refusals from create-payment-intent (backend #314) carry their own copy.
+const PROMO_ERROR_CODES = new Set(["INVALID_PROMO", "PROMO_TOO_LARGE", "PROMO_IN_USE", "PROMO_UPDATE_FAILED", "PROMO_CHECK_FAILED"]);
+const isPromoError = (err: any): boolean => PROMO_ERROR_CODES.has(err?.body?.code);
+
 const mapPayError = (err: any): string => {
+  if (isPromoError(err) && typeof err?.body?.error === "string") {
+    return err.body.error;
+  }
   if (err?.status === 409) {
     return "A payment for this booking is already in progress. Close and check your bookings.";
   }
@@ -404,6 +414,10 @@ export default function BookingFlow({
   const [paymentData, setPaymentData] =
     useState<HoldPaymentIntentResponse | null>(null);
   const [paidSnapshot, setPaidSnapshot] = useState<PaidSnapshot | null>(null);
+  // "Use my points": the code applied to this booking (sent on every Pay).
+  const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
+  const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
+  const [refusedCodeIds, setRefusedCodeIds] = useState<Set<string>>(() => new Set());
   // Known before payment only for businesses (public profile); null = unknown.
   const [autoAcceptBookings, setAutoAcceptBookings] = useState<boolean | null>(
     null,
@@ -893,6 +907,7 @@ export default function BookingFlow({
       const pd = await api.createHoldPaymentIntent(
         currentHold.holdId,
         customerAddress,
+        pointsCode?.id ?? null,
       );
       piCreatedHoldIdsRef.current.add(currentHold.holdId);
       // Newer backends send the hold's expiry with the PaymentIntent.
@@ -934,6 +949,10 @@ export default function BookingFlow({
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       refreshSessions().catch(() => {});
+      if (typeof pd.amountChargedNowCents === "number") {
+        snapshot.dueNowCents = pd.amountChargedNowCents;
+      }
+      snapshot.rewardsCents = typeof pd.discountCents === "number" ? pd.discountCents : 0;
       setPaidSnapshot(snapshot);
       setPaymentData(pd);
       setBookingPending(Boolean(pd.requiresApproval));
@@ -954,6 +973,12 @@ export default function BookingFlow({
           setHoldStatus("expiredAfterPayment");
         }
         setShowHoldExpiredModal(true);
+      } else if (isPromoError(err)) {
+        const refusedId = pointsCode?.id;
+        if (refusedId && err?.body?.code === "PROMO_IN_USE") setRefusedCodeIds((prev) => new Set(prev).add(refusedId));
+        setPointsCode(null);
+        setPointsRefreshKey((k) => k + 1);
+        setError(mapPayError(err));
       } else if (err?.sheetError) {
         setError(
           "Payment didn't go through. Please try again or use another card.",
@@ -1342,7 +1367,7 @@ export default function BookingFlow({
     const disabled = !amountsReady || !locationReady || !universalReady;
     const dueNowLabel =
       typeof hold?.dueNowCents === "number"
-        ? formatPrice(hold.dueNowCents)
+        ? formatPrice(hold.dueNowCents - (pointsCode?.discountCents ?? 0))
         : "";
     const payLabel =
       autoAcceptBookings === false
@@ -1425,7 +1450,11 @@ export default function BookingFlow({
 
     let nowCents = paidSnapshot.dueNowCents;
     const piGross = paymentData?.feeBreakdown?.grossChargeAmount;
-    if (typeof piGross === "number" && piGross !== nowCents) {
+    const chargedNow = paymentData?.amountChargedNowCents;
+    if (typeof chargedNow === "number") {
+      // Backend #314: what the card was charged now, after any points code.
+      nowCents = chargedNow;
+    } else if (typeof piGross === "number" && piGross !== nowCents) {
       console.warn(
         "[BookingFlow] hold due-now differs from PaymentIntent amount",
         nowCents,
@@ -1440,6 +1469,14 @@ export default function BookingFlow({
 
     return (
       <View style={{ alignSelf: "stretch", marginTop: Spacing.md }}>
+        {(paidSnapshot.rewardsCents ?? 0) > 0 && (
+          <View style={styles.amountRow}>
+            <ThemedText style={{ color: theme.brandTextDim }}>Outsyde rewards</ThemedText>
+            <ThemedText style={[styles.amountValue, { color: theme.brandTextDim }]}>
+              {`${formatPrice(paidSnapshot.rewardsCents as number)} off`}
+            </ThemedText>
+          </View>
+        )}
         {renderAmountRow(
           bookingPending ? "Authorized now" : "Paid now",
           nowCents,
@@ -1569,7 +1606,18 @@ export default function BookingFlow({
         {!hasDeposit &&
           typeof feeCents === "number" &&
           renderAmountRow("Service fee", feeCents)}
-        {renderAmountRow("Due now", hold.dueNowCents, true)}
+        {renderAmountRow("Due now", hold.dueNowCents, !pointsCode)}
+        {pointsCode && (
+          <>
+            <View style={styles.amountRow}>
+              <ThemedText style={{ color: theme.brandTextDim }}>Outsyde rewards</ThemedText>
+              <ThemedText style={[styles.amountValue, { color: theme.brandTextDim }]}>
+                {`${formatPrice(pointsCode.discountCents)} off`}
+              </ThemedText>
+            </View>
+            {renderAmountRow("Pay now", hold.dueNowCents - pointsCode.discountCents, true)}
+          </>
+        )}
         {hasDeposit && typeof feeCents === "number" && (
           <ThemedText
             style={{
@@ -2150,6 +2198,20 @@ export default function BookingFlow({
           >
             {renderAmountsBlock()}
           </View>
+
+          {/* Use my points (Outsyde loyalty rewards) */}
+          {holdStatus === "ready" && typeof hold?.dueNowCents === "number" && (
+            <UsePointsPicker
+              kind="booking"
+              amountCents={hold.dueNowCents}
+              selected={pointsCode}
+              onChange={setPointsCode}
+              disabled={paying}
+              accentColor={accent}
+              refreshKey={pointsRefreshKey}
+              refusedCodeIds={refusedCodeIds}
+            />
+          )}
 
           {/* Location section */}
           <View style={[styles.reviewSection, { backgroundColor: theme.brandBgElevated, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: theme.brandSurfaceBorder }]}>

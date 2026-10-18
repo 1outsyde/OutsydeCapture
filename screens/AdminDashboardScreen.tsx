@@ -139,12 +139,19 @@ export default function AdminDashboardScreen() {
           setInfluencers(influencersData || []);
           break;
         case "payments":
-          const [paymentStatsData, ordersData, bookingsData, refundsData] = await Promise.all([
+          // One missing endpoint must not blank the whole tab (payments/stats and refunds
+          // have no backend route today).
+          const settled = await Promise.allSettled([
             api.getPaymentStats(token),
             api.getAdminOrders(token),
             api.getAdminBookings(token),
             api.getAdminRefunds(token),
           ]);
+          const valueOf = <T,>(r: PromiseSettledResult<T>): T | null => (r.status === "fulfilled" ? r.value : null);
+          const paymentStatsData = valueOf(settled[0]);
+          const ordersData = valueOf(settled[1]);
+          const bookingsData = valueOf(settled[2]);
+          const refundsData = valueOf(settled[3]);
           setPaymentStats(paymentStatsData || { totalOrders: 0, orderRevenue: 0, totalBookings: 0, pendingRefunds: 0 });
           setOrders(ordersData || []);
           setBookings(bookingsData || []);
@@ -1000,6 +1007,9 @@ export default function AdminDashboardScreen() {
       <Text style={styles.listItemInfo}>Customer: {item.userName}</Text>
       <Text style={styles.listItemInfo}>Business: {item.businessName}</Text>
       <Text style={styles.listItemInfo}>Amount: ${item.amount.toFixed(2)}</Text>
+      {(item.discountAmountCents ?? 0) > 0 && (
+        <Text style={styles.listItemInfo}>{`Outsyde rewards used: $${((item.discountAmountCents ?? 0) / 100).toFixed(2)}`}</Text>
+      )}
     </View>
   );
 
@@ -1025,6 +1035,9 @@ export default function AdminDashboardScreen() {
       <Text style={styles.listItemInfo}>Photographer: {item.photographerName}</Text>
       <Text style={styles.listItemInfo}>Date: {new Date(item.date).toLocaleDateString()}</Text>
       <Text style={styles.listItemInfo}>Amount: ${item.amount.toFixed(2)}</Text>
+      {(item.discountAmountCents ?? 0) > 0 && (
+        <Text style={styles.listItemInfo}>{`Outsyde rewards used: $${((item.discountAmountCents ?? 0) / 100).toFixed(2)}`}</Text>
+      )}
     </View>
   );
 

@@ -612,6 +612,8 @@ export interface VendorProduct {
   reviewCount?: number | null;
   createdAt?: string;
   updatedAt?: string;
+  /** From the public storefront list (backend #315): null or missing when the product has no variations. */
+  variantSummary?: import("@/components/products/productCardLogic").VariantSummary | null;
 }
 
 export interface ProductVariant {
@@ -626,6 +628,12 @@ export interface ProductVariant {
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
+  /** Option values this variation is made of (backend #310); null on older label-only variations. */
+  option1?: string | null;
+  option2?: string | null;
+  option3?: string | null;
+  imageUrl?: string | null;
+  hasOwnPrice?: boolean;
 }
 
 export interface VendorProductWithVariants extends VendorProduct {
@@ -905,6 +913,8 @@ export interface AdminOrder {
   amount: number;
   status: "pending" | "completed" | "canceled" | "refunded";
   createdAt: string;
+  // Outsyde loyalty rewards used, in cents (backend #314). Paid by Outsyde.
+  discountAmountCents?: number;
 }
 
 export interface AdminBooking {
@@ -918,6 +928,8 @@ export interface AdminBooking {
   amount: number;
   status: "pending" | "confirmed" | "completed" | "canceled";
   createdAt: string;
+  // Outsyde loyalty rewards used, in cents (backend #314). Paid by Outsyde.
+  discountAmountCents?: number;
 }
 
 export interface AdminRefund {
@@ -1030,6 +1042,8 @@ export interface PhotographerBooking {
   addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
   customerDetails?: string | null;
   inPersonDueCents?: number | null;
+  // Outsyde loyalty rewards the customer used, in cents (backend #314). Paid by Outsyde; the payout is unchanged.
+  discountAmountCents?: number | null;
 }
 
 export interface AvailableSlot {
@@ -1140,6 +1154,8 @@ export interface BusinessOrder {
     shippedAt?: string;
     deliveredAt?: string;
   } | null;
+  // Outsyde loyalty rewards the customer used, in cents (backend #314). Paid by Outsyde; the payout is unchanged.
+  discountAmountCents?: number | null;
 }
 
 export interface BusinessBooking {
@@ -1164,6 +1180,8 @@ export interface BusinessBooking {
   // Integer cents from GET /api/business/bookings (appointmentChargeFields); null when no deposit.
   depositAmountCents?: number | null;
   addonsTotalCents?: number;
+  // Outsyde loyalty rewards the customer used, in cents (backend #314). Paid by Outsyde; the payout is unchanged.
+  discountAmountCents?: number | null;
 }
 
 export interface BusinessProduct {
@@ -2363,14 +2381,44 @@ class ApiService {
   }
 
   async getAdminOrders(authToken: string): Promise<AdminOrder[]> {
-    return this.request<AdminOrder[]>("/api/admin/orders", {
+    // The backend sends { orders, total } with full order rows (cents). Normalize to the list shape.
+    const response: any = await this.request<any>("/api/admin/orders", {
       headers: { "Authorization": `Bearer ${authToken}` },
+    });
+    const rows: any[] = Array.isArray(response) ? response : Array.isArray(response?.orders) ? response.orders : [];
+    return rows.map((o) => {
+      const discountCents = typeof o.discountAmountCents === "number" ? o.discountAmountCents : 0;
+      // gross_charge_amount defaults to 0 on older rows: fall back to the order total then.
+      const grossCents = typeof o.grossChargeAmount === "number" && o.grossChargeAmount > 0 ? o.grossChargeAmount : typeof o.totalAmount === "number" ? o.totalAmount : null;
+      return {
+        ...o,
+        userId: o.userId ?? o.customerId ?? "",
+        userName: o.userName ?? o.customerName ?? "",
+        businessName: o.businessName ?? "",
+        // What the customer paid (dollars): the charge after any Outsyde rewards.
+        amount: typeof o.amount === "number" ? o.amount : grossCents !== null ? (grossCents - discountCents) / 100 : 0,
+        discountAmountCents: discountCents,
+      } as AdminOrder;
     });
   }
 
   async getAdminBookings(authToken: string): Promise<AdminBooking[]> {
-    return this.request<AdminBooking[]>("/api/admin/bookings", {
+    // The backend sends { bookings, total } with full shoot booking rows (cents). Normalize.
+    const response: any = await this.request<any>("/api/admin/bookings", {
       headers: { "Authorization": `Bearer ${authToken}` },
+    });
+    const rows: any[] = Array.isArray(response) ? response : Array.isArray(response?.bookings) ? response.bookings : [];
+    return rows.map((b) => {
+      const discountCents = typeof b.discountAmountCents === "number" ? b.discountAmountCents : 0;
+      return {
+        ...b,
+        userId: b.userId ?? b.clientId ?? "",
+        userName: b.userName ?? b.customerName ?? "",
+        photographerName: b.photographerName ?? "",
+        // Booking value (dollars) from the stored price.
+        amount: typeof b.amount === "number" ? b.amount : typeof b.totalPrice === "number" ? b.totalPrice / 100 : 0,
+        discountAmountCents: discountCents,
+      } as AdminBooking;
     });
   }
 
@@ -4840,7 +4888,10 @@ class ApiService {
       customerServiceCity?: string;
       customerServiceState?: string;
       customerServiceZipCode?: string;
-    }
+    },
+    // Points code: an id to use it, null to use none. Leaving it out keeps
+    // whatever code the booking already has (backend #314).
+    promoCodeId?: string | null,
   ): Promise<{
     clientSecret: string;
     paymentIntentId: string;
@@ -4869,10 +4920,18 @@ class ApiService {
       grossChargeAmount?: number;
       feeModelVersion?: string;
     };
+    // Points code on this booking (backend #314). amountChargedNowCents is what
+    // the card is charged now, after the code.
+    discountCents?: number;
+    promoCode?: string | null;
+    amountChargedNowCents?: number;
+    dueNowCents?: number;
   }> {
+    const body: Record<string, unknown> = { ...(customerAddress ?? {}) };
+    if (promoCodeId !== undefined) body.promoCodeId = promoCodeId;
     return this.request(`/api/booking/${holdId}/create-payment-intent`, {
       method: "POST",
-      body: JSON.stringify(customerAddress ?? {}),
+      body: JSON.stringify(body),
     });
   }
 
@@ -5580,6 +5639,8 @@ export interface BusinessAppointment {
   addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
   customerDetails?: string | null;
   inPersonDueCents?: number | null;
+  // Outsyde loyalty rewards the customer used, in cents (backend #314). Paid by Outsyde; the payout is unchanged.
+  discountAmountCents?: number | null;
 }
 
 export async function getMyAppointments(token: string): Promise<BusinessAppointment[]> {
@@ -5719,9 +5780,13 @@ export interface ConsumerOrder {
 // ==========================================
 
 export interface PointsActiveCode {
+  /** Code id to send as promoCodeId at checkout (backend #314). */
+  id?: string;
   code: string;
   discountCents: number;
   expiresAt: string;
+  /** Smallest product order (before the service fee) this code works on. Bookings: any code while $1+ is still due now. */
+  minimumOrderCents?: number;
 }
 
 export interface PointsBalanceResponse {
@@ -5747,6 +5812,10 @@ export interface PointsHistoryResponse {
 
 export interface RedeemPointsResponse {
   success: boolean;
+  /** Code id to send as promoCodeId (backend #314). */
+  codeId?: string;
+  expiresAt?: string;
+  minimumOrderCents?: number;
   code: string;
   discountDollars: number;
   discountCents: number;

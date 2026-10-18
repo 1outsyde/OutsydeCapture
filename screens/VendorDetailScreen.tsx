@@ -47,6 +47,12 @@ import apiClient, {
   VendorProduct,
   VendorService,
 } from "@/services/api";
+import {
+  cardOptionsLine,
+  cardPriceCents,
+  cardPricePrefix,
+  needsChoice,
+} from "@/components/products/productCardLogic";
 import { useTheme } from "@/hooks/useTheme";
 import {
   BrandColorSpec,
@@ -281,7 +287,9 @@ const getMinimumPrice = (
   services: ServiceCard[],
 ): number | undefined => {
   const prices = [
-    ...products.map((item) => priceCentsToDollars(item.priceCents)),
+    ...products.map((item) =>
+      priceCentsToDollars(cardPriceCents(item.priceCents, item.variantSummary)),
+    ),
     ...services.map((item) => priceCentsToDollars(item.priceCents)),
   ].filter((price): price is number => price != null);
 
@@ -532,7 +540,28 @@ export default function VendorDetailScreen({ route }: Props) {
     return cardAnims.current.get(productId)!;
   }, []);
 
+  // Products with variations can't go in the cart without a pick (checkout
+  // refuses them), so their Add opens the product page instead.
+  const openProduct = useCallback(
+    (product: VendorProduct) => {
+      navigation.navigate("ProductDetail", {
+        id: String(product.id),
+        businessId: product.businessId,
+        name: product.name,
+        description: product.description,
+        priceCents: product.priceCents,
+        imageUrl: product.imageUrl,
+        inventory: product.inventory,
+      });
+    },
+    [navigation],
+  );
+
   const handleAddToCart = useCallback((product: VendorProduct) => {
+    if (needsChoice(product.variantSummary)) {
+      openProduct(product);
+      return;
+    }
     addItem({
       productId: String(product.id),
       name: product.name,
@@ -562,7 +591,7 @@ export default function VendorDetailScreen({ route }: Props) {
         });
       }, 1200);
     });
-  }, [addItem, getCardAnim, itemCount, toastAnim]);
+  }, [addItem, getCardAnim, itemCount, toastAnim, openProduct]);
 
   const isOwnProfile = useMemo(() => {
     if (!profile || !user?.id) return false;
@@ -1414,6 +1443,12 @@ export default function VendorDetailScreen({ route }: Props) {
               return;
             }
 
+            // A product with variations needs a pick first: open its page.
+            if (needsChoice(targetProduct.variantSummary)) {
+              openProduct(targetProduct);
+              return;
+            }
+
             // Add to cart and open cart screen
             addItem({
               productId: String(targetProduct.id),
@@ -1454,7 +1489,7 @@ export default function VendorDetailScreen({ route }: Props) {
       onPress: () =>
         Alert.alert("Coming soon", "Messaging will be available soon."),
     };
-  }, [navigation, profile, products, addItem]);
+  }, [navigation, profile, products, addItem, openProduct]);
 
   const reviewBreakdown = useMemo(() => {
     const dist = ratingsData?.distribution as Record<string, number> | undefined;
@@ -1944,8 +1979,14 @@ export default function VendorDetailScreen({ route }: Props) {
                     {product.name}
                   </Text>
                   <Text style={[styles.productPrice, { color: accentColor }]}>
-                    {formatCents(product.priceCents)}
+                    {cardPricePrefix(product.variantSummary)}
+                    {formatCents(cardPriceCents(product.priceCents, product.variantSummary))}
                   </Text>
+                  {cardOptionsLine(product.variantSummary) ? (
+                    <Text style={styles.productOptionsLine} numberOfLines={1}>
+                      {cardOptionsLine(product.variantSummary)}
+                    </Text>
+                  ) : null}
                   <Pressable
                     style={[
                       styles.productAddButton,
@@ -1953,9 +1994,14 @@ export default function VendorDetailScreen({ route }: Props) {
                     ]}
                     onPress={() => handleAddToCart(product)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel={
+                      needsChoice(product.variantSummary)
+                        ? `Choose an option for ${product.name}`
+                        : `Add ${product.name} to cart`
+                    }
                   >
                     <Text style={[styles.productAddText, { color: accentColor }]}>
-                      Add
+                      {needsChoice(product.variantSummary) ? "Choose" : "Add"}
                     </Text>
                   </Pressable>
                 </View>
@@ -3023,6 +3069,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     fontWeight: "800",
+  },
+  productOptionsLine: {
+    marginTop: 2,
+    color: COLORS.grayLight,
+    fontSize: 11,
+    fontWeight: "600",
   },
   cardCta: {
     marginTop: 8,

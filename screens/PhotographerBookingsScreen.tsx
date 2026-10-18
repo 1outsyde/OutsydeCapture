@@ -144,6 +144,7 @@ function mapRawBooking(b: any): PhotographerBooking {
     addons: Array.isArray(b.addons) ? b.addons : null,
     customerDetails: typeof b.customerDetails === "string" ? b.customerDetails : null,
     inPersonDueCents: typeof b.inPersonDueCents === "number" ? b.inPersonDueCents : null,
+    discountAmountCents: typeof b.discountAmountCents === "number" ? b.discountAmountCents : null,
   };
 }
 
@@ -613,6 +614,9 @@ function BookingCard({ booking, styles, onAccept, onDecline, onRefund, actionLoa
           {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null && (
             <Text style={styles.earningsLine}>Influencer: -${booking.influencerCommissionAmount.toFixed(2)}</Text>
           )}
+          {typeof booking.discountAmountCents === "number" && booking.discountAmountCents > 0 ? (
+            <Text style={styles.earningsLine}>{`Customer used $${(booking.discountAmountCents / 100).toFixed(2)} Outsyde rewards, paid by Outsyde`}</Text>
+          ) : null}
           {booking.vendorNetAmount != null ? (
             <Text style={styles.earningsPrimary}>You Earn: ${booking.vendorNetAmount.toFixed(2)}</Text>
           ) : (
