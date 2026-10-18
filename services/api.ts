@@ -5782,7 +5782,7 @@ export interface PointsActiveCode {
   code: string;
   discountCents: number;
   expiresAt: string;
-  /** Smallest product order (before the service fee) this code works on. Bookings: any code while $1+ is still due now. */
+  /** Smallest amount (before the service fee) this code works on: a product order, or what a booking pays online now. */
   minimumOrderCents?: number;
 }
 
