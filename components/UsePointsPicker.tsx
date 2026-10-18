@@ -13,8 +13,9 @@ import {
 } from "@/services/api";
 
 // "Use my points" at checkout (Outsyde loyalty rewards program).
-// Rules (backend loyaltyLedger.ts, decided 2026-10-17):
-//   - bookings: any code while the customer still pays at least $1 now
+// Rule (backend loyaltyLedger.ts, decided 2026-10-18), the same 10x rule everywhere:
+//   - bookings: what is paid online now, before the service fee (the deposit, or the full price
+//     when there is no deposit), must be at least 10 times the code
 //   - products: the order (before the service fee) must be at least 10 times the code
 // 500 points = $1. The backend re-checks everything; this only decides what to offer.
 
@@ -33,8 +34,7 @@ const TIERS: readonly { points: number; discountCents: number }[] = [
   { points: 25000, discountCents: 5000 },
   { points: 50000, discountCents: 10000 },
 ];
-const BOOKING_MIN_CHARGE_CENTS = 100;
-const PRODUCT_MIN_MULTIPLIER = 10;
+const MIN_MULTIPLIER = 10;
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const whole = (cents: number) => (cents % 100 === 0 ? `$${cents / 100}` : money(cents));
@@ -45,11 +45,13 @@ export function pointsCodeBlockedReason(
   amountCents: number,
   discountCents: number,
 ): string | null {
+  const minimum = discountCents * MIN_MULTIPLIER;
   if (kind === "booking") {
-    if (discountCents > amountCents - BOOKING_MIN_CHARGE_CENTS) return "Worth more than this booking";
+    // amountCents is due now (base + service fee); this recovers the base exactly, like the backend.
+    const paidOnlineBase = Math.round(amountCents / 1.08);
+    if (paidOnlineBase < minimum) return `For bookings of ${whole(minimum)} or more paid online`;
     return null;
   }
-  const minimum = discountCents * PRODUCT_MIN_MULTIPLIER;
   if (amountCents < minimum) return `For orders of ${whole(minimum)} or more`;
   return null;
 }
