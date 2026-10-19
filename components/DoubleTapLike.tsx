@@ -26,9 +26,12 @@ type Props = {
   children: React.ReactNode;
 };
 
-// Gaps and movement allowed for a double tap. Moving further than this means the finger is
-// swiping (feed, carousel), so the tap fails and the swipe carries on as before.
-const MAX_TAP_GAP_MS = 250;
+// Gap allowed between the two taps. It is also how long a single tap (play / pause) waits.
+const MAX_TAP_GAP_MS = 300;
+// Movement allowed. Gesture handler measures a double tap from the FIRST touch, and real second
+// taps land 15 to 30 points away, so the double tap gets more room than a single tap. A real swipe
+// still wins: the feed swipe and scroll views take over and cancel the tap.
+const MAX_DOUBLE_TAP_MOVE = 36;
 const MAX_TAP_MOVE = 12;
 
 /**
@@ -73,7 +76,7 @@ export function DoubleTapLike({ isLiked, onLike, onSingleTap, style, children }:
     const doubleTap = Gesture.Tap()
       .numberOfTaps(2)
       .maxDelay(MAX_TAP_GAP_MS)
-      .maxDistance(MAX_TAP_MOVE)
+      .maxDistance(MAX_DOUBLE_TAP_MOVE)
       .runOnJS(true)
       .onEnd((_e, success) => {
         if (success) handleDoubleTap();
@@ -110,6 +113,7 @@ export function DoubleTapLike({ isLiked, onLike, onSingleTap, style, children }:
 const styles = StyleSheet.create({
   heartLayer: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
     alignItems: "center",
     justifyContent: "center",
   },

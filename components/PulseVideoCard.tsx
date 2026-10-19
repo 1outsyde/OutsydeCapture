@@ -282,16 +282,16 @@ export default function PulseVideoCard({
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
         )}
-
-        {/* Pause indicator */}
-        {isActive && isPaused ? (
-          <View style={styles.pauseOverlay} pointerEvents="none">
-            <View style={styles.pauseIcon}>
-              <Feather name="pause" size={36} color="#FFFFFF" />
-            </View>
-          </View>
-        ) : null}
       </DoubleTapLike>
+
+      {/* Pause indicator (above the gradient as before; taps pass through to the media) */}
+      {isActive && isPaused ? (
+        <View style={styles.pauseOverlay} pointerEvents="none">
+          <View style={styles.pauseIcon}>
+            <Feather name="pause" size={36} color="#FFFFFF" />
+          </View>
+        </View>
+      ) : null}
 
       {/* Bottom gradient */}
       <LinearGradient
