@@ -118,6 +118,8 @@ export type PostType = "photographer" | "vendor" | "user";
 
 export interface Post {
   id: string;
+  /** The viewer follows the author (from the feed). Followed accounts are listed first. */
+  authorIsFollowed?: boolean;
   type: PostType;
   // Canonical identity fields (userId is source of truth)
   userId: string;

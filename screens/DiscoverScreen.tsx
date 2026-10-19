@@ -90,6 +90,11 @@ export default function DiscoverScreen() {
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
+  // Following tab: newest posts from accounts the viewer follows (GET /api/feed?scope=following).
+  const [followingPosts, setFollowingPosts] = useState<Post[]>([]);
+  const [followingLoading, setFollowingLoading] = useState(false);
+  const [followingLoaded, setFollowingLoaded] = useState(false);
+  const [followingRefreshing, setFollowingRefreshing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const storiesBarHeight = useSharedValue(96);
@@ -118,8 +123,11 @@ export default function DiscoverScreen() {
 
   const swipeToToggle = useCallback(
     (direction: "left" | "right") => {
-      if (direction === "left" && feedMode === "pro") setFeedMode("pulse");
+      // Order on screen: FOLLOWING | PRO | PULSE
+      if (direction === "left" && feedMode === "following") setFeedMode("pro");
+      else if (direction === "left" && feedMode === "pro") setFeedMode("pulse");
       else if (direction === "right" && feedMode === "pulse") setFeedMode("pro");
+      else if (direction === "right" && feedMode === "pro") setFeedMode("following");
     },
     [feedMode]
   );
@@ -174,6 +182,7 @@ export default function DiscoverScreen() {
       caption: apiPost.content || "",
       likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
       isLiked: (apiPost as any).isLiked ?? false,
+      authorIsFollowed: apiPost.authorIsFollowed === true,
       comments: [],
       commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
       createdAt: apiPost.createdAt,
@@ -245,6 +254,44 @@ export default function DiscoverScreen() {
     fetchProFeed();
   }, [fetchProFeed]);
 
+  // ─── Following feed fetch ─────────────────────────────────────────────────
+  const fetchFollowingFeed = useCallback(async () => {
+    try {
+      setFollowingLoading(true);
+      const token = await getToken();
+      if (!token) {
+        setFollowingPosts([]);
+        return;
+      }
+      const response = await api.getFeed({ limit: 50, scope: "following" }, token);
+      if (response.posts && Array.isArray(response.posts)) {
+        setFollowingPosts(response.posts.map(convertApiPostToPost));
+      }
+    } catch (err) {
+      console.error("[DiscoverScreen] Failed to fetch Following feed:", err);
+    } finally {
+      setFollowingLoading(false);
+      setFollowingLoaded(true);
+    }
+  }, [getToken, convertApiPostToPost]);
+
+  // Refetch every time the Following tab opens, so follows/unfollows made elsewhere show up.
+  useEffect(() => {
+    if (feedMode === "following") fetchFollowingFeed();
+  }, [feedMode, fetchFollowingFeed]);
+
+  const onFollowingRefresh = useCallback(async () => {
+    setFollowingRefreshing(true);
+    await fetchFollowingFeed();
+    setFollowingRefreshing(false);
+  }, [fetchFollowingFeed]);
+
+  // Like / comment / delete / block changes apply to both lists (a post can be in both).
+  const updateAllPosts = useCallback((fn: (prev: Post[]) => Post[]) => {
+    setFeedPosts(fn);
+    setFollowingPosts(fn);
+  }, []);
+
   // Feed refresh events (Pro only — Pulse is handled inside PulseFeedScreenV2)
   useEffect(() => {
     const unsub = feedEvents.subscribe((feedType) => {
@@ -262,6 +309,10 @@ export default function DiscoverScreen() {
   // ─── Pro feed sorting ─────────────────────────────────────────────────────
   const proFeedPosts = useMemo(() => {
     return [...feedPosts].sort((a, b) => {
+      // Accounts you follow come first, then the existing order.
+      const aF = a.authorIsFollowed ? 0 : 1;
+      const bF = b.authorIsFollowed ? 0 : 1;
+      if (aF !== bF) return aF - bF;
       const order: Record<string, number> = { photographer: 1, vendor: 2, user: 3 };
       const aR = order[a.type] || 3;
       const bR = order[b.type] || 3;
@@ -333,13 +384,14 @@ export default function DiscoverScreen() {
 
   const handleLike = useCallback(
     async (postId: string) => {
-      const currentPost = feedPosts.find((p) => p.id === postId);
+      const currentPost =
+        feedPosts.find((p) => p.id === postId) ?? followingPosts.find((p) => p.id === postId);
       const wasLiked = currentPost?.isLiked ?? false;
 
       console.log('[ProLike] postId:', postId, 'wasLiked:', wasLiked);
 
       // Optimistic update against feedPosts
-      setFeedPosts((prev) =>
+      updateAllPosts((prev) =>
         prev.map((p) =>
           p.id === postId
             ? { ...p, isLiked: !wasLiked, likes: wasLiked ? Math.max(0, p.likes - 1) : p.likes + 1 }
@@ -350,7 +402,7 @@ export default function DiscoverScreen() {
       try {
         const token = await getToken();
         if (!token) {
-          setFeedPosts((prev) =>
+          updateAllPosts((prev) =>
             prev.map((p) =>
               p.id === postId
                 ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
@@ -367,7 +419,7 @@ export default function DiscoverScreen() {
         }
       } catch {
         // Roll back on network/server error
-        setFeedPosts((prev) =>
+        updateAllPosts((prev) =>
           prev.map((p) =>
             p.id === postId
               ? { ...p, isLiked: wasLiked, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
@@ -376,7 +428,7 @@ export default function DiscoverScreen() {
         );
       }
     },
-    [feedPosts, getToken]
+    [feedPosts, followingPosts, getToken, updateAllPosts]
   );
 
   const handleSavePost = (post: Post) => {
@@ -419,7 +471,7 @@ export default function DiscoverScreen() {
       const res = await api.getPostComments(selectedPost.id);
       setModalComments(res.comments || []);
       // Optimistically bump count in feed list
-      setFeedPosts((prev) =>
+      updateAllPosts((prev) =>
         prev.map((p) =>
           p.id === selectedPost.id
             ? { ...p, commentCount: (p.commentCount ?? 0) + 1 }
@@ -468,7 +520,7 @@ export default function DiscoverScreen() {
       const token = await getToken();
       if (!token) { Alert.alert("Error", "You must be logged in to delete posts."); return; }
       await api.deletePost(token, postId);
-      setFeedPosts((prev) => prev.filter((p) => p.id !== postId));
+      updateAllPosts((prev) => prev.filter((p) => p.id !== postId));
       Alert.alert("Success", "Post deleted successfully.");
     } catch (err) {
       console.error("Error deleting post:", err);
@@ -493,7 +545,7 @@ export default function DiscoverScreen() {
       const token = await getToken();
       if (!token) { Alert.alert("Error", "You must be logged in to block users."); return; }
       await api.blockUser(token, authorId);
-      setFeedPosts((prev) => prev.filter((p) => (p.userId || p.authorId) !== authorId));
+      updateAllPosts((prev) => prev.filter((p) => (p.userId || p.authorId) !== authorId));
       Alert.alert("Blocked", "You will no longer see content from this user.");
     } catch (err) {
       console.error("Error blocking user:", err);
@@ -577,7 +629,7 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: feedMode === "pulse" ? "#000000" : theme.backgroundRoot }]}>
-      {feedMode === "pro" ? (
+      {feedMode !== "pulse" ? (
         <View style={{ paddingTop: headerHeight }}>
           <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
         </View>
@@ -613,6 +665,52 @@ export default function DiscoverScreen() {
                     <StoriesBar onVisibilityChange={handleStoriesVisibilityChange} />
                   </Animated.View>
                 </>
+              }
+            />
+          ) : feedMode === "following" ? (
+            <FlatList
+              key="following-feed-list"
+              data={followingPosts}
+              renderItem={renderProFeedItem}
+              keyExtractor={(item) => `following-${item.id}`}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={followingRefreshing}
+                  onRefresh={onFollowingRefresh}
+                  tintColor={theme.primary}
+                />
+              }
+              contentContainerStyle={[styles.proFeedContent, followingPosts.length === 0 && { flexGrow: 1 }]}
+              onViewableItemsChanged={onProViewableItemsChanged}
+              viewabilityConfig={PRO_VIEWABILITY_CONFIG}
+              ListEmptyComponent={
+                followingLoading && !followingLoaded ? (
+                  <View style={styles.followingEmpty}>
+                    <ActivityIndicator size="large" color={theme.primary} />
+                  </View>
+                ) : (
+                  <View style={styles.followingEmpty}>
+                    <Feather name="users" size={56} color={theme.textSecondary} />
+                    <ThemedText type="h3" style={{ marginTop: Spacing.lg, color: theme.text, textAlign: "center" }}>
+                      {isAuthenticated ? "Nothing here yet" : "See posts from people you follow"}
+                    </ThemedText>
+                    <ThemedText
+                      type="body"
+                      style={{ marginTop: Spacing.sm, color: theme.textSecondary, textAlign: "center" }}
+                    >
+                      {isAuthenticated
+                        ? "Follow businesses, photographers and friends to see their newest posts here."
+                        : "Sign in and follow accounts to see their newest posts here."}
+                    </ThemedText>
+                    <Pressable
+                      onPress={() => navigation.getParent()?.navigate("SearchTab")}
+                      style={[styles.exploreButton, { backgroundColor: theme.primary }]}
+                    >
+                      <ThemedText style={{ color: "#000000", fontWeight: "600" }}>Find people to follow</ThemedText>
+                    </Pressable>
+                  </View>
+                )
               }
             />
           ) : (
@@ -805,6 +903,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
+  },
+  followingEmpty: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing["3xl"],
   },
   exploreButton: {
     marginTop: Spacing.xl,

@@ -1303,11 +1303,13 @@ export default function VendorDetailScreen({ route }: Props) {
   useEffect(() => {
     if (!profile || isOwnProfile || !isAuthenticated) return;
     const targetId = profile.userId || profile.id;
-    apiClient
-      .checkFollowStatus(targetId)
+    // Send the token: the session cookie alone expires after 7 days.
+    getToken()
+      .catch(() => null)
+      .then((token) => apiClient.checkFollowStatus(targetId, token))
       .then((result) => setIsFollowing(result.isFollowing))
       .catch(() => setIsFollowing(false));
-  }, [profile, isOwnProfile, isAuthenticated]);
+  }, [profile, isOwnProfile, isAuthenticated, getToken]);
 
   useEffect(() => {
     if (!profile) return;
@@ -1362,10 +1364,11 @@ export default function VendorDetailScreen({ route }: Props) {
       prev ? { ...prev, followerCount: nextFollowerCount } : prev,
     );
     try {
+      const token = await getToken().catch(() => null);
       if (wasFollowing) {
-        await apiClient.unfollowUser(targetId);
+        await apiClient.unfollowUser(targetId, token);
       } else {
-        await apiClient.followUser(targetId, targetType);
+        await apiClient.followUser(targetId, targetType, token);
       }
     } catch (error) {
       console.error("Follow toggle failed:", error);
@@ -1377,7 +1380,22 @@ export default function VendorDetailScreen({ route }: Props) {
     } finally {
       setFollowBusy(false);
     }
-  }, [followBusy, isFollowing, profile]);
+  }, [followBusy, isFollowing, profile, getToken]);
+
+  // Tap Followers / Following to open the lists (public, like Instagram).
+  const openFollowList = useCallback(
+    (initialTab: "followers" | "following") => {
+      if (!profile) return;
+      navigation.navigate("FollowList", {
+        profileId: profile.userId || profile.id,
+        initialTab,
+        title: profile.name,
+        followerCount: profile.followerCount,
+        followingCount: profile.followingCount,
+      });
+    },
+    [navigation, profile],
+  );
 
   const handleLeaveReview = useCallback(() => {
     if (!profile) return;
@@ -1755,8 +1773,16 @@ export default function VendorDetailScreen({ route }: Props) {
 
         <View style={styles.statsCard}>
           <View style={styles.statCol}>
-            <Text style={styles.statValue}>{profile.followerCount}</Text>
-            <Text style={styles.statLabel}>Followers</Text>
+            <Pressable
+              onPress={() => openFollowList("followers")}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`${profile.followerCount} followers`}
+              style={{ alignItems: "center" }}
+            >
+              <Text style={styles.statValue}>{profile.followerCount}</Text>
+              <Text style={styles.statLabel}>Followers</Text>
+            </Pressable>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCol}>
@@ -1765,8 +1791,16 @@ export default function VendorDetailScreen({ route }: Props) {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCol}>
-            <Text style={styles.statValue}>{profile.followingCount}</Text>
-            <Text style={styles.statLabel}>Following</Text>
+            <Pressable
+              onPress={() => openFollowList("following")}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`${profile.followingCount} following`}
+              style={{ alignItems: "center" }}
+            >
+              <Text style={styles.statValue}>{profile.followingCount}</Text>
+              <Text style={styles.statLabel}>Following</Text>
+            </Pressable>
           </View>
         </View>
       </View>

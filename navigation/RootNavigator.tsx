@@ -75,6 +75,7 @@ import PhotographerCalendarScreen from "@/screens/PhotographerCalendarScreen";
 import PhotographerBookingsScreen from "@/screens/PhotographerBookingsScreen";
 import DashboardCreditsScreen from "@/screens/DashboardCreditsScreen";
 import DashboardAnalyticsScreen from "@/screens/DashboardAnalyticsScreen";
+import FollowListScreen from "@/screens/FollowListScreen";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -273,6 +274,17 @@ export default function RootNavigator() {
     fullScreenGestureEnabled: true,
   }}
 />
+
+      <Stack.Screen
+        name="FollowList"
+        component={FollowListScreen}
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
 
       <Stack.Screen
         name="UserProfile"
