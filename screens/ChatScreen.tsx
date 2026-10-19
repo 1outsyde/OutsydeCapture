@@ -62,6 +62,10 @@ const POLL_MS = 5000;
 /** Messages from the same person within this window stack together (one time stamp, one tail). */
 const RUN_GAP_MS = 3 * 60 * 1000;
 
+/** Instagram style: small round photo / logo beside the other person's last bubble in a run. */
+const ROW_AVATAR = 28;
+const ROW_AVATAR_GAP = 8;
+
 type LocalStatus = "sending" | "failed";
 type ChatMessage = Message & {
   localStatus?: LocalStatus;
@@ -127,6 +131,10 @@ function Avatar({
 }) {
   const { theme } = useTheme();
   const [failed, setFailed] = useState(false);
+  // A new photo (e.g. the inbox loads after a push tap) gets a fresh try.
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
   const r = { width: size, height: size, borderRadius: size / 2 };
   if (uri && !failed) {
     return (
@@ -194,6 +202,8 @@ export default function ChatScreen() {
   const participantType =
     params.participantType || convo?.participantType || "consumer";
   const businessId = params.businessId ?? convo?.businessId ?? null;
+  // Backend #300 `otherParticipant.username` (public handle). Businesses show their label instead.
+  const participantUsername = (convo?.username || "").trim().replace(/^@/, "");
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -249,7 +259,11 @@ export default function ChatScreen() {
   }, [getToken, user?.id, participantId, participantName]);
 
   useEffect(() => {
-    const label = TYPE_LABEL[participantType];
+    // Second header line: "Business · View profile", or "@username · View profile" for people.
+    const label =
+      participantType !== "business" && participantUsername
+        ? `@${participantUsername}`
+        : TYPE_LABEL[participantType];
     navigation.setOptions({
       headerTitleAlign: "left",
       headerShadowVisible: false,
@@ -314,6 +328,7 @@ export default function ChatScreen() {
     participantName,
     participantAvatar,
     participantType,
+    participantUsername,
     isSelfConversation,
     openProfile,
     openMenu,
@@ -765,16 +780,41 @@ export default function ChatScreen() {
         ]}
       >
         <View style={{ alignItems: isOwn ? "flex-end" : "flex-start" }}>
-          {failed ? (
-            <Pressable
-              onPress={() => onFailedPress(m)}
-              accessibilityRole="button"
-              accessibilityLabel="Message not sent. Tap for options"
-            >
-              {content}
-            </Pressable>
+          {isOwn ? (
+            failed ? (
+              <Pressable
+                onPress={() => onFailedPress(m)}
+                accessibilityRole="button"
+                accessibilityLabel="Message not sent. Tap for options"
+              >
+                {content}
+              </Pressable>
+            ) : (
+              content
+            )
           ) : (
-            content
+            // Incoming: photo / logo beside the last bubble of a run, same-width spacer above it.
+            <View style={styles.incomingRow}>
+              {tail ? (
+                <Pressable
+                  onPress={openProfile}
+                  disabled={isSelfConversation || !participantId}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${participantName || "profile"}`}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                >
+                  <Avatar
+                    uri={participantAvatar}
+                    name={participantName}
+                    size={ROW_AVATAR}
+                  />
+                </Pressable>
+              ) : (
+                <View style={styles.rowAvatarSpacer} />
+              )}
+              {content}
+            </View>
           )}
           {failed ? (
             <Pressable
@@ -792,7 +832,13 @@ export default function ChatScreen() {
               Sending…
             </ThemedText>
           ) : showTime && !sending ? (
-            <ThemedText style={[styles.meta, { color: theme.brandTextDim }]}>
+            <ThemedText
+              style={[
+                styles.meta,
+                { color: theme.brandTextDim },
+                !isOwn && styles.incomingMeta,
+              ]}
+            >
               {timeLabel(m.createdAt)}
             </ThemedText>
           ) : null}
@@ -1101,6 +1147,13 @@ const styles = StyleSheet.create({
   },
   msgText: { fontSize: 16, lineHeight: 22 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  incomingRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: ROW_AVATAR_GAP,
+  },
+  rowAvatarSpacer: { width: ROW_AVATAR, height: 1 },
+  incomingMeta: { marginLeft: ROW_AVATAR + ROW_AVATAR_GAP + 4 },
   meta: {
     fontSize: 11,
     marginTop: 4,
