@@ -16,147 +16,16 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import UsernameField from "@/components/UsernameField";
-import { API_BASE_URL } from "@/services/api";
+import api, { API_BASE_URL, type CustomerInterestTaxonomy } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const INDUSTRIES = [
-  { id: "clothing", name: "Clothing & Fashion", icon: "shopping-bag" as const },
-  { id: "beauty-products", name: "Beauty Products", icon: "droplet" as const },
-  { id: "beauty-services", name: "Beauty Services", icon: "scissors" as const },
-  { id: "food", name: "Food & Dining", icon: "coffee" as const },
-  { id: "fitness", name: "Fitness & Wellness", icon: "activity" as const },
-  { id: "home-goods", name: "Home & Decor", icon: "home" as const },
-  { id: "arts", name: "Arts & Crafts", icon: "edit-3" as const },
-  { id: "services", name: "Professional Services", icon: "tool" as const },
-];
-
-const INDUSTRY_NICHES: Record<string, { label: string; options: string[] }> = {
-  "clothing": {
-    label: "What types of clothing interest you?",
-    options: ["Streetwear", "Vintage", "Designer", "Casual", "Athletic Wear", "Formal Wear", "Children's Clothing", "Plus Size", "Sustainable Fashion", "Accessories & Jewelry", "Shoes & Footwear", "Custom/Tailored"]
-  },
-  "beauty-products": {
-    label: "What beauty products are you interested in?",
-    options: ["Skincare", "Makeup", "Haircare", "Natural/Organic", "Fragrances", "Nail Products", "Men's Grooming", "K-Beauty", "Anti-aging", "Acne Care", "Body Care", "Indie Brands"]
-  },
-  "beauty-services": {
-    label: "What beauty services do you look for?",
-    options: ["Hair Styling", "Hair Coloring", "Barbershop", "Nail Salon", "Spa & Massage", "Facials", "Waxing", "Lash Extensions", "Brow Services", "Makeup Artist", "Braiding & Locs", "Med Spa"]
-  },
-  "food": {
-    label: "What types of food do you enjoy?",
-    options: ["Italian", "Soul Food", "Mexican", "Asian Fusion", "Caribbean", "BBQ", "Vegan/Vegetarian", "Bakery & Sweets", "Coffee & Cafe", "Seafood", "Food Trucks", "Fine Dining", "Fast Casual", "Desserts", "Healthy/Organic"]
-  },
-  "fitness": {
-    label: "What fitness activities interest you?",
-    options: ["Yoga", "CrossFit", "Personal Training", "Pilates", "Boxing/MMA", "Dance Fitness", "Swimming", "Cycling/Spin", "Meditation", "Nutrition Coaching", "Physical Therapy", "Group Classes"]
-  },
-  "home-goods": {
-    label: "What home items are you looking for?",
-    options: ["Furniture", "Home Decor", "Plants & Garden", "Kitchenware", "Bedding & Linens", "Candles & Scents", "Wall Art", "Handmade Items", "Antiques", "Organization", "Outdoor Living", "Pet Supplies"]
-  },
-  "arts": {
-    label: "What arts & crafts interest you?",
-    options: ["Paintings", "Photography", "Pottery & Ceramics", "Jewelry Making", "Handmade Crafts", "Digital Art", "Sculpture", "Textiles", "Woodworking", "Custom Commissions", "Art Classes", "Supplies"]
-  },
-  "services": {
-    label: "What services might you need?",
-    options: ["Cleaning", "Landscaping", "Handyman", "Auto Repair", "Pet Services", "Photography", "Event Planning", "Tutoring", "Legal Services", "Accounting", "Real Estate", "Tech Support"]
-  }
-};
-
-const INDUSTRY_VALUES: Record<string, { label: string; options: { id: string; name: string; description: string }[] }> = {
-  "clothing": {
-    label: "What matters most when shopping for clothing?",
-    options: [
-      { id: "quality", name: "Quality", description: "Well-made, durable items" },
-      { id: "style", name: "Style & Trends", description: "On-trend, fashionable pieces" },
-      { id: "price", name: "Value for Money", description: "Good quality at fair prices" },
-      { id: "service", name: "Customer Service", description: "Helpful, attentive staff" },
-      { id: "unique", name: "Uniqueness", description: "One-of-a-kind items" },
-      { id: "sustainable", name: "Sustainability", description: "Eco-friendly practices" },
-    ]
-  },
-  "beauty-products": {
-    label: "What's most important when choosing beauty products?",
-    options: [
-      { id: "quality", name: "Product Quality", description: "High-performance formulas" },
-      { id: "ingredients", name: "Ingredients", description: "Clean, safe ingredients" },
-      { id: "price", name: "Affordability", description: "Good value for the price" },
-      { id: "brand", name: "Brand Reputation", description: "Trusted, well-known brands" },
-      { id: "results", name: "Visible Results", description: "Products that deliver" },
-      { id: "cruelty-free", name: "Cruelty-Free", description: "Not tested on animals" },
-    ]
-  },
-  "beauty-services": {
-    label: "What matters most in beauty service experiences?",
-    options: [
-      { id: "skill", name: "Technical Skill", description: "Expert technique and results" },
-      { id: "hospitality", name: "Hospitality", description: "Warm, welcoming atmosphere" },
-      { id: "cleanliness", name: "Cleanliness", description: "Sanitary environment" },
-      { id: "price", name: "Pricing", description: "Fair and transparent pricing" },
-      { id: "convenience", name: "Convenience", description: "Easy booking, good hours" },
-      { id: "trendy", name: "Trendy Styles", description: "Up-to-date with trends" },
-    ]
-  },
-  "food": {
-    label: "What matters most when dining out?",
-    options: [
-      { id: "taste", name: "Taste & Flavor", description: "Delicious, flavorful food" },
-      { id: "presentation", name: "Presentation", description: "Beautiful plating" },
-      { id: "service", name: "Service Quality", description: "Attentive, friendly staff" },
-      { id: "hospitality", name: "Hospitality", description: "Warm, welcoming atmosphere" },
-      { id: "ambiance", name: "Ambiance", description: "Nice decor and vibe" },
-      { id: "value", name: "Value for Money", description: "Good portions at fair prices" },
-      { id: "speed", name: "Speed", description: "Quick service when needed" },
-      { id: "authenticity", name: "Authenticity", description: "True to cuisine origins" },
-    ]
-  },
-  "fitness": {
-    label: "What's most important in your fitness experience?",
-    options: [
-      { id: "expertise", name: "Trainer Expertise", description: "Knowledgeable instructors" },
-      { id: "equipment", name: "Equipment Quality", description: "Modern, well-maintained gear" },
-      { id: "atmosphere", name: "Atmosphere", description: "Motivating, energetic vibe" },
-      { id: "community", name: "Community", description: "Supportive, friendly members" },
-      { id: "cleanliness", name: "Cleanliness", description: "Clean, hygienic facilities" },
-      { id: "results", name: "Results-Focused", description: "Programs that deliver" },
-    ]
-  },
-  "home-goods": {
-    label: "What matters most when shopping for home items?",
-    options: [
-      { id: "quality", name: "Quality", description: "Well-crafted, durable items" },
-      { id: "design", name: "Design & Aesthetics", description: "Beautiful, stylish pieces" },
-      { id: "price", name: "Value", description: "Good quality at fair prices" },
-      { id: "unique", name: "Uniqueness", description: "One-of-a-kind finds" },
-      { id: "handmade", name: "Handmade/Artisan", description: "Crafted with care" },
-      { id: "function", name: "Functionality", description: "Practical and useful" },
-    ]
-  },
-  "arts": {
-    label: "What do you value in arts and crafts?",
-    options: [
-      { id: "creativity", name: "Creativity", description: "Original, creative work" },
-      { id: "skill", name: "Craftsmanship", description: "Technical skill and quality" },
-      { id: "story", name: "Story & Meaning", description: "Pieces with a story" },
-      { id: "local", name: "Local Artists", description: "Supporting local creators" },
-      { id: "affordable", name: "Accessibility", description: "Art for every budget" },
-      { id: "interactive", name: "Interactive", description: "Classes and workshops" },
-    ]
-  },
-  "services": {
-    label: "What matters most in professional services?",
-    options: [
-      { id: "reliability", name: "Reliability", description: "Dependable and on-time" },
-      { id: "expertise", name: "Expertise", description: "Skilled, knowledgeable pros" },
-      { id: "communication", name: "Communication", description: "Clear, responsive contact" },
-      { id: "price", name: "Fair Pricing", description: "Transparent, honest rates" },
-      { id: "trust", name: "Trustworthiness", description: "Honest, ethical practices" },
-      { id: "convenience", name: "Convenience", description: "Flexible scheduling" },
-    ]
-  }
+// Customer interests come from the shared business list (backend GET /api/taxonomy/customer-
+// interests, 2026-10-18), the same list goutsyde.com uses, so customers can be matched to
+// businesses. Codes are saved; labels come from the list.
+const INDUSTRY_ICONS: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
+  beauty: "scissors", fashion: "shopping-bag", food: "coffee", health_fitness: "activity", home: "home",
+  auto: "truck", events: "music", art: "edit-3", professional: "briefcase", pets: "heart", other: "plus-circle",
 };
 
 const GENDERS = ["Male", "Female", "Non-binary", "Prefer not to say"];
@@ -230,6 +99,21 @@ export default function ConsumerSignupScreen() {
   const [industryValues, setIndustryValues] = useState<Record<string, string[]>>({});
 
   const [currentIndustryIndex, setCurrentIndustryIndex] = useState(0);
+  const [interestOther, setInterestOther] = useState("");
+  const [interestTaxonomy, setInterestTaxonomy] = useState<CustomerInterestTaxonomy | null>(null);
+  const [interestTaxonomyFailed, setInterestTaxonomyFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getCustomerInterestTaxonomy()
+      .then((t) => {
+        if (cancelled) return;
+        if (t && Array.isArray(t.categories)) setInterestTaxonomy(t);
+        else setInterestTaxonomyFailed(true);
+      })
+      .catch(() => { if (!cancelled) setInterestTaxonomyFailed(true); });
+    return () => { cancelled = true; };
+  }, []);
 
   const formatPhone = (text: string) => {
     const cleaned = text.replace(/\D/g, "");
@@ -261,6 +145,7 @@ export default function ConsumerSignupScreen() {
     setSelectedIndustries(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+    if (id === "other" && selectedIndustries.includes("other")) setInterestOther("");
   };
 
   const toggleNiche = (industry: string, niche: string) => {
@@ -351,6 +236,12 @@ export default function ConsumerSignupScreen() {
 
     if (!validateStep()) return;
 
+    // No industries picked: nothing to ask per industry, go straight to Finish.
+    if (currentStep === 3 && selectedIndustries.length === 0) {
+      setCurrentStep(5);
+      return;
+    }
+
     if (currentStep === 4) {
       if (currentIndustryIndex < selectedIndustries.length - 1) {
         setCurrentIndustryIndex(prev => prev + 1);
@@ -366,7 +257,9 @@ export default function ConsumerSignupScreen() {
   };
 
   const handleBack = () => {
-    if (currentStep === 4 && currentIndustryIndex > 0) {
+    if (currentStep === 5 && selectedIndustries.length === 0) {
+      setCurrentStep(3);
+    } else if (currentStep === 4 && currentIndustryIndex > 0) {
       setCurrentIndustryIndex(prev => prev - 1);
     } else if (currentStep > 1) {
       if (currentStep === 4) {
@@ -382,9 +275,13 @@ export default function ConsumerSignupScreen() {
     setSelectedIndustries([]);
     setIndustryNiches({});
     setIndustryValues({});
+    setInterestOther("");
     setCurrentIndustryIndex(0);
     setCurrentStep(5);
   };
+
+  const onlyPicked = (map: Record<string, string[]>) =>
+    Object.fromEntries(Object.entries(map).filter(([k, v]) => selectedIndustries.includes(k) && v.length > 0));
 
   const handleSubmit = async () => {
     const result = await signup({
@@ -399,9 +296,11 @@ export default function ConsumerSignupScreen() {
       gender,
       ethnicity,
       shoppingFrequency,
+      // Only picks for industries still chosen; Other text only when Other is chosen (2026-10-18).
       selectedIndustries,
-      industryNiches,
-      industryValues,
+      industryNiches: onlyPicked(industryNiches),
+      industryValues: onlyPicked(industryValues),
+      interestOther: selectedIndustries.includes("other") ? interestOther.trim() || undefined : undefined,
       profileImageUrl: profilePhotoUri || undefined,
     });
 
@@ -684,39 +583,50 @@ export default function ConsumerSignupScreen() {
               Select industries you're interested in
             </ThemedText>
 
+            {!interestTaxonomy ? (
+              <View style={styles.field}>
+                {interestTaxonomyFailed ? (
+                  <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                    Interests couldn't load. You can skip this step and add them later.
+                  </ThemedText>
+                ) : (
+                  <ActivityIndicator color={theme.primary} />
+                )}
+              </View>
+            ) : (
             <View style={styles.industryGrid}>
-              {INDUSTRIES.map((industry) => (
+              {interestTaxonomy.categories.map((industry) => (
                 <Pressable
-                  key={industry.id}
-                  onPress={() => toggleIndustry(industry.id)}
+                  key={industry.code}
+                  onPress={() => toggleIndustry(industry.code)}
                   style={[
                     styles.industryCard,
                     {
-                      backgroundColor: selectedIndustries.includes(industry.id) 
+                      backgroundColor: selectedIndustries.includes(industry.code) 
                         ? theme.primary + "20" 
                         : theme.backgroundDefault,
-                      borderColor: selectedIndustries.includes(industry.id) 
+                      borderColor: selectedIndustries.includes(industry.code) 
                         ? theme.primary 
                         : theme.border,
                     },
                   ]}
                 >
                   <Feather
-                    name={industry.icon}
+                    name={INDUSTRY_ICONS[industry.code] ?? "star"}
                     size={24}
-                    color={selectedIndustries.includes(industry.id) ? theme.primary : theme.text}
+                    color={selectedIndustries.includes(industry.code) ? theme.primary : theme.text}
                   />
                   <ThemedText
                     type="small"
                     style={{
                       marginTop: Spacing.xs,
                       textAlign: "center",
-                      color: selectedIndustries.includes(industry.id) ? theme.primary : theme.text,
+                      color: selectedIndustries.includes(industry.code) ? theme.primary : theme.text,
                     }}
                   >
-                    {industry.name}
+                    {industry.label}
                   </ThemedText>
-                  {selectedIndustries.includes(industry.id) ? (
+                  {selectedIndustries.includes(industry.code) ? (
                     <View style={[styles.checkMark, { backgroundColor: theme.primary }]}>
                       <Feather name="check" size={12} color="#FFFFFF" />
                     </View>
@@ -724,94 +634,84 @@ export default function ConsumerSignupScreen() {
                 </Pressable>
               ))}
             </View>
+            )}
           </View>
         );
 
-      case 4:
+      case 4: {
         const currentIndustry = selectedIndustries[currentIndustryIndex];
-        const nicheData = INDUSTRY_NICHES[currentIndustry];
-        const valueData = INDUSTRY_VALUES[currentIndustry];
-        const industryName = INDUSTRIES.find(i => i.id === currentIndustry)?.name || "";
+        const category = interestTaxonomy?.categories.find((c) => c.code === currentIndustry);
+        const picked = industryNiches[currentIndustry] || [];
+        const valuesPicked = industryValues[currentIndustry] || [];
+        const groups = [
+          { title: "Services", items: (category?.specialties ?? []).filter((sp) => sp.kind === "service") },
+          { title: "Products", items: (category?.specialties ?? []).filter((sp) => sp.kind === "product") },
+        ].filter((g) => g.items.length > 0);
 
         return (
           <View style={styles.stepContent}>
-            <ThemedText type="h2" style={styles.stepTitle}>{industryName}</ThemedText>
+            <ThemedText type="h2" style={styles.stepTitle}>{category?.label ?? ""}</ThemedText>
             <ThemedText type="body" style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-              {currentIndustryIndex + 1} of {selectedIndustries.length}
+              {currentIndustryIndex + 1} of {selectedIndustries.length}. Pick anything you're into.
             </ThemedText>
 
-            {nicheData ? (
+            {currentIndustry === "other" ? (
               <View style={styles.field}>
-                <ThemedText type="body" style={styles.questionLabel}>{nicheData.label}</ThemedText>
-                <View style={styles.nicheGrid}>
-                  {nicheData.options.map((niche) => (
-                    <Pressable
-                      key={niche}
-                      onPress={() => toggleNiche(currentIndustry, niche)}
-                      style={[
-                        styles.nicheChip,
-                        {
-                          backgroundColor: (industryNiches[currentIndustry] || []).includes(niche)
-                            ? theme.primary
-                            : theme.backgroundDefault,
-                          borderColor: (industryNiches[currentIndustry] || []).includes(niche)
-                            ? theme.primary
-                            : theme.border,
-                        },
-                      ]}
-                    >
-                      <ThemedText
-                        type="small"
-                        style={{
-                          color: (industryNiches[currentIndustry] || []).includes(niche)
-                            ? "#FFFFFF"
-                            : theme.text,
-                        }}
-                      >
-                        {niche}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </View>
+                <ThemedText type="body" style={styles.questionLabel}>Tell us what you're into</ThemedText>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border, minHeight: 72, textAlignVertical: "top" }]}
+                  placeholder="For example, vintage cars or board games"
+                  placeholderTextColor={theme.textSecondary}
+                  value={interestOther}
+                  onChangeText={setInterestOther}
+                  multiline
+                  maxLength={interestTaxonomy?.otherMax ?? 500}
+                />
               </View>
             ) : null}
 
-            {valueData ? (
+            {groups.map((group) => (
+              <View style={styles.field} key={group.title}>
+                <ThemedText type="body" style={styles.questionLabel}>{group.title}</ThemedText>
+                <View style={styles.nicheGrid}>
+                  {group.items.map((sp) => {
+                    const on = picked.includes(sp.code);
+                    return (
+                      <Pressable
+                        key={sp.code}
+                        onPress={() => toggleNiche(currentIndustry, sp.code)}
+                        style={[styles.nicheChip, { backgroundColor: on ? theme.primary : theme.backgroundDefault, borderColor: on ? theme.primary : theme.border }]}
+                      >
+                        <ThemedText type="small" style={{ color: on ? "#FFFFFF" : theme.text }}>{sp.label}</ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+
+            {category && category.values.length > 0 ? (
               <View style={styles.field}>
-                <ThemedText type="body" style={styles.questionLabel}>{valueData.label}</ThemedText>
-                <View style={styles.valueList}>
-                  {valueData.options.map((option) => (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => toggleValue(currentIndustry, option.id)}
-                      style={[
-                        styles.valueCard,
-                        {
-                          backgroundColor: (industryValues[currentIndustry] || []).includes(option.id)
-                            ? theme.primary + "15"
-                            : theme.backgroundDefault,
-                          borderColor: (industryValues[currentIndustry] || []).includes(option.id)
-                            ? theme.primary
-                            : theme.border,
-                        },
-                      ]}
-                    >
-                      <View style={styles.valueContent}>
-                        <ThemedText type="body" style={{ fontWeight: "600" }}>{option.name}</ThemedText>
-                        <ThemedText type="small" style={{ color: theme.textSecondary }}>{option.description}</ThemedText>
-                      </View>
-                      {(industryValues[currentIndustry] || []).includes(option.id) ? (
-                        <Feather name="check-circle" size={20} color={theme.primary} />
-                      ) : (
-                        <Feather name="circle" size={20} color={theme.border} />
-                      )}
-                    </Pressable>
-                  ))}
+                <ThemedText type="body" style={styles.questionLabel}>What matters most</ThemedText>
+                <View style={styles.nicheGrid}>
+                  {category.values.map((option) => {
+                    const on = valuesPicked.includes(option.id);
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => toggleValue(currentIndustry, option.id)}
+                        style={[styles.nicheChip, { backgroundColor: on ? theme.primary + "15" : theme.backgroundDefault, borderColor: on ? theme.primary : theme.border }]}
+                      >
+                        <ThemedText type="small" style={{ color: on ? theme.primary : theme.text, fontWeight: on ? "600" : "400" }}>{option.label}</ThemedText>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
             ) : null}
           </View>
         );
+      }
 
       case 5:
         return (
