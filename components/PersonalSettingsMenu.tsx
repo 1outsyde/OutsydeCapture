@@ -441,8 +441,8 @@ export function PersonalSettingsMenu({
 
               {!user?.isInfluencer && (user?.role === "consumer" || user?.isGuest) ? (
                 <MenuItem
-                  icon="star"
-                  label="Apply as Influencer"
+                  icon={user?.influencerStatus === "pending" ? "clock" : "star"}
+                  label={user?.influencerStatus === "pending" ? "Influencer application pending" : "Apply as Influencer"}
                   onPress={() => handleNavigate("InfluencerApplication")}
                   color={theme.primary}
                   backgroundColor={theme.primaryTransparent}

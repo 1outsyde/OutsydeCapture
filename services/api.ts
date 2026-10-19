@@ -968,6 +968,40 @@ export interface AdminInfluencer {
   followers?: number;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
+  // Added 2026-10-18 (backend sends these from #331 on; older backends leave them empty).
+  tiktok?: string;
+  youtube?: string;
+  twitter?: string;
+  phone?: string;
+  username?: string;
+  contentCategoryLabels?: string[];
+}
+
+/** One influencer application with every answer as labelled rows (GET /api/admin/influencers/:id, 2026-10-18). */
+export interface AdminInfluencerDetail {
+  application: {
+    id: string;
+    userId: string;
+    status: "pending" | "approved" | "rejected";
+    promoCode?: string | null;
+    user?: { name?: string | null; username?: string | null; email?: string | null } | null;
+  };
+  signupDetails: { sections: { title: string; rows: AdminSignupDetailRow[] }[] };
+}
+
+/** The answers the influencer application sends (POST /api/influencer/apply, 2026-10-18). */
+export interface InfluencerApplicationRequest {
+  instagramUrl?: string;
+  tiktokUrl?: string;
+  youtubeUrl?: string;
+  twitterUrl?: string;
+  instagramFollowers?: string;
+  tiktokFollowers?: string;
+  youtubeFollowers?: string;
+  twitterFollowers?: string;
+  contentCategories: string[];
+  contentOther?: string;
+  whyInfluencer?: string;
 }
 
 export interface AdminOrder {
@@ -2563,7 +2597,51 @@ class ApiService {
       followers: app.followerCount,
       status: app.status,
       createdAt: app.createdAt,
+      tiktok: app.tiktokUrl ?? undefined,
+      youtube: app.youtubeUrl ?? undefined,
+      twitter: app.twitterUrl ?? undefined,
+      phone: app.user?.phone ?? undefined,
+      username: app.user?.username ?? undefined,
+      contentCategoryLabels: Array.isArray(app.contentCategoryLabels) ? app.contentCategoryLabels : [],
     }));
+  }
+
+  async getAdminInfluencerDetail(authToken: string, applicationId: string): Promise<AdminInfluencerDetail> {
+    const response = await this.request<any>(`/api/admin/influencers/${encodeURIComponent(applicationId)}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+    return {
+      application: response?.application,
+      signupDetails: { sections: Array.isArray(response?.signupDetails?.sections) ? response.signupDetails.sections : [] },
+    };
+  }
+
+  /** Approve (gives a promo code) or reject (note saved) an influencer application. */
+  async decideInfluencerApplication(
+    authToken: string,
+    applicationId: string,
+    status: "approved" | "rejected",
+    note?: string,
+  ): Promise<{ success: boolean; promoCode?: string | null }> {
+    return this.request(`/api/admin/influencers/${encodeURIComponent(applicationId)}`, {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ status, ...(note ? { admin_notes: note } : {}) }),
+    });
+  }
+
+  async applyAsInfluencer(authToken: string, body: InfluencerApplicationRequest): Promise<{ success: boolean }> {
+    return this.request("/api/influencer/apply", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getMyInfluencerApplication(authToken: string): Promise<{ application: { id: string; status: "pending" | "approved" | "rejected" } | null }> {
+    return this.request("/api/influencer/application", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
   }
 
   async getPaymentStats(authToken: string): Promise<PaymentStats> {

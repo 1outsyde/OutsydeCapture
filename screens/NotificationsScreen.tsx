@@ -194,6 +194,8 @@ export default function NotificationsScreen() {
         return "briefcase";
       case "new_photographer_application":
         return "camera";
+      case "new_influencer_application":
+        return "trending-up";
       case "vendor_approved":
         return "check-circle";
       case "vendor_rejected":
