@@ -24,6 +24,7 @@ import { isAnyOpen, subscribe as subscribeModals } from "@/utils/modalCoordinato
 import { markStripeReturn } from "@/utils/stripeReturnSignal";
 import { useMessagePushLinks } from "@/hooks/useMessagePushLinks";
 import { useBookingPushLinks } from "@/hooks/useBookingPushLinks";
+import { useSubscriptionPushLinks } from "@/hooks/useSubscriptionPushLinks";
 import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 
@@ -78,6 +79,8 @@ export default function MainTabNavigator() {
   useMessagePushLinks();
   // Tapped booking request push → the bookings list (provider or customer)
   useBookingPushLinks();
+  // Tapped subscription push (payment late, paused, back live, ...) → the plan screen
+  useSubscriptionPushLinks();
   const isGuest = user?.isGuest || !user;
 
   // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──

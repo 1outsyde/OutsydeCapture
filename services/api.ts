@@ -5892,6 +5892,13 @@ export interface CurrentSubscription {
   status: string;
   // Free (complimentary) plan only: true once the business can receive payouts. null on paid rows.
   connectReady?: boolean | null;
+  // Present on /api/vendor/subscription; null/absent for free plans.
+  stripeSubscriptionId?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean | null;
+  // Backend #342 (additive): the day listings pause when the plan is late, and whether they are paused.
+  graceEndsAt?: string | null;
+  listingsPaused?: boolean | null;
 }
 
 export function canChangeUsername(user: { username_updated_at?: string | null }): boolean {

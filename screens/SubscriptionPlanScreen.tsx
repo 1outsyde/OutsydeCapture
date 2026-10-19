@@ -18,6 +18,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api, { CurrentSubscription, SubscriptionTier, VendorEligibility } from "@/services/api";
 import TierCardList from "@/components/TierCardList";
+import { describePaidPlan, switchChargeNote } from "@/utils/subscriptionState";
 
 const STRIPE_RETURN_URL = "outsyde://stripe-return";
 
@@ -149,11 +150,21 @@ export default function SubscriptionPlanScreen() {
         setEligibility(eligibilityRes.value);
       }
 
-      if (bizRes.status === "fulfilled") {
-        const biz = bizRes.value.business as any;
-        setSubscriptionStatus(biz?.subscriptionStatus || null);
-        setCurrentTierName(biz?.subscriptionTier || null);
+      // Status and plan name come from /api/vendor/subscription (live from Stripe). /api/vendor/my-business
+      // returns the business row, which has no subscriptionStatus or subscriptionTier, so reading them there
+      // always showed "No active plan".
+      const eligibilityStatus =
+        eligibilityRes.status === "fulfilled"
+          ? (eligibilityRes.value.subscriptionStatus ?? null)
+          : null;
+      if (currentSubRes.status === "fulfilled") {
+        const s = currentSubRes.value.subscription;
+        setSubscriptionStatus(s?.status ?? eligibilityStatus);
+        setCurrentTierName(s ? s.tierDisplayName || s.tierName || null : null);
+      } else {
+        setSubscriptionStatus(eligibilityStatus);
       }
+      void bizRes;
 
       // Subscription success detection: if we were in a subscribe flow and the
       // subscription tier changed (or appeared for the first time), show success.
@@ -261,18 +272,43 @@ export default function SubscriptionPlanScreen() {
     return subscriptionStatus;
   };
 
+  // Paid plans (with a Stripe subscription): active, late (amber) or paused (red), from the backend's
+  // status, graceEndsAt and listingsPaused.
+  const paidState = currentSubscription?.stripeSubscriptionId
+    ? describePaidPlan(currentSubscription)
+    : null;
+  const bannerColor =
+    paidState?.kind === "paused"
+      ? theme.error
+      : paidState?.kind === "late"
+        ? "#FF9500"
+        : "#22c55e";
+  const bannerIcon =
+    paidState && paidState.kind !== "active"
+      ? "alert-triangle"
+      : "check-circle";
+  const bannerTint = {
+    backgroundColor: `${bannerColor}18`,
+    borderColor: `${bannerColor}40`,
+  };
+  const switchNote = switchChargeNote({
+    currentIsPaid: !!currentSubscription?.stripeSubscriptionId,
+    currentStatus: currentSubscription?.status,
+    targetPriceInCents: tiers.find((t) => t.id === selectedTierId)?.priceInCents,
+  });
+
   const renderCurrentPlanBanner = () => {
-    if (!isActive) return null;
+    if (!isActive && !paidState) return null;
     return (
-      <View style={[styles.currentPlanBanner, { backgroundColor: "#22c55e18", borderColor: "#22c55e40" }]}>
+      <View style={[styles.currentPlanBanner, bannerTint]}>
         <View style={styles.currentPlanRow}>
-          <Feather name="check-circle" size={20} color="#22c55e" />
+          <Feather name={bannerIcon} size={20} color={bannerColor} />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={[styles.currentPlanTitle, { color: theme.text }]}>
               {currentTierName ? `${currentTierName} Plan` : "Subscription Active"}
             </Text>
-            <Text style={[styles.currentPlanStatus, { color: "#22c55e" }]}>
-              {statusLabel()}
+            <Text style={[styles.currentPlanStatus, { color: bannerColor }]}>
+              {paidState ? paidState.label : statusLabel()}
             </Text>
           </View>
         </View>
@@ -295,19 +331,19 @@ export default function SubscriptionPlanScreen() {
   };
 
   const renderPastDueBanner = () => {
-    if (subscriptionStatus !== "past_due") return null;
+    if (!paidState?.note) return null;
     return (
-      <View style={[styles.warningBanner, { backgroundColor: "#FF950018", borderColor: "#FF950040" }]}>
-        <Feather name="alert-triangle" size={18} color="#FF9500" />
-        <Text style={[styles.warningText, { color: "#FF9500" }]}>
-          Your payment is past due. Update your billing to restore publishing access.
+      <View style={[styles.warningBanner, bannerTint]}>
+        <Feather name="alert-triangle" size={18} color={bannerColor} />
+        <Text style={[styles.warningText, { color: bannerColor }]}>
+          {paidState.note}
         </Text>
       </View>
     );
   };
 
   const renderNoSubscriptionBanner = () => {
-    if (isActive) return null;
+    if (isActive || paidState) return null;
     return (
       <View style={[styles.warningBanner, { backgroundColor: `${theme.error}18`, borderColor: `${theme.error}40` }]}>
         <Feather name="lock" size={18} color={theme.error} />
@@ -439,7 +475,8 @@ export default function SubscriptionPlanScreen() {
             <View>
               {isSwitching ? (
                 <Text style={[styles.switchWarning, { color: "#f59e0b" }]}>
-                  This will cancel your current {currentSubscription!.tierDisplayName || currentSubscription!.tierName} plan
+                  {switchNote ??
+                    `This will replace your current ${currentSubscription!.tierDisplayName || currentSubscription!.tierName} plan.`}
                 </Text>
               ) : null}
               <Pressable
