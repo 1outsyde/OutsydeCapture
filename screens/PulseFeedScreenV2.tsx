@@ -568,9 +568,6 @@ export default function PulseFeedScreenV2() {
                   const displayName =
                     c.user?.name ||
                     c.user?.username ||
-                    (c.user?.firstName
-                      ? (c.user.firstName + (c.user.lastName ? ' ' + c.user.lastName : '')).trim()
-                      : undefined) ||
                     c.userName || c.username || author.displayName || author.username || author.name || "User";
                   const avatarUri =
                     c.userAvatar || author.profilePhotoUrl || author.profileImageUrl || c.user?.profileImageUrl || "";

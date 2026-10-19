@@ -1132,7 +1132,7 @@ export default function AccountScreen() {
             role: "photographer",
             name:
               photographer.displayName ||
-              `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+              user?.displayName ||
               "Photographer",
             handle: `@${user?.username || "photographer"}`,
             avatarUrl: photographer.logoImage || undefined,
@@ -1279,7 +1279,7 @@ export default function AccountScreen() {
             role: "consumer",
             name:
               user?.displayName ||
-              `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+              (user?.username ? `@${user.username}` : "") ||
               "Outsyde User",
             handle: `@${user?.username || "outsyde"}`,
             avatarUrl: user?.avatar || user?.profileImageUrl || undefined,

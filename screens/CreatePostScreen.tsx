@@ -208,7 +208,7 @@ export default function CreatePostScreen() {
     // Multi-select: cropping is not available while selecting several items (expo-image-picker),
     // so the picker no longer crops; the feed card already crops photos to fill.
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
       selectionLimit: MAX_POST_PHOTOS,
       orderedSelection: true,
@@ -269,7 +269,7 @@ export default function CreatePostScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ['images', 'videos'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,

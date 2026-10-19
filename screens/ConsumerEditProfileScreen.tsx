@@ -42,9 +42,8 @@ export default function ConsumerEditProfileScreen() {
   const origCoverMediaUrl = user?.coverMediaUrl || "";
   const origCoverMediaType: "image" | "video" =
     user?.coverMediaType === "video" ? "video" : "image";
-  const origDisplayName =
-    user?.displayName ||
-    `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
+  // Display name only. Never pre-fill the real last name (it's public once saved).
+  const origDisplayName = user?.displayName || user?.firstName || "";
   const origBio = user?.bio || "";
   const origUsername = user?.username || "";
   const origFirstName = user?.firstName ?? "";

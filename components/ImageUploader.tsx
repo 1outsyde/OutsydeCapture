@@ -57,7 +57,7 @@ export default function ImageUploader({
     try {
       setLoading(true);
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: aspectRatio === "logo" ? [1, 1] : aspectRatio === "product" ? [1, 1] : [16, 9],
         quality: 0.8,

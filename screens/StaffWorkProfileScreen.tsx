@@ -6,10 +6,10 @@
 //
 // Data reality (see PR description for full gap list):
 // - Posts: no staff-post backend exists yet — empty state only.
-// - Follow/Message: rendered to match the real business-profile look,
-//   but inert — staff members aren't a followable/messageable entity
-//   type in the backend yet (no linked userId, no "staff" participant
-//   type on follow/message endpoints).
+// - Follow: rendered to match the real business-profile look, but inert
+//   (staff members aren't a followable entity type in the backend yet).
+// - Message: opens a chat with the business (staff have no public user id
+//   or "staff" participant type; the business is who customers book with).
 // - Book actions: no staff-specific booking flow exists yet, so they
 //   route back into VendorDetail's real Booking tab (closest existing
 //   real entry point) rather than a fabricated flow.
@@ -26,6 +26,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useStartChat } from "@/hooks/useStartChat";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
@@ -127,6 +128,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffProfileViewModel | null>(null);
   const [businessName, setBusinessName] = useState<string>("");
+  const [businessLogo, setBusinessLogo] = useState<string | undefined>(undefined);
+  const { startChat } = useStartChat();
   const [brandColors, setBrandColors] = useState<BrandColorSpec | null>(null);
   const [businessMeta, setBusinessMeta] = useState<{ address?: string | null; city?: string | null; state?: string | null } | null>(null);
   const [services, setServices] = useState<StaffServiceCard[]>([]);
@@ -165,6 +168,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
       ]);
 
       if (businessResult?.name) setBusinessName(businessResult.name);
+      setBusinessLogo((businessResult as any)?.logoImage || undefined);
       setBrandColors(parseBrandColorSpec((businessResult as any)?.brandColors));
       setBusinessMeta({
         address: businessResult?.address,
@@ -513,7 +517,16 @@ export default function StaffWorkProfileScreen({ route }: Props) {
               </Pressable>
               <Pressable
                 style={[styles.messageButton, { backgroundColor: cardSurface }]}
-                onPress={() => handleInertAction("Messaging")}
+                onPress={() =>
+                  startChat({
+                    participantId: businessId,
+                    participantType: "business",
+                    name: businessName || staff.displayName,
+                    avatar: businessLogo,
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={businessName ? `Message ${businessName}` : "Message"}
               >
                 <Feather name="message-circle" size={15} color={textPrimary} />
               </Pressable>
