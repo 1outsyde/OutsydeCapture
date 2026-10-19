@@ -2639,7 +2639,8 @@ class ApiService {
   }
 
   async getAdminUserDetail(authToken: string, userId: string): Promise<{
-    user: AdminUser;
+    user: AdminUser & { phone?: string };
+    signupDetails: { sections: { title: string; rows: AdminSignupDetailRow[] }[] };
     orders: AdminOrder[];
     bookings: AdminBooking[];
     conversations: AdminConversation[];
@@ -2675,6 +2676,12 @@ class ApiService {
         accountType,
         createdAt: user.createdAt || new Date().toISOString(),
         status,
+        // 2026-10-18: phone was dropped here, so the screen always said "Not provided".
+        phone: user.phone || undefined,
+      },
+      // Every signup answer, interests first (backend 2026-10-18). Older backends send none.
+      signupDetails: {
+        sections: Array.isArray(response?.signupDetails?.sections) ? response.signupDetails.sections : [],
       },
       orders: response?.orders || [],
       bookings: response?.bookings || [],
