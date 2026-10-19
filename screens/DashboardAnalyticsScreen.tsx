@@ -215,6 +215,9 @@ export default function DashboardAnalyticsScreen() {
   const [stats, setStats] = useState<BusinessStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // /features answers 404 no_active_subscription once a plan is past its grace period (or has none):
+  // show the basic analytics with a note instead of failing the whole screen.
+  const [planInactive, setPlanInactive] = useState(false);
   const [dailyData, setDailyData] = useState<DailyDay[] | null>(null);
   const [audienceData, setAudienceData] = useState<AudienceData | null>(null);
   const [matchData, setMatchData] = useState<PhotographerMatch[] | null>(null);
@@ -248,9 +251,16 @@ export default function DashboardAnalyticsScreen() {
         fetch(`${API_BASE_URL}/api/vendor/analytics/weekly`, h),
         fetch(`${API_BASE_URL}/api/vendor/analytics/monthly`, h),
       ]);
-      if (!subRes.ok) throw new Error("subscription fetch failed");
-      const subData: SubscriptionFeatures = await subRes.json();
-      setSubscription(subData);
+      if (subRes.status === 404) {
+        setSubscription(null);
+        setPlanInactive(true);
+      } else if (!subRes.ok) {
+        throw new Error("subscription fetch failed");
+      } else {
+        const subData: SubscriptionFeatures = await subRes.json();
+        setSubscription(subData);
+        setPlanInactive(false);
+      }
       setStats(statsResult.stats);
       if (dailyRes.ok) {
         const d = await dailyRes.json();
@@ -296,7 +306,7 @@ export default function DashboardAnalyticsScreen() {
     }, [fetchData])
   );
 
-  const tier: TierName = subscription?.tier.name ?? "starter";
+  const tier: TierName = subscription?.tier?.name ?? "starter";
 
   if (loading) {
     return (
@@ -361,7 +371,9 @@ export default function DashboardAnalyticsScreen() {
           }}
         >
           <Text style={{ color: COLORS.gold, fontSize: 12, fontWeight: "600" }}>
-            {subscription?.tier.display_name ?? "—"}
+            {planInactive
+              ? "Plan paused"
+              : (subscription?.tier?.display_name ?? "—")}
           </Text>
         </View>
       </View>
@@ -371,6 +383,25 @@ export default function DashboardAnalyticsScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+          {planInactive ? (
+            <Pressable
+              onPress={() => (navigation as any).navigate("SubscriptionPlan")}
+              style={{
+                marginHorizontal: 20,
+                marginBottom: 12,
+                padding: 14,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(255,149,0,0.4)",
+                backgroundColor: "rgba(255,149,0,0.08)",
+              }}
+            >
+              <Text style={{ color: "#FF9500", fontSize: 14, lineHeight: 20 }}>
+                Your plan is not active, so plan analytics are paused. Tap to
+                see your plan.
+              </Text>
+            </Pressable>
+          ) : null}
           {/* 1. AUTHORITY */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>AUTHORITY</Text>

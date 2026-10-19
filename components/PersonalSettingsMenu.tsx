@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { hasPaidPlan } from "@/utils/subscriptionState";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
@@ -60,7 +61,8 @@ export function PersonalSettingsMenu({
         if (!token) return;
         const res = await api.getCurrentSubscription(token);
         const sub = res?.subscription;
-        setHasActiveSubscription(!!sub && sub.status === "active");
+        // A late or paused paid plan still belongs on Manage (update payment), not the public plans page.
+        setHasActiveSubscription(hasPaidPlan(sub));
       } catch {
         setHasActiveSubscription(false);
       }
