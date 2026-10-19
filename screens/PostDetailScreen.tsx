@@ -130,8 +130,10 @@ export default function PostDetailScreen() {
       setLoading(true);
       setError(null);
       try {
+        // Send the token (when signed in) so each post says whether you liked it.
+        const token = await getToken().catch(() => null);
         const [{ posts: apiPosts }, { user: author }] = await Promise.all([
-          apiClient.getProfilePosts(userId),
+          apiClient.getProfilePosts(userId, undefined, token),
           apiClient.getPublicUser(userId),
         ]);
         if (cancelled) return;

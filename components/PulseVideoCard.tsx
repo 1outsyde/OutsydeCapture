@@ -21,6 +21,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/navigation/types";
 import StoryRing from "@/components/StoryRing";
+import { DoubleTapLike } from "@/components/DoubleTapLike";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -254,38 +255,43 @@ export default function PulseVideoCard({
   const VideoComponent = Platform.OS === "web" ? WebPulseVideo : NativePulseVideo;
 
   return (
-    <Pressable
-      onPress={handleTap}
-      style={[styles.card, { height: PULSE_CARD_HEIGHT }]}
-    >
-      {/* Background media */}
-      {hasVideo && post.videoUrl ? (
-        <VideoComponent
-          videoUrl={post.videoUrl}
-          isActive={isActive}
-          isPaused={isPaused}
-          muted={muted}
-          postId={post.id}
-          onEngagement={handleEngagement}
-        />
-      ) : post.image ? (
-        <Image
-          source={{ uri: post.image }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-        />
-      ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
-      )}
+    <View style={[styles.card, { height: PULSE_CARD_HEIGHT }]}>
+      {/* Background media. Single tap pauses, double tap likes. The buttons and author block
+          below are siblings drawn on top, so tapping them never pauses or likes. */}
+      <DoubleTapLike
+        isLiked={isLiked}
+        onLike={() => onLike(post.id)}
+        onSingleTap={handleTap}
+        style={StyleSheet.absoluteFill}
+      >
+        {hasVideo && post.videoUrl ? (
+          <VideoComponent
+            videoUrl={post.videoUrl}
+            isActive={isActive}
+            isPaused={isPaused}
+            muted={muted}
+            postId={post.id}
+            onEngagement={handleEngagement}
+          />
+        ) : post.image ? (
+          <Image
+            source={{ uri: post.image }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
+        )}
 
-      {/* Pause indicator */}
-      {isActive && isPaused ? (
-        <View style={styles.pauseOverlay} pointerEvents="none">
-          <View style={styles.pauseIcon}>
-            <Feather name="pause" size={36} color="#FFFFFF" />
+        {/* Pause indicator */}
+        {isActive && isPaused ? (
+          <View style={styles.pauseOverlay} pointerEvents="none">
+            <View style={styles.pauseIcon}>
+              <Feather name="pause" size={36} color="#FFFFFF" />
+            </View>
           </View>
-        </View>
-      ) : null}
+        ) : null}
+      </DoubleTapLike>
 
       {/* Bottom gradient */}
       <LinearGradient
@@ -421,7 +427,8 @@ export default function PulseVideoCard({
         </Pressable>
 
         {post.caption ? (
-          <ThemedText style={styles.caption} numberOfLines={2}>
+          // pointerEvents none: a tap on the caption reaches the media below and pauses, as before.
+          <ThemedText style={styles.caption} numberOfLines={2} pointerEvents="none">
             {post.caption}
           </ThemedText>
         ) : null}
@@ -453,7 +460,7 @@ export default function PulseVideoCard({
         ) : null}
       </View>
 
-    </Pressable>
+    </View>
   );
 }
 

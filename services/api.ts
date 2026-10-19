@@ -4835,10 +4835,11 @@ class ApiService {
 
   // GET /api/profiles/:profileId/posts - Get posts for a specific profile
   // Note: Pro/Pulse is a display layout decision, not a backend filter
+  // authToken is optional: when sent, each post also says whether this viewer liked it (isLiked).
   async getProfilePosts(profileId: string, params?: {
     page?: number;
     limit?: number;
-  }): Promise<{ posts: ApiPost[] }> {
+  }, authToken?: string | null): Promise<{ posts: ApiPost[] }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
@@ -4847,7 +4848,10 @@ class ApiService {
       ? `/api/profiles/${profileId}/posts?${queryString}` 
       : `/api/profiles/${profileId}/posts`;
     
-    const response = await this.request<{ posts: ApiPost[] }>(url);
+    const response = await this.request<{ posts: ApiPost[] }>(
+      url,
+      authToken ? { headers: { "Authorization": `Bearer ${authToken}` } } : undefined
+    );
     
     // DEBUG: Log profile posts response
     console.log("[API.getProfilePosts] ===== PROFILE POSTS RESPONSE =====");
