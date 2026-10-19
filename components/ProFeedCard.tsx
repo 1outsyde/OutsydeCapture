@@ -16,6 +16,7 @@ import { sendClickEvent } from "@/services/referral";
 import { promptForReportReason } from "@/utils/moderationActions";
 import { StarDisplay } from "@/components/ratings";
 import { PostMediaCarousel } from "@/components/PostMediaCarousel";
+import { DoubleTapLike } from "@/components/DoubleTapLike";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 0.85;
@@ -46,11 +47,15 @@ function CardVideoMedia({
   isVisible = true,
   muted = false,
   onToggleMute,
+  isLiked,
+  onLike,
 }: {
   videoUrl: string;
   isVisible?: boolean;
   muted?: boolean;
   onToggleMute?: () => void;
+  isLiked: boolean;
+  onLike: () => void;
 }) {
   console.log("VIDEO_URL [Pro]:", videoUrl);
 
@@ -92,18 +97,21 @@ function CardVideoMedia({
   };
 
   return (
-    <Pressable onPress={togglePlayback} style={styles.mediaContainer}>
-      <VideoView
-        player={player}
-        style={styles.media}
-        contentFit="cover"
-        nativeControls={false}
-      />
-      {!isPlaying && (
-        <View style={styles.playOverlay}>
-          <Feather name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
-        </View>
-      )}
+    <View style={styles.mediaContainer}>
+      {/* Single tap plays / pauses, double tap likes. The mute button stays outside as a sibling. */}
+      <DoubleTapLike isLiked={isLiked} onLike={onLike} onSingleTap={togglePlayback} style={styles.media}>
+        <VideoView
+          player={player}
+          style={styles.media}
+          contentFit="cover"
+          nativeControls={false}
+        />
+        {!isPlaying && (
+          <View style={styles.playOverlay}>
+            <Feather name="play-circle" size={48} color="rgba(255,255,255,0.8)" />
+          </View>
+        )}
+      </DoubleTapLike>
       <Pressable
         onPress={onToggleMute}
         style={styles.muteButton}
@@ -111,7 +119,7 @@ function CardVideoMedia({
       >
         <Feather name={muted ? "volume-x" : "volume-2"} size={20} color="#FFFFFF" />
       </Pressable>
-    </Pressable>
+    </View>
   );
 }
 
@@ -383,16 +391,23 @@ export function ProFeedCard({
             isVisible={isVisible}
             muted={muted}
             onToggleMute={onToggleMute}
+            isLiked={!!post.isLiked}
+            onLike={() => onLike(post.id)}
           />
-        ) : hasMultiplePhotos ? (
-          <PostMediaCarousel images={post.mediaImages!} height={mediaHeight} />
         ) : (
-          <Image
-            source={{ uri: post.image }}
-            style={styles.media}
-            contentFit="cover"
-            transition={200}
-          />
+          // Double tap the photo(s) to like. Swiping the carousel or the feed still works.
+          <DoubleTapLike isLiked={!!post.isLiked} onLike={() => onLike(post.id)} style={styles.media}>
+            {hasMultiplePhotos ? (
+              <PostMediaCarousel images={post.mediaImages!} height={mediaHeight} />
+            ) : (
+              <Image
+                source={{ uri: post.image }}
+                style={styles.media}
+                contentFit="cover"
+                transition={200}
+              />
+            )}
+          </DoubleTapLike>
         )}
         {hasCommerce && (
           <Pressable

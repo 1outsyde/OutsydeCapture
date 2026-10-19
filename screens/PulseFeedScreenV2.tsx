@@ -266,12 +266,27 @@ export default function PulseFeedScreenV2() {
 
       try {
         const token = await getToken();
-        if (token) {
-          if (wasLiked) {
-            await api.unlikePost(token, postId);
-          } else {
-            await api.likePost(token, postId);
-          }
+        if (!token) {
+          // Signed out: undo the optimistic like and ask to sign in (same as Discover and the post screen).
+          setLikedIds((prev) => {
+            const next = new Set(prev);
+            wasLiked ? next.add(postId) : next.delete(postId);
+            return next;
+          });
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? { ...p, likes: wasLiked ? p.likes + 1 : Math.max(0, p.likes - 1) }
+                : p
+            )
+          );
+          Alert.alert("Sign In Required", "Please sign in to like posts.");
+          return;
+        }
+        if (wasLiked) {
+          await api.unlikePost(token, postId);
+        } else {
+          await api.likePost(token, postId);
         }
       } catch {
         // Rollback
