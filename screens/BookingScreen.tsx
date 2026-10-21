@@ -816,12 +816,18 @@ export default function BookingScreen() {
         ? { customerServiceAddress, customerServiceCity, customerServiceState, customerServiceZipCode }
         : undefined;
 
+      // Read the token before the hold is marked as paid for, so a signed-out
+      // customer's hold can still be released.
+      const token = await getToken();
+      if (!token) throw { status: 401, message: "Not signed in" };
+
       // From here on the backend has a booking for this hold, so it is never
       // released; a retry reuses the same hold and PaymentIntent.
       piCalledHoldIdsRef.current.add(currentHold.holdId);
       attempt = (piAttemptsRef.current.get(currentHold.holdId) ?? 0) + 1;
       piAttemptsRef.current.set(currentHold.holdId, attempt);
       const pd = await api.createHoldPaymentIntent(
+        token,
         currentHold.holdId,
         customerAddress,
         pointsCode?.id ?? null,
