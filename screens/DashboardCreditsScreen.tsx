@@ -308,19 +308,17 @@ export default function DashboardCreditsScreen() {
             />
           </View>
 
-          {/* Book a Shoot button */}
-          <Pressable
-            style={styles.bookBtn}
-            onPress={() =>
-              navigation.navigate("ShootBooking", {
-                businessId,
-                creditBalance: creditData?.balance ?? 0,
-              })
-            }
+          {/* Book a Shoot: coming soon (Legend 2026-10-17). The booking route behind ShootBookingScreen
+              (POST /api/production/book) doesn't exist yet, and that screen charges the card before calling
+              it, so the button opens nothing until shoot booking is built. */}
+          <View
+            style={[styles.bookBtn, { opacity: 0.55 }]}
+            accessibilityRole="text"
+            accessibilityLabel="Book a Shoot, coming soon"
           >
             <Feather name="camera" size={16} color="#000" />
-            <Text style={styles.bookBtnText}>Book a Shoot</Text>
-          </Pressable>
+            <Text style={styles.bookBtnText}>Book a Shoot: coming soon</Text>
+          </View>
         </View>
 
         {/* History section */}
