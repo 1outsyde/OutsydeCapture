@@ -19,6 +19,14 @@ export type RootStackParamList = {
   VendorDetail: { vendorId: string; initialTab?: "products" | "services" | "reviews"; productId?: string };
   StaffWorkProfile: { businessId: string; staffId: string };
   PostDetail: { userId: string; initialPostId: string };
+  FollowList: {
+    /** User, business or photographer id of the profile whose lists to show. */
+    profileId: string;
+    initialTab?: "followers" | "following";
+    title?: string;
+    followerCount?: number;
+    followingCount?: number;
+  };
   UserProfile: { userId: string; userType?: "business" | "photographer" | "consumer" };
   SessionDetail: { sessionId: string };
   AppointmentDetail: { appointment: BusinessAppointment };

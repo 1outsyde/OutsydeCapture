@@ -4,7 +4,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
-export type FeedMode = "pro" | "pulse";
+export type FeedMode = "following" | "pro" | "pulse";
 
 interface FeedToggleProps {
   mode: FeedMode;
@@ -17,6 +17,24 @@ export function FeedToggle({ mode, onModeChange }: FeedToggleProps) {
   return (
     <View style={styles.container}>
       <View style={styles.segmentBackground}>
+        <Pressable
+          onPress={() => onModeChange("following")}
+          style={styles.segment}
+          hitSlop={8}
+        >
+          <ThemedText
+            style={[
+              styles.segmentText,
+              {
+                color: theme.brandGold,
+                opacity: mode === "following" ? 1 : 0.4,
+                fontWeight: mode === "following" ? "700" : "500",
+              },
+            ]}
+          >
+            FOLLOWING
+          </ThemedText>
+        </Pressable>
         <Pressable
           onPress={() => onModeChange("pro")}
           style={styles.segment}

@@ -285,8 +285,25 @@ export interface PostMediaItem {
   aspectRatio?: number;
 }
 
+// One row of a Followers / Following list (GET /api/users/:id/followers|following).
+export interface FollowListRow {
+  userId: string;
+  username: string | null;
+  displayName: string;
+  profilePhotoUrl: string | null;
+  role?: "business" | "photographer" | "consumer";
+  businessId?: string | null;
+  photographerId?: string | null;
+  /** The viewer follows this account. */
+  isFollowing?: boolean;
+  /** This row is the viewer. */
+  isSelf?: boolean;
+}
+
 export interface ApiPost {
   id: string;
+  /** The viewer follows the author (main + Following feed). */
+  authorIsFollowed?: boolean;
   userId?: string;
   authorId?: string;
   authorType?: string;
@@ -4313,25 +4330,69 @@ class ApiService {
   }
 
   // Follow/Unfollow API
-  async followUser(targetUserId: string, targetType: "user" | "photographer" | "business"): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>("/api/follows", {
+  // authToken: send it. The session cookie expires after 7 days while the token keeps
+  // refreshing, so cookie-only follow calls failed for anyone signed in longer than that.
+  private bearer(authToken?: string | null): Record<string, string> | undefined {
+    return authToken ? { "Authorization": `Bearer ${authToken}` } : undefined;
+  }
+
+  async followUser(
+    targetUserId: string,
+    targetType: "user" | "photographer" | "business",
+    authToken?: string | null,
+  ): Promise<{ success: boolean; alreadyFollowing?: boolean }> {
+    return this.request<{ success: boolean; alreadyFollowing?: boolean }>("/api/follows", {
       method: "POST",
+      headers: this.bearer(authToken),
       body: JSON.stringify({ targetUserId, targetType }),
     });
   }
 
-  async unfollowUser(targetUserId: string): Promise<{ success: boolean }> {
+  async unfollowUser(targetUserId: string, authToken?: string | null): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>(`/api/follows/${targetUserId}`, {
       method: "DELETE",
+      headers: this.bearer(authToken),
     });
   }
 
-  async checkFollowStatus(targetUserId: string): Promise<{ isFollowing: boolean }> {
+  async checkFollowStatus(targetUserId: string, authToken?: string | null): Promise<{ isFollowing: boolean }> {
     try {
-      return await this.request<{ isFollowing: boolean }>(`/api/follows/check/${targetUserId}`);
+      return await this.request<{ isFollowing: boolean }>(`/api/follows/check/${targetUserId}`, {
+        headers: this.bearer(authToken),
+      });
     } catch {
       return { isFollowing: false };
     }
+  }
+
+  // GET /api/users/:id/followers | /following — public lists. :id may be a user, business or
+  // photographer id. Rows show the business / photographer name and logo for pros.
+  async getFollowList(
+    profileId: string,
+    kind: "followers" | "following",
+    params?: { limit?: number; offset?: number },
+    authToken?: string | null,
+  ): Promise<{ rows: FollowListRow[]; total: number; hasMore: boolean; offset: number }> {
+    const qs = new URLSearchParams();
+    qs.append("limit", String(params?.limit ?? 50));
+    if (params?.offset) qs.append("offset", String(params.offset));
+    const res = await this.request<{
+      followers?: FollowListRow[];
+      following?: FollowListRow[];
+      total?: number;
+      hasMore?: boolean;
+      offset?: number;
+    }>(`/api/users/${encodeURIComponent(profileId)}/${kind}?${qs.toString()}`, {
+      headers: this.bearer(authToken),
+    });
+    const rows = (kind === "followers" ? res.followers : res.following) ?? [];
+    return {
+      rows,
+      total: Number(res.total ?? rows.length),
+      // Older backends don't send hasMore: assume more only when a full page came back.
+      hasMore: res.hasMore ?? rows.length === (params?.limit ?? 50),
+      offset: Number(res.offset ?? params?.offset ?? 0),
+    };
   }
 
   async getFollowNotifications(): Promise<Array<{
@@ -4491,7 +4552,15 @@ class ApiService {
     longitude?: number;
     city?: string;
     state?: string;
-  }, authToken?: string): Promise<{ posts: ApiPost[] }> {
+    /** "following": newest posts from accounts the viewer follows (needs the token). */
+    scope?: "following";
+    /** Following feed paging (posts already loaded). */
+    offset?: number;
+  }, authToken?: string): Promise<{
+    posts: ApiPost[];
+    requiresAuth?: boolean;
+    data?: { hasMore?: boolean; nextOffset?: number };
+  }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
@@ -4499,6 +4568,8 @@ class ApiService {
     if (params?.longitude) queryParams.append("longitude", params.longitude.toString());
     if (params?.city) queryParams.append("city", params.city);
     if (params?.state) queryParams.append("state", params.state);
+    if (params?.scope) queryParams.append("scope", params.scope);
+    if (params?.offset) queryParams.append("offset", params.offset.toString());
     const queryString = queryParams.toString();
     const url = queryString ? `/api/feed?${queryString}` : "/api/feed";
     
@@ -4507,7 +4578,11 @@ class ApiService {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
     
-    return this.request<{ posts: ApiPost[] }>(url, { headers });
+    return this.request<{
+      posts: ApiPost[];
+      requiresAuth?: boolean;
+      data?: { hasMore?: boolean; nextOffset?: number };
+    }>(url, { headers });
   }
 
   // GET /api/feed/:postId - Get a single post by id (public)
