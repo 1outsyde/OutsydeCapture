@@ -531,16 +531,20 @@ export default function AccountScreen() {
     }
   }, []);
 
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+
   useEffect(() => {
     if (!profile || isOwner || !isAuthenticated) return;
     const targetId = profile.userId || profile.id;
-    // Send the token: the session cookie alone expires after 7 days.
-    getToken()
+    // Send the token: the session cookie alone expires after 7 days. (Read through a ref so this
+    // check runs when the profile changes, not on every auth render.)
+    getTokenRef.current()
       .catch(() => null)
       .then((token) => apiClient.checkFollowStatus(targetId, token))
       .then((result) => setIsFollowing(result.isFollowing))
       .catch(() => setIsFollowing(false));
-  }, [profile, isOwner, isAuthenticated, getToken]);
+  }, [profile, isOwner, isAuthenticated]);
 
   useEffect(() => {
     if (!profile?.isMultiStaff || !isOwner) return;

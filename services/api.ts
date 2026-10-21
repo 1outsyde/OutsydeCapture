@@ -4554,7 +4554,13 @@ class ApiService {
     state?: string;
     /** "following": newest posts from accounts the viewer follows (needs the token). */
     scope?: "following";
-  }, authToken?: string): Promise<{ posts: ApiPost[]; requiresAuth?: boolean }> {
+    /** Following feed paging (posts already loaded). */
+    offset?: number;
+  }, authToken?: string): Promise<{
+    posts: ApiPost[];
+    requiresAuth?: boolean;
+    data?: { hasMore?: boolean; nextOffset?: number };
+  }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.limit) queryParams.append("limit", params.limit.toString());
@@ -4563,6 +4569,7 @@ class ApiService {
     if (params?.city) queryParams.append("city", params.city);
     if (params?.state) queryParams.append("state", params.state);
     if (params?.scope) queryParams.append("scope", params.scope);
+    if (params?.offset) queryParams.append("offset", params.offset.toString());
     const queryString = queryParams.toString();
     const url = queryString ? `/api/feed?${queryString}` : "/api/feed";
     
@@ -4571,7 +4578,11 @@ class ApiService {
       headers["Authorization"] = `Bearer ${authToken}`;
     }
     
-    return this.request<{ posts: ApiPost[]; requiresAuth?: boolean }>(url, { headers });
+    return this.request<{
+      posts: ApiPost[];
+      requiresAuth?: boolean;
+      data?: { hasMore?: boolean; nextOffset?: number };
+    }>(url, { headers });
   }
 
   // GET /api/feed/:postId - Get a single post by id (public)

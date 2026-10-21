@@ -95,6 +95,16 @@ export default function DiscoverScreen() {
   const [followingLoading, setFollowingLoading] = useState(false);
   const [followingLoaded, setFollowingLoaded] = useState(false);
   const [followingRefreshing, setFollowingRefreshing] = useState(false);
+  const [followingError, setFollowingError] = useState(false);
+  const [followingHasMore, setFollowingHasMore] = useState(false);
+  const [followingLoadingMore, setFollowingLoadingMore] = useState(false);
+  const followingNextOffset = useRef(0);
+  // Ignore answers from an older Following request (quick tab switches, refresh + paging).
+  const followingSeq = useRef(0);
+  // getToken is a new function on every auth render; read it through a ref so the Following
+  // fetch effect only runs when the tab opens, not on every auth update.
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const [refreshing, setRefreshing] = useState(false);
 
   const storiesBarHeight = useSharedValue(96);
@@ -255,25 +265,48 @@ export default function DiscoverScreen() {
   }, [fetchProFeed]);
 
   // ─── Following feed fetch ─────────────────────────────────────────────────
-  const fetchFollowingFeed = useCallback(async () => {
+  const FOLLOWING_PAGE = 30;
+  const fetchFollowingFeed = useCallback(async (more = false) => {
+    const seq = ++followingSeq.current;
+    const offset = more ? followingNextOffset.current : 0;
     try {
-      setFollowingLoading(true);
-      const token = await getToken();
+      if (more) setFollowingLoadingMore(true);
+      else setFollowingLoading(true);
+      setFollowingError(false);
+      const token = await getTokenRef.current();
+      if (seq !== followingSeq.current) return;
       if (!token) {
         setFollowingPosts([]);
+        setFollowingHasMore(false);
         return;
       }
-      const response = await api.getFeed({ limit: 50, scope: "following" }, token);
-      if (response.posts && Array.isArray(response.posts)) {
-        setFollowingPosts(response.posts.map(convertApiPostToPost));
-      }
+      const response = await api.getFeed({ limit: FOLLOWING_PAGE, scope: "following", offset }, token);
+      if (seq !== followingSeq.current) return;
+      const page = Array.isArray(response.posts) ? response.posts.map(convertApiPostToPost) : [];
+      setFollowingPosts((prev) => {
+        if (!more) return page;
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...page.filter((p) => !seen.has(p.id))];
+      });
+      followingNextOffset.current = response.data?.nextOffset ?? offset + page.length;
+      setFollowingHasMore(response.data?.hasMore === true);
     } catch (err) {
+      if (seq !== followingSeq.current) return;
       console.error("[DiscoverScreen] Failed to fetch Following feed:", err);
+      if (!more) setFollowingError(true);
     } finally {
-      setFollowingLoading(false);
-      setFollowingLoaded(true);
+      if (seq === followingSeq.current) {
+        setFollowingLoading(false);
+        setFollowingLoadingMore(false);
+        setFollowingLoaded(true);
+      }
     }
-  }, [getToken, convertApiPostToPost]);
+  }, [convertApiPostToPost]);
+
+  const onFollowingEndReached = useCallback(() => {
+    if (!followingHasMore || followingLoading || followingLoadingMore) return;
+    fetchFollowingFeed(true);
+  }, [followingHasMore, followingLoading, followingLoadingMore, fetchFollowingFeed]);
 
   // Refetch every time the Following tab opens, so follows/unfollows made elsewhere show up.
   useEffect(() => {
@@ -309,9 +342,10 @@ export default function DiscoverScreen() {
   // ─── Pro feed sorting ─────────────────────────────────────────────────────
   const proFeedPosts = useMemo(() => {
     return [...feedPosts].sort((a, b) => {
-      // Accounts you follow come first, then the existing order.
-      const aF = a.authorIsFollowed ? 0 : 1;
-      const bF = b.authorIsFollowed ? 0 : 1;
+      // Your own posts first (the backend pins them), then accounts you follow, then the existing order.
+      const rank = (p: Post) => (user?.id && (p.userId || p.authorId) === user.id ? 0 : p.authorIsFollowed ? 1 : 2);
+      const aF = rank(a);
+      const bF = rank(b);
       if (aF !== bF) return aF - bF;
       const order: Record<string, number> = { photographer: 1, vendor: 2, user: 3 };
       const aR = order[a.type] || 3;
@@ -321,7 +355,7 @@ export default function DiscoverScreen() {
       if (aDiff !== 0) return aDiff;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [feedPosts]);
+  }, [feedPosts, user?.id]);
 
   // ─── Pro scroll state ─────────────────────────────────────────────────────
   const proScrollOffset = useRef(0);
@@ -384,8 +418,12 @@ export default function DiscoverScreen() {
 
   const handleLike = useCallback(
     async (postId: string) => {
+      // Read the state from the list on screen (the two lists can differ after a refetch).
+      const onScreen = feedMode === "following" ? followingPosts : feedPosts;
       const currentPost =
-        feedPosts.find((p) => p.id === postId) ?? followingPosts.find((p) => p.id === postId);
+        onScreen.find((p) => p.id === postId) ??
+        feedPosts.find((p) => p.id === postId) ??
+        followingPosts.find((p) => p.id === postId);
       const wasLiked = currentPost?.isLiked ?? false;
 
       console.log('[ProLike] postId:', postId, 'wasLiked:', wasLiked);
@@ -428,7 +466,7 @@ export default function DiscoverScreen() {
         );
       }
     },
-    [feedPosts, followingPosts, getToken, updateAllPosts]
+    [feedMode, feedPosts, followingPosts, getToken, updateAllPosts]
   );
 
   const handleSavePost = (post: Post) => {
@@ -593,7 +631,7 @@ export default function DiscoverScreen() {
   );
 
   // ─── Loading / empty states (Pro feed) ───────────────────────────────────
-  if (feedLoading && feedPosts.length === 0) {
+  if (feedLoading && feedPosts.length === 0 && feedMode === "pro") {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -607,6 +645,10 @@ export default function DiscoverScreen() {
   if (feedPosts.length === 0 && feedMode === "pro") {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: theme.backgroundRoot }]}>
+        {/* Keep the toggle so Following and Pulse stay reachable when Pro is empty. */}
+        <View style={[styles.emptyToggle, { top: headerHeight }]}>
+          <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
+        </View>
         <Feather name="image" size={64} color={theme.textSecondary} />
         <ThemedText type="h3" style={{ marginTop: Spacing.lg, color: theme.text }}>
           No posts yet
@@ -684,8 +726,28 @@ export default function DiscoverScreen() {
               contentContainerStyle={[styles.proFeedContent, followingPosts.length === 0 && { flexGrow: 1 }]}
               onViewableItemsChanged={onProViewableItemsChanged}
               viewabilityConfig={PRO_VIEWABILITY_CONFIG}
+              onEndReached={onFollowingEndReached}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                followingLoadingMore ? (
+                  <ActivityIndicator style={{ margin: Spacing.lg }} color={theme.primary} />
+                ) : null
+              }
               ListEmptyComponent={
-                followingLoading && !followingLoaded ? (
+                followingError ? (
+                  <View style={styles.followingEmpty}>
+                    <Feather name="alert-circle" size={48} color={theme.textSecondary} />
+                    <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary, textAlign: "center" }}>
+                      These posts could not be loaded.
+                    </ThemedText>
+                    <Pressable
+                      onPress={() => fetchFollowingFeed()}
+                      style={[styles.exploreButton, { backgroundColor: theme.primary }]}
+                    >
+                      <ThemedText style={{ color: "#000000", fontWeight: "600" }}>Try again</ThemedText>
+                    </Pressable>
+                  </View>
+                ) : (followingLoading && !followingLoaded) ? (
                   <View style={styles.followingEmpty}>
                     <ActivityIndicator size="large" color={theme.primary} />
                   </View>
@@ -903,6 +965,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
+  },
+  emptyToggle: {
+    position: "absolute",
+    left: 0,
+    right: 0,
   },
   followingEmpty: {
     flex: 1,

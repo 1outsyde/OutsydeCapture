@@ -38,6 +38,10 @@ export default function FollowListScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "FollowList">>();
   const { profileId, initialTab, title, followerCount, followingCount } = route.params;
   const { getToken, isAuthenticated } = useAuth();
+  // getToken is a new function on every auth render; read it through a ref so the list doesn't
+  // blank and reload whenever auth state refreshes.
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   const [tab, setTab] = useState<Kind>(initialTab ?? "followers");
   const [rows, setRows] = useState<FollowListRow[]>([]);
@@ -63,7 +67,7 @@ export default function FollowListScreen() {
       if (mode === "more") setLoadingMore(true);
       setError(null);
       try {
-        const token = await getToken().catch(() => null);
+        const token = await getTokenRef.current().catch(() => null);
         const res = await apiClient.getFollowList(profileId, kind, { limit: PAGE_SIZE, offset }, token);
         if (seq !== requestSeq.current) return;
         setRows((prev) => {
@@ -86,7 +90,7 @@ export default function FollowListScreen() {
         }
       }
     },
-    [getToken, profileId],
+    [profileId],
   );
 
   useEffect(() => {
@@ -111,7 +115,7 @@ export default function FollowListScreen() {
   const toggleFollow = useCallback(
     async (row: FollowListRow) => {
       if (busyIds.has(row.userId)) return;
-      const token = await getToken().catch(() => null);
+      const token = await getTokenRef.current().catch(() => null);
       if (!token) {
         Alert.alert("Sign In Required", "Please sign in to follow accounts.");
         return;
@@ -130,7 +134,6 @@ export default function FollowListScreen() {
             row.role === "business" ? "business" : row.role === "photographer" ? "photographer" : "user";
           await apiClient.followUser(row.userId, targetType, token);
         }
-        // Your own Following count changes when you follow / unfollow from your own list.
       } catch (err) {
         console.error("[FollowList] follow toggle failed:", err);
         setRowFollowing(wasFollowing);
@@ -143,7 +146,7 @@ export default function FollowListScreen() {
         });
       }
     },
-    [busyIds, getToken],
+    [busyIds],
   );
 
   const renderRow = ({ item }: { item: FollowListRow }) => {
