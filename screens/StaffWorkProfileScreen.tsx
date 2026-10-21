@@ -149,6 +149,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const [followingCount, setFollowingCount] = useState(0);
   const [canFollow, setCanFollow] = useState(false);
   const isOwnStaffProfile = !!user?.staffId && String(user.staffId) === String(staffId);
+  // Once the viewer taps Follow, a slower status check must not overwrite what they did.
+  const followTouchedRef = useRef(false);
 
   const accentColor = resolveBrandColor(brandColors, isDark ? "dark" : "light");
 
@@ -262,13 +264,17 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   // Follow status for the signed-in viewer (token through a ref: runs when the profile changes,
   // not on every auth render).
   useEffect(() => {
-    if (!staff || !canFollow || !isAuthenticated || isOwnStaffProfile) return;
+    if (!staff || !canFollow || !isAuthenticated || isOwnStaffProfile) {
+      // Signed out, or this profile can't be followed: never show a stale "Following".
+      setIsFollowing(false);
+      return;
+    }
     let active = true;
     getTokenRef.current()
       .catch(() => null)
       .then((token) => apiClient.checkFollowStatus(staffId, token))
-      .then((result) => { if (active) setIsFollowing(result.isFollowing); })
-      .catch(() => { if (active) setIsFollowing(false); });
+      .then((result) => { if (active && !followTouchedRef.current) setIsFollowing(result.isFollowing); })
+      .catch(() => { if (active && !followTouchedRef.current) setIsFollowing(false); });
     return () => { active = false; };
   }, [staff, canFollow, isAuthenticated, isOwnStaffProfile, staffId]);
 
@@ -282,6 +288,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
       Alert.alert("Not available yet", "This team member can't be followed yet.");
       return;
     }
+    followTouchedRef.current = true;
     const wasFollowing = isFollowing;
     const previous = followerCount;
     setFollowBusy(true);
@@ -292,13 +299,20 @@ export default function StaffWorkProfileScreen({ route }: Props) {
       if (wasFollowing) {
         await apiClient.unfollowUser(staffId, token);
       } else {
-        await apiClient.followUser(staffId, "user", token);
+        const res = await apiClient.followUser(staffId, "user", token);
+        // Already followed (e.g. from another screen): the count didn't change.
+        if (res?.alreadyFollowing) setFollowerCount(previous);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("[StaffWorkProfile] follow toggle failed:", error);
       setIsFollowing(wasFollowing);
       setFollowerCount(previous);
-      Alert.alert("Unable to update follow", "Please try again.");
+      const message = String(error?.message || error?.error || "");
+      if (/cannot follow yourself/i.test(message)) {
+        Alert.alert("This is you", "This is your own team profile.");
+      } else {
+        Alert.alert("Unable to update follow", "Please try again.");
+      }
     } finally {
       setFollowBusy(false);
     }
@@ -583,9 +597,11 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                     isFollowing
                       ? { backgroundColor: "transparent", borderWidth: 1, borderColor: accentColor }
                       : { backgroundColor: accentColor },
+                    // Not linked to an account yet: shown, but clearly not tappable.
+                    !canFollow && { opacity: 0.4 },
                   ]}
                   onPress={handleFollowToggle}
-                  disabled={followBusy}
+                  disabled={followBusy || !canFollow}
                   accessibilityRole="button"
                   accessibilityLabel={isFollowing ? "Unfollow" : "Follow"}
                 >

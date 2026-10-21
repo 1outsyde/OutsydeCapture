@@ -970,13 +970,17 @@ export default function BookingScreen() {
   // PhotographerDetail screen, which had no follow.
   const handleHoldExpiredBack = () => {
     setShowHoldExpiredModal(false);
+    const photographerProfileId = photographer?.id || resolvedPhotographerId;
     const state = navigation.getState();
     const prev = state?.routes?.[state.index - 1];
-    if ((prev?.name === "VendorDetail" || prev?.name === "PhotographerDetail") && navigation.canGoBack()) {
+    const prevVendorId = (prev?.params as { vendorId?: string } | undefined)?.vendorId;
+    const prevIsThisProfile =
+      prev?.name === "PhotographerDetail" ||
+      (prev?.name === "VendorDetail" && !!photographerProfileId && String(prevVendorId) === String(photographerProfileId));
+    if (prevIsThisProfile && navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-    const photographerProfileId = photographer?.id || routePhotographer?.id;
     if (!photographerProfileId) {
       if (navigation.canGoBack()) navigation.goBack();
       return;
