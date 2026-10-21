@@ -6,7 +6,11 @@ import {
 } from "@/utils/tokenStorage";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/api/client";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
-import { readAcceptFailure, readOfferResponse, type PlanOffer } from "@/utils/planOffer";
+import {
+  readAcceptFailure,
+  readOfferResponse,
+  type PlanOffer,
+} from "@/utils/planOffer";
 import type {
   RatingCheckResponse,
   Rating,
@@ -5352,7 +5356,7 @@ class ApiService {
    *  normalizeVendorEligibility keeps only known fields. */
   async getPlanOffer(authToken: string): Promise<PlanOffer | null> {
     const response = await this.request<unknown>("/api/vendor/plan-offer", {
-      headers: { "Authorization": `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
     return readOfferResponse(response);
   }
@@ -5362,24 +5366,35 @@ class ApiService {
     authToken: string,
     offerId: string,
   ): Promise<
-    | { ok: true; plan: string | null; freeExpiresAt: string | null; permanent: boolean }
-    | { ok: false; status: number | undefined; code: string | undefined; message: string }
+    | {
+        ok: true;
+        plan: string | null;
+        freeExpiresAt: string | null;
+        permanent: boolean;
+      }
+    | {
+        ok: false;
+        status: number | undefined;
+        code: string | undefined;
+        message: string;
+      }
   > {
     try {
       const res = await this.request<any>("/api/vendor/plan-offer/accept", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${authToken}` },
+        headers: { Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ offerId }),
       });
       if (res?.accepted === true) {
         return {
           ok: true,
           plan: typeof res.plan === "string" ? res.plan : null,
-          freeExpiresAt: typeof res.freeExpiresAt === "string" ? res.freeExpiresAt : null,
+          freeExpiresAt:
+            typeof res.freeExpiresAt === "string" ? res.freeExpiresAt : null,
           permanent: res.permanent === true,
         };
       }
-      // A paid offer answers checkoutUrl / pendingPayment instead; the app never asks for those.
+      // A paid offer answers checkoutUrl or pendingPayment instead; the app never asks for those.
       return { ok: false, ...readAcceptFailure(null) };
     } catch (err) {
       return { ok: false, ...readAcceptFailure(err) };

@@ -73,7 +73,10 @@ test("money and dates", () => {
 test("price line", () => {
   assert.equal(priceLine(grandfathered), "$40.99 a month");
   assert.equal(priceLine(free), "Free until December 31, 2026");
-  assert.equal(priceLine({ ...free, freeExpiresAt: null, permanent: true }), "Free, no end date");
+  assert.equal(
+    priceLine({ ...free, freeExpiresAt: null, permanent: true }),
+    "Free, no end date",
+  );
 });
 
 test("banner text matches the Reminder artboard", () => {
@@ -92,7 +95,10 @@ test("grandfathered popup opens goutsyde.com (Main artboard)", () => {
   assert.equal(c.primaryAction, "open_web");
   assert.equal(c.tag, "AN INVITATION FROM OUTSYDE");
   assert.equal(c.title, "Your Grandfathered plan is ready");
-  assert.equal(c.lead, "We saved a founding price for Royal Elite Moving. New businesses can't get this plan.");
+  assert.equal(
+    c.lead,
+    "We saved a founding price for Royal Elite Moving. New businesses can't get this plan.",
+  );
   assert.equal(c.price, "$40.99");
   assert.equal(c.priceNote, "a month");
   assert.deepEqual(c.checks, [
@@ -101,7 +107,10 @@ test("grandfathered popup opens goutsyde.com (Main artboard)", () => {
     "Your price stays locked while you keep it",
   ]);
   assert.equal(c.primary, "Accept plan");
-  assert.equal(c.fine, "You'll confirm on goutsyde.com. Nothing is charged until you confirm.");
+  assert.equal(
+    c.fine,
+    "You'll confirm on goutsyde.com. Nothing is charged until you confirm.",
+  );
 });
 
 test("free popup claims in the app (FreeOffer artboard)", () => {
@@ -112,27 +121,50 @@ test("free popup claims in the app (FreeOffer artboard)", () => {
   assert.equal(c.price, "Free");
   assert.equal(c.priceNote, "until December 31, 2026");
   assert.equal(c.primary, "Claim free plan");
-  assert.equal(c.fine, "One tap and it's active. It happens right here in the app.");
-  assert.equal(popupCopy({ ...free, freeExpiresAt: null, permanent: true }).priceNote, "with no end date");
+  assert.equal(
+    c.fine,
+    "One tap and it's active. It happens right here in the app.",
+  );
+  assert.equal(
+    popupCopy({ ...free, freeExpiresAt: null, permanent: true }).priceNote,
+    "with no end date",
+  );
 });
 
 test("a free offer over a paid plan never claims in one tap", () => {
-  const c = popupCopy({ ...free, outcome: "replace_paid_with_free", currentPlanName: "Growth" });
+  const c = popupCopy({
+    ...free,
+    outcome: "replace_paid_with_free",
+    currentPlanName: "Growth",
+  });
   assert.equal(c.primaryAction, "review_free");
   assert.equal(c.primary, "Review and claim");
-  assert.equal(c.fine, "Your current paid plan ends when you claim. Review it on the next screen.");
-  const w = freeWarningCopy({ ...free, outcome: "replace_paid_with_free", currentPlanName: "Growth" });
+  assert.equal(
+    c.fine,
+    "Your current paid plan ends when you claim. Review it on the next screen.",
+  );
+  const w = freeWarningCopy({
+    ...free,
+    outcome: "replace_paid_with_free",
+    currentPlanName: "Growth",
+  });
   assert.equal(w.title, "Your paid plan ends today");
   assert.equal(
     w.body,
     "Growth is cancelled when you claim, and the free plan starts right away. Unused paid time isn't refunded.",
   );
   assert.equal(w.primary, "Claim free plan");
-  assert.match(freeWarningCopy({ ...free, outcome: "replace_paid_with_free" }).body, /^Your paid plan is cancelled/);
+  assert.match(
+    freeWarningCopy({ ...free, outcome: "replace_paid_with_free" }).body,
+    /^Your paid plan is cancelled/,
+  );
 });
 
 test("free done text (FreeLive artboard)", () => {
-  assert.equal(freeDoneText(free), "Free until December 31, 2026. You'll find it anytime under Manage Plan.");
+  assert.equal(
+    freeDoneText(free),
+    "Free until December 31, 2026. You'll find it anytime under Manage Plan.",
+  );
   assert.equal(
     freeDoneText({ ...free, freeExpiresAt: null, permanent: true }),
     "It has no end date. You'll find it anytime under Manage Plan.",
@@ -159,9 +191,19 @@ test("no dash and no percent in any copy, every outcome", () => {
 });
 
 test("push filter: only plan_offer", () => {
-  assert.equal(isPlanOfferPush({ type: "plan_offer", screen: "plan_offer", offerId: "o1" }), true);
+  assert.equal(
+    isPlanOfferPush({
+      type: "plan_offer",
+      screen: "plan_offer",
+      offerId: "o1",
+    }),
+    true,
+  );
   assert.equal(isPlanOfferPush({ type: "plan_offer" }), true);
-  assert.equal(isPlanOfferPush({ type: "subscription_activated", screen: "subscription" }), false);
+  assert.equal(
+    isPlanOfferPush({ type: "subscription_activated", screen: "subscription" }),
+    false,
+  );
   assert.equal(isPlanOfferPush({ type: "new_message" }), false);
   assert.equal(isPlanOfferPush(null), false);
   assert.equal(isPlanOfferPush(undefined), false);
@@ -180,13 +222,21 @@ test("only signed in business owners check for an offer", () => {
   assert.equal(shouldFetchOffer({ role: "business", isGuest: false }), true);
   assert.equal(shouldFetchOffer({ role: "business", isGuest: true }), false);
   assert.equal(shouldFetchOffer({ role: "staff", isGuest: false }), false);
-  assert.equal(shouldFetchOffer({ role: "photographer", isGuest: false }), false);
+  assert.equal(
+    shouldFetchOffer({ role: "photographer", isGuest: false }),
+    false,
+  );
   assert.equal(shouldFetchOffer({ role: "consumer", isGuest: false }), false);
   assert.equal(shouldFetchOffer(null), false);
 });
 
 test("popup waits for other popups and for Main to be in front", () => {
-  const ok = { hasOffer: true, wantsPopup: true, blockingModalOpen: false, mainFocused: true };
+  const ok = {
+    hasOffer: true,
+    wantsPopup: true,
+    blockingModalOpen: false,
+    mainFocused: true,
+  };
   assert.equal(shouldShowOfferPopup(ok), true);
   assert.equal(shouldShowOfferPopup({ ...ok, hasOffer: false }), false);
   assert.equal(shouldShowOfferPopup({ ...ok, wantsPopup: false }), false);
@@ -199,13 +249,30 @@ test("web confirm url carries the app sign in", () => {
     planOfferWebUrl("ey.a+b/c"),
     "https://www.goutsyde.com/plan-offer?from=app&token=ey.a%2Bb%2Fc",
   );
-  assert.equal(planOfferWebUrl(null), "https://www.goutsyde.com/plan-offer?from=app");
+  assert.equal(
+    planOfferWebUrl(null),
+    "https://www.goutsyde.com/plan-offer?from=app",
+  );
 });
 
 test("reads the backend error shape from an ApiError", () => {
   assert.deepEqual(
-    readAcceptFailure({ status: 409, message: "[object Object]", body: { success: false, error: { code: "OFFER_BUSY", message: "Your plan is already being set up. Give it a moment." } } }),
-    { status: 409, code: "OFFER_BUSY", message: "Your plan is already being set up. Give it a moment." },
+    readAcceptFailure({
+      status: 409,
+      message: "[object Object]",
+      body: {
+        success: false,
+        error: {
+          code: "OFFER_BUSY",
+          message: "Your plan is already being set up. Give it a moment.",
+        },
+      },
+    }),
+    {
+      status: 409,
+      code: "OFFER_BUSY",
+      message: "Your plan is already being set up. Give it a moment.",
+    },
   );
   // a network error has no status or body
   assert.deepEqual(readAcceptFailure({ message: "Network error" }), {
@@ -214,8 +281,15 @@ test("reads the backend error shape from an ApiError", () => {
     message: "Something went wrong. Please try again in a moment.",
   });
   // never show "[object Object]"
-  assert.equal(readAcceptFailure({ status: 500, message: "[object Object]", body: {} }).message, "Something went wrong. Please try again in a moment.");
-  assert.equal(readAcceptFailure(null).message, "Something went wrong. Please try again in a moment.");
+  assert.equal(
+    readAcceptFailure({ status: 500, message: "[object Object]", body: {} })
+      .message,
+    "Something went wrong. Please try again in a moment.",
+  );
+  assert.equal(
+    readAcceptFailure(null).message,
+    "Something went wrong. Please try again in a moment.",
+  );
 });
 
 test("reads the offer from GET /api/vendor/plan-offer", () => {

@@ -19,6 +19,10 @@ let snoozedUntilRelaunch = false;
 export function isStripePromptSnoozed(): boolean {
   return snoozedUntilRelaunch;
 }
+/** "Do this later" on the free plan screen already asked about payouts: don't ask again this launch. */
+export function snoozeStripePromptUntilRelaunch(): void {
+  snoozedUntilRelaunch = true;
+}
 
 interface StripeConnectPromptProps {
   visible: boolean;

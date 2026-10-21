@@ -64,15 +64,23 @@ function hasNoEnd(o: Pick<PlanOffer, "permanent" | "freeExpiresAt">): boolean {
   return o.permanent || !o.freeExpiresAt;
 }
 
-export function priceLine(o: Pick<PlanOffer, "plan" | "priceInCents" | "freeExpiresAt" | "permanent">): string {
-  if (o.plan === "free") return hasNoEnd(o) ? "Free, no end date" : `Free until ${formatEtDate(o.freeExpiresAt)}`;
+export function priceLine(
+  o: Pick<PlanOffer, "plan" | "priceInCents" | "freeExpiresAt" | "permanent">,
+): string {
+  if (o.plan === "free")
+    return hasNoEnd(o)
+      ? "Free, no end date"
+      : `Free until ${formatEtDate(o.freeExpiresAt)}`;
   return `${formatMoney(o.priceInCents)} a month`;
 }
 
 /** Banner text (artboard Reminder). */
 export function bannerText(o: PlanOffer): { title: string; body: string } {
   if (o.plan === "free") {
-    return { title: "Your free Outsyde plan is waiting", body: `${priceLine(o)}. Tap to claim it.` };
+    return {
+      title: "Your free Outsyde plan is waiting",
+      body: `${priceLine(o)}. Tap to claim it.`,
+    };
   }
   return {
     title: `Your ${o.planName} plan is waiting`,
@@ -104,8 +112,14 @@ export function popupCopy(o: PlanOffer): PopupCopy {
       title: "Your free Outsyde plan",
       lead: "Outsyde is covering your subscription. No card needed.",
       price: "Free",
-      priceNote: hasNoEnd(o) ? "with no end date" : `until ${formatEtDate(o.freeExpiresAt)}`,
-      checks: ["Growth plan features", "Customers can book and buy from you", "Nothing to pay for the plan"],
+      priceNote: hasNoEnd(o)
+        ? "with no end date"
+        : `until ${formatEtDate(o.freeExpiresAt)}`,
+      checks: [
+        "Growth plan features",
+        "Customers can book and buy from you",
+        "Nothing to pay for the plan",
+      ],
       primary: replacesPaid ? "Review and claim" : "Claim free plan",
       fine: replacesPaid
         ? "Your current paid plan ends when you claim. Review it on the next screen."
@@ -131,8 +145,15 @@ export function popupCopy(o: PlanOffer): PopupCopy {
 }
 
 /** The warning before a free offer replaces a paid plan (same wording as goutsyde.com /plan-offer). */
-export function freeWarningCopy(o: PlanOffer): { title: string; body: string; primary: string; fine: string } {
-  const who = o.currentPlanName ? `${o.currentPlanName} is` : "Your paid plan is";
+export function freeWarningCopy(o: PlanOffer): {
+  title: string;
+  body: string;
+  primary: string;
+  fine: string;
+} {
+  const who = o.currentPlanName
+    ? `${o.currentPlanName} is`
+    : "Your paid plan is";
   return {
     title: "Your paid plan ends today",
     body: `${who} cancelled when you claim, and the free plan starts right away. Unused paid time isn't refunded.`,
@@ -142,24 +163,41 @@ export function freeWarningCopy(o: PlanOffer): { title: string; body: string; pr
 }
 
 /** Line under "Your free plan is active" (artboard FreeLive). */
-export function freeDoneText(o: Pick<PlanOffer, "permanent" | "freeExpiresAt" | "plan" | "priceInCents">): string {
+export function freeDoneText(
+  o: Pick<PlanOffer, "permanent" | "freeExpiresAt" | "plan" | "priceInCents">,
+): string {
   const when = hasNoEnd(o) ? "It has no end date." : `${priceLine(o)}.`;
   return `${when} You'll find it anytime under Manage Plan.`;
 }
 
 /** A tapped push for a plan offer (backend planOffers.ts notifyOffer). */
-export function isPlanOfferPush(data: { type?: unknown; screen?: unknown; offerId?: unknown } | null | undefined): boolean {
+export function isPlanOfferPush(
+  data:
+    | { type?: unknown; screen?: unknown; offerId?: unknown }
+    | null
+    | undefined,
+): boolean {
   return !!data && data.type === "plan_offer";
 }
 
 /** "gone": the offer was withdrawn, accepted elsewhere or isn't theirs, so close and forget it. */
-export function acceptErrorAction(status: number | undefined, code: string | undefined): "gone" | "message" {
-  if (code === "OFFER_NOT_AVAILABLE" || code === "OFFER_NOT_FOUND" || status === 404) return "gone";
+export function acceptErrorAction(
+  status: number | undefined,
+  code: string | undefined,
+): "gone" | "message" {
+  if (
+    code === "OFFER_NOT_AVAILABLE" ||
+    code === "OFFER_NOT_FOUND" ||
+    status === 404
+  )
+    return "gone";
   return "message";
 }
 
 /** Only a signed in business owner can have an offer. */
-export function shouldFetchOffer(user: { role?: string | null; isGuest?: boolean | null } | null | undefined): boolean {
+export function shouldFetchOffer(
+  user: { role?: string | null; isGuest?: boolean | null } | null | undefined,
+): boolean {
   return !!user && !user.isGuest && user.role === "business";
 }
 
@@ -187,18 +225,31 @@ export function planOfferWebUrl(token: string | null | undefined): string {
 const GENERIC_ERROR = "Something went wrong. Please try again in a moment.";
 
 /** The app's request helper throws { status, message, body }; the backend's body is { error: { code, message } }. */
-export function readAcceptFailure(err: unknown): { status: number | undefined; code: string | undefined; message: string } {
+export function readAcceptFailure(err: unknown): {
+  status: number | undefined;
+  code: string | undefined;
+  message: string;
+} {
   const e = (err ?? {}) as { status?: unknown; body?: { error?: unknown } };
   const status = typeof e.status === "number" ? e.status : undefined;
-  const inner = e.body && typeof e.body.error === "object" && e.body.error ? (e.body.error as { code?: unknown; message?: unknown }) : null;
+  const inner =
+    e.body && typeof e.body.error === "object" && e.body.error
+      ? (e.body.error as { code?: unknown; message?: unknown })
+      : null;
   const code = inner && typeof inner.code === "string" ? inner.code : undefined;
-  const msg = inner && typeof inner.message === "string" && inner.message.trim() ? inner.message : GENERIC_ERROR;
+  const msg =
+    inner && typeof inner.message === "string" && inner.message.trim()
+      ? inner.message
+      : GENERIC_ERROR;
   return { status, code, message: msg };
 }
 
 /** GET /api/vendor/plan-offer body → the offer, or null when there is none or it isn't one the app knows. */
 export function readOfferResponse(body: unknown): PlanOffer | null {
-  const o = (body as { offer?: unknown } | null)?.offer as Partial<PlanOffer> | null | undefined;
+  const o = (body as { offer?: unknown } | null)?.offer as
+    | Partial<PlanOffer>
+    | null
+    | undefined;
   if (!o || typeof o.id !== "string" || !o.id) return null;
   if (o.plan !== "grandfathered" && o.plan !== "free") return null;
   return o as PlanOffer;

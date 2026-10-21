@@ -26,6 +26,8 @@ import { useMessagePushLinks } from "@/hooks/useMessagePushLinks";
 import { useBookingPushLinks } from "@/hooks/useBookingPushLinks";
 import { useSubscriptionPushLinks } from "@/hooks/useSubscriptionPushLinks";
 import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
+import { usePlanOfferPushLinks } from "@/hooks/usePlanOfferPushLinks";
+import PlanOfferHost from "@/components/plan-offer/PlanOfferHost";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 
 // At most one "can this vendor get paid?" check per 10 minutes (a forced check after a Stripe return skips this).
@@ -81,6 +83,8 @@ export default function MainTabNavigator() {
   useBookingPushLinks();
   // Tapped subscription push (payment late, paused, back live, ...) → the plan screen
   useSubscriptionPushLinks();
+  // Tapped plan offer push (type plan_offer) → the offer popup
+  usePlanOfferPushLinks();
   const isGuest = user?.isGuest || !user;
 
   // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──
@@ -144,7 +148,8 @@ export default function MainTabNavigator() {
       connectReady: promptData.connectReady,
       stripeStatus: promptData.stripeStatus,
       eligibility: promptData.eligibility,
-      snoozed,
+      // isStripePromptSnoozed(): the plan offer's "Do this later" snoozes it from outside this component.
+      snoozed: snoozed || isStripePromptSnoozed(),
       blockingModalOpen,
       mainFocused,
     });
@@ -389,6 +394,8 @@ export default function MainTabNavigator() {
         />
       </Tab.Navigator>
       </SafeAreaInsetsContext.Provider>
+      {/* Hidden plan offer popup: registers with the modal coordinator, so the Stripe prompt waits for it. */}
+      <PlanOfferHost />
       <StripeConnectPrompt visible={showConnectPrompt} onSnooze={() => setSnoozed(true)} />
     </View>
   );

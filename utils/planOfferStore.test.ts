@@ -102,3 +102,12 @@ test("the same account checking again keeps its Not now", () => {
   store.setOffer(offer);
   assert.equal(store.wantsPopup(), false);
 });
+
+test("version changes on every change, so React can cache the snapshot", () => {
+  const v0 = store.getVersion();
+  store.setOffer(offer);
+  const v1 = store.getVersion();
+  assert.notEqual(v1, v0);
+  store.hideBanner();
+  assert.notEqual(store.getVersion(), v1);
+});

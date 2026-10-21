@@ -12,9 +12,16 @@ let openRequested = false;
 const popupSeen = new Set<string>();
 const bannerHidden = new Set<string>();
 const listeners = new Set<() => void>();
+let version = 0;
 
 function notify() {
+  version++;
   listeners.forEach((l) => l());
+}
+
+/** Bumped on every change (lets usePlanOffer cache its snapshot). */
+export function getVersion(): number {
+  return version;
 }
 
 export function subscribe(listener: () => void): () => void {
