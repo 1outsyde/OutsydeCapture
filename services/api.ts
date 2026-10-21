@@ -11,6 +11,7 @@ import {
   readOfferResponse,
   type PlanOffer,
 } from "@/utils/planOffer";
+import { refundRequestBody } from "@/utils/refundAmount";
 import type {
   RatingCheckResponse,
   Rating,
@@ -1173,6 +1174,9 @@ export interface PhotographerBooking {
   inPersonDueCents?: number | null;
   // Outsyde loyalty rewards the customer used, in cents (backend #314). Paid by Outsyde; the payout is unchanged.
   discountAmountCents?: number | null;
+  // Deposit charged online, in cents (GET /api/photographers/me/bookings). A
+  // full provider refund is this deposit, otherwise the price.
+  depositAmountCents?: number | null;
 }
 
 export interface AvailableSlot {
@@ -3921,15 +3925,16 @@ class ApiService {
     authToken: string, 
     type: "photographer" | "business", 
     bookingId: string,
-    amount?: number // Optional partial refund amount, full refund if not provided
-  ): Promise<{ success: boolean; refundedAmount?: number; message?: string }> {
-    const endpoint = type === "photographer" 
+    amount?: number // Partial refund in DOLLARS; full refund if not provided
+  ): Promise<{ success: boolean; amount?: number; refundedAmountCents?: number; message?: string }> {
+    const endpoint = type === "photographer"
       ? `/api/bookings/photographer/${bookingId}/refund`
       : `/api/bookings/appointments/${bookingId}/refund`;
     return this.request(endpoint, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
-      body: JSON.stringify({ amount }),
+      // Sent as cents (amountCents). The backend used to read dollars as cents.
+      body: JSON.stringify(refundRequestBody(amount)),
     });
   }
 
