@@ -15,6 +15,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { PhotographerBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
+import { fullRefundDollars, refundedDollars } from "@/utils/refundAmount";
 import BookingExtrasBlock from "@/components/BookingExtrasBlock";
 import {
   bookingStatusLabel,
@@ -151,6 +152,8 @@ function mapRawBooking(b: any): PhotographerBooking {
     customerDetails: typeof b.customerDetails === "string" ? b.customerDetails : null,
     inPersonDueCents: typeof b.inPersonDueCents === "number" ? b.inPersonDueCents : null,
     discountAmountCents: typeof b.discountAmountCents === "number" ? b.discountAmountCents : null,
+    // Deposit charged online (cents): a full refund returns this, not the price.
+    depositAmountCents: typeof b.depositAmountCents === "number" ? b.depositAmountCents : null,
   };
 }
 
@@ -240,7 +243,7 @@ export default function PhotographerBookingsScreen() {
     if (result.success) {
       Alert.alert(
         "Refund Issued",
-        `$${result.refundedAmount?.toFixed(2) ?? amount ?? selectedBooking.amount} has been refunded.`
+        `$${refundedDollars(result, amount, fullRefundDollars(selectedBooking)).toFixed(2)} has been refunded.`
       );
       fetchBookings(true);
     } else {
@@ -571,7 +574,7 @@ export default function PhotographerBookingsScreen() {
             setSelectedBooking(null);
           }}
           onConfirm={handleRefundConfirm}
-          bookingAmount={selectedBooking.vendorNetAmount ?? selectedBooking.amount}
+          bookingAmount={fullRefundDollars(selectedBooking)}
           clientName={selectedBooking.clientName}
           serviceName={selectedBooking.sessionType}
         />

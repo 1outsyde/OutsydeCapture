@@ -47,6 +47,7 @@ import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorM
 import BookingExtrasBlock from "@/components/BookingExtrasBlock";
 import AutoAcceptToggle from "@/components/AutoAcceptToggle";
 import RefundModal from "@/components/RefundModal";
+import { fullRefundDollars, refundedDollars } from "@/utils/refundAmount";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import {
   VendorBookerPhotographerService,
@@ -431,6 +432,8 @@ export default function PhotographerDashboardScreen() {
             addons: Array.isArray(b.addons) ? b.addons : null,
             customerDetails: typeof b.customerDetails === "string" ? b.customerDetails : null,
             inPersonDueCents: typeof b.inPersonDueCents === "number" ? b.inPersonDueCents : null,
+            // Deposit charged online (cents): a full refund returns this, not the price.
+            depositAmountCents: typeof b.depositAmountCents === "number" ? b.depositAmountCents : null,
           };
         });
         // Unpaid checkouts (draft, pending_payment) are never shown or counted.
@@ -1426,7 +1429,7 @@ export default function PhotographerDashboardScreen() {
 
     const result = await api.issueRefund(token, "photographer", selectedBookingForRefund.id, amount);
     if (result.success) {
-      Alert.alert("Refund Issued", `$${result.refundedAmount?.toFixed(2) || amount || selectedBookingForRefund.amount} has been refunded to the customer.`);
+      Alert.alert("Refund Issued", `$${refundedDollars(result, amount, fullRefundDollars(selectedBookingForRefund)).toFixed(2)} has been refunded to the customer.`);
       fetchDashboard();
     } else {
       throw new Error(result.message || "Failed to issue refund");
@@ -3767,7 +3770,7 @@ export default function PhotographerDashboardScreen() {
           setSelectedBookingForRefund(null);
         }}
         onConfirm={handleRefundConfirm}
-        bookingAmount={selectedBookingForRefund?.amount || 0}
+        bookingAmount={selectedBookingForRefund ? fullRefundDollars(selectedBookingForRefund) : 0}
         clientName={selectedBookingForRefund?.clientName || ""}
         serviceName={selectedBookingForRefund?.sessionType || ""}
       />

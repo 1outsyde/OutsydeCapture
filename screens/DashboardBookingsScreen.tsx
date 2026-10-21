@@ -18,6 +18,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { BusinessBooking } from "@/services/api";
 import RefundModal from "@/components/RefundModal";
+import { fullRefundDollars, refundedDollars } from "@/utils/refundAmount";
 import DeclineReasonModal from "@/components/DeclineReasonModal";
 import {
   bookingStatusLabel,
@@ -235,7 +236,7 @@ export default function DashboardBookingsScreen() {
     if (result.success) {
       Alert.alert(
         "Refund Issued",
-        `$${result.refundedAmount?.toFixed(2) ?? amount ?? selectedBooking.amount} has been refunded.`
+        `$${refundedDollars(result, amount, fullRefundDollars(selectedBooking)).toFixed(2)} has been refunded.`
       );
       fetchBookings(true);
     } else {
@@ -569,7 +570,7 @@ export default function DashboardBookingsScreen() {
             setSelectedBooking(null);
           }}
           onConfirm={handleRefundConfirm}
-          bookingAmount={selectedBooking.vendorNetAmount ?? selectedBooking.amount}
+          bookingAmount={fullRefundDollars(selectedBooking)}
           clientName={selectedBooking.customerName}
           serviceName={selectedBooking.serviceName}
         />
