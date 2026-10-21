@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   acceptErrorAction,
+  readAcceptFailure,
+  readOfferResponse,
   bannerText,
   formatEtDate,
   formatMoney,
@@ -198,4 +200,30 @@ test("web confirm url carries the app sign in", () => {
     "https://www.goutsyde.com/plan-offer?from=app&token=ey.a%2Bb%2Fc",
   );
   assert.equal(planOfferWebUrl(null), "https://www.goutsyde.com/plan-offer?from=app");
+});
+
+test("reads the backend error shape from an ApiError", () => {
+  assert.deepEqual(
+    readAcceptFailure({ status: 409, message: "[object Object]", body: { success: false, error: { code: "OFFER_BUSY", message: "Your plan is already being set up. Give it a moment." } } }),
+    { status: 409, code: "OFFER_BUSY", message: "Your plan is already being set up. Give it a moment." },
+  );
+  // a network error has no status or body
+  assert.deepEqual(readAcceptFailure({ message: "Network error" }), {
+    status: undefined,
+    code: undefined,
+    message: "Something went wrong. Please try again in a moment.",
+  });
+  // never show "[object Object]"
+  assert.equal(readAcceptFailure({ status: 500, message: "[object Object]", body: {} }).message, "Something went wrong. Please try again in a moment.");
+  assert.equal(readAcceptFailure(null).message, "Something went wrong. Please try again in a moment.");
+});
+
+test("reads the offer from GET /api/vendor/plan-offer", () => {
+  assert.equal(readOfferResponse({ success: true, offer: null }), null);
+  assert.equal(readOfferResponse(null), null);
+  assert.equal(readOfferResponse({ offer: { id: "" } }), null);
+  assert.equal(readOfferResponse({ offer: { id: "o1", plan: "other" } }), null);
+  const o = readOfferResponse({ offer: { ...grandfathered, extra: 1 } });
+  assert.equal(o?.id, "o1");
+  assert.equal(o?.plan, "grandfathered");
 });

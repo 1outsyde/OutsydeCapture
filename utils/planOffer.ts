@@ -148,7 +148,7 @@ export function freeDoneText(o: Pick<PlanOffer, "permanent" | "freeExpiresAt" | 
 }
 
 /** A tapped push for a plan offer (backend planOffers.ts notifyOffer). */
-export function isPlanOfferPush(data: { type?: unknown } | null | undefined): boolean {
+export function isPlanOfferPush(data: { type?: unknown; screen?: unknown; offerId?: unknown } | null | undefined): boolean {
   return !!data && data.type === "plan_offer";
 }
 
@@ -182,4 +182,24 @@ export function planOfferWebUrl(token: string | null | undefined): string {
   return token
     ? `${PLAN_OFFER_WEB_URL}?from=app&token=${encodeURIComponent(token)}`
     : `${PLAN_OFFER_WEB_URL}?from=app`;
+}
+
+const GENERIC_ERROR = "Something went wrong. Please try again in a moment.";
+
+/** The app's request helper throws { status, message, body }; the backend's body is { error: { code, message } }. */
+export function readAcceptFailure(err: unknown): { status: number | undefined; code: string | undefined; message: string } {
+  const e = (err ?? {}) as { status?: unknown; body?: { error?: unknown } };
+  const status = typeof e.status === "number" ? e.status : undefined;
+  const inner = e.body && typeof e.body.error === "object" && e.body.error ? (e.body.error as { code?: unknown; message?: unknown }) : null;
+  const code = inner && typeof inner.code === "string" ? inner.code : undefined;
+  const msg = inner && typeof inner.message === "string" && inner.message.trim() ? inner.message : GENERIC_ERROR;
+  return { status, code, message: msg };
+}
+
+/** GET /api/vendor/plan-offer body → the offer, or null when there is none or it isn't one the app knows. */
+export function readOfferResponse(body: unknown): PlanOffer | null {
+  const o = (body as { offer?: unknown } | null)?.offer as Partial<PlanOffer> | null | undefined;
+  if (!o || typeof o.id !== "string" || !o.id) return null;
+  if (o.plan !== "grandfathered" && o.plan !== "free") return null;
+  return o as PlanOffer;
 }
