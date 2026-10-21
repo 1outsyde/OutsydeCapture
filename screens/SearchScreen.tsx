@@ -293,12 +293,23 @@ export default function SearchScreen() {
       if (item.businessId) {
         navigation.navigate("StaffWorkProfile", { businessId: item.businessId, staffId: item.id });
       } else {
-        navigation.navigate("UserProfile", { userId: item.userId || item.id, userType: "consumer" });
+        openPersonProfile(item.userId || item.id);
       }
     } else {
-      navigation.navigate("UserProfile", { userId: item.userId || item.id, userType: "consumer" });
+      openPersonProfile(item.userId || item.id);
     }
   };
+
+  // People open the main profile (VendorDetail): Follow, Message, followers, posts. The old
+  // UserProfile screen had no Message button. Your own result keeps opening your own profile
+  // there, which has Edit.
+  function openPersonProfile(personId: string) {
+    if (user?.id && String(personId) === String(user.id)) {
+      navigation.navigate("UserProfile", { userId: personId, userType: "consumer" });
+      return;
+    }
+    navigation.navigate("VendorDetail", { vendorId: personId });
+  }
 
   const filteredResults = useMemo(() => {
     if (activeTab === "all") return results;
