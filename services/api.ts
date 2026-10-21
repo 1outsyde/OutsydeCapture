@@ -5258,6 +5258,7 @@ class ApiService {
   }
 
   async createHoldPaymentIntent(
+    authToken: string,
     holdId: string,
     customerAddress?: {
       customerServiceAddress?: string;
@@ -5305,9 +5306,12 @@ class ApiService {
   }> {
     const body: Record<string, unknown> = { ...(customerAddress ?? {}) };
     if (promoCodeId !== undefined) body.promoCodeId = promoCodeId;
+    // Sends the login token like every other booking call. Without it the
+    // backend only had the session cookie, which can be missing or expired.
     return this.request(`/api/booking/${holdId}/create-payment-intent`, {
       method: "POST",
       body: JSON.stringify(body),
+      headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
