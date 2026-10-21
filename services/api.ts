@@ -163,6 +163,11 @@ export interface ApiBusinessStaffMember {
   serviceIds?: string[];
   rating?: number;
   reviewCount?: number;
+  /** Followers of the staff member's account (2026-10-21; missing on older backends). */
+  followerCount?: number;
+  followingCount?: number;
+  /** Linked to an account, so it can be followed by staff id. */
+  canFollow?: boolean;
 }
 
 // The real staff_members row shape returned by GET /api/staff/me (server/storage.ts StaffMember).

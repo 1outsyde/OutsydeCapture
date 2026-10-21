@@ -964,34 +964,24 @@ export default function BookingScreen() {
     setShowHoldExpiredModal(true);
   };
 
-  // "Back to {photographer}": the photographer's profile. Goes back when the
-  // profile is the previous screen, otherwise replaces this screen with it.
+  // "Back to {photographer}": the photographer's profile. Goes back when a
+  // profile is the previous screen, otherwise replaces this screen with the main
+  // profile (VendorDetail: follow button, followers, posts), not the old
+  // PhotographerDetail screen, which had no follow.
   const handleHoldExpiredBack = () => {
     setShowHoldExpiredModal(false);
     const state = navigation.getState();
     const prev = state?.routes?.[state.index - 1];
-    if (prev?.name === "PhotographerDetail" && navigation.canGoBack()) {
+    if ((prev?.name === "VendorDetail" || prev?.name === "PhotographerDetail") && navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-    if (!photographer) {
+    const photographerProfileId = photographer?.id || routePhotographer?.id;
+    if (!photographerProfileId) {
       if (navigation.canGoBack()) navigation.goBack();
       return;
     }
-    const target = (routePhotographer ?? {
-      id: photographer.id,
-      name: photographer.name,
-      avatar: photographer.avatar,
-      specialty: photographer.specialty,
-      location: photographer.location,
-      rating: photographer.rating,
-      reviewCount: photographer.reviewCount,
-      priceRange: photographer.priceRange,
-      bio: photographer.bio,
-      portfolio: [],
-      availability: [],
-    }) as RootStackParamList["PhotographerDetail"]["photographer"];
-    navigation.replace("PhotographerDetail", { photographer: target });
+    navigation.replace("VendorDetail", { vendorId: String(photographerProfileId) });
   };
 
   // X: close and go to the home screen.

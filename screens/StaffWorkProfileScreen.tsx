@@ -6,8 +6,8 @@
 //
 // Data reality (see PR description for full gap list):
 // - Posts: no staff-post backend exists yet — empty state only.
-// - Follow: rendered to match the real business-profile look, but inert
-//   (staff members aren't a followable entity type in the backend yet).
+// - Follow: real (2026-10-21). Staff are followed by staff id; the backend resolves it to the
+//   staff member's linked account, so their user id is never public. Followers opens the list.
 // - Message: opens a chat with the business (staff have no public user id
 //   or "staff" participant type; the business is who customers book with).
 // - Book actions: no staff-specific booking flow exists yet, so they
@@ -15,7 +15,7 @@
 //   real entry point) rather than a fabricated flow.
 // ─────────────────────────────────────────────────────────────
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -34,6 +34,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
 import apiClient from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
@@ -138,6 +139,16 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   );
   const [activeTab, setActiveTab] = useState<StaffTab>("posts");
   const [bookingFlowActive, setBookingFlowActive] = useState(false);
+  // Follow (staff id → linked account on the backend).
+  const { user, isAuthenticated, getToken } = useAuth();
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [canFollow, setCanFollow] = useState(false);
+  const isOwnStaffProfile = !!user?.staffId && String(user.staffId) === String(staffId);
 
   const accentColor = resolveBrandColor(brandColors, isDark ? "dark" : "light");
 
@@ -196,6 +207,10 @@ export default function StaffWorkProfileScreen({ route }: Props) {
           rating: Number(member.rating ?? 0),
           reviewCount: Number(member.reviewCount ?? 0),
         });
+        setFollowerCount(Number(member.followerCount ?? 0));
+        setFollowingCount(Number(member.followingCount ?? 0));
+        // Older backends don't send canFollow: keep the button off rather than show an error.
+        setCanFollow(member.canFollow === true);
 
         const liveStaffServices = (serviceResult.services || []).map((service) => ({
           id: String(service.id),
@@ -244,9 +259,61 @@ export default function StaffWorkProfileScreen({ route }: Props) {
     setBookingFlowActive(true);
   }, []);
 
-  const handleInertAction = useCallback((label: string) => {
-    Alert.alert("Coming soon", `${label} will be wired in a follow-up update.`);
-  }, []);
+  // Follow status for the signed-in viewer (token through a ref: runs when the profile changes,
+  // not on every auth render).
+  useEffect(() => {
+    if (!staff || !canFollow || !isAuthenticated || isOwnStaffProfile) return;
+    let active = true;
+    getTokenRef.current()
+      .catch(() => null)
+      .then((token) => apiClient.checkFollowStatus(staffId, token))
+      .then((result) => { if (active) setIsFollowing(result.isFollowing); })
+      .catch(() => { if (active) setIsFollowing(false); });
+    return () => { active = false; };
+  }, [staff, canFollow, isAuthenticated, isOwnStaffProfile, staffId]);
+
+  const handleFollowToggle = useCallback(async () => {
+    if (followBusy) return;
+    if (!isAuthenticated) {
+      Alert.alert("Sign In Required", "Please sign in to follow accounts.");
+      return;
+    }
+    if (!canFollow) {
+      Alert.alert("Not available yet", "This team member can't be followed yet.");
+      return;
+    }
+    const wasFollowing = isFollowing;
+    const previous = followerCount;
+    setFollowBusy(true);
+    setIsFollowing(!wasFollowing);
+    setFollowerCount(wasFollowing ? Math.max(0, previous - 1) : previous + 1);
+    try {
+      const token = await getTokenRef.current().catch(() => null);
+      if (wasFollowing) {
+        await apiClient.unfollowUser(staffId, token);
+      } else {
+        await apiClient.followUser(staffId, "user", token);
+      }
+    } catch (error) {
+      console.error("[StaffWorkProfile] follow toggle failed:", error);
+      setIsFollowing(wasFollowing);
+      setFollowerCount(previous);
+      Alert.alert("Unable to update follow", "Please try again.");
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [followBusy, isAuthenticated, canFollow, isFollowing, followerCount, staffId]);
+
+  const openFollowList = useCallback(() => {
+    if (!canFollow) return;
+    navigation.navigate("FollowList", {
+      profileId: staffId,
+      initialTab: "followers",
+      title: staff?.displayName,
+      followerCount,
+      followingCount,
+    });
+  }, [canFollow, navigation, staffId, staff?.displayName, followerCount, followingCount]);
 
   const minPriceCents = useMemo(() => {
     if (services.length === 0) return undefined;
@@ -509,12 +576,24 @@ export default function StaffWorkProfileScreen({ route }: Props) {
               )}
             </View>
             <View style={styles.actionsWrap}>
-              <Pressable
-                style={[styles.followButton, { backgroundColor: accentColor }]}
-                onPress={() => handleInertAction("Follow")}
-              >
-                <Text style={styles.followButtonText}>Follow</Text>
-              </Pressable>
+              {isOwnStaffProfile ? null : (
+                <Pressable
+                  style={[
+                    styles.followButton,
+                    isFollowing
+                      ? { backgroundColor: "transparent", borderWidth: 1, borderColor: accentColor }
+                      : { backgroundColor: accentColor },
+                  ]}
+                  onPress={handleFollowToggle}
+                  disabled={followBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel={isFollowing ? "Unfollow" : "Follow"}
+                >
+                  <Text style={[styles.followButtonText, isFollowing && { color: accentColor }]}>
+                    {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
+                  </Text>
+                </Pressable>
+              )}
               <Pressable
                 style={[styles.messageButton, { backgroundColor: cardSurface }]}
                 onPress={() =>
@@ -591,10 +670,16 @@ export default function StaffWorkProfileScreen({ route }: Props) {
               <Text style={[styles.statLabel, { color: textMuted }]}>Posts</Text>
             </View>
             <View style={[styles.statDivider, { backgroundColor: hairline }]} />
-            <View style={styles.statCol}>
-              <Text style={[styles.statValue, { color: textPrimary }]}>0</Text>
+            <Pressable
+              style={styles.statCol}
+              onPress={openFollowList}
+              disabled={!canFollow}
+              accessibilityRole="button"
+              accessibilityLabel={`${followerCount} followers`}
+            >
+              <Text style={[styles.statValue, { color: textPrimary }]}>{followerCount}</Text>
               <Text style={[styles.statLabel, { color: textMuted }]}>Followers</Text>
-            </View>
+            </Pressable>
             <View style={[styles.statDivider, { backgroundColor: hairline }]} />
             <View style={styles.statCol}>
               <Text style={[styles.statValue, { color: textPrimary }]}>0</Text>
