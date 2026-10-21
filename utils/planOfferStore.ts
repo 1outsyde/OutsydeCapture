@@ -11,6 +11,19 @@ let checking = false;
 let openRequested = false;
 const popupSeen = new Set<string>();
 const bannerHidden = new Set<string>();
+/** Offers claimed in this launch: a late answer that still lists one as pending is ignored. */
+const claimedIds = new Set<string>();
+let claimed: Claimed | null = null;
+let checkRequest = 0;
+let recheckPending = false;
+
+/** The free plan was claimed: the done screen lives here so a remount (dashboard reload) keeps it. */
+export interface Claimed {
+  offer: PlanOffer;
+  /** Which popup shows the done screen. */
+  where: "main" | "dashboard";
+  payoutsReady: boolean;
+}
 const listeners = new Set<() => void>();
 let version = 0;
 
@@ -40,6 +53,9 @@ export function resetForUser(id: string | null): void {
   openRequested = false;
   popupSeen.clear();
   bannerHidden.clear();
+  claimedIds.clear();
+  claimed = null;
+  recheckPending = false;
   notify();
 }
 
@@ -59,7 +75,7 @@ export function setChecking(value: boolean): void {
 
 /** Result of GET /api/vendor/plan-offer (also ends the check). */
 export function setOffer(next: PlanOffer | null): void {
-  offer = next;
+  offer = next && claimedIds.has(next.id) ? null : next;
   checking = false;
   notify();
 }
@@ -90,8 +106,48 @@ export function hideBanner(): void {
   notify();
 }
 
-/** A push, Activity or banner tap: show the popup again (once the offer has loaded). */
+/** A push, Activity or banner tap: show the popup again, and check now (the offer may be brand new). */
 export function requestOpen(): void {
   openRequested = true;
+  checkRequest++;
+  notify();
+}
+
+/** Bumped when something asks for a fresh check; useCheckPlanOffer answers with a forced check. */
+export function getCheckRequest(): number {
+  return checkRequest;
+}
+
+/** Sent to goutsyde.com to confirm: check again the moment the app is back (skips the throttle). */
+export function recheckOnReturn(): void {
+  recheckPending = true;
+}
+
+export function consumeRecheckOnReturn(): boolean {
+  const was = recheckPending;
+  recheckPending = false;
+  return was;
+}
+
+export function markClaimed(
+  o: PlanOffer,
+  where: Claimed["where"],
+  payoutsReady: boolean,
+): void {
+  claimedIds.add(o.id);
+  claimed = { offer: o, where, payoutsReady };
+  offer = null;
+  openRequested = false;
+  checking = false;
+  notify();
+}
+
+export function getClaimed(): Claimed | null {
+  return claimed;
+}
+
+/** The vendor closed the done screen. */
+export function finishClaimed(): void {
+  claimed = null;
   notify();
 }

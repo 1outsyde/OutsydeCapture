@@ -14,7 +14,7 @@ import {
   registerWhile,
   subscribe as subscribeModals,
 } from "@/utils/modalCoordinator";
-import { shouldShowOfferPopup, type PlanOffer } from "@/utils/planOffer";
+import { shouldShowOfferPopup } from "@/utils/planOffer";
 import * as store from "@/utils/planOfferStore";
 
 const KEY = "plan-offer";
@@ -23,12 +23,8 @@ export default function PlanOfferHost() {
   useCheckPlanOffer();
   const navigation = useNavigation<any>();
   const mainFocused = useIsFocused();
-  const { offer, wantsPopup, checking } = usePlanOffer();
+  const { offer, wantsPopup, checking, claimed } = usePlanOffer();
   const [othersOpen, setOthersOpen] = useState(isAnyOpenExcept(KEY));
-  // The free plan "done" screen stays up after the claim even though the offer is no longer pending.
-  // A recheck that finds no pending offer must not close it, so the host keeps its own copy.
-  const [finishingOffer, setFinishingOffer] = useState<PlanOffer | null>(null);
-  const finishing = !!finishingOffer;
 
   useEffect(() => {
     const sync = () => setOthersOpen(isAnyOpenExcept(KEY));
@@ -36,8 +32,10 @@ export default function PlanOfferHost() {
     return subscribeModals(sync);
   }, []);
 
+  // The done screen of a claim made here stays up (from the store) until the vendor closes it.
+  const claimedHere = claimed?.where === "main" ? claimed : null;
   const visible =
-    finishing ||
+    !!claimedHere ||
     shouldShowOfferPopup({
       hasOffer: !!offer,
       wantsPopup,
@@ -47,24 +45,29 @@ export default function PlanOfferHost() {
 
   useEffect(() => registerWhile(KEY, checking || visible), [checking, visible]);
 
-  const shown = finishingOffer ?? offer;
+  const shown = claimedHere?.offer ?? offer;
   if (!shown) return null;
+
+  const finish = () => {
+    // "Do this later" already answered the payouts question for this launch.
+    if (claimedHere && !claimedHere.payoutsReady)
+      snoozeStripePromptUntilRelaunch();
+    store.finishClaimed();
+  };
 
   return (
     <PlanOfferSheet
       offer={shown}
       visible={visible}
+      done={claimedHere ? { payoutsReady: claimedHere.payoutsReady } : null}
       onDismiss={() => store.dismissPopup()}
-      onClaimed={() => setFinishingOffer(shown)}
-      onFinished={() => {
-        // Closing the done screen ("Do this later", Done or X) also answers the payouts question for now.
-        if (finishingOffer) snoozeStripePromptUntilRelaunch();
-        setFinishingOffer(null);
-        store.clearOffer();
-      }}
+      onClaimed={(payoutsReady) =>
+        store.markClaimed(shown, "main", payoutsReady)
+      }
+      onGone={() => store.clearOffer()}
+      onFinished={finish}
       onSetUpPayouts={() => {
-        setFinishingOffer(null);
-        store.clearOffer();
+        store.finishClaimed();
         navigation.navigate("FinishSetup");
       }}
     />

@@ -254,3 +254,14 @@ export function readOfferResponse(body: unknown): PlanOffer | null {
   if (o.plan !== "grandfathered" && o.plan !== "free") return null;
   return o as PlanOffer;
 }
+
+/** How long the warning screen ignores taps, so the second tap of a double tap on "Review and claim"
+ *  (same spot on screen) can never claim and end the paid plan unseen. */
+export const WARNING_TAP_DELAY_MS = 700;
+
+export function warningTapAllowed(
+  shownAt: number | null,
+  now: number,
+): boolean {
+  return shownAt !== null && now - shownAt >= WARNING_TAP_DELAY_MS;
+}

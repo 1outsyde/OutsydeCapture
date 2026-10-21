@@ -111,3 +111,45 @@ test("version changes on every change, so React can cache the snapshot", () => {
   store.hideBanner();
   assert.notEqual(store.getVersion(), v1);
 });
+
+test("claimed: pending offer cleared at once, done screen kept in the store (review C2)", () => {
+  store.setOffer(offer);
+  store.markClaimed(offer, "dashboard", false);
+  assert.equal(store.getOffer(), null);
+  assert.equal(store.showBanner(), false);
+  assert.deepEqual(store.getClaimed(), {
+    offer,
+    where: "dashboard",
+    payoutsReady: false,
+  });
+  store.finishClaimed();
+  assert.equal(store.getClaimed(), null);
+});
+
+test("a late answer with the offer just claimed never brings it back", () => {
+  store.setOffer(offer);
+  store.markClaimed(offer, "main", true);
+  store.setOffer(offer);
+  assert.equal(store.getOffer(), null);
+  store.setOffer(other);
+  assert.equal(store.getOffer()?.id, "o2");
+});
+
+test("requestOpen asks for a check", () => {
+  const v = store.getCheckRequest();
+  store.requestOpen();
+  assert.equal(store.getCheckRequest(), v + 1);
+});
+
+test("after goutsyde.com, the next return to the app rechecks once (review I3)", () => {
+  assert.equal(store.consumeRecheckOnReturn(), false);
+  store.recheckOnReturn();
+  assert.equal(store.consumeRecheckOnReturn(), true);
+  assert.equal(store.consumeRecheckOnReturn(), false);
+});
+
+test("another account forgets a claimed screen", () => {
+  store.markClaimed(offer, "main", true);
+  store.resetForUser("u2");
+  assert.equal(store.getClaimed(), null);
+});

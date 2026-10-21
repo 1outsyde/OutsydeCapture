@@ -20,5 +20,7 @@ export function openPlanOffer(
   }
   if (!shouldFetchOffer(user)) return;
   requestOpen();
-  navigation.navigate("Main");
+  // pop: back to the main tabs already under this screen. A plain navigate("Main") from a root stack
+  // screen (dashboard, setup) pushes a second copy of the tabs and every push hook with it.
+  navigation.navigate("Main", undefined, { pop: true });
 }

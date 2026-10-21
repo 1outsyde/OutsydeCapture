@@ -12,7 +12,7 @@ import PlanOfferSheet from "@/components/plan-offer/PlanOfferSheet";
 import { snoozeStripePromptUntilRelaunch } from "@/components/StripeConnectPrompt";
 import { usePlanOffer } from "@/hooks/usePlanOffer";
 import { isAnyOpenExcept, registerWhile } from "@/utils/modalCoordinator";
-import { bannerText, type PlanOffer } from "@/utils/planOffer";
+import { bannerText } from "@/utils/planOffer";
 import * as store from "@/utils/planOfferStore";
 
 const KEY = "plan-offer-dashboard";
@@ -25,21 +25,27 @@ export function usePlanOfferBannerVisible(): boolean {
 
 export default function PlanOfferBanner({ topInset }: { topInset: number }) {
   const navigation = useNavigation<any>();
-  const { offer, showBanner } = usePlanOffer();
+  const { offer, showBanner, claimed } = usePlanOffer();
   const [open, setOpen] = useState(false);
-  const [finishingOffer, setFinishingOffer] = useState<PlanOffer | null>(null);
-  const sheetVisible = open || !!finishingOffer;
+  // The done screen of a claim made here lives in the store, so a dashboard reload keeps it.
+  const claimedHere = claimed?.where === "dashboard" ? claimed : null;
+  const sheetVisible = (open && !!offer) || !!claimedHere;
+
+  // The offer went away while the sheet was open (withdrawn, accepted elsewhere): close it for good.
+  useEffect(() => {
+    if (!offer && open) setOpen(false);
+  }, [offer, open]);
 
   useEffect(() => registerWhile(KEY, sheetVisible), [sheetVisible]);
 
-  const shown = finishingOffer ?? offer;
+  const shown = claimedHere?.offer ?? offer;
   const bannerOn = !!offer && showBanner;
 
   const finish = () => {
-    if (finishingOffer) snoozeStripePromptUntilRelaunch();
+    if (claimedHere && !claimedHere.payoutsReady)
+      snoozeStripePromptUntilRelaunch();
     setOpen(false);
-    setFinishingOffer(null);
-    store.clearOffer();
+    store.finishClaimed();
   };
 
   return (
@@ -77,11 +83,19 @@ export default function PlanOfferBanner({ topInset }: { topInset: number }) {
         <PlanOfferSheet
           offer={shown}
           visible={sheetVisible}
+          done={claimedHere ? { payoutsReady: claimedHere.payoutsReady } : null}
           onDismiss={() => {
             setOpen(false);
             store.dismissPopup();
           }}
-          onClaimed={() => setFinishingOffer(shown)}
+          onClaimed={(payoutsReady) => {
+            setOpen(false);
+            store.markClaimed(shown, "dashboard", payoutsReady);
+          }}
+          onGone={() => {
+            setOpen(false);
+            store.clearOffer();
+          }}
           onFinished={finish}
           onSetUpPayouts={() => {
             finish();

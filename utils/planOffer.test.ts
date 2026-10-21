@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   acceptErrorAction,
   readAcceptFailure,
+  warningTapAllowed,
   readOfferResponse,
   bannerText,
   formatEtDate,
@@ -300,4 +301,11 @@ test("reads the offer from GET /api/vendor/plan-offer", () => {
   const o = readOfferResponse({ offer: { ...grandfathered, extra: 1 } });
   assert.equal(o?.id, "o1");
   assert.equal(o?.plan, "grandfathered");
+});
+
+test("warning screen ignores the second tap of a double tap (review C1)", () => {
+  assert.equal(warningTapAllowed(1000, 1100), false);
+  assert.equal(warningTapAllowed(1000, 1000 + 699), false);
+  assert.equal(warningTapAllowed(1000, 1000 + 700), true);
+  assert.equal(warningTapAllowed(null, 5000), false);
 });

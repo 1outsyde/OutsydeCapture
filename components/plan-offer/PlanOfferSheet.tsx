@@ -28,8 +28,10 @@ import {
   freeWarningCopy,
   planOfferWebUrl,
   popupCopy,
+  warningTapAllowed,
   type PlanOffer,
 } from "@/utils/planOffer";
+import * as store from "@/utils/planOfferStore";
 
 const C = {
   black: "#000000",
@@ -49,27 +51,36 @@ const C = {
   error: "#B42318",
 };
 
-type Mode = "offer" | "warning" | "done";
+type Mode = "offer" | "warning";
 
 interface Props {
   offer: PlanOffer;
   visible: boolean;
+  /** Set once the free plan is claimed: the sheet shows "Your free plan is active" (state lives in the store). */
+  done: { payoutsReady: boolean } | null;
   /** X or Not now on the offer or warning screen: the banner takes over. */
   onDismiss: () => void;
-  /** The offer is gone (withdrawn, accepted elsewhere) or the free plan was claimed and the vendor closed the done screen. */
+  /** The free plan was claimed (payoutsReady false = show the Stripe payouts step). */
+  onClaimed: (payoutsReady: boolean) => void;
+  /** The offer was withdrawn, accepted elsewhere or isn't theirs any more. */
+  onGone: () => void;
+  /** The vendor closed the done screen. */
   onFinished: () => void;
-  /** The free plan was claimed: the done screen must stay up until the vendor closes it. */
-  onClaimed: () => void;
   /** "Set up payouts" on the done screen. */
   onSetUpPayouts: () => void;
 }
 
+const SIGN_IN_AGAIN = "Please sign in again and retry.";
+const TRY_AGAIN = "Something went wrong. Please try again in a moment.";
+
 export default function PlanOfferSheet({
   offer,
   visible,
+  done,
   onDismiss,
-  onFinished,
   onClaimed,
+  onGone,
+  onFinished,
   onSetUpPayouts,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -77,45 +88,72 @@ export default function PlanOfferSheet({
   const [mode, setMode] = useState<Mode>("offer");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [payoutsReady, setPayoutsReady] = useState(true);
   const busyRef = useRef(false);
+  const warningShownAtRef = useRef<number | null>(null);
+  const payoutsReady = done?.payoutsReady ?? true;
 
-  // A new offer (or reopening) always starts on the offer screen.
+  // Opening (or a different offer) always starts on the offer screen.
   useEffect(() => {
-    if (visible && mode !== "done") {
+    if (visible) {
       setMode("offer");
       setError("");
+      warningShownAtRef.current = null;
     }
-    // mode is left out on purpose: only a reopen resets it
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, offer.id]);
 
   const copy = popupCopy(offer);
   const warning = freeWarningCopy(offer);
 
-  async function claimFree() {
+  function showWarning() {
+    setError("");
+    warningShownAtRef.current = Date.now();
+    setMode("warning");
+  }
+
+  async function claimFree(fromWarning: boolean) {
     if (busyRef.current) return;
+    // The warning's button sits where "Review and claim" was: a double tap must not claim unseen.
+    if (
+      fromWarning &&
+      !warningTapAllowed(warningShownAtRef.current, Date.now())
+    )
+      return;
     busyRef.current = true;
     setBusy(true);
     setError("");
     try {
       const token = await getToken();
       if (!token) {
-        setError("Please sign in again and retry.");
+        setError(SIGN_IN_AGAIN);
         return;
+      }
+      if (!fromWarning) {
+        // One tap only while it still can't end a paid plan: the vendor may have subscribed since we last checked.
+        const fresh = await api.getPlanOffer(token).catch(() => undefined);
+        if (fresh === undefined) {
+          setError(TRY_AGAIN);
+          return;
+        }
+        if (!fresh || fresh.id !== offer.id) {
+          onGone();
+          return;
+        }
+        if (fresh.outcome === "replace_paid_with_free") {
+          store.setOffer(fresh);
+          showWarning();
+          return;
+        }
       }
       const res = await api.acceptPlanOffer(token, offer.id);
       if (res.ok) {
         // Payouts step only when we know payouts aren't set up (a failed check hides it, fail quiet).
         const sub = await api.getCurrentSubscription(token).catch(() => null);
-        setPayoutsReady(sub?.subscription?.connectReady !== false);
+        onClaimed(sub?.subscription?.connectReady === false ? false : true);
         refreshUser().catch(() => {});
-        onClaimed();
-        setMode("done");
         return;
       }
       if (acceptErrorAction(res.status, res.code) === "gone") {
-        onFinished();
+        onGone();
         return;
       }
       setError(res.message);
@@ -132,8 +170,9 @@ export default function PlanOfferSheet({
     setError("");
     try {
       const token = await getToken();
+      // Check again the moment the vendor is back, so a paid offer doesn't linger as "waiting".
+      store.recheckOnReturn();
       await Linking.openURL(planOfferWebUrl(token));
-      // Back in the app the offer is checked again; the banner stays until it is accepted.
       onDismiss();
     } catch {
       setError("We couldn't open goutsyde.com. Please try again.");
@@ -144,18 +183,15 @@ export default function PlanOfferSheet({
   }
 
   function onPrimary() {
-    if (copy.primaryAction === "claim") return claimFree();
-    if (copy.primaryAction === "review_free") {
-      setError("");
-      setMode("warning");
-      return;
-    }
+    if (mode === "warning") return claimFree(true);
+    if (copy.primaryAction === "claim") return claimFree(false);
+    if (copy.primaryAction === "review_free") return showWarning();
     return openWeb();
   }
 
   function close() {
     if (busyRef.current) return;
-    if (mode === "done") onFinished();
+    if (done) onFinished();
     else onDismiss();
   }
 
@@ -169,7 +205,7 @@ export default function PlanOfferSheet({
       onRequestClose={close}
       statusBarTranslucent
     >
-      {mode === "done" ? (
+      {done ? (
         <View
           style={[
             styles.dark,
@@ -316,7 +352,7 @@ export default function PlanOfferSheet({
                   accessibilityRole="button"
                   accessibilityState={{ busy, disabled: busy }}
                   disabled={busy}
-                  onPress={mode === "warning" ? claimFree : onPrimary}
+                  onPress={onPrimary}
                   style={[
                     styles.btn,
                     { backgroundColor: C.black, opacity: busy ? 0.7 : 1 },

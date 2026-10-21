@@ -19,6 +19,8 @@ function snapshot() {
     wantsPopup: store.wantsPopup(),
     showBanner: store.showBanner(),
     checking: store.isChecking(),
+    claimed: store.getClaimed(),
+    checkRequest: store.getCheckRequest(),
   };
 }
 
@@ -87,8 +89,18 @@ export function useCheckPlanOffer() {
     if (!eligible) return;
     check(true);
     const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
-      if (next === "active") check(false);
+      // Back from goutsyde.com: check right away (skips the throttle), so a paid offer doesn't linger.
+      if (next === "active") check(store.consumeRecheckOnReturn());
     });
     return () => sub.remove();
   }, [eligible, ownerKey, check]);
+
+  // A push, Activity or banner tap asks for a fresh check (the offer may have just been sent).
+  const { checkRequest } = usePlanOffer();
+  const lastRequestRef = useRef(checkRequest);
+  useEffect(() => {
+    if (checkRequest === lastRequestRef.current) return;
+    lastRequestRef.current = checkRequest;
+    check(true);
+  }, [checkRequest, check]);
 }
