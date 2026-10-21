@@ -6,6 +6,11 @@ import {
 } from "@/utils/tokenStorage";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/api/client";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
+import {
+  readAcceptFailure,
+  readOfferResponse,
+  type PlanOffer,
+} from "@/utils/planOffer";
 import { refundRequestBody } from "@/utils/refundAmount";
 import type {
   RatingCheckResponse,
@@ -5350,6 +5355,55 @@ class ApiService {
     });
     console.log("ELIGIBILITY RESPONSE:", JSON.stringify(response, null, 2));
     return this.normalizeVendorEligibility(response);
+  }
+
+  /** Hidden plan offer for the signed in business owner (backend #346), or null. Own method on purpose:
+   *  normalizeVendorEligibility keeps only known fields. */
+  async getPlanOffer(authToken: string): Promise<PlanOffer | null> {
+    const response = await this.request<unknown>("/api/vendor/plan-offer", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return readOfferResponse(response);
+  }
+
+  /** Accept a plan offer. The app only calls this for free offers; paid ones are confirmed on goutsyde.com. */
+  async acceptPlanOffer(
+    authToken: string,
+    offerId: string,
+  ): Promise<
+    | {
+        ok: true;
+        plan: string | null;
+        freeExpiresAt: string | null;
+        permanent: boolean;
+      }
+    | {
+        ok: false;
+        status: number | undefined;
+        code: string | undefined;
+        message: string;
+      }
+  > {
+    try {
+      const res = await this.request<any>("/api/vendor/plan-offer/accept", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ offerId }),
+      });
+      if (res?.accepted === true) {
+        return {
+          ok: true,
+          plan: typeof res.plan === "string" ? res.plan : null,
+          freeExpiresAt:
+            typeof res.freeExpiresAt === "string" ? res.freeExpiresAt : null,
+          permanent: res.permanent === true,
+        };
+      }
+      // A paid offer answers checkoutUrl or pendingPayment instead; the app never asks for those.
+      return { ok: false, ...readAcceptFailure(null) };
+    } catch (err) {
+      return { ok: false, ...readAcceptFailure(err) };
+    }
   }
 
   async getSubscriptionTiers(authToken: string): Promise<{ tiers: SubscriptionTier[] }> {

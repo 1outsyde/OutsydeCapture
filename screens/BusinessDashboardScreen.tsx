@@ -32,6 +32,9 @@ import { displayRating } from "@/types/ratings";
 import { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
+import PlanOfferBanner, {
+  usePlanOfferBannerVisible,
+} from "@/components/plan-offer/PlanOfferBanner";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
 type BusinessType = "service" | "product" | "both";
@@ -67,6 +70,8 @@ function SectionLabel({ text }: { text: string }) {
 export default function BusinessDashboardScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  // Plan offer banner (artboard Reminder): above the header, takes the top inset.
+  const offerBannerOn = usePlanOfferBannerVisible();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { getToken, logout, user, isLoading: authLoading } = useAuth();
   // Latest getToken without making it an effect dependency (it is recreated every render).
@@ -754,8 +759,10 @@ export default function BusinessDashboardScreen() {
       contentContainerStyle={{ paddingTop: 0, paddingBottom: 0, paddingHorizontal: 0 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={DASHBOARD_COLORS.gold} />}
     >
+      <PlanOfferBanner topInset={insets.top} />
+
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, offerBannerOn && { paddingTop: 12 }]}>
         <Pressable onPress={handleGoBack} style={styles.backButton}>
           <Feather name="arrow-left" size={24} color={DASHBOARD_COLORS.cream} />
         </Pressable>

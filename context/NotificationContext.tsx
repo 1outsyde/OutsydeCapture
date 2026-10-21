@@ -38,7 +38,9 @@ export interface Notification {
     | "new_photographer_application" | "new_influencer_application" | "new_follower"
     // Booking request pushes (backend manualRequests.ts); routed by services/bookingPush.ts.
     | "booking_request" | "booking_request_sent" | "booking_request_reminder"
-    | "booking_expired";
+    | "booking_expired"
+    // Hidden plan offer (backend planOffers.ts); a tap opens the offer popup (utils/planOfferNav.ts).
+    | "plan_offer";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;

@@ -21,6 +21,7 @@ import { useNotifications, Notification, NotificationTriggeringUser } from "@/co
 import { Spacing, FontSizes, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { bookingPushTarget, isBookingPushType, openBookingPushTarget } from "@/services/bookingPush";
+import { openPlanOffer } from "@/utils/planOfferNav";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -60,6 +61,7 @@ function getNotificationBadgeColor(
       return theme.primary;
     case "subscription_activated":
     case "subscription_tier_changed":
+    case "plan_offer":
       return theme.brandGold;
     default:
       return theme.surfaceSecondary;
@@ -118,6 +120,9 @@ export default function NotificationsScreen() {
       : null;
     if (bookingTarget) {
       openBookingPushTarget(navigation, user, bookingTarget);
+    } else if (notification.type === "plan_offer") {
+      // Same as tapping the offer push: back to the main tabs, where the popup opens.
+      openPlanOffer(navigation, user);
     } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
       navigation.navigate("AdminDashboard");
     } else if (notification.metadata?.sessionId) {
@@ -205,6 +210,8 @@ export default function NotificationsScreen() {
       case "booking_request_reminder":
       case "booking_expired":
         return "calendar";
+      case "plan_offer":
+        return "gift";
       case "system":
       default:
         return "bell";

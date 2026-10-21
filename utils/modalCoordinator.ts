@@ -23,6 +23,12 @@ export function isAnyOpen(): boolean {
   return open.size > 0;
 }
 
+/** Another blocking modal is open (a modal that registers itself uses this to check the rest). */
+export function isAnyOpenExcept(key: string): boolean {
+  for (const k of open) if (k !== key) return true;
+  return false;
+}
+
 export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
