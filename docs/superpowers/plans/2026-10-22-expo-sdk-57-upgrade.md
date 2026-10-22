@@ -97,7 +97,7 @@ DONE 2026-10-22 against main @ ae2b3dd; copy into the PR description. Verified a
 ### Task 5: Legend's PC + iPhone verification (Legend runs; blocks merge)
 
 - [ ] `git fetch origin && git checkout chore/expo-sdk-57 && git pull` then `npm ci`.
-- [ ] Add `EXPO_PUBLIC_USE_RN_FETCH=1` to the local `.env`.
+- [ ] Nothing to add to `.env`: the committed `.env.development` sets `EXPO_PUBLIC_USE_RN_FETCH=1` for `npx expo start` (final review fix). `npx expo start` should print `env: load .env .env.development`.
 - [ ] `npx expo-doctor` → Expected: 18/18 passed.
 - [ ] `npx expo login` on PC; log into the same account in Expo Go (avatar, top right).
 - [ ] `npx expo start` → scan QR in Expo Go → app loads.
@@ -106,4 +106,4 @@ DONE 2026-10-22 against main @ ae2b3dd; copy into the PR description. Verified a
 - [ ] All pass → mark PR ready → Legend merges in GitHub UI → update the vault (`Hosting, Repos & Deploys`, OutsydeCapture notes).
 
 ### Task 6: Laptop (after merge)
-- [ ] Same as Task 5's first four steps on the laptop: Node ≥ 22.13, `npm install -g eas-cli`, `git pull` on main, `npm ci`, `.env` line, `npx expo-doctor` 18/18, `npx expo login`, Expo Go loads.
+- [ ] Same as Task 5's first four steps on the laptop: Node ≥ 22.13, `npm install -g eas-cli`, `git pull` on main, `npm ci`, `npx expo-doctor` 18/18, `npx expo login`, Expo Go loads.
