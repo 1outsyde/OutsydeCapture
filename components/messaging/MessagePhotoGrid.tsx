@@ -144,14 +144,14 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: GAP },
   tile: { overflow: "hidden" },
   moreOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
   },
   moreText: { color: "#F0EAD6", fontSize: 24, fontWeight: "700" },
   uploading: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(8,12,8,0.45)",
     alignItems: "center",
     justifyContent: "center",

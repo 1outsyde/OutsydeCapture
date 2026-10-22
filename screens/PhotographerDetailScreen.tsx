@@ -797,7 +797,7 @@ const styles = StyleSheet.create({
     height: 300,
   },
   imageOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
   },

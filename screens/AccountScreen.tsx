@@ -1469,12 +1469,12 @@ export default function AccountScreen() {
       style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]}
     >
       <Animated.View
-        style={[StyleSheet.absoluteFillObject, { opacity: headerBgOpacity }]}
+        style={[StyleSheet.absoluteFill, { opacity: headerBgOpacity }]}
       >
         <BlurView
           intensity={22}
           tint="dark"
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
         <View style={styles.headerOverlay} />
       </Animated.View>
@@ -1919,13 +1919,13 @@ export default function AccountScreen() {
                 {typedCell.mediaUrl ? (
                   <Image
                     source={{ uri: typedCell.mediaUrl }}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     contentFit="cover"
                   />
                 ) : (
                   <LinearGradient
                     colors={["#2a2a2a", "#111111"]}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                   />
                 )}
                 {typedCell.mediaType === "video" ? (
@@ -2003,13 +2003,13 @@ export default function AccountScreen() {
                 {product.imageUrl ? (
                   <Image
                     source={{ uri: product.imageUrl }}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     contentFit="cover"
                   />
                 ) : (
                   <LinearGradient
                     colors={[COLORS.gray, COLORS.black]}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                   />
                 )}
               </View>
@@ -2096,7 +2096,7 @@ export default function AccountScreen() {
                   {service.imageUrl && !failedServiceImages.has(service.id) ? (
                     <Image
                       source={{ uri: service.imageUrl }}
-                      style={StyleSheet.absoluteFillObject}
+                      style={StyleSheet.absoluteFill}
                       contentFit="cover"
                       onError={() =>
                         setFailedServiceImages((prev) =>
@@ -2107,7 +2107,7 @@ export default function AccountScreen() {
                   ) : (
                     <LinearGradient
                       colors={["#2a2a2a", "#111111"]}
-                      style={StyleSheet.absoluteFillObject}
+                      style={StyleSheet.absoluteFill}
                     />
                   )}
                 </View>
@@ -2822,7 +2822,7 @@ export default function AccountScreen() {
               {item.mediaUrl ? (
                 <Image
                   source={{ uri: item.mediaUrl }}
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   contentFit="cover"
                 />
               ) : null}
@@ -3165,7 +3165,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   headerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(10,10,10,0.95)",
   },
   headerRow: {
@@ -3216,10 +3216,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   coverMedia: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   coverProcessingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3472,7 +3472,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   mediaOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "flex-end",
     paddingHorizontal: 8,
     paddingVertical: 6,

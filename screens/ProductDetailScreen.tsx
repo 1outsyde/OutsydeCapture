@@ -284,13 +284,13 @@ export default function ProductDetailScreen() {
             <Image
               source={{ uri: shownImageUrl }}
               transition={150}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               contentFit="cover"
             />
           ) : (
             <LinearGradient
               colors={["#2a2a2a", "#111111"]}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
           )}
         </View>

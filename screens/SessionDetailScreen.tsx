@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   morePhotosOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",

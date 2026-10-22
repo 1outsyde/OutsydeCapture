@@ -37,6 +37,7 @@ export function ScreenKeyboardAwareScrollView({
 
   return (
     <KeyboardAwareScrollView
+      mode="layout"
       style={[
         styles.container,
         { backgroundColor: theme.backgroundRoot },

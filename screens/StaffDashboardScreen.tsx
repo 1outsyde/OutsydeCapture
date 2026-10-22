@@ -1152,7 +1152,7 @@ function createStyles(theme: any, insets: { top: number; bottom: number }) {
       justifyContent: "flex-end",
     },
     modalBackdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(0,0,0,0.5)",
     },
     modalContainer: {
