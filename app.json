@@ -7,7 +7,6 @@
     "icon": "./assets/images/outsyde-icon.png",
     "scheme": "outsyde",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.outsyde.app",
@@ -52,7 +51,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.outsyde.app",
       "intentFilters": [
@@ -140,7 +138,12 @@
           "enableGooglePay": false
         }
       ],
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false
+        }
+      ],
       "./plugins/withLegacyStoragePermissions"
     ],
     "experiments": {
