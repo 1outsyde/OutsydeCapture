@@ -4,7 +4,7 @@
     "slug": "outsyde",
     "version": "1.1.1",
     "orientation": "portrait",
-    "icon": "./assets/images/outsyde-icon.jpg",
+    "icon": "./assets/images/outsyde-icon.png",
     "scheme": "outsyde",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -106,7 +106,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/outsyde-icon.jpg",
+          "image": "./assets/images/outsyde-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000",
@@ -145,6 +145,11 @@
     ],
     "experiments": {
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ba1ccd05-f527-4e0b-9a6d-f31184afdd4b"
+      }
     }
   }
 }
