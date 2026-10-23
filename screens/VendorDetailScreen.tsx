@@ -417,7 +417,7 @@ const CoverMediaHero = ({
     <View style={styles.coverHero}>
       {isMuxVideo ? (
         <Pressable
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           onPress={handleVideoTap}
         >
           <VideoView
@@ -471,7 +471,7 @@ const CoverMediaHero = ({
         <View style={styles.fullscreenContainer}>
           <VideoView
             player={fullscreenPlayer}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             contentFit="contain"
             nativeControls
           />
@@ -1552,12 +1552,12 @@ export default function VendorDetailScreen({ route }: Props) {
       style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]}
     >
       <Animated.View
-        style={[StyleSheet.absoluteFillObject, { opacity: headerBgOpacity }]}
+        style={[StyleSheet.absoluteFill, { opacity: headerBgOpacity }]}
       >
         <BlurView
           intensity={22}
           tint="dark"
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
         <View style={styles.headerOverlay} />
       </Animated.View>
@@ -1956,13 +1956,13 @@ export default function VendorDetailScreen({ route }: Props) {
                 {post.mediaUrl ? (
                   <Image
                     source={{ uri: post.mediaUrl }}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     contentFit="cover"
                   />
                 ) : (
                   <LinearGradient
                     colors={[COLORS.gray, COLORS.black]}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                   />
                 )}
                 {post.mediaType === "video" ? (
@@ -2023,13 +2023,13 @@ export default function VendorDetailScreen({ route }: Props) {
                   {product.imageUrl ? (
                     <Image
                       source={{ uri: product.imageUrl }}
-                      style={StyleSheet.absoluteFillObject}
+                      style={StyleSheet.absoluteFill}
                       contentFit="cover"
                     />
                   ) : (
                     <LinearGradient
                       colors={["#2a2a2a", "#111111"]}
-                      style={StyleSheet.absoluteFillObject}
+                      style={StyleSheet.absoluteFill}
                     />
                   )}
                 </View>
@@ -2151,7 +2151,7 @@ export default function VendorDetailScreen({ route }: Props) {
                   {service.imageUrl && !failedServiceImages.has(service.id) ? (
                     <Image
                       source={{ uri: service.imageUrl }}
-                      style={StyleSheet.absoluteFillObject}
+                      style={StyleSheet.absoluteFill}
                       contentFit="cover"
                       onError={() =>
                         setFailedServiceImages((prev) =>
@@ -2162,7 +2162,7 @@ export default function VendorDetailScreen({ route }: Props) {
                   ) : (
                     <LinearGradient
                       colors={["#2a2a2a", "#111111"]}
-                      style={StyleSheet.absoluteFillObject}
+                      style={StyleSheet.absoluteFill}
                     />
                   )}
                 </View>
@@ -2622,7 +2622,7 @@ export default function VendorDetailScreen({ route }: Props) {
         >
           <LinearGradient
             colors={["transparent", COLORS.black]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
           <View style={styles.stickyInner}>
             {selectedStaffMember ? (
@@ -2717,7 +2717,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   headerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(10,10,10,0.95)",
   },
   headerRow: {
@@ -2768,7 +2768,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   coverMedia: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   coverFade: {
     position: "absolute",
@@ -2778,7 +2778,7 @@ const styles = StyleSheet.create({
     height: 160,
   },
   processingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3072,7 +3072,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   mediaOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "flex-end",
     paddingHorizontal: 8,
     paddingVertical: 6,

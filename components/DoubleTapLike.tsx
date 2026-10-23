@@ -112,7 +112,7 @@ export function DoubleTapLike({ isLiked, onLike, onSingleTap, style, children }:
 
 const styles = StyleSheet.create({
   heartLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 20,
     alignItems: "center",
     justifyContent: "center",

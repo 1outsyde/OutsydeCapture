@@ -8,19 +8,22 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RjcwqRxWOny76kZaqLqBB87fNJxWeI7AYQPP3HrKqmncxfrLt8q4bh7UE60nzmqjxXEzFTU4lVB2LPlc6pS89RM00UNNAisTl",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
       }
     }
   },

@@ -330,14 +330,14 @@ function ServiceThumb({
       {showImage ? (
         <Image
           source={{ uri: service.imageUrl! }}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           contentFit="cover"
           onError={() => onFail(service.id)}
         />
       ) : (
         <LinearGradient
           colors={["#2a2a2a", "#111111"]}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
       )}
     </View>

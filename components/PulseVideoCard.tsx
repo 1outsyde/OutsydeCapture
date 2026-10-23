@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     height: "55%",
   },
   pauseOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,

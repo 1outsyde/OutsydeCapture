@@ -464,7 +464,7 @@ export default function SearchScreen() {
               />
               <LinearGradient
                 colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.5)"]}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 0, y: 1 }}
               />
@@ -640,13 +640,13 @@ export default function SearchScreen() {
           <>
             <Image
               source={{ uri: imageUrl }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={200}
             />
             <LinearGradient
               colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.82)"]}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
             />
@@ -654,7 +654,7 @@ export default function SearchScreen() {
         ) : (
           <LinearGradient
             colors={["#2C2A1B", "#141310"]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           />
@@ -792,14 +792,14 @@ export default function SearchScreen() {
                 >
                   <LinearGradient
                     colors={gradient.colors}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   />
                   {/* Accent radial highlight overlay */}
                   <View
                     style={[
-                      StyleSheet.absoluteFillObject,
+                      StyleSheet.absoluteFill,
                       {
                         backgroundColor: gradient.accentColor,
                         opacity: 0.1,

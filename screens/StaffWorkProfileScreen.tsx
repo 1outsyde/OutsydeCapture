@@ -442,7 +442,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                     {service.imageUrl && !failedServiceImages.has(service.id) ? (
                       <Image
                         source={{ uri: service.imageUrl }}
-                        style={StyleSheet.absoluteFillObject}
+                        style={StyleSheet.absoluteFill}
                         contentFit="cover"
                         onError={() =>
                           setFailedServiceImages((prev) =>
@@ -453,7 +453,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                     ) : (
                       <LinearGradient
                         colors={["#2a2a2a", "#111111"]}
-                        style={StyleSheet.absoluteFillObject}
+                        style={StyleSheet.absoluteFill}
                       />
                     )}
                   </View>

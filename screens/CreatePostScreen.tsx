@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import * as MediaLibrary from "expo-media-library";
+import * as MediaLibrary from "expo-media-library/legacy";
 import * as Haptics from "expo-haptics";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { Feather } from "@expo/vector-icons";
