@@ -1023,8 +1023,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           firstName: backendUser.firstName ?? user.firstName,
           lastName: backendUser.lastName ?? user.lastName,
           phone: backendUser.phone ?? user.phone,
-          city: backendUser.city ?? user.city,
-          state: backendUser.state ?? user.state,
+          // A null from the backend means cleared (auth/me sends city/state since 2026-10-23);
+          // only fall back to the saved value when the field is missing (older backend).
+          city: "city" in backendUser ? backendUser.city ?? undefined : user.city,
+          state: "state" in backendUser ? backendUser.state ?? undefined : user.state,
           locationPublic:
             typeof backendUser.locationPublic === "boolean" ? backendUser.locationPublic : user.locationPublic,
           bio: backendUser.bio ?? user.bio,
