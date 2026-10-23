@@ -1386,6 +1386,8 @@ export interface SearchParams {
 export interface UnifiedSearchParams {
   q?: string;
   city?: string;
+  /** Two-letter state for the city search (optional; backend also accepts full names). */
+  state?: string;
   category?: string;
   lat?: number;
   lng?: number;
@@ -2255,6 +2257,8 @@ class ApiService {
     const queryString = new URLSearchParams();
     if (params?.q) queryString.append("q", params.q);
     if (params?.city) queryString.append("city", params.city);
+    // City search covers the city and its surrounding area; the state makes the lookup exact.
+    if (params?.city && params?.state) queryString.append("state", params.state);
     if (params?.category) queryString.append("category", params.category);
     if (params?.scope) queryString.append("scope", params.scope);
     if (params?.viewerUserId) queryString.append("viewerUserId", params.viewerUserId);
@@ -2966,6 +2970,8 @@ class ApiService {
     bio?: string;
     city?: string;
     state?: string;
+    /** Share my city on my profile and in city search (backend migration 070). */
+    locationPublic?: boolean;
     firstName?: string | null;
     lastName?: string | null;
     phone?: string | null;
