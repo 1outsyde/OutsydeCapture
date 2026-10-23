@@ -120,6 +120,10 @@ export default function SearchScreen() {
   const [personalized, setPersonalized] = useState(true);
   const [isPersonalizedResults, setIsPersonalizedResults] = useState(false);
   const [activeCity, setActiveCity] = useState<CityData | null>(null);
+  // "Other city" picker: any city, searched with its surrounding area (backend city search).
+  const [showCityPicker, setShowCityPicker] = useState(false);
+  const [customCity, setCustomCity] = useState("");
+  const [customState, setCustomState] = useState("");
 
   // Search history state
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
@@ -189,6 +193,7 @@ export default function SearchScreen() {
         {
           q: query || undefined,
           city: cityFilter?.city,
+          state: cityFilter?.state || undefined,
           personalized: isAuthenticated && personalized,
           scope,
           viewerUserId: user?.id,
@@ -250,6 +255,14 @@ export default function SearchScreen() {
     setActiveCity(city);
     fetchSearchResults(searchQuery.trim() || undefined, activeTab, city);
   }, [searchQuery, activeTab, fetchSearchResults]);
+
+  const handleCustomCitySubmit = useCallback(() => {
+    const c = customCity.trim().replace(/\s+/g, " ");
+    if (!c) return;
+    const st = customState.trim().toUpperCase();
+    setShowCityPicker(false);
+    handleCitySelect({ city: c, state: st, displayName: st ? `${c}, ${st}` : c });
+  }, [customCity, customState, handleCitySelect]);
 
   const handleClearCity = useCallback(() => {
     setActiveCity(null);
@@ -775,6 +788,27 @@ export default function SearchScreen() {
             contentContainerStyle={styles.cityCardsRow}
             style={styles.cityCardsScroll}
           >
+            <Pressable
+              key="other-city"
+              onPress={() => setShowCityPicker((v) => !v)}
+              accessibilityLabel="Search any city"
+              style={({ pressed }) => [
+                styles.cityCard,
+                {
+                  borderColor: "rgba(232,185,48,0.5)",
+                  borderWidth: 1,
+                  backgroundColor: "rgba(232,185,48,0.08)",
+                  opacity: pressed ? 0.85 : 1,
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
+              ]}
+            >
+              <Feather name="search" size={18} color="#E8B930" />
+              <ThemedText style={{ color: "#E8B930", fontSize: 12, fontWeight: "700", marginTop: 6 }}>
+                Any city
+              </ThemedText>
+            </Pressable>
             {DISCOVERY_CITIES.map((city) => {
               const gradient = CITY_GRADIENTS[city.displayName] ?? { colors: ["#1A1A1A", "#0A0A0A"] as [string, string], accentColor: "#E8B930" };
               return (
@@ -817,6 +851,39 @@ export default function SearchScreen() {
               );
             })}
           </ScrollView>
+          {showCityPicker ? (
+            <View style={styles.cityPickerRow}>
+              <TextInput
+                value={customCity}
+                onChangeText={setCustomCity}
+                placeholder="City"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="words"
+                autoFocus
+                returnKeyType="search"
+                onSubmitEditing={handleCustomCitySubmit}
+                style={[styles.cityPickerInput, { flex: 1, color: theme.text, borderColor: theme.border }]}
+              />
+              <TextInput
+                value={customState}
+                onChangeText={setCustomState}
+                placeholder="State"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="characters"
+                maxLength={20}
+                returnKeyType="search"
+                onSubmitEditing={handleCustomCitySubmit}
+                style={[styles.cityPickerInput, { width: 80, color: theme.text, borderColor: theme.border }]}
+              />
+              <Pressable
+                onPress={handleCustomCitySubmit}
+                disabled={!customCity.trim()}
+                style={({ pressed }) => [styles.cityPickerGo, { opacity: !customCity.trim() ? 0.4 : pressed ? 0.8 : 1 }]}
+              >
+                <ThemedText style={{ color: "#0A0A0A", fontWeight: "700", fontSize: 13 }}>Go</ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -1115,6 +1182,28 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
     marginTop: Spacing.lg,
+  },
+  cityPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: Spacing.xl,
+    marginTop: 10,
+  },
+  cityPickerInput: {
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  cityPickerGo: {
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: "#E8B930",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cityDiscoverySection: { marginBottom: Spacing.lg },
   sectionHeader: { marginBottom: Spacing.md },

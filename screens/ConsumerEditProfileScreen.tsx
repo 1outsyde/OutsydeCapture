@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -49,6 +50,9 @@ export default function ConsumerEditProfileScreen() {
   const origFirstName = user?.firstName ?? "";
   const origLastName = user?.lastName ?? "";
   const origPhone = user?.phone ?? "";
+  const origCity = user?.city ?? "";
+  const origState = user?.state ?? "";
+  const origLocationPublic = user?.locationPublic === true;
 
   // ─── Local editable state seeded from current user ───────────────────────
   const [profileImageUrl, setProfileImageUrl] = useState<string>(origProfileImageUrl);
@@ -60,6 +64,9 @@ export default function ConsumerEditProfileScreen() {
   const [firstName, setFirstName] = useState<string>(origFirstName);
   const [lastName, setLastName] = useState<string>(origLastName);
   const [phone, setPhone] = useState<string>(origPhone);
+  const [city, setCity] = useState<string>(origCity);
+  const [stateName, setStateName] = useState<string>(origState);
+  const [locationPublic, setLocationPublic] = useState<boolean>(origLocationPublic);
 
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -221,6 +228,20 @@ export default function ConsumerEditProfileScreen() {
     if (phone.trim() !== origPhone.trim()) {
       mePayload.phone = phone.trim() || null;
     }
+    // City + sharing (backend migration 070). An empty string clears the city on the backend.
+    if (city.trim() !== origCity.trim()) {
+      mePayload.city = city.trim();
+    }
+    if (stateName.trim() !== origState.trim()) {
+      mePayload.state = stateName.trim();
+    }
+    if (locationPublic !== origLocationPublic) {
+      if (locationPublic && !city.trim()) {
+        Alert.alert("Add your city", "Enter your city first so people can find you by city.");
+        return;
+      }
+      mePayload.locationPublic = locationPublic;
+    }
 
     const identityPayload: { username?: string; displayName?: string } = {};
     if (displayNameChanged) identityPayload.displayName = displayName.trim();
@@ -271,6 +292,9 @@ export default function ConsumerEditProfileScreen() {
     firstName,
     lastName,
     phone,
+    city,
+    stateName,
+    locationPublic,
     usernameCheck,
     canChangeUsername,
     canChangeDisplayName,
@@ -285,6 +309,9 @@ export default function ConsumerEditProfileScreen() {
     origFirstName,
     origLastName,
     origPhone,
+    origCity,
+    origState,
+    origLocationPublic,
     refreshUser,
     navigation,
   ]);
@@ -526,6 +553,68 @@ export default function ConsumerEditProfileScreen() {
           />
         </View>
 
+        {/* ── Location (city + sharing) ────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+            YOUR CITY
+          </Text>
+          <View style={styles.cityRow}>
+            <TextInput
+              style={[
+                styles.input,
+                styles.cityInput,
+                {
+                  backgroundColor: theme.brandBgElevated,
+                  color: theme.brandCream,
+                  borderColor: theme.brandSurfaceBorder,
+                },
+              ]}
+              value={city}
+              onChangeText={setCity}
+              placeholder="City"
+              placeholderTextColor={theme.brandTextDim}
+              maxLength={100}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+            <TextInput
+              style={[
+                styles.input,
+                styles.stateInput,
+                {
+                  backgroundColor: theme.brandBgElevated,
+                  color: theme.brandCream,
+                  borderColor: theme.brandSurfaceBorder,
+                },
+              ]}
+              value={stateName}
+              onChangeText={setStateName}
+              placeholder="State"
+              placeholderTextColor={theme.brandTextDim}
+              maxLength={50}
+              autoCapitalize="characters"
+            />
+          </View>
+          <View style={styles.shareRow}>
+            <View style={styles.shareText}>
+              <Text style={[styles.shareTitle, { color: theme.brandCream }]}>
+                Show my city
+              </Text>
+              <Text style={[styles.sectionHint, { color: theme.brandTextDim }]}>
+                {locationPublic
+                  ? "Your city shows on your profile, and people searching your area can find you."
+                  : "Your city is hidden. Nobody sees where you are, and you won't show up when people search a city."}
+              </Text>
+            </View>
+            <Switch
+              value={locationPublic}
+              onValueChange={setLocationPublic}
+              trackColor={{ false: theme.brandSurfaceBorder, true: theme.brandPrimary }}
+              accessibilityLabel="Show my city on my profile and in city search"
+            />
+          </View>
+        </View>
+
         {/* ── First Name ───────────────────────────────────────────────── */}
         <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
@@ -611,6 +700,30 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     gap: 8,
+  },
+  cityRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  cityInput: {
+    flex: 1,
+  },
+  stateInput: {
+    width: 96,
+  },
+  shareRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 14,
+  },
+  shareText: {
+    flex: 1,
+  },
+  shareTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
   },
   section: {
     marginBottom: 20,

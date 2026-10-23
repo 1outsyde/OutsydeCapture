@@ -39,6 +39,8 @@ export interface User {
   isProfileComplete?: boolean;
   city?: string;
   state?: string;
+  /** Whether the person shares their city (profile + city search). Backend default false (migration 070). */
+  locationPublic?: boolean;
   username?: string;
   gender?: string;
   selectedIndustries?: string[];
@@ -594,6 +596,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         coverMediaType: (backendUser as any).coverMediaType,
         city: backendUser.city || photographerData?.city,
         state: backendUser.state || photographerData?.state,
+        locationPublic: (backendUser as any).locationPublic === true,
         businessName: backendUser.businessName,
         businessCategory: backendUser.businessCategory,
         businessDescription: backendUser.businessDescription,
@@ -759,6 +762,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         avatar: backendUser.avatar || photographerPhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
         city: backendUser.city || data.city,
         state: backendUser.state || data.state,
+        locationPublic: (backendUser as any).locationPublic === true,
         businessName: backendUser.businessName || data.businessName,
         businessCategory: backendUser.businessCategory || data.businessCategory,
         businessDescription: backendUser.businessDescription,
@@ -1019,8 +1023,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           firstName: backendUser.firstName ?? user.firstName,
           lastName: backendUser.lastName ?? user.lastName,
           phone: backendUser.phone ?? user.phone,
-          city: backendUser.city ?? user.city,
-          state: backendUser.state ?? user.state,
+          // A null from the backend means cleared (auth/me sends city/state since 2026-10-23);
+          // only fall back to the saved value when the field is missing (older backend).
+          city: "city" in backendUser ? backendUser.city ?? undefined : user.city,
+          state: "state" in backendUser ? backendUser.state ?? undefined : user.state,
+          locationPublic:
+            typeof backendUser.locationPublic === "boolean" ? backendUser.locationPublic : user.locationPublic,
           bio: backendUser.bio ?? user.bio,
           deletionStatus: backendUser.deletionStatus ?? user.deletionStatus,
           scheduledDeletionAt: backendUser.scheduledDeletionAt ?? user.scheduledDeletionAt,
