@@ -41,6 +41,9 @@ import api, { ApiPost } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
 import { nextFeedMode } from "@/utils/feedModes";
 import EventsTab from "@/screens/EventsTab";
+import { EventFeedCard } from "@/components/events/EventFeedCard";
+import { getEventCoords } from "@/utils/eventLocation";
+import { feedEventsQuery, isFeedEventItem, mixEventsIntoFeed, type EventCard, type FeedEventItem } from "@/utils/eventsLogic";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import { FeedSwipeGestureContext } from "@/components/PostMediaCarousel";
 import { RatingBottomSheet } from "@/components/ratings";
@@ -92,6 +95,8 @@ export default function DiscoverScreen() {
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
+  // Events shown as cards inside the Pro feed (never sent to /api/feed; a failure leaves the feed as it was).
+  const [feedEventsList, setFeedEventsList] = useState<EventCard[]>([]);
   // Following tab: newest posts from accounts the viewer follows (GET /api/feed?scope=following).
   const [followingPosts, setFollowingPosts] = useState<Post[]>([]);
   const [followingLoading, setFollowingLoading] = useState(false);
@@ -332,11 +337,28 @@ export default function DiscoverScreen() {
     return unsub;
   }, [fetchProFeed]);
 
+  // ─── Events for the Pro feed ──────────────────────────────────────────────
+  const fetchFeedEvents = useCallback(async () => {
+    try {
+      // Never prompts: nearest events only when location is already allowed.
+      const [{ coords }, token] = await Promise.all([getEventCoords(), getTokenRef.current().catch(() => null)]);
+      const res = await api.listEvents(feedEventsQuery(new Date(), coords), token);
+      setFeedEventsList(res.events);
+    } catch (err) {
+      console.warn("[DiscoverScreen] Events for the Pro feed did not load:", err);
+      setFeedEventsList([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFeedEvents();
+  }, [fetchFeedEvents]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchProFeed();
+    await Promise.all([fetchProFeed(), fetchFeedEvents()]);
     setRefreshing(false);
-  }, [fetchProFeed]);
+  }, [fetchProFeed, fetchFeedEvents]);
 
   // ─── Pro feed sorting ─────────────────────────────────────────────────────
   const proFeedPosts = useMemo(() => {
@@ -358,6 +380,10 @@ export default function DiscoverScreen() {
 
   // ─── Pro scroll state ─────────────────────────────────────────────────────
   const proScrollOffset = useRef(0);
+  // What the Pro list renders: posts with at most one event card per 8 posts. Every lookup by post id
+  // (likes, saves, comments) still reads feedPosts / proFeedPosts, never this list.
+  const proFeedItems = useMemo(() => mixEventsIntoFeed(proFeedPosts, feedEventsList), [proFeedPosts, feedEventsList]);
+
   const proListRef = useRef<FlatList>(null);
   const [visibleProIndices, setVisibleProIndices] = useState<Set<number>>(new Set([0, 1]));
 
@@ -591,7 +617,11 @@ export default function DiscoverScreen() {
   };
 
   // ─── Pro feed render item ──────────────────────────────────────────────────
-  const renderProFeedItem = ({ item: post, index }: { item: Post; index: number }) => {
+  const renderProFeedItem = ({ item, index }: { item: Post | FeedEventItem; index: number }) => {
+    if (isFeedEventItem(item)) {
+      return <EventFeedCard event={item.event} onPress={() => navigation.navigate("EventDetail", { slug: item.event.slug })} />;
+    }
+    const post = item;
     const isSaved = isPostSaved(post.id);
     const isVisible = visibleProIndices.has(index);
     return (
@@ -683,9 +713,9 @@ export default function DiscoverScreen() {
             <FlatList
               key="pro-feed-list"
               ref={proListRef}
-              data={proFeedPosts}
+              data={proFeedItems}
               renderItem={renderProFeedItem}
-              keyExtractor={(item) => `pro-${item.id}`}
+              keyExtractor={(item) => (isFeedEventItem(item) ? `event-${item.event.id}` : `pro-${item.id}`)}
               showsVerticalScrollIndicator={false}
               onScroll={handleProScroll}
               scrollEventThrottle={16}
