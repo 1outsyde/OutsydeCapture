@@ -277,3 +277,49 @@ test("eventsTabView picks one state", () => {
   assert.equal(eventsTabView(base), "empty");
   assert.equal(eventsTabView({ ...base, count: 1 }), "list");
 });
+
+// ─── Event page: banner, default pick, bottom bar ────────────────────────────
+import { eventBanner, defaultTicketId, eventPageBar, type PublicEvent } from "./eventsLogic";
+
+function ev(over: Partial<PublicEvent> = {}): PublicEvent {
+  return {
+    id: "e", slug: "s", status: "published", title: "Party", description: null, coverImageUrl: null,
+    startsAt: "2026-10-26T01:00:00Z", endsAt: "2026-10-26T06:00:00Z", timezone: NY,
+    venueName: null, addressLine1: null, addressLine2: null, city: "Freeport", state: "NY", postalCode: null,
+    addressHidden: true, addressRevealAt: null, refundPolicy: "no_refunds", refundCutoffHours: null,
+    visibility: "public", soldOut: false, host: { name: "Host", avatarUrl: null, kind: "user", followId: "u1" },
+    viewerIsHost: false, viewerHasTicket: false, ...over,
+  };
+}
+
+test("eventBanner", () => {
+  assert.equal(eventBanner(ev({ status: "cancelled" }), now), "This event was cancelled.");
+  assert.equal(eventBanner(ev({ status: "draft" }), now), "Draft. Only you can see this page.");
+  assert.equal(eventBanner(ev({ startsAt: "2026-10-23T17:00:00Z", endsAt: "2026-10-23T22:00:00Z" }), now), "This event has started.");
+  assert.equal(eventBanner(ev({ startsAt: "2026-10-22T17:00:00Z", endsAt: "2026-10-22T22:00:00Z" }), now), "This event has ended.");
+  assert.equal(eventBanner(ev(), now), null);
+});
+
+test("defaultTicketId picks the only free type on sale", () => {
+  assert.equal(defaultTicketId([tt({ id: "a" })]), "a");
+  assert.equal(defaultTicketId([tt({ id: "a" }), tt({ id: "b" })]), null);
+  assert.equal(defaultTicketId([tt({ id: "a" }), tt({ id: "p", priceCents: 2000 })]), "a");
+  assert.equal(defaultTicketId([tt({ id: "a", salesStatus: "sold_out" })]), null);
+});
+
+test("eventPageBar", () => {
+  const free = tt({ id: "f" });
+  const paid = tt({ id: "p", priceCents: 2000, buyerTotalCents: 2259 });
+  assert.deepEqual(eventPageBar(ev(), [free], "f", false, now), { kind: "rsvp", label: "Price", value: "Free" });
+  assert.deepEqual(eventPageBar(ev(), [free], null, false, now), { kind: "pick", label: "Price", value: "Free" });
+  assert.deepEqual(eventPageBar(ev(), [paid], null, false, now), { kind: "paid_soon", label: "From", value: "$22.59" });
+  assert.deepEqual(eventPageBar(ev(), [free, paid], null, false, now), { kind: "pick", label: "From", value: "Free" });
+  assert.deepEqual(eventPageBar(ev(), [tt({ salesStatus: "sold_out" })], null, false, now), { kind: "sold_out", label: "Tickets", value: "Sold out" });
+  assert.equal(eventPageBar(ev({ viewerHasTicket: true }), [free], "f", false, now).kind, "none", "holder of free tickets");
+  assert.equal(eventPageBar(ev(), [free], "f", true, now).kind, "none", "just RSVPed");
+  assert.equal(eventPageBar(ev({ viewerHasTicket: true }), [free, paid], null, false, now).kind, "paid_soon", "holder can still see paid");
+  assert.equal(eventPageBar(ev({ status: "cancelled" }), [free], "f", false, now).kind, "none");
+  assert.equal(eventPageBar(ev({ startsAt: "2026-10-23T17:00:00Z" }), [free], "f", false, now).kind, "none", "started");
+  assert.equal(eventPageBar(ev({ viewerIsHost: true }), [free], "f", false, now).kind, "none", "host");
+  assert.equal(eventPageBar(ev(), [tt({ salesStatus: "upcoming" })], null, false, now).kind, "none", "nothing on sale yet");
+});

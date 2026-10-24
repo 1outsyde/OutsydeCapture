@@ -411,3 +411,48 @@ export function eventsTabView(s: { loading: boolean; error: boolean; locationOff
   if (s.filters.near || s.filters.free || s.filters.when) return "nomatch";
   return "empty";
 }
+
+/** The line above the event page content, or null. */
+export function eventBanner(e: Pick<PublicEvent, "status" | "startsAt" | "endsAt">, now: Date): string | null {
+  if (e.status === "cancelled") return "This event was cancelled.";
+  if (e.status === "draft") return "Draft. Only you can see this page.";
+  if (new Date(e.endsAt).getTime() < now.getTime()) return "This event has ended.";
+  if (new Date(e.startsAt).getTime() <= now.getTime()) return "This event has started.";
+  return null;
+}
+
+const onSaleFree = (types: PublicTicketType[]) => types.filter((t) => t.salesStatus === "on_sale" && t.priceCents === 0);
+
+/** When exactly one free type is on sale, it is picked for the guest. */
+export function defaultTicketId(types: PublicTicketType[]): string | null {
+  const free = onSaleFree(types);
+  return free.length === 1 ? free[0].id : null;
+}
+
+export type EventPageBar =
+  | { kind: "none" }
+  | { kind: "rsvp" | "pick" | "paid_soon" | "sold_out"; label: string; value: string };
+
+/**
+ * The bottom bar on the event page. rsvp: a free type is picked; pick: choose a free type first;
+ * paid_soon: only paid tickets (checkout comes with p4-buy); sold_out; none: no bar.
+ */
+export function eventPageBar(e: PublicEvent, types: PublicTicketType[], selectedId: string | null, going: boolean, now: Date): EventPageBar {
+  if (e.viewerIsHost || eventBanner(e, now)) return { kind: "none" };
+  const onSale = types.filter((t) => t.salesStatus === "on_sale");
+  if (onSale.length === 0) {
+    const allGone = e.soldOut || (types.length > 0 && types.every((t) => t.salesStatus === "sold_out"));
+    return allGone ? { kind: "sold_out", label: "Tickets", value: "Sold out" } : { kind: "none" };
+  }
+  const holder = going || e.viewerHasTicket;
+  const free = holder ? [] : onSaleFree(types);
+  const paid = onSale.filter((t) => t.priceCents > 0);
+  if (free.length > 0) {
+    const label = paid.length > 0 ? "From" : "Price";
+    const picked = free.some((t) => t.id === selectedId);
+    return { kind: picked ? "rsvp" : "pick", label, value: "Free" };
+  }
+  if (paid.length === 0) return { kind: "none" };
+  const lowest = Math.min(...paid.map((t) => t.buyerTotalCents ?? t.priceCents));
+  return { kind: "paid_soon", label: "From", value: money(lowest) };
+}
