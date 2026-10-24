@@ -1,11 +1,21 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Linking } from "react-native";
-import { api, API_BASE_URL } from "./api";
+import { API_BASE_URL } from "./api";
+import { referralCodeFromUrl } from "@/utils/friendReferral";
 
 const REFERRAL_KEY = "@outsyde_referral_code";
 const REFERRAL_SENT_KEY = "@outsyde_referral_sent";
 
 export async function captureReferralFromURL(url: string): Promise<string | null> {
+  // Friend invite links (2026-10-23): https://www.goutsyde.com/r/<CODE>. Used at signup.
+  const friendCode = referralCodeFromUrl(url);
+  if (friendCode) {
+    try {
+      await AsyncStorage.setItem(REFERRAL_KEY, friendCode);
+    } catch {
+    }
+    return friendCode;
+  }
   try {
     const parsed = new URL(url);
     const ref = parsed.searchParams.get("ref");
@@ -40,35 +50,6 @@ export async function getStoredReferral(): Promise<string | null> {
 export async function clearReferral(): Promise<void> {
   try {
     await AsyncStorage.multiRemove([REFERRAL_KEY, REFERRAL_SENT_KEY]);
-  } catch {
-  }
-}
-
-export async function sendReferralEvent(
-  eventType: "signup" | "first_purchase" | "repeat_purchase",
-  authToken: string,
-  extras?: Record<string, any>
-): Promise<void> {
-  try {
-    const ref = await getStoredReferral();
-    if (!ref) return;
-
-    const sentKey = `${REFERRAL_SENT_KEY}_${eventType}`;
-    const alreadySent = await AsyncStorage.getItem(sentKey);
-    if (eventType === "signup" && alreadySent) return;
-
-    await fetch(`${API_BASE_URL}/api/influencer/event`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({ ref, eventType, ...extras }),
-    });
-
-    if (eventType === "signup") {
-      await AsyncStorage.setItem(sentKey, "true");
-    }
   } catch {
   }
 }

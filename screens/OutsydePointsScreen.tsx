@@ -9,6 +9,7 @@ import {
   Modal,
   RefreshControl,
   Alert,
+  Share,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -23,7 +24,10 @@ import {
   redeemPointsForCode,
   PointsActiveCode,
   PointsHistoryTransaction,
+  type FriendReferralInfo,
 } from "@/services/api";
+import api from "@/services/api";
+import { REFERRAL_COPY, referralCounts, referralShareMessage } from "@/utils/friendReferral";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -77,6 +81,8 @@ function iconForRefType(
     case "shoot_booking":
       return "camera";
     case "referral_bonus":
+    case "referral_referrer":
+    case "referral_referred":
       return "users";
     default:
       return "star";
@@ -94,6 +100,10 @@ function earnTitle(tx: PointsHistoryTransaction): string {
       return "Shoot booking earned";
     case "referral_bonus":
       return "Referral bonus";
+    case "referral_referrer":
+      return "Friend referral reward";
+    case "referral_referred":
+      return "Welcome reward";
     default:
       return tx.description || "Points earned";
   }
@@ -117,6 +127,20 @@ export default function OutsydePointsScreen() {
   const [redeemLoading, setRedeemLoading] = useState<boolean>(false);
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  // Invite friends card (2026-10-23). Loaded on its own so a failure never hides the points.
+  const [referral, setReferral] = useState<FriendReferralInfo | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const fetchReferral = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const info = await api.getFriendReferral(token);
+      if (info && typeof info.referralCode === "string" && typeof info.referralLink === "string") setReferral(info);
+    } catch {
+      // Card stays hidden.
+    }
+  }, [getToken]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -142,6 +166,31 @@ export default function OutsydePointsScreen() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    fetchReferral();
+  }, [fetchReferral]);
+
+  const onRefresh = useCallback(() => {
+    fetchAll();
+    fetchReferral();
+  }, [fetchAll, fetchReferral]);
+
+  const shareInvite = async () => {
+    if (!referral) return;
+    try {
+      await Share.share({ message: referralShareMessage(referral.referralLink) });
+    } catch {
+      // Share sheet closed or unavailable.
+    }
+  };
+
+  const copyInviteLink = async () => {
+    if (!referral) return;
+    await Clipboard.setStringAsync(referral.referralLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 1500);
+  };
 
   const nextLockedTier = REDEEM_TIERS.find((t) => t.points > balance);
   const pointsNeeded = (tierPoints: number) =>
@@ -221,7 +270,7 @@ export default function OutsydePointsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={loading}
-            onRefresh={fetchAll}
+            onRefresh={onRefresh}
             tintColor={GOLD}
           />
         }
@@ -257,6 +306,46 @@ export default function OutsydePointsScreen() {
             </View>
           </View>
         </View>
+
+        {/* Invite friends */}
+        {referral && (() => {
+          const counts = referralCounts(referral.stats);
+          return (
+            <View style={styles.inviteCard}>
+              <View style={styles.inviteHead}>
+                <Feather name="users" size={18} color={GOLD} />
+                <Text style={styles.inviteTitle}>{REFERRAL_COPY.cardTitle}</Text>
+              </View>
+              <Text style={styles.inviteBody}>{REFERRAL_COPY.cardBody}</Text>
+              <View style={styles.inviteCodeRow}>
+                <Text style={styles.inviteCode} selectable>{referral.referralCode}</Text>
+                <TouchableOpacity style={styles.copyBtn} onPress={copyInviteLink} accessibilityRole="button">
+                  <Text style={styles.copyBtnText}>{linkCopied ? REFERRAL_COPY.copied : "Copy link"}</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.inviteShareBtn} onPress={shareInvite} accessibilityRole="button">
+                <Feather name="share" size={16} color={BG} />
+                <Text style={styles.inviteShareText}>Share invite</Text>
+              </TouchableOpacity>
+              <View style={styles.inviteStats}>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaValue}>{counts.invited}</Text>
+                  <Text style={styles.metaKey}>Invited</Text>
+                </View>
+                <View style={styles.metaSep} />
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaValue}>{counts.waiting}</Text>
+                  <Text style={styles.metaKey}>Waiting</Text>
+                </View>
+                <View style={styles.metaSep} />
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaValue}>{counts.earned.toLocaleString()}</Text>
+                  <Text style={styles.metaKey}>Points earned</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Error state */}
         {error && (
@@ -429,9 +518,9 @@ export default function OutsydePointsScreen() {
           },
           {
             icon: "users" as const,
-            title: "Refer a friend",
-            sub: "The more you shop, the more you save.",
-            badge: "Points back",
+            title: "Invite a friend",
+            sub: "You each get 2,500 points after their first purchase of $10 or more.",
+            badge: "2,500 points",
           },
         ].map((row) => (
           <View key={row.title} style={styles.earnRow}>
@@ -631,6 +720,43 @@ const styles = StyleSheet.create({
     color: MUTED,
     marginTop: 4,
   },
+  // Invite friends card
+  inviteCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 18,
+    marginBottom: 24,
+    gap: 12,
+  },
+  inviteHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  inviteTitle: { fontSize: 16, fontWeight: "700", color: CREAM },
+  inviteBody: { fontSize: 13, lineHeight: 19, color: "#A8A39A" },
+  inviteCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: SURFACE,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(232,185,48,0.4)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  inviteCode: { fontSize: 20, fontWeight: "700", letterSpacing: 3, color: GOLD },
+  inviteShareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: GOLD,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  inviteShareText: { fontSize: 15, fontWeight: "700", color: BG },
+  inviteStats: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   // Section label
   sectionLabel: {
     fontSize: 11,

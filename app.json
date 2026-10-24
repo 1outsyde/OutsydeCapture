@@ -77,6 +77,16 @@
               "scheme": "https",
               "host": "goutsyde.com",
               "path": "/finish"
+            },
+            {
+              "scheme": "https",
+              "host": "www.goutsyde.com",
+              "pathPrefix": "/r/"
+            },
+            {
+              "scheme": "https",
+              "host": "goutsyde.com",
+              "pathPrefix": "/r/"
             }
           ],
           "category": [

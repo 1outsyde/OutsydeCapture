@@ -22,6 +22,7 @@ import { Spacing, FontSizes, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { bookingPushTarget, isBookingPushType, openBookingPushTarget } from "@/services/bookingPush";
 import { openPlanOffer } from "@/utils/planOfferNav";
+import { openPointsFromReward } from "@/utils/friendReferral";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -123,6 +124,9 @@ export default function NotificationsScreen() {
     } else if (notification.type === "plan_offer") {
       // Same as tapping the offer push: back to the main tabs, where the popup opens.
       openPlanOffer(navigation, user);
+    } else if (notification.type === "referral_reward") {
+      // Friend referral reward: same as tapping its push, the Points screen.
+      openPointsFromReward(navigation, user);
     } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
       navigation.navigate("AdminDashboard");
     } else if (notification.metadata?.sessionId) {
@@ -165,6 +169,8 @@ export default function NotificationsScreen() {
         return "shield";
       case "follow":
         return "user-plus";
+      case "referral_reward":
+        return "gift";
       case "business_pending":
         return "briefcase";
       case "booking_confirmed":

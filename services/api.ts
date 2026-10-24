@@ -1519,6 +1519,8 @@ export interface MobileLoginResponse {
 export interface MobileSignupRequest {
   email: string;
   password: string;
+  // Friend invite code (consumer signup only, 2026-10-23). Never fails the signup.
+  referralCode?: string;
   firstName: string;
   lastName: string;
   role: "consumer" | "business" | "photographer";
@@ -1592,9 +1594,25 @@ export interface MobileSignupResponse {
 }
 
 // Role-specific signup request types (matches backend validation)
+export interface FriendReferralInfo {
+  referralCode: string;
+  referralLink: string;
+  bonusForReferrer?: number;
+  bonusForNewUser?: number;
+  minimumPurchaseCents?: number;
+  stats?: {
+    totalReferrals?: number;
+    completedReferrals?: number;
+    pendingReferrals?: number;
+    qualifyingReferrals?: number;
+    totalPointsEarned?: number;
+  };
+}
+
 export interface CustomerSignupRequest {
   email: string;
   password: string;
+  referralCode?: string;
   name: string; // Backend requires 'name', not firstName/lastName
   firstName?: string;
   lastName?: string;
@@ -2132,6 +2150,7 @@ class ApiService {
         dateOfBirth: signupData.dateOfBirth,
         shoppingFrequency: signupData.shoppingFrequency,
         ethnicity: signupData.ethnicity,
+        ...(data.referralCode?.trim() ? { referralCode: data.referralCode.trim() } : {}),
       };
       console.log("[Signup] Customer payload:", JSON.stringify(customerPayload, null, 2));
       await this.customerSignup(customerPayload);
@@ -4834,6 +4853,14 @@ class ApiService {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify(engagement),
+    });
+  }
+
+  // Friend referrals (2026-10-23): the customer's own code, share link and counts.
+  // Goes through this.request so an expired token is refreshed and retried.
+  async getFriendReferral(authToken: string): Promise<FriendReferralInfo> {
+    return this.request<FriendReferralInfo>("/api/referral/code", {
+      headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 

@@ -27,6 +27,7 @@ import { useBookingPushLinks } from "@/hooks/useBookingPushLinks";
 import { useSubscriptionPushLinks } from "@/hooks/useSubscriptionPushLinks";
 import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
 import { usePlanOfferPushLinks } from "@/hooks/usePlanOfferPushLinks";
+import { useReferralPushLinks } from "@/hooks/useReferralPushLinks";
 import PlanOfferHost from "@/components/plan-offer/PlanOfferHost";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 
@@ -85,6 +86,8 @@ export default function MainTabNavigator() {
   useSubscriptionPushLinks();
   // Tapped plan offer push (type plan_offer) → the offer popup
   usePlanOfferPushLinks();
+  // Tapped friend referral reward push (type referral_reward) → Points
+  useReferralPushLinks();
   const isGuest = user?.isGuest || !user;
 
   // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──

@@ -40,7 +40,9 @@ export interface Notification {
     | "booking_request" | "booking_request_sent" | "booking_request_reminder"
     | "booking_expired"
     // Hidden plan offer (backend planOffers.ts); a tap opens the offer popup (utils/planOfferNav.ts).
-    | "plan_offer";
+    | "plan_offer"
+    // Friend referral reward landed (backend loyaltyLedger.ts); a tap opens Points (utils/friendReferral.ts).
+    | "referral_reward";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;

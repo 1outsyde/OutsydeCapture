@@ -17,6 +17,8 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import UsernameField from "@/components/UsernameField";
 import api, { API_BASE_URL, type CustomerInterestTaxonomy } from "@/services/api";
+import { getStoredReferral } from "@/services/referral";
+import { normalizeReferralCode, REFERRAL_COPY } from "@/utils/friendReferral";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -112,6 +114,18 @@ export default function ConsumerSignupScreen() {
         else setInterestTaxonomyFailed(true);
       })
       .catch(() => { if (!cancelled) setInterestTaxonomyFailed(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Friend invite code (2026-10-23): prefilled from a goutsyde.com/r/<CODE> link the app was opened
+  // with. Optional; a wrong code never stops the signup (the backend just doesn't apply it).
+  const [referralCode, setReferralCode] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    getStoredReferral().then((saved) => {
+      const code = normalizeReferralCode(saved);
+      if (!cancelled && code) setReferralCode((current) => current || code);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -285,6 +299,7 @@ export default function ConsumerSignupScreen() {
 
   const handleSubmit = async () => {
     const result = await signup({
+      referralCode: normalizeReferralCode(referralCode) ?? undefined,
       firstName,
       lastName,
       email,
@@ -456,6 +471,20 @@ export default function ConsumerSignupScreen() {
               {touched.password && getFieldError("password") ? (
                 <ThemedText style={styles.fieldError}>{getFieldError("password")}</ThemedText>
               ) : null}
+            </View>
+
+            <View style={styles.field}>
+              <ThemedText type="small" style={styles.label}>{REFERRAL_COPY.fieldLabel}</ThemedText>
+              <TextInput
+                style={inputStyle}
+                value={referralCode}
+                onChangeText={(text) => setReferralCode(text.replace(/[^A-Za-z0-9]/g, "").toUpperCase())}
+                placeholder={REFERRAL_COPY.fieldHint}
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={20}
+              />
             </View>
 
             <Pressable onPress={handlePickProfilePhoto} style={{ alignSelf: "center", marginBottom: 4 }}>
