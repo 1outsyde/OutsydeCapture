@@ -3,7 +3,7 @@ import { EXPO_PUSH_TOKEN_KEY } from "@/services/messagePush";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppStateStatus, Linking } from "react-native";
 import { api, setOnAuthSessionCleared } from "../services/api";
-import { captureReferralFromURL, captureReferralFromInitialURL } from "../services/referral";
+import { captureReferralFromURL, captureReferralFromInitialURL, clearFriendCode } from "../services/referral";
 import {
   storeTokens,
   storeUserData,
@@ -114,6 +114,8 @@ async function finishPhotographerSignupPhoto(
 }
 
 export interface SignupData {
+  // Friend invite code (consumer signup only, 2026-10-23). Never fails the signup.
+  referralCode?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -667,6 +669,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await api.roleBasedSignupAndLogin({
         email: data.email,
         password: data.password,
+        referralCode: data.role === "consumer" ? data.referralCode : undefined,
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role as "consumer" | "business" | "photographer",
@@ -789,6 +792,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: true, isPending: true };
       }
       
+      // A saved friend invite code is used once; forget it after the account exists.
+      if (data.role === "consumer") await clearFriendCode();
       setUser(newUser);
       return { success: true, isPending: false };
     } catch (error: any) {
