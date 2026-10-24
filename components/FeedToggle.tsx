@@ -2,9 +2,11 @@ import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 
-export type FeedMode = "following" | "pro" | "pulse";
+import { FEED_MODES, type FeedMode } from "@/utils/feedModes";
+
+export type { FeedMode };
 
 interface FeedToggleProps {
   mode: FeedMode;
@@ -17,60 +19,29 @@ export function FeedToggle({ mode, onModeChange }: FeedToggleProps) {
   return (
     <View style={styles.container}>
       <View style={styles.segmentBackground}>
-        <Pressable
-          onPress={() => onModeChange("following")}
-          style={styles.segment}
-          hitSlop={8}
-        >
-          <ThemedText
-            style={[
-              styles.segmentText,
-              {
-                color: theme.brandGold,
-                opacity: mode === "following" ? 1 : 0.4,
-                fontWeight: mode === "following" ? "700" : "500",
-              },
-            ]}
+        {FEED_MODES.map(({ mode: m, label }) => (
+          <Pressable
+            key={m}
+            onPress={() => onModeChange(m)}
+            style={styles.segment}
+            hitSlop={8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: mode === m }}
           >
-            FOLLOWING
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          onPress={() => onModeChange("pro")}
-          style={styles.segment}
-          hitSlop={8}
-        >
-          <ThemedText
-            style={[
-              styles.segmentText,
-              {
-                color: theme.brandGold,
-                opacity: mode === "pro" ? 1 : 0.4,
-                fontWeight: mode === "pro" ? "700" : "500",
-              },
-            ]}
-          >
-            PRO
-          </ThemedText>
-        </Pressable>
-        <Pressable
-          onPress={() => onModeChange("pulse")}
-          style={styles.segment}
-          hitSlop={8}
-        >
-          <ThemedText
-            style={[
-              styles.segmentText,
-              {
-                color: theme.brandGold,
-                opacity: mode === "pulse" ? 1 : 0.4,
-                fontWeight: mode === "pulse" ? "700" : "500",
-              },
-            ]}
-          >
-            PULSE
-          </ThemedText>
-        </Pressable>
+            <ThemedText
+              style={[
+                styles.segmentText,
+                {
+                  color: theme.brandGold,
+                  opacity: mode === m ? 1 : 0.4,
+                  fontWeight: mode === m ? "700" : "500",
+                },
+              ]}
+            >
+              {label}
+            </ThemedText>
+          </Pressable>
+        ))}
       </View>
     </View>
   );

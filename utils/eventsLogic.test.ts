@@ -261,3 +261,19 @@ test("nearMeDecision never re-prompts after a no", () => {
   assert.equal(nearMeDecision("denied", false), "settings");
   assert.equal(nearMeDecision("denied", true), "settings");
 });
+
+// ─── EVENTS tab state ────────────────────────────────────────────────────────
+import { eventsTabView } from "./eventsLogic";
+
+test("eventsTabView picks one state", () => {
+  const base = { loading: false, error: false, locationOff: false, filters: none, count: 0 };
+  assert.equal(eventsTabView({ ...base, loading: true }), "loading");
+  assert.equal(eventsTabView({ ...base, loading: true, count: 3 }), "list", "refresh keeps the list up");
+  assert.equal(eventsTabView({ ...base, error: true }), "error");
+  assert.equal(eventsTabView({ ...base, error: true, count: 2 }), "list", "a failed refresh keeps what loaded");
+  assert.equal(eventsTabView({ ...base, locationOff: true, filters: { ...none, near: true } }), "location");
+  assert.equal(eventsTabView({ ...base, filters: { ...none, free: true } }), "nomatch");
+  assert.equal(eventsTabView({ ...base, filters: { ...none, near: true } }), "nomatch");
+  assert.equal(eventsTabView(base), "empty");
+  assert.equal(eventsTabView({ ...base, count: 1 }), "list");
+});

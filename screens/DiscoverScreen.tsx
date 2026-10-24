@@ -39,6 +39,8 @@ import { useSavedPosts } from "@/context/SavedPostsContext";
 import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
+import { nextFeedMode } from "@/utils/feedModes";
+import EventsTab from "@/screens/EventsTab";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import { FeedSwipeGestureContext } from "@/components/PostMediaCarousel";
 import { RatingBottomSheet } from "@/components/ratings";
@@ -133,11 +135,8 @@ export default function DiscoverScreen() {
 
   const swipeToToggle = useCallback(
     (direction: "left" | "right") => {
-      // Order on screen: FOLLOWING | PRO | PULSE
-      if (direction === "left" && feedMode === "following") setFeedMode("pro");
-      else if (direction === "left" && feedMode === "pro") setFeedMode("pulse");
-      else if (direction === "right" && feedMode === "pulse") setFeedMode("pro");
-      else if (direction === "right" && feedMode === "pro") setFeedMode("following");
+      // Order on screen: EVENTS | FOLLOWING | PRO | PULSE (utils/feedModes)
+      setFeedMode(nextFeedMode(feedMode, direction));
     },
     [feedMode]
   );
@@ -775,6 +774,8 @@ export default function DiscoverScreen() {
                 )
               }
             />
+          ) : feedMode === "events" ? (
+            <EventsTab />
           ) : (
             <PulseFeedScreenV2 />
           )}

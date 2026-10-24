@@ -397,3 +397,17 @@ export function nearMeDecision(status: "granted" | "denied" | "undetermined", ca
   if (status === "undetermined" && canAskAgain) return "ask";
   return "settings";
 }
+
+// ─── EVENTS tab state ────────────────────────────────────────────────────────
+
+export type EventsTabView = "loading" | "error" | "location" | "nomatch" | "empty" | "list";
+
+/** Which state the EVENTS tab shows. Loaded events always stay up during a refresh or after a failed one. */
+export function eventsTabView(s: { loading: boolean; error: boolean; locationOff: boolean; filters: Filters; count: number }): EventsTabView {
+  if (s.count > 0) return "list";
+  if (s.loading) return "loading";
+  if (s.error) return "error";
+  if (s.locationOff && s.filters.near) return "location";
+  if (s.filters.near || s.filters.free || s.filters.when) return "nomatch";
+  return "empty";
+}
