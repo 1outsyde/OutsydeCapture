@@ -17,7 +17,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import UsernameField from "@/components/UsernameField";
 import api, { API_BASE_URL, type CustomerInterestTaxonomy } from "@/services/api";
-import { getStoredReferral } from "@/services/referral";
+import { getStoredFriendCode } from "@/services/referral";
 import { normalizeReferralCode, REFERRAL_COPY } from "@/utils/friendReferral";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -122,7 +122,7 @@ export default function ConsumerSignupScreen() {
   const [referralCode, setReferralCode] = useState("");
   useEffect(() => {
     let cancelled = false;
-    getStoredReferral().then((saved) => {
+    getStoredFriendCode().then((saved) => {
       const code = normalizeReferralCode(saved);
       if (!cancelled && code) setReferralCode((current) => current || code);
     });

@@ -3,7 +3,7 @@ import { EXPO_PUSH_TOKEN_KEY } from "@/services/messagePush";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, AppStateStatus, Linking } from "react-native";
 import { api, setOnAuthSessionCleared } from "../services/api";
-import { captureReferralFromURL, captureReferralFromInitialURL, clearReferral } from "../services/referral";
+import { captureReferralFromURL, captureReferralFromInitialURL, clearFriendCode } from "../services/referral";
 import {
   storeTokens,
   storeUserData,
@@ -793,7 +793,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // A saved friend invite code is used once; forget it after the account exists.
-      if (data.role === "consumer") await clearReferral();
+      if (data.role === "consumer") await clearFriendCode();
       setUser(newUser);
       return { success: true, isPending: false };
     } catch (error: any) {
