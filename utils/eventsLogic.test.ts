@@ -323,3 +323,21 @@ test("eventPageBar", () => {
   assert.equal(eventPageBar(ev({ viewerIsHost: true }), [free], "f", false, now).kind, "none", "host");
   assert.equal(eventPageBar(ev(), [tt({ salesStatus: "upcoming" })], null, false, now).kind, "none", "nothing on sale yet");
 });
+
+// ─── Review fixes: a failed reload or refresh never throws away what loaded ──
+import { pagePhaseAfterError, eventsAfterError } from "./eventsLogic";
+
+test("pagePhaseAfterError keeps a loaded event page", () => {
+  assert.equal(pagePhaseAfterError(true, 500), null, "keep the page");
+  assert.equal(pagePhaseAfterError(true, 404), null, "keep the page even on a later 404");
+  assert.equal(pagePhaseAfterError(true, undefined), null, "keep the page on a timeout");
+  assert.equal(pagePhaseAfterError(false, 404), "notfound");
+  assert.equal(pagePhaseAfterError(false, 500), "error");
+  assert.equal(pagePhaseAfterError(false, undefined), "error");
+});
+
+test("eventsAfterError keeps the loaded list", () => {
+  const list = [card("a"), card("b")];
+  assert.deepEqual(eventsAfterError(list), list);
+  assert.deepEqual(eventsAfterError([]), []);
+});

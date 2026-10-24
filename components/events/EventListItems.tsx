@@ -7,9 +7,10 @@ import { Spacing } from "@/constants/theme";
 import { EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
 import { dateBlock, priceLabel, whenLabel, whereLabel, type EventCard } from "@/utils/eventsLogic";
 
-function Cover({ uri, height, radius }: { uri: string | null; height: number; radius?: number }) {
+function Cover({ uri, height, width, radius }: { uri: string | null; height: number; width?: number; radius?: number }) {
+  // A row thumbnail needs a fixed width; without it the cover takes the whole row and the text gets none.
   return (
-    <View style={[styles.cover, { height, backgroundColor: EVENT_GREEN, borderRadius: radius ?? 0 }]}>
+    <View style={[styles.cover, { width: width ?? "100%", height, backgroundColor: EVENT_GREEN, borderRadius: radius ?? 0 }]}>
       {uri ? (
         <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
       ) : null}
@@ -66,7 +67,7 @@ export function EventRow({ event, onPress }: { event: EventCard; onPress: () => 
       accessibilityLabel={`Event: ${event.title}, ${when}`}
       style={[styles.row, { backgroundColor: theme.card }]}
     >
-      <Cover uri={event.coverImageUrl} height={76} radius={12} />
+      <Cover uri={event.coverImageUrl} height={76} width={76} radius={12} />
       <View style={styles.textCol}>
         <ThemedText style={[styles.rowWhen, { color: theme.brandGold }]}>{when}</ThemedText>
         <ThemedText style={[styles.rowTitle, { color: theme.text }]} numberOfLines={2}>{event.title}</ThemedText>
@@ -77,7 +78,7 @@ export function EventRow({ event, onPress }: { event: EventCard; onPress: () => 
 }
 
 const styles = StyleSheet.create({
-  cover: { width: "100%", overflow: "hidden" },
+  cover: { overflow: "hidden", flexShrink: 0 },
   coverLabel: { position: "absolute", top: 80, alignSelf: "center", color: EVENT_GREEN_TEXT, fontSize: 13 },
   featured: { borderRadius: 16, overflow: "hidden" },
   badge: { position: "absolute", left: 12, bottom: 12, backgroundColor: "#000000", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },

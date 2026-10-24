@@ -456,3 +456,14 @@ export function eventPageBar(e: PublicEvent, types: PublicTicketType[], selected
   const lowest = Math.min(...paid.map((t) => t.buyerTotalCents ?? t.priceCents));
   return { kind: "paid_soon", label: "From", value: money(lowest) };
 }
+
+/** After a failed event page load: null keeps the page already on screen; otherwise the screen to show. */
+export function pagePhaseAfterError(hadPage: boolean, status: number | undefined): "notfound" | "error" | null {
+  if (hadPage) return null;
+  return status === 404 ? "notfound" : "error";
+}
+
+/** After a failed EVENTS list load the events already on screen stay (a filter change clears them first). */
+export function eventsAfterError(prev: EventCard[]): EventCard[] {
+  return prev;
+}

@@ -15,6 +15,7 @@ import { EVENT_CREAM, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/
 import { getEventCoords, requestOnce, savedCity } from "@/utils/eventLocation";
 import {
   buildEventsQuery,
+  eventsAfterError,
   eventsTabView,
   nearMeDecision,
   type Coords,
@@ -85,7 +86,8 @@ export default function EventsTab() {
         if (mine !== seq.current) return;
         console.error("[EventsTab] Failed to load events:", err);
         setError(true);
-        if (!opts.more) setEvents([]);
+        // Keep what loaded: a failed refresh never empties the list (apply() clears it on a filter change).
+        setEvents(eventsAfterError);
       } finally {
         if (mine === seq.current) {
           setLoading(false);
@@ -169,7 +171,7 @@ export default function EventsTab() {
       disabled={busy}
       accessibilityRole="button"
       accessibilityState={{ selected: on, busy }}
-      style={[styles.chip, { backgroundColor: on ? EVENT_CREAM : theme.card }]}
+      style={[styles.chip, { backgroundColor: on ? theme.brandGold : theme.card, borderColor: on ? theme.brandGold : theme.textMuted }]}
     >
       <ThemedText style={[styles.chipText, { color: on ? "#000000" : theme.text }]}>{label}</ThemedText>
     </Pressable>
@@ -261,7 +263,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.md, paddingBottom: 120 },
   headerWrap: { paddingTop: Spacing.xs, paddingBottom: Spacing.md, gap: Spacing.sm },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  chip: { height: 36, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   chipText: { fontSize: 13, fontWeight: "600" },
   note: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   noteText: { fontSize: 13 },

@@ -20,6 +20,7 @@ import {
   eventPageBar,
   maxQty,
   minQty,
+  pagePhaseAfterError,
   rangeLine,
   refundLine,
   revealLine,
@@ -55,6 +56,7 @@ export default function EventDetailScreen() {
   const [followBusy, setFollowBusy] = useState(false);
   const keyRef = useRef<string | null>(null);
   const seq = useRef(0);
+  const hadPageRef = useRef(false);
 
   const load = useCallback(async () => {
     const mine = ++seq.current;
@@ -63,6 +65,7 @@ export default function EventDetailScreen() {
       const res = await api.getEventBySlug(slug, token);
       if (mine !== seq.current) return;
       setPage(res);
+      hadPageRef.current = true;
       setPhase("ready");
       setSelectedId((cur) => cur ?? defaultTicketId(res.ticketTypes));
       const followId = res.event.host?.followId;
@@ -72,7 +75,9 @@ export default function EventDetailScreen() {
       }
     } catch (err: any) {
       if (mine !== seq.current) return;
-      setPhase(err?.status === 404 ? "notfound" : "error");
+      // A failed reload (after an RSVP or coming back from sign in) keeps the page already on screen.
+      const next = pagePhaseAfterError(hadPageRef.current, err?.status);
+      if (next) setPhase(next);
     }
   }, [slug]);
 
