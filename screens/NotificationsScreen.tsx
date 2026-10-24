@@ -124,8 +124,11 @@ export default function NotificationsScreen() {
     } else if (notification.type === "plan_offer") {
       // Same as tapping the offer push: back to the main tabs, where the popup opens.
       openPlanOffer(navigation, user);
-    } else if (notification.type === "referral_reward") {
-      // Friend referral reward: same as tapping its push, the Points screen.
+    } else if (
+      notification.type === "referral_reward" ||
+      notification.type === "business_referral_reward"
+    ) {
+      // Referral reward (friend points or business $25): same as tapping its push, the Points screen.
       openPointsFromReward(navigation, user);
     } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
       navigation.navigate("AdminDashboard");
@@ -171,6 +174,8 @@ export default function NotificationsScreen() {
         return "user-plus";
       case "referral_reward":
         return "gift";
+      case "business_referral_reward":
+        return "dollar-sign";
       case "business_pending":
         return "briefcase";
       case "booking_confirmed":

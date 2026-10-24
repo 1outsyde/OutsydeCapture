@@ -32,6 +32,7 @@ import { displayRating } from "@/types/ratings";
 import { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import ProviderCalendar, { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import BusinessEligibilityGate from "@/components/BusinessEligibilityGate";
+import BusinessReferralCard from "@/components/BusinessReferralCard";
 import PlanOfferBanner, {
   usePlanOfferBannerVisible,
 } from "@/components/plan-offer/PlanOfferBanner";
@@ -499,8 +500,11 @@ export default function BusinessDashboardScreen() {
     ]);
   };
 
+  // Bumped on pull to refresh so the business referral card reloads too.
+  const [referralRefresh, setReferralRefresh] = useState(0);
   const onRefresh = async () => {
     setRefreshing(true);
+    setReferralRefresh((n) => n + 1);
     await Promise.all([fetchDashboard(), fetchBookingsForCalendar()]);
     setRefreshing(false);
   };
@@ -1059,6 +1063,15 @@ export default function BusinessDashboardScreen() {
             <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
           </View>
         </Pressable>
+      </View>
+
+      {/* Refer a business, get $25 (2026-10-24). Their cash goes to this business's Stripe account,
+          so payout setup uses the dashboard's own Stripe flow. */}
+      <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+        <BusinessReferralCard
+          refreshKey={referralRefresh}
+          onSetupPayouts={handleConnectStripe}
+        />
       </View>
 
       {/* Settings nav cards */}

@@ -27,6 +27,7 @@ import {
   type FriendReferralInfo,
 } from "@/services/api";
 import api from "@/services/api";
+import BusinessReferralCard from "@/components/BusinessReferralCard";
 import { REFERRAL_COPY, referralCounts, referralShareMessage } from "@/utils/friendReferral";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -130,6 +131,8 @@ export default function OutsydePointsScreen() {
   // Invite friends card (2026-10-23). Loaded on its own so a failure never hides the points.
   const [referral, setReferral] = useState<FriendReferralInfo | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  // Business referral card (2026-10-24): reloads with pull to refresh.
+  const [businessRefresh, setBusinessRefresh] = useState(0);
 
   const fetchReferral = useCallback(async () => {
     try {
@@ -174,6 +177,7 @@ export default function OutsydePointsScreen() {
   const onRefresh = useCallback(() => {
     fetchAll();
     fetchReferral();
+    setBusinessRefresh((n) => n + 1);
   }, [fetchAll, fetchReferral]);
 
   const shareInvite = async () => {
@@ -346,6 +350,14 @@ export default function OutsydePointsScreen() {
             </View>
           );
         })()}
+
+        {/* Refer a business, get $25 */}
+        {referral && (
+          <BusinessReferralCard
+            code={referral.referralCode}
+            refreshKey={businessRefresh}
+          />
+        )}
 
         {/* Error state */}
         {error && (

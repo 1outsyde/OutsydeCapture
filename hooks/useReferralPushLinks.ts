@@ -1,5 +1,6 @@
 // useReferralPushLinks: a tapped friend referral reward push (backend loyaltyLedger.ts sends
-// data { type: "referral_reward", referenceId }) opens the Points screen.
+// data { type: "referral_reward", referenceId }) opens the Points screen. So does a business referral
+// push (type "business_referral_reward"), where the $25 card shows the payout.
 // Works when the app was in the background (listener) and when the tap launched it (last response).
 // Mounted once in MainTabNavigator next to usePlanOfferPushLinks. Waits for the stored sign in.
 // Ignores every other type, and the other push hooks ignore this one.

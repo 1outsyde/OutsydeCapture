@@ -114,7 +114,7 @@ async function finishPhotographerSignupPhoto(
 }
 
 export interface SignupData {
-  // Friend invite code (consumer signup only, 2026-10-23). Never fails the signup.
+  // Invite code (customers and businesses, 2026-10-24). Never fails the signup.
   referralCode?: string;
   firstName: string;
   lastName: string;
@@ -669,7 +669,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await api.roleBasedSignupAndLogin({
         email: data.email,
         password: data.password,
-        referralCode: data.role === "consumer" ? data.referralCode : undefined,
+        // Customers: friend points. Businesses: $25 to whoever referred them (2026-10-24).
+        referralCode:
+          data.role === "consumer" || data.role === "business"
+            ? data.referralCode
+            : undefined,
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role as "consumer" | "business" | "photographer",
@@ -786,14 +790,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sessionToken = response.accessToken || `session_${backendUser.id}`;
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken);
       
+      // A saved invite code is used once; forget it after the account exists.
+      if (data.role === "consumer" || data.role === "business")
+        await clearFriendCode();
+
       if (data.role === "business" && newUser.approvalStatus === "pending") {
         // Keep the user logged in so they can see their profile while waiting for approval
         setUser(newUser);
         return { success: true, isPending: true };
       }
       
-      // A saved friend invite code is used once; forget it after the account exists.
-      if (data.role === "consumer") await clearFriendCode();
       setUser(newUser);
       return { success: true, isPending: false };
     } catch (error: any) {
