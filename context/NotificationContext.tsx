@@ -42,7 +42,9 @@ export interface Notification {
     // Hidden plan offer (backend planOffers.ts); a tap opens the offer popup (utils/planOfferNav.ts).
     | "plan_offer"
     // Friend referral reward landed (backend loyaltyLedger.ts); a tap opens Points (utils/friendReferral.ts).
-    | "referral_reward";
+    | "referral_reward"
+    // Business referral $25 (backend referrals/businessReferrals.ts, kinds qualified | setup_payouts | paid); a tap opens Points.
+    | "business_referral_reward";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;

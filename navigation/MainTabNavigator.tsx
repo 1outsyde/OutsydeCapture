@@ -22,6 +22,8 @@ import { StripeConnectPrompt, isStripePromptSnoozed } from "@/components/StripeC
 import { shouldShowConnectPrompt, type ConnectPromptEligibility, type ConnectPromptStripeStatus } from "@/utils/connectPrompt";
 import { isAnyOpen, subscribe as subscribeModals } from "@/utils/modalCoordinator";
 import { markStripeReturn } from "@/utils/stripeReturnSignal";
+import { openPointsFromReward } from "@/utils/friendReferral";
+import { hostStripeReturnMessage } from "@/utils/businessReferral";
 import { useMessagePushLinks } from "@/hooks/useMessagePushLinks";
 import { useBookingPushLinks } from "@/hooks/useBookingPushLinks";
 import { useSubscriptionPushLinks } from "@/hooks/useSubscriptionPushLinks";
@@ -209,6 +211,15 @@ export default function MainTabNavigator() {
     if (!user || user.isGuest) {
       console.log("[DeepLink] Not authenticated — routing to Auth");
       navigation.navigate("Auth");
+      return;
+    }
+
+    // Personal payout account (tickets and referral cash, 2026-10-24): back to Points, where the
+    // business referral card shows the payout status. No /connect/complete call: that's for vendors.
+    if (type === "host") {
+      openPointsFromReward(navigation, user);
+      const msg = hostStripeReturnMessage(status);
+      if (msg) Alert.alert(msg.title, msg.body, [{ text: "OK" }]);
       return;
     }
 

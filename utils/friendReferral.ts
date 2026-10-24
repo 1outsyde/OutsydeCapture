@@ -28,11 +28,16 @@ export function referralCodeFromUrl(url: string): string | null {
   return normalizeReferralCode(raw);
 }
 
-/** Push data from the backend's reward notice: { type: "referral_reward", referenceId }. */
+/** Push data from a reward notice: friend points ("referral_reward") or business cash
+ *  ("business_referral_reward", kinds qualified | setup_payouts | paid). Both open Points. */
 export function isReferralRewardPush(
   data: { type?: unknown; [key: string]: unknown } | null | undefined,
 ): boolean {
-  return !!data && data.type === "referral_reward";
+  return (
+    !!data &&
+    (data.type === "referral_reward" ||
+      data.type === "business_referral_reward")
+  );
 }
 
 interface Nav {

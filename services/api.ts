@@ -1,3 +1,4 @@
+import type { BusinessReferralsInfo } from "@/utils/businessReferral";
 import {
   getAccessToken,
   getRefreshToken,
@@ -1519,7 +1520,7 @@ export interface MobileLoginResponse {
 export interface MobileSignupRequest {
   email: string;
   password: string;
-  // Friend invite code (consumer signup only, 2026-10-23). Never fails the signup.
+  // Invite code (customers: friend points, 2026-10-23; businesses: $25 to the referrer, 2026-10-24). Never fails the signup.
   referralCode?: string;
   firstName: string;
   lastName: string;
@@ -1676,6 +1677,8 @@ export interface VendorSignupRequest {
   otherDescription?: string;
   // true = the app sends the admin alert itself after uploading the logo
   deferAdminNotification?: boolean;
+  // Business referral code (2026-10-24): whoever referred this business earns $25 once it's live.
+  referralCode?: string;
 }
 
 export interface PhotographerSignupRequest {
@@ -2188,7 +2191,11 @@ class ApiService {
         categoryCode: data.categoryCode,
         specialties: data.businessSpecialties,
         otherDescription: data.otherDescription,
-        deferAdminNotification: data.deferAdminNotification === true ? true : undefined,
+        deferAdminNotification:
+          data.deferAdminNotification === true ? true : undefined,
+        ...(data.referralCode?.trim()
+          ? { referralCode: data.referralCode.trim() }
+          : {}),
       };
       console.log("[Signup] Vendor payload:", JSON.stringify(vendorPayload, null, 2));
       const signupResponse = await this.vendorSignup(vendorPayload);
@@ -4862,6 +4869,32 @@ class ApiService {
     return this.request<FriendReferralInfo>("/api/referral/code", {
       headers: { Authorization: `Bearer ${authToken}` },
     });
+  }
+
+  /** Businesses this person referred and their $25 payouts (referral Step 4). */
+  async getBusinessReferrals(
+    authToken: string,
+  ): Promise<BusinessReferralsInfo> {
+    return this.request<BusinessReferralsInfo>("/api/referral/business", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+  }
+
+  /** Stripe onboarding link for a personal payout account (tickets and referral cash). */
+  async startPayoutSetup(
+    authToken: string,
+  ): Promise<{ success?: boolean; url?: string }> {
+    return this.request<{ success?: boolean; url?: string }>(
+      "/api/events/payouts/setup-link",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      },
+    );
   }
 
   async getInfluencerStats(authToken: string): Promise<InfluencerStats> {
