@@ -34,6 +34,10 @@ export function useAnnouncementPushLinks() {
       const key = response.notification.request.identifier;
       if (handled.current.has(key)) return;
       handled.current.add(key);
+      // So a later remount (signing in again) doesn't reopen this announcement. Same as useMessagePushLinks.
+      try {
+        Notifications.clearLastNotificationResponse();
+      } catch {}
       setPending({ screen: data?.screen, url: data?.url });
     };
     Notifications.getLastNotificationResponseAsync()

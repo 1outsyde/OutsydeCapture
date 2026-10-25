@@ -5462,8 +5462,6 @@ class ApiService {
     return this.normalizeVendorEligibility(response);
   }
 
-  /** Hidden plan offer for the signed in business owner (backend #346), or null. Own method on purpose:
-   *  normalizeVendorEligibility keeps only known fields. */
   /** "Outsyde news and offers" switch (backend /api/push/preferences). null when it couldn't be read. */
   async getPushPreferences(
     authToken: string,
@@ -5501,6 +5499,8 @@ class ApiService {
     }
   }
 
+  /** Hidden plan offer for the signed in business owner (backend #346), or null. Own method on purpose:
+   *  normalizeVendorEligibility keeps only known fields. */
   async getPlanOffer(authToken: string): Promise<PlanOffer | null> {
     const response = await this.request<unknown>("/api/vendor/plan-offer", {
       headers: { Authorization: `Bearer ${authToken}` },
