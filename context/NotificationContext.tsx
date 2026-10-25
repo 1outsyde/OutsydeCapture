@@ -44,7 +44,9 @@ export interface Notification {
     // Friend referral reward landed (backend loyaltyLedger.ts); a tap opens Points (utils/friendReferral.ts).
     | "referral_reward"
     // Business referral $25 (backend referrals/businessReferrals.ts, kinds qualified | setup_payouts | paid); a tap opens Points.
-    | "business_referral_reward";
+    | "business_referral_reward"
+    // Admin announcement (backend server/push/pushBroadcasts.ts); a tap opens metadata.screen (utils/announcementPush.ts).
+    | "announcement";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;

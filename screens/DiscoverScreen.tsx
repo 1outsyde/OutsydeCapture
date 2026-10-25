@@ -15,7 +15,11 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,7 +43,8 @@ import { useSavedPosts } from "@/context/SavedPostsContext";
 import { useAuth } from "@/context/AuthContext";
 import api, { ApiPost } from "@/services/api";
 import { FeedToggle, FeedMode } from "@/components/FeedToggle";
-import { nextFeedMode } from "@/utils/feedModes";
+import { nextFeedMode, FEED_MODES } from "@/utils/feedModes";
+import type { DiscoverStackParamList } from "@/navigation/types";
 import EventsTab from "@/screens/EventsTab";
 import { EventFeedCard } from "@/components/events/EventFeedCard";
 import { getEventCoords } from "@/utils/eventLocation";
@@ -93,6 +98,16 @@ export default function DiscoverScreen() {
   const { user, getToken, isAuthenticated } = useAuth();
 
   const [feedMode, setFeedMode] = useState<FeedMode>("pro");
+  // An announcement push can open a tab here ({ mode: "events", _ts }). Without params nothing changes.
+  const route = useRoute<RouteProp<DiscoverStackParamList, "Discover">>();
+  const openMode = route.params?.mode;
+  const openTs = route.params?._ts;
+  useEffect(() => {
+    if (openMode && FEED_MODES.some((m) => m.mode === openMode))
+      // Follows a navigation param (a push tap), not React state, so there is no render loop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFeedMode(openMode);
+  }, [openMode, openTs]);
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   // Events shown as cards inside the Pro feed (never sent to /api/feed; a failure leaves the feed as it was).
