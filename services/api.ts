@@ -13,6 +13,7 @@ import {
   type PlanOffer,
 } from "@/utils/planOffer";
 import { refundRequestBody } from "@/utils/refundAmount";
+import type { EventCard, EventPage } from "@/utils/eventsLogic";
 import type {
   RatingCheckResponse,
   Rating,
@@ -4630,6 +4631,44 @@ class ApiService {
       requiresAuth?: boolean;
       data?: { hasMore?: boolean; nextOffset?: number };
     }>(url, { headers });
+  }
+
+  // ─── Events (public list, event page, free RSVP) ───────────────────────────
+  // Location goes to the events list as lat/lng only; never add it to getFeed.
+
+  // GET /api/events?<query> - Public list of upcoming events (query from utils/eventsLogic buildEventsQuery / feedEventsQuery)
+  async listEvents(query: string, authToken?: string | null): Promise<{ events: EventCard[]; nextCursor: string | null }> {
+    const headers: Record<string, string> = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const res = await this.request<{ events?: EventCard[]; nextCursor?: string | null }>(
+      query ? `/api/events?${query}` : "/api/events",
+      { headers },
+    );
+    return { events: Array.isArray(res.events) ? res.events : [], nextCursor: res.nextCursor ?? null };
+  }
+
+  // GET /api/events/slug/:slug - Event page (viewer from the token: viewerHasTicket, viewerIsHost)
+  async getEventBySlug(slug: string, authToken?: string | null): Promise<EventPage> {
+    const headers: Record<string, string> = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const res = await this.request<{ event: EventPage["event"]; ticketTypes?: EventPage["ticketTypes"] }>(
+      `/api/events/slug/${encodeURIComponent(slug)}`,
+      { headers },
+    );
+    return { event: res.event, ticketTypes: Array.isArray(res.ticketTypes) ? res.ticketTypes : [] };
+  }
+
+  // POST /api/events/:id/rsvp - Free RSVP. Same idempotencyKey on a retry never makes a second RSVP.
+  async rsvpEvent(
+    eventId: string,
+    body: { ticketTypeId: string; quantity: number; idempotencyKey: string },
+    authToken: string,
+  ): Promise<{ order: { id: string; ticketCount: number; tickets: Array<{ id: string; code: string }> } }> {
+    return this.request(`/api/events/${encodeURIComponent(eventId)}/rsvp`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
   }
 
   // GET /api/feed/:postId - Get a single post by id (public)

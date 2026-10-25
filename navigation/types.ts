@@ -19,6 +19,8 @@ export type RootStackParamList = {
   VendorDetail: { vendorId: string; initialTab?: "products" | "services" | "reviews"; productId?: string };
   StaffWorkProfile: { businessId: string; staffId: string };
   PostDetail: { userId: string; initialPostId: string };
+  /** Event page (GET /api/events/slug/:slug). */
+  EventDetail: { slug: string };
   FollowList: {
     /** User, business or photographer id of the profile whose lists to show. */
     profileId: string;
