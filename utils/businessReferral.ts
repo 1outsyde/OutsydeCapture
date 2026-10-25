@@ -98,7 +98,8 @@ export function businessReferralLine(
     case "paid":
       return `$25 sent${p.paidAt ? ` on ${shortDate(p.paidAt)}` : ""}.`;
     case "cancelled":
-      return "Their plan payment was refunded, so the $25 was cancelled.";
+      // Neutral: the job cancels for a refunded plan payment, an admin can cancel too (Step 5b).
+      return "This $25 payout was cancelled.";
     case "review":
       return "We're checking this payout. No action needed.";
     case "held":

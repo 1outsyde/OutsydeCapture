@@ -79,7 +79,7 @@ test("status lines say what's next", () => {
   assert.ok(businessReferralLine(q({ status: "review" }), NOW).length > 0);
   assert.match(
     businessReferralLine(q({ status: "cancelled" }), NOW),
-    /refunded/,
+    /^This \$25 payout was cancelled\.$/,
   );
 });
 
