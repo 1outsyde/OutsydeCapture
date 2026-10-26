@@ -95,7 +95,8 @@ export default function TicketDetailScreen() {
     }, [load]),
   );
 
-  const cardW = width - CARD_W_PAD * 2;
+  // Inside the card's 1px border on each side.
+  const cardW = width - CARD_W_PAD * 2 - 2;
   const onSwipe = (ev: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(ev.nativeEvent.contentOffset.x / Math.max(1, cardW));
     if (i !== index) setIndex(Math.max(0, Math.min(tickets.length - 1, i)));
@@ -215,7 +216,7 @@ export default function TicketDetailScreen() {
     <View style={[styles.root, { backgroundColor: theme.backgroundRoot }]}>
       {header}
       <ScrollView contentContainerStyle={{ paddingHorizontal: CARD_W_PAD, paddingBottom: insets.bottom + 32, gap: 12 }}>
-        <View style={styles.card}>
+        <View style={[styles.card, { borderColor: theme.border }]}>
           <View style={styles.cardTop}>
             <ThemedText style={styles.evTitle}>{ev.title}</ThemedText>
             <ThemedText style={styles.evDay}>{day}</ThemedText>
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: "800" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   centerText: { fontSize: 16, fontWeight: "600", textAlign: "center" },
-  card: { backgroundColor: PAPER, borderRadius: 22, overflow: "hidden" },
+  card: { backgroundColor: PAPER, borderRadius: 22, overflow: "hidden", borderWidth: 1 },
   cardTop: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4, gap: 4 },
   evTitle: { color: INK, fontSize: 22, fontWeight: "800", lineHeight: 27 },
   evDay: { color: INK, fontSize: 13, fontWeight: "600" },
