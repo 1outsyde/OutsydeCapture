@@ -563,7 +563,7 @@ const PUBLISH_COPY: Record<string, { message: string; next: PublishNext }> = {
   NO_TICKET_TYPES: { message: "Add at least one ticket type before you publish.", next: "tickets" },
   NO_VISIBLE_TICKET_TYPES: { message: "At least one ticket type has to be visible to guests.", next: "tickets" },
   PAID_TICKETS_NOT_AVAILABLE: { message: "Paid tickets aren't available yet. Use free tickets for now.", next: "tickets" },
-  PAYOUTS_NOT_SET_UP: { message: "Set up payouts before selling paid tickets.", next: "payouts" },
+  PAYOUTS_NOT_SET_UP: { message: "Set up payouts before you publish. Every host needs them, even for free events.", next: "payouts" },
   // A started event's start can't move (backend checkTimes), so the way forward is a new event.
   EVENT_IN_PAST: { message: "This event's start time has passed, so it can't be published. Create a new event with a future date.", next: "new" },
   NOT_A_DRAFT: { message: "This event isn't a draft anymore, so it can't be published again.", next: "manage" },

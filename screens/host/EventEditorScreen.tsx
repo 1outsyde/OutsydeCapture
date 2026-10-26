@@ -37,7 +37,7 @@ import {
   type EventForm, type HostAs, type HostEvent, type HostTicketType, type PublishNext, type TicketSheet,
 } from "@/utils/host/editorLogic";
 import {
-  clearHostSetupPending, gateAtOpen, gateCopy, hostChoicesFromStatus, markHostSetupPending, onHostSetupReturn, statusResult,
+  clearHostSetupPending, gateAtOpen, gateCopy, hostChoicesFromStatus, markHostSetupPending, onHostSetupReturn, paidReady, statusResult,
   type GateStatus, type HostStatuses,
 } from "@/utils/host/hostGate";
 import { dateLabel, monthOf, timeLabel, todayIn } from "@/utils/host/pickerLogic";
@@ -46,7 +46,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Screen = "loading" | "error" | "gate" | "start" | "details" | "tickets" | "review" | "live";
 type Step = "details" | "tickets" | "review";
 /** Where the gate goes once payouts are ready. */
-type AfterGate = "start" | "create" | "review";
+type AfterGate = "start" | "create" | "tickets" | "review";
 
 const STEPS: Record<Step, { n: number; title: string }> = {
   details: { n: 1, title: "Event details" },
@@ -71,7 +71,9 @@ export default function EventEditorScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
-  const routeId = useRoute<RouteProp<RootStackParamList, "EventEditor">>().params?.eventId;
+  // The id the editor opened with. Saving a new draft sets the route param too (so a remount edits it), but the
+  // load below keys on this first value only, so the first save never reloads the screen.
+  const [routeId] = useState(useRoute<RouteProp<RootStackParamList, "EventEditor">>().params?.eventId);
   // getToken is a new function on every auth update: read it through a ref so loads don't rerun (and reset the form).
   const { getToken: authToken } = useAuth();
   const tokenRef = useRef(authToken);
@@ -91,6 +93,12 @@ export default function EventEditorScreen() {
   const [statuses, setStatuses] = useState<HostStatuses>({ user: "unknown", business: "unknown", photographer: "unknown" });
   const [drafts, setDrafts] = useState<HostEvent[]>([]);
   const [busy, setBusy] = useState(false);
+  /** In flight right away (state updates land a render later): stops a double tap from creating two drafts. */
+  const saving = useRef(false);
+  const publishing = useRef(false);
+  /** Stripe is live for the event's host (paid tickets can sell). Null until known. */
+  const [paidOk, setPaidOk] = useState<boolean | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -137,9 +145,15 @@ export default function EventEditorScreen() {
 
   /* ---------- payout status ---------- */
 
-  const loadStatus = useCallback(async (t: string, h: HostAs): Promise<GateStatus> => {
-    try { return statusResult(await api.getHostPayoutStatus(h, t)); } catch (e) { return statusResult(null, e); }
+  const fetchStatus = useCallback(async (t: string, h: HostAs): Promise<{ gate: GateStatus; paid: boolean | null }> => {
+    try {
+      const r = await api.getHostPayoutStatus(h, t);
+      return { gate: statusResult(r), paid: paidReady(r) };
+    } catch (e) {
+      return { gate: statusResult(null, e), paid: null };
+    }
   }, []);
+  const loadStatus = useCallback(async (t: string, h: HostAs): Promise<GateStatus> => (await fetchStatus(t, h)).gate, [fetchStatus]);
 
   const loadStatuses = useCallback(async (t: string): Promise<HostStatuses> => {
     const [user, business, photographer] = await Promise.all((["user", "business", "photographer"] as HostAs[]).map((h) => loadStatus(t, h)));
@@ -162,7 +176,11 @@ export default function EventEditorScreen() {
         return false;
       }
       applyServer(r.event, r.ticketTypes);
-      loadStatus(t, r.event.hostType).then((st) => { if (live.current) setStatuses((p) => ({ ...p, [r.event.hostType]: st })); });
+      fetchStatus(t, r.event.hostType).then((st) => {
+        if (!live.current) return;
+        setStatuses((p) => ({ ...p, [r.event.hostType]: st.gate }));
+        setPaidOk(st.paid);
+      });
       return true;
     } catch (e) {
       const f = flatError(e);
@@ -170,7 +188,7 @@ export default function EventEditorScreen() {
       setScreen("error");
       return false;
     }
-  }, [token, applyServer, copyFor, loadStatus]);
+  }, [token, applyServer, copyFor, fetchStatus]);
 
   const loadStart = useCallback(async () => {
     const t = await token();
@@ -214,15 +232,17 @@ export default function EventEditorScreen() {
   /* ---------- saving ---------- */
 
   async function save(): Promise<boolean> {
-    if (busy) return false;
+    if (saving.current) return false;
     const problem = validateForm(form);
-    if (problem) { setError(problem); return false; }
-    const t = await token();
-    if (!t) return false;
+    if (problem) { setError(problem); setErrorCode(null); return false; }
+    saving.current = true;
     setBusy(true);
     setError(null);
+    setErrorCode(null);
     setNotice(null);
     try {
+      const t = await token();
+      if (!t) return false;
       if (!eventId) {
         // Every host sets up payouts before the draft exists (Legend 2026-10-26).
         const st = await loadStatus(t, form.hostAs);
@@ -248,10 +268,21 @@ export default function EventEditorScreen() {
       return true;
     } catch (e) {
       setError(copyFor(e));
+      const code = flatError(e).body?.code;
+      setErrorCode(typeof code === "string" ? code : null);
       return false;
     } finally {
+      saving.current = false;
       if (live.current) setBusy(false);
     }
+  }
+
+  /** "This event just changed": load the saved version (the person's unsaved edits on this step are replaced). */
+  async function reloadEvent() {
+    if (!eventId) return;
+    setError(null);
+    setErrorCode(null);
+    await loadEvent(eventId);
   }
 
   async function saveDraft() {
@@ -374,6 +405,23 @@ export default function EventEditorScreen() {
     }
   }
 
+  /** "Not now": from the start of a new event, close; otherwise back to the step the gate came from (edits kept). */
+  function leaveGate() {
+    const g = gate;
+    clearHostSetupPending();
+    setGate(null);
+    if (!g || g.after === "start") { close(); return; }
+    setScreen(g.after === "create" ? "details" : g.after);
+  }
+
+  /** Tickets banner: save the step first, then the gate (it comes back to Tickets). */
+  async function payoutsFromTickets(ev: HostEvent) {
+    if (!(await save())) return;
+    const st = statuses[ev.hostType];
+    setGate({ host: ev.hostType, state: st === "setup" ? "setup" : "finish", after: "tickets", opening: false, error: null });
+    setScreen("gate");
+  }
+
   /** After Stripe (or Check again): ready moves on, otherwise the gate stays with a note. */
   const recheckGate = useCallback(async () => {
     const g = gate;
@@ -387,12 +435,17 @@ export default function EventEditorScreen() {
       setGate({ ...g, state: st === "setup" ? "setup" : "finish", opening: false, error: st === "unknown" ? GENERIC_ERROR : NOT_FINISHED });
       return;
     }
+    clearHostSetupPending();
     setGate(null);
     if (g.after === "start") setScreen("start");
     else if (g.after === "review") { setScreen("review"); setPublishError(null); }
+    else if (g.after === "tickets") setScreen("tickets");
     else setScreen("details"); // create: the person taps Next again with the same form
+    if (g.after === "tickets" || g.after === "review") {
+      fetchStatus(t, g.host).then((x) => { if (live.current) setPaidOk(x.paid); });
+    }
     if (g.after === "create") setNotice("Payouts are set up. Tap Next to save your event.");
-  }, [gate, getToken, loadStatus]);
+  }, [gate, getToken, loadStatus, fetchStatus]);
 
   useEffect(() => {
     if (screen !== "gate") return;
@@ -420,8 +473,9 @@ export default function EventEditorScreen() {
     }
   }, [getToken, copyFor]);
 
+  /** Callers hold the publishing ref, so a double tap never sends two publishes. */
   async function publish() {
-    if (!eventId || busy) return;
+    if (!eventId) return;
     const t = await token();
     if (!t) return;
     setBusy(true);
@@ -455,15 +509,29 @@ export default function EventEditorScreen() {
 
   /** Publish button: straight to publish once accepted, otherwise the agreement pops up. */
   async function onPublishPress() {
-    if (busy) return;
-    setAgreementNotice(null);
-    const a = agreement ?? (await loadAgreement());
-    if (a?.accepted) { await publish(); return; }
-    setAgreementOpen(true);
+    if (publishing.current || saving.current) return;
+    publishing.current = true;
+    try {
+      setAgreementNotice(null);
+      const a = agreement ?? (await loadAgreement());
+      if (a?.accepted) { await publish(); return; }
+      setAgreementOpen(true);
+    } finally {
+      publishing.current = false;
+    }
   }
 
   async function agreeAndPublish() {
-    if (!agreement || busy) return;
+    if (!agreement || publishing.current) return;
+    publishing.current = true;
+    try {
+      await acceptThenPublish(agreement);
+    } finally {
+      publishing.current = false;
+    }
+  }
+
+  async function acceptThenPublish(agreement: Agreement) {
     const t = await token();
     if (!t) return;
     setBusy(true);
@@ -493,9 +561,9 @@ export default function EventEditorScreen() {
     else if (n === "tickets") go("tickets");
     else if (n === "payouts" && event) {
       const st = statuses[event.hostType];
-      setGate({ host: event.hostType, state: st === "finish" ? "finish" : "setup", after: "review", opening: false, error: null });
+      setGate({ host: event.hostType, state: st === "setup" ? "setup" : "finish", after: "review", opening: false, error: null });
       setScreen("gate");
-    } else if (n === "manage" && eventId) navigation.replace("ManageEvent", { eventId });
+    } else if (n === "manage" && eventId) backTo("ManageEvent", eventId);
     else if (n === "reload" && eventId) {
       setPublishError(null);
       await loadEvent(eventId);
@@ -517,12 +585,26 @@ export default function EventEditorScreen() {
   /* ---------- render ---------- */
 
   const close = () => navigation.goBack();
+  /** Go to a screen that may already be under the editor in the stack: pop back to it, never stack a second copy. */
+  const backTo = (name: "ManageEvent" | "YourEvents", id?: string) => {
+    const st = navigation.getState();
+    const routes = st?.routes ?? [];
+    let at = -1;
+    for (let i = (st?.index ?? 0) - 1; i >= 0; i--) {
+      const r = routes[i];
+      if (r.name === name && (name === "YourEvents" || (r.params as { eventId?: string } | undefined)?.eventId === id)) { at = i; break; }
+    }
+    if (at >= 0) navigation.pop(st.index - at);
+    else if (name === "ManageEvent" && id) navigation.replace("ManageEvent", { eventId: id });
+    else navigation.replace("YourEvents");
+  };
   const root = (children: React.ReactNode) => (
     <View style={[s.root, { backgroundColor: theme.backgroundRoot }]}>{children}</View>
   );
   const messages = (
     <>
       {error ? <ErrorText>{error}</ErrorText> : null}
+      {error && errorCode === "EVENT_CHANGED" && eventId ? <TextButton center gold label="Reload" onPress={reloadEvent} /> : null}
       {notice ? <OkText>{notice}</OkText> : null}
     </>
   );
@@ -538,7 +620,7 @@ export default function EventEditorScreen() {
         <Centered>
           <ThemedText style={[hostStyles.body, { textAlign: "center" }]} accessibilityRole="alert">{loadError ?? GENERIC_ERROR}</ThemedText>
           <PrimaryButton label="Try again" onPress={load} style={{ alignSelf: "stretch" }} />
-          <TextButton center label="Your events" gold onPress={() => navigation.replace("YourEvents")} />
+          <TextButton center label="Your events" gold onPress={() => backTo("YourEvents")} />
         </Centered>
       </>,
     );
@@ -569,7 +651,7 @@ export default function EventEditorScreen() {
         <View style={[s.foot, { paddingBottom: insets.bottom + 12, borderTopColor: theme.border }]}>
           <PrimaryButton label={gate.opening ? "Opening Stripe…" : c.cta} onPress={openGateSetup} busy={gate.opening} />
           {gate.error === NOT_FINISHED || gate.error === GENERIC_ERROR ? <TextButton center label="Check again" gold onPress={recheckGate} /> : null}
-          <TextButton center label="Not now" onPress={close} />
+          <TextButton center label="Not now" onPress={leaveGate} />
         </View>
       </>,
     );
@@ -620,7 +702,7 @@ export default function EventEditorScreen() {
     const url = shareUrl(event.slug);
     return root(
       <>
-        <HostHeader left={{ icon: "x", label: "Close", onPress: () => navigation.replace("YourEvents") }} />
+        <HostHeader left={{ icon: "x", label: "Close", onPress: () => backTo("YourEvents") }} />
         <ScrollView contentContainerStyle={[s.body, { gap: 16, alignItems: "stretch" }]}>
           <View style={[s.liveCheck, { backgroundColor: GOLD }]}><Feather name="check" size={34} color="#0B0B0B" /></View>
           <ThemedText style={[hostStyles.h1, { textAlign: "center" }]} accessibilityRole="header">YOUR EVENT IS LIVE</ThemedText>
@@ -637,7 +719,7 @@ export default function EventEditorScreen() {
           <PrimaryButton label="Share link" onPress={shareLink} />
           <View style={s.twoUp}>
             <OutlineButton label="View event" onPress={() => navigation.navigate("EventDetail", { slug: event.slug })} style={{ flex: 1 }} />
-            <OutlineButton label="Manage event" onPress={() => navigation.replace("ManageEvent", { eventId: event.id })} style={{ flex: 1 }} />
+            <OutlineButton label="Manage event" onPress={() => backTo("ManageEvent", event.id)} style={{ flex: 1 }} />
           </View>
         </ScrollView>
       </>,
@@ -684,7 +766,7 @@ export default function EventEditorScreen() {
         {step === "review" && published && event ? (
           <View style={s.twoUp}>
             <OutlineButton label="View event" onPress={() => navigation.navigate("EventDetail", { slug: event.slug })} style={{ flex: 1 }} />
-            <OutlineButton label="Manage event" onPress={() => navigation.replace("ManageEvent", { eventId: event.id })} style={{ flex: 1 }} />
+            <OutlineButton label="Manage event" onPress={() => backTo("ManageEvent", event.id)} style={{ flex: 1 }} />
           </View>
         ) : null}
       </View>
@@ -803,17 +885,21 @@ export default function EventEditorScreen() {
     const noRefundsLocked = isPublished && !refundChangeAllowed({ policy: ev.refundPolicy, cutoffHours: ev.refundCutoffHours }, { policy: "no_refunds", cutoffHours: null });
     const hasPaid = list.some((x) => x.priceCents > 0);
     const st = statuses[ev.hostType];
-    const needsPayout = hasPaid && (st === "setup" || st === "finish");
+    // Paid tickets sell only once Stripe is live for this host (free publishing only needs setup).
+    const needsPayout = hasPaid && (paidOk === false || st === "setup" || st === "finish");
     return (
       <>
         {needsPayout ? (
           <View style={[s.banner, { borderColor: GOLD }]} accessibilityLiveRegion="polite">
             <Feather name="credit-card" size={20} color={theme.brandGold} />
             <View style={{ flex: 1, gap: 8 }}>
-              <ThemedText style={{ fontSize: 14, lineHeight: 20 }}>To sell paid tickets, add where we send your earnings. You get paid 3 days after the event.</ThemedText>
+              <ThemedText style={{ fontSize: 14, lineHeight: 20 }}>
+                {st === "setup"
+                  ? "To sell paid tickets, add where we send your earnings. You get paid 3 days after the event."
+                  : "To sell paid tickets, finish your payout setup with Stripe. You get paid 3 days after the event."}
+              </ThemedText>
               <View style={{ alignSelf: "flex-start" }}>
-                <TextButton label={st === "finish" ? "Finish payout setup" : "Set up payouts"} gold
-                  onPress={() => { setGate({ host: ev.hostType, state: st === "finish" ? "finish" : "setup", after: "review", opening: false, error: null }); setScreen("gate"); }} />
+                <TextButton label={st === "setup" ? "Set up payouts" : "Finish payout setup"} gold onPress={() => payoutsFromTickets(ev)} />
               </View>
             </View>
           </View>
@@ -848,7 +934,7 @@ export default function EventEditorScreen() {
         <Field label="EVENT CAPACITY (OPTIONAL)" keyboardType="number-pad" placeholder="No limit" value={form.capacity} onChangeText={(v) => editForm("capacity", v)} />
 
         <Box title="Refunds">
-          <RadioRow on={form.refundPolicy === "until_cutoff"} onPress={() => editForm("refundPolicy", "until_cutoff")} label="Until hours before">
+          <RadioRow on={form.refundPolicy === "until_cutoff"} onPress={() => editForm("refundPolicy", "until_cutoff")} label="Refunds until the hours you set before the event">
             <View style={s.inline}>
               <ThemedText style={{ fontSize: 15 }}>Until</ThemedText>
               <Field label="" accessibilityLabel="Hours before the event" keyboardType="number-pad" value={form.refundCutoffHours}

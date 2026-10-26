@@ -1,6 +1,6 @@
 /** Unit tests for the app's payout gate and Stripe return helpers (Events canvas 35). npx tsx utils/host/hostGate.test.ts */
 import {
-  gateCopy, hostChoicesFromStatus, statusResult, gateAtOpen, markHostSetupPending, takeHostSetupPending, HOST_SETUP_TTL_MS,
+  gateCopy, hostChoicesFromStatus, statusResult, paidReady, gateAtOpen, markHostSetupPending, takeHostSetupPending, HOST_SETUP_TTL_MS,
   clearHostSetupPending, onHostSetupReturn, notifyHostSetupReturn,
 } from "./hostGate";
 
@@ -20,6 +20,17 @@ eq(statusResult(null, { status: 403, body: { error: { code: "NOT_A_PHOTOGRAPHER"
 eq(statusResult(null, { status: 500, body: {} }), "unknown", "server error: unknown");
 eq(statusResult(null, { message: "Network error" }), "unknown", "network error: unknown");
 eq(statusResult(null, { status: 403, body: { error: { code: "ACCOUNT_INACTIVE", message: "x" } } }), "unknown", "inactive account is not hidden as a missing profile");
+
+console.log("statusResult with setupComplete (backend #369)");
+eq(statusResult({ success: true, hasAccount: true, ready: false, setupComplete: true }), "ready", "set up but Stripe not live yet: can host (free publish uses the same check)");
+eq(statusResult({ success: true, hasAccount: true, ready: false, setupComplete: false }), "finish", "unfinished account");
+eq(statusResult({ success: true, hasAccount: false, ready: false, setupComplete: false }), "setup", "no account");
+eq(statusResult({ success: true, hasAccount: true, ready: true, setupComplete: true }), "ready", "fully ready");
+
+console.log("paidReady");
+eq(paidReady({ ready: true }), true, "Stripe live: paid tickets can sell");
+eq(paidReady({ ready: false, setupComplete: true }), false, "not live yet");
+eq(paidReady(null), null, "unknown");
 
 console.log("hostChoicesFromStatus");
 eq(hostChoicesFromStatus({ user: "setup", business: "none", photographer: "none" }), ["user"], "consumer only");

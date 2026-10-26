@@ -110,7 +110,10 @@ export default function ManageEventScreen() {
   }, [eventId, token, loadSales, navigation]);
 
   // Fresh numbers each time the screen shows (after editing, or coming back from the event page).
-  useFocusEffect(useCallback(() => { if (!discarded) load(event !== null); }, [load, discarded])); // eslint-disable-line react-hooks/exhaustive-deps
+  // Quiet once something is on screen: no spinner over the numbers being refreshed.
+  const hadEvent = useRef(false);
+  if (event) hadEvent.current = true;
+  useFocusEffect(useCallback(() => { if (!discarded) load(hadEvent.current); }, [load, discarded]));
 
   const rows = useMemo(() => typeRows(types, summary), [types, summary]);
   const refundable = useMemo(() => refundableOrders(orders, event?.status ?? ""), [orders, event]);

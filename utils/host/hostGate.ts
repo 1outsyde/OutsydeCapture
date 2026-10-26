@@ -14,13 +14,21 @@ const NOT_THIS_HOST = new Set(["NOT_A_BUSINESS_OWNER", "BUSINESS_NOT_APPROVED", 
 /** One payouts/status answer (or its error) to a gate status. */
 export function statusResult(res: { hasAccount?: unknown; ready?: unknown; [k: string]: unknown } | null, err?: unknown): GateStatus {
   if (res && typeof res.ready === "boolean") {
-    if (res.ready) return "ready";
+    // setupComplete (backend #369) is the check publish uses: our record says payouts are set up. Stripe being
+    // live ("ready") only matters for selling paid tickets. An older backend without it falls back to ready.
+    const done = typeof res.setupComplete === "boolean" ? res.setupComplete : res.ready;
+    if (done) return "ready";
     return res.hasAccount ? "finish" : "setup";
   }
   const e = err as { status?: unknown; body?: { error?: { code?: unknown } } } | null | undefined;
   const code = e?.body?.error?.code;
   if (e?.status === 403 && typeof code === "string" && NOT_THIS_HOST.has(code)) return "none";
   return "unknown";
+}
+
+/** Can paid tickets sell right now (Stripe live)? Null when unknown. */
+export function paidReady(res: { ready?: unknown; [k: string]: unknown } | null): boolean | null {
+  return res && typeof res.ready === "boolean" ? res.ready : null;
 }
 
 /** Who this person can host as. Personal is always there; business and photographer only when the backend knows them. */

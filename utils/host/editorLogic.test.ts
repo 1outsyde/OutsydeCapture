@@ -211,6 +211,7 @@ console.log("app error shape");
 eq(flatError({ status: 409, body: { success: false, error: { code: "NO_TICKET_TYPES", message: "Add at least one ticket type first." } } }), { status: 409, body: { code: "NO_TICKET_TYPES", error: "Add at least one ticket type first." } }, "nested backend error flattened");
 eq(flatError({ message: "Network request failed" }), { status: 0, body: null }, "network failure is status 0");
 eq(flatError(null), { status: 0, body: null }, "nothing thrown");
+eq(publishFailure(409, { code: "PAYOUTS_NOT_SET_UP" }).message, "Set up payouts before you publish. Every host needs them, even for free events.", "payout refusal without a backend message: the every-host rule");
 eq(publishFailure(409, { code: "PAYOUTS_NOT_SET_UP", error: "Set up payouts before you publish. Every host needs payouts set up, even for free events." }), { message: "Set up payouts before you publish. Every host needs payouts set up, even for free events.", code: "PAYOUTS_NOT_SET_UP", next: "payouts" }, "free event payout refusal offers payout setup");
 
 console.log("last visible ticket type on a live event");

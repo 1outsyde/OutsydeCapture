@@ -132,14 +132,27 @@ export function Chip({ label, on, onPress, disabled }: { label: string; on: bool
 
 export function RadioRow({ label, sub, on, onPress, disabled, children }: { label?: string; sub?: string; on: boolean; onPress: () => void; disabled?: boolean; children?: React.ReactNode }) {
   const { theme } = useTheme();
+  const dot = <View style={[s.radio, { borderColor: on ? GOLD : theme.textSecondary }]}>{on ? <View style={s.radioDot} /> : null}</View>;
+  if (children) {
+    // A row with its own input inside (refund hours): the row isn't one accessible element, or the input would be
+    // hidden from screen readers. The circle carries the radio role instead.
+    return (
+      <View style={[s.radioRow, { borderTopColor: theme.border, opacity: disabled ? 0.45 : 1 }]}>
+        <View style={{ flex: 1, gap: 2 }}>{children}{sub ? <Hint>{sub}</Hint> : null}</View>
+        <Pressable onPress={onPress} disabled={disabled} hitSlop={10} accessibilityRole="radio" accessibilityLabel={label}
+          accessibilityState={{ checked: on, disabled: !!disabled }}>{dot}</Pressable>
+      </View>
+    );
+  }
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="radio" accessibilityState={{ checked: on, disabled: !!disabled }} accessibilityLabel={label}
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="radio" accessibilityState={{ checked: on, disabled: !!disabled }}
+      accessibilityLabel={label} accessibilityHint={sub}
       style={[s.radioRow, { borderTopColor: theme.border, opacity: disabled ? 0.45 : 1 }]}>
       <View style={{ flex: 1, gap: 2 }}>
-        {children ?? <ThemedText style={{ fontSize: 15 }}>{label}</ThemedText>}
+        <ThemedText style={{ fontSize: 15 }}>{label}</ThemedText>
         {sub ? <Hint>{sub}</Hint> : null}
       </View>
-      <View style={[s.radio, { borderColor: on ? GOLD : theme.textSecondary }]}>{on ? <View style={s.radioDot} /> : null}</View>
+      {dot}
     </Pressable>
   );
 }
