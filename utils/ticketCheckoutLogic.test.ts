@@ -24,6 +24,8 @@ import {
   ticketPushTarget,
   orderKind,
   ticketPlaceLine,
+  resultCopy,
+  paidSummary,
   type MyTicket,
 } from "./ticketCheckoutLogic";
 import type { PublicTicketType } from "./eventsLogic";
@@ -261,4 +263,31 @@ test("ticketPushTarget: address_reveal opens the Tickets tab", () => {
   assert.deepEqual(ticketPushTarget({ type: "address_reveal" }), { eventId: null });
   assert.equal(ticketPushTarget({ type: "new_message" }), null);
   assert.equal(ticketPushTarget(null), null);
+});
+
+// ─── Result copy (screen 27) ────────────────────────────────────────────────
+
+test("resultCopy: paid, processing and hold ended", () => {
+  assert.deepEqual(resultCopy("paid", 2), {
+    title: "You're going",
+    body: "Your 2 tickets are in My Tickets, and a receipt with your QR codes is on its way to your email.",
+    primary: "View my tickets",
+  });
+  assert.equal(resultCopy("paid", 1).body, "Your ticket is in My Tickets, and a receipt with your QR code is on its way to your email.");
+  assert.deepEqual(resultCopy("processing", 2), {
+    title: "Confirming your payment",
+    body: "Your bank is still checking this payment. Your tickets appear in My Tickets as soon as it clears. You can leave this screen.",
+    primary: "Go to My Tickets",
+  });
+  assert.deepEqual(resultCopy("expired", 2), {
+    title: "Your hold ended",
+    body: "The 10 minutes ran out before payment, so the tickets went back on sale. You were not charged.",
+    primary: "Choose tickets again",
+  });
+});
+
+test("paidSummary: date, count and total", () => {
+  const ev = { startsAt: "2026-10-26T01:00:00.000Z", timezone: "America/New_York" };
+  assert.equal(paidSummary(ev, 2, 4518), "Sun, Oct 25 · 9:00 PM · 2 tickets · $45.18");
+  assert.equal(paidSummary(ev, 1, null), "Sun, Oct 25 · 9:00 PM · 1 ticket");
 });

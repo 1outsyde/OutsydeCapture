@@ -317,3 +317,39 @@ export function ticketPushTarget(data: { type?: unknown; eventId?: unknown } | n
   if (!data || data.type !== "address_reveal") return null;
   return { eventId: typeof data.eventId === "string" ? data.eventId : null };
 }
+
+// ─── Result copy (screen 27) ─────────────────────────────────────────────────
+
+export type BuyResult = "paid" | "processing" | "expired";
+
+export function resultCopy(kind: BuyResult, ticketCount: number): { title: string; body: string; primary: string } {
+  if (kind === "paid") {
+    return {
+      title: "You're going",
+      body: ticketCount === 1
+        ? "Your ticket is in My Tickets, and a receipt with your QR code is on its way to your email."
+        : `Your ${ticketCount} tickets are in My Tickets, and a receipt with your QR codes is on its way to your email.`,
+      primary: "View my tickets",
+    };
+  }
+  if (kind === "processing") {
+    return {
+      title: "Confirming your payment",
+      body: "Your bank is still checking this payment. Your tickets appear in My Tickets as soon as it clears. You can leave this screen.",
+      primary: "Go to My Tickets",
+    };
+  }
+  return {
+    title: "Your hold ended",
+    body: "The 10 minutes ran out before payment, so the tickets went back on sale. You were not charged.",
+    primary: "Choose tickets again",
+  };
+}
+
+/** "Sat, Oct 25 · 9:00 PM · 2 tickets · $45.18" */
+export function paidSummary(e: { startsAt: string; timezone: string }, ticketCount: number, totalCents: number | null): string {
+  const day = fmt(e.startsAt, e.timezone, { weekday: "short", month: "short", day: "numeric" });
+  const time = fmt(e.startsAt, e.timezone, { hour: "numeric", minute: "2-digit" });
+  const count = `${ticketCount} ${ticketCount === 1 ? "ticket" : "tickets"}`;
+  return [`${day} · ${time}`, count, totalCents != null ? money(totalCents) : null].filter(Boolean).join(" · ");
+}
