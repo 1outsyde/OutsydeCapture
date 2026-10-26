@@ -48,7 +48,12 @@ function multiPhotoUrls(apiPost: ApiPost): string[] | undefined {
 
 function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
   const displayName = author.name || author.username || "Unknown";
-  const authorAvatar = author.profilePhotoUrl || author.avatarUrl || author.profileImageUrl || "";
+  const authorAvatar =
+    author.profilePhotoUrl ||
+    author.logoImage ||
+    author.avatarUrl ||
+    author.profileImageUrl ||
+    "";
   const userId = author.userId || author.id;
   const username = author.username;
 
