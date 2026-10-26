@@ -13,6 +13,7 @@ import { Spacing } from "@/constants/theme";
 import api from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
 import { EVENT_CREAM, EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
+import BuyTicketsModal from "@/components/events/BuyTicketsModal";
 import {
   defaultTicketId,
   eventBanner,
@@ -35,7 +36,7 @@ type Phase = "loading" | "ready" | "notfound" | "error";
 const followType = (kind: string): "user" | "photographer" | "business" =>
   kind === "business" ? "business" : kind === "photographer" ? "photographer" : "user";
 
-/** Event page in the app (canvas 23). Free RSVP works here; paid checkout comes with p4-buy. */
+/** Event page in the app (canvas 23). Free RSVP here; paid tickets open the buy sheet (canvas 25 to 27). */
 export default function EventDetailScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -54,6 +55,8 @@ export default function EventDetailScreen() {
   const [msg, setMsg] = useState("");
   const [following, setFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const [buyOpen, setBuyOpen] = useState(false);
+  const [buyTypeId, setBuyTypeId] = useState<string | null>(null);
   const keyRef = useRef<string | null>(null);
   const seq = useRef(0);
   const hadPageRef = useRef(false);
@@ -154,6 +157,20 @@ export default function EventDetailScreen() {
     } finally {
       setFollowBusy(false);
     }
+  };
+
+  const openBuy = (typeId: string | null) => {
+    if (!isAuthenticated) {
+      navigation.navigate("Auth", {});
+      return;
+    }
+    setBuyTypeId(typeId);
+    setBuyOpen(true);
+  };
+
+  const viewTickets = () => {
+    setBuyOpen(false);
+    navigation.navigate("CartOrders", { openTab: "tickets", _ts: Date.now() });
   };
 
   const share = () => {
@@ -259,6 +276,9 @@ export default function EventDetailScreen() {
               <View style={{ flex: 1 }}>
                 <ThemedText style={styles.goingTitle}>You're going</ThemedText>
                 <ThemedText style={styles.goingText}>Your confirmation is in your email.</ThemedText>
+                <Pressable onPress={viewTickets} accessibilityRole="link" hitSlop={8} style={styles.goingLink}>
+                  <ThemedText style={styles.goingLinkText}>View your tickets</ThemedText>
+                </Pressable>
               </View>
             </View>
           ) : null}
@@ -293,14 +313,17 @@ export default function EventDetailScreen() {
               {types.map((t) => {
                 const row = ticketRow(t, e.timezone);
                 const canPick = row.selectable && !holder && bar.kind !== "none";
+                // A paid type on sale opens the buy sheet with that type picked.
+                const canBuy = row.paid && t.salesStatus === "on_sale" && !e.viewerIsHost && !banner;
                 const on = canPick && t.id === selectedId;
                 const muted = !row.selectable && !row.paid;
                 return (
                   <Pressable
                     key={t.id}
-                    onPress={() => canPick && pick(t.id)}
-                    disabled={!canPick}
-                    accessibilityRole={canPick ? "radio" : "text"}
+                    onPress={() => (canPick ? pick(t.id) : canBuy ? openBuy(t.id) : undefined)}
+                    disabled={!canPick && !canBuy}
+                    accessibilityRole={canPick ? "radio" : canBuy ? "button" : "text"}
+                    accessibilityHint={canBuy ? "Opens checkout for this ticket" : undefined}
                     accessibilityState={canPick ? { selected: on } : undefined}
                     style={[styles.ticket, { borderColor: on ? EVENT_GOLD : theme.border }]}
                   >
@@ -375,15 +398,34 @@ export default function EventDetailScreen() {
             >
               {busy ? <ActivityIndicator color="#0B0B0B" /> : <ThemedText style={styles.ctaText}>RSVP</ThemedText>}
             </Pressable>
+          ) : bar.kind === "buy" ? (
+            <Pressable onPress={() => openBuy(null)} accessibilityRole="button" style={[styles.cta, { backgroundColor: EVENT_GOLD }]}>
+              <ThemedText style={styles.ctaText}>Get tickets</ThemedText>
+            </Pressable>
           ) : (
             <View accessibilityRole="button" accessibilityState={{ disabled: true }} style={[styles.cta, { backgroundColor: theme.border }]}>
-              <ThemedText style={[styles.ctaText, { color: theme.textSecondary }]}>
-                {bar.kind === "sold_out" ? "Sold out" : "Coming soon in the app"}
-              </ThemedText>
+              <ThemedText style={[styles.ctaText, { color: theme.textSecondary }]}>Sold out</ThemedText>
             </View>
           )}
         </View>
       ) : null}
+
+      <BuyTicketsModal
+        visible={buyOpen}
+        event={e}
+        types={types}
+        initialTypeId={buyTypeId}
+        onClose={() => setBuyOpen(false)}
+        onPaid={() => {
+          setGoing(true);
+          load();
+        }}
+        onViewTickets={viewTickets}
+        onNeedSignIn={() => {
+          setBuyOpen(false);
+          navigation.navigate("Auth", {});
+        }}
+      />
     </View>
   );
 }
@@ -412,6 +454,8 @@ const styles = StyleSheet.create({
   going: { flexDirection: "row", gap: 12, alignItems: "center", backgroundColor: "#10241F", borderColor: EVENT_GREEN, borderWidth: 1, borderRadius: 14, padding: 14 },
   goingTitle: { color: EVENT_CREAM, fontSize: 14, fontWeight: "700" },
   goingText: { color: EVENT_GREEN_TEXT, fontSize: 12 },
+  goingLink: { marginTop: 6, minHeight: 28, justifyContent: "center", alignSelf: "flex-start" },
+  goingLinkText: { color: EVENT_GOLD, fontSize: 13, fontWeight: "700" },
   place: { flexDirection: "row", gap: 12, alignItems: "flex-start", borderWidth: 1, borderRadius: 14, padding: 14 },
   placeMain: { fontSize: 14, fontWeight: "600" },
   small: { fontSize: 12, lineHeight: 17 },

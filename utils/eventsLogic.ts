@@ -27,6 +27,10 @@ export const CODE_COPY: Record<string, string> = {
   EVENT_CANCELLED: "This event was cancelled.",
   TRY_AGAIN: "Tickets just changed. Try again.",
   PAID_TICKET: "This ticket isn't free.",
+  IDEMPOTENCY_KEY_REUSED: "Your ticket choice changed. Try again.",
+  CHECKOUT_CLOSED: "That checkout closed. Choose your tickets again.",
+  ACCOUNT_INACTIVE: "This account can't buy tickets right now. Contact Outsyde support.",
+  PAYMENT_SETUP_FAILED: "Couldn't start the payment. Your tickets were released. Try again.",
 };
 
 // ─── Types (shapes returned by the backend) ──────────────────────────────────
@@ -347,7 +351,7 @@ export function minQty(t: QtyLimits): number {
   return Math.min(t.minPerOrder && t.minPerOrder > 0 ? t.minPerOrder : 1, maxQty(t));
 }
 
-/** What a ticket row shows. Only free types on sale are selectable here (paid checkout is p4-buy). */
+/** What a ticket row shows. Only free types on sale are selectable here; paid types open the checkout. */
 export function ticketRow(t: PublicTicketType, tz: string): { right: string; sub: string | null; selectable: boolean; paid: boolean } {
   const paid = t.priceCents > 0;
   switch (t.salesStatus) {
@@ -431,11 +435,11 @@ export function defaultTicketId(types: PublicTicketType[]): string | null {
 
 export type EventPageBar =
   | { kind: "none" }
-  | { kind: "rsvp" | "pick" | "paid_soon" | "sold_out"; label: string; value: string };
+  | { kind: "rsvp" | "pick" | "buy" | "sold_out"; label: string; value: string };
 
 /**
  * The bottom bar on the event page. rsvp: a free type is picked; pick: choose a free type first;
- * paid_soon: only paid tickets (checkout comes with p4-buy); sold_out; none: no bar.
+ * buy: only paid tickets on sale (opens the ticket checkout); sold_out; none: no bar.
  */
 export function eventPageBar(e: PublicEvent, types: PublicTicketType[], selectedId: string | null, going: boolean, now: Date): EventPageBar {
   if (e.viewerIsHost || eventBanner(e, now)) return { kind: "none" };
@@ -454,7 +458,7 @@ export function eventPageBar(e: PublicEvent, types: PublicTicketType[], selected
   }
   if (paid.length === 0) return { kind: "none" };
   const lowest = Math.min(...paid.map((t) => t.buyerTotalCents ?? t.priceCents));
-  return { kind: "paid_soon", label: "From", value: money(lowest) };
+  return { kind: "buy", label: "From", value: money(lowest) };
 }
 
 /** After a failed event page load: null keeps the page already on screen; otherwise the screen to show. */

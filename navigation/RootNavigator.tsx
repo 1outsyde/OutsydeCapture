@@ -16,6 +16,7 @@ import VendorDetailScreen from "@/screens/VendorDetailScreen";
 import StaffWorkProfileScreen from "@/screens/StaffWorkProfileScreen";
 import PostDetailScreen from "@/screens/PostDetailScreen";
 import EventDetailScreen from "@/screens/EventDetailScreen";
+import TicketDetailScreen from "@/screens/TicketDetailScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
@@ -279,6 +280,16 @@ export default function RootNavigator() {
       <Stack.Screen
         name="EventDetail"
         component={EventDetailScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="TicketDetail"
+        component={TicketDetailScreen}
         options={{
           headerShown: false,
           animation: "slide_from_right",

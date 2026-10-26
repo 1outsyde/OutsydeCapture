@@ -195,6 +195,16 @@ export default function EventsTab() {
   const header = (
     <View style={styles.headerWrap}>
       <View style={styles.chips}>
+        <Pressable
+          key="my-tickets"
+          onPress={() => navigation.navigate("CartOrders", { openTab: "tickets", _ts: Date.now() })}
+          accessibilityRole="button"
+          accessibilityLabel="My Tickets"
+          style={[styles.chip, styles.ticketsChip, { borderColor: theme.brandGold }]}
+        >
+          <Feather name="tag" size={15} color={theme.brandGold} />
+          <ThemedText style={[styles.chipText, { color: theme.brandGold }]}>My Tickets</ThemedText>
+        </Pressable>
         {chip(locating ? "Finding you" : "Near me", filters.near, toggleNear, locating)}
         {chip("Tonight", filters.when === "tonight", () => toggleWhen("tonight"))}
         {chip("This weekend", filters.when === "weekend", () => toggleWhen("weekend"))}
@@ -265,6 +275,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { height: 36, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   chipText: { fontSize: 13, fontWeight: "600" },
+  ticketsChip: { flexDirection: "row", gap: 6, backgroundColor: "transparent" },
   note: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   noteText: { fontSize: 13 },
   noteLink: { fontSize: 13, fontWeight: "700" },

@@ -31,6 +31,7 @@ import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
 import { usePlanOfferPushLinks } from "@/hooks/usePlanOfferPushLinks";
 import { useReferralPushLinks } from "@/hooks/useReferralPushLinks";
 import { useAnnouncementPushLinks } from "@/hooks/useAnnouncementPushLinks";
+import { useTicketPushLinks } from "@/hooks/useTicketPushLinks";
 import PlanOfferHost from "@/components/plan-offer/PlanOfferHost";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 
@@ -93,6 +94,8 @@ export default function MainTabNavigator() {
   useReferralPushLinks();
   // Tapped admin announcement push (type announcement) → the screen picked on goutsyde.com, or Activity
   useAnnouncementPushLinks();
+  // Tapped address reveal push (type address_reveal) → Tickets tab in Cart & activity
+  useTicketPushLinks();
   const isGuest = user?.isGuest || !user;
 
   // ── "Set up Stripe Connect" prompt (free-plan vendors who can't receive payouts) ──

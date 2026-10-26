@@ -103,7 +103,9 @@
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.SYSTEM_ALERT_WINDOW"
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ]
     },
     "web": {
@@ -152,6 +154,14 @@
         "expo-audio",
         {
           "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Outsyde adds events you have tickets for to your calendar.",
+          "writeOnlyCalendarPermission": "Outsyde adds events you have tickets for to your calendar.",
+          "writeOnlyAccess": true
         }
       ],
       "./plugins/withLegacyStoragePermissions"
