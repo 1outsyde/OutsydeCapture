@@ -29,6 +29,10 @@ export function useTicketPushLinks() {
       const key = response.notification.request.identifier;
       if (handled.current.has(key)) return;
       handled.current.add(key);
+      // So a later remount (e.g. after signing in again) doesn't reopen this ticket or event.
+      try {
+        Notifications.clearLastNotificationResponse();
+      } catch {}
       setPending(target);
     };
     Notifications.getLastNotificationResponseAsync()
