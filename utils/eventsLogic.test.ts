@@ -312,12 +312,12 @@ test("eventPageBar", () => {
   const paid = tt({ id: "p", priceCents: 2000, buyerTotalCents: 2259 });
   assert.deepEqual(eventPageBar(ev(), [free], "f", false, now), { kind: "rsvp", label: "Price", value: "Free" });
   assert.deepEqual(eventPageBar(ev(), [free], null, false, now), { kind: "pick", label: "Price", value: "Free" });
-  assert.deepEqual(eventPageBar(ev(), [paid], null, false, now), { kind: "paid_soon", label: "From", value: "$22.59" });
+  assert.deepEqual(eventPageBar(ev(), [paid], null, false, now), { kind: "buy", label: "From", value: "$22.59" });
   assert.deepEqual(eventPageBar(ev(), [free, paid], null, false, now), { kind: "pick", label: "From", value: "Free" });
   assert.deepEqual(eventPageBar(ev(), [tt({ salesStatus: "sold_out" })], null, false, now), { kind: "sold_out", label: "Tickets", value: "Sold out" });
   assert.equal(eventPageBar(ev({ viewerHasTicket: true }), [free], "f", false, now).kind, "none", "holder of free tickets");
   assert.equal(eventPageBar(ev(), [free], "f", true, now).kind, "none", "just RSVPed");
-  assert.equal(eventPageBar(ev({ viewerHasTicket: true }), [free, paid], null, false, now).kind, "paid_soon", "holder can still see paid");
+  assert.equal(eventPageBar(ev({ viewerHasTicket: true }), [free, paid], null, false, now).kind, "buy", "holder can still buy paid");
   assert.equal(eventPageBar(ev({ status: "cancelled" }), [free], "f", false, now).kind, "none");
   assert.equal(eventPageBar(ev({ startsAt: "2026-10-23T17:00:00Z" }), [free], "f", false, now).kind, "none", "started");
   assert.equal(eventPageBar(ev({ viewerIsHost: true }), [free], "f", false, now).kind, "none", "host");
@@ -340,4 +340,12 @@ test("eventsAfterError keeps the loaded list", () => {
   const list = [card("a"), card("b")];
   assert.deepEqual(eventsAfterError(list), list);
   assert.deepEqual(eventsAfterError([]), []);
+});
+
+test("eventErrorCopy: checkout codes have app copy", () => {
+  const e = (status: number, code: string) => ({ status, body: { error: { code, message: "x" } } });
+  assert.equal(eventErrorCopy(e(409, "IDEMPOTENCY_KEY_REUSED")), "Your ticket choice changed. Try again.");
+  assert.equal(eventErrorCopy(e(409, "CHECKOUT_CLOSED")), "That checkout closed. Choose your tickets again.");
+  assert.equal(eventErrorCopy(e(403, "ACCOUNT_INACTIVE")), "This account can't buy tickets right now. Contact Outsyde support.");
+  assert.equal(eventErrorCopy(e(502, "PAYMENT_SETUP_FAILED")), "Couldn't start the payment. Your tickets were released. Try again.");
 });

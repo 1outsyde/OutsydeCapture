@@ -14,6 +14,7 @@ import {
 } from "@/utils/planOffer";
 import { refundRequestBody } from "@/utils/refundAmount";
 import type { EventCard, EventPage } from "@/utils/eventsLogic";
+import type { CheckoutStart, MyTicket, TicketOrder } from "@/utils/ticketCheckoutLogic";
 import type {
   RatingCheckResponse,
   Rating,
@@ -4669,6 +4670,56 @@ class ApiService {
       headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(body),
     });
+  }
+
+  // ─── Tickets (p4-buy): paid checkout, My Tickets, refund, cancel RSVP ─────────
+
+  // POST /api/events/:id/checkout - Hold seats + PaymentIntent. One ticket type per order.
+  // The same idempotencyKey returns the same open checkout, or { order } once it is paid.
+  async checkoutTickets(
+    eventId: string,
+    body: { ticketTypeId: string; quantity: number; idempotencyKey: string },
+    authToken: string,
+  ): Promise<CheckoutStart> {
+    return this.request<CheckoutStart>(`/api/events/${encodeURIComponent(eventId)}/checkout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // GET /api/events/orders/:orderId - The buyer's own order (status, totalCents, tickets)
+  async getTicketOrder(orderId: string, authToken: string): Promise<TicketOrder> {
+    const res = await this.request<{ order: TicketOrder }>(`/api/events/orders/${encodeURIComponent(orderId)}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return res.order;
+  }
+
+  // GET /api/events/me/tickets - Valid tickets the signed-in person holds (QR url, address only once shown)
+  async getMyTickets(authToken: string): Promise<MyTicket[]> {
+    const res = await this.request<{ tickets?: MyTicket[] }>("/api/events/me/tickets", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return Array.isArray(res.tickets) ? res.tickets : [];
+  }
+
+  // POST /api/events/orders/:orderId/refund - Buyer refund of the whole order (ticket price only)
+  async requestTicketRefund(orderId: string, authToken: string): Promise<TicketOrder> {
+    const res = await this.request<{ order: TicketOrder }>(`/api/events/orders/${encodeURIComponent(orderId)}/refund`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return res.order;
+  }
+
+  // POST /api/events/orders/:orderId/cancel - Cancel a free RSVP (whole order)
+  async cancelRsvp(orderId: string, authToken: string): Promise<TicketOrder> {
+    const res = await this.request<{ order: TicketOrder }>(`/api/events/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return res.order;
   }
 
   // GET /api/feed/:postId - Get a single post by id (public)
