@@ -34,6 +34,7 @@ import { useAnnouncementPushLinks } from "@/hooks/useAnnouncementPushLinks";
 import { useTicketPushLinks } from "@/hooks/useTicketPushLinks";
 import PlanOfferHost from "@/components/plan-offer/PlanOfferHost";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
+import { notifyHostSetupReturn, takeHostSetupPending } from "@/utils/host/hostGate";
 
 // At most one "can this vendor get paid?" check per 10 minutes (a forced check after a Stripe return skips this).
 const CONNECT_CHECK_INTERVAL_MS = 10 * 60 * 1000;
@@ -203,6 +204,28 @@ export default function MainTabNavigator() {
     }
     const { status, type } = pendingStripeReturn;
     clearPendingStripeReturn();
+
+    // Host payout setup started from the event editor (p4-host): stay on the editor (no dashboard reset, no alert),
+    // then let the editor check the payout status again.
+    if (user && !user.isGuest && takeHostSetupPending()) {
+      const refresh = async () => {
+        try {
+          // The backend's connect-return already marks the account. These status reads also sync it from Stripe.
+          const token = await getToken();
+          if (token && (type === "vendor" || type === "business")) await api.getVendorStripeStatus(token);
+          else if (token && type === "photographer") await api.getPhotographerStripeStatus(token);
+        } catch (err) {
+          console.warn("[DeepLink] host setup refresh failed (non-critical):", err);
+        }
+        notifyHostSetupReturn();
+      };
+      if (type === "vendor" || type === "business") {
+        forceNextConnectCheck = true;
+        runConnectCheck(true); // keeps the Stripe prompt in sync, without the dashboard's success alert
+      }
+      refresh();
+      return;
+    }
 
     if (type === "vendor" || type === "business") {
       // Re-check payout readiness (skips the throttle) and let the dashboard show the one success alert.

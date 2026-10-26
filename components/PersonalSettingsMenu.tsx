@@ -430,6 +430,15 @@ export function PersonalSettingsMenu({
                 }}
               />
 
+              {!user?.isGuest ? (
+                <MenuItem
+                  icon="calendar"
+                  label="Your events"
+                  subtitle="Drafts, upcoming and past events you host"
+                  onPress={() => handleNavigate("YourEvents")}
+                />
+              ) : null}
+
               {user?.isInfluencer && user?.influencerStatus === "approved" ? (
                 <MenuItem
                   icon="bar-chart-2"

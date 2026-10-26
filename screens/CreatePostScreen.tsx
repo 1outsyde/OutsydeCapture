@@ -689,6 +689,18 @@ export default function CreatePostScreen() {
                     Story
                   </ThemedText>
                 </Pressable>
+                {/* Event: host an event (p4-host). Opens the event editor in place of this screen. */}
+                <Pressable
+                  style={styles.tab}
+                  onPress={() => navigation.replace("EventEditor", undefined)}
+                  disabled={isRecording}
+                  accessibilityRole="button"
+                  accessibilityLabel="Event, host an event"
+                >
+                  <ThemedText type="button" style={{ color: theme.brandTextDim }}>
+                    Event
+                  </ThemedText>
+                </Pressable>
               </View>
 
               {/* Recording indicator */}
