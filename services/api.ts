@@ -5462,6 +5462,43 @@ class ApiService {
     return this.normalizeVendorEligibility(response);
   }
 
+  /** "Outsyde news and offers" switch (backend /api/push/preferences). null when it couldn't be read. */
+  async getPushPreferences(
+    authToken: string,
+  ): Promise<{ news: boolean } | null> {
+    try {
+      const r = await this.request<{ news?: unknown }>(
+        "/api/push/preferences",
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        },
+      );
+      return typeof r?.news === "boolean" ? { news: r.news } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Saves the switch. Answers the saved value, or null when the save failed (the caller flips the switch back). */
+  async setPushPreferences(
+    authToken: string,
+    news: boolean,
+  ): Promise<{ news: boolean } | null> {
+    try {
+      const r = await this.request<{ news?: unknown }>(
+        "/api/push/preferences",
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({ news }),
+        },
+      );
+      return typeof r?.news === "boolean" ? { news: r.news } : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Hidden plan offer for the signed in business owner (backend #346), or null. Own method on purpose:
    *  normalizeVendorEligibility keeps only known fields. */
   async getPlanOffer(authToken: string): Promise<PlanOffer | null> {

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -23,6 +23,8 @@ import { RootStackParamList } from "@/navigation/types";
 import { bookingPushTarget, isBookingPushType, openBookingPushTarget } from "@/services/bookingPush";
 import { openPlanOffer } from "@/utils/planOfferNav";
 import { openPointsFromReward } from "@/utils/friendReferral";
+import { openAnnouncement } from "@/services/announcementPush";
+import { api } from "@/services/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -72,7 +74,7 @@ function getNotificationBadgeColor(
 export default function NotificationsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { user } = useAuth();
+  const { user, getToken } = useAuth();
   const insets = useSafeAreaInsets();
   const {
     isEnabled,
@@ -102,6 +104,45 @@ export default function NotificationsScreen() {
     [],
   );
 
+  // "Outsyde news and offers" (backend /api/push/preferences). Only admin announcements check it;
+  // booking and message pushes always come through. null = not loaded (row hidden), so a failed
+  // load never shows a wrong value.
+  const [news, setNews] = useState<boolean | null>(null);
+  const [newsSaving, setNewsSaving] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
+  const signedIn = !!user && !user.isGuest;
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let off = false;
+    (async () => {
+      const token = await getToken();
+      if (!token || off) return;
+      const r = await api.getPushPreferences(token);
+      if (!off && r) setNews(r.news);
+    })();
+    return () => {
+      off = true;
+    };
+  }, [signedIn, getToken]);
+
+  const handleToggleNews = async (value: boolean) => {
+    if (newsSaving) return;
+    const before = news;
+    setNews(value);
+    setNewsSaving(true);
+    setNewsError(null);
+    const token = await getToken();
+    const r = token ? await api.setPushPreferences(token, value) : null;
+    setNewsSaving(false);
+    if (!r) {
+      setNews(before);
+      setNewsError("Couldn't save. Try again.");
+      return;
+    }
+    setNews(r.news);
+  };
+
   const handleToggleNotifications = async (value: boolean) => {
     if (value) {
       const success = await enableNotifications();
@@ -130,6 +171,12 @@ export default function NotificationsScreen() {
     ) {
       // Referral reward (friend points or business $25): same as tapping its push, the Points screen.
       openPointsFromReward(navigation, user);
+    } else if (notification.type === "announcement") {
+      // Admin announcement: the same screen a tap on its push opens, or Activity.
+      openAnnouncement(navigation, user, {
+        screen: notification.metadata?.screen,
+        url: notification.metadata?.url,
+      });
     } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
       navigation.navigate("AdminDashboard");
     } else if (notification.metadata?.sessionId) {
@@ -176,6 +223,8 @@ export default function NotificationsScreen() {
         return "gift";
       case "business_referral_reward":
         return "dollar-sign";
+      case "announcement":
+        return "volume-2";
       case "business_pending":
         return "briefcase";
       case "booking_confirmed":
@@ -416,6 +465,43 @@ export default function NotificationsScreen() {
             thumbColor={isEnabled ? theme.brandPrimaryText : theme.textSecondary}
           />
         </Card>
+
+        {Platform.OS !== "web" && news !== null ? (
+          <View style={{ marginTop: Spacing.md }}>
+            <Card style={styles.settingCard}>
+              <View style={styles.settingLeft}>
+                <View style={styles.settingIconContainer}>
+                  <Feather name="volume-2" size={20} color={theme.primary} />
+                </View>
+                <View style={styles.settingContent}>
+                  <ThemedText type="body" style={{ fontWeight: "600" }}>
+                    Outsyde news and offers
+                  </ThemedText>
+                  <ThemedText
+                    type="caption"
+                    style={{
+                      color: newsError ? theme.error : theme.textSecondary,
+                    }}
+                  >
+                    {newsError ??
+                      "Updates and offers from Outsyde. Booking and message alerts still come through."}
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={news}
+                onValueChange={handleToggleNews}
+                disabled={newsSaving}
+                trackColor={{
+                  false: theme.surfaceSecondary,
+                  true: theme.brandGold,
+                }}
+                thumbColor={news ? theme.brandPrimaryText : theme.textSecondary}
+                accessibilityLabel="Outsyde news and offers"
+              />
+            </Card>
+          </View>
+        ) : null}
 
         {Platform.OS === "web" ? (
           <ThemedView style={styles.webNotice}>

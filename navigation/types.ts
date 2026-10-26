@@ -2,6 +2,7 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
 import { BusinessAppointment, ConsumerOrderItem } from "@/services/api";
 import { Story } from "@/components/StoryRing";
+import type { FeedMode } from "@/utils/feedModes";
 
 
 export type RootStackParamList = {
@@ -167,7 +168,8 @@ export type MainTabParamList = {
 };
 
 export type DiscoverStackParamList = {
-  Discover: undefined;
+  /** mode opens that Discover tab (an announcement push to Events sends "events"); _ts makes a repeat tap count. */
+  Discover: { mode?: FeedMode; _ts?: number } | undefined;
 };
 
 export type AccountStackParamList = {
