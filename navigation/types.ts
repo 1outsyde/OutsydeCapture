@@ -46,7 +46,9 @@ export type RootStackParamList = {
     businessId?: string | null;
     photographerId?: string | null;
   };
-  CartOrders: { openTab?: "cart" | "bookings" | "orders"; _ts?: number } | undefined;
+  CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets"; _ts?: number } | undefined;
+  /** One event's tickets with QR codes (from GET /api/events/me/tickets). */
+  TicketDetail: { eventId: string };
   CartCheckout: undefined;
   CheckoutScreen: {
     mode: "cart" | "buyNow";

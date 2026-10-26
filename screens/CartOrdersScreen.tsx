@@ -27,10 +27,11 @@ import { isUnpaidBookingStatus } from "@/utils/bookingStatus";
 import api, { getMyAppointments, BusinessAppointment, ConsumerOrder } from "@/services/api";
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
+import MyTicketsList from "@/components/events/MyTicketsList";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type CartOrdersRouteProp = RouteProp<RootStackParamList, "CartOrders">;
-type ActiveTab = "cart" | "bookings" | "orders";
+type ActiveTab = "cart" | "bookings" | "orders" | "tickets";
 
 type CombinedItem =
   | { kind: "photographer"; data: Session }
@@ -66,6 +67,7 @@ export default function CartOrdersScreen() {
   const [orders, setOrders] = useState<ConsumerOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [ticketsRefreshKey, setTicketsRefreshKey] = useState(0);
 
   // ─── Bookings state ───────────────────────────────────────────────────────
   const [bookingsFilter, setBookingsFilter] = useState<"upcoming" | "past">("upcoming");
@@ -182,6 +184,7 @@ export default function CartOrdersScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    if (activeTab === "tickets") setTicketsRefreshKey((k) => k + 1);
     await Promise.all([fetchOrders(), fetchBusinessAppointments(), refreshSessions()]);
     setRefreshing(false);
   };
@@ -859,9 +862,9 @@ export default function CartOrdersScreen() {
 
       {/* Tabs */}
       <View style={styles.tabRow}>
-        {(["cart", "bookings", "orders"] as ActiveTab[]).map((tab) => {
+        {(["cart", "bookings", "orders", "tickets"] as ActiveTab[]).map((tab) => {
           const isActive = activeTab === tab;
-          const label = tab === "cart" ? "Cart" : tab === "bookings" ? "Bookings" : "Orders";
+          const label = tab === "cart" ? "Cart" : tab === "bookings" ? "Bookings" : tab === "orders" ? "Orders" : "Tickets";
           return (
             <Pressable
               key={tab}
@@ -890,6 +893,7 @@ export default function CartOrdersScreen() {
         {activeTab === "cart" && renderCartTab()}
         {activeTab === "bookings" && renderBookingsTab()}
         {activeTab === "orders" && renderOrdersTab()}
+        {activeTab === "tickets" && <MyTicketsList refreshKey={ticketsRefreshKey} />}
       </ScrollView>
     </View>
   );
