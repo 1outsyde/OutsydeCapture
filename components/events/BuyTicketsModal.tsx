@@ -15,11 +15,14 @@ import {
   checkoutKeyAfterError,
   checkoutKeyNext,
   checkoutResponseKind,
+  heldConflictCopy,
   holdClock,
-  holdMsLeft,
+  holdDeadlineMs,
+  openedNow,
   paidSummary,
   pollDecision,
   quoteLines,
+  resolveAfterSheet,
   resultCopy,
   sheetOutcome,
   type BuyResult,
@@ -61,8 +64,13 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
   const [qty, setQty] = useState(1);
   const [msg, setMsg] = useState("");
   const [checkout, setCheckout] = useState<CheckoutStart | null>(null);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => Date.now());
   const keyRef = useRef<string | null>(null);
+  /** Hold deadline on the phone's own clock, for the checkout of the current key. */
+  const deadlineRef = useRef<number | null>(null);
+  /** This person left a checkout open (closed the sheet): its seats stay held until it ends. */
+  const openHoldRef = useRef(false);
+  const wasVisible = useRef(false);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -72,13 +80,20 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
     };
   }, []);
 
-  // Each time the sheet opens it starts on the choose step with the tapped type.
+  // Each time the sheet opens (closed to open only) it starts on the choose step with the tapped type
+  // and a fresh key. A reload of the event page while it is open never resets a result screen.
   useEffect(() => {
-    if (!visible) return;
+    const opened = openedNow(wasVisible.current, visible);
+    wasVisible.current = visible;
+    if (!opened) return;
     setStep("choose");
     setMsg("");
     setPickedId(initialTypeId ?? firstOnSale);
-  }, [visible, initialTypeId, firstOnSale]);
+    setQty(1);
+    keyRef.current = checkoutKeyNext(keyRef.current, "changed");
+    deadlineRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   const picked = paidTypes.find((t) => t.id === pickedId && t.salesStatus === "on_sale") ?? null;
 
@@ -89,8 +104,8 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
   // Hold timer on the pay step.
   useEffect(() => {
     if (step !== "pay") return;
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000);
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [step]);
 
@@ -99,12 +114,14 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
     setPickedId(id);
     setQty(1);
     keyRef.current = checkoutKeyNext(keyRef.current, "changed");
+    deadlineRef.current = null;
     setMsg("");
   };
 
   const changeQty = (next: number) => {
     setQty(next);
     keyRef.current = checkoutKeyNext(keyRef.current, "changed");
+    deadlineRef.current = null;
   };
 
   const confirm = useCallback(async (orderId: string) => {
@@ -133,7 +150,9 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
     if (!picked || step === "starting") return;
     setMsg("");
     setStep("starting");
+    const sameKey = keyRef.current != null;
     keyRef.current = checkoutKeyNext(keyRef.current, "attempt");
+    const requestStartedMs = Date.now();
     let res: CheckoutStart;
     try {
       const token = await getToken();
@@ -146,15 +165,18 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
     } catch (err: any) {
       if (!alive.current) return;
       keyRef.current = checkoutKeyAfterError(keyRef.current, err);
+      if (keyRef.current == null) deadlineRef.current = null;
       setStep("choose");
       if (err?.status === 401) onNeedSignIn();
-      else setMsg(eventErrorCopy(err));
+      else setMsg(heldConflictCopy(err, openHoldRef.current) ?? eventErrorCopy(err));
       return;
     }
     if (!alive.current) return;
     const kind = checkoutResponseKind(res);
     if (kind === "paid") {
       keyRef.current = checkoutKeyNext(keyRef.current, "success");
+      deadlineRef.current = null;
+      openHoldRef.current = false;
       setCheckout(res);
       setStep("paid");
       onPaid();
@@ -165,6 +187,12 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
       setMsg(GENERIC_ERROR);
       return;
     }
+    deadlineRef.current = holdDeadlineMs({
+      holdExpiresAt: res.holdExpiresAt,
+      repeated: res.repeated,
+      requestStartedMs,
+      knownDeadlineMs: sameKey ? deadlineRef.current : null,
+    });
     setCheckout(res);
     setStep("pay");
 
@@ -179,31 +207,49 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
       setMsg(initError.message || GENERIC_ERROR);
       return;
     }
-    const msLeft = holdMsLeft(res.holdExpiresAt, new Date());
-    if (msLeft <= 0) {
-      keyRef.current = checkoutKeyNext(keyRef.current, "closed");
-      setStep("expired");
-      return;
-    }
-    const { error } = await presentPaymentSheet({ timeout: Math.max(1, Math.floor(msLeft)) });
+    // No Stripe timeout: on iOS it dismisses every screen above the root, this sheet included.
+    // The server ends the hold (and cancels the payment) on its own; what happened is read back below.
+    const { error } = await presentPaymentSheet();
     if (!alive.current) return;
     const outcome = sheetOutcome(error as any);
-    if (outcome === "canceled") {
-      // The hold stays until it expires; Continue again reuses it (same key, same checkout).
+    if (outcome !== "paid_sheet") {
+      let status: string | null = null;
+      try {
+        const token = await getToken();
+        if (token) status = (await api.getTicketOrder(res.orderId as string, token)).status;
+      } catch {
+        status = null;
+      }
+      if (!alive.current) return;
+      const next = resolveAfterSheet(outcome, status, (deadlineRef.current ?? 0) - Date.now());
+      if (next === "paid") {
+        keyRef.current = checkoutKeyNext(keyRef.current, "success");
+        openHoldRef.current = false;
+        setStep("paid");
+        onPaid();
+        return;
+      }
+      if (next === "expired" || next === "choose_hold_over") {
+        keyRef.current = checkoutKeyNext(keyRef.current, "closed");
+        deadlineRef.current = null;
+        openHoldRef.current = next === "choose_hold_over";
+        if (next === "expired") {
+          setStep("expired");
+        } else {
+          setStep("choose");
+          setMsg("Your hold ended. Choose your tickets again.");
+        }
+        return;
+      }
+      // Back to choosing; the hold stays until it ends and Continue reuses it (same key, same checkout).
+      openHoldRef.current = true;
       setStep("choose");
-      return;
-    }
-    if (outcome === "expired") {
-      keyRef.current = checkoutKeyNext(keyRef.current, "closed");
-      setStep("expired");
-      return;
-    }
-    if (outcome === "failed") {
-      setStep("choose");
-      setMsg((error as any)?.message || GENERIC_ERROR);
+      if (outcome === "failed") setMsg((error as any)?.message || GENERIC_ERROR);
       return;
     }
     keyRef.current = checkoutKeyNext(keyRef.current, "success");
+    deadlineRef.current = null;
+    openHoldRef.current = false;
     confirm(res.orderId as string);
   };
 
@@ -261,9 +307,9 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
       ) : step === "pay" && checkout ? (
         <View style={[styles.result, { backgroundColor: theme.backgroundRoot, justifyContent: "flex-start", alignItems: "stretch", paddingTop: insets.top + 40 }]}>
           <ThemedText style={[styles.sheetTitle, { color: theme.text }]}>{event.title}</ThemedText>
-          <View style={styles.hold} accessibilityLiveRegion="polite">
+          <View style={styles.hold}>
             <Feather name="clock" size={16} color="#F5D26B" />
-            <ThemedText style={styles.holdText}>Your tickets are held for {holdClock(holdMsLeft(checkout.holdExpiresAt, now))}</ThemedText>
+            <ThemedText style={styles.holdText}>Your tickets are held for {holdClock((deadlineRef.current ?? now) - now)}</ThemedText>
           </View>
           <View style={styles.lines}>
             <View style={styles.lineRow}>

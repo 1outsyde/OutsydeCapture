@@ -27,8 +27,10 @@ import { EVENT_GOLD } from "@/components/events/eventColors";
 import { fmt } from "@/utils/eventsLogic";
 import {
   calendarEventFor,
+  canChangeOrder,
   cancelErrorCopy,
   directionsUrl,
+  needsCalendarPermission,
   orderKind,
   refundConfirmBody,
   refundDoneBody,
@@ -111,8 +113,9 @@ export default function TicketDetailScreen() {
     () => order?.ticketCount ?? (current ? tickets.filter((t) => t.orderId === current.orderId).length : 0),
     [order, tickets, current],
   );
-  const upcoming = ev ? new Date(ev.endsAt).getTime() > Date.now() : false;
   const checkedIn = current ? tickets.some((t) => t.orderId === current.orderId && !!t.checkedInAt) : false;
+  // The backend refuses refunds and RSVP cancels once the event starts or someone checks in.
+  const changeable = ev ? canChangeOrder(ev, checkedIn, new Date()) : false;
   const directions = ev ? directionsUrl(ev, Platform.OS) : null;
   const wallet = current?.walletUrl ?? null;
 
@@ -126,6 +129,14 @@ export default function TicketDetailScreen() {
     setNote("");
     try {
       const Calendar = await import("expo-calendar/legacy");
+      // Below iOS 17 the system editor needs calendar permission first (CalendarModule.swift checks it).
+      if (needsCalendarPermission(Platform.OS, Platform.Version)) {
+        const { granted } = await Calendar.requestCalendarPermissionsAsync();
+        if (!granted) {
+          setNote("Allow calendar access for Outsyde in Settings to add this event.");
+          return;
+        }
+      }
       const c = calendarEventFor(ev);
       await Calendar.createEventInCalendarAsync({
         title: c.title,
@@ -294,7 +305,7 @@ export default function TicketDetailScreen() {
           </Pressable>
         ) : null}
 
-        {upcoming && !checkedIn && kind !== "unknown" ? (
+        {changeable && kind !== "unknown" ? (
           <View style={{ alignItems: "center", gap: 4 }}>
             <Pressable
               onPress={() => {

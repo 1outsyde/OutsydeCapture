@@ -353,3 +353,62 @@ export function paidSummary(e: { startsAt: string; timezone: string }, ticketCou
   const count = `${ticketCount} ${ticketCount === 1 ? "ticket" : "tickets"}`;
   return [`${day} · ${time}`, count, totalCents != null ? money(totalCents) : null].filter(Boolean).join(" · ");
 }
+
+// ─── Review fixes (2026-10-26) ───────────────────────────────────────────────
+
+/** The buy sheet resets only when it goes from closed to open, never on a reload while it is open. */
+export function openedNow(wasVisible: boolean, visible: boolean): boolean {
+  return !wasVisible && visible;
+}
+
+/** Backend TICKET_HOLD_MINUTES (server/events/ticketCheckout.ts:33). */
+export const HOLD_MS = 10 * 60_000;
+
+/**
+ * When the hold ends, measured on the phone's own clock so a wrong clock never ends it early.
+ * A new checkout holds for 10 minutes from the request. A repeated one keeps the deadline already
+ * known for it, else what the server says, capped to 0 to 10 minutes from the request.
+ */
+export function holdDeadlineMs(o: { holdExpiresAt: string | null | undefined; repeated: boolean | undefined; requestStartedMs: number; knownDeadlineMs: number | null }): number {
+  if (!o.repeated) return o.requestStartedMs + HOLD_MS;
+  if (o.knownDeadlineMs != null) return o.knownDeadlineMs;
+  const t = o.holdExpiresAt ? new Date(o.holdExpiresAt).getTime() : NaN;
+  const left = Number.isFinite(t) ? Math.min(HOLD_MS, Math.max(0, t - o.requestStartedMs)) : 0;
+  return o.requestStartedMs + left;
+}
+
+/**
+ * After the payment sheet closes. A paid sheet polls. A closed or failed sheet trusts the order the
+ * server reports: paid shows "You're going", expired or cancelled (the server never expires a paid
+ * order) shows "not charged", anything else goes back to choosing.
+ */
+export function resolveAfterSheet(
+  outcome: "paid_sheet" | "canceled" | "expired" | "failed",
+  orderStatus: string | null | undefined,
+  holdLeftMs: number,
+): "confirm" | "paid" | "expired" | "choose" | "choose_hold_over" {
+  if (outcome === "paid_sheet") return "confirm";
+  if (orderStatus && PAID_STATUSES.has(orderStatus)) return "paid";
+  if (orderStatus === "expired" || orderStatus === "cancelled") return "expired";
+  return holdLeftMs <= 0 ? "choose_hold_over" : "choose";
+}
+
+const HELD_CONFLICT_CODES = new Set(["LIMIT_REACHED", "SOLD_OUT", "EVENT_FULL"]);
+
+/** A limit or sold out right after this person left a held checkout: their own hold is the cause. */
+export function heldConflictCopy(err: unknown, hadOpenHold: boolean): string | null {
+  if (!hadOpenHold || !HELD_CONFLICT_CODES.has(errCode(err))) return null;
+  return "Your earlier choice is still held for a few minutes. Go back to it, or try again once that hold ends.";
+}
+
+/** Refund or cancel works only before the event starts and before anyone on the order checks in. */
+export function canChangeOrder(e: { startsAt: string }, checkedIn: boolean, now: Date): boolean {
+  return !checkedIn && new Date(e.startsAt).getTime() > now.getTime();
+}
+
+/** expo-calendar's system editor checks calendar permission itself only below iOS 17. */
+export function needsCalendarPermission(os: string, version: string | number): boolean {
+  if (os !== "ios") return false;
+  const major = parseInt(String(version), 10);
+  return Number.isFinite(major) && major < 17;
+}

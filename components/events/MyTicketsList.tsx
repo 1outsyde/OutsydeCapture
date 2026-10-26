@@ -20,17 +20,22 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function MyTicketsList({ refreshKey }: { refreshKey: number }) {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { getToken, isAuthenticated } = useAuth();
+  const { getToken, isAuthenticated, user } = useAuth();
+  // Guests have a user but no token: they see the sign in prompt, never an endless spinner.
+  const signedIn = isAuthenticated && !user?.isGuest;
   const [tickets, setTickets] = useState<MyTicket[] | null>(null);
   const [failed, setFailed] = useState(false);
   const seq = useRef(0);
 
   const load = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!signedIn) return;
     const mine = ++seq.current;
     try {
       const token = await getToken();
-      if (!token) return;
+      if (!token) {
+        if (mine === seq.current) setFailed(true);
+        return;
+      }
       const list = await api.getMyTickets(token);
       if (mine !== seq.current) return;
       setTickets(list);
@@ -39,7 +44,7 @@ export default function MyTicketsList({ refreshKey }: { refreshKey: number }) {
       // A failed refresh keeps the tickets already on screen.
       if (mine === seq.current) setFailed(true);
     }
-  }, [getToken, isAuthenticated]);
+  }, [getToken, signedIn]);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,7 +56,7 @@ export default function MyTicketsList({ refreshKey }: { refreshKey: number }) {
     if (refreshKey > 0) load();
   }, [refreshKey, load]);
 
-  if (!isAuthenticated) {
+  if (!signedIn) {
     return (
       <View style={styles.empty}>
         <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>Sign in to see your tickets.</ThemedText>

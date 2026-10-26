@@ -26,6 +26,12 @@ import {
   ticketPlaceLine,
   resultCopy,
   paidSummary,
+  openedNow,
+  holdDeadlineMs,
+  resolveAfterSheet,
+  heldConflictCopy,
+  canChangeOrder,
+  needsCalendarPermission,
   type MyTicket,
 } from "./ticketCheckoutLogic";
 import type { PublicTicketType } from "./eventsLogic";
@@ -290,4 +296,73 @@ test("paidSummary: date, count and total", () => {
   const ev = { startsAt: "2026-10-26T01:00:00.000Z", timezone: "America/New_York" };
   assert.equal(paidSummary(ev, 2, 4518), "Sun, Oct 25 · 9:00 PM · 2 tickets · $45.18");
   assert.equal(paidSummary(ev, 1, null), "Sun, Oct 25 · 9:00 PM · 1 ticket");
+});
+
+// ─── Review fixes ───────────────────────────────────────────────────────────
+
+test("I-1 openedNow: only the closed to open change resets the sheet", () => {
+  assert.equal(openedNow(false, true), true);
+  assert.equal(openedNow(true, true), false, "a reload while open never resets a result screen");
+  assert.equal(openedNow(true, false), false);
+  assert.equal(openedNow(false, false), false);
+});
+
+test("I-3 holdDeadlineMs: a new checkout gets 10 minutes from when it was asked, whatever the phone clock says", () => {
+  const start = 1_000_000;
+  // Phone clock 15 minutes fast: holdExpiresAt is already "in the past" on the phone.
+  assert.equal(holdDeadlineMs({ holdExpiresAt: new Date(start - 5 * 60_000).toISOString(), repeated: false, requestStartedMs: start, knownDeadlineMs: null }), start + 10 * 60_000);
+});
+
+test("I-3 holdDeadlineMs: a repeated checkout keeps the deadline already known for it", () => {
+  const start = 2_000_000;
+  assert.equal(holdDeadlineMs({ holdExpiresAt: "2026-10-26T16:00:00Z", repeated: true, requestStartedMs: start, knownDeadlineMs: start + 123_000 }), start + 123_000);
+});
+
+test("I-3 holdDeadlineMs: a repeated checkout with no known deadline is capped to 0 to 10 minutes", () => {
+  const start = 3_000_000;
+  const far = new Date(start + 60 * 60_000).toISOString();
+  const past = new Date(start - 60_000).toISOString();
+  const mid = new Date(start + 4 * 60_000).toISOString();
+  assert.equal(holdDeadlineMs({ holdExpiresAt: far, repeated: true, requestStartedMs: start, knownDeadlineMs: null }), start + 10 * 60_000);
+  assert.equal(holdDeadlineMs({ holdExpiresAt: past, repeated: true, requestStartedMs: start, knownDeadlineMs: null }), start);
+  assert.equal(holdDeadlineMs({ holdExpiresAt: mid, repeated: true, requestStartedMs: start, knownDeadlineMs: null }), start + 4 * 60_000);
+});
+
+test("I-2 resolveAfterSheet: paid sheet confirms by polling", () => {
+  assert.equal(resolveAfterSheet("paid_sheet", undefined, 60_000), "confirm");
+});
+
+test("I-2 resolveAfterSheet: a closed or failed sheet trusts the order, never assumes 'not charged'", () => {
+  assert.equal(resolveAfterSheet("canceled", "completed", 0), "paid", "paid while the sheet was closing");
+  assert.equal(resolveAfterSheet("failed", "refunding", 0), "paid");
+  assert.equal(resolveAfterSheet("failed", "expired", 0), "expired", "server says the hold ended: not charged");
+  assert.equal(resolveAfterSheet("canceled", "cancelled", 0), "expired");
+  assert.equal(resolveAfterSheet("canceled", "pending", 30_000), "choose");
+  assert.equal(resolveAfterSheet("failed", "pending", 30_000), "choose");
+  assert.equal(resolveAfterSheet("canceled", null, 30_000), "choose", "unknown order state: back to choosing");
+  assert.equal(resolveAfterSheet("canceled", "pending", 0), "choose_hold_over", "local hold over but the server hasn't closed it yet");
+});
+
+test("I-4 heldConflictCopy: a limit or sold out right after a held choice explains the hold", () => {
+  const e = (code: string) => ({ status: 409, body: { error: { code, message: "x" } } });
+  const held = "Your earlier choice is still held for a few minutes. Go back to it, or try again once that hold ends.";
+  assert.equal(heldConflictCopy(e("LIMIT_REACHED"), true), held);
+  assert.equal(heldConflictCopy(e("SOLD_OUT"), true), held);
+  assert.equal(heldConflictCopy(e("EVENT_FULL"), true), held);
+  assert.equal(heldConflictCopy(e("LIMIT_REACHED"), false), null);
+  assert.equal(heldConflictCopy(e("TRY_AGAIN"), true), null);
+});
+
+test("M-6 canChangeOrder: refund or cancel only before the event starts and before check in", () => {
+  const ev = { startsAt: "2026-10-31T01:00:00.000Z" };
+  assert.equal(canChangeOrder(ev, false, new Date("2026-10-30T01:00:00Z")), true);
+  assert.equal(canChangeOrder(ev, false, new Date("2026-10-31T02:00:00Z")), false);
+  assert.equal(canChangeOrder(ev, true, new Date("2026-10-30T01:00:00Z")), false);
+});
+
+test("M-5 needsCalendarPermission: only iOS below 17", () => {
+  assert.equal(needsCalendarPermission("ios", "16.4"), true);
+  assert.equal(needsCalendarPermission("ios", "17.0"), false);
+  assert.equal(needsCalendarPermission("ios", "18.1"), false);
+  assert.equal(needsCalendarPermission("android", 34), false);
 });
