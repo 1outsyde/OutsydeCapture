@@ -639,3 +639,9 @@ export function hostSetupState(s: { hasAccount?: unknown; ready?: unknown; needs
 export function shareUrl(slug: string): string {
   return `https://goutsyde.com/e/${slug}`;
 }
+
+/** An http or https link (cover photos from the backend), or null. Regex, since React Native's URL is partial. */
+export function safeHttpUrl(u: unknown): string | null {
+  if (typeof u !== "string") return null;
+  return /^https?:\/\/[^\s/?#]+[^\s]*$/i.test(u) ? u : null;
+}

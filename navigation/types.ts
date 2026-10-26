@@ -49,6 +49,12 @@ export type RootStackParamList = {
   CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets"; _ts?: number } | undefined;
   /** One event's tickets with QR codes (from GET /api/events/me/tickets). */
   TicketDetail: { eventId: string };
+  /** Host: create (no id) or edit an event (p4-host). */
+  EventEditor: { eventId?: string } | undefined;
+  /** Host: drafts, upcoming, past and cancelled events you host. */
+  YourEvents: undefined;
+  /** Host: one event's sales, guests, orders and cancel. */
+  ManageEvent: { eventId: string };
   CartCheckout: undefined;
   CheckoutScreen: {
     mode: "cart" | "buyNow";

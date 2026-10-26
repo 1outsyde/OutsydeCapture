@@ -4722,6 +4722,59 @@ class ApiService {
     return res.order;
   }
 
+  // ─── Hosting (p4-host): create, edit, publish and manage your events ─────────
+  // Bodies come back as the backend sends them ({ success, event, ticketTypes, ... }); screens check them with the
+  // guards in utils/host (isHostEvent, isHostTicketType, isSummary, ...). Errors throw ApiError { status, body }.
+
+  private hostCall(method: string, path: string, authToken: string, body?: unknown): Promise<Record<string, any>> {
+    return this.request<Record<string, any>>(path, {
+      method,
+      headers: { Authorization: `Bearer ${authToken}` },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  }
+
+  /** GET /api/events/mine - Every event you host (drafts, live, ended, cancelled). */
+  getMyHostedEvents(authToken: string) { return this.hostCall("GET", "/api/events/mine", authToken); }
+  /** POST /api/events - Create a draft. */
+  createEvent(body: Record<string, unknown>, authToken: string) { return this.hostCall("POST", "/api/events", authToken, body); }
+  /** GET /api/events/:id/manage - Your event with its ticket types (any status). */
+  getManageEvent(id: string, authToken: string) { return this.hostCall("GET", `/api/events/${encodeURIComponent(id)}/manage`, authToken); }
+  /** PATCH /api/events/:id - Changed fields only. */
+  updateEvent(id: string, patch: Record<string, unknown>, authToken: string) { return this.hostCall("PATCH", `/api/events/${encodeURIComponent(id)}`, authToken, patch); }
+  /** POST /api/events/:id/publish - Needs payouts, the current agreement and a visible ticket type. */
+  publishEvent(id: string, authToken: string) { return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/publish`, authToken, {}); }
+  /** POST /api/events/:id/cancel - Cancels a live event (refunds everyone) or discards a draft. */
+  cancelEvent(id: string, authToken: string) { return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/cancel`, authToken, {}); }
+  /** POST /api/events/:id/ticket-types */
+  addTicketType(id: string, body: Record<string, unknown>, authToken: string) { return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/ticket-types`, authToken, body); }
+  /** PATCH /api/events/:id/ticket-types/:typeId - Changed fields only. */
+  updateTicketType(id: string, typeId: string, patch: Record<string, unknown>, authToken: string) {
+    return this.hostCall("PATCH", `/api/events/${encodeURIComponent(id)}/ticket-types/${encodeURIComponent(typeId)}`, authToken, patch);
+  }
+  /** DELETE /api/events/:id/ticket-types/:typeId - { removed: "deleted" } or { removed: "archived", ticketType } once taken. */
+  removeTicketType(id: string, typeId: string, authToken: string) {
+    return this.hostCall("DELETE", `/api/events/${encodeURIComponent(id)}/ticket-types/${encodeURIComponent(typeId)}`, authToken);
+  }
+  /** GET /api/events/:id/summary - Sales, earnings, payout and refunds. */
+  getEventSummary(id: string, authToken: string) { return this.hostCall("GET", `/api/events/${encodeURIComponent(id)}/summary`, authToken); }
+  /** GET /api/events/:id/orders - Orders with the guest's first name and username. */
+  getEventOrders(id: string, authToken: string) { return this.hostCall("GET", `/api/events/${encodeURIComponent(id)}/orders`, authToken); }
+  /** POST /api/events/:id/orders/:orderId/refund - Host refund of a whole order. */
+  hostRefundOrder(id: string, orderId: string, authToken: string) {
+    return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/orders/${encodeURIComponent(orderId)}/refund`, authToken, {});
+  }
+  /** GET /api/events/:id/door/guests - Guest list with check-ins. */
+  getDoorGuests(id: string, authToken: string) { return this.hostCall("GET", `/api/events/${encodeURIComponent(id)}/door/guests`, authToken); }
+  /** GET /api/events/host-agreement - Current Event Host Agreement and whether you accepted it. */
+  getHostAgreement(authToken: string) { return this.hostCall("GET", "/api/events/host-agreement", authToken); }
+  /** POST /api/events/host-agreement/accept - 409 AGREEMENT_VERSION_CHANGED when a newer version exists. */
+  acceptHostAgreement(version: string, authToken: string) { return this.hostCall("POST", "/api/events/host-agreement/accept", authToken, { version }); }
+  /** GET /api/events/payouts/status?hostType= - { hasAccount, ready }. 403 when you aren't that kind of host. */
+  getHostPayoutStatus(hostType: "user" | "business" | "photographer", authToken: string) {
+    return this.hostCall("GET", `/api/events/payouts/status?hostType=${hostType}`, authToken);
+  }
+
   // GET /api/feed/:postId - Get a single post by id (public)
   async getPost(postId: string, authToken?: string): Promise<{ post: ApiPost }> {
     const headers: Record<string, string> = {};

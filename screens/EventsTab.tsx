@@ -205,6 +205,16 @@ export default function EventsTab() {
           <Feather name="tag" size={15} color={theme.brandGold} />
           <ThemedText style={[styles.chipText, { color: theme.brandGold }]}>My Tickets</ThemedText>
         </Pressable>
+        <Pressable
+          key="your-events"
+          onPress={() => navigation.navigate("YourEvents")}
+          accessibilityRole="button"
+          accessibilityLabel="Your events"
+          style={[styles.chip, styles.ticketsChip, { borderColor: theme.brandGold }]}
+        >
+          <Feather name="calendar" size={15} color={theme.brandGold} />
+          <ThemedText style={[styles.chipText, { color: theme.brandGold }]}>Your events</ThemedText>
+        </Pressable>
         {chip(locating ? "Finding you" : "Near me", filters.near, toggleNear, locating)}
         {chip("Tonight", filters.when === "tonight", () => toggleWhen("tonight"))}
         {chip("This weekend", filters.when === "weekend", () => toggleWhen("weekend"))}

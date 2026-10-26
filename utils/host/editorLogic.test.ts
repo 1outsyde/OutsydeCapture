@@ -8,7 +8,7 @@ import {
   type HostEvent, type HostTicketType, type EventForm,
 } from "./editorLogic";
 import { hostEarningsCents } from "./hostFees";
-import { stripeUrl } from "./editorLogic";
+import { stripeUrl, safeHttpUrl } from "./editorLogic";
 
 let passed = 0, failed = 0;
 function eq(actual: unknown, expected: unknown, name: string) {
@@ -231,6 +231,8 @@ eq(hostSetupState({ hasAccount: true, ready: false, needsSetup: true }), "finish
 eq(hostSetupState({ hasAccount: true, ready: true, needsSetup: false }), "ready", "ready");
 eq(hostSetupState(null), "unknown", "status failed to load");
 eq(shareUrl("block-party-abc123"), "https://goutsyde.com/e/block-party-abc123", "share link");
+eq([safeHttpUrl("https://a.com/x.png"), safeHttpUrl("http://a.com/x.png"), safeHttpUrl("javascript:alert(1)"), safeHttpUrl("https://"), safeHttpUrl(""), safeHttpUrl(null), safeHttpUrl("https://a.com/x y")],
+  ["https://a.com/x.png", "http://a.com/x.png", null, null, null, null, null], "image links: http and https only");
 eq([stripeUrl("https://connect.stripe.com/setup/e/x"), stripeUrl("http://connect.stripe.com/x"), stripeUrl("https://evil.com/stripe.com"), stripeUrl(5)], ["https://connect.stripe.com/setup/e/x", null, null, null], "stripe links only");
 
 console.log(`\n${passed} passed, ${failed} failed`);

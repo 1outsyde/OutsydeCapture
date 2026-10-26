@@ -17,6 +17,9 @@ import StaffWorkProfileScreen from "@/screens/StaffWorkProfileScreen";
 import PostDetailScreen from "@/screens/PostDetailScreen";
 import EventDetailScreen from "@/screens/EventDetailScreen";
 import TicketDetailScreen from "@/screens/TicketDetailScreen";
+import EventEditorScreen from "@/screens/host/EventEditorScreen";
+import YourEventsScreen from "@/screens/host/YourEventsScreen";
+import ManageEventScreen from "@/screens/host/ManageEventScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
@@ -290,6 +293,37 @@ export default function RootNavigator() {
       <Stack.Screen
         name="TicketDetail"
         component={TicketDetailScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="EventEditor"
+        component={EventEditorScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_bottom",
+          // A swipe would drop unsaved details: leave with Close or Back.
+          gestureEnabled: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="YourEvents"
+        component={YourEventsScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="ManageEvent"
+        component={ManageEventScreen}
         options={{
           headerShown: false,
           animation: "slide_from_right",
