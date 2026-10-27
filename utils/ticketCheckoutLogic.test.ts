@@ -265,10 +265,28 @@ test("refund confirm and done copy", () => {
 // ─── Push ───────────────────────────────────────────────────────────────────
 
 test("ticketPushTarget: address_reveal opens the Tickets tab", () => {
-  assert.deepEqual(ticketPushTarget({ type: "address_reveal", eventId: "e1" }), { eventId: "e1" });
-  assert.deepEqual(ticketPushTarget({ type: "address_reveal" }), { eventId: null });
+  assert.deepEqual(ticketPushTarget({ type: "address_reveal", eventId: "e1" }), { screen: "tickets", eventId: "e1" });
+  assert.deepEqual(ticketPushTarget({ type: "address_reveal" }), { screen: "tickets", eventId: null });
   assert.equal(ticketPushTarget({ type: "new_message" }), null);
   assert.equal(ticketPushTarget(null), null);
+});
+
+test("ticketPushTarget: a guest reminder opens that event's ticket (screen 36)", () => {
+  assert.deepEqual(ticketPushTarget({ type: "event_reminder", kind: "day_before", eventId: "e1" }), { screen: "ticket", eventId: "e1" });
+  assert.deepEqual(ticketPushTarget({ type: "event_reminder", kind: "soon", eventId: "e1" }), { screen: "ticket", eventId: "e1" });
+  // No event id: fall back to the Tickets tab rather than doing nothing.
+  assert.deepEqual(ticketPushTarget({ type: "event_reminder", kind: "soon" }), { screen: "tickets", eventId: null });
+  assert.deepEqual(ticketPushTarget({ type: "event_reminder", kind: "day_before", eventId: "" }), { screen: "tickets", eventId: null });
+});
+
+test("ticketPushTarget: the host reminder opens the manage screen", () => {
+  assert.deepEqual(ticketPushTarget({ type: "event_reminder", kind: "host_day_before", eventId: "e9" }), { screen: "manage", eventId: "e9" });
+  assert.equal(ticketPushTarget({ type: "event_reminder", kind: "host_day_before" }), null);
+});
+
+test("ticketPushTarget: unknown reminder kinds are ignored", () => {
+  assert.equal(ticketPushTarget({ type: "event_reminder", kind: "week_before", eventId: "e1" }), null);
+  assert.equal(ticketPushTarget({ type: "event_reminder", eventId: "e1" }), null);
 });
 
 // ─── Result copy (screen 27) ────────────────────────────────────────────────

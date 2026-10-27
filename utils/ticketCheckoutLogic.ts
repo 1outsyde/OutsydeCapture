@@ -312,10 +312,23 @@ export function refundDoneBody(cents: number | null): string {
 
 // ─── Push ────────────────────────────────────────────────────────────────────
 
-/** Backend addressReveal.ts sends data { type: "address_reveal", eventId }. Every other type is ignored. */
-export function ticketPushTarget(data: { type?: unknown; eventId?: unknown } | null | undefined): { eventId: string | null } | null {
-  if (!data || data.type !== "address_reveal") return null;
-  return { eventId: typeof data.eventId === "string" ? data.eventId : null };
+/**
+ * Where a tapped ticket push opens. Every other type is ignored (and the other push hooks ignore these).
+ *  - "address_reveal" (backend addressReveal.ts, data { type, eventId }) → the Tickets tab of Cart & activity.
+ *  - "event_reminder" (backend eventReminders.ts, data { type, kind, eventId }, Events canvas screen 36):
+ *    kind "day_before" / "soon" → that event's ticket (Tickets tab when the id is missing);
+ *    kind "host_day_before" → the host's manage screen (needs the id). Unknown kinds are ignored.
+ */
+export type TicketPushTarget = { screen: "tickets" | "ticket" | "manage"; eventId: string | null };
+
+export function ticketPushTarget(data: { type?: unknown; kind?: unknown; eventId?: unknown } | null | undefined): TicketPushTarget | null {
+  if (!data) return null;
+  const eventId = typeof data.eventId === "string" && data.eventId.length > 0 ? data.eventId : null;
+  if (data.type === "address_reveal") return { screen: "tickets", eventId };
+  if (data.type !== "event_reminder") return null;
+  if (data.kind === "day_before" || data.kind === "soon") return eventId ? { screen: "ticket", eventId } : { screen: "tickets", eventId: null };
+  if (data.kind === "host_day_before") return eventId ? { screen: "manage", eventId } : null;
+  return null;
 }
 
 // ─── Result copy (screen 27) ─────────────────────────────────────────────────
