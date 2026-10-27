@@ -62,6 +62,7 @@ function CardVideoMedia({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const player = useVideoPlayer(videoUrl, (p) => {
+    p.audioMixingMode = "doNotMix";
     p.loop = true;
     p.muted = muted;
     if (isVisible) {

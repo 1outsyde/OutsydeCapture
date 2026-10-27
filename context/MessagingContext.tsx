@@ -93,7 +93,7 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const appState = useRef(AppState.currentState);
+  const appState = useRef(AppState.currentState as AppStateStatus);
 
   const refreshConversations = useCallback(async () => {
     if (!isAuthenticated || !user) {

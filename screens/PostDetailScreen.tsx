@@ -331,8 +331,8 @@ export default function PostDetailScreen() {
   );
 
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
-      if (viewableItems.length > 0 && viewableItems[0].index !== null) {
+    ({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
         setActiveIndex(viewableItems[0].index);
       }
     }

@@ -572,7 +572,7 @@ export default function OnboardingScreen({ navigation, route }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: OB.bg }]}>
-      <StatusBar barStyle="light-content" backgroundColor={OB.bg} />
+      <StatusBar barStyle="light-content" />
 
       {/* Skip button — visible only on slides 2 & 3 */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>

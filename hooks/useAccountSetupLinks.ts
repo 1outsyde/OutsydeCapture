@@ -36,7 +36,7 @@ export function useAccountSetupLinks() {
 
   // Collect links and push taps.
   useEffect(() => {
-    const onUrl = (url: string | null) => {
+    const onUrl = (url: string | null | undefined) => {
       if (!url) return;
       const link = parseAccountSetupLink(url);
       if (link) setPending(link);

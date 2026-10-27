@@ -259,7 +259,7 @@ export default function FollowListScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => load(tab, "refresh", 0)} tintColor={theme.primary} />
           }
           contentContainerStyle={[{ paddingBottom: insets.bottom + Spacing.xl }, rows.length === 0 && { flexGrow: 1 }]}
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: Spacing.lg }} color={theme.primary} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: Spacing.lg }} color={theme.primary} /> : undefined}
           ListEmptyComponent={
             <View style={styles.center}>
               <Feather name={error ? "alert-circle" : "users"} size={44} color={theme.textSecondary} />

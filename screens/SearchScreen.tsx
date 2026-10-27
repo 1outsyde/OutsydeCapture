@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator, Switch } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -128,7 +129,7 @@ export default function SearchScreen() {
   // Search history state
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   const isAuthenticated = !!user && !user.isGuest;
   const isAdmin = user?.email?.toLowerCase() === "info@goutsyde.com" ||

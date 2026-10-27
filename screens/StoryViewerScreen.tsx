@@ -153,6 +153,7 @@ interface VideoStoryProps {
 
 function VideoStory({ story, onDurationKnown, onVideoEnd }: VideoStoryProps) {
   const player = useVideoPlayer(story.mediaUrl, (p) => {
+    p.audioMixingMode = "doNotMix";
     p.loop = false;
     p.muted = false;
     p.play();

@@ -26,8 +26,10 @@ export async function getStoredUserData<T>(): Promise<T | null> {
   return data ? (JSON.parse(data) as T) : null;
 }
 
+// allSettled, not all: from expo-secure-store 58, iOS rejects deleteItemAsync when the keychain
+// refuses the delete (before, it resolved). Logout must keep going and clear the rest either way.
 export async function clearAuthStorage(): Promise<void> {
-  await Promise.all([
+  await Promise.allSettled([
     SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
     SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
     SecureStore.deleteItemAsync(USER_DATA_KEY),

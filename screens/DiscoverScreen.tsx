@@ -406,9 +406,9 @@ export default function DiscoverScreen() {
   const [proMuted, setProMuted] = useState(false);
 
   const onProViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+    ({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
       const s = new Set<number>();
-      viewableItems.forEach((i) => { if (i.index !== null) s.add(i.index); });
+      viewableItems.forEach((i) => { if (i.index != null) s.add(i.index); });
       setVisibleProIndices(s);
     }
   ).current;
@@ -775,7 +775,7 @@ export default function DiscoverScreen() {
               ListFooterComponent={
                 followingLoadingMore ? (
                   <ActivityIndicator style={{ margin: Spacing.lg }} color={theme.primary} />
-                ) : null
+                ) : undefined
               }
               ListEmptyComponent={
                 followingError ? (

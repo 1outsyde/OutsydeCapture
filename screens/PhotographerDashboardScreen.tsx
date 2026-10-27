@@ -215,6 +215,7 @@ export default function PhotographerDashboardScreen() {
 
   const VideoPreview = ({ uri }: { uri: string }) => {
     const player = useVideoPlayer(uri, (p) => {
+      p.audioMixingMode = "doNotMix";
       p.loop = true;
       p.muted = true;
       p.play();
@@ -676,7 +677,7 @@ export default function PhotographerDashboardScreen() {
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [loadingPayoutLink, setLoadingPayoutLink] = useState(false);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState as AppStateStatus);
   
   const STRIPE_RETURN_URL = "outsyde://stripe-return";
   

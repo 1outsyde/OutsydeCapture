@@ -291,7 +291,9 @@ export default function ManageEventScreen() {
         ) : null}
       </ScrollView>
 
-      <Modal visible={!!ask} transparent animationType="slide" onRequestClose={() => !working && setAsk(null)}>
+      <Modal visible={!!ask} transparent animationType="slide" onRequestClose={() => {
+        if (!working) setAsk(null);
+      }}>
         <Pressable style={s.backdrop} onPress={() => !working && setAsk(null)} accessibilityRole="button" accessibilityLabel="Close" />
         {ask ? (
           <View style={[s.sheet, { backgroundColor: theme.backgroundRoot, borderColor: theme.border, paddingBottom: insets.bottom + 16 }]} accessibilityViewIsModal>

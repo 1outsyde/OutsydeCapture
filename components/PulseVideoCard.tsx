@@ -139,6 +139,7 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngag
   const lastTime = useRef(0);
 
   const player = useVideoPlayer(videoUrl, (p) => {
+    p.audioMixingMode = "doNotMix";
     p.loop = true;
     p.muted = muted;
   });

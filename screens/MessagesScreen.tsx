@@ -17,6 +17,7 @@ import {
   Keyboard,
   Platform,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -771,7 +772,7 @@ export default function MessagesScreen() {
   const [messageHits, setMessageHits] = useState<ApiMessageSearchResult[]>([]);
   const [peopleHits, setPeopleHits] = useState<Recipient[]>([]);
   const [searchingServer, setSearchingServer] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   useFocusEffect(
     useCallback(() => {

@@ -16,6 +16,7 @@ import {
   Animated,
   Alert,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -69,7 +70,7 @@ interface OTPInputProps {
 }
 
 function OTPInputRow({ value, onChange, focused, onFocusChange, shakeAnim, error, loading }: OTPInputProps) {
-  const refs = useRef<(TextInput | null)[]>([]);
+  const refs = useRef<(TextInputInstance | null)[]>([]);
 
   // Auto-focus first box when this row mounts
   useEffect(() => {
