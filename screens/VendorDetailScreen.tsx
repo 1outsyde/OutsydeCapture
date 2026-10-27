@@ -39,7 +39,8 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import apiClient, {
   API_BASE_URL,
   ApiPost,
@@ -380,7 +381,7 @@ const CoverMediaHero = ({
 
   const [showFullscreen, setShowFullscreen] = useState(false);
 
-  const videoPlayer = useVideoPlayer(
+  const videoPlayer = useVideoPlayerRecreate(
     isMuxVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
       player.loop = true;
@@ -389,7 +390,7 @@ const CoverMediaHero = ({
     },
   );
 
-  const fullscreenPlayer = useVideoPlayer(
+  const fullscreenPlayer = useVideoPlayerRecreate(
     isMuxVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
       player.muted = false;

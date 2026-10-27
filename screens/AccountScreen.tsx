@@ -38,7 +38,8 @@ import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 
 import { RootStackParamList, AccountStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
@@ -394,7 +395,7 @@ const CoverMediaHero = ({
     profile.coverMediaType === "video" && !!profile.coverMediaUrl && !isVideo;
   const isImage = profile.coverMediaType === "image" && !!profile.coverMediaUrl;
 
-  const videoPlayer = useVideoPlayer(
+  const videoPlayer = useVideoPlayerRecreate(
     isVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
       player.loop = true;

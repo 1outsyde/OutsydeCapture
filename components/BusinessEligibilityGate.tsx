@@ -66,7 +66,7 @@ export default function BusinessEligibilityGate({ eligibility, onRefreshEligibil
   const [actionLoading, setActionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState as AppStateStatus);
 
   const isMonetizationError = (err: any): boolean =>
     err?.body?.error === "Monetization not enabled" ||

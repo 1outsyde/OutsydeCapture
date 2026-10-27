@@ -60,7 +60,8 @@ import type { ServiceAddonsApi } from "@/components/ServiceAddonsEditor";
 import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
 import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import MediaUploader from "@/components/MediaUploader";
 import { formatDuration } from "@/utils/duration";
 import {
@@ -214,7 +215,7 @@ export default function PhotographerDashboardScreen() {
   ];
 
   const VideoPreview = ({ uri }: { uri: string }) => {
-    const player = useVideoPlayer(uri, (p) => {
+    const player = useVideoPlayerRecreate(uri, (p) => {
       p.loop = true;
       p.muted = true;
       p.play();
@@ -676,7 +677,7 @@ export default function PhotographerDashboardScreen() {
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [loadingPayoutLink, setLoadingPayoutLink] = useState(false);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState as AppStateStatus);
   
   const STRIPE_RETURN_URL = "outsyde://stripe-return";
   

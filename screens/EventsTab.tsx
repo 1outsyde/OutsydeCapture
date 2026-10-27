@@ -267,8 +267,8 @@ export default function EventsTab() {
         index === 0 ? <FeaturedEventCard event={item} onPress={() => open(item)} /> : <EventRow event={item} onPress={() => open(item)} />
       }
       ListHeaderComponent={header}
-      ListEmptyComponent={empty}
-      ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: Spacing.lg }} color={theme.primary} /> : null}
+      ListEmptyComponent={empty ?? undefined}
+      ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: Spacing.lg }} color={theme.primary} /> : undefined}
       ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
       contentContainerStyle={[styles.content, events.length === 0 && { flexGrow: 1 }]}
       showsVerticalScrollIndicator={false}

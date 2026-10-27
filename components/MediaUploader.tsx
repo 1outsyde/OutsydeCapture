@@ -9,7 +9,8 @@ import {
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "@/hooks/useTheme";
@@ -57,7 +58,7 @@ export default function MediaUploader({
     currentVideo && /^https?:\/\//i.test(currentVideo) ? currentVideo : null;
   const isProcessingVideo = !!currentVideo && !playableVideo;
 
-  const videoPlayer = useVideoPlayer(playableVideo, player => {
+  const videoPlayer = useVideoPlayerRecreate(playableVideo, player => {
     player.loop = true;
     player.muted = true;
     player.play();

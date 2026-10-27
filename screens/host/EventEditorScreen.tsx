@@ -5,6 +5,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
@@ -115,7 +116,7 @@ export default function EventEditorScreen() {
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [publishError, setPublishError] = useState<{ message: string; next: PublishNext } | null>(null);
   const [copied, setCopied] = useState(false);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
   const live = useRef(true);
   useEffect(() => () => { live.current = false; clearHostSetupPending(); }, []);
 

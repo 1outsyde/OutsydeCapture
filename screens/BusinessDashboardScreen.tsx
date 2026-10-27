@@ -352,7 +352,7 @@ export default function BusinessDashboardScreen() {
   // ─── Stripe / AppState / Deep-link ─────────────────────────────────────────
 
   const STRIPE_RETURN_URL = "outsyde://stripe-return";
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState as AppStateStatus);
 
   // Free plan: connectReady decides. Paid plans (null) and not-yet-loaded fall back to today's logic.
   const stripeOk = connectReady ?? profile?.stripeConnected;

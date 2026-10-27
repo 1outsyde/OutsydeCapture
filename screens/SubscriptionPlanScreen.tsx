@@ -89,7 +89,7 @@ export default function SubscriptionPlanScreen() {
   const [tiersFetchError, setTiersFetchError] = useState<string | null>(null);
   const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
   const [subscribeSuccess, setSubscribeSuccess] = useState(false);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState as AppStateStatus);
   const wasSubscribingRef = useRef(false);
   const prevSubscriptionRef = useRef<CurrentSubscription | null>(null);
 

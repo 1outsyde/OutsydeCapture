@@ -216,8 +216,8 @@ export default function PulseFeedScreenV2() {
 
   // ─── Viewability — single active index ─────────────────────────────────────
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
-      if (viewableItems.length > 0 && viewableItems[0].index !== null) {
+    ({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
         setActiveIndex(viewableItems[0].index);
       }
     }
@@ -536,7 +536,7 @@ export default function PulseFeedScreenV2() {
             <View style={[styles.footer, { height: PULSE_CARD_HEIGHT }]}>
               <ActivityIndicator size="large" color={theme.primary} />
             </View>
-          ) : null
+          ) : undefined
         }
       />
 

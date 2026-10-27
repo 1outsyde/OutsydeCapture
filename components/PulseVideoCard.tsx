@@ -9,7 +9,8 @@ import {
   Alert,
 } from "react-native";
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -138,7 +139,7 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngag
   const videoDuration = useRef(0);
   const lastTime = useRef(0);
 
-  const player = useVideoPlayer(videoUrl, (p) => {
+  const player = useVideoPlayerRecreate(videoUrl, (p) => {
     p.loop = true;
     p.muted = muted;
   });

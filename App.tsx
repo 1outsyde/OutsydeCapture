@@ -39,7 +39,7 @@ function AppShell() {
   const [promptPurchases, setPromptPurchases] = useState<PurchaseItem[]>([]);
   const [promptVisible, setPromptVisible] = useState(false);
   useEffect(() => registerWhile("rating-prompt", promptVisible), [promptVisible]);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState as AppStateStatus);
 
   useEffect(() => {
     if (!isAuthenticated) return;

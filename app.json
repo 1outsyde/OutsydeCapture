@@ -147,7 +147,8 @@
         "@stripe/stripe-react-native",
         {
           "merchantIdentifier": "merchant.com.outsyde.app",
-          "enableGooglePay": false
+          "enableGooglePay": false,
+          "disableSPM": true
         }
       ],
       [
@@ -164,7 +165,15 @@
           "writeOnlyAccess": true
         }
       ],
-      "./plugins/withLegacyStoragePermissions"
+      "./plugins/withLegacyStoragePermissions",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false
+          }
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true
