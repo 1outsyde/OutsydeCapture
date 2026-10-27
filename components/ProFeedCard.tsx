@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { View, Pressable, StyleSheet, Dimensions, Alert, ActionSheetIOS, Platform, Modal, TouchableWithoutFeedback } from "react-native";
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -61,8 +62,7 @@ function CardVideoMedia({
 
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const player = useVideoPlayer(videoUrl, (p) => {
-    p.audioMixingMode = "doNotMix";
+  const player = useVideoPlayerRecreate(videoUrl, (p) => {
     p.loop = true;
     p.muted = muted;
     if (isVisible) {

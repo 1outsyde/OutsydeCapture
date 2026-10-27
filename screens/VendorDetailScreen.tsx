@@ -384,7 +384,6 @@ const CoverMediaHero = ({
   const videoPlayer = useVideoPlayerRecreate(
     isMuxVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
-      player.audioMixingMode = "doNotMix";
       player.loop = true;
       player.muted = true;
       player.play();
@@ -394,7 +393,6 @@ const CoverMediaHero = ({
   const fullscreenPlayer = useVideoPlayerRecreate(
     isMuxVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
-      player.audioMixingMode = "doNotMix";
       player.muted = false;
     },
   );

@@ -60,7 +60,8 @@ import type { ServiceAddonsApi } from "@/components/ServiceAddonsEditor";
 import { mapProviderBlockToBlockedDate } from "@/utils/availabilityUtils";
 import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import MediaUploader from "@/components/MediaUploader";
 import { formatDuration } from "@/utils/duration";
 import {
@@ -214,8 +215,7 @@ export default function PhotographerDashboardScreen() {
   ];
 
   const VideoPreview = ({ uri }: { uri: string }) => {
-    const player = useVideoPlayer(uri, (p) => {
-      p.audioMixingMode = "doNotMix";
+    const player = useVideoPlayerRecreate(uri, (p) => {
       p.loop = true;
       p.muted = true;
       p.play();

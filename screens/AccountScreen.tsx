@@ -398,7 +398,6 @@ const CoverMediaHero = ({
   const videoPlayer = useVideoPlayerRecreate(
     isVideo ? profile.coverMediaUrl || "" : "",
     (player) => {
-      player.audioMixingMode = "doNotMix";
       player.loop = true;
       player.muted = true;
       player.play();

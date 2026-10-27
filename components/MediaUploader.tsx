@@ -59,7 +59,6 @@ export default function MediaUploader({
   const isProcessingVideo = !!currentVideo && !playableVideo;
 
   const videoPlayer = useVideoPlayerRecreate(playableVideo, player => {
-    player.audioMixingMode = "doNotMix";
     player.loop = true;
     player.muted = true;
     player.play();

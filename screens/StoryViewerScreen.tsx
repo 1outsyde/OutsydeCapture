@@ -21,7 +21,8 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -152,8 +153,7 @@ interface VideoStoryProps {
 }
 
 function VideoStory({ story, onDurationKnown, onVideoEnd }: VideoStoryProps) {
-  const player = useVideoPlayer(story.mediaUrl, (p) => {
-    p.audioMixingMode = "doNotMix";
+  const player = useVideoPlayerRecreate(story.mediaUrl, (p) => {
     p.loop = false;
     p.muted = false;
     p.play();
