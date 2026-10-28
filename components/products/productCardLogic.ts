@@ -60,3 +60,20 @@ export function cardOptionsLine(
       .join(" · ");
   return summary!.count === 1 ? "1 option" : `${summary!.count} options`;
 }
+
+/** Backend #371 addonSummary on the storefront list: null when the product has no add-ons. */
+export interface AddonSummary {
+  groupCount: number;
+  hasRequired: boolean;
+}
+
+/**
+ * True when a card's Add must open the product page: a variation to pick, or an add-on group the
+ * customer must pick from (a cake flavor). Optional add-ons don't block a quick Add.
+ */
+export function mustChoose(
+  summary: VariantSummary | null | undefined,
+  addons: AddonSummary | null | undefined,
+): boolean {
+  return needsChoice(summary) || !!addons?.hasRequired;
+}

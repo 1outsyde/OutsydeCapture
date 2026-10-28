@@ -3,6 +3,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  mustChoose,
   cardOptionsLine,
   cardPriceCents,
   cardPricePrefix,
@@ -89,6 +90,14 @@ test("at most two options listed", () => {
     options: [...tee.options, { name: "Fit", valueCount: 2 }],
   };
   assert.equal(cardOptionsLine(three), "3 colors · 4 sizes");
+});
+
+test("required add-ons open the product page, optional ones don't", () => {
+  assert.equal(mustChoose(null, { groupCount: 2, hasRequired: true }), true);
+  assert.equal(mustChoose(null, { groupCount: 2, hasRequired: false }), false);
+  assert.equal(mustChoose(null, null), false);
+  assert.equal(mustChoose(undefined, undefined), false);
+  assert.equal(mustChoose(tee, null), true);
 });
 
 console.log(`\n${passed} passed`);

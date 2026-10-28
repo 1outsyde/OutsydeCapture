@@ -20,7 +20,8 @@ import SavedCardSelector from "@/components/SavedCardSelector";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { useCart } from "@/context/CartContext";
+import { useCart, lineKeyOf } from "@/context/CartContext";
+import { checkoutAddons, lineDetail } from "@/components/products/productAddonLogic";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { apiPost } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
@@ -43,6 +44,12 @@ const CUSTOMER_FACING_CHECKOUT_CODES = [
   "INVALID_VARIANT",
   "PRODUCT_UNAVAILABLE",
   "PRODUCT_VENDOR_MISMATCH",
+  // Add-on refusals (backend #371)
+  "ADDON_REQUIRED",
+  "ADDON_LIMIT",
+  "INVALID_ADDON",
+  "ADDON_TEXT_REQUIRED",
+  "ADDON_TEXT_TOO_LONG",
 ];
 function checkoutRefusalMessage(errMessage: string): string | null {
   if (!CUSTOMER_FACING_CHECKOUT_CODES.some((c) => errMessage.includes(c))) return null;
@@ -245,6 +252,7 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
             quantity: item.quantity,
             name: item.name,
             ...(item.variantId ? { variantId: item.variantId } : {}),
+            ...(item.addons ? { addons: checkoutAddons(item.addons) } : {}),
           })),
           shippingAddress: resolvedAddress,
         },
@@ -525,12 +533,17 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
         {/* Order summary */}
         <ThemedText type="h4" style={styles.sectionLabel}>Order Summary</ThemedText>
         {cart.map((item) => (
-          <View key={item.productId} style={styles.cartItem}>
+          <View key={lineKeyOf(item)} style={styles.cartItem}>
             <View style={styles.cartIcon}>
               <Feather name="package" size={20} color={theme.brandGold} />
             </View>
             <View style={styles.cartInfo}>
               <ThemedText type="h4" numberOfLines={1}>{item.name}</ThemedText>
+              {lineDetail(item.variantLabel, item.addonsLabel) ? (
+                <ThemedText type="caption" style={{ color: theme.brandGold }}>
+                  {lineDetail(item.variantLabel, item.addonsLabel)}
+                </ThemedText>
+              ) : null}
               <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
                 ${(item.price / 100).toFixed(2)} each
               </ThemedText>

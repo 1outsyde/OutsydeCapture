@@ -18,7 +18,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { useCart } from "@/context/CartContext";
+import { useCart, lineKeyOf } from "@/context/CartContext";
+import { lineDetail } from "@/components/products/productAddonLogic";
 import { useData } from "@/context/DataContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { apiGet } from "@/api/client";
@@ -200,11 +201,10 @@ export default function CartOrdersScreen() {
   }, [route.params?._ts]);
 
   // ─── Cart actions ─────────────────────────────────────────────────────────
-  const updateQuantity = (productId: string, variantId: string | undefined, delta: number) => {
-    const item = cart.find(
-      (i) => i.productId === productId && (i.variantId ?? undefined) === variantId
-    );
-    if (item) ctxUpdateQuantity(productId, variantId, item.quantity + delta);
+  // By line key: the same product can be in the cart twice with different add-ons.
+  const updateQuantity = (lineKey: string, delta: number) => {
+    const item = cart.find((i) => lineKeyOf(i) === lineKey);
+    if (item) ctxUpdateQuantity(item.productId, item.variantId, item.quantity + delta, lineKey);
   };
 
   const getOrderStatusConfig = (status: ConsumerOrder["status"]) => {
@@ -688,7 +688,7 @@ export default function CartOrdersScreen() {
       ) : (
         <>
           {cart.map((item) => (
-            <View key={`${item.productId}::${item.variantId ?? ""}`} style={styles.cartItem}>
+            <View key={lineKeyOf(item)} style={styles.cartItem}>
               {item.imageUrl ? (
   <Image
     source={{ uri: item.imageUrl }}
@@ -702,9 +702,9 @@ export default function CartOrdersScreen() {
 )}
               <View style={styles.cartInfo}>
                 <ThemedText type="h4" numberOfLines={1}>{item.name}</ThemedText>
-                {item.variantLabel ? (
+                {lineDetail(item.variantLabel, item.addonsLabel) ? (
                   <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: 2 }}>
-                    {item.variantLabel}
+                    {lineDetail(item.variantLabel, item.addonsLabel)}
                   </ThemedText>
                 ) : null}
                 <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
@@ -712,11 +712,11 @@ export default function CartOrdersScreen() {
                 </ThemedText>
               </View>
               <View style={styles.quantityControls}>
-                <Pressable onPress={() => updateQuantity(item.productId, item.variantId, -1)} style={styles.quantityBtn}>
+                <Pressable onPress={() => updateQuantity(lineKeyOf(item), -1)} style={styles.quantityBtn}>
                   <Feather name="minus" size={14} color={theme.brandCream} />
                 </Pressable>
                 <ThemedText type="body" style={styles.quantityText}>{item.quantity}</ThemedText>
-                <Pressable onPress={() => updateQuantity(item.productId, item.variantId, 1)} style={styles.quantityBtn}>
+                <Pressable onPress={() => updateQuantity(lineKeyOf(item), 1)} style={styles.quantityBtn}>
                   <Feather name="plus" size={14} color={theme.brandCream} />
                 </Pressable>
               </View>
