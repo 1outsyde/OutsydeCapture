@@ -15,6 +15,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { displayRating } from "@/types/ratings";
 import { useFavorites } from "@/context/FavoritesContext";
+import { searchSaveTarget } from "@/utils/savedFavorites";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services/api";
@@ -270,14 +271,15 @@ export default function SearchScreen() {
     fetchSearchResults(searchQuery.trim() || undefined, activeTab, null);
   }, [searchQuery, activeTab, fetchSearchResults]);
 
+  // Saves the right type (services save their business); people have no bookmark (utils/savedFavorites).
   const handleSaveResult = (item: UnifiedSearchResult) => {
-    toggleFavorite({
-      id: item.id,
-      type: item.resultType === "photographer" ? "photographer" : "business",
-      name: item.name,
-      image: item.avatar,
-      subtitle: `${item.city}, ${item.state}`,
-    });
+    const target = searchSaveTarget(item);
+    if (!target) return;
+    if (!user) {
+      navigation.navigate("Auth", {} as any);
+      return;
+    }
+    toggleFavorite(target);
   };
 
   const handleCardPress = (item: UnifiedSearchResult) => {
@@ -405,7 +407,8 @@ export default function SearchScreen() {
 
   const renderCard = (item: UnifiedSearchResult) => {
     const typeIcon = RESULT_TYPE_ICONS[item.resultType] as keyof typeof Feather.glyphMap;
-    const isSaved = isFavorite(item.id, item.resultType === "photographer" ? "photographer" : "business");
+    const saveTarget = searchSaveTarget(item);
+    const isSaved = !!saveTarget && isFavorite(saveTarget.id, saveTarget.type);
     const displayLabel = item.resultType === "product" || item.resultType === "service"
       ? (item.name || "Unknown")
       : (item.displayName || (item.username ? `@${item.username}` : null) || "Unknown");
@@ -503,7 +506,8 @@ export default function SearchScreen() {
             </>
           )}
 
-          {/* Bookmark — top right */}
+          {/* Bookmark — top right (not on people: you follow them) */}
+          {saveTarget ? (
           <Pressable
             onPress={() => handleSaveResult(item)}
             style={({ pressed }) => [{
@@ -521,6 +525,7 @@ export default function SearchScreen() {
           >
             <Feather name="bookmark" size={13} color={isSaved ? "#E8B930" : "#FFFFFF"} />
           </Pressable>
+          ) : null}
 
           {/* Price badge — top left for products and services */}
           {(item.resultType === "product" || item.resultType === "service") && priceDisplay ? (

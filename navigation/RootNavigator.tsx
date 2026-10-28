@@ -518,7 +518,7 @@ export default function RootNavigator() {
           presentation: "modal",
           animation: "slide_from_bottom",
           headerShown: true,
-          headerTitle: "Favorites",
+          headerTitle: "Saved",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },

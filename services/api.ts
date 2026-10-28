@@ -4968,6 +4968,40 @@ class ApiService {
     });
   }
 
+  // Saved businesses, photographers and products on the account (backend #378, migration 077)
+  async getFavorites(authToken: string): Promise<{ favorites: unknown[] }> {
+    return this.request<{ favorites: unknown[] }>("/api/users/me/favorites", {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async saveFavorite(authToken: string, type: string, id: string): Promise<{ success: boolean; saved: boolean }> {
+    return this.request<{ success: boolean; saved: boolean }>("/api/favorites", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ type, id }),
+    });
+  }
+
+  async removeFavorite(authToken: string, type: string, id: string): Promise<{ success: boolean; saved: boolean }> {
+    return this.request<{ success: boolean; saved: boolean }>(
+      `/api/favorites/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
+      { method: "DELETE", headers: { "Authorization": `Bearer ${authToken}` } },
+    );
+  }
+
+  /** One-time upload of the list older builds kept on the phone. */
+  async importFavorites(
+    authToken: string,
+    items: { type: string; id: string; savedAt?: string }[],
+  ): Promise<{ success: boolean; imported: number; skipped: number }> {
+    return this.request<{ success: boolean; imported: number; skipped: number }>("/api/users/me/favorites/import", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+  }
+
   // POST /api/feed/:postId/report - Report a post for admin review
   async reportPost(
     authToken: string, 

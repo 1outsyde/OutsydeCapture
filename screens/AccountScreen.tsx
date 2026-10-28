@@ -46,6 +46,7 @@ import { displayRating } from "@/types/ratings";
 import { StarDisplay } from "@/components/ratings";
 import { useAuth } from "@/context/AuthContext";
 import { useSavedPosts } from "@/context/SavedPostsContext";
+import SavedCollection from "@/components/SavedCollection";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import InviteTeamModal from "@/components/InviteTeamModal";
@@ -1389,13 +1390,7 @@ export default function AccountScreen() {
   }, [isOwner, getToken]);
 
   // Saved posts come from the account (SavedPostsContext) and are shown only to the owner.
-  const { savedPosts, refreshSaved } = useSavedPosts();
-  const savedItems = useMemo(() => toPosts(savedPosts), [savedPosts]);
-  const savedAuthorById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of savedPosts) map.set(String(p.id), String(p.userId || p.authorId || ""));
-    return map;
-  }, [savedPosts]);
+  const { refreshSaved } = useSavedPosts();
 
   const tabList = useMemo<ProfileTab[]>(() => {
     if (!profile) return ["posts"];
@@ -2817,39 +2812,10 @@ export default function AccountScreen() {
     );
   };
 
+  // One Saved place: posts, businesses, photographers and products (components/SavedCollection).
   const renderSavedTab = () => (
     <View style={styles.tabContent}>
-      {savedItems.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Feather name="bookmark" size={24} color={COLORS.grayLight} />
-          <Text style={styles.emptyTitle}>No saved items yet</Text>
-        </View>
-      ) : (
-        <View style={styles.mediaGrid}>
-          {savedItems.map((item) => (
-            <Pressable
-              key={item.id}
-              style={[
-                styles.mediaCell,
-                { width: postCellWidth, height: postCellWidth },
-              ]}
-              onPress={() => {
-                const authorId = savedAuthorById.get(item.id);
-                if (!authorId) return;
-                navigation.navigate("PostDetail", { userId: authorId, initialPostId: item.id });
-              }}
-            >
-              {item.mediaUrl ? (
-                <Image
-                  source={{ uri: item.mediaUrl }}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                />
-              ) : null}
-            </Pressable>
-          ))}
-        </View>
-      )}
+      <SavedCollection horizontalPadding={HORIZONTAL_PADDING} alwaysDark />
     </View>
   );
 
