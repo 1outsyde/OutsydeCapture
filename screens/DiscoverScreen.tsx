@@ -14,6 +14,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import {
   useNavigation,
@@ -63,6 +64,8 @@ import FinishSetupCard from "@/components/FinishSetupCard";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+// Pulse top fade reaches past the feed tabs (8 + 32 + 8 = 48px) by 40px so its end is soft.
+const PULSE_TOP_FADE_EXTRA = 88;
 
 const PRO_VIEWABILITY_CONFIG = {
   itemVisiblePercentThreshold: 50,
@@ -829,9 +832,18 @@ export default function DiscoverScreen() {
       </FeedSwipeGestureContext.Provider>
 
       {feedMode === "pulse" ? (
-        <View style={[styles.pulseToggleOverlay, { top: headerHeight }]} pointerEvents="box-none">
-          <FeedToggle mode={feedMode} onModeChange={handleModeChange} />
-        </View>
+        <>
+          {/* Top fade so the header and feed tabs stay readable on bright video. Taps pass through. */}
+          <LinearGradient
+            colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.25)", "transparent"]}
+            locations={[0, 0.6, 1]}
+            style={[styles.pulseTopFade, { height: headerHeight + PULSE_TOP_FADE_EXTRA }]}
+            pointerEvents="none"
+          />
+          <View style={[styles.pulseToggleOverlay, { top: headerHeight }]} pointerEvents="box-none">
+            <FeedToggle mode={feedMode} onModeChange={handleModeChange} overVideo />
+          </View>
+        </>
       ) : null}
 
       {/* Comments modal — Pro feed */}
@@ -997,6 +1009,13 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     backgroundColor: "transparent",
+  },
+  pulseTopFade: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9,
   },
   proFeedContent: {
     paddingBottom: Spacing.xl,
