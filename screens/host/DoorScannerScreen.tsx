@@ -25,7 +25,7 @@ import { failureCopy, flatError } from "@/utils/host/editorLogic";
 import { backendMessage, guestLine, guestName, isDoorGuest, type DoorGuest } from "@/utils/host/manageLogic";
 import {
   CODE_LENGTH, LAST_SCAN_COLOR, TONE_BG, cleanTyped, filterGuests, invalidCodeResult, isDoorEvent, lastScanLabel, makeRecent,
-  progressPct, qrToCode, replaceGuest, resultFor, scanWindowNote, timeOnly, undoneResult, type DoorRole, type ScanResult,
+  makeGate, progressPct, qrToCode, replaceGuest, resultFor, scanWindowNote, timeOnly, undoneResult, type DoorRole, type ScanResult,
 } from "@/utils/host/doorLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -57,7 +57,8 @@ export default function DoorScannerScreen() {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [undoError, setUndoError] = useState<string | null>(null);
-  const busyRef = useRef(false);
+  // Taken before any await: a second QR frame or tap while a request runs is dropped.
+  const gate = useRef(makeGate()).current;
   const recent = useRef(makeRecent());
   const seq = useRef(0);
 
@@ -106,10 +107,10 @@ export default function DoorScannerScreen() {
 
   /** One check in, by code (camera, typed) or by ticket id (guest list). */
   const checkIn = useCallback(async (by: { code: string } | { ticketId: string }) => {
-    if (busyRef.current || !info) return;
+    if (!info || !gate.enter()) return;
+    setBusy(true); setUndoError(null);
     const t = await token();
-    if (!t) return;
-    busyRef.current = true; setBusy(true); setUndoError(null);
+    if (!t) { gate.leave(); setBusy(false); return; }
     let r: ScanResult;
     try {
       const body = "code" in by ? await api.doorCheckIn(eventId, by.code, t) : await api.doorCheckInTicket(eventId, by.ticketId, t);
@@ -121,22 +122,23 @@ export default function DoorScannerScreen() {
     if (r.ticket) setGuests((g) => replaceGuest(g, r.ticket!));
     setResult(r);
     pushLast(r);
-    busyRef.current = false; setBusy(false);
-  }, [eventId, info, token]);
+    gate.leave(); setBusy(false);
+  }, [eventId, info, token, gate]);
 
   const onScan = useCallback((scan: BarcodeScanningResult) => {
-    if (busyRef.current || result || typing || listOpen) return;
+    if (gate.busy() || result || typing || listOpen) return;
     const text = typeof scan?.data === "string" ? scan.data : "";
     if (!recent.current.allow(text, Date.now())) return;
     const code = qrToCode(text);
     if (!code) { const r = invalidCodeResult(); setResult(r); pushLast(r); return; }
     checkIn({ code });
-  }, [checkIn, result, typing, listOpen]);
+  }, [checkIn, result, typing, listOpen, gate]);
 
   async function undo(tk: DoorGuest) {
+    if (!gate.enter()) return;
+    setBusy(true); setUndoError(null);
     const t = await token();
-    if (!t || busyRef.current) return;
-    busyRef.current = true; setBusy(true); setUndoError(null);
+    if (!t) { gate.leave(); setBusy(false); return; }
     try {
       const r = await api.doorUndo(eventId, tk.ticketId, t);
       if (isDoorGuest(r?.ticket)) {
@@ -149,7 +151,7 @@ export default function DoorScannerScreen() {
       const f = flatError(e);
       setUndoError(backendMessage(f.status, f.body));
     } finally {
-      busyRef.current = false; setBusy(false);
+      gate.leave(); setBusy(false);
     }
   }
 

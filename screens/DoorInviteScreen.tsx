@@ -19,7 +19,7 @@ import { Centered, ErrorText, GOLD, Hint, HostHeader, OutlineButton, PrimaryButt
 import { GENERIC_ERROR } from "@/utils/eventsLogic";
 import { failureCopy, flatError } from "@/utils/host/editorLogic";
 import { backendMessage } from "@/utils/host/manageLogic";
-import { inviteScreenCopy, isDoorInvite, type DoorInvite } from "@/utils/host/doorLogic";
+import { inviteScreenCopy, isDoorInvite, makeGate, type DoorInvite } from "@/utils/host/doorLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -40,6 +40,7 @@ export default function DoorInviteScreen() {
   const [error, setError] = useState<string | null>(null);
   const [askLeave, setAskLeave] = useState(false);
   const [left, setLeft] = useState(false);
+  const gate = useRef(makeGate()).current;
 
   const token = useCallback(async () => {
     const t = await getToken();
@@ -47,30 +48,32 @@ export default function DoorInviteScreen() {
     return t;
   }, [getToken, navigation]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<DoorInvite | null> => {
     const t = await token();
-    if (!t) return;
+    if (!t) return null;
     try {
       const r = await api.getDoorInvite(inviteId, t);
       if (!isDoorInvite(r?.invite)) throw { status: 500 };
       setInvite(r.invite);
       setPhase("ready");
+      return r.invite;
     } catch (e) {
       const f = flatError(e);
-      if (f.status === 401) { navigation.navigate("Auth", {}); return; }
-      if (f.status === 404) { setPhase("notfound"); return; }
+      if (f.status === 401) { navigation.navigate("Auth", {}); return null; }
+      if (f.status === 404) { setPhase("notfound"); return null; }
       setLoadError(failureCopy(f.status, f.body).message);
       setPhase("error");
     }
+    return null;
   }, [inviteId, token, navigation]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function answer(a: "accept" | "decline" | "leave") {
-    if (busy) return;
-    const t = await token();
-    if (!t) return;
+    if (!gate.enter()) return;
     setBusy(a); setError(null);
+    const t = await token();
+    if (!t) { gate.leave(); setBusy(null); return; }
     try {
       const r = await api.answerDoorInvite(inviteId, a, t);
       if (isDoorInvite(r?.invite)) setInvite(r.invite);
@@ -80,10 +83,15 @@ export default function DoorInviteScreen() {
       const f = flatError(e);
       setError(backendMessage(f.status, f.body));
       setAskLeave(false);
-      // Closed meanwhile (cancelled by the host, the event ended): show the fresh state.
-      if (f.status === 409) load();
+      // Closed meanwhile (cancelled by the host, the event ended, or answered on another device): show the fresh
+      // state, and drop the error when it already is what was asked (accepted on goutsyde.com at the same time).
+      if (f.status === 409) {
+        const fresh = await load();
+        const wanted = a === "accept" ? "accepted" : a === "decline" ? "declined" : "gone";
+        if (fresh?.status === wanted) setError(null);
+      }
     } finally {
-      setBusy(null);
+      gate.leave(); setBusy(null);
     }
   }
 
@@ -107,7 +115,7 @@ export default function DoorInviteScreen() {
   if (phase === "error" || !invite) {
     return root(<>{header}<Centered>
       <ErrorText>{loadError ?? GENERIC_ERROR}</ErrorText>
-      <PrimaryButton label="Try again" onPress={load} style={{ alignSelf: "stretch" }} />
+      <PrimaryButton label="Try again" onPress={() => { load(); }} style={{ alignSelf: "stretch" }} />
     </Centered></>);
   }
 

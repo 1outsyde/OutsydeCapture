@@ -20,7 +20,7 @@ import { GENERIC_ERROR } from "@/utils/eventsLogic";
 import { failureCopy, flatError } from "@/utils/host/editorLogic";
 import { backendMessage, guestName } from "@/utils/host/manageLogic";
 import {
-  USERNAME_MAX, cancelInviteCopy, cleanUsername, inviteSentCopy, isTeamMember, memberAction, memberStatus, memberStatusLine,
+  USERNAME_MAX, cancelInviteCopy, cleanUsername, inviteSentCopy, isTeamMember, makeGate, memberAction, memberStatus, memberStatusLine,
   removeConfirmCopy, type Scope, type TeamMember,
 } from "@/utils/host/doorLogic";
 
@@ -52,6 +52,7 @@ export default function DoorTeamScreen() {
   const [working, setWorking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+  const gate = useRef(makeGate()).current;
 
   const token = useCallback(async () => {
     const t = await getToken();
@@ -102,26 +103,26 @@ export default function DoorTeamScreen() {
 
   async function send() {
     const name = cleanUsername(username);
-    if (!name || sending) return;
+    if (!name || !gate.enter()) return;
     setSending(true); setSendError(null); setNotice(null); setRowError(null);
     const err = await sendInvite(name, scope);
-    setSending(false);
+    gate.leave(); setSending(false);
     if (err) setSendError(err); else setUsername("");
   }
 
   async function inviteAgain(m: TeamMember, s: Scope) {
-    if (sending || !m.username) return;
+    if (!m.username || !gate.enter()) return;
     setSending(true); setRowError(null); setNotice(null);
     const err = await sendInvite(m.username, s);
-    setSending(false);
+    gate.leave(); setSending(false);
     if (err) setRowError(err);
   }
 
   async function confirm() {
-    if (!ask || working) return;
-    const t = await token();
-    if (!t) return;
+    if (!ask || !gate.enter()) return;
     setWorking(true); setAskError(null);
+    const t = await token();
+    if (!t) { gate.leave(); setWorking(false); return; }
     const { member: m, scope: s } = ask;
     try {
       await api.removeDoorMember(eventId, m.userId, s, t);
@@ -132,7 +133,7 @@ export default function DoorTeamScreen() {
       if (f.body?.code === "NOT_ON_TEAM") gone(m, s);
       else setAskError(backendMessage(f.status, f.body));
     } finally {
-      setWorking(false);
+      gate.leave(); setWorking(false);
     }
   }
 

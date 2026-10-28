@@ -3,7 +3,7 @@ import {
   memberStatus, memberStatusLine, memberAction, cancelInviteCopy, removeConfirmCopy, inviteSentCopy, cleanUsername, isTeamMember,
   isDoorEvent, isDoorInvite, roleLabel, scanWindowNote, timeOnly, inviteScreenCopy, doorNoticeTarget, teamCountLabel,
   qrToCode, cleanTyped, makeRecent, resultFor, invalidCodeResult, undoneResult, lastScanLabel, filterGuests, replaceGuest, progressPct,
-  type TeamMember, type DoorInvite,
+  makeGate, canLeave, type TeamMember, type DoorInvite,
 } from "./doorLogic";
 import { ticketPushTarget } from "../ticketCheckoutLogic";
 import type { DoorGuest } from "./manageLogic";
@@ -114,6 +114,15 @@ eq(filterGuests(list, "@ka").map((x) => x.ticketId), ["t2"], "search by @usernam
 eq(filterGuests(list, "vip").map((x) => x.ticketId), ["t2"], "search by ticket type");
 eq(replaceGuest(list, g({ checkedInAt: "x" }))[0].checkedInAt, "x", "replace a guest");
 eq([progressPct(48, 200), progressPct(0, 0), progressPct(5, 2)], [24, 0, 100], "progress bar width");
+
+// review #3/#4: one request at a time, taken before any await
+const gate = makeGate();
+eq([gate.enter(), gate.enter(), gate.busy()], [true, false, true], "a second tap while busy is refused");
+gate.leave();
+eq([gate.busy(), gate.enter()], [false, true], "free again after leave");
+// review #2: Leave from Door check in
+const de = (o: object) => ({ id: "e", slug: "s", title: "T", startsAt: "a", endsAt: "b", timezone: tz, role: "event", inviteId: "i9", ...o }) as any;
+eq([canLeave(de({})), canLeave(de({ role: "standing" })), canLeave(de({ role: "host", inviteId: null })), canLeave(de({ inviteId: null }))], [true, true, false, false], "Leave only for a member row with an invite id");
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

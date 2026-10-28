@@ -15,10 +15,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
-import { Centered, ErrorText, GOLD, Hint, HostHeader, PrimaryButton, hostStyles } from "@/components/host/hostUi";
+import { Centered, ErrorText, GOLD, Hint, HostHeader, PrimaryButton, TextButton, hostStyles } from "@/components/host/hostUi";
 import { GENERIC_ERROR } from "@/utils/eventsLogic";
 import { failureCopy, flatError, whenRange } from "@/utils/host/editorLogic";
-import { inviteScreenCopy, isDoorEvent, isDoorInvite, roleLabel, scanWindowNote, type DoorEvent, type DoorInvite } from "@/utils/host/doorLogic";
+import { canLeave, inviteScreenCopy, isDoorEvent, isDoorInvite, roleLabel, scanWindowNote, type DoorEvent, type DoorInvite } from "@/utils/host/doorLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -95,15 +95,22 @@ export default function DoorEventsScreen() {
         {(events ?? []).map((e) => {
           const note = scanWindowNote(e);
           return (
-            <Pressable key={e.id} onPress={() => navigation.navigate("DoorScanner", { eventId: e.id })} accessibilityRole="button"
-              style={({ pressed }) => [st.row, { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 }]} testID="door-row">
-              <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
-                <ThemedText style={hostStyles.strong} numberOfLines={2}>{e.title}</ThemedText>
-                <Hint>{whenRange(e.startsAt, e.endsAt, e.timezone)}</Hint>
-                <Hint>{`${roleLabel(e.role)} · ${note ?? "Check in is open."}`}</Hint>
-              </View>
-              <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-            </Pressable>
+            <View key={e.id} style={{ gap: 4 }}>
+              <Pressable onPress={() => navigation.navigate("DoorScanner", { eventId: e.id })} accessibilityRole="button"
+                style={({ pressed }) => [st.row, { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 }]} testID="door-row">
+                <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
+                  <ThemedText style={hostStyles.strong} numberOfLines={2}>{e.title}</ThemedText>
+                  <Hint>{whenRange(e.startsAt, e.endsAt, e.timezone)}</Hint>
+                  <Hint>{`${roleLabel(e.role)} · ${note ?? "Check in is open."}`}</Hint>
+                </View>
+                <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+              </Pressable>
+              {canLeave(e) ? (
+                <View style={{ alignSelf: "flex-end" }}>
+                  <TextButton label="Leave team" a11yLabel={`Leave the door team for ${e.title}`} onPress={() => navigation.navigate("DoorInvite", { inviteId: e.inviteId! })} />
+                </View>
+              ) : null}
+            </View>
           );
         })}
       </View>

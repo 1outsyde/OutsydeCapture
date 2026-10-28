@@ -36,7 +36,26 @@ export function scanWindowNote(e: { startsAt: string; endsAt: string; timezone: 
 /* ---------- events I can scan (GET /door/mine) ---------- */
 
 export type DoorRole = "host" | "standing" | "event";
-export interface DoorEvent { id: string; slug: string; title: string; startsAt: string; endsAt: string; timezone: string; role: DoorRole }
+/** inviteId (additive): the accepted invite behind a member's row, null for the host's own events. */
+export interface DoorEvent { id: string; slug: string; title: string; startsAt: string; endsAt: string; timezone: string; role: DoorRole; inviteId?: string | null }
+
+/** A member (not the host) can open their invite from Door check in to Leave the team. */
+export function canLeave(e: DoorEvent): boolean {
+  return e.role !== "host" && typeof e.inviteId === "string" && e.inviteId.length > 0;
+}
+
+/**
+ * One request at a time: enter() is true only when nothing is running, and must be called before any await (React
+ * state updates a render too late, so two fast taps or two QR frames would both get through).
+ */
+export function makeGate() {
+  let on = false;
+  return {
+    enter(): boolean { if (on) return false; on = true; return true; },
+    leave(): void { on = false; },
+    busy(): boolean { return on; },
+  };
+}
 
 export function isDoorEvent(x: unknown): x is DoorEvent {
   const e = x as DoorEvent | null;
