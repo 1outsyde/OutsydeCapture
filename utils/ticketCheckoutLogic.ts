@@ -318,12 +318,26 @@ export function refundDoneBody(cents: number | null): string {
  *  - "event_reminder" (backend eventReminders.ts, data { type, kind, eventId }, Events canvas screen 36):
  *    kind "day_before" / "soon" → that event's ticket (Tickets tab when the id is missing);
  *    kind "host_day_before" → the host's manage screen (needs the id). Unknown kinds are ignored.
+ *  - "door_team_invite" (backend ticketNotices.ts notifyDoorInvite, data { type, inviteId }, canvas 39) → that invite,
+ *    or Door check in when the id is missing.
+ *  - "door_team_accepted" (notifyDoorAccepted, data { type, eventId }) → that event's door team; eventId null (an
+ *    all events invite) → Your events. The old "door_team_added" type is ignored.
  */
-export type TicketPushTarget = { screen: "tickets" | "ticket" | "manage"; eventId: string | null };
+export type TicketPushTarget = {
+  screen: "tickets" | "ticket" | "manage" | "doorInvite" | "doorEvents" | "doorTeam" | "yourEvents";
+  eventId: string | null;
+  inviteId?: string;
+};
 
-export function ticketPushTarget(data: { type?: unknown; kind?: unknown; eventId?: unknown } | null | undefined): TicketPushTarget | null {
+export function ticketPushTarget(data: { type?: unknown; kind?: unknown; eventId?: unknown; inviteId?: unknown } | null | undefined): TicketPushTarget | null {
   if (!data) return null;
   const eventId = typeof data.eventId === "string" && data.eventId.length > 0 ? data.eventId : null;
+  if (data.type === "door_team_invite") {
+    return typeof data.inviteId === "string" && data.inviteId.length > 0
+      ? { screen: "doorInvite", eventId: null, inviteId: data.inviteId }
+      : { screen: "doorEvents", eventId: null };
+  }
+  if (data.type === "door_team_accepted") return eventId ? { screen: "doorTeam", eventId } : { screen: "yourEvents", eventId: null };
   if (data.type === "address_reveal") return { screen: "tickets", eventId };
   if (data.type !== "event_reminder") return null;
   if (data.kind === "day_before" || data.kind === "soon") return eventId ? { screen: "ticket", eventId } : { screen: "tickets", eventId: null };

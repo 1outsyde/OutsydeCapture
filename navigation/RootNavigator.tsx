@@ -20,6 +20,10 @@ import TicketDetailScreen from "@/screens/TicketDetailScreen";
 import EventEditorScreen from "@/screens/host/EventEditorScreen";
 import YourEventsScreen from "@/screens/host/YourEventsScreen";
 import ManageEventScreen from "@/screens/host/ManageEventScreen";
+import DoorTeamScreen from "@/screens/host/DoorTeamScreen";
+import DoorScannerScreen from "@/screens/host/DoorScannerScreen";
+import DoorInviteScreen from "@/screens/DoorInviteScreen";
+import DoorEventsScreen from "@/screens/DoorEventsScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
@@ -329,6 +333,30 @@ export default function RootNavigator() {
           animation: "slide_from_right",
           gestureEnabled: true,
         }}
+      />
+
+      <Stack.Screen
+        name="DoorTeam"
+        component={DoorTeamScreen}
+        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+      />
+
+      <Stack.Screen
+        name="DoorEvents"
+        component={DoorEventsScreen}
+        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+      />
+
+      <Stack.Screen
+        name="DoorInvite"
+        component={DoorInviteScreen}
+        options={{ headerShown: false, animation: "slide_from_bottom", gestureEnabled: true }}
+      />
+
+      <Stack.Screen
+        name="DoorScanner"
+        component={DoorScannerScreen}
+        options={{ headerShown: false, animation: "slide_from_bottom", gestureEnabled: false }}
       />
 
       <Stack.Screen

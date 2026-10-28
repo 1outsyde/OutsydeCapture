@@ -4766,6 +4766,38 @@ class ApiService {
   }
   /** GET /api/events/:id/door/guests - Guest list with check-ins. */
   getDoorGuests(id: string, authToken: string) { return this.hostCall("GET", `/api/events/${encodeURIComponent(id)}/door/guests`, authToken); }
+
+  // ─── Door team and scanner (p4-scanner, backend migration 075) ───────────────
+  // Guards and copy: utils/host/doorLogic.ts. Errors throw ApiError { status, body } with the backend's own body.
+
+  /** GET /api/events/:id/door/team - Host only: { standing, event } members with status invited | accepted | declined. */
+  getDoorTeam(id: string, authToken: string) { return this.hostCall("GET", `/api/events/${encodeURIComponent(id)}/door/team`, authToken); }
+  /** POST /api/events/:id/door/team - Host only: invite by username (201 { member }). 409 ALREADY_INVITED / ALREADY_ON_TEAM. */
+  inviteDoorMember(id: string, username: string, scope: "standing" | "event", authToken: string) {
+    return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/door/team`, authToken, { username, scope });
+  }
+  /** DELETE /api/events/:id/door/team/:userId?scope= - Host only: remove a member or cancel an invite. */
+  removeDoorMember(id: string, userId: string, scope: "standing" | "event", authToken: string) {
+    return this.hostCall("DELETE", `/api/events/${encodeURIComponent(id)}/door/team/${encodeURIComponent(userId)}?scope=${scope}`, authToken);
+  }
+  /** GET /api/events/door/mine - Events I can scan (host, or an accepted invite), published and not ended. */
+  getDoorEvents(authToken: string) { return this.hostCall("GET", "/api/events/door/mine", authToken); }
+  /** GET /api/events/door/invites - My open door team invites. */
+  getDoorInvites(authToken: string) { return this.hostCall("GET", "/api/events/door/invites", authToken); }
+  /** GET /api/events/door/invites/:inviteId - One invite (only the person invited): invited | accepted | declined | gone. */
+  getDoorInvite(inviteId: string, authToken: string) { return this.hostCall("GET", `/api/events/door/invites/${encodeURIComponent(inviteId)}`, authToken); }
+  /** POST /api/events/door/invites/:inviteId/accept | decline | leave - { invite }. 409 INVITE_CLOSED / NOT_ON_TEAM. */
+  answerDoorInvite(inviteId: string, answer: "accept" | "decline" | "leave", authToken: string) {
+    return this.hostCall("POST", `/api/events/door/invites/${encodeURIComponent(inviteId)}/${answer}`, authToken, {});
+  }
+  /** POST /api/events/:id/door/check-in - { code } from the QR or typed. */
+  doorCheckIn(id: string, code: string, authToken: string) { return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/door/check-in`, authToken, { code }); }
+  /** POST /api/events/:id/door/check-in-ticket - { ticketId } from a guest list tap. */
+  doorCheckInTicket(id: string, ticketId: string, authToken: string) {
+    return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/door/check-in-ticket`, authToken, { ticketId });
+  }
+  /** POST /api/events/:id/door/undo - Host only: clear a check in. */
+  doorUndo(id: string, ticketId: string, authToken: string) { return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/door/undo`, authToken, { ticketId }); }
   /** GET /api/events/host-agreement - Current Event Host Agreement and whether you accepted it. */
   getHostAgreement(authToken: string) { return this.hostCall("GET", "/api/events/host-agreement", authToken); }
   /** POST /api/events/host-agreement/accept - 409 AGREEMENT_VERSION_CHANGED when a newer version exists. */

@@ -1,7 +1,9 @@
 // useTicketPushLinks: a tapped ticket push opens the right screen (utils/ticketCheckoutLogic.ts ticketPushTarget):
 //  - address reveal (backend server/events/addressReveal.ts) → the Tickets tab of Cart & activity, where the address now shows;
 //  - guest event reminder, the day before or 2 hours before (backend server/events/eventReminders.ts) → that event's ticket;
-//  - host event reminder, the day before → the host's manage screen for that event.
+//  - host event reminder, the day before → the host's manage screen for that event;
+//  - door team invite (backend notifyDoorInvite) → that invite (canvas 39), or Door check in without an id;
+//  - door team accepted (notifyDoorAccepted) → that event's door team, or Your events for an all events invite.
 // Works when the app was in the background (listener) and when the tap launched it (last response).
 // Mounted once in MainTabNavigator next to the other push link hooks. Ignores every other type, and the
 // other push hooks ignore these. Waits for the stored sign-in; signed out goes to sign in first.
@@ -56,6 +58,22 @@ export function useTicketPushLinks() {
     }
     if (target.screen === "manage" && target.eventId) {
       navigation.navigate("ManageEvent", { eventId: target.eventId });
+      return;
+    }
+    if (target.screen === "doorInvite" && target.inviteId) {
+      navigation.navigate("DoorInvite", { inviteId: target.inviteId });
+      return;
+    }
+    if (target.screen === "doorEvents") {
+      navigation.navigate("DoorEvents");
+      return;
+    }
+    if (target.screen === "doorTeam" && target.eventId) {
+      navigation.navigate("DoorTeam", { eventId: target.eventId });
+      return;
+    }
+    if (target.screen === "yourEvents") {
+      navigation.navigate("YourEvents");
       return;
     }
     navigation.navigate("CartOrders", { openTab: "tickets", _ts: Date.now() });
