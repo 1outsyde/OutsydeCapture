@@ -19,6 +19,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
+import { useFavorites } from "@/context/FavoritesContext";
+import { productSaveTarget } from "@/utils/savedFavorites";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { ProductOption, ProductVariant } from "@/services/api";
@@ -64,6 +67,8 @@ export default function ProductDetailScreen() {
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const { addItem } = useCart();
+  const { user, isAuthenticated } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const {
     id,
@@ -74,6 +79,17 @@ export default function ProductDetailScreen() {
     imageUrl,
     inventory: inventoryParam,
   } = route.params;
+  // Save button (one Saved place, backend #378). Not shown on the business's own products.
+  const saveTarget = productSaveTarget({ id, businessId, name, imageUrl, priceCents }, user?.businessId);
+  const isSaved = !!saveTarget && isFavorite(saveTarget.id, "product");
+  const handleSaveToggle = () => {
+    if (!saveTarget) return;
+    if (!isAuthenticated) {
+      navigation.navigate("Auth" as any, {} as any);
+      return;
+    }
+    toggleFavorite(saveTarget);
+  };
   // Product stock that limits a purchase (null = no limit). The card's number is used until the
   // product loads; then the product's own tracking decides (No limit products never sell out).
   const [inventory, setInventory] = useState<number | null | undefined>(inventoryParam);
@@ -308,6 +324,19 @@ export default function ProductDetailScreen() {
         <ThemedText type="h4" style={{ flex: 1, marginLeft: Spacing.sm }} numberOfLines={1}>
           {name || "Product"}
         </ThemedText>
+        {saveTarget ? (
+          <Pressable
+            onPress={handleSaveToggle}
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1 }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSaved }}
+            accessibilityLabel={isSaved ? `Remove ${name || "this product"} from Saved` : `Save ${name || "this product"}`}
+            testID="product-save"
+          >
+            <Feather name="bookmark" size={20} color={isSaved ? theme.brandGold : theme.brandCream} />
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView
