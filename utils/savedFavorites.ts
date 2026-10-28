@@ -126,6 +126,42 @@ export function searchSaveTarget(item: SearchCard): Omit<FavoriteItem, "savedAt"
   }
 }
 
+/**
+ * Save button on a business or photographer page (VendorDetail). profile.id is the business or
+ * photographer id (the same id Search saves). People (consumers) and your own page have no button.
+ */
+export function profileSaveTarget(
+  profile: { id?: string | null; role?: string | null; name?: string | null; avatarUrl?: string | null; logoImage?: string | null; location?: string | null } | null | undefined,
+  isOwnProfile: boolean,
+): Omit<FavoriteItem, "savedAt"> | null {
+  if (!profile || isOwnProfile || !profile.id) return null;
+  if (profile.role !== "business" && profile.role !== "photographer") return null;
+  return {
+    id: String(profile.id),
+    type: profile.role === "business" ? "business" : "photographer",
+    name: profile.name || (profile.role === "business" ? "Business" : "Photographer"),
+    image: profile.avatarUrl || profile.logoImage || "",
+    subtitle: profile.location || undefined,
+  };
+}
+
+/** Save button on a product page. Hidden on the business's own products. */
+export function productSaveTarget(
+  p: { id?: string | null; businessId?: string | null; name?: string | null; imageUrl?: string | null; priceCents?: number | null },
+  viewerBusinessId?: string | null,
+): Omit<FavoriteItem, "savedAt"> | null {
+  if (!p.id) return null;
+  if (viewerBusinessId && p.businessId && String(viewerBusinessId) === String(p.businessId)) return null;
+  return {
+    id: String(p.id),
+    type: "product",
+    name: p.name || "Product",
+    image: p.imageUrl || "",
+    ...(p.businessId ? { businessId: String(p.businessId) } : {}),
+    ...(typeof p.priceCents === "number" ? { priceCents: p.priceCents } : {}),
+  };
+}
+
 /** Where a saved row opens. */
 export function savedOpenTarget(
   item: FavoriteItem,

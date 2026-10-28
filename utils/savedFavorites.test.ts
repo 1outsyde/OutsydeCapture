@@ -6,6 +6,8 @@ import {
   canClearLegacy,
   favoritesFromServer,
   legacyImportItems,
+  productSaveTarget,
+  profileSaveTarget,
   savedCounts,
   savedOpenTarget,
   searchSaveTarget,
@@ -95,6 +97,25 @@ test("counts", () => {
     ]),
     { posts: 3, business: 1, photographer: 0, product: 2 },
   );
+});
+
+test("save button on a business or photographer page", () => {
+  const biz = { id: "b1", role: "business", name: "Bakery", avatarUrl: "https://a", location: "Freeport, NY" };
+  assert.deepEqual(profileSaveTarget(biz, false), { id: "b1", type: "business", name: "Bakery", image: "https://a", subtitle: "Freeport, NY" });
+  assert.equal(profileSaveTarget({ ...biz, role: "photographer" }, false)?.type, "photographer");
+  assert.equal(profileSaveTarget({ ...biz, avatarUrl: null, logoImage: "https://l" }, false)?.image, "https://l");
+  assert.equal(profileSaveTarget(biz, true), null, "own page: no button");
+  assert.equal(profileSaveTarget({ ...biz, role: "consumer" }, false), null, "people: follow, not save");
+  assert.equal(profileSaveTarget(null, false), null);
+  assert.equal(profileSaveTarget({ ...biz, id: "" }, false), null);
+});
+
+test("save button on a product page", () => {
+  const p = { id: "p1", businessId: "b1", name: "Cake", imageUrl: "https://i", priceCents: 1200 };
+  assert.deepEqual(productSaveTarget(p, null), { id: "p1", type: "product", name: "Cake", image: "https://i", businessId: "b1", priceCents: 1200 });
+  assert.equal(productSaveTarget(p, "b1"), null, "the business's own product: no button");
+  assert.equal(productSaveTarget(p, "b2")?.id, "p1");
+  assert.equal(productSaveTarget({ ...p, id: "" }), null);
 });
 
 console.log(`\n${passed} passed`);

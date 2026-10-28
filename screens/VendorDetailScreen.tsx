@@ -67,6 +67,8 @@ import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { useStartChat } from "@/hooks/useStartChat";
 import { useAuth } from "@/context/AuthContext";
+import { useFavorites } from "@/context/FavoritesContext";
+import { profileSaveTarget } from "@/utils/savedFavorites";
 import { useCart } from "@/context/CartContext";
 import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
@@ -603,6 +605,19 @@ export default function VendorDetailScreen({ route }: Props) {
       String(user.id) === String(profile.userId ?? "")
     );
   }, [profile, user?.id]);
+
+  // Save button (one Saved place, backend #378): businesses and photographers, not people or your own page.
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const saveTarget = useMemo(() => profileSaveTarget(profile, isOwnProfile), [profile, isOwnProfile]);
+  const isSaved = !!saveTarget && isFavorite(saveTarget.id, saveTarget.type);
+  const handleSaveToggle = useCallback(() => {
+    if (!saveTarget) return;
+    if (!isAuthenticated) {
+      navigation.navigate("Auth" as any, {} as any);
+      return;
+    }
+    toggleFavorite(saveTarget);
+  }, [saveTarget, isAuthenticated, navigation, toggleFavorite]);
 
   // Message button: open (or start) a chat with this business or photographer.
   const { startChat, starting: startingChat } = useStartChat();
@@ -1697,6 +1712,20 @@ export default function VendorDetailScreen({ route }: Props) {
                 hitSlop={6}
               >
                 <Feather name="message-circle" size={15} color={COLORS.white} />
+              </Pressable>
+            ) : null}
+
+            {saveTarget ? (
+              <Pressable
+                style={styles.messageButton}
+                onPress={handleSaveToggle}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSaved }}
+                accessibilityLabel={isSaved ? `Remove ${profile.name} from Saved` : `Save ${profile.name}`}
+                hitSlop={6}
+                testID="vendor-save"
+              >
+                <Feather name="bookmark" size={15} color={isSaved ? accentColor : COLORS.white} />
               </Pressable>
             ) : null}
           </View>
