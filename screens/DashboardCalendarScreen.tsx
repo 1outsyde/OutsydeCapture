@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
+import { availabilityEvents } from "@/services/availabilityEvents";
 import { CalendarBooking, CalendarBlockedDate, DayAvailability } from "@/components/ProviderCalendar";
 import {
   bookingStatusLabel,
@@ -187,6 +188,10 @@ export default function DashboardCalendarScreen() {
   }, [getToken]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Hours or "run past closing" saved in Manage business: reload quietly. The
+  // editor has always sent this signal, but nothing listened (found 2026-10-28).
+  useEffect(() => availabilityEvents.subscribe(() => { fetchData(true); }), [fetchData]);
 
   const handleBlockDate = async (date: string, isFullDay: boolean, startTime?: string, endTime?: string, reason?: string) => {
     const token = await getToken();

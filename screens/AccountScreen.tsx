@@ -1589,7 +1589,26 @@ export default function AccountScreen() {
               accentColor={accentColor}
             />
           </StoryRing>
-          {isOwner ? (
+          {isOwner && profile.role === "business" ? (
+            // Business owners (2026-10-28): "Manage business" opens the same editor
+            // Edit Profile did; Dashboard opens the Business Dashboard.
+            <View style={styles.ownerActions}>
+              <Pressable
+                style={[styles.dashboardButton, { borderColor: accentColor }]}
+                onPress={() => navigation.navigate("BusinessDashboard")}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.dashboardButtonText, { color: accentColor }]}>Dashboard</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.editProfileButton, { backgroundColor: accentColor }]}
+                onPress={onEditProfilePress}
+                accessibilityRole="button"
+              >
+                <Text style={styles.editProfileText}>Manage business</Text>
+              </Pressable>
+            </View>
+          ) : isOwner ? (
             <Pressable
               style={[styles.editProfileButton, { backgroundColor: accentColor }]}
               onPress={onEditProfilePress}
@@ -3288,6 +3307,22 @@ const styles = StyleSheet.create({
   },
   editProfileText: {
     color: COLORS.black,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  ownerActions: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  dashboardButton: {
+    borderRadius: 22,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  dashboardButtonText: {
     fontSize: 13,
     fontWeight: "800",
   },
