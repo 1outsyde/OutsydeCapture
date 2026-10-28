@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext"; // adjust path if needed
+import { cartLineKey, type CartAddon } from "@/components/products/productAddonLogic";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,13 +22,25 @@ export interface CartItem {
   imageUrl?: string;
   variantId?: string;
   variantLabel?: string;
+  /**
+   * Add-ons picked for this line (backend #371). Present (even empty) only for products that have
+   * add-on groups; checkout then sends it so the backend checks and prices the picks. `price` is the
+   * per unit price with the add-ons included.
+   */
+  addons?: CartAddon[];
+  addonsLabel?: string;
 }
+
+/** Identity of a cart line: product, variation and picked add-ons. */
+export const lineKeyOf = (i: Pick<CartItem, "productId" | "variantId" | "addons">): string =>
+  cartLineKey(i.productId, i.variantId, i.addons);
 
 interface CartContextType {
   items: CartItem[];
   addItem(item: CartItem): void;
-  removeItem(productId: string, variantId?: string): void;
-  updateQuantity(productId: string, variantId: string | undefined, quantity: number): void;
+  /** lineKey (from lineKeyOf) picks the exact line when the same product is in the cart with different add-ons. */
+  removeItem(productId: string, variantId?: string, lineKey?: string): void;
+  updateQuantity(productId: string, variantId: string | undefined, quantity: number, lineKey?: string): void;
   clearCart(): void;
   removeVendorItems(vendorId: string): void;
   itemCount: number;
@@ -74,9 +87,10 @@ async function clearCartStorage(userId: string | null): Promise<void> {
   }
 }
 
-// Dedup key for cart line items — combines productId and variantId
-const lineKey = (productId: string, variantId?: string): string =>
-  `${productId}::${variantId ?? ""}`;
+// Dedup key for cart line items: productId + variantId, plus the add-ons when the line has them.
+// A caller that passes only (productId, variantId) matches the line without add-ons, as before.
+const keyFor = (productId: string, variantId?: string, explicit?: string): string =>
+  explicit ?? cartLineKey(productId, variantId);
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -134,41 +148,30 @@ const userId = user?.id ?? null;
 
   const addItem = useCallback((item: CartItem) => {
     setItems((prev) => {
-      const existing = prev.find(
-        (i) => lineKey(i.productId, i.variantId) === lineKey(item.productId, item.variantId)
-      );
+      const key = lineKeyOf(item);
+      const existing = prev.find((i) => lineKeyOf(i) === key);
       if (existing) {
         return prev.map((i) =>
-          lineKey(i.productId, i.variantId) === lineKey(item.productId, item.variantId)
-            ? { ...i, quantity: i.quantity + item.quantity }
-            : i
+          lineKeyOf(i) === key ? { ...i, quantity: i.quantity + item.quantity } : i
         );
       }
       return [...prev, item];
     });
   }, []);
 
-  const removeItem = useCallback((productId: string, variantId?: string) => {
-    setItems((prev) =>
-      prev.filter((i) => lineKey(i.productId, i.variantId) !== lineKey(productId, variantId))
-    );
+  const removeItem = useCallback((productId: string, variantId?: string, lineKey?: string) => {
+    const key = keyFor(productId, variantId, lineKey);
+    setItems((prev) => prev.filter((i) => lineKeyOf(i) !== key));
   }, []);
 
   const updateQuantity = useCallback(
-    (productId: string, variantId: string | undefined, quantity: number) => {
+    (productId: string, variantId: string | undefined, quantity: number, lineKey?: string) => {
+      const key = keyFor(productId, variantId, lineKey);
       if (quantity <= 0) {
-        setItems((prev) =>
-          prev.filter((i) => lineKey(i.productId, i.variantId) !== lineKey(productId, variantId))
-        );
+        setItems((prev) => prev.filter((i) => lineKeyOf(i) !== key));
         return;
       }
-      setItems((prev) =>
-        prev.map((i) =>
-          lineKey(i.productId, i.variantId) === lineKey(productId, variantId)
-            ? { ...i, quantity }
-            : i
-        )
-      );
+      setItems((prev) => prev.map((i) => (lineKeyOf(i) === key ? { ...i, quantity } : i)));
     },
     []
   );

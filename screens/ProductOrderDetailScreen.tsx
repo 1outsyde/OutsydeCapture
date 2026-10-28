@@ -21,6 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/services/api";
 import { RatingBottomSheet } from "@/components/ratings";
 import type { PurchaseItem, RatingCheckResponse } from "@/types/ratings";
+import { lineDetail } from "@/components/products/productAddonLogic";
 
 type Route = RouteProp<RootStackParamList, "ProductOrderDetail">;
 
@@ -244,9 +245,9 @@ export default function ProductOrderDetailScreen() {
                   )}
                   <View style={styles.itemInfo}>
                     <ThemedText type="body" numberOfLines={2}>{item.name}</ThemedText>
-                    {item.variantLabel ? (
+                    {lineDetail(item.variantLabel, item.addonsLabel) ? (
                       <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: 1 }}>
-                        {item.variantLabel}
+                        {lineDetail(item.variantLabel, item.addonsLabel)}
                       </ThemedText>
                     ) : null}
                     <ThemedText type="caption" style={{ color: theme.brandTextDim }}>

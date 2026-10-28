@@ -75,6 +75,9 @@ export type RootStackParamList = {
       imageUrl?: string;
       variantId?: string;
       variantLabel?: string;
+      /** Picked add-ons (products with add-on groups only); priceCents already includes them. */
+      addons?: import("@/components/products/productAddonLogic").CartAddon[];
+      addonsLabel?: string;
     };
   };
   ProductDetail: {

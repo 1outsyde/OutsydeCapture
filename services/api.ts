@@ -688,6 +688,8 @@ export interface VendorProduct {
   updatedAt?: string;
   /** From the public storefront list (backend #315): null or missing when the product has no variations. */
   variantSummary?: import("@/components/products/productCardLogic").VariantSummary | null;
+  /** From the public storefront list (backend #371): null when the product has no add-ons. */
+  addonSummary?: { groupCount: number; hasRequired: boolean } | null;
 }
 
 export interface ProductVariant {
@@ -714,6 +716,8 @@ export interface VendorProductWithVariants extends VendorProduct {
   variants: ProductVariant[];
   /** Product options (Length, Size, Color); empty for products without options. Backend #310. */
   options?: ProductOption[];
+  /** Add-on groups customers pick from (backend #371); missing on older backends. */
+  addonGroups?: import("@/components/products/productAddonLogic").PublicAddonGroup[];
 }
 
 // ── Product options (backend #310, migration 049) ─────────────────────────
@@ -1265,12 +1269,41 @@ export interface BusinessDashboardProfile {
   isMultiStaff?: boolean;
 }
 
+// Business setup checklist (GET /api/vendor/setup-status, backend #374).
+export interface BusinessSetupStep {
+  key: string;
+  state: "done" | "todo" | "waiting";
+  label: string;
+  target: "products" | "services" | "hours" | "booking" | "payouts" | null;
+  missingCount?: number;
+}
+export interface BusinessSetupStatus {
+  businessId: string;
+  complete: boolean;
+  next: string | null;
+  doneCount: number;
+  totalCount: number;
+  steps: BusinessSetupStep[];
+}
+
+// Business default cancellation policy (PUT /api/vendor/my-business/cancellation-policy).
+export type RefundWindow = "1_week" | "48_hours" | "24_hours" | "1_hour" | "never";
+export interface BusinessCancellationPolicy {
+  fullRefundWindow: RefundWindow;
+  hasPartialRefund: boolean;
+  partialRefundWindow: RefundWindow | null;
+  partialRefundPercentage: number | null;
+  hasCancellationFee: boolean;
+  cancellationFeeType: "flat" | "percentage" | null;
+  cancellationFeeAmount: number | null;
+}
+
 export interface BusinessOrder {
   id: string;
   customerName: string;
   customerAvatar?: string;
   orderDate: string;
-  items: { name: string; quantity: number; price: number; variantLabel?: string | null }[];
+  items: { name: string; quantity: number; price: number; variantLabel?: string | null; addonsLabel?: string | null }[];
   totalAmount: number;
   status: "pending" | "processing" | "shipped" | "delivered" | "canceled";
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
@@ -3700,6 +3733,65 @@ class ApiService {
       `/api/business/products/${productId}/options`,
       { method: 'GET', headers: { 'Authorization': `Bearer ${authToken}` } }
     );
+  }
+
+  /** Vendor: every add-on group of a product with its choices, switched-off ones too (backend #371). */
+  async getProductAddons(
+    authToken: string,
+    productId: string,
+  ): Promise<import("@/components/products/productAddonLogic").VendorAddonGroup[]> {
+    const res = await this.request<{ groups?: any[] }>(
+      `/api/business/products/${productId}/addons`,
+      { method: 'GET', headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+    return Array.isArray(res?.groups) ? res.groups : [];
+  }
+
+  /** Vendor: save the full add-on group list. Groups and choices left out are deleted. */
+  async saveProductAddons(
+    authToken: string,
+    productId: string,
+    body: { groups: import("@/components/products/productAddonLogic").SaveAddonGroup[] },
+  ): Promise<import("@/components/products/productAddonLogic").VendorAddonGroup[]> {
+    const res = await this.request<{ groups?: any[] }>(
+      `/api/business/products/${productId}/addons`,
+      { method: 'PUT', body: JSON.stringify(body), headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+    return Array.isArray(res?.groups) ? res.groups : [];
+  }
+
+  /** Vendor: "Library price is now $X. Use it on this product?" (backend #373). */
+  async reviewProductAddonPrice(
+    authToken: string,
+    productId: string,
+    addonId: string,
+    action: 'sync' | 'keep',
+  ): Promise<import("@/components/products/productAddonLogic").VendorAddonGroup[]> {
+    const res = await this.request<{ groups?: any[] }>(
+      `/api/business/products/${productId}/addons/${addonId}/price-review`,
+      { method: 'POST', body: JSON.stringify({ action }), headers: { 'Authorization': `Bearer ${authToken}` } }
+    );
+    return Array.isArray(res?.groups) ? res.groups : [];
+  }
+
+  // GET /api/vendor/setup-status — one setup checklist for the app and the sites (backend #374).
+  async getBusinessSetupStatus(authToken: string): Promise<BusinessSetupStatus> {
+    return this.request<BusinessSetupStatus>("/api/vendor/setup-status", {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // PUT /api/vendor/my-business/cancellation-policy — the business default policy (backend #374).
+  async saveBusinessCancellationPolicy(
+    authToken: string,
+    policy: BusinessCancellationPolicy,
+  ): Promise<{ business: VendorBookerBusiness }> {
+    return this.request<{ business: VendorBookerBusiness }>("/api/vendor/my-business/cancellation-policy", {
+      method: "PUT",
+      body: JSON.stringify(policy),
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
   }
 
   /** Vendor: save options + the full variation list in one go. Left-out variations are switched off. */
@@ -6479,6 +6571,8 @@ export interface ConsumerOrderItem {
   price: number;
   imageUrl?: string | null;
   variantLabel?: string | null;
+  /** Add-ons picked on this line (backend #371); price already includes them. */
+  addonsLabel?: string | null;
 }
 
 export interface ConsumerOrder {
@@ -6635,6 +6729,21 @@ export interface LibraryAddon {
   isActive: boolean;
   sortOrder: number;
   services: LibraryAddonService[];
+  /** Products this add-on is on (backend #373). Missing on older backends. */
+  products?: LibraryAddonProduct[];
+}
+
+export interface LibraryAddonProduct {
+  productId: string;
+  productName: string;
+  productStatus?: string;
+  groupId?: string;
+  groupName?: string;
+  addonId: string;
+  priceCents: number;
+  isActive?: boolean;
+  priceSynced: boolean;
+  needsPriceReview?: boolean;
 }
 
 export interface LibraryAddonFields {
@@ -6673,7 +6782,9 @@ export async function updateLibraryAddon(
 }
 
 export async function deleteLibraryAddon(token: string, libraryId: string): Promise<{ removedFromServiceIds: string[] }> {
-  const response: any = await apiDelete(`/api/vendor/addon-library/${libraryId}`, token);
+  // includeProducts: this app shows the products an add-on is on before deleting it (backend #373),
+  // so it may remove it from them too. Older clients get a 409 USED_ON_PRODUCTS instead.
+  const response: any = await apiDelete(`/api/vendor/addon-library/${libraryId}?includeProducts=true`, token);
   return { removedFromServiceIds: Array.isArray(response?.removedFromServiceIds) ? response.removedFromServiceIds : [] };
 }
 

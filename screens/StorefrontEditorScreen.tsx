@@ -52,9 +52,12 @@ import api, {
   reviewServiceAddonPrice,
   type BusinessTaxonomy,
   type TaxonomySpecialty,
+  type BusinessSetupStatus,
 } from "@/services/api";
 import VariantBuilderSection from "@/components/products/VariantBuilderSection";
 import ProductOptionsEditor, { ProductOptionsEditorHandle } from "@/components/products/ProductOptionsEditor";
+import ProductAddonsEditor, { ProductAddonsEditorHandle } from "@/components/products/ProductAddonsEditor";
+import type { VendorAddonGroup } from "@/components/products/productAddonLogic";
 import { RootStackParamList } from "@/navigation/types";
 import HoursEditor, {
   DayHours,
@@ -86,6 +89,15 @@ import {
 } from "@/utils/industry";
 import { knownForFrom, profilePayload, termsPayload } from "@/utils/storefrontProfile";
 import { buildSetupSteps, hasHours, type SetupTarget } from "@/utils/setupChecklist";
+import {
+  REFUND_WINDOWS,
+  depositInputFrom,
+  parseDefaultDepositInput,
+  policyDraftFrom,
+  policyFromDraft,
+  stepsFromSetupStatus,
+  type PolicyDraft,
+} from "@/utils/businessDefaults";
 
 // The backend rejects vendor service durations under 5 minutes.
 const MIN_SERVICE_DURATION_MINUTES = 5;
@@ -118,13 +130,6 @@ const SECTION_TITLES: Record<SectionKey, string> = {
 // Pages with their own Save button; leaving one with unsaved edits asks first.
 type EditableSection = "branding" | "profile" | "hours" | "booking";
 const EDITABLE_SECTIONS: EditableSection[] = ["branding", "profile", "hours", "booking"];
-
-const REFUND_WINDOW_LABELS: Record<string, string> = {
-  "1_week": "1 week",
-  "48_hours": "48 hours",
-  "24_hours": "24 hours",
-  "1_hour": "1 hour",
-};
 
 const STRIPE_RETURN_URL = "outsyde://stripe-return";
 
@@ -225,6 +230,12 @@ export default function StorefrontEditorScreen() {
   const [showAddress, setShowAddress] = useState(true);
   const [defaultServiceLocationType, setDefaultServiceLocationType] = useState('business');
   const [vendorTermsAndConditions, setVendorTermsAndConditions] = useState("");
+  // Booking settings defaults (backend #374): business policy, default deposit, server checklist.
+  const [policyDraft, setPolicyDraft] = useState<PolicyDraft>(() => policyDraftFrom(null));
+  const [defaultDepositInput, setDefaultDepositInput] = useState("");
+  const [setupStatus, setSetupStatus] = useState<BusinessSetupStatus | null>(null);
+  // New service form only: the deposit came from the business default (shown as a hint).
+  const [depositFromDefault, setDepositFromDefault] = useState(false);
   const [responseTimeValue, setResponseTimeValue] = useState(2);
   const [responseTimeUnit, setResponseTimeUnit] =
     useState<ResponseTimeUnit>("hours");
@@ -367,6 +378,10 @@ export default function StorefrontEditorScreen() {
   // Product options editor (backend #310). If the options route can't be
   // reached, the modal falls back to the older label-only variant editor.
   const optionsEditorRef = useRef<ProductOptionsEditorHandle>(null);
+  // Product add-ons (backend #371): null = still loading, "failed" = couldn't load (editor hidden).
+  const addonsEditorRef = useRef<ProductAddonsEditorHandle>(null);
+  const [addonsInitial, setAddonsInitial] = useState<VendorAddonGroup[] | null | "failed">(null);
+  const addonsLoadForRef = useRef<string | null>(null);
   const [optionsInitial, setOptionsInitial] = useState<ProductOptionsResponse | null>(null);
   const [optionsFallback, setOptionsFallback] = useState(false);
   const [productModalSession, setProductModalSession] = useState(0);
@@ -484,15 +499,18 @@ export default function StorefrontEditorScreen() {
     try {
       setLoading(true);
       const servicesReqId = ++servicesReqRef.current;
-      const [businessRes, productsRes, servicesRes, eligibilityRes] =
+      const [businessRes, productsRes, servicesRes, eligibilityRes, setupRes] =
         await Promise.all([
           api.getVendorMyBusiness(token),
           api.getVendorProducts(token).catch(() => ({ products: [] })),
           api.getVendorServices(token).catch(() => ({ services: [] })),
           api.getVendorEligibility(token).catch(() => null),
+          // One checklist with the website (backend #374). null → the hub builds its own.
+          api.getBusinessSetupStatus(token).catch(() => null),
         ]);
 
       if (eligibilityRes) setEligibility(eligibilityRes);
+      setSetupStatus(setupRes);
 
       const biz = businessRes.business;
       setBusiness(biz);
@@ -550,6 +568,8 @@ export default function StorefrontEditorScreen() {
       setShowAddress((biz as any).showAddress !== false);
       setDefaultServiceLocationType((biz as any).defaultServiceLocationType || 'business');
       setVendorTermsAndConditions((biz as any).vendorTermsAndConditions || "");
+      setPolicyDraft(policyDraftFrom(biz as any));
+      setDefaultDepositInput(depositInputFrom((biz as any).defaultDepositCents));
       setResponseTimeValue(Number((biz as any).responseTimeValue ?? 2));
       setResponseTimeUnit(
         ((biz as any).responseTimeUnit || "hours") as ResponseTimeUnit,
@@ -672,7 +692,7 @@ export default function StorefrontEditorScreen() {
       case "hours":
         return JSON.stringify(hours);
       case "booking":
-        return JSON.stringify([vendorTermsAndConditions]);
+        return JSON.stringify([vendorTermsAndConditions, policyDraft, defaultDepositInput]);
     }
   };
 
@@ -920,6 +940,67 @@ export default function StorefrontEditorScreen() {
 
   // Business terms (one set for the whole business, shown as a checkbox at
   // booking). Used to be typed in the service form and only saved by Save Profile.
+  // Booking settings defaults (backend #374) ─────────────────────────────────
+  const refreshSetupStatus = async (token: string) => {
+    const next = await api.getBusinessSetupStatus(token).catch(() => null);
+    if (next) setSetupStatus(next);
+  };
+
+  // The business default cancellation policy: new services start with it, and saving it marks the
+  // policy as chosen for the setup checklist. Existing services keep their own policy.
+  const handleSavePolicy = async () => {
+    const token = await getToken();
+    if (!token) return;
+    const result = policyFromDraft(policyDraft);
+    if ("error" in result) {
+      Alert.alert("Cancellation policy", result.error);
+      return;
+    }
+    try {
+      setSaving(true);
+      const res = await api.saveBusinessCancellationPolicy(token, result.policy);
+      if (res?.business) {
+        setBusiness(res.business);
+        setPolicyDraft(policyDraftFrom(res.business as any));
+      }
+      setBaselineTick((t) => t + 1);
+      await refreshSetupStatus(token);
+      Alert.alert("Saved", "Your cancellation policy is saved. New services start with it.");
+    } catch (error: any) {
+      Alert.alert("Error", error?.body?.error || error?.message || "Failed to save your cancellation policy");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Default deposit: only pre-fills new services; nothing already set up changes.
+  const handleSaveDefaultDeposit = async () => {
+    const token = await getToken();
+    if (!token) return;
+    const parsed = parseDefaultDepositInput(defaultDepositInput);
+    if ("error" in parsed) {
+      Alert.alert("Default deposit", parsed.error);
+      return;
+    }
+    try {
+      setSaving(true);
+      const res = await api.updateVendorMyBusiness(token, { defaultDepositCents: parsed.cents } as any);
+      if (res?.business) {
+        setBusiness(res.business);
+        setDefaultDepositInput(depositInputFrom((res.business as any).defaultDepositCents));
+      }
+      setBaselineTick((t) => t + 1);
+      Alert.alert(
+        "Saved",
+        parsed.cents ? "New services will start with this deposit." : "New services start with no deposit.",
+      );
+    } catch (error: any) {
+      Alert.alert("Error", error?.body?.message || error?.message || "Failed to save your default deposit");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveTerms = async () => {
     const token = await getToken();
     if (!token) return;
@@ -1027,6 +1108,7 @@ export default function StorefrontEditorScreen() {
     setInitialVariants([]);
     setOptionsInitial(null);
     setOptionsFallback(false);
+    setAddonsInitial(null);
     setProductModalSession((n) => n + 1);
 
     // Capture token for the modal session (used by VariantBuilderSection)
@@ -1052,6 +1134,14 @@ export default function StorefrontEditorScreen() {
         status: product.status,
       });
 
+      // Add-ons (vendor route, switched-off ones included). Loaded alongside the options.
+      // Only the latest opened product's answer is used (a slow answer for another item is ignored).
+      addonsLoadForRef.current = product.id;
+      api
+        .getProductAddons(modalToken ?? "", product.id)
+        .then((groups) => addonsLoadForRef.current === product.id && setAddonsInitial(groups))
+        .catch(() => addonsLoadForRef.current === product.id && setAddonsInitial("failed"));
+
       // Load options + variations for the editor (vendor route, includes
       // switched-off variations). Fall back to the older editor if it fails.
       try {
@@ -1068,6 +1158,8 @@ export default function StorefrontEditorScreen() {
       }
     } else {
       setEditingProduct(null);
+      addonsLoadForRef.current = null;
+      setAddonsInitial([]);
       setPriceInput("");
       setProductForm({
         name: "",
@@ -1104,6 +1196,11 @@ export default function StorefrontEditorScreen() {
     const optionsSave = optionsFallback ? null : optionsEditorRef.current?.getSaveBody() ?? null;
     if (optionsSave && "error" in optionsSave) {
       Alert.alert("Check your options", optionsSave.error);
+      return;
+    }
+    const addonsSave = addonsEditorRef.current?.getSaveBody() ?? null;
+    if (addonsSave && "error" in addonsSave) {
+      Alert.alert("Check your add-ons", addonsSave.error);
       return;
     }
 
@@ -1170,6 +1267,19 @@ export default function StorefrontEditorScreen() {
           setProductModalVisible(false);
           fetchData();
           Alert.alert("Product saved, options not saved", String(msg));
+          return;
+        }
+      }
+
+      // Add-ons (one call, backend #371). Only when something changed in the add-ons editor.
+      if (addonsSave && "body" in addonsSave) {
+        try {
+          await api.saveProductAddons(token, productId, addonsSave.body);
+        } catch (addErr: any) {
+          const msg = addErr?.body?.error?.message || addErr?.message || "Please try again.";
+          setProductModalVisible(false);
+          fetchData();
+          Alert.alert("Product saved, add-ons not saved", String(msg));
           return;
         }
       }
@@ -1292,6 +1402,7 @@ export default function StorefrontEditorScreen() {
         depositAmountCents: s.depositAmountCents ?? null,
       });
       applyLoadedDeposit(s.depositAmountCents);
+      setDepositFromDefault(false);
       setServiceImageUrl(s.imageUrl ?? null);
       applyLoadedDuration(service.durationMinutes || 60);
     } else {
@@ -1318,7 +1429,11 @@ export default function StorefrontEditorScreen() {
         virtualLink: null,
         depositAmountCents: null,
       });
-      applyLoadedDeposit(null);
+      // New services start with the business default deposit (backend #374). Pre-fill only:
+      // the business can change or switch it off here before saving.
+      const defaultDeposit = typeof biz?.defaultDepositCents === "number" && biz.defaultDepositCents > 0 ? biz.defaultDepositCents : null;
+      applyLoadedDeposit(defaultDeposit);
+      setDepositFromDefault(defaultDeposit !== null);
       setServiceImageUrl(null);
       applyLoadedDuration(60);
     }
@@ -1351,7 +1466,8 @@ export default function StorefrontEditorScreen() {
       ? parsedDeposit.error
       : parsedDeposit.cents < MIN_DEPOSIT_CENTS
         ? "Deposit must be at least $7.00."
-        : parsedDeposit.cents >= (serviceForm.priceCents || 0)
+        : // Checked once a price is typed (a new service can start with the default deposit).
+          (serviceForm.priceCents || 0) > 0 && parsedDeposit.cents >= serviceForm.priceCents
           ? "Deposit must be less than the service price."
           : null;
 
@@ -2093,6 +2209,19 @@ export default function StorefrontEditorScreen() {
       fontWeight: "700",
       color: theme.brandCream,
     },
+    policyChips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+    policyChip: {
+      minHeight: 36,
+      paddingHorizontal: 12,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.brandSurfaceBorder,
+      backgroundColor: theme.brandSurface,
+      justifyContent: "center",
+    },
+    policyChipOn: { borderColor: theme.brandGold, backgroundColor: "rgba(232,185,48,0.14)" },
+    policyChipText: { fontSize: 14, color: theme.brandCream },
+    policyChipTextOn: { color: theme.brandGold, fontWeight: "700" },
     noteBox: {
       flexDirection: "row",
       gap: 10,
@@ -3337,7 +3466,8 @@ export default function StorefrontEditorScreen() {
     productSnapshot() !== productBaselineRef.current ||
     (optionsFallback
       ? localVariants.some((v: LocalVariant) => v.isNew || v.isDirty || v.isDeleted)
-      : optionsEditorRef.current?.getSaveBody() != null);
+      : optionsEditorRef.current?.getSaveBody() != null) ||
+    addonsEditorRef.current?.getSaveBody() != null;
 
   const closeProductModal = () => {
     if (!productHasUnsavedChanges()) {
@@ -3483,6 +3613,23 @@ export default function StorefrontEditorScreen() {
                   ? null
                   : Number(productForm.inventory)
               }
+              authToken={productModalToken}
+            />
+          )}
+
+          <Text style={styles.formSectionTitle}>Add-ons</Text>
+          {addonsInitial === null ? (
+            <ActivityIndicator color={theme.brandGold} style={{ marginVertical: 12 }} />
+          ) : addonsInitial === "failed" ? (
+            <Text style={styles.formSectionHelp}>
+              {"Add-ons couldn't load. Close this item and open it again to edit them."}
+            </Text>
+          ) : (
+            <ProductAddonsEditor
+              key={`addons-${productModalSession}`}
+              ref={addonsEditorRef}
+              initial={addonsInitial}
+              productId={editingProduct?.id ?? null}
               authToken={productModalToken}
             />
           )}
@@ -3864,7 +4011,7 @@ export default function StorefrontEditorScreen() {
                 keyboardType="decimal-pad"
                 accessibilityLabel="Deposit amount in dollars"
               />
-              {depositError && (
+              {depositError ? (
                 <Text
                   style={{
                     fontSize: 12,
@@ -3875,7 +4022,11 @@ export default function StorefrontEditorScreen() {
                 >
                   {depositError}
                 </Text>
-              )}
+              ) : depositFromDefault && !editingService && !depositTouched ? (
+                <Text style={{ fontSize: 12, color: theme.brandTextDim, marginTop: -6, marginBottom: 12 }}>
+                  Your default deposit. Change it here for this service, or in Booking settings for new ones.
+                </Text>
+              ) : null}
             </>
           )}
 
@@ -4727,29 +4878,6 @@ export default function StorefrontEditorScreen() {
     return other > 0 ? `${live} live, ${other} not live` : `${live} live`;
   };
 
-  const policyText = () => {
-    const b = business as any;
-    const full = REFUND_WINDOW_LABELS[b.fullRefundWindow as string];
-    const parts: string[] = [];
-    parts.push(full ? `Full refund up to ${full} before.` : "No full refunds.");
-    if (b.hasPartialRefund && b.partialRefundPercentage != null) {
-      const partial = REFUND_WINDOW_LABELS[b.partialRefundWindow as string];
-      parts.push(
-        partial
-          ? `${b.partialRefundPercentage}% back up to ${partial} before.`
-          : `${b.partialRefundPercentage}% back after that.`,
-      );
-    }
-    if (b.hasCancellationFee && b.cancellationFeeAmount != null) {
-      parts.push(
-        b.cancellationFeeType === "flat"
-          ? `Cancellation fee ${formatPrice(b.cancellationFeeAmount)}.`
-          : `Cancellation fee ${b.cancellationFeeAmount}%.`,
-      );
-    }
-    return parts.join(" ");
-  };
-
   const goToTarget = (target: SetupTarget) => openSection(target);
 
   const renderHubRow = (opts: {
@@ -4785,7 +4913,7 @@ export default function StorefrontEditorScreen() {
   );
 
   const renderSetupCard = () => {
-    const steps = buildSetupSteps({
+    const steps = stepsFromSetupStatus(setupStatus) ?? buildSetupSteps({
       products,
       services,
       offersServices,
@@ -4876,7 +5004,7 @@ export default function StorefrontEditorScreen() {
           {renderHubRow({
             icon: "plus-circle",
             title: "Add-ons",
-            sub: "Extras customers can add to a service",
+            sub: "Extras customers can add to a service or product",
             onPress: () => openSection("addons"),
           })}
         </View>
@@ -4959,18 +5087,162 @@ export default function StorefrontEditorScreen() {
 
         <Text style={styles.hubGroupLabel}>Cancellation policy</Text>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Your default</Text>
-          <Text style={[styles.cardDesc, { color: theme.brandCream }]}>{policyText()}</Text>
           <Text style={styles.cardDesc}>
-            New services start with this. Each service can have its own policy: open a service to change
-            it, then tap Apply to all services to use it everywhere.
+            {(business as any).cancellationPolicySetAt
+              ? "Your default. New services start with it. Each service can still have its own: open a service to change it, then tap Apply to all services to use it everywhere."
+              : "You haven't chosen one yet. Pick what customers get back if they cancel, then save. New services start with it."}
           </Text>
+
+          <Text style={styles.inputLabel}>Full refund if they cancel at least</Text>
+          <View style={styles.policyChips}>
+            {REFUND_WINDOWS.map((w) => {
+              const on = policyDraft.fullRefundWindow === w.value;
+              return (
+                <Pressable
+                  key={w.value}
+                  onPress={() => setPolicyDraft((d) => ({ ...d, fullRefundWindow: w.value }))}
+                  style={[styles.policyChip, on && styles.policyChipOn]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on }}
+                >
+                  <Text style={[styles.policyChipText, on && styles.policyChipTextOn]}>
+                    {w.value === "never" ? "No full refunds" : `${w.label} before`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.switchRow}>
+            <Text style={[styles.inputLabel, { flex: 1 }]}>Partial refund after that</Text>
+            <Switch
+              value={policyDraft.hasPartialRefund}
+              onValueChange={(v) => setPolicyDraft((d) => ({ ...d, hasPartialRefund: v }))}
+              trackColor={{ true: theme.brandGold }}
+              accessibilityLabel="Partial refund after that"
+            />
+          </View>
+          {policyDraft.hasPartialRefund ? (
+            <>
+              <Text style={styles.inputLabel}>If they cancel at least</Text>
+              <View style={styles.policyChips}>
+                {REFUND_WINDOWS.filter((w) => w.value !== "never").map((w) => {
+                  const on = policyDraft.partialRefundWindow === w.value;
+                  return (
+                    <Pressable
+                      key={w.value}
+                      onPress={() => setPolicyDraft((d) => ({ ...d, partialRefundWindow: w.value }))}
+                      style={[styles.policyChip, on && styles.policyChipOn]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on }}
+                    >
+                      <Text style={[styles.policyChipText, on && styles.policyChipTextOn]}>{w.label} before</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.inputLabel}>They get back (percent)</Text>
+              <TextInput
+                style={styles.input}
+                value={policyDraft.partialPercentInput}
+                onChangeText={(v) => setPolicyDraft((d) => ({ ...d, partialPercentInput: v.replace(/[^0-9]/g, "").slice(0, 3) }))}
+                placeholder="50"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+                accessibilityLabel="Partial refund percent"
+              />
+            </>
+          ) : null}
+
+          <View style={styles.switchRow}>
+            <Text style={[styles.inputLabel, { flex: 1 }]}>Cancellation fee</Text>
+            <Switch
+              value={policyDraft.hasCancellationFee}
+              onValueChange={(v) => setPolicyDraft((d) => ({ ...d, hasCancellationFee: v }))}
+              trackColor={{ true: theme.brandGold }}
+              accessibilityLabel="Cancellation fee"
+            />
+          </View>
+          {policyDraft.hasCancellationFee ? (
+            <>
+              <View style={styles.policyChips}>
+                {(["flat", "percentage"] as const).map((t) => {
+                  const on = policyDraft.cancellationFeeType === t;
+                  return (
+                    <Pressable
+                      key={t}
+                      onPress={() => setPolicyDraft((d) => ({ ...d, cancellationFeeType: t }))}
+                      style={[styles.policyChip, on && styles.policyChipOn]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on }}
+                    >
+                      <Text style={[styles.policyChipText, on && styles.policyChipTextOn]}>
+                        {t === "flat" ? "Dollar amount" : "Percent of the price"}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <TextInput
+                style={styles.input}
+                value={policyDraft.feeInput}
+                onChangeText={(v) => setPolicyDraft((d) => ({ ...d, feeInput: v.replace(/[^0-9.]/g, "") }))}
+                placeholder={policyDraft.cancellationFeeType === "flat" ? "20.00" : "10"}
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="decimal-pad"
+                accessibilityLabel="Cancellation fee amount"
+              />
+            </>
+          ) : null}
+
+          <Pressable
+            style={[styles.saveButton, saving && { opacity: 0.6 }]}
+            onPress={handleSavePolicy}
+            disabled={saving}
+            accessibilityRole="button"
+          >
+            {saving ? (
+              <ActivityIndicator color={theme.brandPrimaryText} />
+            ) : (
+              <Text style={styles.saveButtonText}>Save policy</Text>
+            )}
+          </Pressable>
           <Pressable
             onPress={() => openSection("services")}
             style={styles.previewButton}
             accessibilityRole="button"
           >
             <Text style={styles.previewButtonText}>Go to services</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.hubGroupLabel}>Default deposit</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardDesc}>
+            New services start with this deposit. Services you already have keep theirs. Leave it empty for no
+            deposit.
+          </Text>
+          <Text style={styles.inputLabel}>Deposit (in dollars)</Text>
+          <TextInput
+            style={styles.input}
+            value={defaultDepositInput}
+            onChangeText={(v) => setDefaultDepositInput(v.replace(/[^0-9.]/g, ""))}
+            placeholder="No default"
+            placeholderTextColor={theme.brandTextDim}
+            keyboardType="decimal-pad"
+            accessibilityLabel="Default deposit in dollars"
+          />
+          <Pressable
+            style={[styles.saveButton, saving && { opacity: 0.6 }]}
+            onPress={handleSaveDefaultDeposit}
+            disabled={saving}
+            accessibilityRole="button"
+          >
+            {saving ? (
+              <ActivityIndicator color={theme.brandPrimaryText} />
+            ) : (
+              <Text style={styles.saveButtonText}>Save default deposit</Text>
+            )}
           </Pressable>
         </View>
 

@@ -52,7 +52,7 @@ import {
   cardOptionsLine,
   cardPriceCents,
   cardPricePrefix,
-  needsChoice,
+  mustChoose,
 } from "@/components/products/productCardLogic";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -560,7 +560,7 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const handleAddToCart = useCallback((product: VendorProduct) => {
-    if (needsChoice(product.variantSummary)) {
+    if (mustChoose(product.variantSummary, product.addonSummary)) {
       openProduct(product);
       return;
     }
@@ -1480,7 +1480,7 @@ export default function VendorDetailScreen({ route }: Props) {
             }
 
             // A product with variations needs a pick first: open its page.
-            if (needsChoice(targetProduct.variantSummary)) {
+            if (mustChoose(targetProduct.variantSummary, targetProduct.addonSummary)) {
               openProduct(targetProduct);
               return;
             }
@@ -2055,13 +2055,13 @@ export default function VendorDetailScreen({ route }: Props) {
                     onPress={() => handleAddToCart(product)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     accessibilityLabel={
-                      needsChoice(product.variantSummary)
+                      mustChoose(product.variantSummary, product.addonSummary)
                         ? `Choose an option for ${product.name}`
                         : `Add ${product.name} to cart`
                     }
                   >
                     <Text style={[styles.productAddText, { color: accentColor }]}>
-                      {needsChoice(product.variantSummary) ? "Choose" : "Add"}
+                      {mustChoose(product.variantSummary, product.addonSummary) ? "Choose" : "Add"}
                     </Text>
                   </Pressable>
                 </View>

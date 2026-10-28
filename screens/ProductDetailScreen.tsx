@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -34,6 +35,19 @@ import {
   valueState,
   type Picks,
 } from "@/components/products/productPickerLogic";
+import {
+  addonsLabel,
+  addonsPerUnitCents,
+  countInGroup,
+  emptyPicks,
+  groupHint,
+  missingPick,
+  pickedAddons,
+  setPickText,
+  togglePick,
+  type AddonPicks,
+  type PublicAddonGroup,
+} from "@/components/products/productAddonLogic";
 
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
 
@@ -72,6 +86,10 @@ export default function ProductDetailScreen() {
   // Products with options (Length, Size, Color) get one picker per option.
   const [options, setOptions] = useState<ProductOption[]>([]);
   const [picks, setPicks] = useState<Picks>([]);
+  // Add-ons (backend #371): extras on top of the product, priced per unit.
+  const [addonGroups, setAddonGroups] = useState<PublicAddonGroup[]>([]);
+  const [addonPicks, setAddonPicks] = useState<AddonPicks>(emptyPicks());
+  const [addonLimitGroupId, setAddonLimitGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -88,12 +106,20 @@ export default function ProductDetailScreen() {
           const useOptions = loadedOptions.length > 0 && liveVariants(loadedVariants).length > 0;
           setOptions(useOptions ? loadedOptions : []);
           setPicks(useOptions ? initialPicks(loadedOptions) : []);
+          setAddonGroups(
+            Array.isArray(product.addonGroups)
+              ? product.addonGroups.filter((g) => Array.isArray(g.addons) && g.addons.length > 0)
+              : [],
+          );
+          setAddonPicks(emptyPicks());
         }
       } catch {
         if (!cancelled) {
           setVariants([]);
           setOptions([]);
           setPicks([]);
+          setAddonGroups([]);
+          setAddonPicks(emptyPicks());
         }
       } finally {
         if (!cancelled) setVariantsLoading(false);
@@ -140,6 +166,20 @@ export default function ProductDetailScreen() {
       : formatCents(minVariantPrice)
     : formatCents(priceCents);
 
+  // ── Add-ons: per unit price = product (or picked variation) + picked add-ons ──
+  const hasAddons = addonGroups.length > 0;
+  const chosenAddons = hasAddons ? pickedAddons(addonGroups, addonPicks) : [];
+  const addonsCents = addonsPerUnitCents(chosenAddons);
+  const basePriceCents = activeVariant ? activeVariant.priceCents : (priceCents ?? 0);
+  const unitPriceCents = basePriceCents + addonsCents;
+  const addonProblem = hasAddons ? missingPick(addonGroups, addonPicks) : null;
+  const tapAddon = (addonId: string, groupId: string) => {
+    const r = togglePick(addonGroups, addonPicks, addonId);
+    setAddonPicks(r.picks);
+    setAddonLimitGroupId(r.limitReached ? groupId : null);
+  };
+  const formatAddonPrice = (cents: number) => (cents > 0 ? `+${formatCents(cents)}` : "Free");
+
   // ── Option grid: 4 per row for short labels (lengths, sizes), fewer when
   //    labels are long so nothing is cut off ─────────────────────────────────
   const longestLabel = buyableVariants.reduce((n, v) => Math.max(n, (v.label ?? "").length), 0);
@@ -183,24 +223,13 @@ export default function ProductDetailScreen() {
 
   // Options must finish loading first, so a product with variants can't be
   // bought at its base price by tapping before the options appear.
-  const canAddToCart =
+  const variationReady =
     !variantsLoading &&
     !isOutOfStock &&
     (!hasVariants || (activeVariant !== null && !isVariantSoldOut(activeVariant)));
-
-  const stockLine: { text: string; low: boolean } | null = (() => {
-    if (isOutOfStock) return null;
-    if (hasVariants && !activeVariant) return null;
-    if (!effectiveHasInventoryCap) return null;
-    const n = effectiveInventory!;
-    if (n <= 3) {
-      return {
-        text: activeVariant ? `Only ${n} left in ${activeVariant.label}` : `Only ${n} left`,
-        low: true,
-      };
-    }
-    return { text: `${n} in stock`, low: false };
-  })();
+  const canAddToCart = variationReady && !addonProblem;
+  // Stock counts are not shown to customers (Legend 2026-10-28): only "Out of stock" / "Sold out".
+  // The quantity stepper still stops at what is in stock.
 
   const buyNowLabel = isOutOfStock
     ? "Out of Stock"
@@ -208,9 +237,18 @@ export default function ProductDetailScreen() {
     ? `Choose ${firstUnpicked.name.toLowerCase()}`
     : hasVariants && !activeVariant
     ? "Select an option"
+    : addonProblem
+    ? addonProblem
+    : hasAddons
+    ? `Buy Now · ${formatCents(unitPriceCents * quantity)}`
     : activeVariant
     ? `Buy Now · ${activeVariant.label}`
     : "Buy Now";
+
+  // Products with add-on groups always carry the list (even empty), so checkout checks it.
+  const addonFields = hasAddons
+    ? { addons: chosenAddons, ...(chosenAddons.length > 0 ? { addonsLabel: addonsLabel(chosenAddons) } : {}) }
+    : {};
 
   const handleAddToCart = () => {
     if (!canAddToCart) return;
@@ -218,12 +256,13 @@ export default function ProductDetailScreen() {
     addItem({
       productId: String(id),
       name,
-      price: activeVariant ? activeVariant.priceCents : priceCents,
+      price: hasAddons ? unitPriceCents : activeVariant ? activeVariant.priceCents : priceCents,
       quantity,
       vendorId: businessId,
       imageUrl: shownImageUrl ?? undefined,
       variantId: activeVariant?.id,
       variantLabel: activeVariant?.label,
+      ...addonFields,
     });
 
     // Toast: fade in → hold → fade out
@@ -247,12 +286,13 @@ export default function ProductDetailScreen() {
       buyNowItem: {
         productId: String(id),
         name,
-        priceCents: activeVariant ? activeVariant.priceCents : (priceCents ?? 0),
+        priceCents: hasAddons ? unitPriceCents : activeVariant ? activeVariant.priceCents : (priceCents ?? 0),
         quantity,
         vendorId: businessId,
         imageUrl: shownImageUrl ?? undefined,
         variantId: activeVariant?.id,
         variantLabel: activeVariant?.label,
+        ...addonFields,
       },
     });
   };
@@ -500,17 +540,103 @@ export default function ProductDetailScreen() {
                 Out of stock
               </ThemedText>
             </View>
-          ) : stockLine ? (
-            <ThemedText
-              type="caption"
-              style={{
-                color: stockLine.low ? theme.brandPending : theme.brandTextDim,
-                marginTop: Spacing.sm,
-              }}
-            >
-              {stockLine.text}
-            </ThemedText>
           ) : null}
+
+          {/* Add-ons: extras on top of the product (toppings, a name on the cake) */}
+          {hasAddons &&
+            addonGroups.map((group) => {
+              const count = countInGroup(group, addonPicks);
+              const pickOne = group.maxSelect === 1;
+              return (
+                <View key={group.id} style={styles.optionSection}>
+                  <View style={styles.addonHeadingRow}>
+                    <Text style={[styles.optionHeading, { color: theme.brandCream, flexShrink: 1 }]}>
+                      {group.name.toUpperCase()}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.addonHint,
+                        { color: group.minSelect > 0 && count < group.minSelect ? theme.brandGold : theme.brandTextDim },
+                      ]}
+                    >
+                      {groupHint(group)}
+                    </Text>
+                  </View>
+                  {group.addons.map((addon) => {
+                    const selected = addonPicks.ids.includes(addon.id);
+                    const text = addonPicks.text[addon.id] ?? "";
+                    return (
+                      <View key={addon.id}>
+                        <Pressable
+                          onPress={() => tapAddon(addon.id, group.id)}
+                          accessibilityRole={pickOne ? "radio" : "checkbox"}
+                          accessibilityState={{ checked: selected }}
+                          accessibilityLabel={`${addon.name}, ${formatAddonPrice(addon.priceCents)}`}
+                          style={({ pressed }) => [
+                            styles.addonRow,
+                            {
+                              backgroundColor: selected ? "rgba(232,185,48,0.14)" : theme.brandSurface,
+                              borderColor: selected ? theme.brandGold : theme.brandSurfaceBorder,
+                              opacity: pressed ? 0.8 : 1,
+                            },
+                          ]}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.addonName, { color: theme.brandCream }]}>{addon.name}</Text>
+                            {addon.description ? (
+                              <Text style={[styles.addonDesc, { color: theme.brandTextDim }]}>{addon.description}</Text>
+                            ) : null}
+                          </View>
+                          <Text style={[styles.addonPrice, { color: selected ? theme.brandGold : theme.brandTextDim }]}>
+                            {formatAddonPrice(addon.priceCents)}
+                          </Text>
+                          <View
+                            style={[
+                              pickOne ? styles.addonRadio : styles.addonCheck,
+                              {
+                                borderColor: selected ? theme.brandGold : theme.brandSurfaceBorder,
+                                backgroundColor: selected ? theme.brandGold : "transparent",
+                              },
+                            ]}
+                          >
+                            {selected ? <Feather name="check" size={13} color="#000000" /> : null}
+                          </View>
+                        </Pressable>
+                        {selected && addon.acceptsText ? (
+                          <View style={{ marginTop: Spacing.xs }}>
+                            <TextInput
+                              value={text}
+                              onChangeText={(t) => setAddonPicks((p) => setPickText(p, addon.id, t.replace(/\n/g, " ")))}
+                              placeholder={addon.textLabel || "Type it here"}
+                              placeholderTextColor={theme.brandTextDim}
+                              maxLength={addon.textMaxLength + 20}
+                              accessibilityLabel={addon.textLabel || addon.name}
+                              style={[
+                                styles.addonInput,
+                                { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg },
+                              ]}
+                            />
+                            <Text
+                              style={[
+                                styles.addonCounter,
+                                { color: [...text.trim()].length > addon.textMaxLength ? (theme.brandError ?? "#FF3B30") : theme.brandTextDim },
+                              ]}
+                            >
+                              {[...text.trim()].length}/{addon.textMaxLength}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                  {addonLimitGroupId === group.id && group.maxSelect !== null ? (
+                    <Text style={[styles.addonHint, { color: theme.brandGold }]}>
+                      You can pick up to {group.maxSelect}. Tap one to remove it first.
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            })}
 
           {/* Quantity stepper */}
           <View style={styles.stepperRow}>
@@ -548,6 +674,17 @@ export default function ProductDetailScreen() {
               </Pressable>
             </View>
           </View>
+
+          {hasAddons ? (
+            <View style={styles.totalRow}>
+              <ThemedText type="body" style={{ color: theme.brandTextDim }}>
+                {addonsCents > 0 ? `${formatCents(basePriceCents)} + ${formatCents(addonsCents)} add-ons` : "Total"}
+              </ThemedText>
+              <ThemedText type="h4" style={{ color: theme.brandGold }}>
+                {formatCents(unitPriceCents * quantity)}
+              </ThemedText>
+            </View>
+          ) : null}
 
           {/* ── Dual CTA block ── */}
           <View
@@ -764,6 +901,72 @@ const styles = StyleSheet.create({
   stepperCount: {
     minWidth: 28,
     textAlign: "center",
+  },
+  addonHeadingRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  addonHint: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  addonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    minHeight: 52,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  addonName: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  addonDesc: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  addonPrice: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  addonCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addonRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addonInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  addonCounter: {
+    fontSize: 11,
+    textAlign: "right",
+    marginTop: 2,
+  },
+  totalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: Spacing.md,
   },
   toast: {
     position: "absolute",

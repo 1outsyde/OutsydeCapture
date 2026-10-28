@@ -99,6 +99,20 @@ function readForm(f: FormState): {
   };
 }
 
+// Products a library add-on is on (backend #373). The library is still managed per service here;
+// products are edited in each product's form. Deleting removes it from those products too.
+function productNamesOf(a: LibraryAddon): string[] {
+  return Array.from(new Set((a.products ?? []).map((p) => p.productName)));
+}
+
+function deleteMessage(serviceCount: number, products: string[]): string {
+  const parts: string[] = [];
+  if (serviceCount > 0) parts.push(serviceCount === 1 ? "this service" : `these ${serviceCount} services`);
+  if (products.length > 0) parts.push(products.length === 1 ? products[0] : `${products.length} products`);
+  if (parts.length === 0) return "It will be removed from your add-ons. Past bookings and orders keep it.";
+  return `It will be removed from your add-ons and from ${parts.join(" and ")}. Past bookings and orders keep it.`;
+}
+
 export default function AddonLibraryTab({
   services,
   getToken: getTokenProp,
@@ -272,7 +286,12 @@ export default function AddonLibraryTab({
       } else {
         const result = await deleteLibraryAddon(token, a.id);
         const n = result.removedFromServiceIds.length;
-        message = `Deleted ${a.name}${n > 0 ? ` and removed it from ${n} service${n === 1 ? "" : "s"}` : ""}.`;
+        const p = productNamesOf(a).length;
+        const where = [
+          n > 0 ? `${n} service${n === 1 ? "" : "s"}` : null,
+          p > 0 ? `${p} product${p === 1 ? "" : "s"}` : null,
+        ].filter(Boolean).join(" and ");
+        message = `Deleted ${a.name}${where ? ` and removed it from ${where}` : ""}.`;
       }
       await load();
       setSheet(null);
@@ -339,9 +358,7 @@ export default function AddonLibraryTab({
           ? "Choose the services where customers should stop seeing it. Untick any service that should keep it."
           : sheet.kind === "on"
             ? "Choose the services where customers should see it again."
-            : list.length > 0
-              ? `It will be removed from your add-ons and from ${list.length === 1 ? "this service" : `these ${list.length} services`}. Past bookings keep it.`
-              : "It will be removed from your add-ons. Past bookings keep it.";
+            : deleteMessage(list.length, productNamesOf(a));
     const confirmLabel =
       sheet.kind === "attach"
         ? `Add to ${count} service${count === 1 ? "" : "s"}`
@@ -943,6 +960,11 @@ export default function AddonLibraryTab({
                 ) : null}
 
                 <View style={{ marginTop: 10 }}>
+                  {productNamesOf(a).length > 0 ? (
+                    <Text style={{ ...smallText, marginBottom: 6 }}>
+                      On {productNamesOf(a).length === 1 ? "product" : "products"}: {productNamesOf(a).join(", ")}
+                    </Text>
+                  ) : null}
                   {a.services.length === 0 ? (
                     <Text style={smallText}>Not on any service yet.</Text>
                   ) : (
