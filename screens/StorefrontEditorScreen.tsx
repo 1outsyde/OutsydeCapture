@@ -18,10 +18,11 @@ import {
   Keyboard,
   InputAccessoryView,
   Platform,
+  Linking,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, usePreventRemove } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -83,11 +84,53 @@ import {
   specialtiesFor,
   type IndustryValue,
 } from "@/utils/industry";
+import { knownForFrom, profilePayload, termsPayload } from "@/utils/storefrontProfile";
+import { buildSetupSteps, hasHours, type SetupTarget } from "@/utils/setupChecklist";
 
 // The backend rejects vendor service durations under 5 minutes.
 const MIN_SERVICE_DURATION_MINUTES = 5;
 
-type TabType = "branding" | "profile" | "hours" | "products" | "services" | "addons";
+// Manage business (2026-10-28): a hub page plus one page per area, replacing
+// the six tabs. Every page keeps the exact save it had as a tab.
+type SectionKey =
+  | "hub"
+  | "products"
+  | "services"
+  | "addons"
+  | "booking"
+  | "hours"
+  | "branding"
+  | "profile"
+  | "payouts";
+
+const SECTION_TITLES: Record<SectionKey, string> = {
+  hub: "Manage business",
+  products: "Products",
+  services: "Services",
+  addons: "Add-ons",
+  booking: "Booking settings",
+  hours: "Hours",
+  branding: "Look and branding",
+  profile: "Profile and contact",
+  payouts: "Payouts and plan",
+};
+
+// Pages with their own Save button; leaving one with unsaved edits asks first.
+type EditableSection = "branding" | "profile" | "hours" | "booking";
+const EDITABLE_SECTIONS: EditableSection[] = ["branding", "profile", "hours", "booking"];
+
+const REFUND_WINDOW_LABELS: Record<string, string> = {
+  "1_week": "1 week",
+  "48_hours": "48 hours",
+  "24_hours": "24 hours",
+  "1_hour": "1 hour",
+};
+
+const STRIPE_RETURN_URL = "outsyde://stripe-return";
+
+// The setup card is always the dark brand green, so its gold stays the bright
+// one in both themes (the light theme's darker gold is too faint on green).
+const SETUP_GOLD = "#E8B930";
 type ResponseTimeUnit = "minutes" | "hours" | "business_days";
 
 const RESPONSE_TIME_VALUES = [1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60];
@@ -131,7 +174,10 @@ export default function StorefrontEditorScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { getToken } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<TabType>("branding");
+  const [section, setSection] = useState<SectionKey>("hub");
+  const [showDoneSteps, setShowDoneSteps] = useState(false);
+  const [payoutLinkBusy, setPayoutLinkBusy] = useState(false);
+  const [knownForChanged, setKnownForChanged] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -392,6 +438,10 @@ export default function StorefrontEditorScreen() {
   const serviceModalOpenRef = useRef(false);
   const savingRef = useRef(false);
   const didInitialFocusRef = useRef(false);
+  // Unsaved-changes check: a snapshot of each editable page, taken after every
+  // load and every successful save.
+  const [baselineTick, setBaselineTick] = useState(0);
+  const baselineRef = useRef<Partial<Record<EditableSection, string>>>({});
 
   useEffect(() => {
     serviceModalOpenRef.current = serviceModalVisible;
@@ -507,6 +557,10 @@ export default function StorefrontEditorScreen() {
       setProfileAddress(biz.address || "");
       setProfileCity(biz.city || "");
       setProfileState(biz.state || "");
+      // ZIP and Known For were shown but never loaded or saved (found 2026-10-28).
+      setProfileZip((biz as any).zipCode || "");
+      setProfileSpecialties(knownForFrom((biz as any).knownFor));
+      setKnownForChanged(false);
 
       // Parse CTA config
       const rawCta = (biz as any).ctaConfig;
@@ -533,6 +587,8 @@ export default function StorefrontEditorScreen() {
       console.error("Failed to fetch storefront data:", error);
     } finally {
       setLoading(false);
+      // What was just loaded is the "nothing unsaved" point for every page.
+      setBaselineTick((t) => t + 1);
     }
   }, [getToken]);
 
@@ -571,6 +627,172 @@ export default function StorefrontEditorScreen() {
     setRefreshing(false);
   };
 
+  // ── Pages and unsaved changes ──────────────────────────────────────────────
+  // Each editable page is compared with what was last loaded or saved. Only the
+  // values that page saves are compared.
+  const sectionSnapshot = (key: EditableSection): string => {
+    switch (key) {
+      case "branding":
+        return JSON.stringify([
+          coverImage,
+          coverVideo,
+          coverMediaType,
+          logoImage,
+          selectedColorId,
+          ctaButtonType,
+          ctaProductTarget,
+          ctaSpecificProductId,
+        ]);
+      case "profile":
+        return JSON.stringify([
+          profileName,
+          profileTagline,
+          profileDescription,
+          profileEmail,
+          profilePhone,
+          profileWebsite,
+          showResponseTime,
+          showEmail,
+          showPhone,
+          showWebsite,
+          showStoreHours,
+          hasPhysicalLocation,
+          showAddress,
+          defaultServiceLocationType,
+          responseTimeValue,
+          responseTimeUnit,
+          profileAddress,
+          profileCity,
+          profileState,
+          profileZip,
+          profileSpecialties,
+          industryDirty,
+          industry,
+        ]);
+      case "hours":
+        return JSON.stringify(hours);
+      case "booking":
+        return JSON.stringify([vendorTermsAndConditions]);
+    }
+  };
+
+  useEffect(() => {
+    const next: Partial<Record<EditableSection, string>> = {};
+    EDITABLE_SECTIONS.forEach((key) => {
+      next[key] = sectionSnapshot(key);
+    });
+    baselineRef.current = next;
+    // Only a load or a save moves the baseline; edits must not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baselineTick]);
+
+  // Product and service forms: snapshot taken when the form opens.
+  const productBaselineRef = useRef("");
+  const productSnapshot = () => JSON.stringify([productForm, priceInput]);
+  useEffect(() => {
+    if (productModalVisible) productBaselineRef.current = productSnapshot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productModalVisible, productModalSession]);
+
+  const serviceBaselineRef = useRef("");
+  const serviceSnapshot = () =>
+    JSON.stringify([
+      serviceForm,
+      depositEnabled,
+      depositInput,
+      durationHoursText,
+      durationMinutesText,
+      serviceImageUrl,
+    ]);
+  useEffect(() => {
+    if (serviceModalVisible) serviceBaselineRef.current = serviceSnapshot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceModalVisible, editingService?.id]);
+
+  const isEditable = (key: SectionKey): key is EditableSection =>
+    (EDITABLE_SECTIONS as SectionKey[]).includes(key);
+
+  // Checked when leaving, not during render: the snapshot is refreshed in an
+  // effect right after a save, and a value computed during that render would
+  // still say "unsaved".
+  const hasUnsavedChanges = () =>
+    isEditable(section) &&
+    baselineRef.current[section] !== undefined &&
+    sectionSnapshot(section) !== baselineRef.current[section];
+
+  // Leave the current page; asks first when it has unsaved edits. Discard
+  // reloads from the server so nothing half edited lingers in other pages.
+  const leaveSection = (then: () => void) => {
+    if (!hasUnsavedChanges()) {
+      then();
+      return;
+    }
+    Alert.alert("Discard changes?", "You have changes on this page that aren't saved yet.", [
+      { text: "Keep editing", style: "cancel" },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          then();
+          fetchData();
+        },
+      },
+    ]);
+  };
+
+  const openSection = (key: SectionKey) => {
+    setShowDoneSteps(false);
+    setSection(key);
+  };
+
+  // Back from a page goes to Manage business, never straight out of the editor:
+  // header arrow, iOS swipe and Android back all land here.
+  usePreventRemove(section !== "hub", ({ data }) => {
+    const type = data.action.type;
+    if (type === "GO_BACK" || type === "POP") {
+      leaveSection(() => setSection("hub"));
+    } else {
+      // Sign out, resets and the like are never blocked.
+      navigation.dispatch(data.action);
+    }
+  });
+
+  const openSubscription = async () => {
+    try {
+      const token = await getToken();
+      const active = Boolean(eligibility?.hasActiveSubscription ?? business?.subscriptionActive);
+      // Same links as the settings menu: first timers buy, subscribers manage.
+      const path = active ? "/subscription/manage" : "/subscription";
+      const url = token
+        ? `https://goutsyde.com${path}?from=app&token=${encodeURIComponent(token)}`
+        : `https://goutsyde.com${path}?from=app`;
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Error", "Could not open subscription page.");
+    }
+  };
+
+  // Same calls the Business Dashboard makes for payouts.
+  const openPayouts = async (connect: boolean) => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      setPayoutLinkBusy(true);
+      const { url } = connect
+        ? await api.startVendorStripeOnboarding(token, STRIPE_RETURN_URL)
+        : await api.getVendorStripeDashboardLink(token);
+      if (url) await Linking.openURL(url);
+    } catch (error: any) {
+      if (!connect && error?.status === 403 && error?.body?.requiresOnboarding) {
+        Alert.alert("Stripe Setup Required", "Please complete your Stripe setup before accessing payouts");
+      } else {
+        Alert.alert("Error", connect ? "Failed to connect Stripe. Please try again." : "Unable to open payout dashboard. Please try again.");
+      }
+    } finally {
+      setPayoutLinkBusy(false);
+    }
+  };
+
   const handleSaveBranding = async () => {
     const token = await getToken();
     if (!token) return;
@@ -606,6 +828,7 @@ export default function StorefrontEditorScreen() {
         logoImage: logoImage || undefined,
         ctaConfig: ctaPayload,
       });
+      setBaselineTick((t) => t + 1);
       Alert.alert("Success", "Branding updated successfully");
     } catch (error: any) {
       console.error("[Storefront] Failed to save branding:", error);
@@ -627,8 +850,8 @@ export default function StorefrontEditorScreen() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "profile" && !taxonomy && !taxonomyError) loadTaxonomy();
-  }, [activeTab, taxonomy, taxonomyError, loadTaxonomy]);
+    if (section === "profile" && !taxonomy && !taxonomyError) loadTaxonomy();
+  }, [section, taxonomy, taxonomyError, loadTaxonomy]);
 
   const changeIndustry = (next: IndustryValue) => {
     setIndustry(next);
@@ -638,6 +861,11 @@ export default function StorefrontEditorScreen() {
   const handleSaveProfile = async () => {
     const token = await getToken();
     if (!token) return;
+
+    if (!profileName.trim()) {
+      Alert.alert("Business name", "Your business needs a name.");
+      return;
+    }
 
     if (industryDirty) {
       const problem = industryProblem(industry, offerTypeOf(business?.hasProducts, business?.hasServices));
@@ -649,27 +877,33 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
+      // Emptied fields now clear (null) instead of silently keeping the old value.
+      // Terms moved to Booking settings and save there.
       const profileData: Record<string, any> = {
-        name: profileName || undefined,
-        tagline: profileTagline || undefined,
-        description: profileDescription || undefined,
-        contactEmail: profileEmail || undefined,
-        contactPhone: profilePhone || undefined,
-        websiteUrl: profileWebsite || undefined,
-        showResponseTime,
-        showEmail,
-        showPhone,
-        showWebsite,
-        showStoreHours,
-        hasPhysicalLocation,
-        showAddress,
-        defaultServiceLocationType,
-        vendorTermsAndConditions: vendorTermsAndConditions || undefined,
-        responseTimeValue,
-        responseTimeUnit,
-        address: profileAddress || undefined,
-        city: profileCity || undefined,
-        state: profileState || undefined,
+        ...profilePayload({
+          name: profileName,
+          tagline: profileTagline,
+          description: profileDescription,
+          contactEmail: profileEmail,
+          contactPhone: profilePhone,
+          websiteUrl: profileWebsite,
+          showResponseTime,
+          showEmail,
+          showPhone,
+          showWebsite,
+          showStoreHours,
+          hasPhysicalLocation,
+          showAddress,
+          defaultServiceLocationType,
+          responseTimeValue,
+          responseTimeUnit,
+          address: profileAddress,
+          city: profileCity,
+          state: profileState,
+          zipCode: profileZip,
+          knownFor: profileSpecialties,
+          knownForChanged,
+        }),
         ...(industryDirty ? industryPayload(industry) : {}),
       };
       console.log("[Storefront] Saving profile:", profileData);
@@ -679,6 +913,26 @@ export default function StorefrontEditorScreen() {
     } catch (error: any) {
       console.error("[Storefront] Failed to save profile:", error);
       Alert.alert("Error", error.message || "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Business terms (one set for the whole business, shown as a checkbox at
+  // booking). Used to be typed in the service form and only saved by Save Profile.
+  const handleSaveTerms = async () => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      setSaving(true);
+      const res = await api.updateVendorMyBusiness(token, termsPayload(vendorTermsAndConditions) as any);
+      const saved = (res?.business as any)?.vendorTermsAndConditions;
+      if (res?.business) setBusiness(res.business);
+      setVendorTermsAndConditions(typeof saved === "string" ? saved : "");
+      setBaselineTick((t) => t + 1);
+      Alert.alert("Saved", vendorTermsAndConditions.trim() ? "Your business terms are saved." : "Your business terms are removed.");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to save your terms");
     } finally {
       setSaving(false);
     }
@@ -743,7 +997,9 @@ export default function StorefrontEditorScreen() {
         JSON.stringify(hoursOfOperation, null, 2),
       );
       try {
-        await api.updateVendorMyBusiness(token, { hoursOfOperation });
+        const syncRes = await api.updateVendorMyBusiness(token, { hoursOfOperation });
+        // Keeps the "Set your hours" step on Manage business in step without a reload.
+        if (syncRes?.business) setBusiness(syncRes.business);
         console.log("[Storefront] hoursOfOperation synced successfully");
       } catch (syncError) {
         console.warn(
@@ -755,6 +1011,7 @@ export default function StorefrontEditorScreen() {
       // Emit availability changed event so other screens can refresh
       availabilityEvents.emit();
 
+      setBaselineTick((t) => t + 1);
       Alert.alert("Success", "Business hours updated successfully");
     } catch (error: any) {
       console.error("[Storefront] Failed to save hours:", error);
@@ -1401,32 +1658,6 @@ export default function StorefrontEditorScreen() {
       fontSize: 12,
       color: theme.brandTextDim,
     },
-    tabContainer: {
-      flexDirection: "row",
-      paddingHorizontal: 8,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.brandSurfaceBorder,
-    },
-    tab: {
-      flex: 1,
-      alignItems: "center",
-      paddingVertical: 8,
-      borderRadius: 8,
-      marginHorizontal: 2,
-    },
-    tabActive: {
-      backgroundColor: theme.brandGold,
-    },
-    tabText: {
-      fontSize: 11,
-      color: theme.brandTextDim,
-      marginTop: 4,
-    },
-    tabTextActive: {
-      color: theme.brandCream,
-      fontWeight: "600",
-    },
     content: {
       flex: 1,
     },
@@ -1829,6 +2060,174 @@ export default function StorefrontEditorScreen() {
     disabledSwitch: {
       opacity: 0.5,
     },
+    // ── Manage business (2026-10-28) ──
+    formSectionTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.brandCream,
+      marginTop: 20,
+      marginBottom: 10,
+    },
+    formSectionHelp: {
+      fontSize: 13,
+      color: theme.brandTextDim,
+      lineHeight: 19,
+      marginTop: -4,
+      marginBottom: 12,
+    },
+    previewButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      minHeight: 48,
+      borderRadius: 12,
+      backgroundColor: theme.brandSurface,
+      borderWidth: 1,
+      borderColor: theme.brandSurfaceBorder,
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    previewButtonText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.brandCream,
+    },
+    noteBox: {
+      flexDirection: "row",
+      gap: 10,
+      alignItems: "flex-start",
+      padding: 12,
+      borderRadius: 10,
+      backgroundColor: theme.brandSurface,
+      marginTop: 8,
+      marginBottom: 16,
+    },
+    noteBoxText: {
+      flex: 1,
+      fontSize: 13,
+      lineHeight: 19,
+      color: theme.brandTextDim,
+    },
+    hubGroupLabel: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: theme.brandTextDim,
+      marginTop: 22,
+      marginBottom: 8,
+      marginHorizontal: 4,
+    },
+    hubCard: {
+      backgroundColor: theme.brandBgElevated,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.brandSurfaceBorder,
+      overflow: "hidden",
+    },
+    hubRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      minHeight: 60,
+    },
+    hubRowDivider: {
+      borderTopWidth: 1,
+      borderTopColor: theme.brandSurfaceBorder,
+    },
+    hubIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: theme.brandPrimary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    hubRowTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.brandCream,
+    },
+    hubRowSub: {
+      fontSize: 13,
+      color: theme.brandTextDim,
+      marginTop: 2,
+    },
+    hubTag: {
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: theme.brandGold + "22",
+    },
+    hubTagText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: theme.brandGoldDim,
+    },
+    setupCard: {
+      backgroundColor: theme.brandPrimary,
+      borderRadius: 16,
+      padding: 16,
+      marginTop: 4,
+    },
+    setupTitleRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "baseline",
+    },
+    setupTitle: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: theme.brandPrimaryText,
+    },
+    setupCount: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: SETUP_GOLD,
+    },
+    setupBar: {
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.brandPrimaryText + "26",
+      marginTop: 12,
+      marginBottom: 6,
+      overflow: "hidden",
+    },
+    setupBarFill: {
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: SETUP_GOLD,
+    },
+    setupStep: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      minHeight: 44,
+    },
+    setupDot: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      borderWidth: 2,
+      borderColor: SETUP_GOLD,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    setupStepText: {
+      flex: 1,
+      fontSize: 15,
+      color: theme.brandPrimaryText,
+    },
+    setupToggle: {
+      minHeight: 44,
+      justifyContent: "center",
+    },
+    setupToggleText: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: SETUP_GOLD,
+    },
   });
 
   if (loading) {
@@ -2211,8 +2610,8 @@ export default function StorefrontEditorScreen() {
                   <Text
                     style={{ fontSize: 13, color: theme.brandTextDim, textAlign: "center" }}
                   >
-                    Add products in the Products tab first, then come back to configure
-                    your Buy Now button.
+                    Add a product under Manage business, Products first, then come back
+                    to set up your Buy Now button.
                   </Text>
                 </View>
               )}
@@ -2404,6 +2803,7 @@ export default function StorefrontEditorScreen() {
                     isSelected && styles.specialtyChipActive,
                   ]}
                   onPress={() => {
+                    setKnownForChanged(true);
                     if (isSelected) {
                       setProfileSpecialties(
                         profileSpecialties.filter((s) => s !== specialty),
@@ -2760,6 +3160,11 @@ export default function StorefrontEditorScreen() {
                 <Text style={styles.productPrice}>
                   {formatPrice(product.priceCents)}
                 </Text>
+                {!product.imageUrl && product.status !== "archived" ? (
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: theme.brandGoldDim, marginBottom: 4 }}>
+                    Needs a photo
+                  </Text>
+                ) : null}
                 <View style={styles.productMeta}>
                   <View
                     style={[
@@ -2795,12 +3200,16 @@ export default function StorefrontEditorScreen() {
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => openProductForm(product)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit ${product.name}`}
                   >
                     <Feather name="edit-2" size={16} color={theme.brandCream} />
                   </Pressable>
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => handleDeleteProduct(product.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${product.name}`}
                   >
                     <Feather name="trash-2" size={16} color={theme.brandError} />
                   </Pressable>
@@ -2836,7 +3245,14 @@ export default function StorefrontEditorScreen() {
                     style={styles.serviceThumb}
                   />
                 ) : null}
-                <Text style={styles.serviceName}>{service.name}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.serviceName}>{service.name}</Text>
+                  {!service.imageUrl && service.status !== "archived" ? (
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: theme.brandGoldDim, marginTop: 2 }}>
+                      Needs a photo
+                    </Text>
+                  ) : null}
+                </View>
                 <View
                   style={[
                     styles.statusBadge,
@@ -2895,12 +3311,16 @@ export default function StorefrontEditorScreen() {
                 <Pressable
                   style={styles.actionButton}
                   onPress={() => openServiceForm(service)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${service.name}`}
                 >
                   <Feather name="edit-2" size={16} color={theme.brandCream} />
                 </Pressable>
                 <Pressable
                   style={styles.actionButton}
                   onPress={() => handleDeleteService(service.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${service.name}`}
                 >
                     <Feather name="trash-2" size={16} color={theme.brandError} />
                   </Pressable>
@@ -2912,11 +3332,49 @@ export default function StorefrontEditorScreen() {
     </ScrollView>
   );
 
+  // Unsaved edits in the product form: fields, photo, or the variations editor.
+  const productHasUnsavedChanges = () =>
+    productSnapshot() !== productBaselineRef.current ||
+    (optionsFallback
+      ? localVariants.some((v: LocalVariant) => v.isNew || v.isDirty || v.isDeleted)
+      : optionsEditorRef.current?.getSaveBody() != null);
+
+  const closeProductModal = () => {
+    if (!productHasUnsavedChanges()) {
+      setProductModalVisible(false);
+      return;
+    }
+    Alert.alert("Discard changes?", "Your changes to this product aren't saved yet.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: () => setProductModalVisible(false) },
+    ]);
+  };
+
+  // Opens the real customer product page for the saved product.
+  const previewProduct = () => {
+    const p = editingProduct;
+    if (!p || !business) return;
+    if (productHasUnsavedChanges()) {
+      Alert.alert("Save first", "Save your changes to see them on the customer page.");
+      return;
+    }
+    setProductModalVisible(false);
+    navigation.navigate("ProductDetail", {
+      id: String(p.id),
+      businessId: String(business.id),
+      name: p.name,
+      description: p.description ?? null,
+      priceCents: p.priceCents,
+      imageUrl: p.imageUrl ?? null,
+      inventory: p.inventory ?? null,
+    });
+  };
+
   const renderProductModal = () => (
-    <Modal visible={productModalVisible} animationType="slide" onRequestClose={() => setProductModalVisible(false)}>
+    <Modal visible={productModalVisible} animationType="slide" onRequestClose={closeProductModal}>
       <View style={styles.modal}>
         <View style={styles.modalHeader}>
-          <Pressable onPress={() => setProductModalVisible(false)}>
+          <Pressable onPress={closeProductModal} accessibilityRole="button" accessibilityLabel="Close">
             <Feather name="x" size={24} color={theme.brandCream} />
           </Pressable>
           <Text style={styles.modalTitle}>
@@ -2933,6 +3391,19 @@ export default function StorefrontEditorScreen() {
           </Pressable>
         </View>
         <ScreenKeyboardAwareScrollView style={styles.modalContent} contentContainerStyle={{ paddingTop: 0 }} keyboardShouldPersistTaps="handled">
+          {/* Photo first: it's the first thing customers see. */}
+          <Text style={styles.inputLabel}>Photo</Text>
+          <ImageUploader
+            currentImage={productForm.imageUrl || undefined}
+            onImageSelected={handleProductImageSelected}
+            onRemove={() =>
+              setProductForm((prev) => ({ ...prev, imageUrl: "" }))
+            }
+            aspectRatio="product"
+            placeholder="Upload Product Image"
+          />
+
+          <Text style={[styles.formSectionTitle, { marginTop: 8 }]}>Basics</Text>
           <Text style={styles.inputLabel}>Product Name *</Text>
           <TextInput
             style={styles.input}
@@ -2987,6 +3458,10 @@ export default function StorefrontEditorScreen() {
             keyboardType="number-pad"
           />
 
+          <Text style={styles.formSectionTitle}>How customers customize it</Text>
+          <Text style={styles.formSectionHelp}>
+            Variations are versions of the product, like color, size or pack. Customers pick one of each.
+          </Text>
           {optionsFallback ? (
             <VariantBuilderSection
               productId={editingProduct?.id}
@@ -3012,16 +3487,16 @@ export default function StorefrontEditorScreen() {
             />
           )}
 
-          <Text style={styles.inputLabel}>Product Image</Text>
-          <ImageUploader
-            currentImage={productForm.imageUrl || undefined}
-            onImageSelected={handleProductImageSelected}
-            onRemove={() =>
-              setProductForm((prev) => ({ ...prev, imageUrl: "" }))
-            }
-            aspectRatio="product"
-            placeholder="Upload Product Image"
-          />
+          {editingProduct ? (
+            <Pressable
+              onPress={previewProduct}
+              style={styles.previewButton}
+              accessibilityRole="button"
+            >
+              <Feather name="eye" size={18} color={theme.brandCream} />
+              <Text style={styles.previewButtonText}>See what customers see</Text>
+            </Pressable>
+          ) : null}
 
           {renderPublishGateWarning()}
 
@@ -3203,11 +3678,22 @@ export default function StorefrontEditorScreen() {
     Alert.alert(failed.length ? "Partly done" : "Done", lines.join("\n"));
   };
 
+  const closeServiceModal = () => {
+    if (serviceSnapshot() === serviceBaselineRef.current) {
+      setServiceModalVisible(false);
+      return;
+    }
+    Alert.alert("Discard changes?", "Your changes to this service aren't saved yet.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: () => setServiceModalVisible(false) },
+    ]);
+  };
+
   const renderServiceModal = () => (
-    <Modal visible={serviceModalVisible} animationType="slide" onRequestClose={() => setServiceModalVisible(false)}>
+    <Modal visible={serviceModalVisible} animationType="slide" onRequestClose={closeServiceModal}>
       <View style={styles.modal}>
         <View style={styles.modalHeader}>
-          <Pressable onPress={() => setServiceModalVisible(false)}>
+          <Pressable onPress={closeServiceModal} accessibilityRole="button" accessibilityLabel="Close">
             <Feather name="x" size={24} color={theme.brandCream} />
           </Pressable>
           <Text style={styles.modalTitle}>
@@ -3224,6 +3710,7 @@ export default function StorefrontEditorScreen() {
           </Pressable>
         </View>
         <ScreenKeyboardAwareScrollView style={styles.modalContent} contentContainerStyle={{ paddingTop: 0 }} keyboardShouldPersistTaps="handled">
+          <Text style={[styles.formSectionTitle, { marginTop: 4 }]}>1. Basics</Text>
           <Text style={styles.inputLabel}>Service Name *</Text>
           <TextInput
             style={styles.input}
@@ -3245,6 +3732,19 @@ export default function StorefrontEditorScreen() {
             multiline
           />
 
+          <Text style={styles.inputLabel}>Service Image</Text>
+          <ImageUploader
+            currentImage={serviceImageUrl || undefined}
+            onImageSelected={handleServiceImageSelected}
+            onRemove={() => {
+              setServiceImageUrl(null);
+              setServiceImageTouched(true);
+            }}
+            aspectRatio="product"
+            placeholder="Upload Service Image"
+          />
+
+          <Text style={styles.formSectionTitle}>2. Price and time</Text>
           <Text style={styles.inputLabel}>Price (in dollars)</Text>
           <TextInput
             style={styles.input}
@@ -3264,6 +3764,50 @@ export default function StorefrontEditorScreen() {
             placeholderTextColor={theme.brandTextDim}
             keyboardType="decimal-pad"
           />
+
+          <Text style={styles.inputLabel}>Duration</Text>
+          <View style={styles.row}>
+            <View style={styles.flex1}>
+              <Text style={[styles.inputLabel, { fontWeight: "400" }]}>Hours</Text>
+              <TextInput
+                style={styles.input}
+                value={durationHoursText}
+                onChangeText={(v) =>
+                  changeDuration(v.replace(/\D/g, ""), durationMinutesText)
+                }
+                placeholder="0"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+                accessibilityLabel="Duration hours"
+              />
+            </View>
+            <View style={styles.flex1}>
+              <Text style={[styles.inputLabel, { fontWeight: "400" }]}>Minutes</Text>
+              <TextInput
+                style={styles.input}
+                value={durationMinutesText}
+                onChangeText={(v) =>
+                  changeDuration(durationHoursText, v.replace(/\D/g, ""))
+                }
+                placeholder="0"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+                accessibilityLabel="Duration minutes"
+              />
+            </View>
+          </View>
+          {durationError && (
+            <Text
+              style={{
+                fontSize: 12,
+                color: theme.brandError,
+                marginTop: -6,
+                marginBottom: 12,
+              }}
+            >
+              {durationError}
+            </Text>
+          )}
 
           <View style={styles.switchRow}>
             <View style={{ flex: 1, paddingRight: 12 }}>
@@ -3335,66 +3879,10 @@ export default function StorefrontEditorScreen() {
             </>
           )}
 
-          <Text style={styles.inputLabel}>Duration</Text>
-          <View style={styles.row}>
-            <View style={styles.flex1}>
-              <Text style={[styles.inputLabel, { fontWeight: "400" }]}>Hours</Text>
-              <TextInput
-                style={styles.input}
-                value={durationHoursText}
-                onChangeText={(v) =>
-                  changeDuration(v.replace(/\D/g, ""), durationMinutesText)
-                }
-                placeholder="0"
-                placeholderTextColor={theme.brandTextDim}
-                keyboardType="number-pad"
-                accessibilityLabel="Duration hours"
-              />
-            </View>
-            <View style={styles.flex1}>
-              <Text style={[styles.inputLabel, { fontWeight: "400" }]}>Minutes</Text>
-              <TextInput
-                style={styles.input}
-                value={durationMinutesText}
-                onChangeText={(v) =>
-                  changeDuration(durationHoursText, v.replace(/\D/g, ""))
-                }
-                placeholder="0"
-                placeholderTextColor={theme.brandTextDim}
-                keyboardType="number-pad"
-                accessibilityLabel="Duration minutes"
-              />
-            </View>
-          </View>
-          {durationError && (
-            <Text
-              style={{
-                fontSize: 12,
-                color: theme.brandError,
-                marginTop: -6,
-                marginBottom: 12,
-              }}
-            >
-              {durationError}
-            </Text>
-          )}
-
-          <Text style={styles.inputLabel}>Service Image</Text>
-          <ImageUploader
-            currentImage={serviceImageUrl || undefined}
-            onImageSelected={handleServiceImageSelected}
-            onRemove={() => {
-              setServiceImageUrl(null);
-              setServiceImageTouched(true);
-            }}
-            aspectRatio="product"
-            placeholder="Upload Service Image"
-          />
-
           {/* ── Service Add-ons ── */}
-          <View style={{ marginTop: 16, marginBottom: 4 }}>
+          <View style={{ marginTop: 8, marginBottom: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={styles.inputLabel}>Add-ons</Text>
+              <Text style={[styles.formSectionTitle, { marginTop: 0, marginBottom: 0 }]}>3. Add-ons</Text>
               {editingService?.id ? (
                 serviceAddons.length < 20 ? (
                   <Pressable
@@ -3565,7 +4053,8 @@ export default function StorefrontEditorScreen() {
           </View>
 
           {/* ── Service Location ── */}
-          <Text style={[styles.inputLabel, { marginTop: 8 }]}>Where does this service take place?</Text>
+          <Text style={styles.formSectionTitle}>4. Where it happens</Text>
+          <Text style={[styles.inputLabel, { marginTop: 0 }]}>Where does this service take place?</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 4 }}>
             {(!hasPhysicalLocation ? [['alternate', 'Alternate address'], ['customer', "Customer's location"], ['virtual', 'Virtual']] : [['business', 'At my location'], ['alternate', 'Alternate address'], ['customer', "Customer's location"], ['virtual', 'Virtual']] as const).map(([val, label]) => {
               const selected = serviceForm.serviceLocationType === val;
@@ -3591,7 +4080,7 @@ export default function StorefrontEditorScreen() {
           </View>
           {!hasPhysicalLocation && (
             <Text style={{ fontSize: 12, color: theme.brandTextDim, marginBottom: 8 }}>
-              Add a physical location in your Profile to enable "At my location".
+              Turn on Physical Location in Profile and contact to use "At my location".
             </Text>
           )}
 
@@ -3658,7 +4147,7 @@ export default function StorefrontEditorScreen() {
           )}
 
           {/* ── Cancellation Policy ── */}
-          <Text style={[styles.inputLabel, { marginTop: 8 }]}>Cancellation Policy</Text>
+          <Text style={styles.formSectionTitle}>5. Cancellation policy</Text>
 
           <Text style={{ fontSize: 13, color: theme.brandTextDim, marginBottom: 8 }}>
             Full refund until
@@ -3858,19 +4347,16 @@ export default function StorefrontEditorScreen() {
             </Pressable>
           )}
 
-          {/* ── Business Terms & Conditions ── */}
-          <Text style={[styles.inputLabel, { marginTop: 8 }]}>Business Terms & Conditions</Text>
-          <Text style={{ color: theme.brandTextDim, fontSize: 12, marginBottom: 8, marginTop: -4 }}>
-            Applies to all your services, not just this one. Customers will be asked to acknowledge these terms when booking.
-          </Text>
-          <TextInput
-            style={[styles.input, styles.textArea, { minHeight: 120 }]}
-            value={vendorTermsAndConditions}
-            onChangeText={setVendorTermsAndConditions}
-            placeholder="e.g. cancellation windows, late arrival policy, photo/video release, etc."
-            placeholderTextColor={theme.brandTextDim}
-            multiline
-          />
+          {/* Business terms moved to Manage business → Booking settings (2026-10-28):
+              they belong to the whole business and were never saved from here. */}
+          <View style={styles.noteBox}>
+            <Feather name="file-text" size={16} color={theme.brandTextDim} />
+            <Text style={styles.noteBoxText}>
+              {vendorTermsAndConditions.trim()
+                ? "Your business terms apply to this service. Change them in Booking settings."
+                : "Want customers to agree to your terms when they book? Add them in Booking settings."}
+            </Text>
+          </View>
 
           {renderPublishGateWarning()}
 
@@ -4193,7 +4679,7 @@ export default function StorefrontEditorScreen() {
               })}
             </ScrollView>
             <Text style={{ color: theme.brandTextDim, fontSize: 12, marginBottom: 16 }}>
-              {"It comes from your add-ons, so changes you make in the Add-ons tab reach every service it's on."}
+              {"It comes from your add-ons, so changes you make on the Add-ons page reach every service it's on."}
             </Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Pressable
@@ -4223,18 +4709,369 @@ export default function StorefrontEditorScreen() {
     </Modal>
   );
 
-  const tabs: {
-    key: TabType;
+  // ── Manage business pages ──────────────────────────────────────────────────
+  const offersServices = Boolean(business.hasServices) || services.length > 0;
+  const liveCount = (list: { status: string }[]) => list.filter((i) => i.status === "live").length;
+  const activeProducts = products.filter((p) => p.status !== "archived");
+  const activeServices = services.filter((s) => s.status !== "archived");
+  const productsMissingPhoto = activeProducts.filter((p) => !p.imageUrl).length;
+  const servicesMissingPhoto = activeServices.filter((s) => !s.imageUrl).length;
+  const openDays = hours.filter((h) => h.isAvailable).length;
+  const payoutsReady = eligibility ? !eligibility.requiresOnboarding : Boolean(business.stripeOnboardingComplete);
+  const planActive = eligibility ? !eligibility.requiresSubscription : Boolean(business.subscriptionActive);
+
+  const countText = (list: { status: string }[], noun: string) => {
+    if (list.length === 0) return `No ${noun}s yet`;
+    const live = liveCount(list);
+    const other = list.length - live;
+    return other > 0 ? `${live} live, ${other} not live` : `${live} live`;
+  };
+
+  const policyText = () => {
+    const b = business as any;
+    const full = REFUND_WINDOW_LABELS[b.fullRefundWindow as string];
+    const parts: string[] = [];
+    parts.push(full ? `Full refund up to ${full} before.` : "No full refunds.");
+    if (b.hasPartialRefund && b.partialRefundPercentage != null) {
+      const partial = REFUND_WINDOW_LABELS[b.partialRefundWindow as string];
+      parts.push(
+        partial
+          ? `${b.partialRefundPercentage}% back up to ${partial} before.`
+          : `${b.partialRefundPercentage}% back after that.`,
+      );
+    }
+    if (b.hasCancellationFee && b.cancellationFeeAmount != null) {
+      parts.push(
+        b.cancellationFeeType === "flat"
+          ? `Cancellation fee ${formatPrice(b.cancellationFeeAmount)}.`
+          : `Cancellation fee ${b.cancellationFeeAmount}%.`,
+      );
+    }
+    return parts.join(" ");
+  };
+
+  const goToTarget = (target: SetupTarget) => openSection(target);
+
+  const renderHubRow = (opts: {
     icon: keyof typeof Feather.glyphMap;
-    label: string;
-  }[] = [
-    { key: "branding", icon: "image", label: "Branding" },
-    { key: "profile", icon: "user", label: "Profile" },
-    { key: "hours", icon: "clock", label: "Hours" },
-    { key: "products", icon: "package", label: "Products" },
-    { key: "services", icon: "briefcase", label: "Services" },
-    { key: "addons", icon: "plus-circle", label: "Add-ons" },
-  ];
+    title: string;
+    sub: string;
+    onPress: () => void;
+    tag?: string | null;
+    first?: boolean;
+  }) => (
+    <Pressable
+      key={opts.title}
+      onPress={opts.onPress}
+      style={({ pressed }) => [styles.hubRow, !opts.first && styles.hubRowDivider, pressed && { opacity: 0.7 }]}
+      accessibilityRole="button"
+      accessibilityLabel={opts.title}
+      accessibilityHint={opts.sub}
+    >
+      <View style={styles.hubIcon}>
+        <Feather name={opts.icon} size={20} color={theme.brandPrimaryText} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.hubRowTitle}>{opts.title}</Text>
+        <Text style={styles.hubRowSub}>{opts.sub}</Text>
+      </View>
+      {opts.tag ? (
+        <View style={styles.hubTag}>
+          <Text style={styles.hubTagText}>{opts.tag}</Text>
+        </View>
+      ) : null}
+      <Feather name="chevron-right" size={18} color={theme.brandTextDim} />
+    </Pressable>
+  );
+
+  const renderSetupCard = () => {
+    const steps = buildSetupSteps({
+      products,
+      services,
+      offersServices,
+      hoursOfOperation: business.hoursOfOperation,
+      vendorTermsAndConditions: (business as any).vendorTermsAndConditions,
+      requiresOnboarding: eligibility ? eligibility.requiresOnboarding : null,
+      requiresSubscription: eligibility ? eligibility.requiresSubscription : null,
+    });
+    const doneSteps = steps.filter((s) => s.done);
+    const todo = steps.filter((s) => !s.done);
+    if (todo.length === 0) return null;
+    return (
+      <View style={styles.setupCard}>
+        <View style={styles.setupTitleRow}>
+          <Text style={styles.setupTitle}>Finish setting up</Text>
+          <Text style={styles.setupCount}>
+            {doneSteps.length} of {steps.length} done
+          </Text>
+        </View>
+        <View style={styles.setupBar}>
+          <View style={[styles.setupBarFill, { width: `${Math.round((doneSteps.length / steps.length) * 100)}%` }]} />
+        </View>
+        {todo.map((step) => (
+          <Pressable
+            key={step.key}
+            onPress={() => goToTarget(step.target)}
+            style={({ pressed }) => [styles.setupStep, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+          >
+            <View style={styles.setupDot} />
+            <Text style={styles.setupStepText}>{step.label}</Text>
+            <Feather name="chevron-right" size={18} color={theme.brandPrimaryText} />
+          </Pressable>
+        ))}
+        {doneSteps.length > 0 ? (
+          <Pressable
+            onPress={() => setShowDoneSteps((v) => !v)}
+            style={styles.setupToggle}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showDoneSteps }}
+          >
+            <Text style={styles.setupToggleText}>
+              {showDoneSteps ? "Hide finished steps" : `Show ${doneSteps.length} finished`}
+            </Text>
+          </Pressable>
+        ) : null}
+        {showDoneSteps
+          ? doneSteps.map((step) => (
+              <View key={step.key} style={styles.setupStep}>
+                <View style={[styles.setupDot, { backgroundColor: SETUP_GOLD }]}>
+                  <Feather name="check" size={14} color={theme.brandPrimary} />
+                </View>
+                <Text style={[styles.setupStepText, { opacity: 0.75 }]}>{step.label}</Text>
+              </View>
+            ))
+          : null}
+      </View>
+    );
+  };
+
+  const renderHub = () => (
+    <ScrollView
+      style={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.brandGold} />}
+    >
+      {renderApprovalBanner()}
+      <View style={[styles.section, { paddingTop: 4 }]}>
+        {renderSetupCard()}
+
+        <Text style={styles.hubGroupLabel}>What you sell</Text>
+        <View style={styles.hubCard}>
+          {renderHubRow({
+            first: true,
+            icon: "package",
+            title: "Products",
+            sub: countText(activeProducts, "product"),
+            tag: productsMissingPhoto ? `${productsMissingPhoto} ${productsMissingPhoto === 1 ? "needs" : "need"} a photo` : null,
+            onPress: () => openSection("products"),
+          })}
+          {renderHubRow({
+            icon: "calendar",
+            title: "Services",
+            sub: activeServices.length ? countText(activeServices, "service") : "Things customers book a time for",
+            tag: servicesMissingPhoto ? `${servicesMissingPhoto} ${servicesMissingPhoto === 1 ? "needs" : "need"} a photo` : null,
+            onPress: () => openSection("services"),
+          })}
+          {renderHubRow({
+            icon: "plus-circle",
+            title: "Add-ons",
+            sub: "Extras customers can add to a service",
+            onPress: () => openSection("addons"),
+          })}
+        </View>
+
+        <Text style={styles.hubGroupLabel}>Your storefront</Text>
+        <View style={styles.hubCard}>
+          {renderHubRow({
+            first: true,
+            icon: "image",
+            title: "Look and branding",
+            sub: "Logo, cover, color, main button",
+            onPress: () => openSection("branding"),
+          })}
+          {renderHubRow({
+            icon: "user",
+            title: "Profile and contact",
+            sub: "Name, about, contact, location",
+            onPress: () => openSection("profile"),
+          })}
+        </View>
+
+        <Text style={styles.hubGroupLabel}>Bookings and money</Text>
+        <View style={styles.hubCard}>
+          {renderHubRow({
+            first: true,
+            icon: "clock",
+            title: offersServices ? "Booking settings" : "Hours",
+            sub: offersServices ? "Hours, cancellation policy, business terms" : "When your business is open",
+            onPress: () => openSection(offersServices ? "booking" : "hours"),
+          })}
+          {renderHubRow({
+            icon: "credit-card",
+            title: "Payouts and plan",
+            sub: payoutsReady ? "Payouts are on" : "Connect payouts to get paid",
+            tag: payoutsReady ? null : "Set up",
+            onPress: () => openSection("payouts"),
+          })}
+        </View>
+      </View>
+    </ScrollView>
+  );
+
+  const renderBookingTab = () => (
+    <ScreenKeyboardAwareScrollView style={styles.content} contentContainerStyle={{ paddingTop: 0 }} showsVerticalScrollIndicator={false}>
+      <View style={styles.section}>
+        <Text style={styles.sectionDesc}>
+          These apply to every service you offer.
+        </Text>
+
+        <Text style={[styles.hubGroupLabel, { marginTop: 0 }]}>When customers can book</Text>
+        <View style={styles.hubCard}>
+          {renderHubRow({
+            first: true,
+            icon: "clock",
+            title: "Hours",
+            sub: !hasHours(business.hoursOfOperation)
+              ? "Not set yet"
+              : openDays === 0
+                ? "No open days set"
+                : `Open ${openDays} day${openDays === 1 ? "" : "s"} a week`,
+            tag: hasHours(business.hoursOfOperation) ? null : "Set up",
+            onPress: () => openSection("hours"),
+          })}
+          {allowPastClosing !== null ? (
+            <View style={[styles.hubRow, styles.hubRowDivider]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hubRowTitle}>Run past closing</Text>
+                <Text style={styles.hubRowSub}>Let a booking that starts before closing end after it</Text>
+              </View>
+              <Switch
+                value={allowPastClosing}
+                onValueChange={handleTogglePastClosing}
+                disabled={savingPastClosing}
+                trackColor={{ true: theme.brandGold }}
+                accessibilityLabel="Run past closing"
+              />
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={styles.hubGroupLabel}>Cancellation policy</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Your default</Text>
+          <Text style={[styles.cardDesc, { color: theme.brandCream }]}>{policyText()}</Text>
+          <Text style={styles.cardDesc}>
+            New services start with this. Each service can have its own policy: open a service to change
+            it, then tap Apply to all services to use it everywhere.
+          </Text>
+          <Pressable
+            onPress={() => openSection("services")}
+            style={styles.previewButton}
+            accessibilityRole="button"
+          >
+            <Text style={styles.previewButtonText}>Go to services</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.hubGroupLabel}>Business terms</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardDesc}>
+            One set of terms for your whole business. Customers tick a box to agree to them when they book.
+            Leave it empty if you don't want the box.
+          </Text>
+          <TextInput
+            style={[styles.input, styles.textArea, { minHeight: 140 }]}
+            value={vendorTermsAndConditions}
+            onChangeText={setVendorTermsAndConditions}
+            placeholder="For example: late arrival policy, photo release, what to bring"
+            placeholderTextColor={theme.brandTextDim}
+            multiline
+            accessibilityLabel="Business terms"
+          />
+          <Pressable
+            style={[styles.saveButton, saving && { opacity: 0.6 }]}
+            onPress={handleSaveTerms}
+            disabled={saving}
+            accessibilityRole="button"
+          >
+            {saving ? (
+              <ActivityIndicator color={theme.brandPrimaryText} />
+            ) : (
+              <Text style={styles.saveButtonText}>Save terms</Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </ScreenKeyboardAwareScrollView>
+  );
+
+  const renderPayoutsTab = () => (
+    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.section}>
+        <View style={[styles.setupCard, { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 0 }]}>
+          <View
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 6,
+              backgroundColor: payoutsReady ? theme.brandSuccess : SETUP_GOLD,
+            }}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.setupTitle}>{payoutsReady ? "Payouts are on" : "Payouts aren't set up yet"}</Text>
+            <Text style={[styles.setupStepText, { fontSize: 14, marginTop: 2 }]}>
+              {payoutsReady ? "Your bank account is connected" : "Connect a bank account to get paid"}
+            </Text>
+          </View>
+          {payoutLinkBusy ? <ActivityIndicator color={theme.brandPrimaryText} /> : null}
+        </View>
+
+        <Text style={styles.hubGroupLabel}>Getting paid</Text>
+        <View style={styles.hubCard}>
+          {payoutsReady
+            ? renderHubRow({
+                first: true,
+                icon: "dollar-sign",
+                title: "Balance and payouts",
+                sub: "Earnings, payout history and bank account",
+                onPress: () => openPayouts(false),
+              })
+            : renderHubRow({
+                first: true,
+                icon: "link",
+                title: "Connect payouts",
+                sub: "Set up Stripe so you get paid",
+                tag: "Set up",
+                onPress: () => openPayouts(true),
+              })}
+          {renderHubRow({
+            icon: "map-pin",
+            title: "Billing address",
+            sub: "Used to verify your payouts",
+            onPress: () => navigation.navigate("BusinessBillingAddress"),
+          })}
+        </View>
+
+        <Text style={styles.hubGroupLabel}>Your plan</Text>
+        <View style={styles.hubCard}>
+          {renderHubRow({
+            first: true,
+            icon: "award",
+            title: planActive ? "Manage subscription" : "Choose a plan",
+            sub: planActive ? "Change plan, update billing, or cancel" : "Pick the plan that fits your business",
+            onPress: openSubscription,
+          })}
+          {renderHubRow({
+            icon: "star",
+            title: "Credits",
+            sub: "Production shoot credits",
+            onPress: () => navigation.navigate("DashboardCreditsScreen"),
+          })}
+        </View>
+      </View>
+    </ScrollView>
+  );
 
   const getApprovalBannerConfig = () => {
     switch (approvalStatus) {
@@ -4375,50 +5212,37 @@ export default function StorefrontEditorScreen() {
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() =>
+            section === "hub"
+              ? navigation.goBack()
+              : leaveSection(() => setSection("hub"))
+          }
+          accessibilityRole="button"
+          accessibilityLabel={section === "hub" ? "Back" : "Back to Manage business"}
         >
           <Feather name="arrow-left" size={24} color={theme.brandCream} />
         </Pressable>
-        <Text style={styles.headerTitle}>Customize Storefront</Text>
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>
-            {business.category || "Business"}
-          </Text>
-        </View>
-      </View>
-
-      {renderApprovalBanner()}
-
-      <View style={styles.tabContainer}>
-        {tabs.map((tab) => (
-          <Pressable
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-          >
-            <Feather
-              name={tab.icon}
-              size={18}
-              color={activeTab === tab.key ? theme.brandCream : theme.brandTextDim}
-            />
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab.key && styles.tabTextActive,
-              ]}
-            >
-              {tab.label}
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {SECTION_TITLES[section]}
+        </Text>
+        {section === "hub" ? (
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryText}>
+              {business.category || "Business"}
             </Text>
-          </Pressable>
-        ))}
+          </View>
+        ) : null}
       </View>
 
-      {activeTab === "branding" && renderBrandingTab()}
-      {activeTab === "profile" && renderProfileTab()}
-      {activeTab === "hours" && renderHoursTab()}
-      {activeTab === "products" && renderProductsTab()}
-      {activeTab === "services" && renderServicesTab()}
-      {activeTab === "addons" && <AddonLibraryTab services={services} getToken={getToken} />}
+      {section === "hub" && renderHub()}
+      {section === "branding" && renderBrandingTab()}
+      {section === "profile" && renderProfileTab()}
+      {section === "hours" && renderHoursTab()}
+      {section === "booking" && renderBookingTab()}
+      {section === "products" && renderProductsTab()}
+      {section === "services" && renderServicesTab()}
+      {section === "addons" && <AddonLibraryTab services={services} getToken={getToken} />}
+      {section === "payouts" && renderPayoutsTab()}
 
       {renderProductModal()}
       {renderServiceModal()}

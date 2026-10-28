@@ -254,15 +254,16 @@ export function PersonalSettingsMenu({
                   subtitle={
                     user?.approvalStatus === "pending"
                       ? "Approval pending"
-                      : "Manage orders and products"
+                      : "Orders, bookings and money"
                   }
                 />
                 <MenuItem
                   icon="edit-3"
-                  label="Edit Storefront"
+                  label="Manage business"
                   onPress={() => handleNavigate("StorefrontEditor")}
                   color="#34C759"
                   backgroundColor="#34C75910"
+                  subtitle="Products, services and your storefront"
                 />
                 <MenuItem
                   icon="credit-card"

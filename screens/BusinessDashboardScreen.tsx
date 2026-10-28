@@ -780,17 +780,33 @@ export default function BusinessDashboardScreen() {
       </View>
 
       {/* Eligibility banner */}
+      {/* Shown when approved but publishing is still blocked (payouts or plan missing).
+          Was a plain card that did nothing when tapped and said "add your first product";
+          now it says what's missing and opens Manage business (2026-10-28). */}
       {eligibility && !eligibility.canPublishProducts && !eligibility.canPublishServices && !eligibility.requiresApproval && (
-        <View style={styles.stripeCard}>
+        <Pressable
+          style={styles.stripeCard}
+          onPress={() => navigation.navigate("StorefrontEditor")}
+          accessibilityRole="button"
+          accessibilityLabel="Finish setting up"
+        >
           <View style={styles.stripeIcon}>
             <Feather name="alert-circle" size={20} color={DASHBOARD_COLORS.gold} />
           </View>
           <View style={styles.stripeContent}>
-            <Text style={styles.stripeTitle}>Complete Your Setup</Text>
-            <Text style={styles.stripeDescription}>Add your first product or service to go live</Text>
-            <Text style={styles.setupLink}>Get Started →</Text>
+            <Text style={styles.stripeTitle}>Finish setting up</Text>
+            <Text style={styles.stripeDescription}>
+              {eligibility.requiresOnboarding && eligibility.requiresSubscription
+                ? "Connect payouts and choose a plan so customers can buy and book."
+                : eligibility.requiresOnboarding
+                  ? "Connect payouts so customers can buy and book."
+                  : eligibility.requiresSubscription
+                    ? "Choose a plan so customers can buy and book."
+                    : "A few steps are left before you can go live."}
+            </Text>
           </View>
-        </View>
+          <Feather name="chevron-right" size={20} color={DASHBOARD_COLORS.gold} />
+        </Pressable>
       )}
 
       {/* Free plan, payouts not set up: connect Stripe (paid vendors never see this) */}
@@ -869,6 +885,30 @@ export default function BusinessDashboardScreen() {
             <Text style={styles.statLabel}>Rating</Text>
           </View>
         </View>
+      </View>
+
+      {/* Manage business: products, services, add-ons, storefront, booking settings (2026-10-28) */}
+      <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
+        <SectionLabel text="YOUR BUSINESS" />
+        <Pressable
+          style={styles.navCard}
+          onPress={() => navigation.navigate("StorefrontEditor")}
+          accessibilityRole="button"
+          accessibilityLabel="Manage business"
+        >
+          <View style={styles.navCardLeft}>
+            <View style={[styles.navCardIconBg, { backgroundColor: "rgba(201,147,58,0.12)" }]}>
+              <Feather name="edit-3" size={20} color={DASHBOARD_COLORS.gold} />
+            </View>
+            <View style={styles.navCardTextWrap}>
+              <Text style={styles.navCardTitle}>Manage business</Text>
+              <Text style={styles.navCardSubtitle}>Products, services, add-ons and your storefront</Text>
+            </View>
+          </View>
+          <View style={styles.navCardRight}>
+            <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+          </View>
+        </Pressable>
       </View>
 
       {/* Team — multi-staff only */}

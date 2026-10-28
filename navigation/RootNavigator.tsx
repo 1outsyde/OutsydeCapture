@@ -664,7 +664,9 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
-          headerShown: true,
+          // The screen draws its own header with a back arrow (2026-10-28: this
+          // was true, which stacked a second header above it).
+          headerShown: false,
           headerTitle: "Dashboard",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
@@ -828,7 +830,9 @@ export default function RootNavigator() {
         options={{
           presentation: "card",
           animation: "slide_from_right",
-          headerShown: true,
+          // The screen draws its own header with a back arrow (2026-10-28: this
+          // was true, which stacked a second header above it).
+          headerShown: false,
           headerTitle: "Edit Storefront",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
