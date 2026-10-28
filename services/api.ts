@@ -679,6 +679,8 @@ export interface VendorProduct {
   priceCents: number;
   imageUrl?: string | null;
   inventory?: number | null;
+  /** false = no limit (never sells out). */
+  trackInventory?: boolean | null;
   status: ItemStatus;
   stripeProductId?: string | null;
   stripePriceId?: string | null;
@@ -799,7 +801,9 @@ export interface VendorProductInput {
   description?: string;
   priceCents: number;
   imageUrl?: string;
-  inventory?: number;
+  /** null = no stock number (with trackInventory false: no limit). */
+  inventory?: number | null;
+  trackInventory?: boolean;
   status?: ItemStatus;
 }
 

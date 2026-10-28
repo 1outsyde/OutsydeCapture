@@ -45,13 +45,16 @@ export function liveVariants(variants: PickerVariant[]): PickerVariant[] {
   return variants.filter((v) => v.isActive !== false && !!v.option1);
 }
 
-/** Same rule as checkout (cartPricing) and decrementInventory: variation count, else product count, null = no limit. */
+/**
+ * Same rule as checkout (cartPricing effectiveStock) and decrementInventory: the variation's own
+ * count when it tracks one, else the product's stock. productInventory must already be null when
+ * the product doesn't track stock (No limit). null = no limit.
+ */
 export function stockOf(
   v: PickerVariant,
   productInventory: number | null | undefined,
 ): number | null {
-  if (v.trackInventory === false) return null;
-  if (v.inventory !== null && v.inventory !== undefined) return v.inventory;
+  if (v.trackInventory !== false && v.inventory !== null && v.inventory !== undefined) return v.inventory;
   return productInventory ?? null;
 }
 

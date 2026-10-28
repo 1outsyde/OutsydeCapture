@@ -103,6 +103,8 @@ test("variation without its own stock uses the product's stock (same as checkout
   assert.equal(valueState(vs, [null], 0, "Red", 0), "soldout");
   assert.equal(valueState(vs, [null], 0, "Red", 3), "available");
   assert.equal(valueState(vs, [null], 0, "Red", null), "available");
+  // A variation that doesn't track its own count falls back to the product, like checkout:
+  // product sold out (0) → sold out; product No limit (null) → available.
   assert.equal(
     valueState(
       [v("b", "Red", null, 1000, 0, { trackInventory: false })],
@@ -110,6 +112,16 @@ test("variation without its own stock uses the product's stock (same as checkout
       0,
       "Red",
       0,
+    ),
+    "soldout",
+  );
+  assert.equal(
+    valueState(
+      [v("b", "Red", null, 1000, 0, { trackInventory: false })],
+      [null],
+      0,
+      "Red",
+      null,
     ),
     "available",
   );
