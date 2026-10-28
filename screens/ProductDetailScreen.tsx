@@ -151,8 +151,6 @@ export default function ProductDetailScreen() {
 
   const shownImageUrl = (optionMode ? photoFor(variants, picks, activeVariant) : null) ?? imageUrl;
 
-  const effectiveInventory = activeVariant ? variantStock(activeVariant) : inventory;
-  const effectiveHasInventoryCap = effectiveInventory != null && effectiveInventory > 0;
 
   // ── Price: selected variant, else "From $lowest" when prices differ ──────
   const variantPrices = buyableVariants.map((v) => v.priceCents);
@@ -191,8 +189,6 @@ export default function ProductDetailScreen() {
   const selectVariant = (v: ProductVariant) => {
     if (isVariantSoldOut(v)) return;
     setSelectedVariant(v);
-    const stock = variantStock(v);
-    if (stock != null && stock > 0) setQuantity((q) => Math.min(q, stock));
   };
 
   // Product inventory only limits variations when the product tracks it (same as checkout).
@@ -204,9 +200,6 @@ export default function ProductDetailScreen() {
     const base = state === "available" ? picks : picks.map((p, i) => (i === optionIndex ? p : null));
     const next = pick(variants, base, optionIndex, value, productStockForPicker);
     setPicks(next);
-    const v = findVariant(variants, next, options.length) as ProductVariant | null;
-    const stock = v ? variantStock(v) : null;
-    if (stock != null && stock > 0) setQuantity((q) => Math.min(q, stock));
   };
   const firstUnpicked = optionMode ? options.find((_, i) => !picks[i]) : undefined;
   // A price under each chip only helps when prices differ (Dia Lux lengths), not 15 colors at one price.
@@ -215,11 +208,12 @@ export default function ProductDetailScreen() {
     return set.size > 1;
   })();
 
+  // Stock is never shown to customers (Legend 2026-10-28), not even by where the quantity stops:
+  // any quantity can be picked, and checkout says "not enough left" (no count) when it is too many.
+  const MAX_QUANTITY = 99;
   const decrement = () => setQuantity((q) => Math.max(1, q - 1));
-  const increment = () => {
-    setQuantity((q) => (effectiveHasInventoryCap ? Math.min(effectiveInventory!, q + 1) : q + 1));
-  };
-  const atMaxQuantity = effectiveHasInventoryCap && quantity >= effectiveInventory!;
+  const increment = () => setQuantity((q) => Math.min(MAX_QUANTITY, q + 1));
+  const atMaxQuantity = quantity >= MAX_QUANTITY;
 
   // Options must finish loading first, so a product with variants can't be
   // bought at its base price by tapping before the options appear.
@@ -229,7 +223,6 @@ export default function ProductDetailScreen() {
     (!hasVariants || (activeVariant !== null && !isVariantSoldOut(activeVariant)));
   const canAddToCart = variationReady && !addonProblem;
   // Stock counts are not shown to customers (Legend 2026-10-28): only "Out of stock" / "Sold out".
-  // The quantity stepper still stops at what is in stock.
 
   const buyNowLabel = isOutOfStock
     ? "Out of Stock"
