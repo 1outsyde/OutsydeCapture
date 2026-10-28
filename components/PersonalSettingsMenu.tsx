@@ -400,9 +400,10 @@ export function PersonalSettingsMenu({
                 }}
               />
 
+              {/* One Saved place: posts, businesses, photographers and products (Favorites merged in). */}
               <MenuItem
                 icon="bookmark"
-                label="Saved Items"
+                label="Saved"
                 onPress={() => {
                   if (onOpenSaved) {
                     onClose();
@@ -411,12 +412,6 @@ export function PersonalSettingsMenu({
                     handleNavigate("Favorites");
                   }
                 }}
-              />
-
-              <MenuItem
-                icon="heart"
-                label="Favorites"
-                onPress={() => handleNavigate("Favorites")}
               />
 
               <MenuItem

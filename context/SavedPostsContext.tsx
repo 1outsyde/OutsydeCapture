@@ -11,7 +11,8 @@ import { useFavorites, FavoriteItem } from "./FavoritesContext";
  *   single source the bookmark icons read (`isSaved`).
  * - `toggleSave` updates the icon right away, then calls the backend; on failure it reverts.
  *   A second tap while the first request is still running is ignored.
- * - One-time move: before this build, post bookmarks were stored in FavoritesContext
+ * - One-time move: before this build, post bookmarks were stored in the phone-only Favorites list
+ *   (FavoritesContext `legacyFavorites`),
  *   (phone only), filed as type "product" (vendor posts) or "photographer" (all other posts).
  *   Each of those ids is tried against POST /api/feed/:id/save. Saved (200) = it was a post, so it
  *   moves to the account and leaves Favorites. 404 = not a post: "photographer" entries are real
@@ -35,7 +36,11 @@ const SavedPostsContext = createContext<SavedPostsContextType | undefined>(undef
 
 export function SavedPostsProvider({ children }: { children: ReactNode }) {
   const { user, getToken } = useAuth();
-  const { favorites, loadedUserId: favoritesUserId, removeFavorites } = useFavorites();
+  const {
+    legacyFavorites: favorites,
+    legacyLoadedUserId: favoritesUserId,
+    removeLegacyFavorites: removeFavorites,
+  } = useFavorites();
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [savedPosts, setSavedPosts] = useState<ApiPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
