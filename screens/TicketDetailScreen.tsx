@@ -37,6 +37,7 @@ import {
   refundErrorCopy,
   refundShownCents,
   ticketPlaceLine,
+  walletLink,
   type MyTicket,
   type TicketOrder,
 } from "@/utils/ticketCheckoutLogic";
@@ -117,7 +118,8 @@ export default function TicketDetailScreen() {
   // The backend refuses refunds and RSVP cancels once the event starts or someone checks in.
   const changeable = ev ? canChangeOrder(ev, checkedIn, new Date()) : false;
   const directions = ev ? directionsUrl(ev, Platform.OS) : null;
-  const wallet = current?.walletUrl ?? null;
+  // iPhone only (Android can't open a pass, iPad has no Wallet app for passes).
+  const wallet = walletLink(Platform.OS, current, Platform.OS === "ios" && Platform.isPad === true);
 
   const openDirections = () => {
     if (!directions) return;

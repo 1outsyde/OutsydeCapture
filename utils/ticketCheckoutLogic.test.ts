@@ -18,6 +18,7 @@ import {
   calendarEventFor,
   refundErrorCopy,
   cancelErrorCopy,
+  walletLink,
   refundShownCents,
   refundConfirmBody,
   refundDoneBody,
@@ -383,4 +384,17 @@ test("M-5 needsCalendarPermission: only iOS below 17", () => {
   assert.equal(needsCalendarPermission("ios", "17.0"), false);
   assert.equal(needsCalendarPermission("ios", "18.1"), false);
   assert.equal(needsCalendarPermission("android", 34), false);
+});
+
+test("walletLink: Apple Wallet only on iPhone, only a real https or http link", () => {
+  const url = "https://outsyde-backend.onrender.com/api/events/wallet/abc~def.pkpass";
+  assert.equal(walletLink("ios", { walletUrl: url }), url);
+  assert.equal(walletLink("android", { walletUrl: url }), null);
+  assert.equal(walletLink("web", { walletUrl: url }), null);
+  assert.equal(walletLink("ios", { walletUrl: null }), null);
+  assert.equal(walletLink("ios", {}), null);
+  assert.equal(walletLink("ios", null), null);
+  assert.equal(walletLink("ios", { walletUrl: "javascript:alert(1)" }), null);
+  assert.equal(walletLink("ios", { walletUrl: "   " }), null);
+  assert.equal(walletLink("ios", { walletUrl: url }, true), null, "iPad: no Wallet app for passes");
 });
