@@ -440,6 +440,15 @@ export function PersonalSettingsMenu({
                 />
               ) : null}
 
+              {!user?.isGuest ? (
+                <MenuItem
+                  icon="maximize"
+                  label="Door check in"
+                  subtitle="Door team invites and events you can scan"
+                  onPress={() => handleNavigate("DoorEvents")}
+                />
+              ) : null}
+
               {user?.isInfluencer && user?.influencerStatus === "approved" ? (
                 <MenuItem
                   icon="bar-chart-2"

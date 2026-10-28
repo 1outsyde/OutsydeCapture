@@ -1,7 +1,7 @@
 /**
  * Manage one hosted event (Events canvas 33): status, share, stats, ticket types, guests, paid orders with refund,
- * cancel or discard. Same data and rules as goutsyde.com/events/[id]/manage. The door team and the scanner come
- * with the scanner step (p4-scanner).
+ * cancel or discard. Same data and rules as goutsyde.com/events/[id]/manage. Scan tickets and Door team (canvas 37,
+ * p4-scanner) open the scanner and the door team.
  */
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Share, StyleSheet, View } from "react-native";
@@ -18,6 +18,7 @@ import { Centered, ErrorText, GOLD, Hint, HostHeader, OkText, OutlineButton, Pri
 import { EVENT_GREEN } from "@/components/events/eventColors";
 import { GENERIC_ERROR, money } from "@/utils/eventsLogic";
 import { failureCopy, flatError, isHostEvent, isHostTicketType, shareUrl, type HostEvent, type HostTicketType } from "@/utils/host/editorLogic";
+import { isTeamMember, teamCountLabel } from "@/utils/host/doorLogic";
 import {
   CANCEL_CONFIRM_COPY, DRAFT_DISCARD_COPY, UNAVAILABLE, backendMessage, canCancel, canScan, cancelNotice, checkedInCount, earningsHint,
   guestHandle, guestLine, guestName, isDoorGuest, isHostOrder, isSummary, orderLine, payoutCard, refundConfirmCopy, refundableOrders,
@@ -58,6 +59,7 @@ export default function ManageEventScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [discarded, setDiscarded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [teamCount, setTeamCount] = useState(0);
   const seq = useRef(0);
 
   const token = useCallback(async () => {
@@ -70,11 +72,14 @@ export default function ManageEventScreen() {
     const call = async (fn: () => Promise<Record<string, any>>) => {
       try { return { ok: true as const, body: await fn() }; } catch (e) { return { ok: false as const, err: e }; }
     };
-    const [sm, o, g] = await Promise.all([
+    const [sm, o, g, tm] = await Promise.all([
       call(() => api.getEventSummary(eventId, t)),
       call(() => api.getEventOrders(eventId, t)),
       call(() => api.getDoorGuests(eventId, t)),
+      call(() => api.getDoorTeam(eventId, t)),
     ]);
+    // Door team count for the button (canvas 37). Extra: a failure leaves the plain label and no error.
+    setTeamCount(tm.ok ? [tm.body?.standing, tm.body?.event].reduce((n, l) => n + (Array.isArray(l) ? (l as unknown[]).filter(isTeamMember).length : 0), 0) : 0);
     let err: string | null = null;
     const copy = (x: { ok: false; err: unknown }) => { const f = flatError(x.err); return failureCopy(f.status, f.body).message; };
     if (sm.ok && sm.body?.success && isSummary(sm.body)) setSummary(sm.body as Summary);
@@ -282,7 +287,12 @@ export default function ManageEventScreen() {
           </View>
         ) : null}
 
-        {live ? <Hint>Door team and scanning come with the door scanner step.</Hint> : null}
+        {live ? (
+          <View style={s.actions} testID="door-actions">
+            {scannable ? <PrimaryButton label="Scan tickets" onPress={() => navigation.navigate("DoorScanner", { eventId: event.id })} style={{ flex: 1 }} /> : null}
+            <OutlineButton label={teamCountLabel(teamCount)} onPress={() => navigation.navigate("DoorTeam", { eventId: event.id })} style={{ flex: 1, minHeight: 52 }} />
+          </View>
+        ) : null}
 
         {canCancel(event) ? (
           <View style={{ alignItems: "center" }}>

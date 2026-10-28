@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { doorNoticeTarget } from "@/utils/host/doorLogic";
 import {
   View,
   StyleSheet,
@@ -177,6 +178,9 @@ export default function NotificationsScreen() {
         screen: notification.metadata?.screen,
         url: notification.metadata?.url,
       });
+    } else if (doorNoticeTarget(notification as any)) {
+      // Door team invite: the same screen its push opens (canvas 39).
+      navigation.navigate("DoorInvite", { inviteId: doorNoticeTarget(notification as any)!.inviteId });
     } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
       navigation.navigate("AdminDashboard");
     } else if (notification.metadata?.sessionId) {

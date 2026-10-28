@@ -55,6 +55,14 @@ export type RootStackParamList = {
   YourEvents: undefined;
   /** Host: one event's sales, guests, orders and cancel. */
   ManageEvent: { eventId: string };
+  /** Host: one event's door team with invites (p4-scanner, canvas 38). */
+  DoorTeam: { eventId: string };
+  /** A door team invite (canvas 39), from its push, its Activity item or Door check in. */
+  DoorInvite: { inviteId: string };
+  /** Door check in: my invites and the events I can scan (Account menu). */
+  DoorEvents: undefined;
+  /** The door scanner for one event (canvas 14 and 15). */
+  DoorScanner: { eventId: string };
   CartCheckout: undefined;
   CheckoutScreen: {
     mode: "cart" | "buyNow";
