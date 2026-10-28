@@ -17,7 +17,7 @@ export interface MyTicket {
   checkedInAt: string | null;
   ticketTypeName: string;
   qrUrl: string | null;
-  /** Not sent by the backend yet (Apple Wallet passes come later). The button shows only when it exists. */
+  /** Apple Wallet pass link (backend p3-wallet). Null until Wallet is configured; older backends don't send it. */
   walletUrl?: string | null;
   event: {
     id: string;
@@ -438,4 +438,14 @@ export function needsCalendarPermission(os: string, version: string | number): b
   if (os !== "ios") return false;
   const major = parseInt(String(version), 10);
   return Number.isFinite(major) && major < 17;
+}
+
+/**
+ * The Add to Apple Wallet link to show, or null. iPhone only: Android can't open a .pkpass and iPad has no Wallet
+ * app for passes. Only a plain http(s) link is opened.
+ */
+export function walletLink(os: string, t: { walletUrl?: string | null } | null | undefined, isPad = false): string | null {
+  if (os !== "ios" || isPad) return null;
+  const url = t?.walletUrl?.trim();
+  return url && /^https?:\/\//i.test(url) ? url : null;
 }
