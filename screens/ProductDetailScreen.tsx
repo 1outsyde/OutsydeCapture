@@ -22,6 +22,7 @@ import { useCart } from "@/context/CartContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { ProductOption, ProductVariant } from "@/services/api";
+import { customerStock } from "@/utils/productStock";
 import {
   findVariant,
   initialPicks,
@@ -30,6 +31,7 @@ import {
   photoFor,
   pick,
   sortedOptions,
+  stockOf,
   swatchFor,
   uniformPriceFor,
   valueState,
@@ -70,8 +72,11 @@ export default function ProductDetailScreen() {
     description,
     priceCents,
     imageUrl,
-    inventory,
+    inventory: inventoryParam,
   } = route.params;
+  // Product stock that limits a purchase (null = no limit). The card's number is used until the
+  // product loads; then the product's own tracking decides (No limit products never sell out).
+  const [inventory, setInventory] = useState<number | null | undefined>(inventoryParam);
 
   const { width: screenWidth } = useWindowDimensions();
 
@@ -100,6 +105,7 @@ export default function ProductDetailScreen() {
         const product = await api.getProductWithVariants(String(id));
         if (!cancelled) {
           const loadedVariants = product.variants ?? [];
+          setInventory(customerStock(product));
           const loadedOptions = sortedOptions(product.options);
           setVariants(loadedVariants);
           // Use the per-option pickers only when the variations are built from options.
@@ -132,10 +138,8 @@ export default function ProductDetailScreen() {
   // ── Stock ────────────────────────────────────────────────────────────────
   // A variant with its own stock count uses it; a variant without one falls
   // back to the product's count (same rule as the backend's decrementInventory).
-  const variantStock = (v: ProductVariant): number | null | undefined => {
-    if (v.trackInventory === false) return null;
-    return v.inventory !== undefined && v.inventory !== null ? v.inventory : inventory;
-  };
+  const variantStock = (v: ProductVariant): number | null | undefined =>
+    stockOf(v, inventory);
   const isVariantSoldOut = (v: ProductVariant): boolean => variantStock(v) === 0;
 
   const optionMode = options.length > 0;
@@ -191,7 +195,7 @@ export default function ProductDetailScreen() {
     setSelectedVariant(v);
   };
 
-  // Product inventory only limits variations when the product tracks it (same as checkout).
+  // Product stock only limits variations when the product tracks it (same as checkout).
   const productStockForPicker = inventory ?? null;
   const pickOption = (optionIndex: number, value: string) => {
     const state = valueState(variants, picks, optionIndex, value, productStockForPicker);

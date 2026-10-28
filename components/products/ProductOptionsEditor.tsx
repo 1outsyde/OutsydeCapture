@@ -320,11 +320,11 @@ const ProductOptionsEditor = forwardRef<ProductOptionsEditorHandle, Props>(
               updateRow(combo, { stockInput: t.replace(/[^0-9]/g, "") })
             }
             placeholder={
-              productInventory !== null ? String(productInventory) : "—"
+              productInventory !== null ? String(productInventory) : "Any"
             }
             placeholderTextColor={theme.brandTextDim}
             keyboardType="number-pad"
-            accessibilityLabel={`Stock for ${combo.join(" / ")}`}
+            accessibilityLabel={`Stock for ${combo.join(" / ")}, blank uses the product stock`}
           />
           <Switch
             value={r.isActive}
@@ -562,6 +562,8 @@ const ProductOptionsEditor = forwardRef<ProductOptionsEditorHandle, Props>(
               : groups.map((g) => {
                   const groupRows = g.combos.map(rowFor);
                   const open = !collapsed[g.value];
+                  // A row with no number of its own and a product with No limit never sells out.
+                  const anyUnlimited = groupRows.some((r) => stockFor(r) === null);
                   const stockTotal = groupRows.reduce(
                     (n, r) => n + (stockFor(r) ?? 0),
                     0,
@@ -595,7 +597,7 @@ const ProductOptionsEditor = forwardRef<ProductOptionsEditorHandle, Props>(
                             {soldOut.length
                               ? `${soldOut.join(", ")} sold out · `
                               : ""}
-                            {stockTotal} in stock
+                            {anyUnlimited ? "No limit" : `${stockTotal} in stock`}
                           </Text>
                         </View>
                         <Feather

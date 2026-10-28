@@ -89,6 +89,7 @@ import {
 } from "@/utils/industry";
 import { knownForFrom, profilePayload, termsPayload } from "@/utils/storefrontProfile";
 import { buildSetupSteps, hasHours, type SetupTarget } from "@/utils/setupChecklist";
+import { customerStock, stockLabel, stockModeOf, stockPayload, type StockMode } from "@/utils/productStock";
 import {
   REFUND_WINDOWS,
   depositInputFrom,
@@ -370,9 +371,11 @@ export default function StorefrontEditorScreen() {
     description: "",
     priceCents: 0,
     imageUrl: "",
-    inventory: 0,
     status: "draft",
   });
+  // Stock is optional (Legend 2026-10-28): No limit, a count, or Sold out. New products: No limit.
+  const [stockMode, setStockMode] = useState<StockMode>("unlimited");
+  const [stockInput, setStockInput] = useState("");
   const [localVariants, setLocalVariants] = useState<LocalVariant[]>([]);
   const [initialVariants, setInitialVariants] = useState<ProductVariant[]>([]);
   // Product options editor (backend #310). If the options route can't be
@@ -708,7 +711,7 @@ export default function StorefrontEditorScreen() {
 
   // Product and service forms: snapshot taken when the form opens.
   const productBaselineRef = useRef("");
-  const productSnapshot = () => JSON.stringify([productForm, priceInput]);
+  const productSnapshot = () => JSON.stringify([productForm, priceInput, stockMode, stockInput]);
   useEffect(() => {
     if (productModalVisible) productBaselineRef.current = productSnapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1130,9 +1133,10 @@ export default function StorefrontEditorScreen() {
         description: product.description || "",
         priceCents: centValue,
         imageUrl: product.imageUrl || "",
-        inventory: product.inventory ?? 0,
         status: product.status,
       });
+      setStockMode(stockModeOf(product));
+      setStockInput(stockModeOf(product) === "count" ? String(product.inventory) : "");
 
       // Add-ons (vendor route, switched-off ones included). Loaded alongside the options.
       // Only the latest opened product's answer is used (a slow answer for another item is ignored).
@@ -1166,9 +1170,10 @@ export default function StorefrontEditorScreen() {
         description: "",
         priceCents: 0,
         imageUrl: "",
-        inventory: 0,
         status: "draft",
       });
+      setStockMode("unlimited");
+      setStockInput("");
     }
     setProductModalVisible(true);
   };
@@ -1219,18 +1224,17 @@ export default function StorefrontEditorScreen() {
     }
     const priceCentsValue = Math.round(parsedDollars * 100);
 
-    const rawInventory = productForm.inventory;
-    const inventoryValue =
-      rawInventory === undefined ||
-      rawInventory === null ||
-      isNaN(Number(rawInventory))
-        ? 0
-        : Math.max(0, Math.floor(Number(rawInventory)));
+    const stock = stockPayload(stockMode, stockInput);
+    if ("error" in stock) {
+      Alert.alert("Stock", stock.error);
+      return;
+    }
 
     const payload: typeof productForm = {
       ...productForm,
       priceCents: priceCentsValue,
-      inventory: inventoryValue,
+      inventory: stock.inventory,
+      trackInventory: stock.trackInventory,
     };
 
     if (payload.status === "live" && !canPublishProducts) {
@@ -3312,11 +3316,7 @@ export default function StorefrontEditorScreen() {
                       {getStatusLabel(product.status)}
                     </Text>
                   </View>
-                  {product.inventory !== null && (
-                    <Text style={styles.serviceDetailText}>
-                      Stock: {product.inventory}
-                    </Text>
-                  )}
+                  <Text style={styles.serviceDetailText}>{stockLabel(product)}</Text>
                 </View>
                 {getStatusExplanation(product.status) && (
                   <Text
@@ -3496,7 +3496,7 @@ export default function StorefrontEditorScreen() {
       description: p.description ?? null,
       priceCents: p.priceCents,
       imageUrl: p.imageUrl ?? null,
-      inventory: p.inventory ?? null,
+      inventory: customerStock(p),
     });
   };
 
@@ -3567,26 +3567,45 @@ export default function StorefrontEditorScreen() {
             keyboardType="decimal-pad"
           />
 
-          <Text style={styles.inputLabel}>Inventory</Text>
-          <TextInput
-            style={styles.input}
-            value={
-              productForm.inventory !== undefined &&
-              productForm.inventory !== null
-                ? String(productForm.inventory)
-                : ""
-            }
-            onChangeText={(v) => {
-              const parsed = parseInt(v, 10);
-              setProductForm((prev) => ({
-                ...prev,
-                inventory: isNaN(parsed) ? 0 : Math.max(0, parsed),
-              }));
-            }}
-            placeholder="0"
-            placeholderTextColor={theme.brandTextDim}
-            keyboardType="number-pad"
-          />
+          <Text style={styles.inputLabel}>Stock</Text>
+          <View style={styles.policyChips}>
+            {([
+              ["unlimited", "No limit"],
+              ["count", "Count it"],
+              ["soldout", "Sold out"],
+            ] as const).map(([mode, label]) => {
+              const on = stockMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  onPress={() => setStockMode(mode)}
+                  style={[styles.policyChip, on && styles.policyChipOn]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on }}
+                >
+                  <Text style={[styles.policyChipText, on && styles.policyChipTextOn]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {stockMode === "count" ? (
+            <TextInput
+              style={styles.input}
+              value={stockInput}
+              onChangeText={(v) => setStockInput(v.replace(/[^0-9]/g, "").slice(0, 7))}
+              placeholder="How many you have"
+              placeholderTextColor={theme.brandTextDim}
+              keyboardType="number-pad"
+              accessibilityLabel="How many you have"
+            />
+          ) : null}
+          <Text style={[styles.formSectionHelp, { marginTop: -8 }]}>
+            {stockMode === "unlimited"
+              ? "It never sells out. Good for things you make to order, like baked goods."
+              : stockMode === "soldout"
+                ? "Customers see Sold out and can't buy it until you change this."
+                : "It sells out when this many are bought. Customers never see the number."}
+          </Text>
 
           <Text style={styles.formSectionTitle}>How customers customize it</Text>
           <Text style={styles.formSectionHelp}>
@@ -3609,9 +3628,14 @@ export default function StorefrontEditorScreen() {
                 return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
               })()}
               productInventory={
-                productForm.inventory === undefined || productForm.inventory === null
+                stockMode === "unlimited"
                   ? null
-                  : Number(productForm.inventory)
+                  : stockMode === "soldout"
+                    ? 0
+                    : (() => {
+                        const n = parseInt(stockInput, 10);
+                        return Number.isFinite(n) ? n : null;
+                      })()
               }
               authToken={productModalToken}
             />

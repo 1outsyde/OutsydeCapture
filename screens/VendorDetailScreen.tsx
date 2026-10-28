@@ -6,6 +6,7 @@
 // TODO: Wire booking modal to existing booking flow screen
 // ─────────────────────────────────────────────────────────────
 
+import { customerStock } from "@/utils/productStock";
 import React, {
   useCallback,
   useEffect,
@@ -553,7 +554,7 @@ export default function VendorDetailScreen({ route }: Props) {
         description: product.description,
         priceCents: product.priceCents,
         imageUrl: product.imageUrl,
-        inventory: product.inventory,
+        inventory: customerStock(product),
       });
     },
     [navigation],
@@ -2016,7 +2017,7 @@ export default function VendorDetailScreen({ route }: Props) {
                     description: product.description,
                     priceCents: product.priceCents,
                     imageUrl: product.imageUrl,
-                    inventory: product.inventory,
+                    inventory: customerStock(product),
                   })
                 }
               >
