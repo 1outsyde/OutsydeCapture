@@ -113,6 +113,29 @@ async function finishPhotographerSignupPhoto(
   return null;
 }
 
+/**
+ * Customer signup with a photo (photo ratios 2a, 2026-10-28): the picked photo used to be dropped
+ * (it was a local file path and never uploaded). Upload it as the new user and save it as their
+ * profile photo. Best effort: never fails the signup.
+ */
+async function finishConsumerSignupPhoto(
+  localUri: string,
+  mimeType: string | undefined,
+  accessToken: string | undefined,
+): Promise<string | null> {
+  if (!accessToken) return null;
+  try {
+    const uploaded = await uploadImage(localUri, mimeType || "image/jpeg", "profiles", accessToken);
+    if (uploaded?.url) {
+      await api.updateUserMe(accessToken, { profileImageUrl: uploaded.url });
+      return uploaded.url;
+    }
+  } catch (err) {
+    console.warn("[Signup] Customer photo upload failed (signup still succeeded):", err);
+  }
+  return null;
+}
+
 export interface SignupData {
   // Invite code (customers and businesses, 2026-10-24). Never fails the signup.
   referralCode?: string;
@@ -176,7 +199,7 @@ export interface SignupData {
   specialtyCodes?: string[];
   specialtyOther?: string;
   profileImageUrl?: string;
-  // Photo picked on the device at photographer signup: uploaded right after the account exists
+  // Photo picked on the device at photographer or customer signup: uploaded right after the account exists
   profilePhotoLocalUri?: string;
   profilePhotoMimeType?: string;
   logoImage?: string | null;
@@ -755,6 +778,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         photographerPhotoUrl = await finishPhotographerSignupPhoto(data.profilePhotoLocalUri, data.profilePhotoMimeType, response.accessToken);
       }
 
+      // Photo picked at customer signup: same, saved as their profile photo.
+      let consumerPhotoUrl: string | null = null;
+      if (data.role === "consumer" && data.profilePhotoLocalUri) {
+        consumerPhotoUrl = await finishConsumerSignupPhoto(data.profilePhotoLocalUri, data.profilePhotoMimeType, response.accessToken);
+      }
+
       const backendUser = response.user;
       const newUser: User = {
         id: backendUser.id,
@@ -766,7 +795,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: backendUser.role || data.role,
         approvalStatus: backendUser.approvalStatus || (data.role === "business" ? "pending" : "approved"),
         isProfileComplete: backendUser.isProfileComplete ?? (data.role === "consumer"),
-        avatar: backendUser.avatar || photographerPhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
+        ...(consumerPhotoUrl ? { profileImageUrl: consumerPhotoUrl } : {}),
+        avatar: backendUser.avatar || photographerPhotoUrl || consumerPhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + "+" + data.lastName)}&background=D4A84B&color=fff`,
         city: backendUser.city || data.city,
         state: backendUser.state || data.state,
         locationPublic: (backendUser as any).locationPublic === true,

@@ -16,6 +16,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { uploadImage, uploadVideo } from "@/services/mediaUpload";
+import { CROP_PRESETS, useCropPicker } from "@/components/crop/useCropPicker";
 
 type MediaType = "image" | "video";
 
@@ -51,6 +52,7 @@ export default function MediaUploader({
   const [activeTab, setActiveTab] = useState<MediaType>(currentMediaType || "image");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
+  const crop = useCropPicker();
 
   // Right after upload the value is the Mux upload id (not playable yet); the
   // backend swaps it for the stream URL when Mux finishes processing.
@@ -67,95 +69,52 @@ export default function MediaUploader({
   const getAspectRatioStyle = () => {
     switch (aspectRatio) {
       case "logo":
-        return { width: 120, height: 120, borderRadius: 16 };
+        return { width: 120, height: 120, borderRadius: 60 };
       case "product":
-        return { width: "100%" as const, aspectRatio: 1, borderRadius: 12 };
+        return { width: "100%" as const, aspectRatio: 4 / 5, borderRadius: 12 };
       case "cover":
       default:
         return { width: "100%" as const, aspectRatio: 16 / 9, borderRadius: 12 };
     }
   };
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission Required",
-        "Please allow access to your photo library to upload images."
-      );
-      return;
-    }
+  const cropPreset =
+    aspectRatio === "logo" ? CROP_PRESETS.logo : aspectRatio === "product" ? CROP_PRESETS.product : CROP_PRESETS.cover;
 
+  // Photos: pick or take, crop to this uploader's shape, then upload the cropped JPEG.
+  const pickAndCropImage = async (source: "library" | "camera") => {
     try {
       setUploading(true);
-      setUploadProgress("Selecting image...");
-      
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: aspectRatio === "logo" ? [1, 1] : aspectRatio === "product" ? [1, 1] : [16, 9],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setUploadProgress("Uploading image...");
+      setUploadProgress(source === "camera" ? "Taking photo..." : "Selecting image...");
+      const cropped = await crop.pick(source, cropPreset);
+      if (cropped) {
+        setUploadProgress(source === "camera" ? "Uploading photo..." : "Uploading image...");
         const token = await getToken();
         if (!token) throw new Error("Not authenticated");
-        const mimeType = result.assets[0].mimeType || "image/jpeg";
-        const uploadResult = await uploadImage(result.assets[0].uri, mimeType, folder, token);
+        const uploadResult = await uploadImage(cropped.uri, "image/jpeg", folder, token);
         onMediaUploaded(uploadResult.url, "image");
         setActiveTab("image");
       }
     } catch (error: any) {
       console.error("[MediaUploader] Image upload failed:", error);
-      Alert.alert("Upload Failed", error.message || "Could not upload image. Please try again.");
+      Alert.alert(
+        "Upload Failed",
+        error.message || (source === "camera" ? "Could not take photo. Please try again." : "Could not upload image. Please try again."),
+      );
     } finally {
       setUploading(false);
       setUploadProgress("");
     }
   };
 
+  const pickImage = () => pickAndCropImage("library");
+
   const takePhoto = async () => {
     if (Platform.OS === "web") {
       Alert.alert("Not Available", "Camera is not available on web. Please use the Expo Go app on your device.");
       return;
     }
-
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission Required",
-        "Please allow access to your camera to take photos."
-      );
-      return;
-    }
-
-    try {
-      setUploading(true);
-      setUploadProgress("Taking photo...");
-      
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: aspectRatio === "logo" ? [1, 1] : aspectRatio === "product" ? [1, 1] : [16, 9],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setUploadProgress("Uploading photo...");
-        const token = await getToken();
-        if (!token) throw new Error("Not authenticated");
-        const mimeType = result.assets[0].mimeType || "image/jpeg";
-        const uploadResult = await uploadImage(result.assets[0].uri, mimeType, folder, token);
-        onMediaUploaded(uploadResult.url, "image");
-        setActiveTab("image");
-      }
-    } catch (error: any) {
-      console.error("[MediaUploader] Photo capture failed:", error);
-      Alert.alert("Upload Failed", error.message || "Could not take photo. Please try again.");
-    } finally {
-      setUploading(false);
-      setUploadProgress("");
-    }
+    await pickAndCropImage("camera");
   };
 
   const pickVideo = async () => {
@@ -372,6 +331,7 @@ export default function MediaUploader({
             <Text style={styles.uploadingText}>{uploadProgress}</Text>
           </View>
         </View>
+        {crop.cropper}
       </View>
     );
   }
@@ -473,6 +433,7 @@ export default function MediaUploader({
         </Pressable>
       </View>
       {renderMediaPreview()}
+      {crop.cropper}
     </View>
   );
 }

@@ -30,7 +30,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
+import { CROP_PRESETS, useCropPicker } from "@/components/crop/useCropPicker";
 import { useTheme } from "@/hooks/useTheme";
 import { uploadImage } from "@/services/mediaUpload";
 import type {
@@ -91,6 +91,7 @@ const ProductOptionsEditor = forwardRef<ProductOptionsEditorHandle, Props>(
     const [bulkStock, setBulkStock] = useState("");
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     const [uploadingGroup, setUploadingGroup] = useState<string | null>(null);
+    const crop = useCropPicker();
     const legacyLabels = start.legacyLabels;
 
     const touch = () => setDirty(true);
@@ -203,26 +204,13 @@ const ProductOptionsEditor = forwardRef<ProductOptionsEditorHandle, Props>(
 
     // ── photo per value of the first option ──────────────────────────────────
     const pickGroupPhoto = async (groupValue: string) => {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Please allow access to your photo library to upload images.",
-        );
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-      if (result.canceled || !result.assets[0]) return;
+      // Same 4:5 shape as the main product photo, cropped before upload.
+      const cropped = await crop.pick("library", CROP_PRESETS.product);
+      if (!cropped) return;
       try {
         setUploadingGroup(groupValue);
         const uploaded = await uploadImage(
-          result.assets[0].uri,
+          cropped.uri,
           "image/jpeg",
           "products",
           authToken,
@@ -631,6 +619,7 @@ const ProductOptionsEditor = forwardRef<ProductOptionsEditorHandle, Props>(
               </Text>
             </View>
           )}
+        {crop.cropper}
       </View>
     );
   },

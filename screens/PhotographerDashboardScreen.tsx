@@ -16,7 +16,6 @@ import {
   Switch,
 } from "react-native";
 import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -63,6 +62,7 @@ import { availabilityEvents } from "@/services/availabilityEvents";
 import { VideoView } from "expo-video";
 import { useVideoPlayerRecreate } from "@/hooks/useVideoPlayerRecreate";
 import MediaUploader from "@/components/MediaUploader";
+import { CROP_PRESETS, useCropPicker } from "@/components/crop/useCropPicker";
 import { formatDuration } from "@/utils/duration";
 import {
   bookingStatusLabel,
@@ -195,6 +195,24 @@ export default function PhotographerDashboardScreen() {
     bannerVideo: "" as string,
     bannerMock: "" as string,
   });
+
+  // Profile photo: pick or take, crop to a 1:1 circle, then upload.
+  const profileCrop = useCropPicker();
+  const pickProfilePhoto = async (source: "library" | "camera") => {
+    const cropped = await profileCrop.pick(source, CROP_PRESETS.profile);
+    if (!cropped) return;
+    try {
+      setEditProfile(prev => ({ ...prev, avatar: cropped.uri }));
+      const authToken = await getToken();
+      if (!authToken) throw new Error("Not authenticated");
+      const uploadResult = await uploadImage(cropped.uri, "image/jpeg", "profiles", authToken);
+      setEditProfile(prev => ({ ...prev, avatar: uploadResult.url }));
+    } catch (error) {
+      console.error("[Dashboard] Profile photo upload failed:", error);
+      Alert.alert("Upload Failed", "Could not upload photo. Please try again.");
+      setEditProfile(prev => ({ ...prev, avatar: "" }));
+    }
+  };
   
   const [identityStatus, setIdentityStatus] = useState<{
     canChangeUsername: boolean;
@@ -2244,68 +2262,12 @@ export default function PhotographerDashboardScreen() {
 
             {/* Profile Picture Editor */}
             <View style={[styles.formGroup, { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 24 }]}>
+              {profileCrop.cropper}
               <Pressable
                 onPress={async () => {
                   Alert.alert("Update Profile Photo", "Choose an option", [
-                    {
-                      text: "Take Photo",
-                      onPress: async () => {
-                        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                        if (status !== "granted") {
-                          Alert.alert("Permission Required", "Please allow camera access.");
-                          return;
-                        }
-                        const result = await ImagePicker.launchCameraAsync({
-                          allowsEditing: true,
-                          aspect: [1, 1],
-                          quality: 0.8,
-                        });
-                        if (!result.canceled && result.assets[0]) {
-                          try {
-                            setEditProfile(prev => ({ ...prev, avatar: result.assets[0].uri }));
-                            const authToken = await getToken();
-                            if (!authToken) throw new Error("Not authenticated");
-                            const mimeType = result.assets[0].mimeType || "image/jpeg";
-                            const uploadResult = await uploadImage(result.assets[0].uri, mimeType, "profiles", authToken);
-                            setEditProfile(prev => ({ ...prev, avatar: uploadResult.url }));
-                          } catch (error) {
-                            console.error("[Dashboard] Profile photo upload failed:", error);
-                            Alert.alert("Upload Failed", "Could not upload photo. Please try again.");
-                            setEditProfile(prev => ({ ...prev, avatar: "" }));
-                          }
-                        }
-                      },
-                    },
-                    {
-                      text: "Choose from Library",
-                      onPress: async () => {
-                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                        if (status !== "granted") {
-                          Alert.alert("Permission Required", "Please allow photo library access.");
-                          return;
-                        }
-                        const result = await ImagePicker.launchImageLibraryAsync({
-                          mediaTypes: ['images'],
-                          allowsEditing: true,
-                          aspect: [1, 1],
-                          quality: 0.8,
-                        });
-                        if (!result.canceled && result.assets[0]) {
-                          try {
-                            setEditProfile(prev => ({ ...prev, avatar: result.assets[0].uri }));
-                            const authToken = await getToken();
-                            if (!authToken) throw new Error("Not authenticated");
-                            const mimeType = result.assets[0].mimeType || "image/jpeg";
-                            const uploadResult = await uploadImage(result.assets[0].uri, mimeType, "profiles", authToken);
-                            setEditProfile(prev => ({ ...prev, avatar: uploadResult.url }));
-                          } catch (error) {
-                            console.error("[Dashboard] Profile photo upload failed:", error);
-                            Alert.alert("Upload Failed", "Could not upload photo. Please try again.");
-                            setEditProfile(prev => ({ ...prev, avatar: "" }));
-                          }
-                        }
-                      },
-                    },
+                    { text: "Take Photo", onPress: () => pickProfilePhoto("camera") },
+                    { text: "Choose from Library", onPress: () => pickProfilePhoto("library") },
                     { text: "Cancel", style: "cancel" },
                   ]);
                 }}
