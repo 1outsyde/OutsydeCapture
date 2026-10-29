@@ -41,6 +41,8 @@ export interface User {
   state?: string;
   /** Whether the person shares their city (profile + city search). Backend default false (migration 070). */
   locationPublic?: boolean;
+  /** Own profile color (backend migration 079): { type, hex } wheel color, an older preset, or null = gold. */
+  profileColor?: unknown;
   username?: string;
   gender?: string;
   selectedIndustries?: string[];
@@ -517,6 +519,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               profileImageUrl: backendUser.profilePhotoUrl || backendUser.profileImageUrl || parsed.profileImageUrl,
               coverMediaUrl: backendUser.coverMediaUrl || parsed.coverMediaUrl,
               coverMediaType: backendUser.coverMediaType || parsed.coverMediaType,
+              // A null from the backend means not chosen (gold); missing = older backend, keep saved value.
+              profileColor: "profileColor" in backendUser ? backendUser.profileColor ?? null : parsed.profileColor,
               deletionStatus: backendUser.deletionStatus ?? parsed.deletionStatus,
               scheduledDeletionAt: backendUser.scheduledDeletionAt ?? parsed.scheduledDeletionAt,
               isInfluencer: backendUser.isInfluencer ?? parsed.isInfluencer,
@@ -622,6 +626,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         city: backendUser.city || photographerData?.city,
         state: backendUser.state || photographerData?.state,
         locationPublic: (backendUser as any).locationPublic === true,
+        profileColor: (backendUser as any).profileColor ?? null,
         businessName: backendUser.businessName,
         businessCategory: backendUser.businessCategory,
         businessDescription: backendUser.businessDescription,
@@ -1070,6 +1075,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           state: "state" in backendUser ? backendUser.state ?? undefined : user.state,
           locationPublic:
             typeof backendUser.locationPublic === "boolean" ? backendUser.locationPublic : user.locationPublic,
+          profileColor: "profileColor" in backendUser ? backendUser.profileColor ?? null : user.profileColor,
           bio: backendUser.bio ?? user.bio,
           deletionStatus: backendUser.deletionStatus ?? user.deletionStatus,
           scheduledDeletionAt: backendUser.scheduledDeletionAt ?? user.scheduledDeletionAt,

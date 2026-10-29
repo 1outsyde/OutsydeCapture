@@ -210,3 +210,16 @@ export function readableTextOn(background: string): "#000000" | "#FFFFFF" {
 export function toColorPayload(spec: BrandColorSpec) {
   return spec.type === "custom" ? { type: "custom" as const, hex: spec.hex, v: 2 as const } : { type: spec.type, id: spec.id, v: 2 as const };
 }
+
+/**
+ * Starting color for the color wheel (2026-10-29): a wheel color as stored, a preset's own color
+ * (its dark-mode value, the true shade), or Outsyde gold when nothing is chosen yet.
+ */
+export function specToHex(spec: BrandColorSpec | null | undefined): string {
+  if (spec?.type === "custom" && HEX_RE.test(spec.hex)) return spec.hex.toUpperCase();
+  if (spec?.type === "solid") {
+    const entry = COLOR_VALUES[spec.id as SolidColorId] as SolidEntry | undefined;
+    if (entry && typeof entry.dark === "string") return entry.dark.toUpperCase();
+  }
+  return FALLBACK_DARK;
+}

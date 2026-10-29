@@ -27,13 +27,11 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import {
-  SOLID_COLOR_IDS,
-  COLOR_VALUES,
-  SolidColorId,
   parseBrandColorSpec,
   toColorPayload,
-  BrandColorSpec,
+  specToHex,
 } from "@/constants/colorOptions";
+import ColorWheelPicker from "@/components/ColorWheelPicker";
 import api, {
   VendorBookerBusiness,
   VendorProduct,
@@ -148,8 +146,7 @@ const RESPONSE_TIME_UNITS: Array<{ label: string; value: ResponseTimeUnit }> = [
   { label: "Business Days", value: "business_days" },
 ];
 
-// Swatches are driven by SOLID_COLOR_IDS from constants/colorOptions.ts.
-// Each swatch's display hex is resolved per theme mode via COLOR_VALUES.
+// Brand color comes from the color wheel (components/ColorWheelPicker.tsx, 2026-10-29).
 
 const SPECIALTY_OPTIONS = [
   "Fast Service",
@@ -209,10 +206,10 @@ export default function StorefrontEditorScreen() {
     "image" | "video" | null
   >(null);
   const [logoImage, setLogoImage] = useState("");
-  const [selectedColorId, setSelectedColorId] = useState<string>("sunset_gold");
-  // Color as loaded, to leave a color wheel pick alone unless a swatch is chosen (2026-10-28).
-  const [loadedColorSpec, setLoadedColorSpec] = useState<BrandColorSpec | null>(null);
-  const [loadedColorId, setLoadedColorId] = useState<string>("sunset_gold");
+  // Brand color from the color wheel (2026-10-29, replaces the 16 swatches). Saved only when it
+  // changes, so an untouched preset or wheel color is never rewritten by a branding save.
+  const [selectedHex, setSelectedHex] = useState<string>(specToHex(null));
+  const [loadedHex, setLoadedHex] = useState<string>(specToHex(null));
 
   const [profileName, setProfileName] = useState("");
   const [profileTagline, setProfileTagline] = useState("");
@@ -554,14 +551,9 @@ export default function StorefrontEditorScreen() {
         setCoverMediaType(biz.coverImage ? "image" : null);
       }
       setLogoImage(biz.logoImage || "");
-      const parsedBrandColors = parseBrandColorSpec(biz.brandColors);
-      const loadedId =
-        parsedBrandColors?.type === "solid" && parsedBrandColors.id
-          ? parsedBrandColors.id
-          : "sunset_gold";
-      setSelectedColorId(loadedId);
-      setLoadedColorId(loadedId);
-      setLoadedColorSpec(parsedBrandColors);
+      const startHex = specToHex(parseBrandColorSpec(biz.brandColors));
+      setSelectedHex(startHex);
+      setLoadedHex(startHex);
 
       setProfileName(biz.name || "");
       setProfileTagline(biz.tagline || "");
@@ -668,7 +660,7 @@ export default function StorefrontEditorScreen() {
           coverVideo,
           coverMediaType,
           logoImage,
-          selectedColorId,
+          selectedHex,
           ctaButtonType,
           ctaProductTarget,
           ctaSpecificProductId,
@@ -829,12 +821,11 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      // A color wheel pick that no swatch replaced is not sent, so it is never overwritten.
-      const keepWheelColor =
-        loadedColorSpec?.type === "custom" && selectedColorId === loadedColorId;
-      const brandColorsPayload = keepWheelColor
-        ? undefined
-        : toColorPayload({ type: "solid", id: selectedColorId });
+      // Only a changed color is sent, so an untouched preset or wheel color is never rewritten.
+      const colorChanged = selectedHex !== loadedHex;
+      const brandColorsPayload = colorChanged
+        ? toColorPayload({ type: "custom", hex: selectedHex })
+        : undefined;
       const finalCoverImage =
         coverMediaType === "video" ? coverVideo : coverImage;
       const finalCoverMediaType =
@@ -863,11 +854,7 @@ export default function StorefrontEditorScreen() {
         logoImage: logoImage || undefined,
         ctaConfig: ctaPayload,
       });
-      if (!keepWheelColor) {
-        // A swatch replaced the stored color: from now on it is the loaded color.
-        setLoadedColorSpec({ type: "solid", id: selectedColorId });
-        setLoadedColorId(selectedColorId);
-      }
+      if (colorChanged) setLoadedHex(selectedHex);
       setBaselineTick((t) => t + 1);
       Alert.alert("Success", "Branding updated successfully");
     } catch (error: any) {
@@ -1911,28 +1898,6 @@ export default function StorefrontEditorScreen() {
       color: theme.brandCream,
       fontWeight: "800",
     },
-    colorGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 16,
-    },
-    colorPreset: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      borderWidth: 3,
-      borderColor: "transparent",
-    },
-    colorPresetSelected: {
-      borderColor: theme.brandCream,
-      transform: [{ scale: 1.1 }],
-    },
-    colorPreview: {
-      height: 8,
-      borderRadius: 4,
-      marginTop: 8,
-    },
     specialtyGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -2466,37 +2431,10 @@ export default function StorefrontEditorScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Brand Color</Text>
-          <Text style={styles.cardDesc}>
-            Choose a color that represents your brand
-          </Text>
-          <View style={styles.colorGrid}>
-            {SOLID_COLOR_IDS.map((id) => {
-              const hex = (COLOR_VALUES[id as SolidColorId] as { dark: string; light: string })[
-                isDark ? "dark" : "light"
-              ];
-              return (
-                <Pressable
-                  key={id}
-                  style={[
-                    styles.colorPreset,
-                    { backgroundColor: hex },
-                    selectedColorId === id && styles.colorPresetSelected,
-                  ]}
-                  onPress={() => setSelectedColorId(id)}
-                />
-              );
-            })}
-          </View>
-          <Text style={styles.inputLabel}>Preview</Text>
-          <View
-            style={[
-              styles.colorPreview,
-              {
-                backgroundColor: (COLOR_VALUES[selectedColorId as SolidColorId] as { dark: string; light: string } | undefined)?.[
-                  isDark ? "dark" : "light"
-                ] ?? (isDark ? "#E8B930" : "#B38600"),
-              },
-            ]}
+          <ColorWheelPicker
+            value={selectedHex}
+            onChange={setSelectedHex}
+            hint="Choose any color that represents your brand"
           />
         </View>
 

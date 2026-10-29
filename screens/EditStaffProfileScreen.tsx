@@ -21,7 +21,8 @@ import ImageUploader from "@/components/ImageUploader";
 import MediaUploader from "@/components/MediaUploader";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import apiClient from "@/services/api";
-import { resolveBrandColor, parseBrandColorSpec } from "@/constants/colorOptions";
+import { resolveBrandColor, parseBrandColorSpec, specToHex, toColorPayload } from "@/constants/colorOptions";
+import ColorWheelPicker from "@/components/ColorWheelPicker";
 
 const SPECIALTY_OPTIONS = [
   "Nails", "Hair", "Braids", "Locs", "Makeup", "Skincare",
@@ -51,6 +52,11 @@ export default function EditStaffProfileScreen() {
   const [coverVideo, setCoverVideo] = useState("");
   const [coverMediaType, setCoverMediaType] = useState<"image" | "video" | null>(null);
   const [accentColor, setAccentColor] = useState("#E8B930");
+  // Staff's own profile color (backend migration 080). The wheel starts on their color, or on the
+  // business color when they have none; it is saved only when the wheel moves (otherwise they keep
+  // following the business color).
+  const [profileHex, setProfileHex] = useState(specToHex(null));
+  const [loadedProfileHex, setLoadedProfileHex] = useState(specToHex(null));
 
   const fetchData = useCallback(async () => {
     const token = await getToken();
@@ -62,18 +68,21 @@ export default function EditStaffProfileScreen() {
 
       const businessId = staff.businessId || user?.staffBusinessId;
       let resolvedAccent = "#E8B930";
+      let businessSpec = null as ReturnType<typeof parseBrandColorSpec>;
       if (businessId) {
         try {
           const businessRes = await apiClient.getBusiness(businessId);
-          resolvedAccent = resolveBrandColor(
-            parseBrandColorSpec((businessRes as any).brandColors),
-            isDark ? "dark" : "light",
-          );
+          businessSpec = parseBrandColorSpec((businessRes as any).brandColors);
+          resolvedAccent = resolveBrandColor(businessSpec, isDark ? "dark" : "light");
         } catch {
           // keep default
         }
       }
       setAccentColor(resolvedAccent);
+      const ownSpec = parseBrandColorSpec((staff as any).profileColor);
+      const startHex = specToHex(ownSpec ?? businessSpec);
+      setProfileHex(startHex);
+      setLoadedProfileHex(startHex);
 
       setDisplayName(staff.displayName || "");
       setUsername((staff as any).username || "");
@@ -148,7 +157,12 @@ export default function EditStaffProfileScreen() {
         profileImageUrl: profileImageUrl || undefined,
         coverImage: finalCoverImage || undefined,
         coverMediaType: coverMediaType || undefined,
+        // Sent only when the wheel moved.
+        ...(profileHex !== loadedProfileHex
+          ? { profileColor: toColorPayload({ type: "custom", hex: profileHex }) }
+          : {}),
       });
+      setLoadedProfileHex(profileHex);
       Alert.alert("Success", "Profile updated", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
@@ -344,6 +358,16 @@ export default function EditStaffProfileScreen() {
                 setCoverVideo("");
                 setCoverMediaType(null);
               }}
+            />
+          </View>
+
+          {/* Profile color — color wheel */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Profile Color</Text>
+            <ColorWheelPicker
+              value={profileHex}
+              onChange={setProfileHex}
+              hint="Choose any color for your profile. Until you pick one, it matches your business."
             />
           </View>
 

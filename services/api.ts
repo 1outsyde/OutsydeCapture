@@ -3047,6 +3047,8 @@ class ApiService {
     state?: string;
     /** Share my city on my profile and in city search (backend migration 070). */
     locationPublic?: boolean;
+    /** Profile color (backend migration 079): wheel color with v:2, or null = gold. */
+    profileColor?: { type: "custom"; hex: string; v: 2 } | { type: "solid" | "gradient"; id: string; v: 2 } | null;
     firstName?: string | null;
     lastName?: string | null;
     phone?: string | null;

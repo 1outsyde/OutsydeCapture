@@ -24,6 +24,8 @@ import api from "@/services/api";
 import ImageUploader from "@/components/ImageUploader";
 import MediaUploader from "@/components/MediaUploader";
 import { uploadImage } from "@/services/mediaUpload";
+import ColorWheelPicker from "@/components/ColorWheelPicker";
+import { parseBrandColorSpec, specToHex, toColorPayload } from "@/constants/colorOptions";
 
 type NavigationProp = NativeStackNavigationProp<AccountStackParamList>;
 
@@ -53,6 +55,8 @@ export default function ConsumerEditProfileScreen() {
   const origCity = user?.city ?? "";
   const origState = user?.state ?? "";
   const origLocationPublic = user?.locationPublic === true;
+  // Profile color (backend migration 079): the wheel starts on the saved color, or gold.
+  const origProfileHex = specToHex(parseBrandColorSpec(user?.profileColor));
 
   // ─── Local editable state seeded from current user ───────────────────────
   const [profileImageUrl, setProfileImageUrl] = useState<string>(origProfileImageUrl);
@@ -67,6 +71,7 @@ export default function ConsumerEditProfileScreen() {
   const [city, setCity] = useState<string>(origCity);
   const [stateName, setStateName] = useState<string>(origState);
   const [locationPublic, setLocationPublic] = useState<boolean>(origLocationPublic);
+  const [profileHex, setProfileHex] = useState<string>(origProfileHex);
 
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -242,6 +247,10 @@ export default function ConsumerEditProfileScreen() {
       }
       mePayload.locationPublic = locationPublic;
     }
+    // Profile color: sent only when the wheel moved, so an untouched color is never rewritten.
+    if (profileHex !== origProfileHex) {
+      mePayload.profileColor = toColorPayload({ type: "custom", hex: profileHex }) as { type: "custom"; hex: string; v: 2 };
+    }
 
     const identityPayload: { username?: string; displayName?: string } = {};
     if (displayNameChanged) identityPayload.displayName = displayName.trim();
@@ -295,6 +304,7 @@ export default function ConsumerEditProfileScreen() {
     city,
     stateName,
     locationPublic,
+    profileHex,
     usernameCheck,
     canChangeUsername,
     canChangeDisplayName,
@@ -550,6 +560,18 @@ export default function ConsumerEditProfileScreen() {
             multiline
             maxLength={200}
             textAlignVertical="top"
+          />
+        </View>
+
+        {/* ── Profile Color (color wheel) ─────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+            PROFILE COLOR
+          </Text>
+          <ColorWheelPicker
+            value={profileHex}
+            onChange={setProfileHex}
+            hint="Choose any color for your profile"
           />
         </View>
 
