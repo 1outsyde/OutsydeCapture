@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { sheetOptions } from "@/utils/paymentSheetOptions";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -200,6 +201,8 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
       paymentIntentClientSecret: res.clientSecret as string,
       merchantDisplayName: "Outsyde",
       allowsDelayedPaymentMethods: false,
+      // Apple Pay on iPhone; saved cards and the Save box when the backend sent a session.
+      ...sheetOptions(res, Platform.OS),
     });
     if (!alive.current) return;
     if (initError) {

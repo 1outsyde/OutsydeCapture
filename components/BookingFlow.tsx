@@ -36,6 +36,7 @@ import api, {
 import { RootStackParamList } from "@/navigation/types";
 import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicker";
 import { formatDuration } from "@/utils/duration";
+import { sheetOptions } from "@/utils/paymentSheetOptions";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DAY_SIZE = (SCREEN_WIDTH - Spacing.md * 2 - Spacing.xs * 6) / 7;
@@ -926,6 +927,8 @@ export default function BookingFlow({
         merchantDisplayName: "Outsyde",
         paymentIntentClientSecret: pd.clientSecret,
         defaultBillingDetails: { name: providerName },
+        // Apple Pay on iPhone; saved cards and the Save box when the backend sent a session.
+        ...sheetOptions(pd, Platform.OS),
       });
       if (initError) {
         if (isHoldExpiredNow() || isPaymentIntentGoneError(initError)) {
