@@ -337,7 +337,15 @@ export interface ApiPost {
   mediaItems?: PostMediaItem[];
   taggedBusinessId?: string;
   taggedPhotographerId?: string;
-  aspectRatio?: number;
+  // Post size (photo ratios 2c): the post row sends these on top, some routes in `media`.
+  aspectRatio?: number | null;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
+  media?: {
+    width?: number | null;
+    height?: number | null;
+    aspectRatio?: number | null;
+  } | null;
   likesCount: number;
   commentsCount: number;
   isActive?: boolean;

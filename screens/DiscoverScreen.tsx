@@ -57,6 +57,7 @@ import type { RatingCheckResponse, RatingTargetType } from "@/types/ratings";
 import { feedEvents } from "@/services/feedEvents";
 import PulseFeedScreenV2 from "@/screens/PulseFeedScreenV2";
 import { resolvePostMedia } from "@/utils/resolvePostMedia";
+import { postAspect } from "@/utils/postAspect";
 import StoryRing from "@/components/StoryRing";
 import StoriesBar from "@/components/StoriesBar";
 import FinishSetupCard from "@/components/FinishSetupCard";
@@ -210,6 +211,7 @@ export default function DiscoverScreen() {
       reviewCount: (apiPost.author as any)?.reviewCount || 0,
       image: media.imageUrl,
       mediaImages: media.images.length > 1 ? media.images : undefined,
+      mediaAspect: postAspect(apiPost),
       videoUrl: media.videoUrl ?? undefined,
       caption: apiPost.content || "",
       likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,

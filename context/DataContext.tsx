@@ -136,6 +136,8 @@ export interface Post {
   image: string;
   // Multi-photo posts: every photo in display order (only set when the post has 2+ photos).
   mediaImages?: string[];
+  /** The post's shape (width / height, 4:5 to 1.91:1) for its card. Absent = 4:5. */
+  mediaAspect?: number;
   videoUrl?: string;
   caption: string;
   likes: number;

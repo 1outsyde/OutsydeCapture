@@ -18,9 +18,9 @@ import { promptForReportReason } from "@/utils/moderationActions";
 import { StarDisplay } from "@/components/ratings";
 import { PostMediaCarousel } from "@/components/PostMediaCarousel";
 import { DoubleTapLike } from "@/components/DoubleTapLike";
+import { DEFAULT_POST_ASPECT, postMediaHeight } from "@/utils/postAspect";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_MEDIA_HEIGHT = SCREEN_WIDTH * 0.85;
 
 interface ProFeedCardProps {
   post: Post;
@@ -40,6 +40,7 @@ interface ProFeedCardProps {
   isVisible?: boolean;
   muted?: boolean;
   onToggleMute?: () => void;
+  /** Fixed photo height. Leave out to size the photo to the post's shape (photo ratios 2c). */
   mediaHeight?: number;
 }
 
@@ -142,8 +143,11 @@ export function ProFeedCard({
   isVisible = true,
   muted = false,
   onToggleMute,
-  mediaHeight = CARD_MEDIA_HEIGHT,
+  mediaHeight: fixedMediaHeight,
 }: ProFeedCardProps) {
+  // Full width, height from the post's shape (4:5 to 1.91:1; 4:5 when unknown).
+  const mediaHeight =
+    fixedMediaHeight ?? postMediaHeight(SCREEN_WIDTH, post.mediaAspect ?? DEFAULT_POST_ASPECT);
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [menuVisible, setMenuVisible] = useState(false);
