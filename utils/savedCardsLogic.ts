@@ -34,3 +34,20 @@ export function applePayOutcome(error: { code?: string } | null | undefined): "p
   if (!error) return "paid";
   return error.code === "Canceled" ? "canceled" : "failed";
 }
+
+/**
+ * The server breakdown to show in the price lines, or null to keep the local preview. A multi shop cart
+ * answers with the total only; showing it as-is printed "$NaN" for the subtotal and fee.
+ */
+export function shownBreakdown<B extends { basePriceCents?: number; consumerUpchargeCents?: number }>(fb: B | null | undefined): B | null {
+  return fb && typeof fb.basePriceCents === "number" && typeof fb.consumerUpchargeCents === "number" ? fb : null;
+}
+
+/** One checkout at a time: a second tap before the first finishes is ignored (state updates arrive late). */
+export function makeOneAtATime(): { start(): boolean; done(): void } {
+  let busy = false;
+  return {
+    start() { if (busy) return false; busy = true; return true; },
+    done() { busy = false; },
+  };
+}

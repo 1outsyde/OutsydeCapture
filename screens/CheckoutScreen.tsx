@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -37,7 +37,7 @@ import {
   type SavedCard,
   type SavedAddress,
 } from "@/services/api";
-import { splitSavedCards, applePayCartItems, chargedCents, applePayOutcome } from "@/utils/savedCardsLogic";
+import { splitSavedCards, applePayCartItems, chargedCents, applePayOutcome, shownBreakdown, makeOneAtATime } from "@/utils/savedCardsLogic";
 
 // Checkout refusals from the server (POST /api/cart/payment-intent) that carry
 // a message written for the customer: sold out, pick an option, no longer
@@ -162,6 +162,8 @@ export default function CheckoutScreen() {
   // ─── Checkout state ───────────────────────────────────────────────────────
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [backendFeeBreakdown, setBackendFeeBreakdown] = useState<FeeBreakdown | null>(null);
+  // Two quick taps must not start two checkouts (each makes an order and a PaymentIntent).
+  const oneAtATime = useRef(makeOneAtATime()).current;
   // "Use my points": codes work on orders from one shop only (backend refuses multi-shop codes).
   const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
   const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
@@ -318,10 +320,11 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
   // ─── Checkout ─────────────────────────────────────────────────────────────
   const handleCheckout = async (method: "card" | "applePay" = "card") => {
     if (method === "card" ? confirmDisabled : applePayDisabled) return;
+    if (!oneAtATime.start()) return;
     setCardError(null);
 
     const token = await getToken();
-    if (!token) { Alert.alert("Checkout failed. Please try again."); return; }
+    if (!token) { oneAtATime.done(); Alert.alert("Checkout failed. Please try again."); return; }
 
     setCheckoutLoading(true);
     try {
@@ -339,7 +342,8 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
       const clientSecret = paymentIntentResponse?.clientSecret;
       const feeBreakdown = paymentIntentResponse?.feeBreakdown ?? null;
-      setBackendFeeBreakdown(feeBreakdown);
+      // Multi shop carts answer with the total only: keep the local preview lines then.
+      setBackendFeeBreakdown(shownBreakdown(feeBreakdown));
       if (!clientSecret) throw new Error("Missing clientSecret");
 
       // Step 2 (Apple Pay) — the sheet shows the charge the server set; the card is not saved.
@@ -478,6 +482,7 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
       }
     } finally {
       setCheckoutLoading(false);
+      oneAtATime.done();
     }
   };
 

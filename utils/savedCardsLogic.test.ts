@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitSavedCards, applePayCartItems, chargedCents, applePayOutcome } from "./savedCardsLogic";
+import { splitSavedCards, applePayCartItems, chargedCents, applePayOutcome, shownBreakdown, makeOneAtATime } from "./savedCardsLogic";
 
 const card = (id: string, isDefault = false) => ({ id, isDefault });
 
@@ -57,4 +57,19 @@ test("Apple Pay result: no error is paid, Canceled is canceled, anything else fa
   assert.equal(applePayOutcome({ code: "Canceled" }), "canceled");
   assert.equal(applePayOutcome({ code: "Failed" }), "failed");
   assert.equal(applePayOutcome({ code: "Unknown" }), "failed");
+});
+
+test("price lines only use a server breakdown that has every line", () => {
+  const full = { basePriceCents: 6000, consumerUpchargeCents: 480, totalChargedToConsumerCents: 6480, outsydePointsEarned: 1200 };
+  assert.equal(shownBreakdown(full), full);
+  assert.equal(shownBreakdown({ totalChargedToConsumerCents: 6480 } as any), null);
+  assert.equal(shownBreakdown(null), null);
+});
+
+test("one checkout at a time: a second tap while one runs is ignored until it finishes", () => {
+  const guard = makeOneAtATime();
+  assert.equal(guard.start(), true);
+  assert.equal(guard.start(), false);
+  guard.done();
+  assert.equal(guard.start(), true);
 });
