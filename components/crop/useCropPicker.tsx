@@ -16,7 +16,12 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import ImageCropper, { type CropResult, type CropShape } from "./ImageCropper";
+import ImageCropper, {
+  type AspectOption,
+  type CropResult,
+  type CropShape,
+} from "./ImageCropper";
+import type { FracRect } from "@/utils/crop/cropMath";
 
 export type CropPreset = { aspect: number; shape: CropShape; title: string };
 
@@ -28,9 +33,17 @@ export const CROP_PRESETS = {
   logo: { aspect: 1, shape: "circle", title: "Logo" },
   profile: { aspect: 1, shape: "circle", title: "Profile photo" },
   square: { aspect: 1, shape: "rect", title: "Crop photo" },
+  post: { aspect: 4 / 5, shape: "rect", title: "Crop post" },
 } as const satisfies Record<string, CropPreset>;
 
 export type CropSource = "library" | "camera";
+
+/** Extra crop screen options (step 2b posts): shape chips and a start position. */
+export type CropOptions = {
+  aspectOptions?: AspectOption[];
+  initialAspectKey?: string;
+  initialFraction?: FracRect | null;
+};
 
 const PICKER_CLOSE_DELAY_MS = 350;
 
@@ -38,6 +51,7 @@ export function useCropPicker() {
   const [state, setState] = useState<{
     uri: string;
     preset: CropPreset;
+    options?: CropOptions;
   } | null>(null);
   const resolver = useRef<((r: CropResult | null) => void) | null>(null);
 
@@ -50,11 +64,15 @@ export function useCropPicker() {
 
   /** Crops a photo the caller already has (for example from its own camera screen). */
   const cropUri = useCallback(
-    (uri: string, preset: CropPreset): Promise<CropResult | null> => {
+    (
+      uri: string,
+      preset: CropPreset,
+      options?: CropOptions,
+    ): Promise<CropResult | null> => {
       resolver.current?.(null);
       return new Promise((resolve) => {
         resolver.current = resolve;
-        setState({ uri, preset });
+        setState({ uri, preset, options });
       });
     },
     [],
@@ -105,6 +123,9 @@ export function useCropPicker() {
       aspect={state?.preset.aspect ?? 1}
       shape={state?.preset.shape ?? "rect"}
       title={state?.preset.title}
+      aspectOptions={state?.options?.aspectOptions}
+      initialAspectKey={state?.options?.initialAspectKey}
+      initialFraction={state?.options?.initialFraction}
       onCancel={() => finish(null)}
       onDone={(r) => finish(r)}
     />

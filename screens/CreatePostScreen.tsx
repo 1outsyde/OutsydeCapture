@@ -32,6 +32,10 @@ import { uploadImage, uploadVideo } from "@/services/mediaUpload";
 import { feedEvents } from "@/services/feedEvents";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import { useCropPicker, type CropPreset } from "@/components/crop/useCropPicker";
+import { POST_ASPECT_OPTIONS, type CropResult } from "@/components/crop/ImageCropper";
+import { cropPhotoToFile } from "@/components/crop/cropFile";
+import { boxSizeFor, cameraFrameFraction, type FracRect } from "@/utils/crop/cropMath";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -54,7 +58,46 @@ const fetchLatestPhotoUri = async (): Promise<string | null> => {
 };
 
 const MAX_POST_PHOTOS = 10;
-type PickedImage = { uri: string; width?: number; height?: number };
+/**
+ * A post photo (photo ratios 2b). `uri` is what's shown: the cropped file once cropped, else the
+ * original (shown centered in the post shape, which is exactly what it will be cut to).
+ */
+type PickedImage = {
+  uri: string;
+  sourceUri: string;
+  cropped: boolean;
+  width?: number;
+  height?: number;
+  fraction?: FracRect;
+};
+/** The post's shape: picked on photo 1 (or the only photo), shared by every photo. */
+type PostShape = { aspect: number; key?: string };
+const DEFAULT_POST_SHAPE: PostShape = { aspect: 4 / 5, key: "4:5" };
+const CAMERA_FRAME_ASPECT = 4 / 5;
+const CAMERA_FRAME_GUTTER = 16;
+const THUMB_HEIGHT = 120;
+const POST_CROP_PRESET: CropPreset = { aspect: 4 / 5, shape: "rect", title: "Crop post" };
+
+// iOS: let the system picker finish closing before the crop screen (a Modal) opens.
+const waitForPickerToClose = () =>
+  Platform.OS === "ios" ? new Promise((r) => setTimeout(r, 350)) : Promise.resolve();
+
+const pickedFromCrop = (sourceUri: string, r: CropResult): PickedImage => ({
+  uri: r.uri,
+  sourceUri,
+  cropped: true,
+  width: r.width,
+  height: r.height,
+  fraction: r.fraction,
+});
+
+const shapeFromCrop = (r: CropResult): PostShape => ({ aspect: r.aspect, key: r.aspectKey });
+
+// The final file for a photo: the crop already made, or one made now (centered, or where moved).
+const finalizePhoto = async (photo: PickedImage, aspect: number) =>
+  photo.cropped && photo.width && photo.height
+    ? { uri: photo.uri, width: photo.width, height: photo.height }
+    : cropPhotoToFile(photo.sourceUri, aspect, photo.fraction);
 
 const isVideoAsset = (asset: ImagePicker.ImagePickerAsset) =>
   asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
@@ -68,6 +111,12 @@ export default function CreatePostScreen() {
   const [postImage, setPostImage] = useState<string>("");
   // Multi-photo posts: 2-10 photos picked from the library (photos only). Empty = single media (postImage).
   const [pickedImages, setPickedImages] = useState<PickedImage[]>([]);
+  // One-photo post (library or camera): the cropped photo; postImage shows it.
+  const [singlePhoto, setSinglePhoto] = useState<PickedImage | null>(null);
+  const [postShape, setPostShape] = useState<PostShape>(DEFAULT_POST_SHAPE);
+  const postCrop = useCropPicker();
+  // Camera preview size, to draw the post frame and map it onto the photo.
+  const [cameraAreaSize, setCameraAreaSize] = useState<{ width: number; height: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [postCaption, setPostCaption] = useState("");
   const [postLayout, setPostLayout] = useState<"pro" | "pulse" | null>(null);
@@ -100,11 +149,17 @@ export default function CreatePostScreen() {
 
   const canAttach = user?.role === "business" || user?.role === "photographer";
 
+  const clearPostPhotos = () => {
+    setPickedImages([]);
+    setSinglePhoto(null);
+    setPostShape(DEFAULT_POST_SHAPE);
+  };
+
   const switchMode = (newMode: "post" | "story") => {
     setMode(newMode);
     setStep(1);
     setPostImage("");
-    setPickedImages([]);
+    clearPostPhotos();
     setPostCaption("");
     setSelectedAttach(null);
   };
@@ -205,8 +260,8 @@ export default function CreatePostScreen() {
       Alert.alert("Permission Required", "Please allow access to your photo library.");
       return;
     }
-    // Multi-select: cropping is not available while selecting several items (expo-image-picker),
-    // so the picker no longer crops; the feed card already crops photos to fill.
+    // Multi-select can't crop in the system picker, so our crop screen runs after the pick
+    // (photo ratios 2b): photo 1 picks the post's shape, the others follow it.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
@@ -217,12 +272,11 @@ export default function CreatePostScreen() {
     if (result.canceled || !result.assets || result.assets.length === 0) return;
 
     const assets = result.assets;
-    if (assets.length === 1) {
-      // Single photo or video: same post as before.
-      const asset = assets[0];
-      setPickedImages([]);
-      setPostImage(asset.uri);
-      setPostLayout(isVideoAsset(asset) ? "pulse" : "pro");
+    if (assets.length === 1 && isVideoAsset(assets[0])) {
+      // Single video: same post as before (Fill/Fit is step 2d).
+      clearPostPhotos();
+      setPostImage(assets[0].uri);
+      setPostLayout("pulse");
       setStep(2);
       return;
     }
@@ -237,23 +291,77 @@ export default function CreatePostScreen() {
     }
     if (photos.length === 0) return;
 
-    setPickedImages(
-      photos.length > 1
-        ? photos.map((a) => ({ uri: a.uri, width: a.width || undefined, height: a.height || undefined }))
-        : [],
-    );
-    setPostImage(photos[0].uri);
+    // Photo 1 (or the only photo) picks the post's shape on the crop screen.
+    await waitForPickerToClose();
+    const first = await postCrop.cropUri(photos[0].uri, POST_CROP_PRESET, {
+      aspectOptions: POST_ASPECT_OPTIONS,
+      initialAspectKey: DEFAULT_POST_SHAPE.key,
+    });
+    if (!first) return; // cancelled: nothing picked
+    const firstPhoto = pickedFromCrop(photos[0].uri, first);
+    setPostShape(shapeFromCrop(first));
+    if (photos.length > 1) {
+      setSinglePhoto(null);
+      setPickedImages([
+        firstPhoto,
+        // The others start centered in that shape; tap one to move it.
+        ...photos.slice(1).map((a) => ({ uri: a.uri, sourceUri: a.uri, cropped: false })),
+      ]);
+    } else {
+      setPickedImages([]);
+      setSinglePhoto(firstPhoto);
+    }
+    setPostImage(firstPhoto.uri);
     setPostLayout("pro");
     setStep(2);
+  };
+
+  // Reposition a photo. The only photo and photo 1 can also change the shape; the rest keep it.
+  const handleRecropPhoto = async (index: number | "single") => {
+    const photo = index === "single" ? singlePhoto : pickedImages[index];
+    if (!photo || postSaving) return;
+    const setsShape = index === "single" || index === 0;
+    const r = await postCrop.cropUri(
+      photo.sourceUri,
+      setsShape ? POST_CROP_PRESET : { ...POST_CROP_PRESET, aspect: postShape.aspect },
+      setsShape
+        ? {
+            aspectOptions: POST_ASPECT_OPTIONS,
+            initialAspectKey: postShape.key,
+            initialFraction: photo.fraction,
+          }
+        : { initialFraction: photo.fraction },
+    );
+    if (!r) return;
+    const next = pickedFromCrop(photo.sourceUri, r);
+    if (index === "single") {
+      setSinglePhoto(next);
+      setPostShape(shapeFromCrop(r));
+      setPostImage(next.uri);
+      return;
+    }
+    const shapeChanged = index === 0 && Math.abs(r.aspect - postShape.aspect) > 1e-6;
+    if (index === 0) setPostShape(shapeFromCrop(r));
+    setPickedImages((prev) =>
+      prev.map((p, i) => {
+        if (i === index) return next;
+        // New shape on photo 1: the others start centered again in it.
+        if (shapeChanged) return { uri: p.sourceUri, sourceUri: p.sourceUri, cropped: false };
+        return p;
+      }),
+    );
+    if (index === 0) setPostImage(next.uri);
   };
 
   const handleRemovePickedImage = (index: number) => {
     const remaining = pickedImages.filter((_, i) => i !== index);
     if (remaining.length <= 1) {
       setPickedImages([]);
+      setSinglePhoto(remaining[0] ?? null);
       setPostImage(remaining[0]?.uri ?? "");
       if (remaining.length === 0) {
         setPostLayout(null);
+        setPostShape(DEFAULT_POST_SHAPE);
         setStep(1);
       }
       return;
@@ -290,13 +398,51 @@ export default function CreatePostScreen() {
       return;
     }
     const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
-    if (photo?.uri) {
-      setPickedImages([]);
+    if (!photo?.uri) return;
+    if (mode === "story") {
+      // Stories are step 2e: unchanged.
+      clearPostPhotos();
       setPostImage(photo.uri);
       setPostLayout("pro");
       setStep(2);
+      return;
     }
+    // Post: open the crop screen lined up with the frame that was on screen.
+    const frame = cameraFrame;
+    const initialFraction =
+      frame && cameraAreaSize && photo.width && photo.height
+        ? cameraFrameFraction({ width: photo.width, height: photo.height }, cameraAreaSize, frame)
+        : null;
+    const r = await postCrop.cropUri(photo.uri, POST_CROP_PRESET, {
+      aspectOptions: POST_ASPECT_OPTIONS,
+      initialAspectKey: DEFAULT_POST_SHAPE.key,
+      initialFraction,
+    });
+    if (!r) return; // cancelled: back to the camera
+    const single = pickedFromCrop(photo.uri, r);
+    setPickedImages([]);
+    setSinglePhoto(single);
+    setPostShape(shapeFromCrop(r));
+    setPostImage(single.uri);
+    setPostLayout("pro");
+    setStep(2);
   };
+
+  // The 4:5 frame drawn on the camera in Post mode, in camera area points.
+  const cameraFrame = (() => {
+    if (!cameraAreaSize) return null;
+    const box = boxSizeFor(
+      CAMERA_FRAME_ASPECT,
+      cameraAreaSize.width - CAMERA_FRAME_GUTTER * 2,
+      cameraAreaSize.height - CAMERA_FRAME_GUTTER * 2,
+    );
+    return {
+      left: (cameraAreaSize.width - box.width) / 2,
+      top: (cameraAreaSize.height - box.height) / 2,
+      width: box.width,
+      height: box.height,
+    };
+  })();
 
   const startRecording = async () => {
     setIsRecording(true);
@@ -311,7 +457,7 @@ export default function CreatePostScreen() {
       return;
     }
     if (mode === "post") {
-      setPickedImages([]);
+      clearPostPhotos();
       setPostImage(result.uri);
       setPostLayout("pulse");
       setStep(2);
@@ -410,6 +556,7 @@ export default function CreatePostScreen() {
         serviceId?: string;
         photographerServiceId?: string;
         mediaItems?: { url: string; type: "image"; width?: number; height?: number; aspectRatio?: number }[];
+        media?: { url: string; type: "image"; width: number; height: number; aspectRatio: number };
       } = {
         content: postCaption.trim() || " ",
         displayLayout: postLayout,
@@ -428,33 +575,44 @@ export default function CreatePostScreen() {
         const queue = pickedImages.map((photo, index) => ({ photo, index }));
         let done = 0;
         setUploadProgress(`Uploading 0 of ${total}`);
+        const finals: { width: number; height: number }[] = new Array(total);
         const worker = async () => {
           while (queue.length > 0) {
             const next = queue.shift()!;
-            const result = await uploadImage(next.photo.uri, "image/jpeg", "posts", authToken);
+            // Every photo is cut to the post's shape before upload (centered unless moved).
+            const file = await finalizePhoto(next.photo, postShape.aspect);
+            const result = await uploadImage(file.uri, "image/jpeg", "posts", authToken);
             if (!result.url) throw new Error("Failed to upload a photo. Please try again.");
             urls[next.index] = result.url;
+            finals[next.index] = { width: file.width, height: file.height };
             done += 1;
             setUploadProgress(`Uploading ${done} of ${total}`);
           }
         };
         await Promise.all([worker(), worker(), worker()]);
         postData.imageUrl = urls[0]; // older backends still create a valid one-photo post
-        postData.mediaItems = pickedImages.map((photo, i) => ({
+        postData.mediaItems = pickedImages.map((_, i) => ({
           url: urls[i],
           type: "image" as const,
-          ...(photo.width && photo.height
-            ? {
-                width: Math.round(photo.width),
-                height: Math.round(photo.height),
-                aspectRatio: photo.width / photo.height,
-              }
-            : {}),
+          width: Math.round(finals[i].width),
+          height: Math.round(finals[i].height),
+          aspectRatio: finals[i].width / finals[i].height,
         }));
       } else {
-        const uploadResult = await uploadImage(postImage, "image/jpeg", "posts", authToken);
+        // One photo: the cropped file, with its real size so the feed can show its shape (2c).
+        const file = singlePhoto ? await finalizePhoto(singlePhoto, postShape.aspect) : null;
+        const uploadResult = await uploadImage(file?.uri ?? postImage, "image/jpeg", "posts", authToken);
         if (!uploadResult.url) throw new Error("Failed to upload image. Please try again.");
-        postData.imageUrl = uploadResult.url;
+        postData.imageUrl = uploadResult.url; // older backends read this
+        if (file) {
+          postData.media = {
+            url: uploadResult.url,
+            type: "image",
+            width: Math.round(file.width),
+            height: Math.round(file.height),
+            aspectRatio: file.width / file.height,
+          };
+        }
       }
       if (selectedAttach) {
         if (selectedAttach.type === "product") postData.productId = selectedAttach.id;
@@ -463,7 +621,7 @@ export default function CreatePostScreen() {
       }
       await apiClient.createPost(authToken, postData);
       setPostImage("");
-      setPickedImages([]);
+      clearPostPhotos();
       setPostCaption("");
       setPostLayout(null);
       feedEvents.emitRefresh(isVideo ? "pulse" : "pro");
@@ -528,7 +686,7 @@ export default function CreatePostScreen() {
 
   const handleClose = () => {
     setPostImage("");
-    setPickedImages([]);
+    clearPostPhotos();
     setPostCaption("");
     setPostLayout(null);
     setStep(1);
@@ -613,7 +771,15 @@ export default function CreatePostScreen() {
         <GestureDetector gesture={modeSwipeGesture}>
           <View style={{ flex: 1 }}>
             {/* ── Camera area: fills middle ── */}
-            <View style={styles.cameraArea}>
+            <View
+              style={styles.cameraArea}
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                setCameraAreaSize((prev) =>
+                  prev && prev.width === width && prev.height === height ? prev : { width, height },
+                );
+              }}
+            >
               {postImage ? (
                 <>
                   {postLayout === "pulse" ? (
@@ -631,7 +797,7 @@ export default function CreatePostScreen() {
                     />
                   )}
                   <Pressable
-                    onPress={() => { setPostImage(""); setPickedImages([]); setPostLayout(null); }}
+                    onPress={() => { setPostImage(""); clearPostPhotos(); setPostLayout(null); }}
                     style={styles.retakeButton}
                     hitSlop={12}
                   >
@@ -648,7 +814,43 @@ export default function CreatePostScreen() {
                       mode={Platform.OS === "android" ? androidCameraMode : undefined}
                       onCameraReady={Platform.OS === "android" ? handleCameraReady : undefined}
                     />
-                  ) : (
+                  ) : null}
+                  {cameraPermission?.granted && mode === "post" && !isRecording && cameraFrame ? (
+                    // The 4:5 post frame: what a photo keeps (it can be changed on the crop screen).
+                    <View pointerEvents="none" style={StyleSheet.absoluteFill} testID="camera-post-frame">
+                      <View style={[styles.frameDim, { left: 0, right: 0, top: 0, height: cameraFrame.top }]} />
+                      <View
+                        style={[
+                          styles.frameDim,
+                          { left: 0, right: 0, top: cameraFrame.top + cameraFrame.height, bottom: 0 },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.frameDim,
+                          { left: 0, width: cameraFrame.left, top: cameraFrame.top, height: cameraFrame.height },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.frameDim,
+                          { right: 0, width: cameraFrame.left, top: cameraFrame.top, height: cameraFrame.height },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.frameEdge,
+                          {
+                            left: cameraFrame.left,
+                            top: cameraFrame.top,
+                            width: cameraFrame.width,
+                            height: cameraFrame.height,
+                          },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
+                  {cameraPermission?.granted ? null : (
                     <View style={styles.cameraPlaceholder}>
                       <Feather name="camera" size={40} color="rgba(255,255,255,0.3)" />
                       {cameraPermission?.granted === false && (
@@ -777,10 +979,16 @@ export default function CreatePostScreen() {
                 contentContainerStyle={styles.pickedStrip}
               >
                 {pickedImages.map((photo, index) => (
-                  <View
-                    key={`${photo.uri}-${index}`}
+                  <Pressable
+                    key={`${photo.sourceUri}-${index}`}
+                    onPress={() => handleRecropPhoto(index)}
+                    disabled={postSaving}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Photo ${index + 1}, tap to move it`}
                     style={[
                       styles.pickedThumb,
+                      // Shown in the post's shape: uncropped photos are centered, as they'll be cut.
+                      { width: Math.round(THUMB_HEIGHT * postShape.aspect) },
                       { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
                     ]}
                   >
@@ -796,31 +1004,41 @@ export default function CreatePostScreen() {
                     >
                       <Feather name="x" size={14} color="#fff" />
                     </Pressable>
-                  </View>
+                  </Pressable>
                 ))}
               </ScrollView>
               <ThemedText type="caption" style={[styles.pickedCount, { color: theme.brandTextDim }]}>
-                {pickedImages.length} photos
+                {pickedImages.length} photos · tap a photo to move it
               </ThemedText>
             </View>
-          ) : (
+          ) : postLayout === "pulse" ? (
           <View
             style={[
               styles.detailsThumbnail,
               { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
             ]}
           >
-            {postLayout === "pulse" ? (
-              <View style={styles.videoSelected}>
-                <Feather name="video" size={20} color={theme.brandGold} />
-                <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: Spacing.xs }}>
-                  Video selected
-                </ThemedText>
-              </View>
-            ) : (
-              <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
-            )}
+            <View style={styles.videoSelected}>
+              <Feather name="video" size={20} color={theme.brandGold} />
+              <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: Spacing.xs }}>
+                Video selected
+              </ThemedText>
+            </View>
           </View>
+          ) : (
+          <Pressable
+            onPress={() => handleRecropPhoto("single")}
+            disabled={postSaving || !singlePhoto}
+            accessibilityRole="button"
+            accessibilityLabel="Photo, tap to crop again"
+            style={[
+              styles.detailsThumbnail,
+              singlePhoto ? { width: Math.round(THUMB_HEIGHT * postShape.aspect) } : null,
+              { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+            ]}
+          >
+            <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
+          </Pressable>
           )}
 
           <ScreenKeyboardAwareScrollView contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}>
@@ -996,6 +1214,7 @@ export default function CreatePostScreen() {
           {renderShareButton()}
         </View>
       )}
+      {postCrop.cropper}
     </ThemedView>
   );
 }
@@ -1162,6 +1381,15 @@ const styles = StyleSheet.create({
   cameraArea: {
     flex: 1,
     backgroundColor: "#0a0a0a",
+  },
+  frameDim: {
+    position: "absolute",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  frameEdge: {
+    position: "absolute",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.85)",
   },
   cameraPlaceholder: {
     flex: 1,
