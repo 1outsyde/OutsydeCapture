@@ -4647,6 +4647,8 @@ class ApiService {
       duration?: number;
       width?: number;
       height?: number;
+      /** width / height (photo ratios 2b). */
+      aspectRatio?: number;
     };
     mediaType?: "image" | "video";
     thumbnailUrl?: string;

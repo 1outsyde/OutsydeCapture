@@ -135,3 +135,123 @@ export function boxSizeFor(
   }
   return { width: Math.floor(width), height: Math.floor(height) };
 }
+
+// ── Step 2b: post shapes, start positions and the camera frame ───────────────
+
+/** A crop as fractions (0 to 1) of the photo, so it survives the photo being resized. */
+export type FracRect = { x: number; y: number; w: number; h: number };
+
+/** Post shapes run from 4:5 (tall) to 1.91:1 (wide), like Instagram. */
+export const POST_MIN_ASPECT = 4 / 5;
+export const POST_MAX_ASPECT = 1.91;
+
+/** The photo's own shape, held inside the allowed post range. */
+export function clampAspect(
+  aspect: number,
+  min = POST_MIN_ASPECT,
+  max = POST_MAX_ASPECT,
+): number {
+  if (!Number.isFinite(aspect) || aspect <= 0) return min;
+  return Math.min(max, Math.max(min, aspect));
+}
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/** The biggest centered crop of this shape. */
+export function centerRectFraction(image: Size, aspect: number): FracRect {
+  const imgAspect = image.width / image.height;
+  if (imgAspect > aspect) {
+    const w = aspect / imgAspect;
+    return { x: (1 - w) / 2, y: 0, w, h: 1 };
+  }
+  const h = imgAspect / aspect;
+  return { x: 0, y: (1 - h) / 2, w: 1, h };
+}
+
+/** A pixel crop as fractions of the photo. */
+export function rectFractionOf(rect: CropRect, image: Size): FracRect {
+  return {
+    x: rect.originX / image.width,
+    y: rect.originY / image.height,
+    w: rect.width / image.width,
+    h: rect.height / image.height,
+  };
+}
+
+/** A fraction crop as whole pixels inside the photo. */
+export function rectFromFraction(frac: FracRect, image: Size): CropRect {
+  let width = Math.max(
+    1,
+    Math.min(image.width, Math.round(frac.w * image.width)),
+  );
+  let height = Math.max(
+    1,
+    Math.min(image.height, Math.round(frac.h * image.height)),
+  );
+  const originX = Math.max(
+    0,
+    Math.min(image.width - width, Math.round(frac.x * image.width)),
+  );
+  const originY = Math.max(
+    0,
+    Math.min(image.height - height, Math.round(frac.y * image.height)),
+  );
+  return { originX, originY, width, height };
+}
+
+/**
+ * Zoom (times the cover scale) and move that show this crop in the box: used to reopen a photo
+ * where it was left, and to line the crop screen up with the camera frame.
+ */
+export function viewForFraction(
+  image: Size,
+  box: Size,
+  frac: FracRect,
+): { zoom: number; tx: number; ty: number } {
+  const cover = coverScale(image, box);
+  const wanted = box.width / Math.max(1e-6, frac.w * image.width);
+  const zoom = clampZoom(wanted / cover);
+  const s = cover * zoom;
+  const cx = (frac.x + frac.w / 2) * image.width * s; // crop center, from the photo's left edge
+  const cy = (frac.y + frac.h / 2) * image.height * s;
+  const c = clampOffset(
+    (image.width * s) / 2 - cx,
+    (image.height * s) / 2 - cy,
+    image,
+    box,
+    s,
+  );
+  return { zoom, tx: c.tx, ty: c.ty };
+}
+
+/**
+ * Photo size turned to match the screen's orientation. Camera photos can report sensor (landscape)
+ * sizes; the saved file is shown upright, so a tall preview means a tall photo.
+ */
+export function uprightSize(photo: Size, area: Size): Size {
+  const photoTall = photo.height >= photo.width;
+  const areaTall = area.height >= area.width;
+  return photoTall === areaTall
+    ? photo
+    : { width: photo.height, height: photo.width };
+}
+
+/**
+ * The part of a camera photo inside an on-screen frame. The preview fills its area (cover), so the
+ * photo is scaled to cover the area and centered; the frame is in area points.
+ */
+export function cameraFrameFraction(
+  photo: Size,
+  area: Size,
+  frame: { left: number; top: number; width: number; height: number },
+): FracRect {
+  const p = uprightSize(photo, area);
+  const s = Math.max(area.width / p.width, area.height / p.height);
+  const offX = (area.width - p.width * s) / 2;
+  const offY = (area.height - p.height * s) / 2;
+  const x = clamp01((frame.left - offX) / s / p.width);
+  const y = clamp01((frame.top - offY) / s / p.height);
+  const w = Math.min(1 - x, frame.width / s / p.width);
+  const h = Math.min(1 - y, frame.height / s / p.height);
+  return { x, y, w, h };
+}

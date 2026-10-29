@@ -8,6 +8,12 @@ import {
   outputSizeFor,
   boxSizeFor,
   ratioPair,
+  clampAspect,
+  centerRectFraction,
+  rectFractionOf,
+  rectFromFraction,
+  viewForFraction,
+  cameraFrameFraction,
   MAX_ZOOM,
 } from "./cropMath";
 
@@ -138,4 +144,62 @@ test("ratioPair finds simple fractions", () => {
   assert.deepEqual(ratioPair(1), [1, 1]);
   assert.deepEqual(ratioPair(9 / 16), [9, 16]);
   assert.equal(ratioPair(Math.PI), null);
+});
+
+test("clampAspect keeps post shapes between 4:5 and 1.91:1", () => {
+  assert.equal(clampAspect(0.5625), 0.8);
+  assert.equal(clampAspect(2.5), 1.91);
+  assert.equal(clampAspect(4 / 3), 4 / 3);
+  assert.equal(clampAspect(Number.NaN), 0.8);
+});
+
+test("centerRectFraction takes the biggest centered crop", () => {
+  const r = centerRectFraction(landscape, 1); // 4:3 photo, square crop
+  assert.ok(Math.abs(r.w - 0.75) < 1e-9 && r.h === 1);
+  assert.ok(Math.abs(r.x - 0.125) < 1e-9 && r.y === 0);
+  const t = centerRectFraction(portrait, 16 / 9);
+  assert.equal(t.w, 1);
+  assert.ok(Math.abs(t.h - (0.75 * 9) / 16) < 1e-9);
+});
+
+test("rectFromFraction and rectFractionOf round trip in whole pixels", () => {
+  const rect = { originX: 300, originY: 120, width: 2000, height: 2500 };
+  const back = rectFromFraction(rectFractionOf(rect, portrait), portrait);
+  assert.deepEqual(back, rect);
+});
+
+test("viewForFraction reopens a crop where it was left", () => {
+  const box = { width: 360, height: 450 };
+  for (const frac of [
+    centerRectFraction(landscape, 0.8),
+    { x: 0.05, y: 0, w: 0.75 * 0.8, h: 1 }, // moved left
+    { x: 0.4, y: 0.3, w: 0.3, h: 0.5 }, // zoomed in
+  ]) {
+    const v = viewForFraction(landscape, box, frac);
+    const s = coverScale(landscape, box) * v.zoom;
+    const got = rectFractionOf(
+      cropRectFor(landscape, box, s, v.tx, v.ty),
+      landscape,
+    );
+    assert.ok(Math.abs(got.x - frac.x) < 0.002, `x ${got.x} vs ${frac.x}`);
+    assert.ok(Math.abs(got.y - frac.y) < 0.002, `y ${got.y} vs ${frac.y}`);
+    assert.ok(Math.abs(got.w - frac.w) < 0.002, `w ${got.w} vs ${frac.w}`);
+  }
+});
+
+test("cameraFrameFraction maps the on-screen frame into the photo", () => {
+  // 390 x 560 preview, 3:4 photo reported as landscape sensor size.
+  const area = { width: 390, height: 560 };
+  const photo = { width: 4032, height: 3024 }; // turned upright to 3024 x 4032
+  const frame = { left: 16, top: 52.5, width: 358, height: 447.5 }; // 4:5, centered
+  const f = cameraFrameFraction(photo, area, frame);
+  // Preview covers by height: photo shown 420 wide, so 15 points are cut on each side.
+  const s = 560 / 4032;
+  assert.ok(Math.abs(f.w - 358 / s / 3024) < 1e-9);
+  assert.ok(Math.abs(f.x - (16 + 15) / s / 3024) < 1e-9);
+  assert.ok(Math.abs(f.y - 52.5 / 560) < 1e-9);
+  // Same shape as the frame, in photo pixels.
+  assert.ok(Math.abs((f.w * 3024) / (f.h * 4032) - 0.8) < 1e-9);
+  // Centered.
+  assert.ok(Math.abs(f.x + f.w / 2 - 0.5) < 1e-9);
 });
