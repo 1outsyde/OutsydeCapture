@@ -971,7 +971,7 @@ export default function AccountScreen() {
             postsCount: resolvedPosts.length,
             isVerified: Boolean(publicUser.isVerified),
             subscriptionTier: "",
-            brandColors: null,
+            brandColors: parseBrandColors(publicUser.profileColor),
             hasProducts: false,
             hasServices: false,
             specialties: Array.isArray(publicUser.niches)
@@ -1263,7 +1263,10 @@ export default function AccountScreen() {
             shootsCount: 0,
             postsCount: 0,
             isVerified: false,
-            brandColors: parseBrandColors(businessResponse.brandColors),
+            // Staff's own color (backend migration 080), else the business color.
+            brandColors:
+              parseBrandColors((staff as any).profileColor) ??
+              parseBrandColors(businessResponse.brandColors),
             hasProducts: false,
             hasServices: mappedServices.length > 0,
             specialties: Array.isArray(staff.specialties) ? staff.specialties : [],
@@ -1330,7 +1333,7 @@ export default function AccountScreen() {
             postsCount: resolvedPosts.length,
             isVerified: Boolean((user as any)?.isVerified),
             subscriptionTier: "",
-            brandColors: null,
+            brandColors: parseBrandColors(publicUser?.profileColor ?? user?.profileColor),
             hasProducts: false,
             hasServices: false,
             specialties: Array.isArray((user as any)?.niches)
@@ -1413,12 +1416,15 @@ export default function AccountScreen() {
   }, [activeTab, tabList]);
 
   const colorMode = isDark ? "dark" : "light";
+  // Customers (2026-10-29): their own color once chosen; Outsyde gold exactly as before until then.
   const accentColor =
     profile?.role === "business" ||
     profile?.role === "photographer" ||
     profile?.role === "staff"
       ? resolveBrandColor(profile.brandColors ?? null, colorMode)
-      : COLORS.gold;
+      : profile?.brandColors
+        ? resolveBrandColor(profile.brandColors, colorMode)
+        : COLORS.gold;
   const accentDimColor = COLORS.goldDim;
   // Black or white text/icons on top of the profile color (wheel colors can be any shade).
   const onAccent = readableTextOn(accentColor);

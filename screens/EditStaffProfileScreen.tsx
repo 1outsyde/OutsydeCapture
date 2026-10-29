@@ -78,8 +78,10 @@ export default function EditStaffProfileScreen() {
           // keep default
         }
       }
-      setAccentColor(resolvedAccent);
       const ownSpec = parseBrandColorSpec((staff as any).profileColor);
+      // Accents on this screen follow the staff's own color once chosen.
+      if (ownSpec) resolvedAccent = resolveBrandColor(ownSpec, isDark ? "dark" : "light");
+      setAccentColor(resolvedAccent);
       const startHex = specToHex(ownSpec ?? businessSpec);
       setProfileHex(startHex);
       setLoadedProfileHex(startHex);

@@ -635,10 +635,13 @@ export default function VendorDetailScreen({ route }: Props) {
   }, [profile, isOwnProfile, startChat]);
 
   const colorMode = isDark ? "dark" : "light";
+  // Customers (2026-10-29): their own color once chosen; Outsyde gold exactly as before until then.
   const accentColor =
     profile?.role === "business" || profile?.role === "photographer"
       ? resolveBrandColor(profile.brandColors ?? null, colorMode)
-      : COLORS.gold;
+      : profile?.brandColors
+        ? resolveBrandColor(profile.brandColors, colorMode)
+        : COLORS.gold;
   const accentDimColor = COLORS.goldDim;
   // Black or white text/icons on top of the profile color (wheel colors can be any shade).
   const onAccent = readableTextOn(accentColor);
@@ -1149,7 +1152,7 @@ export default function VendorDetailScreen({ route }: Props) {
               shootsCount: 0,
               postsCount: resolvedPosts.length,
               isVerified: false,
-              brandColors: null,
+              brandColors: parseBrandColors((user as any).profileColor),
               hasProducts: false,
               hasServices: false,
               isMultiStaff: false,
