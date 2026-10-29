@@ -74,6 +74,9 @@ export interface CheckoutStart {
   totalCents?: number;
   repeated?: boolean;
   order?: { id: string; status: string } & Partial<TicketOrder>;
+  /** Payment sheet customer session (backend #383, app sends paymentSheet: true). Both or neither. */
+  customerId?: string;
+  customerSessionClientSecret?: string;
 }
 
 // ─── Quote (screen 25) ───────────────────────────────────────────────────────

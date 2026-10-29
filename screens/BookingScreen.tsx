@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   StyleSheet, View, Pressable, ScrollView, TextInput,
-  Alert, Modal, ActivityIndicator, useColorScheme,
+  Alert, Modal, ActivityIndicator, useColorScheme, Platform,
 } from "react-native";
+import { sheetOptions } from "@/utils/paymentSheetOptions";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -845,6 +846,8 @@ export default function BookingScreen() {
         paymentIntentClientSecret: pd.clientSecret,
         merchantDisplayName: "Outsyde",
         allowsDelayedPaymentMethods: false,
+        // Apple Pay on iPhone; saved cards and the Save box when the backend sent a session.
+        ...sheetOptions(pd, Platform.OS),
       });
       if (initError) {
         if (isHoldExpiredNow() || isPaymentIntentGoneError(initError as any)) {

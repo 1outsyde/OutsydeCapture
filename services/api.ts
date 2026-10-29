@@ -4794,7 +4794,9 @@ class ApiService {
     return this.request<CheckoutStart>(`/api/events/${encodeURIComponent(eventId)}/checkout`, {
       method: "POST",
       headers: { Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify(body),
+      // paymentSheet: the app opens Stripe's payment sheet, so the backend also sends a
+      // customer session (saved cards, Save box). Backend #383.
+      body: JSON.stringify({ ...body, paymentSheet: true }),
     });
   }
 
@@ -5698,9 +5700,14 @@ class ApiService {
     promoCode?: string | null;
     amountChargedNowCents?: number;
     dueNowCents?: number;
+    // Payment sheet customer session (backend #383), only sent because of paymentSheet: true
+    // and only when the PaymentIntent has a customer. Both or neither.
+    customerId?: string;
+    customerSessionClientSecret?: string;
   }> {
     const body: Record<string, unknown> = { ...(customerAddress ?? {}) };
     if (promoCodeId !== undefined) body.promoCodeId = promoCodeId;
+    body.paymentSheet = true;
     // Sends the login token like every other booking call. Without it the
     // backend only had the session cookie, which can be missing or expired.
     return this.request(`/api/booking/${holdId}/create-payment-intent`, {
