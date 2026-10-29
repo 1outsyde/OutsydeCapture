@@ -23,6 +23,8 @@ export interface Story {
   thumbnailUrl: string | null;
   muxAssetId: string | null;
   caption: string | null;
+  /** Video stories (photo ratios 2d): "fill" or "fit"; absent = fill. */
+  videoFit?: "fill" | "fit" | null;
   createdAt: string;
   expiresAt: string;
   isActive: boolean;

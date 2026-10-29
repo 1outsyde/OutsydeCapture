@@ -29,6 +29,7 @@ import { ProFeedCard } from "@/components/ProFeedCard";
 import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { postAspect } from "@/utils/postAspect";
+import { apiVideoFit } from "@/utils/videoFit";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -84,6 +85,7 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     mediaImages: isVideoPost ? undefined : multiPhotoUrls(apiPost),
     mediaAspect: postAspect(apiPost),
     videoUrl: isVideoPost ? (apiPost.videoUrl || apiPost.mediaUrl) : undefined,
+    videoFit: isVideoPost ? apiVideoFit(apiPost.videoFit) : undefined,
     displayLayout: (apiPost.displayLayout || apiPost.feedSurface) as ("pro" | "pulse" | undefined),
     // /api/profiles/:userId/posts returns the caption as `caption`; other routes use `content`.
     caption: apiPost.content || (apiPost as any).caption || "",
