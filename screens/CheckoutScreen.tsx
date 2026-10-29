@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useStripe } from "@stripe/stripe-react-native";
+import { useStripe, PlatformPay, PlatformPayButton, isPlatformPaySupported } from "@stripe/stripe-react-native";
 
 import AddressAutocompleteInput, { AddressFields } from "@/components/AddressAutocompleteInput";
 import CardInputForm from "@/components/CardInputForm";
@@ -36,6 +37,7 @@ import {
   type SavedCard,
   type SavedAddress,
 } from "@/services/api";
+import { splitSavedCards, applePayCartItems, chargedCents, applePayOutcome, shownBreakdown, makeOneAtATime } from "@/utils/savedCardsLogic";
 
 // Checkout refusals from the server (POST /api/cart/payment-intent) that carry
 // a message written for the customer: sold out, pick an option, no longer
@@ -96,7 +98,7 @@ export default function CheckoutScreen() {
   const { getToken } = useAuth();
   const { mode, buyNowItem } = route.params;
   const { items: cartItems, removeVendorItems, subtotal: cartSubtotal } = useCart();
-  const { confirmPayment, confirmSetupIntent } = useStripe();
+  const { confirmPayment, confirmSetupIntent, confirmPlatformPayPayment } = useStripe();
 
   const checkoutItems = mode === "buyNow" && buyNowItem
     ? [{
@@ -126,11 +128,22 @@ export default function CheckoutScreen() {
 
   // ─── Saved cards ──────────────────────────────────────────────────────────
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+  // Older cards (saved before the save rules, backend #383) never go up front; see splitSavedCards.
+  const [olderCardIds, setOlderCardIds] = useState<string[]>([]);
   const [cardsLoading, setCardsLoading] = useState(true);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [useNewCard, setUseNewCard] = useState(false);
   const [isNewCardComplete, setIsNewCardComplete] = useState(false);
-  const [saveNewCard, setSaveNewCard] = useState(true);
+  // Off by default: a card is saved only when the customer turns this on (p4-applepay).
+  const [saveNewCard, setSaveNewCard] = useState(false);
+  // Apple Pay: iPhone only, and only when this device can pay with it.
+  const [applePayReady, setApplePayReady] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    let alive = true;
+    isPlatformPaySupported().then((ok) => { if (alive) setApplePayReady(ok); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [cardholderName, setCardholderName] = useState("");
 
   // ─── Saved addresses ──────────────────────────────────────────────────────
@@ -149,6 +162,8 @@ export default function CheckoutScreen() {
   // ─── Checkout state ───────────────────────────────────────────────────────
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [backendFeeBreakdown, setBackendFeeBreakdown] = useState<FeeBreakdown | null>(null);
+  // Two quick taps must not start two checkouts (each makes an order and a PaymentIntent).
+  const oneAtATime = useRef(makeOneAtATime()).current;
   // "Use my points": codes work on orders from one shop only (backend refuses multi-shop codes).
   const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
   const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
@@ -167,18 +182,20 @@ export default function CheckoutScreen() {
         if (!token || cancelled) return;
 
         const [pmResult, addrResult] = await Promise.all([
-          getPaymentMethods(token).catch(() => ({ paymentMethods: [], defaultPaymentMethodId: null })),
+          getPaymentMethods(token).catch(() => ({ paymentMethods: [] as SavedCard[], defaultPaymentMethodId: null, olderPaymentMethodIds: [] as string[] })),
           getSavedAddresses(token).catch(() => ({ addresses: [] })),
         ]);
 
         if (cancelled) return;
 
         setSavedCards(pmResult.paymentMethods);
-        if (pmResult.paymentMethods.length > 0) {
-          const defaultCard = pmResult.paymentMethods.find((c) => c.isDefault) ?? pmResult.paymentMethods[0];
-          setSelectedCardId(defaultCard.id);
+        setOlderCardIds(pmResult.olderPaymentMethodIds);
+        const { upFront } = splitSavedCards(pmResult.paymentMethods, pmResult.olderPaymentMethodIds);
+        if (upFront) {
+          setSelectedCardId(upFront.id);
           setUseNewCard(false);
         } else {
+          // No card up front (none saved, or only older ones): the new card form opens.
           setUseNewCard(true);
         }
 
@@ -228,6 +245,19 @@ export default function CheckoutScreen() {
     checkoutLoading ||
     cardsLoading ||
     addressesLoading;
+
+  // Apple Pay needs everything except a card.
+  const applePayDisabled =
+    isEmpty ||
+    !hasShippingAddress ||
+    checkoutLoading ||
+    cardsLoading ||
+    addressesLoading;
+
+  const { upFront: upFrontCard, others: otherCards } = useMemo(
+    () => splitSavedCards(savedCards, olderCardIds),
+    [savedCards, olderCardIds],
+  );
 
   // ─── Price computation ────────────────────────────────────────────────────
   const clientServiceFee = useMemo(() => (subtotal / 100) * 0.08, [subtotal]);
@@ -288,12 +318,13 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
   };
 
   // ─── Checkout ─────────────────────────────────────────────────────────────
-  const handleCheckout = async () => {
-    if (confirmDisabled) return;
+  const handleCheckout = async (method: "card" | "applePay" = "card") => {
+    if (method === "card" ? confirmDisabled : applePayDisabled) return;
+    if (!oneAtATime.start()) return;
     setCardError(null);
 
     const token = await getToken();
-    if (!token) { Alert.alert("Checkout failed. Please try again."); return; }
+    if (!token) { oneAtATime.done(); Alert.alert("Checkout failed. Please try again."); return; }
 
     setCheckoutLoading(true);
     try {
@@ -311,60 +342,82 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
       const clientSecret = paymentIntentResponse?.clientSecret;
       const feeBreakdown = paymentIntentResponse?.feeBreakdown ?? null;
-      setBackendFeeBreakdown(feeBreakdown);
+      // Multi shop carts answer with the total only: keep the local preview lines then.
+      setBackendFeeBreakdown(shownBreakdown(feeBreakdown));
       if (!clientSecret) throw new Error("Missing clientSecret");
 
-      // Step 2 — Confirm payment
-      let resolvedPaymentMethodId: string | undefined;
-
-      if (useNewCard && saveNewCard) {
-        // Vault the new card via SetupIntent first
-        const siResponse = await createSetupIntent(token);
-        if (!siResponse?.clientSecret) throw new Error("Missing SetupIntent clientSecret");
-
-        const { setupIntent, error: siError } = await confirmSetupIntent(siResponse.clientSecret, {
-          paymentMethodType: "Card",
+      // Step 2 (Apple Pay) — the sheet shows the charge the server set; the card is not saved.
+      if (method === "applePay") {
+        const cents = chargedCents(feeBreakdown) ?? Math.round(displayedTotal * 100);
+        const { error: apError } = await confirmPlatformPayPayment(clientSecret, {
+          applePay: {
+            cartItems: applePayCartItems(cents).map((i) => ({ ...i, paymentType: PlatformPay.PaymentType.Immediate })),
+            merchantCountryCode: "US",
+            currencyCode: "USD",
+          },
         });
-        if (siError) {
-          setCardError(siError.message ?? "Card setup failed.");
+        const outcome = applePayOutcome(apError as any);
+        if (outcome === "canceled") return;
+        if (outcome === "failed") {
+          setCardError(apError?.message || "Apple Pay didn't go through. Try again, or pay with a card.");
           return;
         }
-        resolvedPaymentMethodId = (setupIntent as any)?.paymentMethodId ?? undefined;
-
-        // Refresh saved cards list in background after vaulting
-        getPaymentMethods(token).then((result) => {
-          setSavedCards(result.paymentMethods);
-        }).catch(() => {});
       }
 
-      const billingDetails = { name: cardholderName.trim() };
-      const paymentData: any = resolvedPaymentMethodId
-        ? {
+      // Step 2 (card) — Confirm payment
+      if (method === "card") {
+        let resolvedPaymentMethodId: string | undefined;
+
+        if (useNewCard && saveNewCard) {
+          // Vault the new card via SetupIntent first
+          const siResponse = await createSetupIntent(token);
+          if (!siResponse?.clientSecret) throw new Error("Missing SetupIntent clientSecret");
+
+          const { setupIntent, error: siError } = await confirmSetupIntent(siResponse.clientSecret, {
             paymentMethodType: "Card",
-            paymentMethodData: { paymentMethodId: resolvedPaymentMethodId, billingDetails },
+          });
+          if (siError) {
+            setCardError(siError.message ?? "Card setup failed.");
+            return;
           }
-        : useNewCard
-        ? { paymentMethodType: "Card", paymentMethodData: { billingDetails } }
-        : {
-            paymentMethodType: "Card",
-            paymentMethodData: { paymentMethodId: selectedCardId!, billingDetails },
-          };
+          resolvedPaymentMethodId = (setupIntent as any)?.paymentMethodId ?? undefined;
 
-      const { paymentIntent, error: piError } = await confirmPayment(
-        clientSecret,
-        paymentData
-      );
+          // Refresh saved cards list in background after vaulting
+          getPaymentMethods(token).then((result) => {
+            setSavedCards(result.paymentMethods);
+            setOlderCardIds(result.olderPaymentMethodIds);
+          }).catch(() => {});
+        }
 
-      if (piError) {
-        if ((piError as any)?.code === "Canceled") {
-          Alert.alert("Payment cancelled.");
+        const billingDetails = { name: cardholderName.trim() };
+        const paymentData: any = resolvedPaymentMethodId
+          ? {
+              paymentMethodType: "Card",
+              paymentMethodData: { paymentMethodId: resolvedPaymentMethodId, billingDetails },
+            }
+          : useNewCard
+          ? { paymentMethodType: "Card", paymentMethodData: { billingDetails } }
+          : {
+              paymentMethodType: "Card",
+              paymentMethodData: { paymentMethodId: selectedCardId!, billingDetails },
+            };
+
+        const { paymentIntent, error: piError } = await confirmPayment(
+          clientSecret,
+          paymentData
+        );
+
+        if (piError) {
+          if ((piError as any)?.code === "Canceled") {
+            Alert.alert("Payment cancelled.");
+            return;
+          }
+          setCardError(piError.message ?? "Payment failed. Please try again.");
           return;
         }
-        setCardError(piError.message ?? "Payment failed. Please try again.");
-        return;
-      }
 
-      if (!paymentIntent) throw new Error("Payment not confirmed");
+        if (!paymentIntent) throw new Error("Payment not confirmed");
+      }
 
       // Step 3 — Post-payment cleanup
       if (useNewAddress && saveNewAddress && hasNewAddressFields) {
@@ -429,6 +482,7 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
       }
     } finally {
       setCheckoutLoading(false);
+      oneAtATime.done();
     }
   };
 
@@ -743,19 +797,29 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
               <ActivityIndicator size="small" color={theme.brandGold} />
             </View>
           ) : savedCards.length > 0 && !useNewCard ? (
-            <SavedCardSelector
-              cards={savedCards}
-              selectedCardId={selectedCardId}
-              onSelectCard={(id) => { setSelectedCardId(id); setUseNewCard(false); }}
-              onAddNewCard={() => { setUseNewCard(true); setSelectedCardId(null); setCardError(null); }}
-              onDeleteCard={handleDeleteCard}
-            />
+            <>
+              {applePayReady && (
+                <ApplePayBlock disabled={applePayDisabled} onPress={() => handleCheckout("applePay")} theme={theme} />
+              )}
+              <SavedCardSelector
+                cards={upFrontCard ? [upFrontCard] : []}
+                otherCards={otherCards}
+                selectedCardId={selectedCardId}
+                onSelectCard={(id) => { setSelectedCardId(id); setUseNewCard(false); }}
+                onAddNewCard={() => { setUseNewCard(true); setSelectedCardId(null); setCardError(null); }}
+                onDeleteCard={handleDeleteCard}
+                addLabel="New payment method"
+              />
+            </>
           ) : (
             <>
+              {applePayReady && (
+                <ApplePayBlock disabled={applePayDisabled} onPress={() => handleCheckout("applePay")} theme={theme} />
+              )}
               {savedCards.length > 0 && (
                 <Pressable
                   style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.sm }}
-                  onPress={() => { setUseNewCard(false); setSelectedCardId(savedCards[0].id); setCardError(null); }}
+                  onPress={() => { setUseNewCard(false); setSelectedCardId((upFrontCard ?? savedCards[0]).id); setCardError(null); }}
                 >
                   <Feather name="arrow-left" size={16} color={theme.brandGold} />
                   <ThemedText type="body" style={{ color: theme.brandGold }}>Use saved card</ThemedText>
@@ -832,7 +896,7 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
         {/* Confirm & Pay */}
         <Pressable
-          onPress={handleCheckout}
+          onPress={() => handleCheckout("card")}
           disabled={confirmDisabled}
           style={({ pressed }) => [
             styles.checkoutButton,
@@ -852,6 +916,25 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
           )}
         </Pressable>
       </ScrollView>
+    </View>
+  );
+}
+
+/** Apple Pay button above the cards, with the "or pay with a card" divider (p4-applepay). */
+function ApplePayBlock({ disabled, onPress, theme }: { disabled: boolean; onPress: () => void; theme: any }) {
+  return (
+    <View style={{ gap: Spacing.sm, marginBottom: Spacing.sm }}>
+      <PlatformPayButton
+        type={PlatformPay.ButtonType.Pay}
+        appearance={PlatformPay.ButtonStyle.Automatic}
+        borderRadius={BorderRadius.full}
+        disabled={disabled}
+        onPress={onPress}
+        style={{ width: "100%", height: 48, opacity: disabled ? 0.5 : 1 }}
+      />
+      <ThemedText type="caption" style={{ color: theme.brandTextDim, textAlign: "center" }}>
+        or pay with a card
+      </ThemedText>
     </View>
   );
 }

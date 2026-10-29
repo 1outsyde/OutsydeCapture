@@ -148,6 +148,7 @@ function AppContent() {
                           <CalendarProvider>
                             <StripeProvider
                 publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}
+                merchantIdentifier="merchant.com.outsyde.app"
                 urlScheme="outsyde"
               >
                               <AppShell />
