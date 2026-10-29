@@ -6539,10 +6539,14 @@ export interface SavedAddressInput {
   isDefault?: boolean;
 }
 
-export async function getPaymentMethods(token: string): Promise<{ paymentMethods: SavedCard[]; defaultPaymentMethodId: string | null }> {
+export async function getPaymentMethods(token: string): Promise<{ paymentMethods: SavedCard[]; defaultPaymentMethodId: string | null; olderPaymentMethodIds: string[] }> {
   const response: any = await apiGet("/api/me/payment-methods", token);
   const raw = Array.isArray(response?.paymentMethods) ? response.paymentMethods : [];
   const defaultId: string | null = response?.defaultPaymentMethodId ?? null;
+  // Backend #383: the customer's older cards (saved before the save rules). Older backends send none.
+  const olderIds: string[] = Array.isArray(response?.olderPaymentMethodIds)
+    ? response.olderPaymentMethodIds.filter((id: unknown): id is string => typeof id === "string")
+    : [];
   const cards: SavedCard[] = raw.map((pm: any) => ({
     id: pm.id,
     brand: pm.card?.brand ?? "card",
@@ -6551,7 +6555,7 @@ export async function getPaymentMethods(token: string): Promise<{ paymentMethods
     expYear: pm.card?.exp_year ?? 0,
     isDefault: pm.id === defaultId,
   }));
-  return { paymentMethods: cards, defaultPaymentMethodId: defaultId };
+  return { paymentMethods: cards, defaultPaymentMethodId: defaultId, olderPaymentMethodIds: olderIds };
 }
 
 export async function createSetupIntent(token: string): Promise<{ clientSecret: string }> {

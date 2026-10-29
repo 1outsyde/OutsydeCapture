@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
@@ -13,6 +13,10 @@ export interface SavedCardSelectorProps {
   onSelectCard: (cardId: string) => void;
   onAddNewCard: () => void;
   onDeleteCard: (cardId: string) => void;
+  /** Cards tucked under a collapsed "Other saved cards (N)" row (shop checkout, p4-applepay). */
+  otherCards?: SavedCard[];
+  /** Label for the add row. Default "Add new card". */
+  addLabel?: string;
 }
 
 function brandLabel(brand: string): string {
@@ -34,8 +38,13 @@ export default function SavedCardSelector({
   onSelectCard,
   onAddNewCard,
   onDeleteCard,
+  otherCards = [],
+  addLabel = "Add new card",
 }: SavedCardSelectorProps) {
   const { theme } = useTheme();
+  const [othersOpen, setOthersOpen] = useState(false);
+  // A selected card under "Other saved cards" keeps that section open.
+  const showOthers = othersOpen || otherCards.some((c) => c.id === selectedCardId);
 
   const styles = StyleSheet.create({
     cardRow: {
@@ -99,6 +108,13 @@ export default function SavedCardSelector({
     deleteBtn: {
       padding: Spacing.xs,
     },
+    othersRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.xs,
+    },
   });
 
   const handleDelete = (card: SavedCard) => {
@@ -112,50 +128,69 @@ export default function SavedCardSelector({
     );
   };
 
+  const renderCard = (card: SavedCard) => {
+    const selected = card.id === selectedCardId;
+    const expMonth = String(card.expMonth).padStart(2, "0");
+    const expYear = String(card.expYear).slice(-2);
+
+    return (
+      <Pressable
+        key={card.id}
+        style={[styles.cardRow, selected && styles.cardRowSelected]}
+        onPress={() => onSelectCard(card.id)}
+      >
+        <View style={[styles.radio, selected && styles.radioSelected]}>
+          {selected && <View style={styles.radioDot} />}
+        </View>
+
+        <View style={styles.cardInfo}>
+          <View style={styles.brandBadge}>
+            <ThemedText type="caption" style={{ color: theme.brandGold, fontWeight: "600" }}>
+              {brandLabel(card.brand)}
+            </ThemedText>
+          </View>
+          <ThemedText type="body">•••• {card.last4}</ThemedText>
+          <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
+            {expMonth}/{expYear}
+          </ThemedText>
+        </View>
+
+        <Pressable
+          style={styles.deleteBtn}
+          hitSlop={8}
+          onPress={() => handleDelete(card)}
+        >
+          <Feather name="trash-2" size={16} color={theme.brandError} />
+        </Pressable>
+      </Pressable>
+    );
+  };
+
   return (
     <View>
-      {cards.map((card) => {
-        const selected = card.id === selectedCardId;
-        const expMonth = String(card.expMonth).padStart(2, "0");
-        const expYear = String(card.expYear).slice(-2);
+      {cards.map(renderCard)}
 
-        return (
+      {otherCards.length > 0 && (
+        <>
           <Pressable
-            key={card.id}
-            style={[styles.cardRow, selected && styles.cardRowSelected]}
-            onPress={() => onSelectCard(card.id)}
+            style={styles.othersRow}
+            onPress={() => setOthersOpen((open) => !open)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showOthers }}
           >
-            <View style={[styles.radio, selected && styles.radioSelected]}>
-              {selected && <View style={styles.radioDot} />}
-            </View>
-
-            <View style={styles.cardInfo}>
-              <View style={styles.brandBadge}>
-                <ThemedText type="caption" style={{ color: theme.brandGold, fontWeight: "600" }}>
-                  {brandLabel(card.brand)}
-                </ThemedText>
-              </View>
-              <ThemedText type="body">•••• {card.last4}</ThemedText>
-              <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
-                {expMonth}/{expYear}
-              </ThemedText>
-            </View>
-
-            <Pressable
-              style={styles.deleteBtn}
-              hitSlop={8}
-              onPress={() => handleDelete(card)}
-            >
-              <Feather name="trash-2" size={16} color={theme.brandError} />
-            </Pressable>
+            <ThemedText type="body" style={{ color: theme.brandGold }}>
+              Other saved cards ({otherCards.length})
+            </ThemedText>
+            <Feather name={showOthers ? "chevron-up" : "chevron-down"} size={18} color={theme.brandGold} />
           </Pressable>
-        );
-      })}
+          {showOthers && otherCards.map(renderCard)}
+        </>
+      )}
 
       <Pressable style={styles.addRow} onPress={onAddNewCard}>
         <Feather name="plus-circle" size={18} color={theme.brandGold} />
         <ThemedText type="body" style={{ color: theme.brandGold }}>
-          Add new card
+          {addLabel}
         </ThemedText>
       </Pressable>
     </View>
