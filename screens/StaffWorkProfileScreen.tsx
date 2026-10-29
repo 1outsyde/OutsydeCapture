@@ -185,7 +185,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
 
       if (businessResult?.name) setBusinessName(businessResult.name);
       setBusinessLogo((businessResult as any)?.logoImage || undefined);
-      setBrandColors(parseBrandColorSpec((businessResult as any)?.brandColors));
+      const businessColor = parseBrandColorSpec((businessResult as any)?.brandColors);
+      setBrandColors(businessColor);
       setBusinessMeta({
         address: businessResult?.address,
         city: businessResult?.city,
@@ -197,6 +198,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
       );
 
       if (member) {
+        // Staff's own color (backend migration 080), else the business color.
+        setBrandColors(parseBrandColorSpec((member as any).profileColor) ?? businessColor);
         setStaff({
           id: String(member.id),
           displayName: member.displayName || "Team Member",
