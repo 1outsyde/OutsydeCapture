@@ -28,8 +28,9 @@ import { RootStackParamList } from "@/navigation/types";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
+import { postAspect } from "@/utils/postAspect";
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 type PostDetailRouteProp = RouteProp<RootStackParamList, "PostDetail">;
 type PostDetailNavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -81,6 +82,7 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
       ? (apiPost.thumbnailUrl || apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "")
       : (apiPost.imageUrl || apiPost.thumbnailUrl || (apiPost.images && apiPost.images[0]) || apiPost.mediaUrl || ""),
     mediaImages: isVideoPost ? undefined : multiPhotoUrls(apiPost),
+    mediaAspect: postAspect(apiPost),
     videoUrl: isVideoPost ? (apiPost.videoUrl || apiPost.mediaUrl) : undefined,
     displayLayout: (apiPost.displayLayout || apiPost.feedSurface) as ("pro" | "pulse" | undefined),
     // /api/profiles/:userId/posts returns the caption as `caption`; other routes use `content`.
@@ -365,7 +367,6 @@ export default function PostDetailScreen() {
         <View style={{ paddingTop: index === 0 ? NAV_BAR_HEIGHT : 0, backgroundColor: "#000" }}>
           <ProFeedCard
             post={item}
-            mediaHeight={SCREEN_WIDTH * 1.25}
             isVisible={index === activeIndex}
             isSaved={isSaved}
             onLike={handleLike}
