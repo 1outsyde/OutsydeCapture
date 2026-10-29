@@ -31,6 +31,7 @@ import { feedEvents } from "@/services/feedEvents";
 import PulseVideoCard, { PULSE_CARD_HEIGHT, PulseEngagementEvent } from "@/components/PulseVideoCard";
 import { showReportBlockMenu, promptForReportReason } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
+import { apiVideoFit } from "@/utils/videoFit";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -86,6 +87,7 @@ function convertApiPost(apiPost: ApiPost): Post {
       ? (apiPost.thumbnailUrl || apiPost.imageUrl || (apiPost.images && apiPost.images[0]) || "")
       : (apiPost.imageUrl || apiPost.thumbnailUrl || (apiPost.images && apiPost.images[0]) || ""),
     videoUrl: apiPost.videoUrl || apiPost.mediaUrl,
+    videoFit: apiVideoFit(apiPost.videoFit),
     caption: apiPost.content || "",
     likes: (apiPost as any).likeCount ?? (apiPost as any).likesCount ?? 0,
     isLiked: (apiPost as any).isLiked ?? false,

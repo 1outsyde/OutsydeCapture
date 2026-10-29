@@ -29,6 +29,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/services/api";
 import { Story } from "@/components/StoryRing";
+import { FitBackdrop } from "@/components/video/FitBackdrop";
+import { normalizeVideoFit, videoBlurUri } from "@/utils/videoFit";
 import BottomSheet, {
   BottomSheetFlatList,
   BottomSheetBackdrop,
@@ -182,13 +184,18 @@ function VideoStory({ story, onDurationKnown, onVideoEnd }: VideoStoryProps) {
     return () => clearInterval(interval);
   }, [player, onDurationKnown, onVideoEnd]);
 
+  // How the story was posted (photo ratios 2d). Old stories have no choice: fill, as before.
+  const fit = normalizeVideoFit(story.videoFit);
   return (
-    <VideoView
-      player={player}
-      style={StyleSheet.absoluteFill}
-      contentFit="cover"
-      nativeControls={false}
-    />
+    <>
+      {fit === "fit" ? <FitBackdrop source={videoBlurUri(story.thumbnailUrl, story.mediaUrl)} /> : null}
+      <VideoView
+        player={player}
+        style={[StyleSheet.absoluteFill, { backgroundColor: "transparent" }]}
+        contentFit={fit === "fit" ? "contain" : "cover"}
+        nativeControls={false}
+      />
+    </>
   );
 }
 

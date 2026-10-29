@@ -36,6 +36,8 @@ import { useCropPicker, type CropPreset } from "@/components/crop/useCropPicker"
 import { POST_ASPECT_OPTIONS, type CropResult } from "@/components/crop/ImageCropper";
 import { cropPhotoToFile } from "@/components/crop/cropFile";
 import { boxSizeFor, cameraFrameFraction, type FracRect } from "@/utils/crop/cropMath";
+import { VideoFitPicker } from "@/components/video/VideoFitPicker";
+import { defaultVideoFit, type VideoFit } from "@/utils/videoFit";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -114,6 +116,8 @@ export default function CreatePostScreen() {
   // One-photo post (library or camera): the cropped photo; postImage shows it.
   const [singlePhoto, setSinglePhoto] = useState<PickedImage | null>(null);
   const [postShape, setPostShape] = useState<PostShape>(DEFAULT_POST_SHAPE);
+  // Pulse video or video story: Fill or Fit (photo ratios 2d). Set when a video is picked.
+  const [videoFit, setVideoFit] = useState<VideoFit>("fill");
   const postCrop = useCropPicker();
   // Camera preview size, to draw the post frame and map it onto the photo.
   const [cameraAreaSize, setCameraAreaSize] = useState<{ width: number; height: number } | null>(null);
@@ -153,6 +157,7 @@ export default function CreatePostScreen() {
     setPickedImages([]);
     setSinglePhoto(null);
     setPostShape(DEFAULT_POST_SHAPE);
+    setVideoFit("fill");
   };
 
   const switchMode = (newMode: "post" | "story") => {
@@ -273,8 +278,9 @@ export default function CreatePostScreen() {
 
     const assets = result.assets;
     if (assets.length === 1 && isVideoAsset(assets[0])) {
-      // Single video: same post as before (Fill/Fit is step 2d).
+      // Single video: a Pulse post. Fill for tall videos, Fit for wide ones; changeable on step 2.
       clearPostPhotos();
+      setVideoFit(defaultVideoFit(assets[0].width, assets[0].height));
       setPostImage(assets[0].uri);
       setPostLayout("pulse");
       setStep(2);
@@ -387,6 +393,7 @@ export default function CreatePostScreen() {
       const asset = result.assets[0];
       setPostImage(asset.uri);
       const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
+      setVideoFit(isVideo ? defaultVideoFit(asset.width, asset.height) : "fill");
       setPostLayout(isVideo ? "pulse" : "pro");
       setStep(2);
     }
@@ -456,12 +463,14 @@ export default function CreatePostScreen() {
       if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
       return;
     }
+    // Camera recordings are full screen and tall: start on Fill.
     if (mode === "post") {
       clearPostPhotos();
       setPostImage(result.uri);
       setPostLayout("pulse");
       setStep(2);
     } else {
+      setVideoFit("fill");
       setPostImage(result.uri);
       setPostLayout("pulse");
       setStep(2);
@@ -557,6 +566,7 @@ export default function CreatePostScreen() {
         photographerServiceId?: string;
         mediaItems?: { url: string; type: "image"; width?: number; height?: number; aspectRatio?: number }[];
         media?: { url: string; type: "image"; width: number; height: number; aspectRatio: number };
+        videoFit?: VideoFit;
       } = {
         content: postCaption.trim() || " ",
         displayLayout: postLayout,
@@ -567,6 +577,7 @@ export default function CreatePostScreen() {
         if (!uploadResult.uploadId) throw new Error("Failed to upload video. Please try again.");
         postData.videoUrl = uploadResult.uploadId;
         postData.mediaType = "video";
+        postData.videoFit = videoFit;
       } else if (pickedImages.length > 1 && pickedImages[0].uri === postImage) {
         // Multi-photo post: upload every photo (3 at a time), then create the post once.
         // Nothing is created unless every upload succeeds.
@@ -661,6 +672,7 @@ export default function CreatePostScreen() {
           mediaType: "video",
           muxAssetId: uploadResult.uploadId,
           caption,
+          videoFit,
         });
       } else {
         const uploadResult = await uploadImage(postImage, "image/jpeg", "stories", authToken);
@@ -1012,18 +1024,8 @@ export default function CreatePostScreen() {
               </ThemedText>
             </View>
           ) : postLayout === "pulse" ? (
-          <View
-            style={[
-              styles.detailsThumbnail,
-              { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
-            ]}
-          >
-            <View style={styles.videoSelected}>
-              <Feather name="video" size={20} color={theme.brandGold} />
-              <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: Spacing.xs }}>
-                Video selected
-              </ThemedText>
-            </View>
+          <View style={styles.videoFitBlock}>
+            <VideoFitPicker uri={postImage} fit={videoFit} onChange={setVideoFit} disabled={postSaving} />
           </View>
           ) : (
           <Pressable
@@ -1069,23 +1071,20 @@ export default function CreatePostScreen() {
 
       {step === 2 && mode === "story" && (
         <>
-          <View
-            style={[
-              styles.detailsThumbnail,
-              { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
-            ]}
-          >
-            {postLayout === "pulse" ? (
-              <View style={styles.videoSelected}>
-                <Feather name="video" size={20} color={theme.brandGold} />
-                <ThemedText type="caption" style={{ color: theme.brandTextDim, marginTop: Spacing.xs }}>
-                  Video selected
-                </ThemedText>
-              </View>
-            ) : (
+          {postLayout === "pulse" ? (
+            <View style={styles.videoFitBlock}>
+              <VideoFitPicker uri={postImage} fit={videoFit} onChange={setVideoFit} disabled={storySaving} />
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.detailsThumbnail,
+                { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+              ]}
+            >
               <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
-            )}
-          </View>
+            </View>
+          )}
 
           <ScreenKeyboardAwareScrollView contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}>
             <TextInput
@@ -1381,6 +1380,10 @@ const styles = StyleSheet.create({
   cameraArea: {
     flex: 1,
     backgroundColor: "#0a0a0a",
+  },
+  videoFitBlock: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
   },
   frameDim: {
     position: "absolute",

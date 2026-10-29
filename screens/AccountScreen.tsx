@@ -472,6 +472,8 @@ export default function AccountScreen() {
     mux_asset_id: string | null;
     caption: string | null;
     saved_at: string;
+    /** Backend #381; absent on older servers. */
+    video_fit?: string | null;
   }[]>([]);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [services, setServices] = useState<ServiceCard[]>([]);
@@ -1802,6 +1804,8 @@ export default function AccountScreen() {
                         thumbnailUrl: h.thumbnail_url,
                         muxAssetId: h.mux_asset_id,
                         caption: h.caption,
+                        // Highlights come back snake_case (backend stories.ts:186).
+                        videoFit: h.video_fit === "fit" ? "fit" : h.video_fit === "fill" ? "fill" : null,
                         createdAt: h.saved_at,
                         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
                         isActive: true,

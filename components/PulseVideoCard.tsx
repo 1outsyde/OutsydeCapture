@@ -23,6 +23,8 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "@/navigation/types";
 import StoryRing from "@/components/StoryRing";
 import { DoubleTapLike } from "@/components/DoubleTapLike";
+import { FitBackdrop } from "@/components/video/FitBackdrop";
+import { normalizeVideoFit, videoBlurUri, type VideoFit } from "@/utils/videoFit";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -60,9 +62,11 @@ interface VideoInnerProps {
   muted: boolean;
   postId: string;
   onEngagement?: (e: PulseEngagementEvent) => void;
+  /** fill = zoom to the whole screen (default); fit = the whole video, over the backdrop. */
+  fit?: VideoFit;
 }
 
-function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement }: VideoInnerProps) {
+function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement, fit = "fill" }: VideoInnerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const watchStartTime = useRef<number | null>(null);
   const totalWatchTime = useRef(0);
@@ -122,7 +126,12 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngageme
       <video
         ref={videoRef as any}
         src={videoUrl}
-        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: fit === "fit" ? "contain" : "cover",
+          backgroundColor: "transparent",
+        }}
         muted={muted}
         playsInline
         onEnded={handleEnded}
@@ -132,7 +141,7 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngageme
 }
 
 // ─── Native video (expo-video) ───────────────────────────────────────────────
-function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement }: VideoInnerProps) {
+function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement, fit = "fill" }: VideoInnerProps) {
   const watchStartTime = useRef<number | null>(null);
   const totalWatchTime = useRef(0);
   const loopCount = useRef(0);
@@ -198,8 +207,8 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngag
   return (
     <VideoView
       player={player}
-      style={StyleSheet.absoluteFill}
-      contentFit="cover"
+      style={[StyleSheet.absoluteFill, styles.videoClear]}
+      contentFit={fit === "fit" ? "contain" : "cover"}
       nativeControls={false}
     />
   );
@@ -254,6 +263,8 @@ export default function PulseVideoCard({
   const soundName = (post as any).soundName || "Original Sound";
 
   const VideoComponent = Platform.OS === "web" ? WebPulseVideo : NativePulseVideo;
+  // How the video was posted (photo ratios 2d). Old posts have no choice: fill, as before.
+  const fit = normalizeVideoFit(post.videoFit);
 
   return (
     <View style={[styles.card, { height: PULSE_CARD_HEIGHT }]}>
@@ -265,8 +276,12 @@ export default function PulseVideoCard({
         onSingleTap={handleTap}
         style={StyleSheet.absoluteFill}
       >
+        {hasVideo && post.videoUrl && fit === "fit" ? (
+          <FitBackdrop source={videoBlurUri(post.image, post.videoUrl)} />
+        ) : null}
         {hasVideo && post.videoUrl ? (
           <VideoComponent
+            fit={fit}
             videoUrl={post.videoUrl}
             isActive={isActive}
             isPaused={isPaused}
@@ -466,6 +481,7 @@ export default function PulseVideoCard({
 }
 
 const styles = StyleSheet.create({
+  videoClear: { backgroundColor: "transparent" },
   card: {
     width: SCREEN_WIDTH,
     backgroundColor: "#000000",

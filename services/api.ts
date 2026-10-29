@@ -337,6 +337,8 @@ export interface ApiPost {
   mediaItems?: PostMediaItem[];
   taggedBusinessId?: string;
   taggedPhotographerId?: string;
+  /** Pulse videos (photo ratios 2d, backend #381): "fill" or "fit"; null/absent = fill. */
+  videoFit?: "fill" | "fit" | null;
   // Post size (photo ratios 2c): the post row sends these on top, some routes in `media`.
   aspectRatio?: number | null;
   mediaWidth?: number | null;
@@ -4668,6 +4670,8 @@ class ApiService {
     serviceId?: string;
     displayLayout?: "pro" | "pulse";
     feedSurface?: "pro" | "pulse";
+    /** Videos only (photo ratios 2d): how the video fills the Pulse screen. */
+    videoFit?: "fill" | "fit";
     // Multi-photo posts: 2-10 photos (photos only). Send imageUrl = first URL too.
     mediaItems?: PostMediaItem[];
   }): Promise<{ post: ApiPost }> {
@@ -6024,6 +6028,8 @@ class ApiService {
     thumbnailUrl?: string;
     muxAssetId?: string;
     caption?: string;
+    /** Video stories only (photo ratios 2d). */
+    videoFit?: "fill" | "fit";
   }): Promise<{ story: any }> {
     return this.request<{ story: any }>("/api/stories", {
       method: "POST",

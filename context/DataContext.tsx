@@ -160,6 +160,8 @@ export interface Post {
   // Influencer tracking
   influencerReferralCode?: string;
   displayLayout?: "pro" | "pulse";
+  /** Pulse videos: how the video fills the screen (photo ratios 2d). Absent = fill. */
+  videoFit?: "fill" | "fit";
   soundName?: string;
   likeCount?: number;
   commentCount?: number;
