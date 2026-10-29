@@ -398,3 +398,19 @@ test("walletLink: Apple Wallet only on iPhone, only a real https or http link", 
   assert.equal(walletLink("ios", { walletUrl: "   " }), null);
   assert.equal(walletLink("ios", { walletUrl: url }, true), null, "iPad: no Wallet app for passes");
 });
+
+// ─── Older backend without paymentSheet (strict schema) ──────────────────────
+import { rejectedPaymentSheetFlag } from "./ticketCheckoutLogic";
+
+test("older backend rejecting the paymentSheet key is recognized", () => {
+  const err = { status: 400, body: { success: false, error: { code: "INVALID_EVENT", message: "body: Unrecognized key(s) in object: 'paymentSheet'" } } };
+  assert.equal(rejectedPaymentSheetFlag(err), true);
+});
+
+test("other 400s are not treated as the flag being rejected", () => {
+  assert.equal(rejectedPaymentSheetFlag({ status: 400, body: { error: { code: "INVALID_EVENT", message: "quantity: Too big" } } }), false);
+  assert.equal(rejectedPaymentSheetFlag({ status: 400, body: { error: { code: "SOLD_OUT", message: "paymentSheet" } } }), false);
+  assert.equal(rejectedPaymentSheetFlag({ status: 409, body: { error: { code: "INVALID_EVENT", message: "Unrecognized key(s) in object: 'paymentSheet'" } } }), false);
+  assert.equal(rejectedPaymentSheetFlag(null), false);
+  assert.equal(rejectedPaymentSheetFlag(new Error("network")), false);
+});

@@ -12,7 +12,7 @@ export interface PaymentSheetSession {
  * is either without them or with both.
  */
 export type SheetOptions =
-  | { applePay?: { merchantCountryCode: string } }
+  | { applePay?: { merchantCountryCode: string }; customerId?: never; customerSessionClientSecret?: never }
   | { applePay?: { merchantCountryCode: string }; customerId: string; customerSessionClientSecret: string };
 
 /**

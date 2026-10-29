@@ -15,6 +15,7 @@ import {
 import { refundRequestBody } from "@/utils/refundAmount";
 import type { EventCard, EventPage } from "@/utils/eventsLogic";
 import type { CheckoutStart, MyTicket, TicketOrder } from "@/utils/ticketCheckoutLogic";
+import { rejectedPaymentSheetFlag } from "@/utils/ticketCheckoutLogic";
 import type {
   RatingCheckResponse,
   Rating,
@@ -4779,13 +4780,21 @@ class ApiService {
     body: { ticketTypeId: string; quantity: number; idempotencyKey: string },
     authToken: string,
   ): Promise<CheckoutStart> {
-    return this.request<CheckoutStart>(`/api/events/${encodeURIComponent(eventId)}/checkout`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${authToken}` },
-      // paymentSheet: the app opens Stripe's payment sheet, so the backend also sends a
-      // customer session (saved cards, Save box). Backend #383.
-      body: JSON.stringify({ ...body, paymentSheet: true }),
-    });
+    const send = (b: Record<string, unknown>) =>
+      this.request<CheckoutStart>(`/api/events/${encodeURIComponent(eventId)}/checkout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(b),
+      });
+    // paymentSheet: the app opens Stripe's payment sheet, so the backend also sends a
+    // customer session (saved cards, Save box). Backend #383. A backend from before #383
+    // refuses the unknown key, so retry once without it (same idempotency key).
+    try {
+      return await send({ ...body, paymentSheet: true });
+    } catch (err) {
+      if (!rejectedPaymentSheetFlag(err)) throw err;
+      return send({ ...body });
+    }
   }
 
   // GET /api/events/orders/:orderId - The buyer's own order (status, totalCents, tickets)
