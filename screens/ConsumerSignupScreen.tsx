@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Platform, Linking, Image } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { CROP_PRESETS, useCropPicker } from "@/components/crop/useCropPicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
@@ -66,18 +66,12 @@ export default function ConsumerSignupScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
 
+  // Pick a photo, then crop it (1:1 circle) before it is saved after signup.
+  const photoCrop = useCropPicker();
   const handlePickProfilePhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setProfilePhotoUri(result.assets[0].uri);
-    }
+    const cropped = await photoCrop.pick("library", CROP_PRESETS.profile);
+    if (!cropped) return;
+    setProfilePhotoUri(cropped.uri);
   };
 
   useEffect(() => {
@@ -316,7 +310,9 @@ export default function ConsumerSignupScreen() {
       industryNiches: onlyPicked(industryNiches),
       industryValues: onlyPicked(industryValues),
       interestOther: selectedIndustries.includes("other") ? interestOther.trim() || undefined : undefined,
-      profileImageUrl: profilePhotoUri || undefined,
+      // Cropped photo on the device; uploaded and saved right after the account exists.
+      profilePhotoLocalUri: profilePhotoUri || undefined,
+      profilePhotoMimeType: profilePhotoUri ? "image/jpeg" : undefined,
     });
 
     if (result.success) {
@@ -487,6 +483,7 @@ export default function ConsumerSignupScreen() {
               />
             </View>
 
+            {photoCrop.cropper}
             <Pressable onPress={handlePickProfilePhoto} style={{ alignSelf: "center", marginBottom: 4 }}>
               {profilePhotoUri ? (
                 <Image source={{ uri: profilePhotoUri }} style={styles.profilePhotoCircle} />

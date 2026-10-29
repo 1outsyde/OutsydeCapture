@@ -429,7 +429,7 @@ export default function ConsumerEditProfileScreen() {
                 currentImage={profileImageUrl || undefined}
                 onImageSelected={handleAvatarSelected}
                 onRemove={() => setProfileImageUrl("")}
-                aspectRatio="logo"
+                aspectRatio="profile"
                 placeholder="Upload Photo"
                 showRemove={!!profileImageUrl}
               />

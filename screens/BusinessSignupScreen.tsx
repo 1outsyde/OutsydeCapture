@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, Alert, ActivityIndicator, Switch, Image, Linking, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
-import * as ImagePicker from "expo-image-picker";
+import { CROP_PRESETS, useCropPicker } from "@/components/crop/useCropPicker";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -112,19 +112,13 @@ export default function BusinessSignupScreen() {
   const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
   const [profilePhotoMimeType, setProfilePhotoMimeType] = useState<string | undefined>(undefined);
 
+  // Pick a photo, then crop it (1:1 circle logo) before it is saved after signup.
+  const photoCrop = useCropPicker();
   const handlePickProfilePhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setProfilePhotoUri(result.assets[0].uri);
-      setProfilePhotoMimeType(result.assets[0].mimeType ?? undefined);
-    }
+    const cropped = await photoCrop.pick("library", CROP_PRESETS.logo);
+    if (!cropped) return;
+    setProfilePhotoUri(cropped.uri);
+    setProfilePhotoMimeType("image/jpeg");
   };
 
   const [businessName, setBusinessName] = useState("");
@@ -668,6 +662,7 @@ export default function BusinessSignupScreen() {
               Tell us about your business
             </ThemedText>
 
+            {photoCrop.cropper}
             <Pressable onPress={handlePickProfilePhoto} style={{ alignSelf: "center", marginBottom: 4 }}>
               {profilePhotoUri ? (
                 <Image source={{ uri: profilePhotoUri }} style={styles.profilePhotoCircle} />

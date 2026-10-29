@@ -111,7 +111,7 @@ export default function EditStaffProfileScreen() {
     if (!token) return;
     try {
       setSaving(true);
-      const result = await uploadImage(uri, "image/jpeg", "avatars", token);
+      const result = await uploadImage(uri, "image/jpeg", "profiles", token);
       setProfileImageUrl(result.url);
     } catch (e: any) {
       Alert.alert("Upload Error", e.message || "Failed to upload image");
@@ -313,7 +313,7 @@ export default function EditStaffProfileScreen() {
                 currentImage={profileImageUrl || undefined}
                 onImageSelected={handleProfileImageSelected}
                 onRemove={() => setProfileImageUrl("")}
-                aspectRatio="logo"
+                aspectRatio="profile"
                 placeholder="Upload Photo"
               />
             </View>

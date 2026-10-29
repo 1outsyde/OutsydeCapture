@@ -3911,7 +3911,7 @@ export default function StorefrontEditorScreen() {
               setServiceImageUrl(null);
               setServiceImageTouched(true);
             }}
-            aspectRatio="product"
+            aspectRatio="service"
             placeholder="Upload Service Image"
           />
 

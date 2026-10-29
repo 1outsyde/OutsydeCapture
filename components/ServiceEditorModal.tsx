@@ -438,7 +438,7 @@ export default function ServiceEditorModal({
                   onRemove={() =>
                     setFormData((f) => ({ ...f, imageUrl: null, imageTouched: true }))
                   }
-                  aspectRatio="product"
+                  aspectRatio="service"
                   placeholder="Upload Service Image"
                 />
                 {uploadingImage ? (
