@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import { EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
+import { EVENT_COVER_ASPECT } from "@/components/events/eventCover";
 import { dateBlock, priceLabel, whenLabel, whereLabel, type EventCard } from "@/utils/eventsLogic";
 
 /** An event inside the Pro feed (canvas 21). The whole card opens the event page. */
@@ -77,7 +78,7 @@ const styles = StyleSheet.create({
   sub: { fontSize: 12, lineHeight: 16 },
   tag: { backgroundColor: EVENT_GOLD, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
   tagText: { color: "#000000", fontSize: 10, fontWeight: "700", letterSpacing: 1 },
-  cover: { height: 220, backgroundColor: EVENT_GREEN, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  cover: { width: "100%", aspectRatio: EVENT_COVER_ASPECT, backgroundColor: EVENT_GREEN, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   coverLabel: { color: EVENT_GREEN_TEXT, fontSize: 13 },
   dateBlock: { position: "absolute", left: 12, bottom: 12, width: 50, height: 56, borderRadius: 12, backgroundColor: "#000000", alignItems: "center", justifyContent: "center" },
   dateWeekday: { color: EVENT_GOLD, fontSize: 10, fontWeight: "700" },

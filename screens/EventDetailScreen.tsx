@@ -13,6 +13,7 @@ import { Spacing } from "@/constants/theme";
 import api from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
 import { EVENT_CREAM, EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
+import { EVENT_COVER_ASPECT } from "@/components/events/eventCover";
 import BuyTicketsModal from "@/components/events/BuyTicketsModal";
 import {
   defaultTicketId,
@@ -434,7 +435,8 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: Spacing.xl, gap: Spacing.md },
   centerTitle: { fontSize: 17, fontWeight: "700", textAlign: "center" },
-  cover: { height: 280, backgroundColor: EVENT_GREEN, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  // The whole 4:5 flyer, full width (photo ratios 2f).
+  cover: { width: "100%", aspectRatio: EVENT_COVER_ASPECT, backgroundColor: EVENT_GREEN, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   coverLabel: { color: EVENT_GREEN_TEXT, fontSize: 13 },
   circle: { position: "absolute", width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(11,11,11,0.85)", alignItems: "center", justifyContent: "center" },
   body: { paddingHorizontal: 20, paddingTop: 18, gap: 16 },

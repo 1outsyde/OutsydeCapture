@@ -3541,8 +3541,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "rgba(0,0,0,0.30)",
   },
+  // Product photos are 4:5 (photo ratios 2f), the shape they're cropped to.
   productImageWrap: {
-    height: 132,
+    width: "100%",
+    aspectRatio: 4 / 5,
     backgroundColor: "#191919",
   },
   productInfo: {

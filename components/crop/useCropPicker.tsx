@@ -34,6 +34,8 @@ export const CROP_PRESETS = {
   profile: { aspect: 1, shape: "circle", title: "Profile photo" },
   square: { aspect: 1, shape: "rect", title: "Crop photo" },
   post: { aspect: 4 / 5, shape: "rect", title: "Crop post" },
+  // Event covers are 4:5 flyers (photo ratios 2f).
+  eventCover: { aspect: 4 / 5, shape: "rect", title: "Crop flyer" },
 } as const satisfies Record<string, CropPreset>;
 
 export type CropSource = "library" | "camera";

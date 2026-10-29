@@ -6,6 +6,7 @@ import { Image } from "expo-image";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
+import { EVENT_COVER_ASPECT } from "@/components/events/eventCover";
 import { priceLabel, whenLabel, whereLabel } from "@/utils/eventsLogic";
 import { previewPrice, safeHttpUrl, type EventForm, type HostTicketType } from "@/utils/host/editorLogic";
 
@@ -35,7 +36,14 @@ export default function PreviewCard({ form, types, startsAt, showPrice = true }:
 
 const s = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 16, overflow: "hidden" },
-  cover: { height: 170, alignItems: "center", justifyContent: "center" },
+  // Same 4:5 flyer as the Discover card, so the host sees what guests see.
+  cover: {
+    width: "100%",
+    aspectRatio: EVENT_COVER_ASPECT,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
   tag: { position: "absolute", top: 10, left: 10, backgroundColor: EVENT_GOLD, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   tagText: { color: "#0B0B0B", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   body: { padding: 14, gap: 4 },
