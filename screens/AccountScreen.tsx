@@ -73,6 +73,7 @@ import {
   BrandColorSpec,
   resolveBrandColor,
   parseBrandColorSpec,
+  readableTextOn,
 } from "@/constants/colorOptions";
 
 const COLORS = {
@@ -370,7 +371,7 @@ const AvatarWithInitials = ({
         />
       ) : (
         <View style={[styles.avatarFallback, { backgroundColor: accentColor }]}>
-          <Text style={styles.avatarInitials}>{getInitials(name)}</Text>
+          <Text style={[styles.avatarInitials, { color: readableTextOn(accentColor) }]}>{getInitials(name)}</Text>
         </View>
       )}
     </View>
@@ -1417,6 +1418,8 @@ export default function AccountScreen() {
       ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
   const accentDimColor = COLORS.goldDim;
+  // Black or white text/icons on top of the profile color (wheel colors can be any shade).
+  const onAccent = readableTextOn(accentColor);
  const pageBg = profile?.role === "staff" && isOwner ? theme.backgroundDefault : `${accentColor}28`;
 
   const headerBgOpacity = scrollY.interpolate({
@@ -1600,7 +1603,7 @@ export default function AccountScreen() {
                 onPress={onEditProfilePress}
                 accessibilityRole="button"
               >
-                <Text style={styles.editProfileText}>Manage business</Text>
+                <Text style={[styles.editProfileText, { color: onAccent }]}>Manage business</Text>
               </Pressable>
             </View>
           ) : isOwner ? (
@@ -1608,7 +1611,7 @@ export default function AccountScreen() {
               style={[styles.editProfileButton, { backgroundColor: accentColor }]}
               onPress={onEditProfilePress}
             >
-              <Text style={styles.editProfileText}>Edit Profile</Text>
+              <Text style={[styles.editProfileText, { color: onAccent }]}>Edit Profile</Text>
             </Pressable>
           ) : (
             <Pressable
@@ -1624,7 +1627,7 @@ export default function AccountScreen() {
               <Text
                 style={[
                   styles.followButtonText,
-                  isFollowing ? { color: accentColor } : { color: COLORS.black },
+                  isFollowing ? { color: accentColor } : { color: onAccent },
                 ]}
               >
                 {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
@@ -1639,7 +1642,7 @@ export default function AccountScreen() {
             <View
               style={[styles.verifiedBadge, { backgroundColor: accentColor }]}
             >
-              <Feather name="check" size={12} color={COLORS.black} />
+              <Feather name="check" size={12} color={onAccent} />
             </View>
           ) : null}
           {(() => {
@@ -1975,7 +1978,7 @@ export default function AccountScreen() {
                 style={[styles.emptyCta, { backgroundColor: accentColor }]}
                 onPress={() => navigation.navigate("CreatePost")}
               >
-                <Text style={styles.emptyCtaText}>Post</Text>
+                <Text style={[styles.emptyCtaText, { color: onAccent }]}>Post</Text>
               </Pressable>
             ) : null}
           </View>
@@ -2182,7 +2185,7 @@ export default function AccountScreen() {
                   >
                     <Text
                       style={{
-                        color: "#000000",
+                        color: onAccent,
                         fontSize: 12,
                         fontWeight: "800",
                       }}
@@ -2395,10 +2398,10 @@ export default function AccountScreen() {
                     gap: 6,
                   }}
                 >
-                  <Feather name="user-plus" size={14} color={COLORS.black} />
+                  <Feather name="user-plus" size={14} color={onAccent} />
                   <Text
                     style={{
-                      color: COLORS.black,
+                      color: onAccent,
                       fontWeight: "800",
                       fontSize: 13,
                     }}

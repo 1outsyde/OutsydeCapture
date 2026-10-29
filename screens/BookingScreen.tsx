@@ -24,7 +24,7 @@ import { Spacing, BorderRadius, FontSizes } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicker";
 import { formatDuration } from "@/utils/duration";
-import { resolveBrandColor, parseBrandColorSpec } from "@/constants/colorOptions";
+import { resolveBrandColor, parseBrandColorSpec, readableTextOn } from "@/constants/colorOptions";
 import api, {
   BookingService,
   AvailabilityCalendarDay,
@@ -420,6 +420,8 @@ export default function BookingScreen() {
   // ─── Accent color ─────────────────────────────────────────────────────────
   const colorMode = colorScheme === "dark" ? "dark" : "light";
   const accent = resolveBrandColor(parseBrandColorSpec(photographer?.brandColors ?? null), colorMode);
+  // Black or white text on the accent buttons (wheel colors can be any shade).
+  const onAccent = readableTextOn(accent);
   const accentSoft = accent + "25";
   const accentDim = accent + "CC";
 
@@ -1137,7 +1139,7 @@ export default function BookingScreen() {
           <Feather name="alert-circle" size={48} color={theme.error} />
           <ThemedText style={{ marginTop: Spacing.md, color: theme.textSecondary, textAlign: "center" }}>{error}</ThemedText>
           <Pressable onPress={fetchServices} style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl }]}>
-            <ThemedText style={{ color: theme.background }}>Try Again</ThemedText>
+            <ThemedText style={{ color: onAccent }}>Try Again</ThemedText>
           </Pressable>
         </View>
       );
@@ -1320,7 +1322,7 @@ export default function BookingScreen() {
               onPress={() => { setStep(2); setSelectedDate(null); setSlots([]); }}
               style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl }]}
             >
-              <ThemedText style={{ color: theme.background }}>Choose Another Date</ThemedText>
+              <ThemedText style={{ color: onAccent }}>Choose Another Date</ThemedText>
             </Pressable>
           </View>
         ) : (
@@ -1478,9 +1480,9 @@ export default function BookingScreen() {
           style={[styles.primaryButton, { backgroundColor: accent, opacity: checkingAddonFit ? 0.6 : 1 }]}
         >
           {checkingAddonFit ? (
-            <ActivityIndicator color={theme.background} />
+            <ActivityIndicator color={onAccent} />
           ) : (
-            <ThemedText style={{ color: theme.background, fontWeight: "600" }}>Continue</ThemedText>
+            <ThemedText style={{ color: onAccent, fontWeight: "600" }}>Continue</ThemedText>
           )}
         </Pressable>
       </View>
@@ -1523,7 +1525,7 @@ export default function BookingScreen() {
           style={[styles.primaryButton, { backgroundColor: accent }]}
           accessibilityRole="button"
         >
-          <ThemedText style={{ color: theme.background, fontWeight: "600" }}>
+          <ThemedText style={{ color: onAccent, fontWeight: "600" }}>
             {primaryLabel}
           </ThemedText>
         </Pressable>
@@ -1778,7 +1780,7 @@ export default function BookingScreen() {
             No slot selected. Please select a time slot.
           </ThemedText>
           <Pressable onPress={() => setStep(3)} style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl }]}>
-            <ThemedText style={{ color: theme.background }}>Go Back</ThemedText>
+            <ThemedText style={{ color: onAccent }}>Go Back</ThemedText>
           </Pressable>
         </View>
       );
@@ -2128,7 +2130,7 @@ export default function BookingScreen() {
         onPress={() => navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))}
         style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl, minWidth: 200 }]}
       >
-        <ThemedText style={{ color: theme.background, fontWeight: "600" }}>View My Sessions</ThemedText>
+        <ThemedText style={{ color: onAccent, fontWeight: "600" }}>View My Sessions</ThemedText>
       </Pressable>
       <Pressable onPress={() => navigation.goBack()} style={{ marginTop: Spacing.lg }}>
         <ThemedText style={{ color: theme.textSecondary }}>Go Back</ThemedText>
@@ -2263,7 +2265,7 @@ export default function BookingScreen() {
               onPress={() => setShowIncompatibleModal(false)}
               style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl, width: "100%" }]}
             >
-              <ThemedText style={{ color: theme.background }}>Find Another Time</ThemedText>
+              <ThemedText style={{ color: onAccent }}>Find Another Time</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -2306,7 +2308,7 @@ export default function BookingScreen() {
               style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.xl, width: "100%" }]}
               accessibilityRole="button"
             >
-              <ThemedText style={{ color: theme.background }}>
+              <ThemedText style={{ color: onAccent }}>
                 {photographer.name?.trim() ? `Back to ${photographer.name.trim()}` : "Back"}
               </ThemedText>
             </Pressable>
