@@ -31,6 +31,8 @@ import {
   COLOR_VALUES,
   SolidColorId,
   parseBrandColorSpec,
+  toColorPayload,
+  BrandColorSpec,
 } from "@/constants/colorOptions";
 import api, {
   VendorBookerBusiness,
@@ -208,6 +210,9 @@ export default function StorefrontEditorScreen() {
   >(null);
   const [logoImage, setLogoImage] = useState("");
   const [selectedColorId, setSelectedColorId] = useState<string>("sunset_gold");
+  // Color as loaded, to leave a color wheel pick alone unless a swatch is chosen (2026-10-28).
+  const [loadedColorSpec, setLoadedColorSpec] = useState<BrandColorSpec | null>(null);
+  const [loadedColorId, setLoadedColorId] = useState<string>("sunset_gold");
 
   const [profileName, setProfileName] = useState("");
   const [profileTagline, setProfileTagline] = useState("");
@@ -550,11 +555,13 @@ export default function StorefrontEditorScreen() {
       }
       setLogoImage(biz.logoImage || "");
       const parsedBrandColors = parseBrandColorSpec(biz.brandColors);
-      setSelectedColorId(
+      const loadedId =
         parsedBrandColors?.type === "solid" && parsedBrandColors.id
           ? parsedBrandColors.id
-          : "sunset_gold",
-      );
+          : "sunset_gold";
+      setSelectedColorId(loadedId);
+      setLoadedColorId(loadedId);
+      setLoadedColorSpec(parsedBrandColors);
 
       setProfileName(biz.name || "");
       setProfileTagline(biz.tagline || "");
@@ -822,7 +829,12 @@ export default function StorefrontEditorScreen() {
 
     try {
       setSaving(true);
-      const brandColorsPayload = { type: "solid", id: selectedColorId };
+      // A color wheel pick that no swatch replaced is not sent, so it is never overwritten.
+      const keepWheelColor =
+        loadedColorSpec?.type === "custom" && selectedColorId === loadedColorId;
+      const brandColorsPayload = keepWheelColor
+        ? undefined
+        : toColorPayload({ type: "solid", id: selectedColorId });
       const finalCoverImage =
         coverMediaType === "video" ? coverVideo : coverImage;
       const finalCoverMediaType =
@@ -851,6 +863,11 @@ export default function StorefrontEditorScreen() {
         logoImage: logoImage || undefined,
         ctaConfig: ctaPayload,
       });
+      if (!keepWheelColor) {
+        // A swatch replaced the stored color: from now on it is the loaded color.
+        setLoadedColorSpec({ type: "solid", id: selectedColorId });
+        setLoadedColorId(selectedColorId);
+      }
       setBaselineTick((t) => t + 1);
       Alert.alert("Success", "Branding updated successfully");
     } catch (error: any) {

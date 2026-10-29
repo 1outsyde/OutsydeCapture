@@ -41,10 +41,12 @@ export type GradientColorId = (typeof GRADIENT_COLOR_IDS)[number];
 export type ColorId = SolidColorId | GradientColorId;
 
 // ── Stored shape (sent to / received from API) ─────────────────────────────────
-export type BrandColorSpec = {
-  type: "solid" | "gradient";
-  id: string;
-};
+// "custom" = a color wheel pick (2026-10-28). Backend rules: outsyde-backend shared/profileColor.ts.
+export type BrandColorSpec =
+  | { type: "solid" | "gradient"; id: string }
+  | { type: "custom"; hex: string };
+
+const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
 // ── Value map ──────────────────────────────────────────────────────────────────
 type SolidEntry = { name: string; dark: string; light: string };
@@ -104,6 +106,9 @@ export function parseBrandColorSpec(raw: unknown): BrandColorSpec | null {
   }
   if (typeof raw === "object" && raw !== null) {
     const obj = raw as Record<string, unknown>;
+    if (obj.type === "custom" && typeof obj.hex === "string" && HEX_RE.test(obj.hex)) {
+      return { type: "custom", hex: obj.hex.toUpperCase() };
+    }
     if (
       (obj.type === "solid" || obj.type === "gradient") &&
       typeof obj.id === "string" &&
@@ -129,6 +134,12 @@ export function resolveBrandColor(
 ): string {
   const fallback = mode === "dark" ? FALLBACK_DARK : FALLBACK_LIGHT;
   if (!brandColors) return fallback;
+  // Color wheel pick: one hex, nudged lighter on dark screens / darker on light screens only when it
+  // would be hard to see (contrast under 3:1). Presets keep their own hand-picked dark/light pair.
+  if (brandColors.type === "custom") {
+    if (!HEX_RE.test(brandColors.hex)) return fallback;
+    return ensureContrast(brandColors.hex, mode === "dark" ? "#000000" : "#FFFFFF", 3);
+  }
   // Gradient rendering deferred to a later task
   if (brandColors.type === "gradient") return fallback;
 
@@ -145,4 +156,57 @@ export function resolveBrandColor(
       : (entry as SolidEntry).light;
   }
   return fallback;
+}
+
+// ── Contrast helpers (color wheel build, 2026-10-28) ───────────────────────────
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex([r, g, b]: [number, number, number]): string {
+  return "#" + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+
+function luminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG contrast ratio between two #RRGGBB colors (1 to 21). */
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** Mix `hex` toward white (on a dark background) or black (on a light one) until it reaches `min` contrast. */
+export function ensureContrast(hex: string, background: string, min: number): string {
+  if (!HEX_RE.test(hex)) return hex;
+  const target: [number, number, number] = luminance(background) < 0.5 ? [255, 255, 255] : [0, 0, 0];
+  const start = hexToRgb(hex);
+  let out = hex.toUpperCase();
+  for (let step = 0; step <= 20 && contrastRatio(out, background) < min; step++) {
+    const t = step / 20;
+    out = rgbToHex([0, 1, 2].map((i) => start[i] + (target[i] - start[i]) * t) as [number, number, number]);
+  }
+  return out;
+}
+
+/**
+ * Black or white, whichever reads better on `background` (#RRGGBB, or #RRGGBBAA where the alpha is ignored).
+ * Use for text and icons sitting ON the profile color (buttons, badges, pills).
+ */
+export function readableTextOn(background: string): "#000000" | "#FFFFFF" {
+  const hex = background.slice(0, 7);
+  if (!HEX_RE.test(hex)) return "#000000";
+  return contrastRatio(hex, "#000000") >= contrastRatio(hex, "#FFFFFF") ? "#000000" : "#FFFFFF";
+}
+
+/** The shape to SEND when saving a color. `v: 2` tells the backend this app understands wheel colors. */
+export function toColorPayload(spec: BrandColorSpec) {
+  return spec.type === "custom" ? { type: "custom" as const, hex: spec.hex, v: 2 as const } : { type: spec.type, id: spec.id, v: 2 as const };
 }

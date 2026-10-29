@@ -45,6 +45,7 @@ import {
   BrandColorSpec,
   resolveBrandColor,
   parseBrandColorSpec,
+  readableTextOn,
 } from "@/constants/colorOptions";
 
 // Text sitting on top of the business's accentColor (buttons/badges/avatar
@@ -153,6 +154,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const followTouchedRef = useRef(false);
 
   const accentColor = resolveBrandColor(brandColors, isDark ? "dark" : "light");
+  // Black or white text on top of the business color (wheel colors can be any shade).
+  const onAccent = readableTextOn(accentColor);
 
   // Adaptive surface/text tokens — reuses the app's real theme palette
   // (constants/theme.ts) instead of this screen's old fixed-dark colors.
@@ -480,7 +483,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                       {formatCents(service.priceCents)}
                     </Text>
                     <View style={[styles.bookChip, { backgroundColor: accentColor }]}>
-                      <Text style={styles.bookChipText}>Book</Text>
+                      <Text style={[styles.bookChipText, { color: onAccent }]}>Book</Text>
                     </View>
                   </View>
                 </Pressable>
@@ -583,7 +586,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                 />
               ) : (
                 <View style={[styles.avatarFallback, { backgroundColor: accentColor }]}>
-                  <Text style={styles.avatarInitials}>
+                  <Text style={[styles.avatarInitials, { color: onAccent }]}>
                     {getInitials(staff.displayName)}
                   </Text>
                 </View>
@@ -605,7 +608,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel={isFollowing ? "Unfollow" : "Follow"}
                 >
-                  <Text style={[styles.followButtonText, isFollowing && { color: accentColor }]}>
+                  <Text style={[styles.followButtonText, { color: isFollowing ? accentColor : onAccent }]}>
                     {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
                   </Text>
                 </Pressable>
@@ -759,7 +762,7 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             style={[styles.stickyButton, { backgroundColor: accentColor }]}
             onPress={goToBookingEntryPoint}
           >
-            <Text style={styles.stickyButtonText}>Book {staff.displayName}</Text>
+            <Text style={[styles.stickyButtonText, { color: onAccent }]}>Book {staff.displayName}</Text>
           </Pressable>
         </View>
       </View>

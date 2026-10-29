@@ -60,6 +60,7 @@ import {
   BrandColorSpec,
   resolveBrandColor,
   parseBrandColorSpec,
+  readableTextOn,
 } from "@/constants/colorOptions";
 import { hoursObjectToArray } from "@/components/HoursEditor";
 import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
@@ -356,7 +357,7 @@ const AvatarWithInitials = ({
         />
       ) : (
         <View style={[styles.avatarFallback, { backgroundColor: accentColor }]}>
-          <Text style={styles.avatarInitials}>{getInitials(name)}</Text>
+          <Text style={[styles.avatarInitials, { color: readableTextOn(accentColor) }]}>{getInitials(name)}</Text>
         </View>
       )}
     </View>
@@ -637,6 +638,8 @@ export default function VendorDetailScreen({ route }: Props) {
       ? resolveBrandColor(profile.brandColors ?? null, colorMode)
       : COLORS.gold;
   const accentDimColor = COLORS.goldDim;
+  // Black or white text/icons on top of the profile color (wheel colors can be any shade).
+  const onAccent = readableTextOn(accentColor);
   const pageBg = `${accentColor}28`;
 
   const loadProfile = useCallback(async () => {
@@ -1695,7 +1698,7 @@ export default function VendorDetailScreen({ route }: Props) {
                   styles.followButtonText,
                   isFollowing
                     ? { color: accentColor }
-                    : { color: COLORS.black },
+                    : { color: onAccent },
                 ]}
               >
                 {followBusy ? "..." : isFollowing ? "Following" : "Follow"}
@@ -1744,7 +1747,7 @@ export default function VendorDetailScreen({ route }: Props) {
             <View
               style={[styles.verifiedBadge, { backgroundColor: accentColor }]}
             >
-              <Feather name="check" size={12} color={COLORS.black} />
+              <Feather name="check" size={12} color={onAccent} />
             </View>
           ) : null}
         </View>
@@ -2253,7 +2256,7 @@ export default function VendorDetailScreen({ route }: Props) {
                   >
                     <Text
                       style={{
-                        color: "#000000",
+                        color: onAccent,
                         fontSize: 12,
                         fontWeight: "800",
                       }}
@@ -2671,7 +2674,7 @@ export default function VendorDetailScreen({ route }: Props) {
               style={[styles.stickyButton, { backgroundColor: accentColor }]}
               onPress={primaryAction.onPress}
             >
-              <Text style={styles.stickyButtonText}>{primaryAction.label}</Text>
+              <Text style={[styles.stickyButtonText, { color: onAccent }]}>{primaryAction.label}</Text>
             </Pressable>
           </View>
         </View>

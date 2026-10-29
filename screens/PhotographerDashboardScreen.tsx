@@ -27,6 +27,7 @@ import {
   COLOR_VALUES,
   SolidColorId,
   parseBrandColorSpec,
+  toColorPayload,
 } from "@/constants/colorOptions";
 import { useAuth } from "@/context/AuthContext";
 import api, {
@@ -935,7 +936,8 @@ export default function PhotographerDashboardScreen() {
         rawParsed?.type === "solid" && rawParsed.id ? rawParsed.id : "sunset_gold";
       console.log(`[Dashboard] profileTheme: current="${currentThemeId}" vs original="${originalThemeId}"`);
       if (currentThemeId !== originalThemeId) {
-        updateData.brandColors = { type: "solid", id: currentThemeId } as any;
+        // Sent only when a swatch changed (a color wheel pick stays put otherwise); v:2 = wheel-aware app.
+        updateData.brandColors = toColorPayload({ type: "solid", id: currentThemeId }) as any;
       }
       
       // logoImage (avatar)
