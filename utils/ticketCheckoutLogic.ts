@@ -452,3 +452,18 @@ export function walletLink(os: string, t: { walletUrl?: string | null } | null |
   const url = t?.walletUrl?.trim();
   return url && /^https?:\/\//i.test(url) ? url : null;
 }
+
+// ─── Older backend without paymentSheet ──────────────────────────────────────
+
+/**
+ * True when a backend from before #383 refused the checkout only because of the
+ * `paymentSheet` key (its strict schema answers 400 INVALID_EVENT "Unrecognized key(s) ...
+ * 'paymentSheet'"). The app then retries once without it, same idempotency key.
+ */
+export function rejectedPaymentSheetFlag(err: unknown): boolean {
+  const e = err as { status?: unknown; body?: { error?: { code?: unknown; message?: unknown } } } | null;
+  if (!e || e.status !== 400) return false;
+  const code = e.body?.error?.code;
+  const message = e.body?.error?.message;
+  return code === "INVALID_EVENT" && typeof message === "string" && message.includes("Unrecognized key") && message.includes("paymentSheet");
+}
