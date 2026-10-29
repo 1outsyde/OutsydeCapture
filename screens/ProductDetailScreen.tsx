@@ -831,9 +831,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // The whole 4:5 product photo, full width (photo ratios 2f).
   imageContainer: {
     width: "100%",
-    height: 280,
+    aspectRatio: 4 / 5,
     backgroundColor: "#1a1a1a",
     overflow: "hidden",
   },

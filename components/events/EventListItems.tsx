@@ -5,15 +5,20 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import { EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
+import { EVENT_COVER_ASPECT } from "@/components/events/eventCover";
 import { dateBlock, priceLabel, whenLabel, whereLabel, type EventCard } from "@/utils/eventsLogic";
 
-function Cover({ uri, height, width, radius }: { uri: string | null; height: number; width?: number; radius?: number }) {
-  // A row thumbnail needs a fixed width; without it the cover takes the whole row and the text gets none.
+/**
+ * A 4:5 flyer box (photo ratios 2f). Full width by default; a row thumbnail passes a fixed width,
+ * or the cover would take the whole row and leave the text none. Children sit centered on top.
+ */
+function Cover({ uri, width, radius, children }: { uri: string | null; width?: number; radius?: number; children?: React.ReactNode }) {
   return (
-    <View style={[styles.cover, { width: width ?? "100%", height, backgroundColor: EVENT_GREEN, borderRadius: radius ?? 0 }]}>
+    <View style={[styles.cover, { width: width ?? "100%", aspectRatio: EVENT_COVER_ASPECT, backgroundColor: EVENT_GREEN, borderRadius: radius ?? 0 }]}>
       {uri ? (
         <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
       ) : null}
+      {children}
     </View>
   );
 }
@@ -33,8 +38,9 @@ export function FeaturedEventCard({ event, onPress }: { event: EventCard; onPres
       style={[styles.featured, { backgroundColor: theme.card }]}
     >
       <View>
-        <Cover uri={event.coverImageUrl} height={180} />
-        {!event.coverImageUrl ? <ThemedText style={styles.coverLabel}>Event</ThemedText> : null}
+        <Cover uri={event.coverImageUrl}>
+          {!event.coverImageUrl ? <ThemedText style={styles.coverLabel}>Event</ThemedText> : null}
+        </Cover>
         {badge ? (
           <View style={styles.badge}>
             <ThemedText style={styles.badgeText}>{badge}</ThemedText>
@@ -67,7 +73,7 @@ export function EventRow({ event, onPress }: { event: EventCard; onPress: () => 
       accessibilityLabel={`Event: ${event.title}, ${when}`}
       style={[styles.row, { backgroundColor: theme.card }]}
     >
-      <Cover uri={event.coverImageUrl} height={76} width={76} radius={12} />
+      <Cover uri={event.coverImageUrl} width={64} radius={12} />
       <View style={styles.textCol}>
         <ThemedText style={[styles.rowWhen, { color: theme.brandGold }]}>{when}</ThemedText>
         <ThemedText style={[styles.rowTitle, { color: theme.text }]} numberOfLines={2}>{event.title}</ThemedText>
@@ -78,8 +84,8 @@ export function EventRow({ event, onPress }: { event: EventCard; onPress: () => 
 }
 
 const styles = StyleSheet.create({
-  cover: { overflow: "hidden", flexShrink: 0 },
-  coverLabel: { position: "absolute", top: 80, alignSelf: "center", color: EVENT_GREEN_TEXT, fontSize: 13 },
+  cover: { overflow: "hidden", flexShrink: 0, alignItems: "center", justifyContent: "center" },
+  coverLabel: { color: EVENT_GREEN_TEXT, fontSize: 13 },
   featured: { borderRadius: 16, overflow: "hidden" },
   badge: { position: "absolute", left: 12, bottom: 12, backgroundColor: "#000000", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
   badgeText: { color: "#F5F0E6", fontSize: 12, fontWeight: "600" },

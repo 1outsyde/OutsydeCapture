@@ -19,6 +19,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
 import { uploadImage } from "@/services/mediaUpload";
+import { CROP_PRESETS, useCropPicker } from "@/components/crop/useCropPicker";
+import { EVENT_COVER_ASPECT } from "@/components/events/eventCover";
 import type { RootStackParamList } from "@/navigation/types";
 import {
   Box, Centered, Chip, ErrorText, Field, GOLD, Hint, HostHeader, Label, OkText, OutlineButton, PickerBox, PrimaryButton, Progress,
@@ -56,6 +58,9 @@ const STEPS: Record<Step, { n: number; title: string }> = {
 };
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const UPLOAD_FAILED = "We couldn't upload that photo. Try again, or continue without one for now.";
+// iOS: let the system picker finish closing before the crop screen (a Modal) opens.
+const waitForPickerToClose = () =>
+  Platform.OS === "ios" ? new Promise((r) => setTimeout(r, 350)) : Promise.resolve();
 const NOT_FINISHED = "Your payout setup isn't finished yet. Tap the button to keep going.";
 const VISIBILITY: { value: EventForm["addressVisibility"]; label: string }[] = [
   { value: "ticket_holders", label: "People with a ticket, right away" },
@@ -101,6 +106,8 @@ export default function EventEditorScreen() {
   const [paidOk, setPaidOk] = useState<boolean | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // 4:5 flyer crop screen for the cover (photo ratios 2f).
+  const coverCrop = useCropPicker();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ initial: TicketSheet; editing: HostTicketType | null } | null>(null);
@@ -305,14 +312,18 @@ export default function EventEditorScreen() {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) { setError("Allow photo access in Settings to add a cover photo."); return; }
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85, allowsEditing: true, aspect: [16, 9] });
+      // Event covers are 4:5 flyers (photo ratios 2f): our crop screen, not the system one (square on iPhone).
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1 });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
       if (a.fileSize && a.fileSize > MAX_UPLOAD_BYTES) { setError("That photo is too large. Choose one under 20 MB."); return; }
+      await waitForPickerToClose();
+      const cropped = await coverCrop.cropUri(a.uri, CROP_PRESETS.eventCover);
+      if (!cropped) return; // cancelled: cover unchanged
       const t = await token();
       if (!t) return;
       setUploading(true);
-      const up = await uploadImage(a.uri, a.mimeType ?? "image/jpeg", "covers", t);
+      const up = await uploadImage(cropped.uri, "image/jpeg", "covers", t);
       const url = safeHttpUrl(up.url);
       if (!url) { setError(UPLOAD_FAILED); return; }
       setForm((f) => ({ ...f, coverImageUrl: url }));
@@ -600,7 +611,7 @@ export default function EventEditorScreen() {
     else navigation.replace("YourEvents");
   };
   const root = (children: React.ReactNode) => (
-    <View style={[s.root, { backgroundColor: theme.backgroundRoot }]}>{children}</View>
+    <View style={[s.root, { backgroundColor: theme.backgroundRoot }]}>{children}{coverCrop.cropper}</View>
   );
   const messages = (
     <>
@@ -1004,15 +1015,16 @@ const s = StyleSheet.create({
   gateIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" },
   stepRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
   stepNum: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  coverTile: { height: 220, borderWidth: 1, borderStyle: "dashed", borderRadius: 16, alignItems: "center", justifyContent: "center", overflow: "hidden", gap: 10 },
+  // 4:5 flyer (photo ratios 2f).
+  coverTile: { width: "62%", aspectRatio: EVENT_COVER_ASPECT, alignSelf: "center", borderWidth: 1, borderStyle: "dashed", borderRadius: 16, alignItems: "center", justifyContent: "center", overflow: "hidden", gap: 10 },
   coverLabel: { alignItems: "center", gap: 4, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
   draft: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 14, padding: 10 },
-  draftThumb: { width: 52, height: 52, borderRadius: 10, overflow: "hidden" },
+  draftThumb: { width: 44, height: 55, borderRadius: 10, overflow: "hidden" },
   liveCheck: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", alignSelf: "center", marginTop: 8 },
   share: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, minHeight: 48 },
   twoUp: { flexDirection: "row", gap: 12 },
   nameRow: { flexDirection: "row", gap: 12, alignItems: "flex-end" },
-  thumb: { width: 76, height: 76, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  thumb: { width: 64, height: 80, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   thumbText: { position: "absolute", bottom: 0, left: 0, right: 0, textAlign: "center", fontSize: 11, fontWeight: "700", paddingVertical: 2 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   banner: { flexDirection: "row", gap: 12, borderWidth: 1, borderRadius: 14, padding: 14 },

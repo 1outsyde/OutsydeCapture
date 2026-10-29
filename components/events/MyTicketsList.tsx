@@ -129,7 +129,8 @@ export default function MyTicketsList({ refreshKey }: { refreshKey: number }) {
 const styles = StyleSheet.create({
   section: { fontSize: 12, fontWeight: "700", letterSpacing: 1 },
   row: { flexDirection: "row", gap: 12, borderWidth: 1, borderRadius: 16, padding: 10, alignItems: "center", minHeight: 88 },
-  thumb: { width: 68, height: 68, borderRadius: 12, backgroundColor: EVENT_GREEN, overflow: "hidden" },
+  // 4:5 flyer thumbnail (photo ratios 2f).
+  thumb: { width: 56, height: 70, borderRadius: 12, backgroundColor: EVENT_GREEN, overflow: "hidden" },
   when: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
   title: { fontSize: 16, fontWeight: "800" },
   info: { fontSize: 12, lineHeight: 17 },
