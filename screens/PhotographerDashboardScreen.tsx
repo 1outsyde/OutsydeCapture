@@ -23,12 +23,12 @@ import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  SOLID_COLOR_IDS,
-  COLOR_VALUES,
-  SolidColorId,
   parseBrandColorSpec,
+  resolveBrandColor,
+  specToHex,
   toColorPayload,
 } from "@/constants/colorOptions";
+import ColorWheelPicker from "@/components/ColorWheelPicker";
 import { useAuth } from "@/context/AuthContext";
 import api, {
   PhotographerDashboardStats,
@@ -100,9 +100,8 @@ const DASHBOARD_COLORS = {
 };
 
 
-// Photographer color picker uses the same 16-swatch SOLID_COLOR_IDS list as
-// the business StorefrontEditorScreen for consistency.
-// Display hex per swatch is resolved at render time from COLOR_VALUES[id][mode].
+// Photographer profile color uses the shared color wheel (components/ColorWheelPicker.tsx),
+// the same one as the business StorefrontEditorScreen (2026-10-29, replaces the 16 swatches).
 
 type ModalType = "profile" | "hours" | "services" | "bookings" | "blocked" | null;
 
@@ -189,7 +188,8 @@ export default function PhotographerDashboardScreen() {
     // Shared photographer list (backend #320): codes are what's saved, names follow them.
     specialtyCodes: [] as string[],
     specialtyOther: "",
-    profileTheme: "sunset_gold",
+    // Profile color as #RRGGBB from the color wheel (2026-10-29, replaces the 16 swatches).
+    profileTheme: specToHex(null),
     avatar: "" as string,
     bannerType: "color" as "color" | "image" | "video" | "mock",
     bannerImage: "" as string,
@@ -306,10 +306,8 @@ export default function PhotographerDashboardScreen() {
       
       // Parse brandColors — new shape { type, id }
       const parsedBrandColors = parseBrandColorSpec(photographer.brandColors);
-      const originalThemeId =
-        parsedBrandColors?.type === "solid" && parsedBrandColors.id
-          ? parsedBrandColors.id
-          : "sunset_gold";
+      // Wheel starts on the stored color: a wheel color, a preset's own shade, or gold.
+      const originalThemeId = specToHex(parsedBrandColors);
       
       setProfile({
         id: photographer.id,
@@ -629,7 +627,7 @@ export default function PhotographerDashboardScreen() {
           specialties: defaultProfile.specialties,
           specialtyCodes: [],
           specialtyOther: "",
-          profileTheme: "sunset_gold",
+          profileTheme: specToHex(null),
           avatar: "",
           bannerType: "color",
           bannerImage: "",
@@ -929,15 +927,13 @@ export default function PhotographerDashboardScreen() {
         updateData.specialtyOther = currentOther || null;
       }
       
-      // brandColors - compare IDs; send new { type, id } shape
-      const currentThemeId = editProfile.profileTheme || "sunset_gold";
-      const rawParsed = parseBrandColorSpec(rawPhotographer?.brandColors);
-      const originalThemeId =
-        rawParsed?.type === "solid" && rawParsed.id ? rawParsed.id : "sunset_gold";
-      console.log(`[Dashboard] profileTheme: current="${currentThemeId}" vs original="${originalThemeId}"`);
-      if (currentThemeId !== originalThemeId) {
-        // Sent only when a swatch changed (a color wheel pick stays put otherwise); v:2 = wheel-aware app.
-        updateData.brandColors = toColorPayload({ type: "solid", id: currentThemeId }) as any;
+      // brandColors - sent only when the wheel color changed (an untouched preset or wheel color is
+      // never rewritten); saved as { type: "custom", hex } with v:2 (wheel-aware app).
+      const currentThemeHex = editProfile.profileTheme || specToHex(null);
+      const originalThemeHex = specToHex(parseBrandColorSpec(rawPhotographer?.brandColors));
+      console.log(`[Dashboard] profile color: current="${currentThemeHex}" vs original="${originalThemeHex}"`);
+      if (currentThemeHex !== originalThemeHex) {
+        updateData.brandColors = toColorPayload({ type: "custom", hex: currentThemeHex }) as any;
       }
       
       // logoImage (avatar)
@@ -2091,32 +2087,6 @@ export default function PhotographerDashboardScreen() {
       marginTop: 2,
       marginBottom: 12,
     },
-    themeColorGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 16,
-    },
-    themeColorPreset: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    themeColorPresetSelected: {
-      borderWidth: 3,
-      borderColor: "#fff",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 4,
-    },
-    themePreviewBar: {
-      height: 8,
-      borderRadius: 4,
-    },
   });
 
   const renderProfileModal = () => (
@@ -2187,7 +2157,7 @@ export default function PhotographerDashboardScreen() {
                 <View style={{ 
                   height: 120, 
                   borderRadius: 12, 
-                  backgroundColor: (COLOR_VALUES[editProfile.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? (isDark ? "#E8B930" : "#B38600"),
+                  backgroundColor: resolveBrandColor({ type: "custom", hex: editProfile.profileTheme || specToHex(null) }, isDark ? "dark" : "light"),
                   alignItems: "center",
                   justifyContent: "center",
                 }}>
@@ -2478,38 +2448,10 @@ export default function PhotographerDashboardScreen() {
 
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Profile Theme</Text>
-              <Text style={styles.formHint}>Choose a color for your public profile</Text>
-              <View style={styles.themeColorGrid}>
-                {SOLID_COLOR_IDS.map((id) => {
-                  const hex = (COLOR_VALUES[id as SolidColorId] as { dark: string; light: string })[
-                    isDark ? "dark" : "light"
-                  ];
-                  return (
-                    <Pressable
-                      key={id}
-                      style={[
-                        styles.themeColorPreset,
-                        { backgroundColor: hex },
-                        editProfile.profileTheme === id && styles.themeColorPresetSelected,
-                      ]}
-                      onPress={() => setEditProfile({ ...editProfile, profileTheme: id })}
-                    >
-                      {editProfile.profileTheme === id && (
-                        <Feather name="check" size={16} color="#fff" />
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View
-                style={[
-                  styles.themePreviewBar,
-                  {
-                    backgroundColor: (COLOR_VALUES[editProfile.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[
-                      isDark ? "dark" : "light"
-                    ] ?? (isDark ? "#E8B930" : "#B38600"),
-                  },
-                ]}
+              <ColorWheelPicker
+                value={editProfile.profileTheme || specToHex(null)}
+                onChange={(hex) => setEditProfile((prev) => ({ ...prev, profileTheme: hex }))}
+                hint="Choose any color for your public profile"
               />
             </View>
 
@@ -3704,7 +3646,7 @@ export default function PhotographerDashboardScreen() {
         }}
         onSave={handleSaveService}
         initialData={editingService}
-        brandColor={(COLOR_VALUES[profile?.profileTheme as SolidColorId] as { dark: string; light: string } | undefined)?.[isDark ? "dark" : "light"] ?? theme.primary}
+        brandColor={profile?.profileTheme ? resolveBrandColor({ type: "custom", hex: profile.profileTheme }, isDark ? "dark" : "light") : theme.primary}
         depositMode="always"
         depositServerError={depositServerError}
         onClearDepositServerError={() => setDepositServerError(null)}
