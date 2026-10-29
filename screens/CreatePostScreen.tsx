@@ -35,6 +35,7 @@ import { RootStackParamList } from "@/navigation/types";
 import { useCropPicker, type CropPreset } from "@/components/crop/useCropPicker";
 import { POST_ASPECT_OPTIONS, type CropResult } from "@/components/crop/ImageCropper";
 import { cropPhotoToFile } from "@/components/crop/cropFile";
+import { useStoryEditor } from "@/components/crop/StoryEditor";
 import { boxSizeFor, cameraFrameFraction, type FracRect } from "@/utils/crop/cropMath";
 import { VideoFitPicker } from "@/components/video/VideoFitPicker";
 import { defaultVideoFit, type VideoFit } from "@/utils/videoFit";
@@ -104,6 +105,10 @@ const finalizePhoto = async (photo: PickedImage, aspect: number) =>
 const isVideoAsset = (asset: ImagePicker.ImagePickerAsset) =>
   asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
 
+// Story videos are up to 15 seconds (photo ratios 2e). The picker reports milliseconds; the half
+// second of slack keeps a 15.0 s clip that reports 15.03 s from being turned away.
+const STORY_MAX_VIDEO_MS = 15_500;
+
 export default function CreatePostScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
@@ -119,6 +124,8 @@ export default function CreatePostScreen() {
   // Pulse video or video story: Fill or Fit (photo ratios 2d). Set when a video is picked.
   const [videoFit, setVideoFit] = useState<VideoFit>("fill");
   const postCrop = useCropPicker();
+  // Photo stories (photo ratios 2e): 9:16 editor, zoom out over a blurred copy, saved 1080 x 1920.
+  const storyEditor = useStoryEditor();
   // Camera preview size, to draw the post frame and map it onto the photo.
   const [cameraAreaSize, setCameraAreaSize] = useState<{ width: number; height: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -382,21 +389,36 @@ export default function CreatePostScreen() {
       Alert.alert("Permission Required", "Please allow access to your photo library.");
       return;
     }
+    // No system crop (it was square, with a trim screen for iPhone videos): photos go to the 9:16
+    // story editor, videos to the Fill / Fit step (2d).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
-      allowsEditing: true,
-      aspect: [1, 1],
       quality: 0.8,
       videoMaxDuration: 15,
     });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    if (isVideoAsset(asset)) {
+      if ((asset.duration ?? 0) > STORY_MAX_VIDEO_MS) {
+        Alert.alert(
+          "Video too long",
+          "Story videos can be up to 15 seconds. Pick a shorter one.",
+        );
+        return;
+      }
       setPostImage(asset.uri);
-      const isVideo = asset.type === "video" || (asset.mimeType?.includes("video") ?? false);
-      setVideoFit(isVideo ? defaultVideoFit(asset.width, asset.height) : "fill");
-      setPostLayout(isVideo ? "pulse" : "pro");
+      setVideoFit(defaultVideoFit(asset.width, asset.height));
+      setPostLayout("pulse");
       setStep(2);
+      return;
     }
+    await waitForPickerToClose();
+    const edited = await storyEditor.edit(asset.uri);
+    if (!edited) return; // cancelled: back to step 1
+    setPostImage(edited.uri);
+    setVideoFit("fill");
+    setPostLayout("pro");
+    setStep(2);
   };
 
   const handleShutterTap = async () => {
@@ -407,9 +429,11 @@ export default function CreatePostScreen() {
     const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
     if (!photo?.uri) return;
     if (mode === "story") {
-      // Stories are step 2e: unchanged.
+      // Photo story: the 9:16 story editor (2e). Cancel goes back to the camera.
+      const edited = await storyEditor.edit(photo.uri);
+      if (!edited) return;
       clearPostPhotos();
-      setPostImage(photo.uri);
+      setPostImage(edited.uri);
       setPostLayout("pro");
       setStep(2);
       return;
@@ -1076,11 +1100,13 @@ export default function CreatePostScreen() {
               <VideoFitPicker uri={postImage} fit={videoFit} onChange={setVideoFit} disabled={storySaving} />
             </View>
           ) : (
+            // The saved 9:16 story photo, shown whole.
             <View
               style={[
-                styles.detailsThumbnail,
+                styles.storyPhotoPreview,
                 { backgroundColor: theme.brandSurface, borderColor: theme.brandSurfaceBorder },
               ]}
+              testID="story-photo-preview"
             >
               <Image source={{ uri: postImage }} style={styles.mediaPreview} contentFit="cover" />
             </View>
@@ -1214,6 +1240,7 @@ export default function CreatePostScreen() {
         </View>
       )}
       {postCrop.cropper}
+      {storyEditor.editor}
     </ThemedView>
   );
 }
@@ -1312,6 +1339,16 @@ const styles = StyleSheet.create({
   pickedCount: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.xs,
+  },
+  storyPhotoPreview: {
+    alignSelf: "center",
+    marginTop: Spacing.md,
+    height: 300,
+    aspectRatio: 9 / 16,
+    maxWidth: "100%",
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: "hidden",
   },
   detailsThumbnail: {
     marginHorizontal: Spacing.lg,
