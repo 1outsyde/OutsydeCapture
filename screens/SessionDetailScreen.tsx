@@ -16,6 +16,7 @@ import { RootStackParamList } from "@/navigation/types";
 import api from "@/services/api";
 import { formatDuration } from "@/utils/duration";
 import BookingExtrasBlock from "@/components/BookingExtrasBlock";
+import { cancelPreviewMessage, manualFeeLine } from "@/utils/cancelPreviewMessage";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "SessionDetail">;
@@ -191,13 +192,9 @@ export default function SessionDetailScreen() {
   const statusColor = getStatusColor(session.status, theme);
   const statusLabel = session.status.charAt(0).toUpperCase() + session.status.slice(1);
   const initials = (session.photographerName ?? "?").slice(0, 2).toUpperCase();
-  // What was actually charged online (incl. the 8% fee; the deposit on
-  // deposit bookings), from the backend. Older backends: the old estimate.
-  const subtotalCents = Math.round(session.price * 100);
-  const grossCents =
-    typeof session.chargedAmountCents === "number"
-      ? session.chargedAmountCents
-      : subtotalCents + Math.round(subtotalCents * 0.03);
+  // What was actually charged online (the deposit plus the service fee on
+  // deposit bookings), from the backend. Missing: the row is hidden, no estimate.
+  const paidCents = typeof session.chargedAmountCents === "number" ? session.chargedAmountCents : null;
   const timeStr = session.endTime
     ? `${formatTimeStr(session.time)} – ${formatTimeStr(session.endTime)}`
     : formatTimeStr(session.time);
@@ -216,7 +213,7 @@ export default function SessionDetailScreen() {
         lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
       } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
         lines.push(
-          `A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the photographer will collect this separately`
+          manualFeeLine(result.feeAmountCents, "photographer")
         );
       }
       await refreshSessions();
@@ -240,20 +237,7 @@ export default function SessionDetailScreen() {
         Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
         return;
       }
-      const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
-      const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
-      let msg: string;
-      if (preview.refundTier === "full") {
-        msg = svcFee > 0
-          ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
-          : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
-      } else if (preview.refundTier === "partial") {
-        msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
-        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
-      } else {
-        msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
-        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
-      }
+      const msg = cancelPreviewMessage(preview);
       Alert.alert(
         "Cancel this session?",
         `${msg} This can't be undone.`,
@@ -310,7 +294,9 @@ export default function SessionDetailScreen() {
         <Row icon="calendar" label={formatDate(session.date)} />
         <Row icon="clock" label={timeStr} />
         <Row icon="map-pin" label={session.location} />
-        <Row icon="dollar-sign" label={`Amount paid: $${(grossCents / 100).toFixed(2)}`} />
+        {paidCents !== null ? (
+          <Row icon="dollar-sign" label={`Amount paid: $${(paidCents / 100).toFixed(2)}`} />
+        ) : null}
         <BookingExtrasBlock
           addons={session.addons}
           customerDetails={session.customerDetails}

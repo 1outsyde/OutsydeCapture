@@ -4122,10 +4122,7 @@ class ApiService {
   async getAppointmentCancelPreview(
     authToken: string,
     appointmentId: string
-  ): Promise<
-    | { cancellable: true; refundTier: "full" | "partial" | "none"; refundAmountCents: number; feeAmountCents: number; feeWouldBeCharged: boolean; feeNeedsManualCollection: boolean; subtotalCents: number; grossChargeAmountCents: number }
-    | { cancellable: false; reason: string; currentStatus: string }
-  > {
+  ): Promise<CancelPreviewResponse> {
     return this.request(`/api/bookings/appointments/${appointmentId}/cancel-preview`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
@@ -4134,10 +4131,7 @@ class ApiService {
   async getShootCancelPreview(
     authToken: string,
     bookingId: string
-  ): Promise<
-    | { cancellable: true; refundTier: "full" | "partial" | "none"; refundAmountCents: number; feeAmountCents: number; feeWouldBeCharged: boolean; feeNeedsManualCollection: boolean; subtotalCents: number; grossChargeAmountCents: number }
-    | { cancellable: false; reason: string; currentStatus: string }
-  > {
+  ): Promise<CancelPreviewResponse> {
     return this.request(`/api/bookings/shoot/${bookingId}/cancel-preview`, {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
@@ -6497,6 +6491,27 @@ export function canChangeUsername(user: { username_updated_at?: string | null })
   return daysSinceUpdate >= 14;
 }
 
+// GET /api/bookings/appointments/:id/cancel-preview and
+// GET /api/bookings/shoot/:id/cancel-preview (backend routes.ts ≈9292, ≈9360).
+// grossChargeAmountCents is the full price plus the fee: never show it as paid.
+// chargedAmountCents is what the booking PaymentIntent charged.
+export type CancelPreviewResponse =
+  | {
+      cancellable: true;
+      refundTier: "full" | "partial" | "none";
+      refundAmountCents: number;
+      feeAmountCents: number;
+      feeWouldBeCharged: boolean;
+      feeNeedsManualCollection: boolean;
+      subtotalCents: number;
+      grossChargeAmountCents: number;
+      chargedAmountCents: number;
+      isDepositBooking: boolean;
+      depositAmountCents: number | null;
+      depositNonRefundable: boolean;
+    }
+  | { cancellable: false; reason: string; currentStatus: string };
+
 export interface BusinessAppointment {
   id: string;
   appointmentDate: string;
@@ -6527,6 +6542,9 @@ export interface BusinessAppointment {
   addons?: { id: string; name: string; priceCents: number; durationMinutes: number }[] | null;
   customerDetails?: string | null;
   inPersonDueCents?: number | null;
+  // What the booking PaymentIntent charged (the deposit plus the service fee on
+  // deposit bookings), from the backend (storage.ts appointmentChargeFields).
+  chargedAmountCents?: number | null;
   // Outsyde loyalty rewards the customer used, in cents (backend #314). Paid by Outsyde; the payout is unchanged.
   discountAmountCents?: number | null;
 }

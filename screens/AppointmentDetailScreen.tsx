@@ -15,6 +15,7 @@ import api, { BusinessAppointment } from "@/services/api";
 import { RatingBottomSheet } from "@/components/ratings";
 import { formatDuration } from "@/utils/duration";
 import type { PurchaseItem, RatingCheckResponse } from "@/types/ratings";
+import { cancelPreviewMessage, manualFeeLine } from "@/utils/cancelPreviewMessage";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "AppointmentDetail">;
@@ -182,7 +183,9 @@ export default function AppointmentDetailScreen() {
     })();
   }, [appt.status, appt.businessId]);
 
-  const grossCents = appt.totalPrice + Math.round(appt.totalPrice * 0.03);
+  // What was actually charged online (the deposit plus the service fee on
+  // deposit bookings), from the backend. Missing: the row is hidden, no estimate.
+  const paidCents = typeof appt.chargedAmountCents === "number" ? appt.chargedAmountCents : null;
   const statusColor = getBusinessStatusColor(appt.status, theme);
   const statusLabel =
     appt.status === "pending_provider"
@@ -207,7 +210,7 @@ export default function AppointmentDetailScreen() {
         lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
       } else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) {
         lines.push(
-          `A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the business will collect this separately`
+          manualFeeLine(result.feeAmountCents, "business")
         );
       }
       Alert.alert(
@@ -230,20 +233,7 @@ export default function AppointmentDetailScreen() {
         Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
         return;
       }
-      const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
-      const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
-      let msg: string;
-      if (preview.refundTier === "full") {
-        msg = svcFee > 0
-          ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
-          : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
-      } else if (preview.refundTier === "partial") {
-        msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
-        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
-      } else {
-        msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
-        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
-      }
+      const msg = cancelPreviewMessage(preview);
       Alert.alert(
         "Cancel this appointment?",
         `${msg} This can't be undone.`,
@@ -302,7 +292,9 @@ export default function AppointmentDetailScreen() {
         ) : null}
         <Row icon="calendar" label={formatDate(appt.appointmentDate)} />
         <Row icon="clock" label={timeStr} />
-        <Row icon="dollar-sign" label={`Amount paid: $${(grossCents / 100).toFixed(2)}`} />
+        {paidCents !== null ? (
+          <Row icon="dollar-sign" label={`Amount paid: $${(paidCents / 100).toFixed(2)}`} />
+        ) : null}
         {(appt.addons ?? []).map((addon) => (
           <Row key={addon.id} icon="plus-circle" label={`${addon.name} (+$${(addon.priceCents / 100).toFixed(2)})`} />
         ))}
