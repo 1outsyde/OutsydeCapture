@@ -22,6 +22,7 @@ import { api } from "@/services/api";
 import { RatingBottomSheet } from "@/components/ratings";
 import type { PurchaseItem, RatingCheckResponse } from "@/types/ratings";
 import { lineDetail } from "@/components/products/productAddonLogic";
+import { normalizeOrderStatus } from "@/utils/orderStatus";
 
 type Route = RouteProp<RootStackParamList, "ProductOrderDetail">;
 
@@ -69,7 +70,9 @@ export default function ProductOrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState(route.params.status);
+  const [currentStatus, setCurrentStatus] = useState(
+    normalizeOrderStatus(route.params.status),
+  );
   const [canRate, setCanRate] = useState(false);
   const [ratingSheetVisible, setRatingSheetVisible] = useState(false);
   const [ratingCheckResult, setRatingCheckResult] = useState<RatingCheckResponse | null>(null);

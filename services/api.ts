@@ -1320,7 +1320,7 @@ export interface BusinessOrder {
   orderDate: string;
   items: { name: string; quantity: number; price: number; variantLabel?: string | null; addonsLabel?: string | null }[];
   totalAmount: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "canceled";
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
   // Vendor-facing fee breakdown (backend-calculated; optional until backend exposes them)
   subtotalAmount?: number;
   platformFeeAmount?: number;
@@ -6674,7 +6674,7 @@ export interface ConsumerOrder {
   orderNumber?: number;
   vendorName: string;
   businessId: string;
-  status: "pending" | "paid" | "shipped" | "delivered" | "canceled";
+  status: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
   items: ConsumerOrderItem[];
   itemCount: number;
   totalAmount: number;

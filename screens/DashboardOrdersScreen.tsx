@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -17,10 +17,17 @@ import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { BusinessOrder } from "@/services/api";
 import OrderCard from "@/components/OrderCard";
+import { normalizeOrderStatus, ORDER_CANCELLED } from "@/utils/orderStatus";
 
 // Local type override: backend returns "paid" status but the shared type doesn't include it yet.
 type Order = Omit<BusinessOrder, "status"> & {
-  status: "pending" | "processing" | "paid" | "shipped" | "delivered" | "canceled";
+  status:
+    | "pending"
+    | "processing"
+    | "paid"
+    | "shipped"
+    | "delivered"
+    | "cancelled";
 };
 
 const BG = "#080C08";
@@ -30,7 +37,13 @@ const CREAM_DIM = "rgba(200,191,168,0.6)";
 const SURFACE = "rgba(255,255,255,0.04)";
 const CARD_BORDER = "rgba(255,255,255,0.08)";
 
-type FilterStatus = "all" | "pending" | "paid" | "shipped" | "delivered" | "canceled";
+type FilterStatus =
+  | "all"
+  | "pending"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
 type SortMode = "action" | "newest" | "oldest" | "highest";
 
 const FILTER_TABS: { key: FilterStatus; label: string }[] = [
@@ -39,7 +52,7 @@ const FILTER_TABS: { key: FilterStatus; label: string }[] = [
   { key: "paid", label: "Paid" },
   { key: "shipped", label: "Shipped" },
   { key: "delivered", label: "Delivered" },
-  { key: "canceled", label: "Cancelled" },
+  { key: "cancelled", label: "Cancelled" },
 ];
 
 const SORT_CYCLE: SortMode[] = ["action", "newest", "oldest", "highest"];
@@ -134,7 +147,13 @@ export default function DashboardOrdersScreen() {
     if (!token) return;
     try {
       const res = await api.getBusinessOrders(token);
-      setOrders(res.orders as unknown as Order[]);
+      // One spelling for cancelled (backend sends "cancelled"; older code used "canceled").
+      setOrders(
+        res.orders.map((o) => ({
+          ...o,
+          status: normalizeOrderStatus(o.status),
+        })) as unknown as Order[],
+      );
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to load orders");
     } finally {
@@ -152,14 +171,21 @@ export default function DashboardOrdersScreen() {
     setRefreshing(false);
   };
 
+  // One request per order at a time: cancelling a paid order refunds the customer.
+  const cancellingIds = useRef(new Set<string>());
   const handleCancelOrder = async (orderId: string, _status: string) => {
-    const token = await getToken();
-    if (!token) return;
+    if (cancellingIds.current.has(orderId)) return;
+    cancellingIds.current.add(orderId);
     try {
-      await api.updateOrderStatus(token, orderId, "canceled");
+      const token = await getToken();
+      if (!token) return;
+      // The backend only accepts "cancelled" (shared/schema.ts ORDER_STATUS_TRANSITIONS).
+      await api.updateOrderStatus(token, orderId, ORDER_CANCELLED);
       fetchOrders();
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to cancel order");
+    } finally {
+      cancellingIds.current.delete(orderId);
     }
   };
 
@@ -224,11 +250,11 @@ export default function DashboardOrdersScreen() {
   type Group = { label: string; orders: Order[] };
   const groups: Group[] = sortMode === "action"
     ? [
-        { label: "Paid — Ready to Ship", orders: sorted.filter(o => o.status === "paid" && !o.shipment) },
+        { label: "Paid, ready to ship", orders: sorted.filter(o => o.status === "paid" && !o.shipment) },
         { label: "Pending", orders: sorted.filter(o => o.status === "pending") },
         { label: "Processing", orders: sorted.filter(o => o.status === "processing") },
         { label: "Shipped", orders: sorted.filter(o => o.status === "shipped") },
-        { label: "Delivered / Cancelled", orders: sorted.filter(o => o.status === "delivered" || o.status === "canceled") },
+        { label: "Delivered / Cancelled", orders: sorted.filter(o => o.status === "delivered" || o.status === "cancelled") },
       ].filter(g => g.orders.length > 0)
     : [];
 
