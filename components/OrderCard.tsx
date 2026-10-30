@@ -31,7 +31,8 @@ function statusColor(
     case "shipped":    return { bg: "#5856D620", text: "#5856D6" };
     case "delivered":
     case "completed":  return { bg: primary + "20", text: primary };
-    case "canceled":  return { bg: "#FF3B3020", text: "#FF3B30" };
+    case "cancelled":
+    case "canceled":   return { bg: "#FF3B3020", text: "#FF3B30" };
     case "no_show":    return { bg: "#8E8E9320", text: "#8E8E93" };
     default:           return { bg: bgSecondary,  text: textSecondary };
   }
@@ -286,25 +287,9 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
       )}
 
       {/* Action row */}
-      {order.status === "pending" && (
-        <View style={styles.actions}>
-          <Pressable
-            onPress={() =>
-              Alert.alert("Cancel this order?", "This cannot be undone.", [
-                { text: "Keep", style: "cancel" },
-                {
-                  text: "Cancel Order",
-                  style: "destructive",
-                  onPress: () => onCancelOrder(order.id, "canceled"),
-                },
-              ])
-            }
-            style={[styles.btn, { backgroundColor: "#FF3B30" }]}
-          >
-            <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Cancel</Text>
-          </Pressable>
-        </View>
-      )}
+      {/* No Cancel on pending orders: a pending order is an unpaid checkout.
+          Nothing to refund, and the backend sets it to paid if the customer
+          finishes paying. Vendors cancel paid orders only. */}
       {order.status === "paid" && (
         <View style={styles.actions}>
           <Pressable
@@ -317,7 +302,7 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
                   {
                     text: "Cancel Order",
                     style: "destructive",
-                    onPress: () => onCancelOrder(order.id, "canceled"),
+                    onPress: () => onCancelOrder(order.id, "cancelled"),
                   },
                 ]
               )

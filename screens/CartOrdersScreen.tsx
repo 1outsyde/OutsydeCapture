@@ -30,6 +30,7 @@ import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 import MyTicketsList from "@/components/events/MyTicketsList";
 import { cancelPreviewMessage, manualFeeLine } from "@/utils/cancelPreviewMessage";
+import { consumerOrderStatus } from "@/utils/orderStatus";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type CartOrdersRouteProp = RouteProp<RootStackParamList, "CartOrders">;
@@ -119,8 +120,8 @@ export default function CartOrdersScreen() {
         : Array.isArray(response?.orders) ? response.orders : [];
 
       const normalized: ConsumerOrder[] = ordersPayload.map((order: any, index: number) => {
-        const validStatuses = new Set(["pending", "paid", "shipped", "delivered", "canceled"]);
-        const status = validStatuses.has(order?.status) ? order.status : "pending";
+        // Backend sends "cancelled"; it used to fall through to "pending" (shown as Processing).
+        const status = consumerOrderStatus(order?.status);
         const items = Array.isArray(order?.items)
           ? order.items.map((item: any) => ({
               productId: String(item?.productId ?? ""),
@@ -212,7 +213,7 @@ export default function CartOrdersScreen() {
     if (status === "paid") return { label: "Confirmed", icon: "check-circle" as const, color: "#34C759" };
     if (status === "shipped") return { label: "Shipped", icon: "truck" as const, color: "#007AFF" };
     if (status === "delivered") return { label: "Delivered", icon: "check-circle" as const, color: "#34C759" };
-    if (status === "canceled") return { label: "Cancelled", icon: "x-circle" as const, color: "#FF3B30" };
+    if (status === "cancelled") return { label: "Cancelled", icon: "x-circle" as const, color: "#FF3B30" };
     return { label: "Processing", icon: "clock" as const, color: "#FF9500" };
   };
 
