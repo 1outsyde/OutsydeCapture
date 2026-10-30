@@ -29,6 +29,7 @@ import api, { getMyAppointments, BusinessAppointment, ConsumerOrder } from "@/se
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 import MyTicketsList from "@/components/events/MyTicketsList";
+import { cancelPreviewMessage, manualFeeLine } from "@/utils/cancelPreviewMessage";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type CartOrdersRouteProp = RouteProp<RootStackParamList, "CartOrders">;
@@ -483,20 +484,7 @@ export default function CartOrdersScreen() {
                           Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
                           return;
                         }
-                        const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
-                        const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
-                        let msg: string;
-                        if (preview.refundTier === "full") {
-                          msg = svcFee > 0
-                            ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
-                            : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
-                        } else if (preview.refundTier === "partial") {
-                          msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
-                          if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
-                        } else {
-                          msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
-                          if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
-                        }
+                        const msg = cancelPreviewMessage(preview);
                         const doCancel = async () => {
                           try {
                             const t = await getToken();
@@ -506,7 +494,7 @@ export default function CartOrdersScreen() {
                             const lines: string[] = [];
                             if (result.refundAmountCents > 0) lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
                             if (result.feeAmountCents > 0 && result.feeCharged) lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
-                            else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the photographer will collect this separately`);
+                            else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) lines.push(manualFeeLine(result.feeAmountCents, "photographer"));
                             Alert.alert("Session canceled", lines.length > 0 ? lines.join("\n") : "Session canceled");
                           } catch (err: any) {
                             Alert.alert("Error", err.message || "Failed to cancel session");
@@ -607,20 +595,7 @@ export default function CartOrdersScreen() {
                         Alert.alert("Can't cancel", `This booking can no longer be cancelled: ${preview.reason}`);
                         return;
                       }
-                      const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
-                      const svcFee = preview.grossChargeAmountCents - preview.subtotalCents;
-                      let msg: string;
-                      if (preview.refundTier === "full") {
-                        msg = svcFee > 0
-                          ? `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a full refund of ${fmt(preview.refundAmountCents)} — the ${fmt(svcFee)} service fee is non-refundable.`
-                          : `You paid ${fmt(preview.grossChargeAmountCents)} and will receive a full refund of ${fmt(preview.refundAmountCents)}.`;
-                      } else if (preview.refundTier === "partial") {
-                        msg = `You paid ${fmt(preview.grossChargeAmountCents)}. You'll receive a partial refund of ${fmt(preview.refundAmountCents)}.`;
-                        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee also applies.`;
-                      } else {
-                        msg = `You paid ${fmt(preview.grossChargeAmountCents)} and will not receive a refund.`;
-                        if (preview.feeWouldBeCharged) msg += ` A ${fmt(preview.feeAmountCents)} cancellation fee applies.`;
-                      }
+                      const msg = cancelPreviewMessage(preview);
                       const doCancel = async () => {
                         try {
                           const t = await getToken();
@@ -630,7 +605,7 @@ export default function CartOrdersScreen() {
                           const lines: string[] = [];
                           if (result.refundAmountCents > 0) lines.push(`Refunded: $${(result.refundAmountCents / 100).toFixed(2)}`);
                           if (result.feeAmountCents > 0 && result.feeCharged) lines.push(`Cancellation fee charged: $${(result.feeAmountCents / 100).toFixed(2)}`);
-                          else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) lines.push(`A $${(result.feeAmountCents / 100).toFixed(2)} cancellation fee applies — the business will collect this separately`);
+                          else if (result.feeAmountCents > 0 && result.feeNeedsManualCollection) lines.push(manualFeeLine(result.feeAmountCents, "business"));
                           Alert.alert("Appointment canceled", lines.length > 0 ? lines.join("\n") : "Appointment canceled");
                         } catch (err: any) {
                           Alert.alert("Error", err.message || "Failed to cancel appointment");
