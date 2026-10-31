@@ -10,6 +10,8 @@
  *  - let anyone remove from an ended event's team → "an ended event's team is locked" fails.
  */
 import {
+  audienceFrom,
+  audienceOptions,
   manageAccess,
   manageActions,
   personRights,
@@ -103,17 +105,17 @@ const row = (o: Partial<TeamRow> = {}): TeamRow => ({
 });
 eq(
   personRights(row(), ev, true, now),
-  { times: true, pay: true, level: false, remove: true },
+  { times: true, pay: true, level: false, remove: true, stay: false },
   "host, a Security member",
 );
 eq(
   personRights(row(), ev, false, now),
-  { times: true, pay: false, level: false, remove: true },
+  { times: true, pay: false, level: false, remove: true, stay: false },
   "a co-host sets times, never pay",
 );
 eq(
   personRights(row({ role: "cohost", cohostLevel: "team" }), ev, true, now),
-  { times: false, pay: false, level: true, remove: true },
+  { times: false, pay: false, level: true, remove: true, stay: false },
   "host, a co-host: their level, no times or pay",
 );
 eq(
@@ -128,7 +130,7 @@ eq(
 );
 eq(
   personRights(row({ role: "cohost" }), ev, false, now),
-  { times: false, pay: false, level: false, remove: false },
+  { times: false, pay: false, level: false, remove: false, stay: false },
   "a co-host never touches another co-host",
 );
 eq(
@@ -144,7 +146,7 @@ eq(
 const ended = { ...ev, endsAt: "2026-11-01T11:00:00.000Z" };
 eq(
   personRights(row(), ended, true, now),
-  { times: false, pay: false, level: false, remove: false },
+  { times: false, pay: false, level: false, remove: false, stay: false },
   "an ended event's team is locked",
 );
 eq(
@@ -157,6 +159,98 @@ eq(
   false,
   "a cancelled event is locked too",
 );
+
+console.log("stay longer (calls 41 to 44, step 9b)");
+const started = {
+  startsAt: "2026-11-01T11:00:00.000Z",
+  endsAt: "2026-11-01T16:00:00.000Z",
+  status: "published",
+};
+eq(
+  personRights(row(), started, true, now).stay,
+  true,
+  "host, an accepted Security member, the event has started",
+);
+eq(
+  personRights(row(), ev, true, now).stay,
+  false,
+  "not before the event starts",
+);
+eq(
+  personRights(row(), started, false, now).stay,
+  false,
+  "only the host asks (call 42)",
+);
+eq(
+  personRights(row({ role: "host" }), started, true, now).stay,
+  false,
+  "never Promoters (call 41)",
+);
+eq(
+  personRights(row({ role: "cohost" }), started, true, now).stay,
+  false,
+  "never co-hosts",
+);
+eq(
+  personRights(row({ status: "invited" }), started, true, now).stay,
+  false,
+  "only someone who accepted",
+);
+eq(
+  personRights(
+    row(),
+    { ...started, endsAt: "2026-11-01T11:30:00.000Z" },
+    true,
+    now,
+  ).stay,
+  false,
+  "not once the event is over",
+);
+
+console.log("who a message goes to (screen 49)");
+const team = [
+  row(),
+  row({ userId: "u2", firstName: "Jay", username: "jay", role: "door" }),
+  row({ userId: "u1", role: "door", scope: "standing" }),
+  row({
+    userId: "u3",
+    firstName: null,
+    username: "nova",
+    role: "other",
+    roleLabel: "Coat check",
+  }),
+  row({ userId: "u4", status: "invited" }),
+];
+eq(
+  audienceOptions(team).map((o) => o.label),
+  [
+    "Whole team",
+    "All Security",
+    "All Admissions",
+    "All Other",
+    "Marcus",
+    "Jay",
+    "@nova",
+  ],
+  "whole team, each role on the team, each person once; invites aren't on the team yet",
+);
+eq(
+  audienceOptions(team).map((o) => o.value),
+  [
+    "team",
+    "role:security",
+    "role:door",
+    "role:other",
+    "person:u1",
+    "person:u2",
+    "person:u3",
+  ],
+  "values",
+);
+eq(audienceFrom("team"), { to: "team" }, "whole team");
+eq(audienceFrom("role:door"), { to: "role", role: "door" }, "a role");
+eq(audienceFrom("person:u2"), { to: "person", userId: "u2" }, "one person");
+eq(audienceOptions([]), [], "nobody on the team: nothing to send to");
 
 console.log("the Manage button");
 const rows = [

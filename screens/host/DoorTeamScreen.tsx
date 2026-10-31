@@ -6,7 +6,8 @@
  *   Co-host, Other with a name) and All my events or Only this event. Links can carry pay for This event (host only).
  *   Waiting links with Copy and Cancel. The team by role (GET /door/team?roles=all); a row opens TeamPersonSheet.
  *   Team pay and what the host takes home.
- * Messages, stay longer, To be discussed amounts and I paid them come in step 9b.
+ * Step 9b: messages to the whole team, a role or one person (screen 49), stay longer and To be discussed amounts (in
+ * the person sheet), and after the payout, who Outsyde paid and who the host pays (I paid them / Undo).
  * The route keeps its name (DoorTeam) so pushes and links already on phones still open it (call 59).
  * GET /door/team answers 404 for anyone but the host and accepted co-hosts.
  */
@@ -45,20 +46,32 @@ import {
   HostHeader,
   OkText,
   OutlineButton,
+  PickerBox,
   PrimaryButton,
   TextButton,
   hostStyles,
 } from "@/components/host/hostUi";
 import TeamPersonSheet from "@/components/host/TeamPersonSheet";
-import { GENERIC_ERROR } from "@/utils/eventsLogic";
+import OptionSheet from "@/components/host/OptionSheet";
+import { GENERIC_ERROR, fmt } from "@/utils/eventsLogic";
 import { failureCopy, flatError } from "@/utils/host/editorLogic";
 import { backendMessage, guestName } from "@/utils/host/manageLogic";
 import { USERNAME_MAX, cleanUsername, makeGate } from "@/utils/host/doorLogic";
-import { manageAccess } from "@/utils/host/eventTeamRules";
+import {
+  audienceFrom,
+  audienceOptions,
+  manageAccess,
+} from "@/utils/host/eventTeamRules";
 import {
   LINK_ROLES,
+  MESSAGE_MAX,
   TEAM_ROLES,
+  audienceLine,
   dollars,
+  isStayRequest,
+  isTeamPayout,
+  messageBody,
+  payoutStatusLine,
   inviteSentLine,
   roleLabelError,
   roleName,
@@ -67,6 +80,8 @@ import {
   sections,
   teamRows,
   type PayForm,
+  type StayRequest,
+  type TeamPayout,
   type TeamRole,
   type TeamRow,
 } from "@/utils/host/teamLogic";
@@ -91,6 +106,28 @@ type Ev = {
   startsAt: string;
   endsAt: string;
   status: string;
+};
+type Sent = {
+  id: string;
+  sentAt: string;
+  text: string;
+  audience: string;
+  role: string | null;
+  to: { userId: string; username: string | null } | null;
+  recipientCount: number;
+};
+/** A sent message from GET /team/messages; anything else (an older backend) is skipped. */
+const isSent = (x: unknown): x is Sent => {
+  const s = x as Partial<Sent> | null;
+  return (
+    !!s &&
+    typeof s.id === "string" &&
+    typeof s.text === "string" &&
+    typeof s.sentAt === "string"
+  );
+};
+type PayoutRow = TeamPayout & {
+  member: { userId: string; firstName: string | null; username: string | null };
 };
 type Totals = {
   teamCents: number;
@@ -119,8 +156,22 @@ export default function DoorTeamScreen() {
   const [rows, setRows] = useState<TeamRow[]>([]);
   const [totals, setTotals] = useState<Totals>(null);
   const [links, setLinks] = useState<HostLink[]>([]);
+  // step 9b
+  const [requests, setRequests] = useState<StayRequest[]>([]);
+  const [sent, setSent] = useState<Sent[]>([]);
+  const [payouts, setPayouts] = useState<PayoutRow[]>([]);
+  const [aud, setAud] = useState("team");
+  const [audPick, setAudPick] = useState(false);
+  const [text, setText] = useState("");
+  const [msgBusy, setMsgBusy] = useState(false);
+  const [msgNote, setMsgNote] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
+  const [payBusy, setPayBusy] = useState<string | null>(null);
+  const [payErr, setPayErr] = useState<string | null>(null);
   const [now, setNow] = useState(0);
-  const [open, setOpen] = useState<TeamRow | null>(null);
+  // Which person's sheet is open ("userId:role:scope"); the row is read fresh from the list on every render.
+  const [open, setOpen] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   // invite form
@@ -143,7 +194,9 @@ export default function DoorTeamScreen() {
   const [made, setMade] = useState<{ url: string; text: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [linkBusy, setLinkBusy] = useState<string | null>(null);
-  const gate = useRef(makeGate()).current;
+  const gate = useRef(makeGate()).current; // invites and links
+  const msgGate = useRef(makeGate()).current;
+  const payGate = useRef(makeGate()).current;
 
   const token = useCallback(async () => {
     const t = await tokenRef.current();
@@ -177,11 +230,35 @@ export default function DoorTeamScreen() {
         setPhase("error");
         return false;
       }
-      // Extra: a failure leaves the list empty, the team still shows.
-      const l = await api.getTeamLinks(eventId, t).catch(() => null);
+      // Extras: a failure leaves each list empty, the team still shows.
+      const [l, sl, m, po] = await Promise.all([
+        api.getTeamLinks(eventId, t).catch(() => null),
+        api.getStayLonger(eventId, t).catch(() => null),
+        api.getTeamMessages(eventId, t).catch(() => null),
+        api.getTeamPayouts(eventId, t).catch(() => null),
+      ]);
       setLinks(
         Array.isArray(l?.links)
           ? (l!.links as unknown[]).filter(isHostLink)
+          : [],
+      );
+      setRequests(
+        Array.isArray(sl?.requests)
+          ? (sl!.requests as unknown[]).filter(isStayRequest)
+          : [],
+      );
+      setSent(
+        Array.isArray(m?.messages)
+          ? ((m!.messages as unknown[]).filter(isSent) as Sent[])
+          : [],
+      );
+      setPayouts(
+        Array.isArray(po?.payouts)
+          ? ((po!.payouts as unknown[]).filter(
+              (x) =>
+                isTeamPayout(x) &&
+                typeof (x as TeamPayout).member?.userId === "string",
+            ) as PayoutRow[])
           : [],
       );
       return true;
@@ -342,13 +419,9 @@ export default function DoorTeamScreen() {
     setSendError(null);
     setNotice(null);
     setMade(null);
-    const t = await token();
-    if (!t) {
-      gate.leave();
-      setSending(false);
-      return;
-    }
     try {
+      const t = await token();
+      if (!t) return;
       if (way === "username") await sendUsername(t);
       else await sendLink(t);
       await refresh(t);
@@ -379,12 +452,69 @@ export default function DoorTeamScreen() {
     }
   }
 
+  async function sendMessage() {
+    // Someone picked a person or role that has since left the team: never widen it, ask again.
+    if (!audienceOptions(rows).some((o) => o.value === aud)) {
+      setAud("team");
+      setMsgNote({
+        ok: false,
+        text: "Who you picked isn't on the team any more. Pick who to send to again.",
+      });
+      return;
+    }
+    const b = messageBody(audienceFrom(aud), text);
+    if (!b.ok) {
+      setMsgNote({ ok: false, text: b.message });
+      return;
+    }
+    if (!msgGate.enter()) return;
+    setMsgBusy(true);
+    setMsgNote(null);
+    try {
+      const t = await token();
+      if (t) {
+        await api.sendTeamMessage(eventId, b.body, t);
+        setText("");
+        setMsgNote({
+          ok: true,
+          text: "Sent. They get a push and see it on their event page.",
+        });
+        await refresh(t);
+      }
+    } catch (e) {
+      const f = flatError(e);
+      setMsgNote({ ok: false, text: backendMessage(f.status, f.body) });
+    } finally {
+      msgGate.leave();
+      setMsgBusy(false);
+    }
+  }
+
+  async function markPaid(userId: string, undo: boolean) {
+    if (!payGate.enter()) return;
+    setPayBusy(userId);
+    setPayErr(null);
+    try {
+      const t = await token();
+      if (t) {
+        await api.markTeamPaid(eventId, userId, undo, t);
+        await refresh(t);
+      }
+    } catch (e) {
+      const f = flatError(e);
+      setPayErr(backendMessage(f.status, f.body));
+    } finally {
+      payGate.leave();
+      setPayBusy(null);
+    }
+  }
+
   async function cancelLink(l: HostLink) {
     if (linkBusy || !gate.enter()) return;
     setLinkBusy(l.id);
     setSendError(null);
-    const t = await token();
     try {
+      const t = await token();
       if (t) {
         await api.cancelTeamLink(eventId, l.id, t);
         setNotice("Link cancelled. Nobody can use it now.");
@@ -494,6 +624,12 @@ export default function DoorTeamScreen() {
   const showPay =
     way !== "username" && asHost && role !== "cohost" && scope === "event";
 
+  const keyOf = (r: TeamRow) => `${r.userId}:${r.role}:${r.scope}`;
+  const openRow = open ? (rows.find((r) => keyOf(r) === open) ?? null) : null;
+  const audiences = audienceOptions(rows);
+  const audLabel =
+    audiences.find((o) => o.value === aud)?.label ?? "Whole team";
+
   return root(
     <>
       {header}
@@ -504,6 +640,7 @@ export default function DoorTeamScreen() {
           gap: 18,
         }}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         {!ended && (
           <View style={{ gap: 10 }} testID="team-add">
@@ -811,7 +948,7 @@ export default function DoorTeamScreen() {
             {sec.rows.map((r) => (
               <Pressable
                 key={`${r.userId}:${r.role}:${r.scope}`}
-                onPress={() => setOpen(r)}
+                onPress={() => setOpen(keyOf(r))}
                 accessibilityRole="button"
                 accessibilityLabel={`${guestName(r)}, ${roleName(r.role, r.roleLabel)}, ${rowStatus(r)}. Open`}
                 style={({ pressed }) => [
@@ -858,7 +995,7 @@ export default function DoorTeamScreen() {
           </View>
         ))}
 
-        {totals && totals.teamCents > 0 && (
+        {totals && totals.teamCents > 0 && payouts.length === 0 && (
           <View
             style={[st.box, { backgroundColor: theme.backgroundDefault }]}
             accessibilityLabel="Team pay"
@@ -890,14 +1027,132 @@ export default function DoorTeamScreen() {
             <Hint>Paid 3 days after the event due to processing.</Hint>
           </View>
         )}
+        {payouts.length > 0 && (
+          <View
+            style={{ gap: 6 }}
+            accessibilityLabel="Team pay"
+            testID="team-payouts"
+          >
+            <ThemedText
+              style={[hostStyles.section, { color: theme.textSecondary }]}
+              accessibilityRole="header"
+            >
+              TEAM PAY
+            </ThemedText>
+            {payouts.map((p) => (
+              <View
+                key={p.member.userId}
+                style={[st.row, { borderBottomColor: theme.border }]}
+                testID="payout-row"
+              >
+                <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
+                  <ThemedText style={hostStyles.strong}>
+                    {`${guestName(p.member)} · ${dollars(p.amountCents)}`}
+                  </ThemedText>
+                  <ThemedText
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 18,
+                      color: theme.textSecondary,
+                    }}
+                  >
+                    {payoutStatusLine(p)}
+                  </ThemedText>
+                </View>
+                {asHost && p.status === "host_to_pay" && !p.confirmedAt && (
+                  <OutlineButton
+                    label={
+                      payBusy === p.member.userId
+                        ? "Saving…"
+                        : p.hostPaidAt
+                          ? "Undo"
+                          : "I paid them"
+                    }
+                    disabled={payBusy !== null}
+                    onPress={() => markPaid(p.member.userId, !!p.hostPaidAt)}
+                  />
+                )}
+              </View>
+            ))}
+            {payErr ? <ErrorText>{payErr}</ErrorText> : null}
+          </View>
+        )}
+
+        {audiences.length > 0 && (
+          <View
+            style={{ gap: 10 }}
+            accessibilityLabel="Message the team"
+            testID="team-messages"
+          >
+            <ThemedText
+              style={[hostStyles.section, { color: theme.textSecondary }]}
+              accessibilityRole="header"
+            >
+              MESSAGE THE TEAM
+            </ThemedText>
+            <PickerBox
+              label="SEND TO"
+              value={audLabel}
+              onPress={() => setAudPick(true)}
+            />
+            <Field
+              label="MESSAGE"
+              value={text}
+              maxLength={MESSAGE_MAX}
+              multiline
+              placeholder="Radio check at 9:15."
+              onChangeText={(v) => {
+                setText(v);
+                setMsgNote(null);
+              }}
+            />
+            <PrimaryButton
+              label={msgBusy ? "Sending…" : "Send"}
+              busy={msgBusy}
+              disabled={msgBusy || !text.trim()}
+              onPress={sendMessage}
+            />
+            {msgNote ? (
+              msgNote.ok ? (
+                <OkText>{msgNote.text}</OkText>
+              ) : (
+                <ErrorText>{msgNote.text}</ErrorText>
+              )
+            ) : null}
+            {sent.map((m) => (
+              <View
+                key={m.id}
+                style={[st.box, { backgroundColor: theme.backgroundDefault }]}
+                testID="sent-message"
+              >
+                <Hint>
+                  {`${audienceLine(m)} · ${fmt(m.sentAt, tz, { weekday: "short", hour: "numeric", minute: "2-digit" })}`}
+                </Hint>
+                <ThemedText style={hostStyles.body}>{m.text}</ThemedText>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
-      {open && (
+      <OptionSheet
+        title="Send to"
+        options={audPick ? audiences : null}
+        selected={aud}
+        onPick={(v) => {
+          setAud(v);
+          setAudPick(false);
+        }}
+        onClose={() => setAudPick(false)}
+      />
+
+      {openRow && (
         <TeamPersonSheet
-          row={open}
+          row={openRow}
           event={event}
           asHost={asHost}
           now={now}
+          requests={requests.filter((q) => q.memberUserId === openRow.userId)}
           getToken={token}
           onChanged={async () => {
             const t = await token();
