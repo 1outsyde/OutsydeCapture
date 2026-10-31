@@ -4897,6 +4897,122 @@ class ApiService {
   removeDoorMember(id: string, userId: string, scope: "standing" | "event", authToken: string) {
     return this.hostCall("DELETE", `/api/events/${encodeURIComponent(id)}/door/team/${encodeURIComponent(userId)}?scope=${scope}`, authToken);
   }
+  // ─── Event team, every role (p4-team step 9a; backend doorRouter.ts, #385 to #402) ─────────────────────────
+  // Rules and copy: utils/host/teamLogic.ts, teamLinksLogic.ts, eventTeamRules.ts (ported from goutsyde.com).
+
+  /** GET /api/events/:id/door/team?roles=all - every role: { standing, event, payTotals? }. Host and co-hosts. */
+  getEventTeam(id: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/${encodeURIComponent(id)}/door/team?roles=all`,
+      authToken,
+    );
+  }
+  /** POST /api/events/:id/door/team - { username, scope, role, roleLabel?, cohostLevel? } (201 { member }). */
+  inviteToEventTeam(
+    id: string,
+    body: Record<string, unknown>,
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "POST",
+      `/api/events/${encodeURIComponent(id)}/door/team`,
+      authToken,
+      body,
+    );
+  }
+  /** DELETE /api/events/:id/door/team/:userId?scope=&role=&reason=&note= - query from teamLogic.removeQuery. */
+  removeFromEventTeam(
+    id: string,
+    userId: string,
+    query: string,
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "DELETE",
+      `/api/events/${encodeURIComponent(id)}/door/team/${encodeURIComponent(userId)}?${query}`,
+      authToken,
+    );
+  }
+  /** PUT /api/events/:id/door/team/:userId/schedule?role= - the whole set from teamLogic.scheduleBody. */
+  setTeamTimes(
+    id: string,
+    userId: string,
+    role: string,
+    body: Record<string, unknown>,
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "PUT",
+      `/api/events/${encodeURIComponent(id)}/door/team/${encodeURIComponent(userId)}/schedule?role=${encodeURIComponent(role)}`,
+      authToken,
+      body,
+    );
+  }
+  /** PUT /api/events/:id/door/team/:userId/pay?role= - host only, body from teamLogic.payBody. */
+  setTeamPay(
+    id: string,
+    userId: string,
+    role: string,
+    body: Record<string, unknown>,
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "PUT",
+      `/api/events/${encodeURIComponent(id)}/door/team/${encodeURIComponent(userId)}/pay?role=${encodeURIComponent(role)}`,
+      authToken,
+      body,
+    );
+  }
+  /** PUT /api/events/:id/door/team/:userId/cohost-level - host only, { scope, level: team | edit }. */
+  setCohostLevel(
+    id: string,
+    userId: string,
+    scope: "standing" | "event",
+    level: "team" | "edit",
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "PUT",
+      `/api/events/${encodeURIComponent(id)}/door/team/${encodeURIComponent(userId)}/cohost-level`,
+      authToken,
+      { scope, level },
+    );
+  }
+  /** GET /api/events/:id/team/links - open invite links (step 9-0). */
+  getTeamLinks(id: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/${encodeURIComponent(id)}/team/links`,
+      authToken,
+    );
+  }
+  /** POST /api/events/:id/team/links - { scope, role, roleLabel?, cohostLevel?, pay?, email? } (201 { link, emailed }). */
+  makeTeamLink(id: string, body: Record<string, unknown>, authToken: string) {
+    return this.hostCall(
+      "POST",
+      `/api/events/${encodeURIComponent(id)}/team/links`,
+      authToken,
+      body,
+    );
+  }
+  /** DELETE /api/events/:id/team/links/:linkId - cancel an open link. */
+  cancelTeamLink(id: string, linkId: string, authToken: string) {
+    return this.hostCall(
+      "DELETE",
+      `/api/events/${encodeURIComponent(id)}/team/links/${encodeURIComponent(linkId)}`,
+      authToken,
+    );
+  }
+  /** GET /api/events/team-links/:code - the public link page (the host's name for the text to send). */
+  getTeamLinkPage(code: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/team-links/${encodeURIComponent(code)}`,
+      authToken,
+    );
+  }
+
   /** GET /api/events/door/mine - Events I can scan (host, or an accepted invite), published and not ended. */
   getDoorEvents(authToken: string) { return this.hostCall("GET", "/api/events/door/mine", authToken); }
   /** GET /api/events/door/invites - My open door team invites. */

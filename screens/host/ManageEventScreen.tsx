@@ -18,7 +18,18 @@ import { Centered, ErrorText, GOLD, Hint, HostHeader, OkText, OutlineButton, Pri
 import { EVENT_GREEN } from "@/components/events/eventColors";
 import { GENERIC_ERROR, money } from "@/utils/eventsLogic";
 import { failureCopy, flatError, isHostEvent, isHostTicketType, shareUrl, type HostEvent, type HostTicketType } from "@/utils/host/editorLogic";
-import { isTeamMember, teamCountLabel } from "@/utils/host/doorLogic";
+import {
+  eventTeamLabel,
+  manageAccess,
+  manageActions,
+  teamCount as countTeam,
+  type Access,
+} from "@/utils/host/eventTeamRules";
+import {
+  isSummaryTeamPay,
+  teamPayCard,
+  teamRows,
+} from "@/utils/host/teamLogic";
 import {
   CANCEL_CONFIRM_COPY, DRAFT_DISCARD_COPY, UNAVAILABLE, backendMessage, canCancel, canScan, cancelNotice, checkedInCount, earningsHint,
   guestHandle, guestLine, guestName, isDoorGuest, isHostOrder, isSummary, orderLine, payoutCard, refundConfirmCopy, refundableOrders,
@@ -60,6 +71,8 @@ export default function ManageEventScreen() {
   const [discarded, setDiscarded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [teamCount, setTeamCount] = useState(0);
+  // Step 9a (call 63): who's looking. Co-hosts never cancel or refund; Team level co-hosts don't edit.
+  const [access, setAccess] = useState<Access>({ as: "host", level: null });
   const seq = useRef(0);
 
   const token = useCallback(async () => {
@@ -76,10 +89,10 @@ export default function ManageEventScreen() {
       call(() => api.getEventSummary(eventId, t)),
       call(() => api.getEventOrders(eventId, t)),
       call(() => api.getDoorGuests(eventId, t)),
-      call(() => api.getDoorTeam(eventId, t)),
+      call(() => api.getEventTeam(eventId, t)),
     ]);
-    // Door team count for the button (canvas 37). Extra: a failure leaves the plain label and no error.
-    setTeamCount(tm.ok ? [tm.body?.standing, tm.body?.event].reduce((n, l) => n + (Array.isArray(l) ? (l as unknown[]).filter(isTeamMember).length : 0), 0) : 0);
+    // Event team count for the button, every role (step 9a). Extra: a failure leaves the plain label and no error.
+    setTeamCount(tm.ok ? countTeam(teamRows(tm.body ?? {})) : 0);
     let err: string | null = null;
     const copy = (x: { ok: false; err: unknown }) => { const f = flatError(x.err); return failureCopy(f.status, f.body).message; };
     if (sm.ok && sm.body?.success && isSummary(sm.body)) setSummary(sm.body as Summary);
@@ -100,7 +113,7 @@ export default function ManageEventScreen() {
       const r = await api.getManageEvent(eventId, t);
       if (mine !== seq.current) return;
       if (!r?.success || !isHostEvent(r.event)) throw { status: 500 };
-      setEvent(r.event);
+      setEvent(r.event); setAccess(manageAccess(r));
       setTypes(Array.isArray(r.ticketTypes) ? (r.ticketTypes as unknown[]).filter(isHostTicketType) : []);
       setPhase("ready");
       if (r.event.status !== "draft") await loadSales(t);
@@ -122,6 +135,10 @@ export default function ManageEventScreen() {
 
   const rows = useMemo(() => typeRows(types, summary), [types, summary]);
   const refundable = useMemo(() => refundableOrders(orders, event?.status ?? ""), [orders, event]);
+  const actions = manageActions(access, event?.status ?? "");
+  // Step 9a (call 54 on the website): team pay and what the host takes home, from summary.teamPay.
+  const teamPay = (summary as { teamPay?: unknown } | null)?.teamPay;
+  const team = isSummaryTeamPay(teamPay) ? teamPayCard(teamPay) : null;
 
   async function share() {
     if (!event) return;
@@ -212,7 +229,7 @@ export default function ManageEventScreen() {
         </View>
 
         <View style={s.actions}>
-          {event.status !== "cancelled" ? <OutlineButton label="Edit" onPress={() => navigation.navigate("EventEditor", { eventId: event.id })} style={{ flex: 1 }} /> : null}
+          {actions.edit ? <OutlineButton label="Edit" onPress={() => navigation.navigate("EventEditor", { eventId: event.id })} style={{ flex: 1 }} /> : null}
           {kind !== "paused" && !isDraft ? <OutlineButton label="View page" onPress={() => navigation.navigate("EventDetail", { slug: event.slug })} style={{ flex: 1 }} /> : null}
           {!isDraft && scannable ? <OutlineButton label="Share" onPress={share} style={{ flex: 1 }} /> : null}
         </View>
@@ -233,6 +250,7 @@ export default function ManageEventScreen() {
               <Stat label="Paid to your bank" mid={payout ? payout.value : missing} hint={payout?.hint ?? null} />
               <Stat label="Refunded" mid={refunded ? refunded.value : missing} hint={refunded?.hint ?? null} />
             </View>
+            {team ? <TeamPayCard team={team} /> : null}
           </>
         ) : null}
 
@@ -281,7 +299,7 @@ export default function ManageEventScreen() {
                   <ThemedText style={hostStyles.strong}>{guestName(o.guest)}</ThemedText>
                   <Hint>{[guestHandle(o.guest), orderLine(o)].filter(Boolean).join(" · ")}</Hint>
                 </View>
-                <OutlineButton label="Refund" onPress={() => { setAskError(null); setAsk({ kind: "refund", order: o }); }} />
+                {actions.refund ? <OutlineButton label="Refund" onPress={() => { setAskError(null); setAsk({ kind: "refund", order: o }); }} /> : null}
               </View>
             ))}
           </View>
@@ -290,11 +308,11 @@ export default function ManageEventScreen() {
         {live ? (
           <View style={s.actions} testID="door-actions">
             {scannable ? <PrimaryButton label="Scan tickets" onPress={() => navigation.navigate("DoorScanner", { eventId: event.id })} style={{ flex: 1 }} /> : null}
-            <OutlineButton label={teamCountLabel(teamCount)} onPress={() => navigation.navigate("DoorTeam", { eventId: event.id })} style={{ flex: 1, minHeight: 52 }} />
+            <OutlineButton label={eventTeamLabel(teamCount)} onPress={() => navigation.navigate("DoorTeam", { eventId: event.id })} style={{ flex: 1, minHeight: 52 }} />
           </View>
         ) : null}
 
-        {canCancel(event) ? (
+        {canCancel(event) && actions.cancel ? (
           <View style={{ alignItems: "center" }}>
             <TextButton label={isDraft ? "Discard draft" : "Cancel event"} onPress={() => { setAskError(null); setAsk({ kind: "cancel" }); }} />
           </View>
@@ -341,7 +359,27 @@ function Stat({ label, big, mid, hint, gold, testID }: { label: string; big?: st
   );
 }
 
+/** Step 9a: team pay and what the host takes home (summary.teamPay, all or nothing). */
+function TeamPayCard({ team }: { team: { team: string; note: string } }) {
+  const { theme } = useTheme();
+  return (
+    <View
+      style={[s.teamCard, { backgroundColor: theme.backgroundDefault }]}
+      accessibilityLabel="Team pay"
+      testID="team-pay-card"
+    >
+      <View style={s.teamRow}>
+        <ThemedText style={hostStyles.body}>Team pay</ThemedText>
+        <ThemedText style={hostStyles.strong}>{team.team}</ThemedText>
+      </View>
+      <Hint>{team.note}</Hint>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  teamCard: { borderRadius: 16, padding: 12, gap: 6 },
+  teamRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
   root: { flex: 1 },
   chip: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   chipText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
