@@ -3,8 +3,9 @@
  *  - camera (expo-camera CameraView, QR only, flashlight), Type a code, Guest list with tap to check in;
  *  - the same code is ignored for 3 seconds; scanning pauses while a result shows, until Scan next;
  *  - Undo check in for the host only. Members see no money and no contact details (the backend never sends them).
- * Who may scan comes from GET /door/mine (host, or an accepted door team invite). The host also gets in through
- * /manage when /door/mine doesn't list the event (not published, or over), so Undo still works afterwards.
+ * Who may scan comes from GET /door/mine?roles=all canScan (host, Admissions or a co-host; call 74, same as goutsyde.com).
+ * Undo: the host or a co-host (backend doorUser allows both), never a door member. The host or a co-host also gets in
+ * through /manage when the list doesn't have the event (not published, or ended over 14 days ago), so Undo still works.
  */
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Linking, Modal, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
@@ -24,12 +25,19 @@ import { GENERIC_ERROR } from "@/utils/eventsLogic";
 import { failureCopy, flatError } from "@/utils/host/editorLogic";
 import { backendMessage, guestLine, guestName, isDoorGuest, type DoorGuest } from "@/utils/host/manageLogic";
 import {
-  CODE_LENGTH, LAST_SCAN_COLOR, TONE_BG, cleanTyped, filterGuests, invalidCodeResult, isDoorEvent, lastScanLabel, makeRecent,
-  makeGate, progressPct, qrToCode, replaceGuest, resultFor, scanWindowNote, timeOnly, undoneResult, type DoorRole, type ScanResult,
+  CODE_LENGTH, LAST_SCAN_COLOR, TONE_BG, cleanTyped, filterGuests, invalidCodeResult, lastScanLabel, makeRecent,
+  makeGate, progressPct, qrToCode, replaceGuest, resultFor, scanWindowNote, timeOnly, undoneResult, type ScanResult,
 } from "@/utils/host/doorLogic";
+import { isTeamEvent } from "@/utils/host/teamLogic";
+import { manageAccess } from "@/utils/host/eventTeamRules";
+import {
+  canUndo as undoAllowed,
+  scanAccess,
+  type ScanAs,
+} from "@/utils/host/memberLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-type Info = { title: string; startsAt: string; endsAt: string; timezone: string; status?: string; role: DoorRole };
+type Info = { title: string; startsAt: string; endsAt: string; timezone: string; status?: string; role: ScanAs };
 type Last = { key: string; r: ScanResult };
 
 export default function DoorScannerScreen() {
@@ -77,13 +85,18 @@ export default function DoorScannerScreen() {
     const t = await token();
     if (!t) return;
     try {
-      const mine = await api.getDoorEvents(t).catch(() => null);
-      const listed = Array.isArray(mine?.events) ? (mine.events as unknown[]).filter(isDoorEvent).find((e) => e.id === eventId) : undefined;
-      let next: Info | null = listed ? { title: listed.title, startsAt: listed.startsAt, endsAt: listed.endsAt, timezone: listed.timezone, role: listed.role } : null;
+      const mine = await api.getTeamEvents(t).catch(() => null);
+      const listed = scanAccess(
+        Array.isArray(mine?.events)
+          ? (mine.events as unknown[]).filter(isTeamEvent)
+          : [],
+        eventId,
+      );
+      let next: Info | null = listed ? { title: listed.title, startsAt: listed.startsAt, endsAt: listed.endsAt, timezone: listed.timezone, role: listed.as } : null;
       if (!next) {
-        // The host, on an event /door/mine no longer lists (ended or not published): still allowed, check in stays closed.
+        // The host or a co-host, on an event the list doesn't have (not published, or long over): still allowed, check in stays closed.
         const m = await api.getManageEvent(eventId, t).catch(() => null);
-        if (m?.success && m.event) next = { title: m.event.title, startsAt: m.event.startsAt, endsAt: m.event.endsAt, timezone: m.event.timezone, status: m.event.status, role: "host" };
+        if (m?.success && m.event) next = { title: m.event.title, startsAt: m.event.startsAt, endsAt: m.event.endsAt, timezone: m.event.timezone, status: m.event.status, role: manageAccess(m).as };
       }
       if (!next) { setPhase("noaccess"); return; }
       setInfo(next);
@@ -157,7 +170,7 @@ export default function DoorScannerScreen() {
 
   const checkedIn = useMemo(() => guests.filter((g) => !!g.checkedInAt).length, [guests]);
   const shown = useMemo(() => filterGuests(guests, query), [guests, query]);
-  const isHost = info?.role === "host";
+  const isHost = !!info && undoAllowed(info.role);
   const close = () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("DoorEvents"));
 
   const top = (

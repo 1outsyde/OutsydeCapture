@@ -57,10 +57,12 @@ export type RootStackParamList = {
   ManageEvent: { eventId: string };
   /** Host: one event's door team with invites (p4-scanner, canvas 38). */
   DoorTeam: { eventId: string };
-  /** A door team invite (canvas 39), from its push, its Activity item or Door check in. */
+  /** An Event team invite for any role (step 9c-1, mockup E), from its push, its Activity item or Event team. Name kept for old pushes. */
   DoorInvite: { inviteId: string };
-  /** Door check in: my invites and the events I can scan (Account menu). */
+  /** Event team (step 9c-1, mockup D): my invites and the events I host or work (Account menu). Name kept for old pushes. */
   DoorEvents: undefined;
+  /** My page for one event I'm on the team for (step 9c-1, mockup C): roles, times, link, messages, pay, Leave. */
+  MyTeam: { eventId: string };
   /** The door scanner for one event (canvas 14 and 15). */
   DoorScanner: { eventId: string };
   CartCheckout: undefined;

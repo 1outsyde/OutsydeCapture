@@ -1,4 +1,8 @@
-/** Events you host (Events canvas 30): drafts, upcoming, past and cancelled. From the EVENTS tab and the Account menu. */
+/**
+ * Events you host (Events canvas 30): drafts, upcoming, past and cancelled. From the EVENTS tab and the Account menu.
+ * Step 9c-1 (call 63): CO-HOSTING, events I co-host (GET /api/events/cohosting), each opening Manage, like goutsyde.com
+ * MineClient. A failed co-hosting call leaves that list empty; my own events still show.
+ */
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -14,6 +18,7 @@ import { Centered, ErrorText, GOLD, HostHeader, PrimaryButton, TextButton, hostS
 import { EVENT_GREEN } from "@/components/events/eventColors";
 import { failureCopy, flatError, isHostEvent, type HostEvent } from "@/utils/host/editorLogic";
 import { groupMine, statusKind, statusLabel, takenLine, whenWhere } from "@/utils/host/manageLogic";
+import { cohostingEvents } from "@/utils/host/memberLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -27,6 +32,7 @@ export default function YourEventsScreen() {
   tokenRef.current = authToken;
   const getToken = useCallback(() => tokenRef.current(), []);
   const [events, setEvents] = useState<HostEvent[] | null>(null);
+  const [cohosting, setCohosting] = useState<HostEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const seq = useRef(0);
@@ -37,8 +43,12 @@ export default function YourEventsScreen() {
     const token = await getToken();
     if (!token) { navigation.navigate("Auth", {}); return; }
     try {
-      const r = await api.getMyHostedEvents(token);
+      const [r, c] = await Promise.all([
+        api.getMyHostedEvents(token),
+        api.getCohosting(token).catch(() => null),
+      ]);
       if (mine !== seq.current) return;
+      setCohosting(cohostingEvents(c));
       setEvents(Array.isArray(r?.events) ? (r.events as unknown[]).filter(isHostEvent) : []);
     } catch (e) {
       if (mine !== seq.current) return;
@@ -56,14 +66,20 @@ export default function YourEventsScreen() {
     { key: "upcoming", title: "UPCOMING", list: groups.upcoming },
     { key: "past", title: "PAST", list: groups.past },
     { key: "cancelled", title: "CANCELLED", list: groups.cancelled },
+    { key: "cohosting", title: "CO-HOSTING", list: cohosting },
   ].filter((x) => x.list.length > 0);
 
   const host = () => navigation.navigate("EventEditor", undefined);
+  // My drafts open the editor; everything else, and every co-hosted event (drafts too, like goutsyde.com), opens Manage.
+  const open = (e: HostEvent, cohosted: boolean) =>
+    e.status === "draft" && !cohosted
+      ? navigation.navigate("EventEditor", { eventId: e.id })
+      : navigation.navigate("ManageEvent", { eventId: e.id });
 
   return (
     <View style={[s.root, { backgroundColor: theme.backgroundRoot }]}>
       <HostHeader left={{ icon: "chevron-left", label: "Back", onPress: () => navigation.goBack() }} title="Your events"
-        right={events && events.length > 0 ? <TextButton label="Host an event" gold onPress={host} /> : null} />
+        right={sections.length > 0 ? <TextButton label="Host an event" gold onPress={host} /> : null} />
       {events === null && !error ? <Centered><ActivityIndicator color={GOLD} /></Centered> : null}
       {events === null && error ? (
         <Centered>
@@ -87,7 +103,7 @@ export default function YourEventsScreen() {
           {sections.map((sec) => (
             <View key={sec.key} style={{ gap: 10 }} accessibilityLabel={sec.title}>
               <ThemedText style={[hostStyles.section, { color: theme.textSecondary }]} accessibilityRole="header">{sec.title}</ThemedText>
-              {sec.list.map((e) => <Row key={e.id} e={e} onPress={() => (e.status === "draft" ? navigation.navigate("EventEditor", { eventId: e.id }) : navigation.navigate("ManageEvent", { eventId: e.id }))} />)}
+              {sec.list.map((e) => <Row key={e.id} e={e} onPress={() => open(e, sec.key === "cohosting")} />)}
             </View>
           ))}
         </ScrollView>

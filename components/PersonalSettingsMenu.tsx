@@ -20,6 +20,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api from "@/services/api";
+import { MENU_ITEM } from "@/utils/host/memberLogic";
 
 interface PersonalSettingsMenuProps {
   visible: boolean;
@@ -438,8 +439,8 @@ export function PersonalSettingsMenu({
               {!user?.isGuest ? (
                 <MenuItem
                   icon="maximize"
-                  label="Door check in"
-                  subtitle="Door team invites and events you can scan"
+                  label={MENU_ITEM.label}
+                  subtitle={MENU_ITEM.subtitle}
                   onPress={() => handleNavigate("DoorEvents")}
                 />
               ) : null}

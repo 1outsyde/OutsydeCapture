@@ -5100,6 +5100,80 @@ class ApiService {
   answerDoorInvite(inviteId: string, answer: "accept" | "decline" | "leave", authToken: string) {
     return this.hostCall("POST", `/api/events/door/invites/${encodeURIComponent(inviteId)}/${answer}`, authToken, {});
   }
+  // p4-team step 9c-1: the member side for every role. The backend answers non Admissions invites only with
+  // ?roles=all (doorRouter myInvite), so these always send it; the door only calls above stay for old callers.
+  /** GET /api/events/door/mine?roles=all - events I host or am on the team for (any role), with canScan and ended. */
+  getTeamEvents(authToken: string) {
+    return this.hostCall("GET", "/api/events/door/mine?roles=all", authToken);
+  }
+  /** GET /api/events/door/invites?roles=all - my open invites for every role, with the pay offered. */
+  getTeamInvites(authToken: string) {
+    return this.hostCall(
+      "GET",
+      "/api/events/door/invites?roles=all",
+      authToken,
+    );
+  }
+  /** GET /api/events/door/invites/:inviteId?roles=all - one invite, any role. */
+  getTeamInvite(inviteId: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/door/invites/${encodeURIComponent(inviteId)}?roles=all`,
+      authToken,
+    );
+  }
+  /** POST /api/events/door/invites/:inviteId/accept | decline | leave?roles=all - { invite }. */
+  answerTeamInvite(
+    inviteId: string,
+    answer: "accept" | "decline" | "leave",
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "POST",
+      `/api/events/door/invites/${encodeURIComponent(inviteId)}/${answer}?roles=all`,
+      authToken,
+      {},
+    );
+  }
+  /** GET /api/events/:id/team/me - my roles, times, pay, link, messages and stay longer requests. 404 if not on the team. */
+  getMyTeam(eventId: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/${encodeURIComponent(eventId)}/team/me`,
+      authToken,
+    );
+  }
+  /** POST /api/events/:id/team/me/stay-longer/:requestId/accept | decline - the member answers. */
+  answerStayLonger(
+    eventId: string,
+    requestId: string,
+    answer: "accept" | "decline",
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "POST",
+      `/api/events/${encodeURIComponent(eventId)}/team/me/stay-longer/${encodeURIComponent(requestId)}/${answer}`,
+      authToken,
+      {},
+    );
+  }
+  /** POST /api/events/:id/team/me/payout/got-it | not-yet - after the host taps I paid them. */
+  answerTeamPaid(
+    eventId: string,
+    answer: "got-it" | "not-yet",
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "POST",
+      `/api/events/${encodeURIComponent(eventId)}/team/me/payout/${answer}`,
+      authToken,
+      {},
+    );
+  }
+  /** GET /api/events/cohosting - events I co-host (accepted), each with cohostLevel. */
+  getCohosting(authToken: string) {
+    return this.hostCall("GET", "/api/events/cohosting", authToken);
+  }
   /** POST /api/events/:id/door/check-in - { code } from the QR or typed. */
   doorCheckIn(id: string, code: string, authToken: string) { return this.hostCall("POST", `/api/events/${encodeURIComponent(id)}/door/check-in`, authToken, { code }); }
   /** POST /api/events/:id/door/check-in-ticket - { ticketId } from a guest list tap. */
