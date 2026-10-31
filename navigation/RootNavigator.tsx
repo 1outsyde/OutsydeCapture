@@ -24,6 +24,7 @@ import DoorTeamScreen from "@/screens/host/DoorTeamScreen";
 import DoorScannerScreen from "@/screens/host/DoorScannerScreen";
 import DoorInviteScreen from "@/screens/DoorInviteScreen";
 import DoorEventsScreen from "@/screens/DoorEventsScreen";
+import MyTeamScreen from "@/screens/MyTeamScreen";
 import AccountScreen from "@/screens/AccountScreen";
 import CartOrdersScreen from "@/screens/CartOrdersScreen";
 import CartCheckoutScreen from "@/screens/CartCheckoutScreen";
@@ -351,6 +352,12 @@ export default function RootNavigator() {
         name="DoorInvite"
         component={DoorInviteScreen}
         options={{ headerShown: false, animation: "slide_from_bottom", gestureEnabled: true }}
+      />
+
+      <Stack.Screen
+        name="MyTeam"
+        component={MyTeamScreen}
+        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
       />
 
       <Stack.Screen

@@ -1,6 +1,8 @@
 /**
- * A door team invite (Events canvas 39), opened from its push, its Activity item or Door check in.
- * States: invited (Accept, Decline), accepted (Open the scanner, Leave this door team), declined and gone (Done).
+ * An Event team invite for any role (p4-team step 9c-1, mockup E; route name DoorInvite kept so pushes already sent
+ * still open it), from its push, its Activity item or the Event team screen. Every call sends ?roles=all (the backend
+ * answers 404 for non Admissions invites without it). States: invited (Accept, Decline), accepted (Open the scanner for
+ * Admissions, Open your event page for other roles, Leave), declined and gone (Done).
  * Only the person invited can open it (backend answers 404 for anyone else).
  */
 import React, { useCallback, useRef, useState } from "react";
@@ -19,7 +21,8 @@ import { Centered, ErrorText, GOLD, Hint, HostHeader, OutlineButton, PrimaryButt
 import { GENERIC_ERROR } from "@/utils/eventsLogic";
 import { failureCopy, flatError } from "@/utils/host/editorLogic";
 import { backendMessage } from "@/utils/host/manageLogic";
-import { inviteScreenCopy, isDoorInvite, makeGate, type DoorInvite } from "@/utils/host/doorLogic";
+import { makeGate } from "@/utils/host/doorLogic";
+import { inviteAfter, isTeamInvite, memberInviteCopy, type TeamInvite } from "@/utils/host/memberLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -33,7 +36,7 @@ export default function DoorInviteScreen() {
   tokenRef.current = authToken;
   const getToken = useCallback(() => tokenRef.current(), []);
 
-  const [invite, setInvite] = useState<DoorInvite | null>(null);
+  const [invite, setInvite] = useState<TeamInvite | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "notfound" | "error">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | "accept" | "decline" | "leave">(null);
@@ -48,12 +51,12 @@ export default function DoorInviteScreen() {
     return t;
   }, [getToken, navigation]);
 
-  const load = useCallback(async (): Promise<DoorInvite | null> => {
+  const load = useCallback(async (): Promise<TeamInvite | null> => {
     const t = await token();
     if (!t) return null;
     try {
-      const r = await api.getDoorInvite(inviteId, t);
-      if (!isDoorInvite(r?.invite)) throw { status: 500 };
+      const r = await api.getTeamInvite(inviteId, t);
+      if (!isTeamInvite(r?.invite)) throw { status: 500 };
       setInvite(r.invite);
       setPhase("ready");
       return r.invite;
@@ -75,8 +78,8 @@ export default function DoorInviteScreen() {
     const t = await token();
     if (!t) { gate.leave(); setBusy(null); return; }
     try {
-      const r = await api.answerDoorInvite(inviteId, a, t);
-      if (isDoorInvite(r?.invite)) setInvite(r.invite);
+      const r = await api.answerTeamInvite(inviteId, a, t);
+      if (isTeamInvite(r?.invite)) setInvite(r.invite);
       if (a === "leave") setLeft(true);
       setAskLeave(false);
     } catch (e) {
@@ -95,14 +98,16 @@ export default function DoorInviteScreen() {
     }
   }
 
-  function openScanner() {
+  function openNext() {
     if (!invite) return;
-    if (invite.scope === "event" && invite.event) navigation.navigate("DoorScanner", { eventId: invite.event.id });
+    const next = inviteAfter(invite);
+    if (next.to === "scanner") navigation.navigate("DoorScanner", { eventId: next.eventId });
+    else if (next.to === "myTeam") navigation.navigate("MyTeam", { eventId: next.eventId });
     else navigation.navigate("DoorEvents");
   }
 
   const root = (children: React.ReactNode) => <View style={{ flex: 1, backgroundColor: theme.backgroundRoot }}>{children}</View>;
-  const header = <HostHeader left={{ icon: "x", label: "Close", onPress: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Main" as never)) }} title="Door team invite" />;
+  const header = <HostHeader left={{ icon: "x", label: "Close", onPress: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Main" as never)) }} title="Event team invite" />;
 
   if (phase === "loading") return root(<>{header}<Centered><ActivityIndicator color={GOLD} /></Centered></>);
   if (phase === "notfound") {
@@ -119,9 +124,10 @@ export default function DoorInviteScreen() {
     </Centered></>);
   }
 
-  const base = inviteScreenCopy(invite);
   // Just left: say so (the backend now reports the invite as gone, whose copy is about the host cancelling).
-  const c = left && base.state === "gone" ? { ...base, headline: "You left the door team", body: `${invite.host.name} can invite you again.` } : base;
+  const c = memberInviteCopy(invite, left);
+  const next = inviteAfter(invite);
+  const nextLabel = next.to === "scanner" ? "Open the scanner" : next.to === "myTeam" ? "Open your event page" : "Open Event team";
   return root(
     <>
       {header}
@@ -142,7 +148,8 @@ export default function DoorInviteScreen() {
             </View>
           ))}
           {c.state !== "gone" && c.events.length === 0 ? <Hint>No upcoming events yet.</Hint> : null}
-          <Hint>You'll be able to scan tickets and see the guest list. You won't see sales, earnings or anyone's contact details.</Hint>
+          {c.pay && c.state !== "gone" ? <ThemedText style={hostStyles.strong} testID="invite-pay">{c.pay}</ThemedText> : null}
+          {c.privacy && c.state !== "gone" ? <Hint>{c.privacy}</Hint> : null}
         </View>
         {error ? <ErrorText>{error}</ErrorText> : null}
       </ScrollView>
@@ -155,8 +162,8 @@ export default function DoorInviteScreen() {
         ) : null}
         {c.state === "accepted" ? (
           <>
-            <PrimaryButton label="Open the scanner" onPress={openScanner} />
-            <TextButton center label="Leave this door team" onPress={() => { setError(null); setAskLeave(true); }} />
+            <PrimaryButton label={nextLabel} onPress={openNext} />
+            <TextButton center label="Leave this Event team" onPress={() => { setError(null); setAskLeave(true); }} />
           </>
         ) : null}
         {c.state === "declined" || c.state === "gone" ? <OutlineButton label="Done" onPress={() => navigation.goBack()} /> : null}
@@ -165,8 +172,8 @@ export default function DoorInviteScreen() {
       <Modal visible={askLeave} transparent animationType="slide" onRequestClose={() => { if (!busy) setAskLeave(false); }}>
         <Pressable style={st.backdrop} onPress={() => !busy && setAskLeave(false)} accessibilityRole="button" accessibilityLabel="Close" />
         <View style={[st.sheet, { backgroundColor: theme.backgroundRoot, borderColor: theme.border, paddingBottom: insets.bottom + 16 }]} accessibilityViewIsModal>
-          <ThemedText style={st.sheetTitle} accessibilityRole="header">Leave this door team?</ThemedText>
-          <ThemedText style={hostStyles.body}>{`You won't be able to scan tickets for ${invite.scope === "event" && invite.event ? invite.event.title : `${invite.host.name}'s events`}. The host can invite you again.`}</ThemedText>
+          <ThemedText style={st.sheetTitle} accessibilityRole="header">Leave this Event team?</ThemedText>
+          <ThemedText style={hostStyles.body}>{`You'll come off the Event team for ${invite.scope === "event" && invite.event ? invite.event.title : `${invite.host.name}'s events`}. The host can invite you again.`}</ThemedText>
           <PrimaryButton label={busy === "leave" ? "Leaving…" : "Yes, leave"} busy={busy === "leave"} onPress={() => answer("leave")} />
           <TextButton center label="Stay on the team" disabled={!!busy} onPress={() => setAskLeave(false)} />
         </View>
