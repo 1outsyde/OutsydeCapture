@@ -316,36 +316,142 @@ export function refundDoneBody(cents: number | null): string {
 // ─── Push ────────────────────────────────────────────────────────────────────
 
 /**
- * Where a tapped ticket push opens. Every other type is ignored (and the other push hooks ignore these).
- *  - "address_reveal" (backend addressReveal.ts, data { type, eventId }) → the Tickets tab of Cart & activity.
- *  - "event_reminder" (backend eventReminders.ts, data { type, kind, eventId }, Events canvas screen 36):
- *    kind "day_before" / "soon" → that event's ticket (Tickets tab when the id is missing);
- *    kind "host_day_before" → the host's manage screen (needs the id). Unknown kinds are ignored.
- *  - "door_team_invite" (backend ticketNotices.ts notifyDoorInvite, data { type, inviteId }, canvas 39) → that invite,
- *    or Door check in when the id is missing.
- *  - "door_team_accepted" (notifyDoorAccepted, data { type, eventId }) → that event's door team; eventId null (an
- *    all events invite) → Your events. The old "door_team_added" type is ignored.
+ * Where a tapped ticket, host or Event team push opens. Every other type is ignored (and the other push hooks ignore
+ * these). Shapes from outsyde-backend (p4-team step 9c-2, calls 60, 61, 77):
+ *  - "address_reveal" { eventId } → the Tickets tab of Cart & activity.
+ *  - "event_reminder" { kind, eventId, role? }: day_before / soon / week / start → that event's ticket (Tickets tab
+ *    without an id); host_* → Manage (needs the id); team_* → their event page (MyTeam), or Manage for a co-host
+ *    (their reminder has the host's wording, call 77); without an id, Event team. Unknown kinds are ignored.
+ *  - "door_team_invite" / "team_invite" { inviteId } → that invite, or Event team without an id.
+ *  - "door_team_accepted" / "team_accepted" { eventId } (host) → that event's Event team; null (all events) → Your events.
+ *  - member types (stay longer request, times, pay, payout setup, pay held / sent / to host / marked paid) { eventId }
+ *    → their event page; without an id, Event team. "team_removed" → Event team (their page is gone).
+ *  - host types (stay longer answer / expired / amount, pay confirmed / not received) { eventId } → the host's Event team.
+ *  - "ticket_sold" / "event_payout_sent" { eventId } → Manage; "event_payout_owed" (no event) → Your events.
+ * The old "door_team_added" type is ignored. Team messages push as "new_message" (the message hook opens the chat).
  */
 export type TicketPushTarget = {
-  screen: "tickets" | "ticket" | "manage" | "doorInvite" | "doorEvents" | "doorTeam" | "yourEvents";
+  screen:
+    | "tickets"
+    | "ticket"
+    | "manage"
+    | "doorInvite"
+    | "doorEvents"
+    | "doorTeam"
+    | "yourEvents"
+    | "myTeam";
   eventId: string | null;
   inviteId?: string;
 };
 
-export function ticketPushTarget(data: { type?: unknown; kind?: unknown; eventId?: unknown; inviteId?: unknown } | null | undefined): TicketPushTarget | null {
+const MEMBER_PUSHES = new Set([
+  "team_stay_longer",
+  "team_time_changed",
+  "team_pay_changed",
+  "team_payout_setup",
+  "team_pay_held",
+  "team_pay_sent",
+  "team_pay_to_host",
+  "team_pay_marked_paid",
+]);
+const HOST_TEAM_PUSHES = new Set([
+  "team_stay_longer_answer",
+  "team_stay_longer_expired",
+  "team_stay_longer_amount",
+  "team_pay_confirmed",
+  "team_pay_not_received",
+]);
+const GUEST_REMINDERS = new Set(["day_before", "soon", "week", "start"]);
+const HOST_REMINDERS = new Set([
+  "host_day_before",
+  "host_week",
+  "host_soon",
+  "host_start",
+]);
+const TEAM_REMINDERS = new Set([
+  "team_week",
+  "team_day_before",
+  "team_soon",
+  "team_start",
+]);
+
+const DOOR_EVENTS: TicketPushTarget = { screen: "doorEvents", eventId: null };
+const YOUR_EVENTS: TicketPushTarget = { screen: "yourEvents", eventId: null };
+
+export function ticketPushTarget(
+  data:
+    | {
+        type?: unknown;
+        kind?: unknown;
+        eventId?: unknown;
+        inviteId?: unknown;
+        role?: unknown;
+      }
+    | null
+    | undefined,
+): TicketPushTarget | null {
   if (!data) return null;
-  const eventId = typeof data.eventId === "string" && data.eventId.length > 0 ? data.eventId : null;
-  if (data.type === "door_team_invite") {
+  const type = data.type;
+  const eventId =
+    typeof data.eventId === "string" && data.eventId.length > 0
+      ? data.eventId
+      : null;
+  if (type === "door_team_invite" || type === "team_invite") {
     return typeof data.inviteId === "string" && data.inviteId.length > 0
       ? { screen: "doorInvite", eventId: null, inviteId: data.inviteId }
-      : { screen: "doorEvents", eventId: null };
+      : DOOR_EVENTS;
   }
-  if (data.type === "door_team_accepted") return eventId ? { screen: "doorTeam", eventId } : { screen: "yourEvents", eventId: null };
-  if (data.type === "address_reveal") return { screen: "tickets", eventId };
-  if (data.type !== "event_reminder") return null;
-  if (data.kind === "day_before" || data.kind === "soon") return eventId ? { screen: "ticket", eventId } : { screen: "tickets", eventId: null };
-  if (data.kind === "host_day_before") return eventId ? { screen: "manage", eventId } : null;
+  if (type === "door_team_accepted" || type === "team_accepted")
+    return eventId ? { screen: "doorTeam", eventId } : YOUR_EVENTS;
+  if (type === "address_reveal") return { screen: "tickets", eventId };
+  if (typeof type === "string" && MEMBER_PUSHES.has(type))
+    return eventId ? { screen: "myTeam", eventId } : DOOR_EVENTS;
+  if (type === "team_removed") return DOOR_EVENTS;
+  if (typeof type === "string" && HOST_TEAM_PUSHES.has(type))
+    return eventId ? { screen: "doorTeam", eventId } : YOUR_EVENTS;
+  if (type === "ticket_sold" || type === "event_payout_sent")
+    return eventId ? { screen: "manage", eventId } : YOUR_EVENTS;
+  if (type === "event_payout_owed") return YOUR_EVENTS;
+  if (type !== "event_reminder" || typeof data.kind !== "string") return null;
+  const kind = data.kind;
+  if (GUEST_REMINDERS.has(kind))
+    return eventId
+      ? { screen: "ticket", eventId }
+      : { screen: "tickets", eventId: null };
+  if (HOST_REMINDERS.has(kind))
+    return eventId ? { screen: "manage", eventId } : null;
+  if (TEAM_REMINDERS.has(kind)) {
+    if (!eventId) return DOOR_EVENTS;
+    return data.role === "cohost"
+      ? { screen: "manage", eventId }
+      : { screen: "myTeam", eventId };
+  }
   return null;
+}
+
+/**
+ * Call 78: an Activity item opens what its push opens. Works for both kinds of items: rows from GET /notifications
+ * (metadata = their string fields plus referenceType / referenceId) and items saved when a push came in while the app
+ * was open (metadata = the push data). Call 73: "team_message" (Activity only) opens their event. Invites fall back
+ * to referenceId, as doorNoticeTarget did. Null: not one of these, the screen handles it.
+ */
+export function activityTarget(n: {
+  type: string;
+  referenceId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}): TicketPushTarget | null {
+  const m = n.metadata ?? {};
+  const str = (v: unknown) =>
+    typeof v === "string" && v.length > 0 ? v : null;
+  const ref = str(m.referenceId) ?? str(n.referenceId);
+  if (n.type === "team_message") {
+    const eventId = str(m.eventId) ?? ref;
+    return eventId ? { screen: "myTeam", eventId } : null;
+  }
+  if (n.type === "door_team_invite" || n.type === "team_invite") {
+    return ticketPushTarget({ type: n.type, inviteId: str(m.inviteId) ?? ref });
+  }
+  return ticketPushTarget({ ...m, type: n.type });
 }
 
 // ─── Result copy (screen 27) ─────────────────────────────────────────────────
