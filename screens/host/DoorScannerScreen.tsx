@@ -30,7 +30,11 @@ import {
 } from "@/utils/host/doorLogic";
 import { isTeamEvent } from "@/utils/host/teamLogic";
 import { manageAccess } from "@/utils/host/eventTeamRules";
-import { canUndo as undoAllowed, scanAccess, type ScanAs } from "@/utils/host/memberLogic";
+import {
+  canUndo as undoAllowed,
+  scanAccess,
+  type ScanAs,
+} from "@/utils/host/memberLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Info = { title: string; startsAt: string; endsAt: string; timezone: string; status?: string; role: ScanAs };
@@ -82,7 +86,12 @@ export default function DoorScannerScreen() {
     if (!t) return;
     try {
       const mine = await api.getTeamEvents(t).catch(() => null);
-      const listed = scanAccess(Array.isArray(mine?.events) ? (mine.events as unknown[]).filter(isTeamEvent) : [], eventId);
+      const listed = scanAccess(
+        Array.isArray(mine?.events)
+          ? (mine.events as unknown[]).filter(isTeamEvent)
+          : [],
+        eventId,
+      );
       let next: Info | null = listed ? { title: listed.title, startsAt: listed.startsAt, endsAt: listed.endsAt, timezone: listed.timezone, role: listed.as } : null;
       if (!next) {
         // The host or a co-host, on an event the list doesn't have (not published, or long over): still allowed, check in stays closed.

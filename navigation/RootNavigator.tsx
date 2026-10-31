@@ -357,7 +357,11 @@ export default function RootNavigator() {
       <Stack.Screen
         name="MyTeam"
         component={MyTeamScreen}
-        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+        }}
       />
 
       <Stack.Screen

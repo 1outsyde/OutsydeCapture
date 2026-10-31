@@ -43,7 +43,10 @@ export default function YourEventsScreen() {
     const token = await getToken();
     if (!token) { navigation.navigate("Auth", {}); return; }
     try {
-      const [r, c] = await Promise.all([api.getMyHostedEvents(token), api.getCohosting(token).catch(() => null)]);
+      const [r, c] = await Promise.all([
+        api.getMyHostedEvents(token),
+        api.getCohosting(token).catch(() => null),
+      ]);
       if (mine !== seq.current) return;
       setCohosting(cohostingEvents(c));
       setEvents(Array.isArray(r?.events) ? (r.events as unknown[]).filter(isHostEvent) : []);
@@ -67,6 +70,11 @@ export default function YourEventsScreen() {
   ].filter((x) => x.list.length > 0);
 
   const host = () => navigation.navigate("EventEditor", undefined);
+  // My drafts open the editor; everything else, and every co-hosted event (drafts too, like goutsyde.com), opens Manage.
+  const open = (e: HostEvent, cohosted: boolean) =>
+    e.status === "draft" && !cohosted
+      ? navigation.navigate("EventEditor", { eventId: e.id })
+      : navigation.navigate("ManageEvent", { eventId: e.id });
 
   return (
     <View style={[s.root, { backgroundColor: theme.backgroundRoot }]}>
@@ -95,7 +103,7 @@ export default function YourEventsScreen() {
           {sections.map((sec) => (
             <View key={sec.key} style={{ gap: 10 }} accessibilityLabel={sec.title}>
               <ThemedText style={[hostStyles.section, { color: theme.textSecondary }]} accessibilityRole="header">{sec.title}</ThemedText>
-              {sec.list.map((e) => <Row key={e.id} e={e} onPress={() => (e.status === "draft" && sec.key !== "cohosting" ? navigation.navigate("EventEditor", { eventId: e.id }) : navigation.navigate("ManageEvent", { eventId: e.id }))} />)}
+              {sec.list.map((e) => <Row key={e.id} e={e} onPress={() => open(e, sec.key === "cohosting")} />)}
             </View>
           ))}
         </ScrollView>
