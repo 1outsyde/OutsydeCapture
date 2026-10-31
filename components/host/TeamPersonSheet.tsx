@@ -1,8 +1,8 @@
 /**
  * One person on the host's Event team (p4-team step 9a, mockup B, screens 46 and 48): their times, their pay, a
- * co-host's level, and taking them off (a reason once they accepted a paid spot). Same rules and copy as goutsyde.com
- * app/events/[id]/team/PersonPanel.tsx; who can do what: utils/host/eventTeamRules.ts personRights. Stay longer, To be
- * discussed amounts and messages come in step 9b.
+ * co-host's level, and taking them off (a reason once they accepted a paid spot). Step 9b: asking them to stay longer
+ * (calls 41 to 48) and entering To be discussed amounts. Same rules and copy as goutsyde.com
+ * app/events/[id]/team/PersonPanel.tsx; who can do what: utils/host/eventTeamRules.ts personRights.
  */
 import React, { useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -26,7 +26,8 @@ import {
   TextButton,
   hostStyles,
 } from "@/components/host/hostUi";
-import { flatError } from "@/utils/host/editorLogic";
+import { flatError, parsePriceCents } from "@/utils/host/editorLogic";
+import { money } from "@/utils/eventsLogic";
 import { backendMessage, guestName } from "@/utils/host/manageLogic";
 import {
   dateLabel,
@@ -38,7 +39,16 @@ import { personRights } from "@/utils/host/eventTeamRules";
 import {
   LINK_ROLES,
   REMOVAL_REASONS,
+  STAY_CHOICES,
+  amountWaiting,
+  isStayRequest,
   needsReason,
+  stayBody,
+  stayChoiceLabel,
+  stayLine,
+  stayPayChoices,
+  stayStatus,
+  timeOf,
   payBody,
   payFormFrom,
   removeQuery,
@@ -48,6 +58,8 @@ import {
   zonedInputs,
   type PayForm,
   type RemovalReason,
+  type StayPay,
+  type StayRequest,
   type TeamRow,
   type TimeInputs,
 } from "@/utils/host/teamLogic";
@@ -60,7 +72,7 @@ type Ev = {
   endsAt: string;
   status: string;
 };
-type Where = "times" | "pay" | "level" | "remove";
+type Where = string; // "times" | "pay" | "level" | "stay" | "remove" | "amt:<requestId>"
 type Pick = { key: keyof TimeInputs; part: "date" | "time" } | null;
 
 export default function TeamPersonSheet({
@@ -68,6 +80,7 @@ export default function TeamPersonSheet({
   event,
   asHost,
   now,
+  requests,
   getToken,
   onChanged,
   onRemoved,
@@ -77,6 +90,8 @@ export default function TeamPersonSheet({
   event: Ev;
   asHost: boolean;
   now: number;
+  /** This person's stay longer requests (GET /team/stay-longer, every role). */
+  requests: StayRequest[];
   getToken: () => Promise<string | null>;
   onChanged: () => void;
   onRemoved: (message: string) => void;
@@ -102,6 +117,23 @@ export default function TeamPersonSheet({
   const [reason, setReason] = useState<RemovalReason | null>(null);
   const [reasonNote, setReasonNote] = useState("");
   const [pick, setPick] = useState<Pick>(null);
+  /* stay longer (step 9b) */
+  const hourly = row.pay?.payType === "hourly";
+  const [stayMin, setStayMin] = useState<number | null>(60);
+  const [stayEnd, setStayEnd] = useState({ date: "", time: "" });
+  const [stayPick, setStayPick] = useState<"date" | "time" | null>(null);
+  const [stayPayPick, setStayPay] = useState<StayPay>(
+    hourly ? "hourly" : "fixed",
+  );
+  // Their pay type can change while the sheet is open: never keep a choice the other set doesn't have (call 43).
+  const stayPay: StayPay =
+    hourly && stayPayPick === "fixed"
+      ? "hourly"
+      : !hourly && stayPayPick === "hourly"
+        ? "fixed"
+        : stayPayPick;
+  const [stayFixed, setStayFixed] = useState("");
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<Where | null>(null);
   // Set before any await, so a double tap sends once (state updates a render too late).
   const busyRef = useRef(false);
@@ -115,7 +147,7 @@ export default function TeamPersonSheet({
     where: Where,
     fn: (t: string) => Promise<unknown>,
     ok: string,
-    after?: () => void,
+    after?: (body: unknown) => void,
   ) {
     if (busyRef.current) return;
     const t = await getToken();
@@ -124,10 +156,10 @@ export default function TeamPersonSheet({
     setBusy(where);
     setMsg(null);
     try {
-      await fn(t);
+      const body = await fn(t);
       setMsg({ where, text: ok, ok: true });
-      if (after) after();
-      else onChanged();
+      if (after) after(body);
+      if (!after || where === "stay") onChanged();
     } catch (e) {
       const f = flatError(e);
       if (
@@ -177,6 +209,49 @@ export default function TeamPersonSheet({
       "Saved.",
     );
   }
+  function askStay() {
+    const b = stayBody(
+      stayMin,
+      stayMin === null ? stayEnd : null,
+      stayPay,
+      stayFixed,
+      tz,
+    );
+    if (!b.ok) {
+      setMsg({ where: "stay", text: b.message, ok: false });
+      return;
+    }
+    run(
+      "stay",
+      (t) => api.askStayLonger(event.id, row.userId, row.role, b.body, t),
+      `Sent. ${who} gets a push to accept or decline.`,
+      (body) => {
+        const r = (body as { request?: unknown } | null)?.request;
+        if (isStayRequest(r))
+          setMsg({
+            where: "stay",
+            text: `Sent. ${who} has until ${timeOf(r.expiresAt, tz)} to answer.`,
+            ok: true,
+          });
+      },
+    );
+  }
+  function saveAmount(r: StayRequest) {
+    const c = parsePriceCents(amounts[r.id] ?? "");
+    if (c === null || c > 100_000) {
+      setMsg({
+        where: `amt:${r.id}`,
+        text: "Enter an amount up to $1,000.",
+        ok: false,
+      });
+      return;
+    }
+    run(
+      `amt:${r.id}`,
+      (t) => api.setStayAmount(event.id, r.id, c, t),
+      `Saved. ${who} gets ${money(c)} for staying.`,
+    );
+  }
   function remove() {
     const q = removeQuery(row, reason, reasonNote);
     if (!q.ok) {
@@ -222,6 +297,18 @@ export default function TeamPersonSheet({
       }
     : null;
   const levelOn = row.cohostLevel === "edit" ? "edit" : "team";
+  const mine = requests.filter((r) => r.role === row.role);
+  // One open request per person, whatever the role (backend REQUEST_OPEN).
+  const openRequest = requests.some((r) => r.status === "open");
+  const stayTarget: PickerTarget | null = stayPick
+    ? {
+        mode: stayPick,
+        title: stayPick === "date" ? "End date" : "End time",
+        value: stayEnd[stayPick],
+        fallbackMonth:
+          monthOf(stayEnd.date || event.startsAt.slice(0, 10)) ?? fallbackMonth,
+      }
+    : null;
 
   return (
     <Modal
@@ -440,6 +527,133 @@ export default function TeamPersonSheet({
             </View>
           )}
 
+          {(can.stay || mine.length > 0) && (
+            <View style={st.block} testID="sheet-stay">
+              <ThemedText
+                style={[hostStyles.section, { color: theme.textSecondary }]}
+                accessibilityRole="header"
+              >
+                STAY LONGER
+              </ThemedText>
+              {mine.map((r) => (
+                <View
+                  key={r.id}
+                  style={[st.req, { backgroundColor: theme.backgroundDefault }]}
+                  testID="stay-request"
+                >
+                  <ThemedText style={hostStyles.body}>
+                    {stayLine(r, tz, true)}
+                  </ThemedText>
+                  <Hint>{stayStatus(r, tz)}</Hint>
+                  {asHost && amountWaiting(r) && (
+                    <>
+                      <View style={st.pair}>
+                        <View style={{ flex: 1 }}>
+                          <Field
+                            label="AMOUNT FOR STAYING"
+                            value={amounts[r.id] ?? ""}
+                            keyboardType="decimal-pad"
+                            placeholder="$ amount"
+                            onChangeText={(v) =>
+                              setAmounts((a) => ({ ...a, [r.id]: v }))
+                            }
+                          />
+                        </View>
+                        <OutlineButton
+                          label="Save"
+                          disabled={!!busy}
+                          onPress={() => saveAmount(r)}
+                        />
+                      </View>
+                      <Hint>
+                        Enter it before payout day, 3 days after the event, or
+                        it&apos;s $0.
+                      </Hint>
+                    </>
+                  )}
+                  {say(`amt:${r.id}`)}
+                </View>
+              ))}
+              {can.stay && !openRequest && (
+                <>
+                  <View
+                    style={st.chips}
+                    accessibilityRole="radiogroup"
+                    accessibilityLabel="How much longer"
+                  >
+                    {STAY_CHOICES.map((m) => (
+                      <Chip
+                        key={m}
+                        label={stayChoiceLabel(m)}
+                        on={stayMin === m}
+                        onPress={() => setStayMin(m)}
+                      />
+                    ))}
+                    <Chip
+                      label="Pick end time"
+                      on={stayMin === null}
+                      onPress={() => setStayMin(null)}
+                    />
+                  </View>
+                  {stayMin === null && (
+                    <View style={st.pair}>
+                      <View style={{ flex: 1 }}>
+                        <PickerBox
+                          label="END DATE"
+                          value={stayEnd.date ? dateLabel(stayEnd.date) : "Day"}
+                          onPress={() => setStayPick("date")}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <PickerBox
+                          label="END TIME"
+                          value={
+                            stayEnd.time ? timeLabel(stayEnd.time) : "Time"
+                          }
+                          onPress={() => setStayPick("time")}
+                        />
+                      </View>
+                    </View>
+                  )}
+                  <View
+                    style={st.chips}
+                    accessibilityRole="radiogroup"
+                    accessibilityLabel="Extra pay"
+                  >
+                    {stayPayChoices(hourly).map((c) => (
+                      <Chip
+                        key={c.key}
+                        label={c.label}
+                        on={stayPay === c.key}
+                        onPress={() => setStayPay(c.key)}
+                      />
+                    ))}
+                  </View>
+                  {stayPay === "fixed" && (
+                    <Field
+                      label="EXTRA AMOUNT"
+                      value={stayFixed}
+                      keyboardType="decimal-pad"
+                      placeholder="$50"
+                      onChangeText={setStayFixed}
+                    />
+                  )}
+                  <PrimaryButton
+                    label={busy === "stay" ? "Sending…" : `Ask ${who} to stay`}
+                    busy={busy === "stay"}
+                    disabled={!!busy}
+                    onPress={askStay}
+                  />
+                  <Hint>
+                    They have until their end time to answer, and at least 30
+                    minutes.
+                  </Hint>
+                </>
+              )}
+              {say("stay")}
+            </View>
+          )}
+
           {can.remove && (
             <View style={st.block} testID="sheet-remove">
               {!removing ? (
@@ -465,7 +679,7 @@ export default function TeamPersonSheet({
                         ? `Take ${who} off your Event team for all your events?`
                         : `Take ${who} off this event's team?`}
                   </ThemedText>
-                  {needsReason(row) && (
+                  {accepted && (
                     <>
                       <ThemedText
                         style={[
@@ -485,7 +699,9 @@ export default function TeamPersonSheet({
                             key={r.key}
                             label={r.label}
                             on={reason === r.key}
-                            onPress={() => setReason(r.key)}
+                            onPress={() =>
+                              setReason(reason === r.key ? null : r.key)
+                            }
                           />
                         ))}
                       </View>
@@ -499,8 +715,9 @@ export default function TeamPersonSheet({
                         />
                       )}
                       <Hint>
-                        They see this reason. Taken off before the event ends
-                        means no team pay for it.
+                        {needsReason(row)
+                          ? "They had pay, so they see the reason you pick. Taken off before the event ends means no team pay for it."
+                          : "Optional. If you pick one, they see it."}
                       </Hint>
                     </>
                   )}
@@ -531,13 +748,25 @@ export default function TeamPersonSheet({
               {say("remove")}
             </View>
           )}
-          {!can.times && !can.pay && !can.level && !can.remove && (
-            <Hint>
-              This event is over, so its Event team can&apos;t change.
-            </Hint>
-          )}
+          {!can.times &&
+            !can.pay &&
+            !can.level &&
+            !can.remove &&
+            mine.length === 0 && (
+              <Hint>
+                This event is over, so its Event team can&apos;t change.
+              </Hint>
+            )}
         </ScrollView>
       </View>
+      <DateTimeSheet
+        target={stayTarget}
+        onClose={() => setStayPick(null)}
+        onDone={(v) => {
+          if (stayPick) setStayEnd((x) => ({ ...x, [stayPick]: v }));
+          setStayPick(null);
+        }}
+      />
       <DateTimeSheet
         target={target}
         onClose={() => setPick(null)}
@@ -564,5 +793,6 @@ const st = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "700" },
   block: { gap: 10 },
   chips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  req: { borderRadius: 12, padding: 10, gap: 6 },
   pair: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
 });

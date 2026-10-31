@@ -5013,6 +5013,83 @@ class ApiService {
     );
   }
 
+  // ─── Event team, step 9b: stay longer, messages, team pay after the event ─────────────────────────────────
+
+  /** GET /api/events/:id/team/stay-longer - every request at this event (host and co-hosts). */
+  getStayLonger(id: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/${encodeURIComponent(id)}/team/stay-longer`,
+      authToken,
+    );
+  }
+  /** POST /api/events/:id/door/team/:userId/stay-longer?role= - host only, body from teamLogic.stayBody (201 { request }). */
+  askStayLonger(
+    id: string,
+    userId: string,
+    role: string,
+    body: Record<string, unknown>,
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "POST",
+      `/api/events/${encodeURIComponent(id)}/door/team/${encodeURIComponent(userId)}/stay-longer?role=${encodeURIComponent(role)}`,
+      authToken,
+      body,
+    );
+  }
+  /** PUT /api/events/:id/team/stay-longer/:requestId/amount - host only, { cents } for a To be discussed request. */
+  setStayAmount(
+    id: string,
+    requestId: string,
+    cents: number,
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "PUT",
+      `/api/events/${encodeURIComponent(id)}/team/stay-longer/${encodeURIComponent(requestId)}/amount`,
+      authToken,
+      { cents },
+    );
+  }
+  /** GET /api/events/:id/team/messages - what the host and co-hosts sent, newest first. */
+  getTeamMessages(id: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/${encodeURIComponent(id)}/team/messages`,
+      authToken,
+    );
+  }
+  /** POST /api/events/:id/team/messages - { to, role?, userId?, text } from teamLogic.messageBody. */
+  sendTeamMessage(
+    id: string,
+    body: Record<string, unknown>,
+    authToken: string,
+  ) {
+    return this.hostCall(
+      "POST",
+      `/api/events/${encodeURIComponent(id)}/team/messages`,
+      authToken,
+      body,
+    );
+  }
+  /** GET /api/events/:id/team-payouts - each member's pay once the payout is worked out. */
+  getTeamPayouts(id: string, authToken: string) {
+    return this.hostCall(
+      "GET",
+      `/api/events/${encodeURIComponent(id)}/team-payouts`,
+      authToken,
+    );
+  }
+  /** POST (I paid them) or DELETE (undo) /api/events/:id/team-payouts/:userId/paid - host only. */
+  markTeamPaid(id: string, userId: string, undo: boolean, authToken: string) {
+    return this.hostCall(
+      undo ? "DELETE" : "POST",
+      `/api/events/${encodeURIComponent(id)}/team-payouts/${encodeURIComponent(userId)}/paid`,
+      authToken,
+    );
+  }
+
   /** GET /api/events/door/mine - Events I can scan (host, or an accepted invite), published and not ended. */
   getDoorEvents(authToken: string) { return this.hostCall("GET", "/api/events/door/mine", authToken); }
   /** GET /api/events/door/invites - My open door team invites. */
