@@ -116,6 +116,16 @@ type Sent = {
   to: { userId: string; username: string | null } | null;
   recipientCount: number;
 };
+/** A sent message from GET /team/messages; anything else (an older backend) is skipped. */
+const isSent = (x: unknown): x is Sent => {
+  const s = x as Partial<Sent> | null;
+  return (
+    !!s &&
+    typeof s.id === "string" &&
+    typeof s.text === "string" &&
+    typeof s.sentAt === "string"
+  );
+};
 type PayoutRow = TeamPayout & {
   member: { userId: string; firstName: string | null; username: string | null };
 };
@@ -184,7 +194,9 @@ export default function DoorTeamScreen() {
   const [made, setMade] = useState<{ url: string; text: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [linkBusy, setLinkBusy] = useState<string | null>(null);
-  const gate = useRef(makeGate()).current;
+  const gate = useRef(makeGate()).current; // invites and links
+  const msgGate = useRef(makeGate()).current;
+  const payGate = useRef(makeGate()).current;
 
   const token = useCallback(async () => {
     const t = await tokenRef.current();
@@ -235,11 +247,17 @@ export default function DoorTeamScreen() {
           ? (sl!.requests as unknown[]).filter(isStayRequest)
           : [],
       );
-      setSent(Array.isArray(m?.messages) ? (m!.messages as Sent[]) : []);
+      setSent(
+        Array.isArray(m?.messages)
+          ? ((m!.messages as unknown[]).filter(isSent) as Sent[])
+          : [],
+      );
       setPayouts(
         Array.isArray(po?.payouts)
           ? ((po!.payouts as unknown[]).filter(
-              (x) => isTeamPayout(x) && !!(x as TeamPayout).member,
+              (x) =>
+                isTeamPayout(x) &&
+                typeof (x as TeamPayout).member?.userId === "string",
             ) as PayoutRow[])
           : [],
       );
@@ -401,13 +419,9 @@ export default function DoorTeamScreen() {
     setSendError(null);
     setNotice(null);
     setMade(null);
-    const t = await token();
-    if (!t) {
-      gate.leave();
-      setSending(false);
-      return;
-    }
     try {
+      const t = await token();
+      if (!t) return;
       if (way === "username") await sendUsername(t);
       else await sendLink(t);
       await refresh(t);
@@ -439,20 +453,25 @@ export default function DoorTeamScreen() {
   }
 
   async function sendMessage() {
-    // Someone picked who has since left the team: send to what the picker shows (Whole team).
-    const pickedAud = audienceOptions(rows).some((o) => o.value === aud)
-      ? aud
-      : "team";
-    const b = messageBody(audienceFrom(pickedAud), text);
+    // Someone picked a person or role that has since left the team: never widen it, ask again.
+    if (!audienceOptions(rows).some((o) => o.value === aud)) {
+      setAud("team");
+      setMsgNote({
+        ok: false,
+        text: "Who you picked isn't on the team any more. Pick who to send to again.",
+      });
+      return;
+    }
+    const b = messageBody(audienceFrom(aud), text);
     if (!b.ok) {
       setMsgNote({ ok: false, text: b.message });
       return;
     }
-    if (!gate.enter()) return;
+    if (!msgGate.enter()) return;
     setMsgBusy(true);
     setMsgNote(null);
-    const t = await token();
     try {
+      const t = await token();
       if (t) {
         await api.sendTeamMessage(eventId, b.body, t);
         setText("");
@@ -466,17 +485,17 @@ export default function DoorTeamScreen() {
       const f = flatError(e);
       setMsgNote({ ok: false, text: backendMessage(f.status, f.body) });
     } finally {
-      gate.leave();
+      msgGate.leave();
       setMsgBusy(false);
     }
   }
 
   async function markPaid(userId: string, undo: boolean) {
-    if (!gate.enter()) return;
+    if (!payGate.enter()) return;
     setPayBusy(userId);
     setPayErr(null);
-    const t = await token();
     try {
+      const t = await token();
       if (t) {
         await api.markTeamPaid(eventId, userId, undo, t);
         await refresh(t);
@@ -485,7 +504,7 @@ export default function DoorTeamScreen() {
       const f = flatError(e);
       setPayErr(backendMessage(f.status, f.body));
     } finally {
-      gate.leave();
+      payGate.leave();
       setPayBusy(null);
     }
   }
@@ -494,8 +513,8 @@ export default function DoorTeamScreen() {
     if (linkBusy || !gate.enter()) return;
     setLinkBusy(l.id);
     setSendError(null);
-    const t = await token();
     try {
+      const t = await token();
       if (t) {
         await api.cancelTeamLink(eventId, l.id, t);
         setNotice("Link cancelled. Nobody can use it now.");
@@ -621,6 +640,7 @@ export default function DoorTeamScreen() {
           gap: 18,
         }}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         {!ended && (
           <View style={{ gap: 10 }} testID="team-add">

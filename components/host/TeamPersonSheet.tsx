@@ -5,7 +5,15 @@
  * app/events/[id]/team/PersonPanel.tsx; who can do what: utils/host/eventTeamRules.ts personRights.
  */
 import React, { useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -150,12 +158,12 @@ export default function TeamPersonSheet({
     after?: (body: unknown) => void,
   ) {
     if (busyRef.current) return;
-    const t = await getToken();
-    if (!t) return;
-    busyRef.current = true;
+    busyRef.current = true; // before the token await, so a second tap waits out the first
     setBusy(where);
     setMsg(null);
     try {
+      const t = await getToken();
+      if (!t) return;
       const body = await fn(t);
       setMsg({ where, text: ok, ok: true });
       if (after) after(body);
@@ -319,446 +327,462 @@ export default function TeamPersonSheet({
         if (!busy) onClose();
       }}
     >
-      <Pressable
-        style={st.backdrop}
-        onPress={() => !busy && onClose()}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-      />
-      <View
-        style={[
-          st.sheet,
-          {
-            backgroundColor: theme.backgroundRoot,
-            borderColor: theme.border,
-            paddingBottom: insets.bottom + 12,
-          },
-        ]}
-        accessibilityViewIsModal
-        testID="person-sheet"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
       >
-        <View style={st.head}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <ThemedText
-              style={st.title}
-              accessibilityRole="header"
-              numberOfLines={1}
-            >
-              {who}
-            </ThemedText>
-            <Hint>{`${roleName(row.role, row.roleLabel)}${row.scope === "standing" ? " · All your events" : ""}`}</Hint>
-          </View>
-          <TextButton label="Close" disabled={!!busy} onPress={onClose} />
-        </View>
-        <ScrollView
-          contentContainerStyle={{ gap: 18, paddingBottom: 12 }}
-          keyboardShouldPersistTaps="handled"
+        <Pressable
+          style={st.backdrop}
+          onPress={() => !busy && onClose()}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
+        <View
+          style={[
+            st.sheet,
+            {
+              backgroundColor: theme.backgroundRoot,
+              borderColor: theme.border,
+              paddingBottom: insets.bottom + 12,
+            },
+          ]}
+          accessibilityViewIsModal
+          testID="person-sheet"
         >
-          {can.level && (
-            <View style={st.block} accessibilityLabel="What they can do">
+          <View style={st.head}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <ThemedText
-                style={[hostStyles.section, { color: theme.textSecondary }]}
+                style={st.title}
                 accessibilityRole="header"
+                numberOfLines={1}
               >
-                WHAT THEY CAN DO
+                {who}
               </ThemedText>
-              <View
-                style={st.chips}
-                accessibilityRole="radiogroup"
-                accessibilityLabel="Co-host level"
-              >
-                {(["team", "edit"] as const).map((lv) => (
-                  <Chip
-                    key={lv}
-                    label={lv === "team" ? "Team" : "Team + edit"}
-                    on={levelOn === lv}
-                    disabled={!!busy}
-                    onPress={() => saveLevel(lv)}
-                  />
-                ))}
-              </View>
-              <Hint>
-                {levelOn === "edit"
-                  ? "They can also edit the event details and ticket types."
-                  : "They see everything, scan, and manage the team for this event."}
-              </Hint>
-              {say("level")}
+              <Hint>{`${roleName(row.role, row.roleLabel)}${row.scope === "standing" ? " · All your events" : ""}`}</Hint>
             </View>
-          )}
-
-          {can.times && (
-            <View style={st.block} testID="sheet-times">
-              <ThemedText
-                style={[hostStyles.section, { color: theme.textSecondary }]}
-                accessibilityRole="header"
-              >
-                TIMES
-              </ThemedText>
-              {timeFields(row.role).map((f) => (
-                <View key={f.key} style={st.pair}>
-                  <View style={{ flex: 1 }}>
-                    <PickerBox
-                      label={f.label.toUpperCase()}
-                      value={
-                        times[f.key].date ? dateLabel(times[f.key].date) : "Day"
-                      }
-                      onPress={() => setPick({ key: f.key, part: "date" })}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <PickerBox
-                      label=" "
-                      value={
-                        times[f.key].time
-                          ? timeLabel(times[f.key].time)
-                          : "Time"
-                      }
-                      onPress={() => setPick({ key: f.key, part: "time" })}
-                    />
-                  </View>
-                  {times[f.key].date || times[f.key].time ? (
-                    <TextButton
-                      label="Clear"
-                      a11yLabel={`Clear ${f.label}`}
-                      onPress={() =>
-                        setTimes((x) => ({
-                          ...x,
-                          [f.key]: { date: "", time: "" },
-                        }))
-                      }
-                    />
-                  ) : null}
-                </View>
-              ))}
-              <Field
-                label="WHERE TO GO"
-                value={place}
-                maxLength={300}
-                placeholder="Side door on 5th"
-                onChangeText={setPlace}
-              />
-              <Field
-                label="YOUR NOTE TO THEM"
-                value={note}
-                maxLength={500}
-                placeholder="Wear all black."
-                onChangeText={setNote}
-                multiline
-              />
-              <PrimaryButton
-                label={busy === "times" ? "Saving…" : "Save times"}
-                busy={busy === "times"}
-                disabled={!!busy}
-                onPress={saveTimes}
-              />
-              {say("times")}
-            </View>
-          )}
-
-          {can.pay && (
-            <View style={st.block} testID="sheet-pay">
-              <ThemedText
-                style={[hostStyles.section, { color: theme.textSecondary }]}
-                accessibilityRole="header"
-              >
-                PAY
-              </ThemedText>
-              <View
-                style={st.chips}
-                accessibilityRole="radiogroup"
-                accessibilityLabel="Pay type"
-              >
-                {(["none", "fixed", "hourly"] as const).map((t) => (
-                  <Chip
-                    key={t}
-                    label={
-                      t === "none"
-                        ? "No pay"
-                        : t === "fixed"
-                          ? "Fixed"
-                          : "Hourly"
-                    }
-                    on={pay.payType === t}
-                    onPress={() => setPay((p) => ({ ...p, payType: t }))}
-                  />
-                ))}
-              </View>
-              {pay.payType === "fixed" && (
-                <Field
-                  label="FIXED AMOUNT"
-                  value={pay.fixed}
-                  keyboardType="decimal-pad"
-                  placeholder="$160"
-                  onChangeText={(v) => setPay((p) => ({ ...p, fixed: v }))}
-                />
-              )}
-              {pay.payType === "hourly" && (
-                <Field
-                  label="HOURLY RATE"
-                  value={pay.hourly}
-                  keyboardType="decimal-pad"
-                  placeholder="$50 an hour"
-                  onChangeText={(v) => setPay((p) => ({ ...p, hourly: v }))}
-                />
-              )}
-              {pay.payType === "hourly" && (
-                <Hint>Paid for the shift you set, start to end.</Hint>
-              )}
-              {LINK_ROLES.includes(row.role) && (
-                <Field
-                  label="COMMISSION ON THEIR LINK SALES (OPTIONAL)"
-                  value={pay.commission}
-                  keyboardType="decimal-pad"
-                  placeholder="10%"
-                  onChangeText={(v) => setPay((p) => ({ ...p, commission: v }))}
-                />
-              )}
-              <Hint>
-                Paid 3 days after the event due to processing, once they set up
-                payouts.
-              </Hint>
-              <PrimaryButton
-                label={busy === "pay" ? "Saving…" : "Save pay"}
-                busy={busy === "pay"}
-                disabled={!!busy}
-                onPress={savePay}
-              />
-              {say("pay")}
-            </View>
-          )}
-
-          {(can.stay || mine.length > 0) && (
-            <View style={st.block} testID="sheet-stay">
-              <ThemedText
-                style={[hostStyles.section, { color: theme.textSecondary }]}
-                accessibilityRole="header"
-              >
-                STAY LONGER
-              </ThemedText>
-              {mine.map((r) => (
-                <View
-                  key={r.id}
-                  style={[st.req, { backgroundColor: theme.backgroundDefault }]}
-                  testID="stay-request"
+            <TextButton label="Close" disabled={!!busy} onPress={onClose} />
+          </View>
+          <ScrollView
+            contentContainerStyle={{ gap: 18, paddingBottom: 12 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {can.level && (
+              <View style={st.block} accessibilityLabel="What they can do">
+                <ThemedText
+                  style={[hostStyles.section, { color: theme.textSecondary }]}
+                  accessibilityRole="header"
                 >
-                  <ThemedText style={hostStyles.body}>
-                    {stayLine(r, tz, true)}
-                  </ThemedText>
-                  <Hint>{stayStatus(r, tz)}</Hint>
-                  {asHost && amountWaiting(r) && (
-                    <>
-                      <View style={st.pair}>
-                        <View style={{ flex: 1 }}>
-                          <Field
-                            label="AMOUNT FOR STAYING"
-                            value={amounts[r.id] ?? ""}
-                            keyboardType="decimal-pad"
-                            placeholder="$ amount"
-                            onChangeText={(v) =>
-                              setAmounts((a) => ({ ...a, [r.id]: v }))
-                            }
+                  WHAT THEY CAN DO
+                </ThemedText>
+                <View
+                  style={st.chips}
+                  accessibilityRole="radiogroup"
+                  accessibilityLabel="Co-host level"
+                >
+                  {(["team", "edit"] as const).map((lv) => (
+                    <Chip
+                      key={lv}
+                      label={lv === "team" ? "Team" : "Team + edit"}
+                      on={levelOn === lv}
+                      disabled={!!busy}
+                      onPress={() => saveLevel(lv)}
+                    />
+                  ))}
+                </View>
+                <Hint>
+                  {levelOn === "edit"
+                    ? "They can also edit the event details and ticket types."
+                    : "They see everything, scan, and manage the team for this event."}
+                </Hint>
+                {say("level")}
+              </View>
+            )}
+
+            {can.times && (
+              <View style={st.block} testID="sheet-times">
+                <ThemedText
+                  style={[hostStyles.section, { color: theme.textSecondary }]}
+                  accessibilityRole="header"
+                >
+                  TIMES
+                </ThemedText>
+                {timeFields(row.role).map((f) => (
+                  <View key={f.key} style={st.pair}>
+                    <View style={{ flex: 1 }}>
+                      <PickerBox
+                        label={f.label.toUpperCase()}
+                        value={
+                          times[f.key].date
+                            ? dateLabel(times[f.key].date)
+                            : "Day"
+                        }
+                        onPress={() => setPick({ key: f.key, part: "date" })}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <PickerBox
+                        label=" "
+                        value={
+                          times[f.key].time
+                            ? timeLabel(times[f.key].time)
+                            : "Time"
+                        }
+                        onPress={() => setPick({ key: f.key, part: "time" })}
+                      />
+                    </View>
+                    {times[f.key].date || times[f.key].time ? (
+                      <TextButton
+                        label="Clear"
+                        a11yLabel={`Clear ${f.label}`}
+                        onPress={() =>
+                          setTimes((x) => ({
+                            ...x,
+                            [f.key]: { date: "", time: "" },
+                          }))
+                        }
+                      />
+                    ) : null}
+                  </View>
+                ))}
+                <Field
+                  label="WHERE TO GO"
+                  value={place}
+                  maxLength={300}
+                  placeholder="Side door on 5th"
+                  onChangeText={setPlace}
+                />
+                <Field
+                  label="YOUR NOTE TO THEM"
+                  value={note}
+                  maxLength={500}
+                  placeholder="Wear all black."
+                  onChangeText={setNote}
+                  multiline
+                />
+                <PrimaryButton
+                  label={busy === "times" ? "Saving…" : "Save times"}
+                  busy={busy === "times"}
+                  disabled={!!busy}
+                  onPress={saveTimes}
+                />
+                {say("times")}
+              </View>
+            )}
+
+            {can.pay && (
+              <View style={st.block} testID="sheet-pay">
+                <ThemedText
+                  style={[hostStyles.section, { color: theme.textSecondary }]}
+                  accessibilityRole="header"
+                >
+                  PAY
+                </ThemedText>
+                <View
+                  style={st.chips}
+                  accessibilityRole="radiogroup"
+                  accessibilityLabel="Pay type"
+                >
+                  {(["none", "fixed", "hourly"] as const).map((t) => (
+                    <Chip
+                      key={t}
+                      label={
+                        t === "none"
+                          ? "No pay"
+                          : t === "fixed"
+                            ? "Fixed"
+                            : "Hourly"
+                      }
+                      on={pay.payType === t}
+                      onPress={() => setPay((p) => ({ ...p, payType: t }))}
+                    />
+                  ))}
+                </View>
+                {pay.payType === "fixed" && (
+                  <Field
+                    label="FIXED AMOUNT"
+                    value={pay.fixed}
+                    keyboardType="decimal-pad"
+                    placeholder="$160"
+                    onChangeText={(v) => setPay((p) => ({ ...p, fixed: v }))}
+                  />
+                )}
+                {pay.payType === "hourly" && (
+                  <Field
+                    label="HOURLY RATE"
+                    value={pay.hourly}
+                    keyboardType="decimal-pad"
+                    placeholder="$50 an hour"
+                    onChangeText={(v) => setPay((p) => ({ ...p, hourly: v }))}
+                  />
+                )}
+                {pay.payType === "hourly" && (
+                  <Hint>Paid for the shift you set, start to end.</Hint>
+                )}
+                {LINK_ROLES.includes(row.role) && (
+                  <Field
+                    label="COMMISSION ON THEIR LINK SALES (OPTIONAL)"
+                    value={pay.commission}
+                    keyboardType="decimal-pad"
+                    placeholder="10%"
+                    onChangeText={(v) =>
+                      setPay((p) => ({ ...p, commission: v }))
+                    }
+                  />
+                )}
+                <Hint>
+                  Paid 3 days after the event due to processing, once they set
+                  up payouts.
+                </Hint>
+                <PrimaryButton
+                  label={busy === "pay" ? "Saving…" : "Save pay"}
+                  busy={busy === "pay"}
+                  disabled={!!busy}
+                  onPress={savePay}
+                />
+                {say("pay")}
+              </View>
+            )}
+
+            {(can.stay || mine.length > 0) && (
+              <View style={st.block} testID="sheet-stay">
+                <ThemedText
+                  style={[hostStyles.section, { color: theme.textSecondary }]}
+                  accessibilityRole="header"
+                >
+                  STAY LONGER
+                </ThemedText>
+                {mine.map((r) => (
+                  <View
+                    key={r.id}
+                    style={[
+                      st.req,
+                      { backgroundColor: theme.backgroundDefault },
+                    ]}
+                    testID="stay-request"
+                  >
+                    <ThemedText style={hostStyles.body}>
+                      {stayLine(r, tz, true)}
+                    </ThemedText>
+                    <Hint>{stayStatus(r, tz)}</Hint>
+                    {asHost && amountWaiting(r) && (
+                      <>
+                        <View style={st.pair}>
+                          <View style={{ flex: 1 }}>
+                            <Field
+                              label="AMOUNT FOR STAYING"
+                              value={amounts[r.id] ?? ""}
+                              keyboardType="decimal-pad"
+                              placeholder="$ amount"
+                              onChangeText={(v) =>
+                                setAmounts((a) => ({ ...a, [r.id]: v }))
+                              }
+                            />
+                          </View>
+                          <OutlineButton
+                            label="Save"
+                            disabled={!!busy}
+                            onPress={() => saveAmount(r)}
                           />
                         </View>
-                        <OutlineButton
-                          label="Save"
-                          disabled={!!busy}
-                          onPress={() => saveAmount(r)}
-                        />
-                      </View>
-                      <Hint>
-                        Enter it before payout day, 3 days after the event, or
-                        it&apos;s $0.
-                      </Hint>
-                    </>
-                  )}
-                  {say(`amt:${r.id}`)}
-                </View>
-              ))}
-              {can.stay && !openRequest && (
-                <>
-                  <View
-                    style={st.chips}
-                    accessibilityRole="radiogroup"
-                    accessibilityLabel="How much longer"
-                  >
-                    {STAY_CHOICES.map((m) => (
-                      <Chip
-                        key={m}
-                        label={stayChoiceLabel(m)}
-                        on={stayMin === m}
-                        onPress={() => setStayMin(m)}
-                      />
-                    ))}
-                    <Chip
-                      label="Pick end time"
-                      on={stayMin === null}
-                      onPress={() => setStayMin(null)}
-                    />
+                        <Hint>
+                          Enter it before payout day, 3 days after the event, or
+                          it&apos;s $0.
+                        </Hint>
+                      </>
+                    )}
+                    {say(`amt:${r.id}`)}
                   </View>
-                  {stayMin === null && (
-                    <View style={st.pair}>
-                      <View style={{ flex: 1 }}>
-                        <PickerBox
-                          label="END DATE"
-                          value={stayEnd.date ? dateLabel(stayEnd.date) : "Day"}
-                          onPress={() => setStayPick("date")}
+                ))}
+                {can.stay && !openRequest && (
+                  <>
+                    <View
+                      style={st.chips}
+                      accessibilityRole="radiogroup"
+                      accessibilityLabel="How much longer"
+                    >
+                      {STAY_CHOICES.map((m) => (
+                        <Chip
+                          key={m}
+                          label={stayChoiceLabel(m)}
+                          on={stayMin === m}
+                          onPress={() => setStayMin(m)}
                         />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <PickerBox
-                          label="END TIME"
-                          value={
-                            stayEnd.time ? timeLabel(stayEnd.time) : "Time"
-                          }
-                          onPress={() => setStayPick("time")}
-                        />
-                      </View>
+                      ))}
+                      <Chip
+                        label="Pick end time"
+                        on={stayMin === null}
+                        onPress={() => setStayMin(null)}
+                      />
                     </View>
-                  )}
-                  <View
-                    style={st.chips}
-                    accessibilityRole="radiogroup"
-                    accessibilityLabel="Extra pay"
-                  >
-                    {stayPayChoices(hourly).map((c) => (
-                      <Chip
-                        key={c.key}
-                        label={c.label}
-                        on={stayPay === c.key}
-                        onPress={() => setStayPay(c.key)}
-                      />
-                    ))}
-                  </View>
-                  {stayPay === "fixed" && (
-                    <Field
-                      label="EXTRA AMOUNT"
-                      value={stayFixed}
-                      keyboardType="decimal-pad"
-                      placeholder="$50"
-                      onChangeText={setStayFixed}
-                    />
-                  )}
-                  <PrimaryButton
-                    label={busy === "stay" ? "Sending…" : `Ask ${who} to stay`}
-                    busy={busy === "stay"}
-                    disabled={!!busy}
-                    onPress={askStay}
-                  />
-                  <Hint>
-                    They have until their end time to answer, and at least 30
-                    minutes.
-                  </Hint>
-                </>
-              )}
-              {say("stay")}
-            </View>
-          )}
-
-          {can.remove && (
-            <View style={st.block} testID="sheet-remove">
-              {!removing ? (
-                <OutlineButton
-                  danger
-                  label={
-                    row.status === "invited"
-                      ? "Cancel invite"
-                      : "Take off the team"
-                  }
-                  disabled={!!busy}
-                  onPress={() => {
-                    setRemoving(true);
-                    setMsg(null);
-                  }}
-                />
-              ) : (
-                <>
-                  <ThemedText style={hostStyles.body}>
-                    {row.status === "invited"
-                      ? `Cancel ${who}'s invite? They won't be able to accept it.`
-                      : row.scope === "standing"
-                        ? `Take ${who} off your Event team for all your events?`
-                        : `Take ${who} off this event's team?`}
-                  </ThemedText>
-                  {accepted && (
-                    <>
-                      <ThemedText
-                        style={[
-                          hostStyles.section,
-                          { color: theme.textSecondary },
-                        ]}
-                      >
-                        WHY
-                      </ThemedText>
-                      <View
-                        style={st.chips}
-                        accessibilityRole="radiogroup"
-                        accessibilityLabel="Why"
-                      >
-                        {REMOVAL_REASONS.map((r) => (
-                          <Chip
-                            key={r.key}
-                            label={r.label}
-                            on={reason === r.key}
-                            onPress={() =>
-                              setReason(reason === r.key ? null : r.key)
+                    {stayMin === null && (
+                      <View style={st.pair}>
+                        <View style={{ flex: 1 }}>
+                          <PickerBox
+                            label="END DATE"
+                            value={
+                              stayEnd.date ? dateLabel(stayEnd.date) : "Day"
                             }
+                            onPress={() => setStayPick("date")}
                           />
-                        ))}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <PickerBox
+                            label="END TIME"
+                            value={
+                              stayEnd.time ? timeLabel(stayEnd.time) : "Time"
+                            }
+                            onPress={() => setStayPick("time")}
+                          />
+                        </View>
                       </View>
-                      {reason === "other" && (
-                        <Field
-                          label="SAY WHY"
-                          value={reasonNote}
-                          maxLength={200}
-                          placeholder="A few words"
-                          onChangeText={setReasonNote}
+                    )}
+                    <View
+                      style={st.chips}
+                      accessibilityRole="radiogroup"
+                      accessibilityLabel="Extra pay"
+                    >
+                      {stayPayChoices(hourly).map((c) => (
+                        <Chip
+                          key={c.key}
+                          label={c.label}
+                          on={stayPay === c.key}
+                          onPress={() => setStayPay(c.key)}
                         />
-                      )}
-                      <Hint>
-                        {needsReason(row)
-                          ? "They had pay, so they see the reason you pick. Taken off before the event ends means no team pay for it."
-                          : "Optional. If you pick one, they see it."}
-                      </Hint>
-                    </>
-                  )}
-                  <PrimaryButton
+                      ))}
+                    </View>
+                    {stayPay === "fixed" && (
+                      <Field
+                        label="EXTRA AMOUNT"
+                        value={stayFixed}
+                        keyboardType="decimal-pad"
+                        placeholder="$50"
+                        onChangeText={setStayFixed}
+                      />
+                    )}
+                    <PrimaryButton
+                      label={
+                        busy === "stay" ? "Sending…" : `Ask ${who} to stay`
+                      }
+                      busy={busy === "stay"}
+                      disabled={!!busy}
+                      onPress={askStay}
+                    />
+                    <Hint>
+                      They have until their end time to answer, and at least 30
+                      minutes.
+                    </Hint>
+                  </>
+                )}
+                {say("stay")}
+              </View>
+            )}
+
+            {can.remove && (
+              <View style={st.block} testID="sheet-remove">
+                {!removing ? (
+                  <OutlineButton
+                    danger
                     label={
-                      busy === "remove"
-                        ? "Saving…"
-                        : row.status === "invited"
-                          ? "Yes, cancel invite"
-                          : "Yes, take them off"
+                      row.status === "invited"
+                        ? "Cancel invite"
+                        : "Take off the team"
                     }
-                    busy={busy === "remove"}
-                    disabled={!!busy}
-                    onPress={remove}
-                  />
-                  <TextButton
-                    center
-                    label="Keep"
                     disabled={!!busy}
                     onPress={() => {
-                      setRemoving(false);
-                      setReason(null);
-                      setReasonNote("");
+                      setRemoving(true);
+                      setMsg(null);
                     }}
                   />
-                </>
-              )}
-              {say("remove")}
-            </View>
-          )}
-          {!can.times &&
-            !can.pay &&
-            !can.level &&
-            !can.remove &&
-            mine.length === 0 && (
-              <Hint>
-                This event is over, so its Event team can&apos;t change.
-              </Hint>
+                ) : (
+                  <>
+                    <ThemedText style={hostStyles.body}>
+                      {row.status === "invited"
+                        ? `Cancel ${who}'s invite? They won't be able to accept it.`
+                        : row.scope === "standing"
+                          ? `Take ${who} off your Event team for all your events?`
+                          : `Take ${who} off this event's team?`}
+                    </ThemedText>
+                    {accepted && (
+                      <>
+                        <ThemedText
+                          style={[
+                            hostStyles.section,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          WHY
+                        </ThemedText>
+                        <View
+                          style={st.chips}
+                          accessibilityRole="radiogroup"
+                          accessibilityLabel="Why"
+                        >
+                          {REMOVAL_REASONS.map((r) => (
+                            <Chip
+                              key={r.key}
+                              label={r.label}
+                              on={reason === r.key}
+                              onPress={() =>
+                                setReason(reason === r.key ? null : r.key)
+                              }
+                            />
+                          ))}
+                        </View>
+                        {reason === "other" && (
+                          <Field
+                            label="SAY WHY"
+                            value={reasonNote}
+                            maxLength={200}
+                            placeholder="A few words"
+                            onChangeText={setReasonNote}
+                          />
+                        )}
+                        <Hint>
+                          {needsReason(row)
+                            ? "They had pay, so they see the reason you pick."
+                            : "Optional. If you pick one, they see it."}
+                        </Hint>
+                      </>
+                    )}
+                    <PrimaryButton
+                      label={
+                        busy === "remove"
+                          ? "Saving…"
+                          : row.status === "invited"
+                            ? "Yes, cancel invite"
+                            : "Yes, take them off"
+                      }
+                      busy={busy === "remove"}
+                      disabled={!!busy}
+                      onPress={remove}
+                    />
+                    <TextButton
+                      center
+                      label="Keep"
+                      disabled={!!busy}
+                      onPress={() => {
+                        setRemoving(false);
+                        setReason(null);
+                        setReasonNote("");
+                      }}
+                    />
+                  </>
+                )}
+                {say("remove")}
+              </View>
             )}
-        </ScrollView>
-      </View>
+            {!can.times &&
+              !can.pay &&
+              !can.level &&
+              !can.remove &&
+              mine.length === 0 && (
+                <Hint>
+                  This event is over, so its Event team can&apos;t change.
+                </Hint>
+              )}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
       <DateTimeSheet
         target={stayTarget}
         onClose={() => setStayPick(null)}
