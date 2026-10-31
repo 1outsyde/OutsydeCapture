@@ -79,7 +79,7 @@ export default function YourEventsScreen() {
   return (
     <View style={[s.root, { backgroundColor: theme.backgroundRoot }]}>
       <HostHeader left={{ icon: "chevron-left", label: "Back", onPress: () => navigation.goBack() }} title="Your events"
-        right={events && events.length > 0 ? <TextButton label="Host an event" gold onPress={host} /> : null} />
+        right={sections.length > 0 ? <TextButton label="Host an event" gold onPress={host} /> : null} />
       {events === null && !error ? <Centered><ActivityIndicator color={GOLD} /></Centered> : null}
       {events === null && error ? (
         <Centered>

@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Linking,
   RefreshControl,
   ScrollView,
@@ -112,10 +113,20 @@ export default function MyTeamScreen() {
   const gate = useRef(makeGate()).current;
   const seq = useRef(0);
   const live = useRef(true);
+  // True while a payout setup started here is open in Stripe. Only then does this screen own the Stripe return flag.
+  const settingUp = useRef(false);
+  const [waitingSetup, setWaitingSetup] = useState(false);
+  const doneSetup = useCallback(() => {
+    if (!settingUp.current) return;
+    settingUp.current = false;
+    setWaitingSetup(false);
+    clearHostSetupPending();
+  }, []);
   useEffect(
     () => () => {
       live.current = false;
-      clearHostSetupPending();
+      // Leaving the screen: a later Stripe return goes where it always did (only if this screen set the flag).
+      if (settingUp.current) clearHostSetupPending();
     },
     [],
   );
@@ -163,6 +174,10 @@ export default function MyTeamScreen() {
     }
     setNow(Date.now());
     setMe(parsed);
+    // Still on the team (a role is listed): a past Leave was for another spot.
+    if (parsed.roles.length > 0) setLeft(false);
+    // Payouts are set up now (or nothing needs them): stop holding the Stripe return for this screen.
+    if (!parsed.payoutSetup?.needed) doneSetup();
     // Spots come from the Event team list (each has its own invite to leave). A failed list just hides Leave.
     setEvents(
       Array.isArray(list?.events)
@@ -170,21 +185,28 @@ export default function MyTeamScreen() {
         : [],
     );
     setPhase("ready");
-  }, [eventId, token, navigation]);
+  }, [eventId, token, navigation, doneSetup]);
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
-  // Call 62: back from Stripe's payout setup (the navigator stays here while the flag is set), check again.
-  useEffect(
-    () =>
-      onHostSetupReturn(() => {
-        load();
-      }),
-    [load],
-  );
+  // Call 62: back from Stripe's payout setup (the navigator stays here while the flag is set), check again. Also when
+  // the app comes back to the front without the return link (Safari closed by hand), like the event editor.
+  useEffect(() => {
+    if (!waitingSetup) return;
+    const off = onHostSetupReturn(() => {
+      load();
+    });
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") load();
+    });
+    return () => {
+      off();
+      sub.remove();
+    };
+  }, [waitingSetup, load]);
 
   async function act(
     where: string,
@@ -228,9 +250,13 @@ export default function MyTeamScreen() {
       const url = stripeUrl((await api.startPayoutSetup(t))?.url);
       if (!url) throw { status: 500 };
       markHostSetupPending();
+      settingUp.current = true;
+      setWaitingSetup(true);
       await Linking.openURL(url);
     } catch (e) {
       clearHostSetupPending();
+      settingUp.current = false;
+      setWaitingSetup(false);
       const f = flatError(e);
       if (live.current)
         setNote({
