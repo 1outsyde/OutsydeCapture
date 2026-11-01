@@ -3,7 +3,10 @@
 //  - guest event reminder, the day before or 2 hours before (backend server/events/eventReminders.ts) → that event's ticket;
 //  - host event reminder, the day before → the host's manage screen for that event;
 //  - door team invite (backend notifyDoorInvite) → that invite (canvas 39), or Door check in without an id;
-//  - door team accepted (notifyDoorAccepted) → that event's door team, or Your events for an all events invite.
+//  - door team accepted (notifyDoorAccepted) → that event's door team, or Your events for an all events invite;
+//  - p4-team 9c-2: every Event team push (invites for any role, member pushes → their event page, host pushes →
+//    the host's Event team, taken off → Event team, team reminders, co-hosts → Manage) and ticket sold / payout
+//    sent → Manage, payout owed → Your events. The full table is on ticketPushTarget.
 // Works when the app was in the background (listener) and when the tap launched it (last response).
 // Mounted once in MainTabNavigator next to the other push link hooks. Ignores every other type, and the
 // other push hooks ignore these. Waits for the stored sign-in; signed out goes to sign in first.
@@ -52,30 +55,45 @@ export function useTicketPushLinks() {
       navigation.navigate("Auth", {});
       return;
     }
-    if (target.screen === "ticket" && target.eventId) {
-      navigation.navigate("TicketDetail", { eventId: target.eventId });
-      return;
-    }
-    if (target.screen === "manage" && target.eventId) {
-      navigation.navigate("ManageEvent", { eventId: target.eventId });
-      return;
-    }
-    if (target.screen === "doorInvite" && target.inviteId) {
-      navigation.navigate("DoorInvite", { inviteId: target.inviteId });
-      return;
-    }
-    if (target.screen === "doorEvents") {
-      navigation.navigate("DoorEvents");
-      return;
-    }
-    if (target.screen === "doorTeam" && target.eventId) {
-      navigation.navigate("DoorTeam", { eventId: target.eventId });
-      return;
-    }
-    if (target.screen === "yourEvents") {
-      navigation.navigate("YourEvents");
-      return;
-    }
-    navigation.navigate("CartOrders", { openTab: "tickets", _ts: Date.now() });
+    openTicketTarget(navigation, target);
   }, [pending, isLoading, user, navigation]);
+}
+
+/**
+ * Opens a push target (also used by Activity, call 78). Screens keep their names (DoorEvents, DoorInvite) so pushes
+ * already sent still open. Anything else falls back to the Tickets tab, as before.
+ */
+export function openTicketTarget(
+  navigation: NativeStackNavigationProp<RootStackParamList>,
+  target: TicketPushTarget,
+) {
+  if (target.screen === "ticket" && target.eventId) {
+    navigation.navigate("TicketDetail", { eventId: target.eventId });
+    return;
+  }
+  if (target.screen === "manage" && target.eventId) {
+    navigation.navigate("ManageEvent", { eventId: target.eventId });
+    return;
+  }
+  if (target.screen === "myTeam" && target.eventId) {
+    navigation.navigate("MyTeam", { eventId: target.eventId });
+    return;
+  }
+  if (target.screen === "doorInvite" && target.inviteId) {
+    navigation.navigate("DoorInvite", { inviteId: target.inviteId });
+    return;
+  }
+  if (target.screen === "doorEvents") {
+    navigation.navigate("DoorEvents");
+    return;
+  }
+  if (target.screen === "doorTeam" && target.eventId) {
+    navigation.navigate("DoorTeam", { eventId: target.eventId });
+    return;
+  }
+  if (target.screen === "yourEvents") {
+    navigation.navigate("YourEvents");
+    return;
+  }
+  navigation.navigate("CartOrders", { openTab: "tickets", _ts: Date.now() });
 }

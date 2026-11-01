@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { doorNoticeTarget } from "@/utils/host/doorLogic";
+import { activityTarget } from "@/utils/ticketCheckoutLogic";
+import { openTicketTarget } from "@/hooks/useTicketPushLinks";
 import {
   View,
   StyleSheet,
@@ -178,9 +179,10 @@ export default function NotificationsScreen() {
         screen: notification.metadata?.screen,
         url: notification.metadata?.url,
       });
-    } else if (doorNoticeTarget(notification as any)) {
-      // Door team invite: the same screen its push opens (canvas 39).
-      navigation.navigate("DoorInvite", { inviteId: doorNoticeTarget(notification as any)!.inviteId });
+    } else if (activityTarget(notification as any)) {
+      // Event team, ticket and host items (invites, team pay, reminders, sales, payouts; p4-team 9c-2, calls 60,
+      // 73, 78): the same screen their push opens. A team message opens their event.
+      openTicketTarget(navigation, activityTarget(notification as any)!);
     } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
       navigation.navigate("AdminDashboard");
     } else if (notification.metadata?.sessionId) {
