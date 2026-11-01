@@ -4,9 +4,12 @@
  * answers 404 for non Admissions invites without it). States: invited (Accept, Decline), accepted (Open the scanner for
  * Admissions, Open your event page for other roles, Leave), declined and gone (Done).
  * Only the person invited can open it (backend answers 404 for anyone else).
+ * Step 9d-3 (calls 84, 86): an invite that offers pay shows the Event Team note above one "Accept and join" (join
+ * first, then the note); a failed note save leaves them on the team and the note waits on their event page. The note
+ * loads on its own, so a slow answer never holds up the invite.
  */
-import React, { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +26,14 @@ import { failureCopy, flatError } from "@/utils/host/editorLogic";
 import { backendMessage } from "@/utils/host/manageLogic";
 import { makeGate } from "@/utils/host/doorLogic";
 import { inviteAfter, isTeamInvite, memberInviteCopy, type TeamInvite } from "@/utils/host/memberLogic";
+import {
+  acceptLabel,
+  isTeamNote,
+  noteOnAccept,
+  NOTE_SAVE_FAILED,
+  type TeamNote,
+} from "@/utils/host/teamNoteLogic";
+import TeamNoteCard from "@/components/host/TeamNoteCard";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -43,7 +54,17 @@ export default function DoorInviteScreen() {
   const [error, setError] = useState<string | null>(null);
   const [askLeave, setAskLeave] = useState(false);
   const [left, setLeft] = useState(false);
+  // The Event Team note (null until loaded or when it fails: accepting still works, just without the card).
+  const [note, setNote] = useState<TeamNote | null>(null);
+  const [noteNotice, setNoteNotice] = useState<string | null>(null);
   const gate = useRef(makeGate()).current;
+  const live = useRef(true);
+  useEffect(
+    () => () => {
+      live.current = false;
+    },
+    [],
+  );
 
   const token = useCallback(async () => {
     const t = await getToken();
@@ -54,6 +75,15 @@ export default function DoorInviteScreen() {
   const load = useCallback(async (): Promise<TeamInvite | null> => {
     const t = await token();
     if (!t) return null;
+    // The note loads on its own: a slow answer never holds up the invite (its card just appears when it arrives).
+    api.getTeamNote(t).then(
+      (n) => {
+        if (live.current) setNote(isTeamNote(n?.note) ? n.note : null);
+      },
+      () => {
+        if (live.current) setNote(null);
+      },
+    );
     try {
       const r = await api.getTeamInvite(inviteId, t);
       if (!isTeamInvite(r?.invite)) throw { status: 500 };
@@ -72,14 +102,31 @@ export default function DoorInviteScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  /** Call 84: joined first; now the note they saw above Accept and join. A failure here never undoes joining. */
+  async function saveNote(seen: TeamNote, t: string) {
+    const saved = await api.acceptTeamNote(seen.version, t).then(
+      (n) => !!n?.success,
+      () => false,
+    );
+    if (!live.current) return;
+    if (saved) setNote({ ...seen, accepted: true });
+    else {
+      setNoteNotice(NOTE_SAVE_FAILED);
+      AccessibilityInfo.announceForAccessibility(NOTE_SAVE_FAILED);
+    }
+  }
+
   async function answer(a: "accept" | "decline" | "leave") {
     if (!gate.enter()) return;
-    setBusy(a); setError(null);
+    setBusy(a); setError(null); setNoteNotice(null);
     const t = await token();
     if (!t) { gate.leave(); setBusy(null); return; }
+    const withNote =
+      a === "accept" && !!invite && noteOnAccept(invite.pay, note);
     try {
       const r = await api.answerTeamInvite(inviteId, a, t);
       if (isTeamInvite(r?.invite)) setInvite(r.invite);
+      if (withNote && note) await saveNote(note, t);
       if (a === "leave") setLeft(true);
       setAskLeave(false);
     } catch (e) {
@@ -91,7 +138,11 @@ export default function DoorInviteScreen() {
       if (f.status === 409) {
         const fresh = await load();
         const wanted = a === "accept" ? "accepted" : a === "decline" ? "declined" : "gone";
-        if (fresh?.status === wanted) setError(null);
+        if (fresh?.status === wanted) {
+          setError(null);
+          // Accepted on another device at the same moment: they still saw the note here and tapped Accept and join.
+          if (withNote && note) await saveNote(note, t);
+        }
       }
     } finally {
       gate.leave(); setBusy(null);
@@ -128,6 +179,7 @@ export default function DoorInviteScreen() {
   const c = memberInviteCopy(invite, left);
   const next = inviteAfter(invite);
   const nextLabel = next.to === "scanner" ? "Open the scanner" : next.to === "myTeam" ? "Open your event page" : "Open Event team";
+  const withNote = c.state === "invited" && noteOnAccept(invite.pay, note);
   return root(
     <>
       {header}
@@ -151,12 +203,20 @@ export default function DoorInviteScreen() {
           {c.pay && c.state !== "gone" ? <ThemedText style={hostStyles.strong} testID="invite-pay">{c.pay}</ThemedText> : null}
           {c.privacy && c.state !== "gone" ? <Hint>{c.privacy}</Hint> : null}
         </View>
+        {withNote && note ? (
+          <TeamNoteCard note={note} testID="invite-note" />
+        ) : null}
+        {noteNotice ? (
+          <View accessibilityLiveRegion="polite">
+            <Hint warn>{noteNotice}</Hint>
+          </View>
+        ) : null}
         {error ? <ErrorText>{error}</ErrorText> : null}
       </ScrollView>
       <View style={{ padding: 20, paddingBottom: insets.bottom + 20, gap: 8 }}>
         {c.state === "invited" ? (
           <>
-            <PrimaryButton label={busy === "accept" ? "Accepting…" : "Accept"} busy={busy === "accept"} disabled={!!busy} onPress={() => answer("accept")} />
+            <PrimaryButton label={busy === "accept" ? "Accepting…" : acceptLabel(withNote)} busy={busy === "accept"} disabled={!!busy} onPress={() => answer("accept")} />
             <OutlineButton label={busy === "decline" ? "Declining…" : "Decline"} disabled={!!busy} onPress={() => answer("decline")} />
           </>
         ) : null}

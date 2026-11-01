@@ -5,6 +5,9 @@
  * Copy, call 65), notes from the host, what I'll get (every amount comes from the backend), payout setup (call 62:
  * the personal payout setup, coming back here), Got it / Not yet after the host paid me, and Leave per spot.
  * Only my own things: GET /:id/team/me answers 404 for anyone not on the team.
+ * Step 9d-3 (calls 85, 87): the Event Team note with I accept while they have pay that isn't worked out and haven't
+ * accepted (shown even while the backend's TEAM_NOTE_REQUIRED switch is off), "Set up payouts" only when payout setup
+ * is what's missing, and a due line if the note can't load while it's required. The note loads on its own.
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -78,8 +81,17 @@ import {
   openStayRequests,
   parseMyTeam,
   setupNeededLine,
+  stripeWaitDone,
   type MyTeam,
 } from "@/utils/host/memberLogic";
+import {
+  isTeamNote,
+  noteDueLine,
+  noteOnMyPage,
+  payNotWorkedOut,
+  type TeamNote,
+} from "@/utils/host/teamNoteLogic";
+import TeamNoteCard from "@/components/host/TeamNoteCard";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Note = { where: string; ok: boolean; text: string };
@@ -103,6 +115,8 @@ export default function MyTeamScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<Note | null>(null);
+  // The Event Team note (null until loaded or when it fails).
+  const [teamNote, setTeamNote] = useState<TeamNote | null>(null);
   const [leaving, setLeaving] = useState<string | null>(null);
   // Leaving the last spot makes /team/me answer 404: keep the confirmation on that screen.
   const [left, setLeft] = useState(false);
@@ -141,6 +155,17 @@ export default function MyTeamScreen() {
     const mine = ++seq.current;
     const t = await token();
     if (!t) return;
+    // The note loads on its own: a slow answer never holds up the page (its card just appears when it arrives).
+    // Only the latest load's answer counts, so an older one can't bring the card back after I accept.
+    api.getTeamNote(t).then(
+      (n) => {
+        if (mine === seq.current && live.current)
+          setTeamNote(isTeamNote(n?.note) ? n.note : null);
+      },
+      () => {
+        if (mine === seq.current && live.current) setTeamNote(null);
+      },
+    );
     const [r, list] = await Promise.all([
       api.getMyTeam(eventId, t).then(
         (b) => ({ ok: true as const, b }),
@@ -176,8 +201,9 @@ export default function MyTeamScreen() {
     setMe(parsed);
     // Still on the team (a role is listed): a past Leave was for another spot.
     if (parsed.roles.length > 0) setLeft(false);
-    // Payouts are set up now (or nothing needs them): stop holding the Stripe return for this screen.
-    if (!parsed.payoutSetup?.needed) doneSetup();
+    // Payouts are set up now (or nothing needs them): stop holding the Stripe return for this screen. Only the note
+    // missing doesn't keep it waiting (call 87).
+    if (stripeWaitDone(parsed)) doneSetup();
     // Spots come from the Event team list (each has its own invite to leave). A failed list just hides Leave.
     setEvents(
       Array.isArray(list?.events)
@@ -364,6 +390,14 @@ export default function MyTeamScreen() {
   const open = openStayRequests(me, now);
   const lines = myPayLines(me);
   const setup = setupNeededLine(me);
+  const due = noteDueLine(me.payoutSetup, !!teamNote, (d) =>
+    fmt(d, tz, { weekday: "short", month: "short", day: "numeric" }),
+  );
+  const showNote =
+    noteOnMyPage(
+      { hasPay: payNotWorkedOut(me), paidOut: !!me.payout },
+      teamNote,
+    ) && !!teamNote;
   const spots = leaveSpots(events, eventId, ended);
   const card = [
     st.card,
@@ -611,6 +645,14 @@ export default function MyTeamScreen() {
             </View>
           ) : null}
           {say("paid")}
+          {due ? (
+            <ThemedText
+              style={{ color: theme.error, fontSize: 14 }}
+              testID="note-due"
+            >
+              {due}
+            </ThemedText>
+          ) : null}
           {setup ? (
             <View style={{ gap: 8 }} testID="setup-needed">
               <ThemedText style={{ color: theme.error, fontSize: 14 }}>
@@ -627,6 +669,27 @@ export default function MyTeamScreen() {
           ) : null}
         </View>
       ) : null}
+
+      {showNote && teamNote ? (
+        <TeamNoteCard
+          note={teamNote}
+          busy={busy === "note"}
+          disabled={!!busy}
+          testID="my-note"
+          onAccept={() =>
+            act(
+              "note",
+              async (t) => {
+                await api.acceptTeamNote(teamNote.version, t);
+                // Gone right away, before the reload's note answer arrives.
+                if (live.current) setTeamNote({ ...teamNote, accepted: true });
+              },
+              "Thanks. You've accepted the Event Team note.",
+            )
+          }
+        />
+      ) : null}
+      {say("note")}
 
       {spots.length > 0 ? (
         <View style={{ gap: 8 }} accessibilityLabel="Leave">

@@ -9,6 +9,8 @@
  *  - show Accept on an expired stay longer request → "an expired request is not answered" fails.
  *  - offer Leave after the event ended → "no Leave once the event ended" fails.
  *  - send a non door invite to the scanner after accept → "Security goes to their event page" fails.
+ *  - show Set up payouts when only the note is missing → "only the note missing: no Set up payouts line" fails.
+ *  - keep waiting for the Stripe return when Stripe is done → "Stripe done, only the note missing: stop waiting" fails.
  */
 import {
   canUndo,
@@ -24,6 +26,7 @@ import {
   scanAccess,
   setupNeededLine,
   splitTeamEvents,
+  stripeWaitDone,
   MENU_ITEM,
   type TeamInvite,
 } from "./memberLogic";
@@ -465,6 +468,72 @@ eq(
   setupNeededLine({ ...me, payoutSetup: { needed: true, deadline: null } }),
   "Set up payouts to get paid.",
   "no deadline",
+);
+
+// p4-team step 9d-3 (call 87): /team/me says what's missing (backend #403). Set up payouts only for Stripe.
+const both = parseMyTeam({
+  ...body,
+  payoutSetup: {
+    needed: true,
+    deadline: "2026-11-11T07:00:00.000Z",
+    stripeNeeded: false,
+    noteNeeded: true,
+  },
+})!;
+eq(
+  both.payoutSetup,
+  {
+    needed: true,
+    deadline: "2026-11-11T07:00:00.000Z",
+    stripeNeeded: false,
+    noteNeeded: true,
+  },
+  "what's missing is kept",
+);
+eq(
+  parseMyTeam({
+    ...body,
+    payoutSetup: { needed: true, deadline: null, stripeNeeded: "yes" },
+  })!.payoutSetup,
+  { needed: true, deadline: null },
+  "a missing flag that isn't true or false is dropped",
+);
+eq(
+  setupNeededLine(both),
+  null,
+  "only the note missing: no Set up payouts line",
+);
+eq(
+  setupNeededLine({
+    ...both,
+    payoutSetup: { ...both.payoutSetup!, stripeNeeded: true },
+  }),
+  "Set up payouts by Wed, Nov 11 to get paid.",
+  "Stripe missing: the Set up payouts line",
+);
+eq(
+  setupNeededLine(me),
+  "Set up payouts by Wed, Nov 11 to get paid.",
+  "an older backend (no flags): the line whenever anything is needed",
+);
+eq(
+  stripeWaitDone(both),
+  true,
+  "Stripe done, only the note missing: stop waiting for the Stripe return",
+);
+eq(stripeWaitDone(me), false, "an older backend, still needed: keep waiting");
+eq(
+  stripeWaitDone({ ...me, payoutSetup: null }),
+  true,
+  "nothing needed: stop waiting",
+);
+eq(
+  stripeWaitDone({
+    ...both,
+    payoutSetup: { ...both.payoutSetup!, stripeNeeded: true },
+  }),
+  false,
+  "Stripe missing: keep waiting",
 );
 
 const spots = [
