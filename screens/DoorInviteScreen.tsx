@@ -9,7 +9,7 @@
  * loads on its own, so a slow answer never holds up the invite.
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -112,7 +112,9 @@ export default function DoorInviteScreen() {
     if (saved) setNote({ ...seen, accepted: true });
     else {
       setNoteNotice(NOTE_SAVE_FAILED);
-      AccessibilityInfo.announceForAccessibility(NOTE_SAVE_FAILED);
+      // Android reads it from the live region below; iOS has no live regions, so announce it there.
+      if (Platform.OS === "ios")
+        AccessibilityInfo.announceForAccessibility(NOTE_SAVE_FAILED);
     }
   }
 
