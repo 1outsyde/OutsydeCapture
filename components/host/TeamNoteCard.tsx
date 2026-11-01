@@ -16,12 +16,15 @@ export default function TeamNoteCard({
   note,
   onAccept,
   busy,
+  disabled,
   error,
   testID = "team-note",
 }: {
   note: TeamNote;
   onAccept?: () => void;
   busy?: boolean;
+  /** Another action on the screen is running (its own busy still shows Saving…). */
+  disabled?: boolean;
   error?: string | null;
   testID?: string;
 }) {
@@ -64,7 +67,7 @@ export default function TeamNoteCard({
         <PrimaryButton
           label={busy ? "Saving…" : "I accept"}
           busy={busy}
-          disabled={busy}
+          disabled={busy || disabled}
           onPress={onAccept}
         />
       ) : null}

@@ -8,8 +8,8 @@
  * first, then the note); a failed note save leaves them on the team and the note waits on their event page. The note
  * loads on its own, so a slow answer never holds up the invite.
  */
-import React, { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -58,6 +58,13 @@ export default function DoorInviteScreen() {
   const [note, setNote] = useState<TeamNote | null>(null);
   const [noteNotice, setNoteNotice] = useState<string | null>(null);
   const gate = useRef(makeGate()).current;
+  const live = useRef(true);
+  useEffect(
+    () => () => {
+      live.current = false;
+    },
+    [],
+  );
 
   const token = useCallback(async () => {
     const t = await getToken();
@@ -70,8 +77,12 @@ export default function DoorInviteScreen() {
     if (!t) return null;
     // The note loads on its own: a slow answer never holds up the invite (its card just appears when it arrives).
     api.getTeamNote(t).then(
-      (n) => setNote(isTeamNote(n?.note) ? n.note : null),
-      () => setNote(null),
+      (n) => {
+        if (live.current) setNote(isTeamNote(n?.note) ? n.note : null);
+      },
+      () => {
+        if (live.current) setNote(null);
+      },
     );
     try {
       const r = await api.getTeamInvite(inviteId, t);
@@ -91,6 +102,20 @@ export default function DoorInviteScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  /** Call 84: joined first; now the note they saw above Accept and join. A failure here never undoes joining. */
+  async function saveNote(seen: TeamNote, t: string) {
+    const saved = await api.acceptTeamNote(seen.version, t).then(
+      (n) => !!n?.success,
+      () => false,
+    );
+    if (!live.current) return;
+    if (saved) setNote({ ...seen, accepted: true });
+    else {
+      setNoteNotice(NOTE_SAVE_FAILED);
+      AccessibilityInfo.announceForAccessibility(NOTE_SAVE_FAILED);
+    }
+  }
+
   async function answer(a: "accept" | "decline" | "leave") {
     if (!gate.enter()) return;
     setBusy(a); setError(null); setNoteNotice(null);
@@ -101,15 +126,7 @@ export default function DoorInviteScreen() {
     try {
       const r = await api.answerTeamInvite(inviteId, a, t);
       if (isTeamInvite(r?.invite)) setInvite(r.invite);
-      // Call 84: joined first; now the note. A failure here never undoes joining.
-      if (withNote && note) {
-        const saved = await api.acceptTeamNote(note.version, t).then(
-          (n) => !!n?.success,
-          () => false,
-        );
-        if (saved) setNote({ ...note, accepted: true });
-        else setNoteNotice(NOTE_SAVE_FAILED);
-      }
+      if (withNote && note) await saveNote(note, t);
       if (a === "leave") setLeft(true);
       setAskLeave(false);
     } catch (e) {
@@ -121,7 +138,11 @@ export default function DoorInviteScreen() {
       if (f.status === 409) {
         const fresh = await load();
         const wanted = a === "accept" ? "accepted" : a === "decline" ? "declined" : "gone";
-        if (fresh?.status === wanted) setError(null);
+        if (fresh?.status === wanted) {
+          setError(null);
+          // Accepted on another device at the same moment: they still saw the note here and tapped Accept and join.
+          if (withNote && note) await saveNote(note, t);
+        }
       }
     } finally {
       gate.leave(); setBusy(null);
@@ -185,7 +206,11 @@ export default function DoorInviteScreen() {
         {withNote && note ? (
           <TeamNoteCard note={note} testID="invite-note" />
         ) : null}
-        {noteNotice ? <Hint warn>{noteNotice}</Hint> : null}
+        {noteNotice ? (
+          <View accessibilityLiveRegion="polite">
+            <Hint warn>{noteNotice}</Hint>
+          </View>
+        ) : null}
         {error ? <ErrorText>{error}</ErrorText> : null}
       </ScrollView>
       <View style={{ padding: 20, paddingBottom: insets.bottom + 20, gap: 8 }}>

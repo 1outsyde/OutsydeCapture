@@ -156,12 +156,14 @@ export default function MyTeamScreen() {
     const t = await token();
     if (!t) return;
     // The note loads on its own: a slow answer never holds up the page (its card just appears when it arrives).
+    // Only the latest load's answer counts, so an older one can't bring the card back after I accept.
     api.getTeamNote(t).then(
       (n) => {
-        if (live.current) setTeamNote(isTeamNote(n?.note) ? n.note : null);
+        if (mine === seq.current && live.current)
+          setTeamNote(isTeamNote(n?.note) ? n.note : null);
       },
       () => {
-        if (live.current) setTeamNote(null);
+        if (mine === seq.current && live.current) setTeamNote(null);
       },
     );
     const [r, list] = await Promise.all([
@@ -672,11 +674,16 @@ export default function MyTeamScreen() {
         <TeamNoteCard
           note={teamNote}
           busy={busy === "note"}
+          disabled={!!busy}
           testID="my-note"
           onAccept={() =>
             act(
               "note",
-              (t) => api.acceptTeamNote(teamNote.version, t),
+              async (t) => {
+                await api.acceptTeamNote(teamNote.version, t);
+                // Gone right away, before the reload's note answer arrives.
+                if (live.current) setTeamNote({ ...teamNote, accepted: true });
+              },
               "Thanks. You've accepted the Event Team note.",
             )
           }
