@@ -9,6 +9,7 @@
 import { fmt } from "@/utils/eventsLogic";
 import { isHostEvent, type HostEvent } from "./editorLogic";
 import { isDoorInvite, type DoorInvite } from "./doorLogic";
+import { setupLinkShown } from "./teamNoteLogic";
 import {
   earningLines,
   isRolePay,
@@ -258,7 +259,13 @@ export interface MyTeam {
   } | null;
   payTotalCents: number | null;
   payout: TeamPayout | null;
-  payoutSetup: { needed: boolean; deadline: string | null } | null;
+  /** stripeNeeded and noteNeeded come from backend #403 (step 9d-1); older backends send neither. */
+  payoutSetup: {
+    needed: boolean;
+    deadline: string | null;
+    stripeNeeded?: boolean;
+    noteNeeded?: boolean;
+  } | null;
   fromHost: { id: string; at: string; text: string; from: { name?: string } }[];
   stayLonger: StayRequest[];
 }
@@ -320,6 +327,12 @@ export function parseMyTeam(b: any): MyTeam | null {
               typeof b.payoutSetup.deadline === "string"
                 ? b.payoutSetup.deadline
                 : null,
+            ...(typeof b.payoutSetup.stripeNeeded === "boolean"
+              ? { stripeNeeded: b.payoutSetup.stripeNeeded }
+              : {}),
+            ...(typeof b.payoutSetup.noteNeeded === "boolean"
+              ? { noteNeeded: b.payoutSetup.noteNeeded }
+              : {}),
           }
         : null,
     fromHost: Array.isArray(b.fromHost)
@@ -358,14 +371,21 @@ export function myPayLines(me: MyTeam): { label: string; value: string }[] {
   );
 }
 
-/** Call 62: the payout setup nudge, with the deadline in the event's zone. Null when nothing is needed. */
+/**
+ * Call 62: the payout setup nudge, with the deadline in the event's zone. Null when nothing is needed, and (call 87)
+ * when only the Event Team note is missing: that shows as the note card instead.
+ */
 export function setupNeededLine(me: MyTeam): string | null {
   const s = me.payoutSetup;
-  if (!s?.needed) return null;
+  if (!setupLinkShown(s)) return null;
+  if (!s) return null;
   return s.deadline
     ? `Set up payouts by ${fmt(s.deadline, me.event.timezone, { weekday: "short", month: "short", day: "numeric" })} to get paid.`
     : "Set up payouts to get paid.";
 }
+
+/** Back from Stripe: stop waiting once payout setup isn't what's missing (the note alone doesn't keep it waiting). */
+export const stripeWaitDone = (me: MyTeam) => !setupLinkShown(me.payoutSetup);
 
 /** My spots at this event (from /door/mine?roles=all), each with its own Leave. None once the event ended (team locked). */
 export function leaveSpots(

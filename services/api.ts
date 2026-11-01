@@ -5186,6 +5186,16 @@ class ApiService {
   getHostAgreement(authToken: string) { return this.hostCall("GET", "/api/events/host-agreement", authToken); }
   /** POST /api/events/host-agreement/accept - 409 AGREEMENT_VERSION_CHANGED when a newer version exists. */
   acceptHostAgreement(version: string, authToken: string) { return this.hostCall("POST", "/api/events/host-agreement/accept", authToken, { version }); }
+  /** GET /api/events/team-note - The current Event Team note and whether you accepted it (p4-team step 9d, backend #403). */
+  getTeamNote(authToken: string) {
+    return this.hostCall("GET", "/api/events/team-note", authToken);
+  }
+  /** POST /api/events/team-note/accept - 409 NOTE_VERSION_CHANGED when a newer version exists. The phone's device line is kept. */
+  acceptTeamNote(version: string, authToken: string) {
+    return this.hostCall("POST", "/api/events/team-note/accept", authToken, {
+      version,
+    });
+  }
   /** GET /api/events/payouts/status?hostType= - { hasAccount, ready }. 403 when you aren't that kind of host. */
   getHostPayoutStatus(hostType: "user" | "business" | "photographer", authToken: string) {
     return this.hostCall("GET", `/api/events/payouts/status?hostType=${hostType}`, authToken);
