@@ -24,6 +24,7 @@ import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
 import { EVENT_GOLD } from "@/components/events/eventColors";
+import { AddToWalletButton } from "@/components/events/AddToWalletButton";
 import { fmt } from "@/utils/eventsLogic";
 import { ON_HOLD_COPY } from "@/utils/reportEventLogic";
 import {
@@ -54,7 +55,7 @@ const CARD_W_PAD = 20;
 
 /** One event's tickets with QR codes (Events canvas 29). Swipe for the next ticket. */
 export default function TicketDetailScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { eventId } = useRoute<RouteProp<RootStackParamList, "TicketDetail">>().params;
@@ -315,9 +316,11 @@ export default function TicketDetailScreen() {
         {note ? <ThemedText style={[styles.note, { color: theme.error }]} accessibilityRole="alert">{note}</ThemedText> : null}
 
         {wallet ? (
-          <Pressable onPress={() => Linking.openURL(wallet).catch(() => {})} accessibilityRole="button" style={[styles.pill, { backgroundColor: INK, borderWidth: 1, borderColor: theme.border }]}>
-            <ThemedText style={[styles.pillText, { color: "#FFFFFF" }]}>Add to Apple Wallet</ThemedText>
-          </Pressable>
+          <AddToWalletButton
+            url={wallet}
+            isDark={isDark}
+            borderColor={theme.border}
+          />
         ) : null}
 
         {changeable && kind !== "unknown" ? (

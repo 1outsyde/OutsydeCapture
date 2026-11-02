@@ -19,6 +19,7 @@ import {
   refundErrorCopy,
   cancelErrorCopy,
   walletLink,
+  walletButtonKind,
   refundShownCents,
   refundConfirmBody,
   refundDoneBody,
@@ -451,4 +452,15 @@ test("other 400s are not treated as the flag being rejected", () => {
   assert.equal(rejectedPaymentSheetFlag({ status: 409, body: { error: { code: "INVALID_EVENT", message: "Unrecognized key(s) in object: 'paymentSheet'" } } }), false);
   assert.equal(rejectedPaymentSheetFlag(null), false);
   assert.equal(rejectedPaymentSheetFlag(new Error("network")), false);
+});
+
+test("walletButtonKind: Apple's button only on iOS with the native module, text button anywhere else", () => {
+  assert.equal(walletButtonKind("ios", true), "native");
+  assert.equal(
+    walletButtonKind("ios", false),
+    "text",
+    "Expo Go or an older dev client",
+  );
+  assert.equal(walletButtonKind("android", true), "text");
+  assert.equal(walletButtonKind("web", false), "text");
 });
