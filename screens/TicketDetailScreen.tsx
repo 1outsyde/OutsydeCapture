@@ -25,6 +25,7 @@ import api from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
 import { EVENT_GOLD } from "@/components/events/eventColors";
 import { fmt } from "@/utils/eventsLogic";
+import { ON_HOLD_COPY } from "@/utils/reportEventLogic";
 import {
   calendarEventFor,
   canChangeOrder,
@@ -229,6 +230,18 @@ export default function TicketDetailScreen() {
     <View style={[styles.root, { backgroundColor: theme.backgroundRoot }]}>
       {header}
       <ScrollView contentContainerStyle={{ paddingHorizontal: CARD_W_PAD, paddingBottom: insets.bottom + 32, gap: 12 }}>
+        {ev.status === "paused" ? (
+          // p5-safety A5: on hold. The QR stays; refund and cancel are hidden (canChangeOrder) because the backend refuses them.
+          <View
+            style={[styles.onHold, { borderColor: EVENT_GOLD }]}
+            testID="ticket-on-hold"
+            accessibilityRole="alert"
+          >
+            <ThemedText style={[styles.onHoldText, { color: theme.text }]}>
+              {ON_HOLD_COPY.holder}
+            </ThemedText>
+          </View>
+        ) : null}
         <View style={[styles.card, { borderColor: theme.border }]}>
           <View style={styles.cardTop}>
             <ThemedText style={styles.evTitle}>{ev.title}</ThemedText>
@@ -375,6 +388,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   centerText: { fontSize: 16, fontWeight: "600", textAlign: "center" },
   card: { backgroundColor: PAPER, borderRadius: 22, overflow: "hidden", borderWidth: 1 },
+  onHold: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: "rgba(232,185,48,0.10)",
+  },
+  onHoldText: { fontSize: 14, fontWeight: "600", lineHeight: 20 },
   cardTop: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4, gap: 4 },
   evTitle: { color: INK, fontSize: 22, fontWeight: "800", lineHeight: 27 },
   evDay: { color: INK, fontSize: 13, fontWeight: "600" },

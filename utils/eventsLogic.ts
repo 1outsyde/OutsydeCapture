@@ -3,6 +3,7 @@
  * No React, no network. Ported from goutsyde.com (app/events/eventsLogic.ts, app/e/_shared/format.ts)
  * so the app and the web show the same labels and send the same queries.
  */
+import { ON_HOLD_COPY, onHoldBanner } from "./reportEventLogic";
 
 export const NEAR_ME_RADIUS_KM = 40;
 export const PAGE_SIZE = 20;
@@ -97,7 +98,11 @@ export interface PublicEvent {
   soldOut: boolean;
   host: { name: string; avatarUrl: string | null; kind: string; followId: string | null };
   viewerIsHost: boolean;
+  /** Sent by the backend since p4-team step 2b; optional for older answers. */
+  viewerIsCohost?: boolean;
   viewerHasTicket: boolean;
+  /** p5-safety (additive): Outsyde paused the event while it reviews it. Only the host, co-hosts and holders get it. */
+  onHold?: boolean;
 }
 
 export interface EventPage {
@@ -352,8 +357,20 @@ export function minQty(t: QtyLimits): number {
 }
 
 /** What a ticket row shows. Only free types on sale are selectable here; paid types open the checkout. */
-export function ticketRow(t: PublicTicketType, tz: string): { right: string; sub: string | null; selectable: boolean; paid: boolean } {
+export function ticketRow(
+  t: PublicTicketType,
+  tz: string,
+  onHold = false,
+): { right: string; sub: string | null; selectable: boolean; paid: boolean } {
   const paid = t.priceCents > 0;
+  // p5-safety A4: on hold the backend sends every type as ended; say why instead.
+  if (onHold)
+    return {
+      right: ON_HOLD_COPY.ticketRow,
+      sub: null,
+      selectable: false,
+      paid,
+    };
   switch (t.salesStatus) {
     case "on_sale": {
       const left = typeof t.remaining === "number" && t.remaining <= 10 ? `${t.remaining} left` : null;
@@ -417,9 +434,21 @@ export function eventsTabView(s: { loading: boolean; error: boolean; locationOff
 }
 
 /** The line above the event page content, or null. */
-export function eventBanner(e: Pick<PublicEvent, "status" | "startsAt" | "endsAt">, now: Date): string | null {
+export function eventBanner(
+  e: Pick<PublicEvent, "status" | "startsAt" | "endsAt"> &
+    Partial<Pick<PublicEvent, "onHold" | "viewerIsHost" | "viewerIsCohost">>,
+  now: Date,
+): string | null {
   if (e.status === "cancelled") return "This event was cancelled.";
   if (e.status === "draft") return "Draft. Only you can see this page.";
+  // p5-safety A4: on hold, for the host and co-hosts or for a ticket holder (nobody else gets the page).
+  const hold = onHoldBanner({
+    status: e.status,
+    onHold: e.onHold,
+    viewerIsHost: e.viewerIsHost === true,
+    viewerIsCohost: e.viewerIsCohost,
+  });
+  if (hold) return hold;
   if (new Date(e.endsAt).getTime() < now.getTime()) return "This event has ended.";
   if (new Date(e.startsAt).getTime() <= now.getTime()) return "This event has started.";
   return null;

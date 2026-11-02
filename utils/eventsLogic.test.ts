@@ -300,6 +300,80 @@ test("eventBanner", () => {
   assert.equal(eventBanner(ev(), now), null);
 });
 
+test("eventBanner: on hold (p5-safety A4), holder and host wording, before started / ended", () => {
+  const holder =
+    "This event is on hold while Outsyde reviews it. Your ticket is safe, and we'll email you if anything changes.";
+  const host =
+    "Outsyde put this event on hold. Check your email for the reason and next steps.";
+  assert.equal(
+    eventBanner(
+      ev({ status: "paused", onHold: true, viewerHasTicket: true }),
+      now,
+    ),
+    holder,
+  );
+  assert.equal(
+    eventBanner(
+      ev({ status: "paused", onHold: true, viewerIsHost: true }),
+      now,
+    ),
+    host,
+  );
+  assert.equal(
+    eventBanner(ev({ status: "paused", viewerIsCohost: true }), now),
+    host,
+    "co-host, answer without onHold",
+  );
+  assert.equal(
+    eventBanner(
+      ev({
+        status: "paused",
+        onHold: true,
+        startsAt: "2026-10-23T17:00:00Z",
+        endsAt: "2026-10-23T22:00:00Z",
+      }),
+      now,
+    ),
+    holder,
+    "on hold wins over started",
+  );
+  assert.equal(
+    eventBanner(ev({ onHold: false }), now),
+    null,
+    "live with onHold false",
+  );
+  const free = tt({ id: "f", salesStatus: "ended" });
+  assert.equal(
+    eventPageBar(
+      ev({ status: "paused", onHold: true, viewerHasTicket: true }),
+      [free],
+      "f",
+      false,
+      now,
+    ).kind,
+    "none",
+    "no bar on hold",
+  );
+});
+
+test("ticketRow on hold (p5-safety A4)", () => {
+  assert.deepEqual(ticketRow(tt({ salesStatus: "ended" }), NY, true), {
+    right: "On hold",
+    sub: null,
+    selectable: false,
+    paid: false,
+  });
+  assert.equal(
+    ticketRow(tt({ priceCents: 2000, salesStatus: "on_sale" }), NY, true).right,
+    "On hold",
+  );
+  assert.equal(
+    ticketRow(tt({ salesStatus: "ended" }), NY).right,
+    "Sales ended",
+    "not on hold: unchanged",
+  );
+});
+
 test("defaultTicketId picks the only free type on sale", () => {
   assert.equal(defaultTicketId([tt({ id: "a" })]), "a");
   assert.equal(defaultTicketId([tt({ id: "a" }), tt({ id: "b" })]), null);

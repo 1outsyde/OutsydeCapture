@@ -328,6 +328,8 @@ export function refundDoneBody(cents: number | null): string {
  *    → their event page; without an id, Event team. "team_removed" → Event team (their page is gone).
  *  - host types (stay longer answer / expired / amount, pay confirmed / not received) { eventId } → the host's Event team.
  *  - "ticket_sold" / "event_payout_sent" { eventId } → Manage; "event_payout_owed" (no event) → Your events.
+ *  - "event_moderation" { action, eventId } (p5-safety A7: Outsyde paused, released or cancelled the host's event)
+ *    → Manage; without an id, Your events.
  * The old "door_team_added" type is ignored. Team messages push as "new_message" (the message hook opens the chat).
  */
 export type TicketPushTarget = {
@@ -409,7 +411,11 @@ export function ticketPushTarget(
   if (type === "team_removed") return DOOR_EVENTS;
   if (typeof type === "string" && HOST_TEAM_PUSHES.has(type))
     return eventId ? { screen: "doorTeam", eventId } : YOUR_EVENTS;
-  if (type === "ticket_sold" || type === "event_payout_sent")
+  if (
+    type === "ticket_sold" ||
+    type === "event_payout_sent" ||
+    type === "event_moderation"
+  )
     return eventId ? { screen: "manage", eventId } : YOUR_EVENTS;
   if (type === "event_payout_owed") return YOUR_EVENTS;
   if (type !== "event_reminder" || typeof data.kind !== "string") return null;
@@ -538,7 +544,13 @@ export function heldConflictCopy(err: unknown, hadOpenHold: boolean): string | n
 }
 
 /** Refund or cancel works only before the event starts and before anyone on the order checks in. */
-export function canChangeOrder(e: { startsAt: string }, checkedIn: boolean, now: Date): boolean {
+export function canChangeOrder(
+  e: { startsAt: string; status?: string },
+  checkedIn: boolean,
+  now: Date,
+): boolean {
+  // p5-safety A5: the backend refuses refunds and RSVP cancels while Outsyde has the event on hold.
+  if (e.status === "paused") return false;
   return !checkedIn && new Date(e.startsAt).getTime() > now.getTime();
 }
 
