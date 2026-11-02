@@ -23,6 +23,7 @@ import { EVENT_CREAM, EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/compon
 import { EVENT_COVER_ASPECT } from "@/components/events/eventCover";
 import BuyTicketsModal from "@/components/events/BuyTicketsModal";
 import ReportEventSheet from "@/components/events/ReportEventSheet";
+import TicketTermsLine from "@/components/events/TicketTermsLine";
 import {
   defaultTicketId,
   eventBanner,
@@ -392,6 +393,13 @@ export default function EventDetailScreen() {
 
           {e.description ? <ThemedText style={[styles.about, { color: theme.text }]}>{e.description}</ThemedText> : null}
           <ThemedText style={[styles.small, { color: theme.textSecondary }]}>{refundLine(e)}</ThemedText>
+          {/* Ticket terms: shown while tickets or RSVPs can be taken here (not for the host, not once closed). */}
+          {!e.viewerIsHost && !banner ? (
+            <TicketTermsLine
+              kind="event"
+              onOpenTerms={() => navigation.navigate("TermsOfService")}
+            />
+          ) : null}
         </View>
       </ScrollView>
 
@@ -454,6 +462,10 @@ export default function EventDetailScreen() {
           load();
         }}
         onViewTickets={viewTickets}
+        onOpenTerms={() => {
+          setBuyOpen(false);
+          navigation.navigate("TermsOfService");
+        }}
         onNeedSignIn={() => {
           setBuyOpen(false);
           navigation.navigate("Auth", {});

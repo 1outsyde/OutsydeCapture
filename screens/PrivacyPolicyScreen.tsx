@@ -42,7 +42,7 @@ export default function PrivacyPolicyScreen() {
   const renderPrivacyPolicy = () => (
     <>
       <ThemedText type="small" style={[styles.lastUpdated, { color: theme.textSecondary }]}>
-        Last Updated: July 23, 2026
+        Last Updated: November 2, 2026
       </ThemedText>
 
       <Paragraph>
@@ -204,22 +204,61 @@ export default function PrivacyPolicyScreen() {
         <Paragraph>If you use an influencer referral or promo code, Outsyde records the referral event including the associated click, purchase, and revenue attributed to that code. This data is used to calculate influencer commissions.</Paragraph>
       </Section>
 
-      <Section title="8. Data Security">
+      <Section title="8. Events and Tickets">
+        <Paragraph>
+          {"When you get tickets, RSVP, host an event or report one:"}
+        </Paragraph>
+        <BulletPoint>
+          {
+            "The Host and the people they add to their Event team (for example door staff and co-hosts) see your first name or username, your ticket type and whether you have checked in. They don't see your email address, phone number or payment details."
+          }
+        </BulletPoint>
+        <BulletPoint>
+          {
+            "If you buy through a promoter's link, the promoter sees how many tickets their link sold, not who bought them."
+          }
+        </BulletPoint>
+        <BulletPoint>
+          {"We record when your ticket is scanned at the door."}
+        </BulletPoint>
+        <BulletPoint>
+          {
+            "We send ticket confirmations, reminders, the event address (when the Host shares it on the day) and changes to the event by email and push notification."
+          }
+        </BulletPoint>
+        <BulletPoint>
+          {
+            "If you add a ticket to Apple Wallet, the pass holds the event name, time, place and your ticket's QR code."
+          }
+        </BulletPoint>
+        <BulletPoint>
+          {
+            "If you report an event, the Host is not told who reported it. Outsyde staff see your username, the reason and any note you add."
+          }
+        </BulletPoint>
+        <BulletPoint>
+          {
+            "If you host, we keep a record of which version of the Event Host Agreement you accepted and when, and of your event's sales and payouts."
+          }
+        </BulletPoint>
+      </Section>
+
+      <Section title="9. Data Security">
         <Paragraph>We implement administrative, technical, and physical safeguards designed to protect your information, including encrypted credential storage and PCI-compliant payment processing via Stripe.</Paragraph>
         <Paragraph>No internet transmission or electronic storage system can be guaranteed completely secure. We encourage you to use a strong, unique password and contact us immediately if you suspect unauthorized access.</Paragraph>
       </Section>
 
-      <Section title="9. Data Retention">
+      <Section title="10. Data Retention">
         <Paragraph>We retain your information only as long as necessary to provide our services, resolve disputes, detect fraud, meet legal and tax obligations, and enforce our agreements.</Paragraph>
         <Paragraph>Some financial and transaction records may be retained as required by law even after account deletion.</Paragraph>
       </Section>
 
-      <Section title="10. Account Deletion">
+      <Section title="11. Account Deletion">
         <Paragraph>You may request deletion of your account through the Platform settings or by contacting us at info@goutsyde.com.</Paragraph>
         <Paragraph>Following deletion, personal information will be deleted or anonymized where reasonably possible. Certain records may be retained for tax compliance, fraud prevention, legal obligations, or dispute resolution.</Paragraph>
       </Section>
 
-      <Section title="11. Your Rights">
+      <Section title="12. Your Rights">
         <Paragraph>Depending on your jurisdiction, you may have the right to:</Paragraph>
         <BulletPoint>Access your personal information</BulletPoint>
         <BulletPoint>Correct inaccurate information</BulletPoint>
@@ -230,27 +269,27 @@ export default function PrivacyPolicyScreen() {
         <Paragraph>To exercise any of these rights, contact us at info@goutsyde.com.</Paragraph>
       </Section>
 
-      <Section title="12. Children's Privacy">
+      <Section title="13. Children's Privacy">
         <Paragraph>Outsyde is not intended for individuals under 18 years of age. We do not knowingly collect personal information from minors. If we become aware that such information has been collected, we will take appropriate steps to delete it promptly.</Paragraph>
       </Section>
 
-      <Section title="13. Sensitive Personal Information">
+      <Section title="14. Sensitive Personal Information">
         <Paragraph>During signup, consumers may optionally provide gender, ethnicity, and demographic information. This information is used solely to personalize your experience and generate aggregate, anonymized platform insights. We do not sell this information or use it for targeted advertising.</Paragraph>
       </Section>
 
-      <Section title="14. Cookies and Tracking Technologies">
+      <Section title="15. Cookies and Tracking Technologies">
         <Paragraph>Our website may use cookies and similar technologies to remember preferences, maintain sessions, analyze traffic, and improve performance. Users may manage cookie preferences through their browser settings.</Paragraph>
       </Section>
 
-      <Section title="15. New York SHIELD Act">
+      <Section title="16. New York SHIELD Act">
         <Paragraph>For users located in New York, Outsyde maintains reasonable administrative, technical, and physical safeguards designed to protect private information in compliance with the New York SHIELD Act.</Paragraph>
       </Section>
 
-      <Section title="16. Changes to This Privacy Policy">
+      <Section title="17. Changes to This Privacy Policy">
         <Paragraph>We may update this Privacy Policy periodically. When material changes occur, we will update the "Last Updated" date and, where appropriate, notify users through the Platform. Continued use of Outsyde after changes become effective constitutes acceptance of the updated Privacy Policy.</Paragraph>
       </Section>
 
-      <Section title="17. Contact Information">
+      <Section title="18. Contact Information">
         <Paragraph>Outsyde LLC</Paragraph>
         <Paragraph>Email: info@goutsyde.com</Paragraph>
         <Paragraph>Website: https://goutsyde.com</Paragraph>

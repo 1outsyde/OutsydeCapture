@@ -10,7 +10,18 @@ import { useAuth } from "@/context/AuthContext";
 import { useStripePayment } from "@/hooks/useStripePayment";
 import api from "@/services/api";
 import { EVENT_CREAM, EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
-import { GENERIC_ERROR, eventErrorCopy, maxQty, minQty, money, refundLine, type PublicEvent, type PublicTicketType } from "@/utils/eventsLogic";
+import {
+  CHECKOUT_FEE_NOTE,
+  GENERIC_ERROR,
+  eventErrorCopy,
+  maxQty,
+  minQty,
+  money,
+  refundLine,
+  type PublicEvent,
+  type PublicTicketType,
+} from "@/utils/eventsLogic";
+import TicketTermsLine from "@/components/events/TicketTermsLine";
 import {
   POLL_EVERY_MS,
   checkoutKeyAfterError,
@@ -43,6 +54,8 @@ interface Props {
   onPaid: () => void;
   onViewTickets: () => void;
   onNeedSignIn: () => void;
+  /** Terms of Service tapped: the screen closes the sheet and opens the Terms screen. */
+  onOpenTerms: () => void;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -51,7 +64,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * Buy paid tickets (Events canvas 25 choose, 26 pay, 27 result). One ticket type per order, card only
  * through the shared Stripe payment sheet. Unpaid holds are released by the backend job after they expire.
  */
-export default function BuyTicketsModal({ visible, event, types, initialTypeId, onClose, onPaid, onViewTickets, onNeedSignIn }: Props) {
+export default function BuyTicketsModal({
+  visible,
+  event,
+  types,
+  initialTypeId,
+  onClose,
+  onPaid,
+  onViewTickets,
+  onNeedSignIn,
+  onOpenTerms,
+}: Props) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
@@ -405,7 +428,10 @@ export default function BuyTicketsModal({ visible, event, types, initialTypeId, 
                 </View>
               </View>
             ) : null}
-            <ThemedText style={[styles.small, { color: theme.textSecondary }]}>{`${refundLine(event)} The service fee isn't refundable.`}</ThemedText>
+            <ThemedText
+              style={[styles.small, { color: theme.textSecondary }]}
+            >{`${refundLine(event)} ${CHECKOUT_FEE_NOTE}`}</ThemedText>
+            <TicketTermsLine kind="checkout" onOpenTerms={onOpenTerms} />
 
             {msg ? <ThemedText style={[styles.error, { color: theme.error }]} accessibilityRole="alert">{msg}</ThemedText> : null}
 

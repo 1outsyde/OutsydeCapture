@@ -302,6 +302,22 @@ export function revealLine(iso: string, tz: string): string {
   return `Full address on ${day} at ${timeOf(iso, tz)}`;
 }
 
+/** Where the app sends people for the Refund Policy (the app has the Terms and Privacy screens built in, not this one). */
+export const REFUND_POLICY_URL = "https://www.goutsyde.com/refund-policy";
+
+/**
+ * The agreement line on the event page and in the ticket checkout: lead, then the two links, joined as
+ * "<lead>Terms of Service and the Refund Policy."
+ */
+export const TICKET_TERMS_LEAD = {
+  event: "By getting tickets or RSVPing, you agree to the ",
+  checkout: "By paying, you agree to the ",
+} as const;
+
+/** The service fee line in the ticket checkout: kept on a refund, refunded when the event is cancelled. */
+export const CHECKOUT_FEE_NOTE =
+  "The service fee isn't refunded unless the event is cancelled.";
+
 export function refundLine(e: { refundPolicy: string; refundCutoffHours: number | null }): string {
   if (e.refundPolicy === "no_refunds") return "No refunds.";
   if (e.refundCutoffHours == null) return "Refunds until the event starts.";
