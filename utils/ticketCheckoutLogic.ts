@@ -571,6 +571,17 @@ export function walletLink(os: string, t: { walletUrl?: string | null } | null |
   return url && /^https?:\/\//i.test(url) ? url : null;
 }
 
+/**
+ * Which Add to Apple Wallet button to draw. Apple's own button (PKAddPassButton) only on iOS and only when the native
+ * module is in this build; anywhere else (Expo Go, an older dev client, Android, web) the text button.
+ */
+export function walletButtonKind(
+  os: string,
+  hasNativeModule: boolean,
+): "native" | "text" {
+  return os === "ios" && hasNativeModule ? "native" : "text";
+}
+
 // ─── Older backend without paymentSheet ──────────────────────────────────────
 
 /**
