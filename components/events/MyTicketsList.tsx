@@ -12,6 +12,7 @@ import api from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
 import { EVENT_GREEN } from "@/components/events/eventColors";
 import { whenLabel } from "@/utils/eventsLogic";
+import { ON_HOLD_COPY } from "@/utils/reportEventLogic";
 import { addressTag, groupInfo, splitTickets, type MyTicket, type TicketGroup } from "@/utils/ticketCheckoutLogic";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -84,7 +85,11 @@ export default function MyTicketsList({ refreshKey }: { refreshKey: number }) {
   const { upcoming, past } = splitTickets(tickets, now);
 
   const row = (g: TicketGroup) => {
-    const tag = addressTag(g.event, now);
+    // p5-safety A5: an event Outsyde has on hold says so instead of the address tag.
+    const tag =
+      g.event.status === "paused"
+        ? ON_HOLD_COPY.ticketTag
+        : addressTag(g.event, now);
     return (
       <Pressable
         key={g.event.id}

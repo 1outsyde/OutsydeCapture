@@ -36,6 +36,7 @@ import {
   refundedLine, statusKind, statusLabel, takenLine, typeRowText, typeRows, whenWhere,
   type DoorGuest, type HostOrder, type Summary,
 } from "@/utils/host/manageLogic";
+import { ON_HOLD_COPY } from "@/utils/reportEventLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Phase = "loading" | "ready" | "notfound" | "error";
@@ -230,11 +231,21 @@ export default function ManageEventScreen() {
 
         <View style={s.actions}>
           {actions.edit ? <OutlineButton label="Edit" onPress={() => navigation.navigate("EventEditor", { eventId: event.id })} style={{ flex: 1 }} /> : null}
-          {kind !== "paused" && !isDraft ? <OutlineButton label="View page" onPress={() => navigation.navigate("EventDetail", { slug: event.slug })} style={{ flex: 1 }} /> : null}
+          {/* p5-safety A6: the host sees the on hold page now (the backend sends it with onHold), so View page shows. */}
+          {!isDraft ? (
+            <OutlineButton
+              label="View page"
+              onPress={() =>
+                navigation.navigate("EventDetail", { slug: event.slug })
+              }
+              style={{ flex: 1 }}
+            />
+          ) : null}
           {!isDraft && scannable ? <OutlineButton label="Share" onPress={share} style={{ flex: 1 }} /> : null}
         </View>
 
         {isDraft ? <Hint>This event is a draft. Finish it in the editor to publish it. Guests can't see it yet.</Hint> : null}
+        {kind === "paused" ? <Hint>{ON_HOLD_COPY.manage}</Hint> : null}
 
         {!isDraft ? (
           <>

@@ -379,6 +379,44 @@ test("M-6 canChangeOrder: refund or cancel only before the event starts and befo
   assert.equal(canChangeOrder(ev, true, new Date("2026-10-30T01:00:00Z")), false);
 });
 
+test("p5-safety A5 canChangeOrder: no refund or RSVP cancel while on hold", () => {
+  const at = new Date("2026-10-30T01:00:00Z");
+  assert.equal(
+    canChangeOrder(
+      { startsAt: "2026-10-31T01:00:00.000Z", status: "paused" },
+      false,
+      at,
+    ),
+    false,
+  );
+  assert.equal(
+    canChangeOrder(
+      { startsAt: "2026-10-31T01:00:00.000Z", status: "published" },
+      false,
+      at,
+    ),
+    true,
+  );
+});
+
+test("p5-safety A7 ticketPushTarget: event_moderation opens Manage, Your events without an id", () => {
+  for (const action of ["pause", "release", "cancel"]) {
+    assert.deepEqual(
+      ticketPushTarget({
+        type: "event_moderation",
+        action,
+        eventId: "e5",
+      } as never),
+      { screen: "manage", eventId: "e5" },
+      action,
+    );
+  }
+  assert.deepEqual(ticketPushTarget({ type: "event_moderation" }), {
+    screen: "yourEvents",
+    eventId: null,
+  });
+});
+
 test("M-5 needsCalendarPermission: only iOS below 17", () => {
   assert.equal(needsCalendarPermission("ios", "16.4"), true);
   assert.equal(needsCalendarPermission("ios", "17.0"), false);

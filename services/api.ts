@@ -4779,6 +4779,23 @@ class ApiService {
     });
   }
 
+  // POST /api/events/:id/report - Report an event (p5-safety). Signed in; reason is one of the six keys, note up to 500.
+  async reportEvent(
+    eventId: string,
+    body: { reason: string; note?: string },
+    authToken: string,
+  ): Promise<{
+    success: boolean;
+    alreadyReported?: boolean;
+    message?: string;
+  }> {
+    return this.request(`/api/events/${encodeURIComponent(eventId)}/report`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
   // ─── Tickets (p4-buy): paid checkout, My Tickets, refund, cancel RSVP ─────────
 
   // POST /api/events/:id/checkout - Hold seats + PaymentIntent. One ticket type per order.

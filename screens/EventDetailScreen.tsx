@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  View,
+} from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -15,6 +22,7 @@ import type { RootStackParamList } from "@/navigation/types";
 import { EVENT_CREAM, EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
 import { EVENT_COVER_ASPECT } from "@/components/events/eventCover";
 import BuyTicketsModal from "@/components/events/BuyTicketsModal";
+import ReportEventSheet from "@/components/events/ReportEventSheet";
 import {
   defaultTicketId,
   eventBanner,
@@ -30,6 +38,7 @@ import {
   ticketRow,
   type EventPage,
 } from "@/utils/eventsLogic";
+import { REPORT_COPY, canShowReport, isOnHold } from "@/utils/reportEventLogic";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type Phase = "loading" | "ready" | "notfound" | "error";
@@ -58,6 +67,7 @@ export default function EventDetailScreen() {
   const [followBusy, setFollowBusy] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
   const [buyTypeId, setBuyTypeId] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const keyRef = useRef<string | null>(null);
   const seq = useRef(0);
   const hadPageRef = useRef(false);
@@ -178,6 +188,15 @@ export default function EventDetailScreen() {
     Share.share({ message: `https://goutsyde.com/e/${slug}` }).catch(() => {});
   };
 
+  // p5-safety A1 to A3: Report event. Signed out goes to sign in first, like RSVP and Follow.
+  const openReport = () => {
+    if (!isAuthenticated) {
+      navigation.navigate("Auth", {});
+      return;
+    }
+    setReportOpen(true);
+  };
+
   const back = (
     <Pressable
       onPress={() => navigation.goBack()}
@@ -215,6 +234,8 @@ export default function EventDetailScreen() {
   const banner = eventBanner(e, now);
   const bar = eventPageBar(e, types, selectedId, going, now);
   const holder = going || e.viewerHasTicket;
+  const onHold = isOnHold(e);
+  const showReport = canShowReport(e);
   const place = [e.city, e.state].filter(Boolean).join(", ");
   const canFollow = !!e.host?.followId && !e.viewerIsHost;
   const showQty = bar.kind === "rsvp" && selected && maxQty(selected) > 1;
@@ -312,7 +333,7 @@ export default function EventDetailScreen() {
             <View>
               <ThemedText style={[styles.section, { color: theme.textSecondary }]}>TICKETS</ThemedText>
               {types.map((t) => {
-                const row = ticketRow(t, e.timezone);
+                const row = ticketRow(t, e.timezone, onHold);
                 const canPick = row.selectable && !holder && bar.kind !== "none";
                 // A paid type on sale opens the buy sheet with that type picked.
                 const canBuy = row.paid && t.salesStatus === "on_sale" && !e.viewerIsHost && !banner;
@@ -383,6 +404,17 @@ export default function EventDetailScreen() {
       >
         <Feather name="share" size={20} color={EVENT_CREAM} />
       </Pressable>
+      {showReport ? (
+        <Pressable
+          onPress={openReport}
+          accessibilityRole="button"
+          accessibilityLabel={REPORT_COPY.button}
+          testID="report-event"
+          style={[styles.circle, { top: insets.top + 8, right: 68 }]}
+        >
+          <Feather name="flag" size={18} color={EVENT_CREAM} />
+        </Pressable>
+      ) : null}
 
       {bar.kind !== "none" ? (
         <View style={[styles.bar, { backgroundColor: theme.backgroundRoot, borderTopColor: theme.border, paddingBottom: insets.bottom + 14 }]}>
@@ -424,6 +456,18 @@ export default function EventDetailScreen() {
         onViewTickets={viewTickets}
         onNeedSignIn={() => {
           setBuyOpen(false);
+          navigation.navigate("Auth", {});
+        }}
+      />
+
+      <ReportEventSheet
+        visible={reportOpen}
+        eventId={e.id}
+        getToken={() => getTokenRef.current().catch(() => null)}
+        onClose={() => setReportOpen(false)}
+        onSent={() => setReportOpen(false)}
+        onNeedSignIn={() => {
+          setReportOpen(false);
           navigation.navigate("Auth", {});
         }}
       />
