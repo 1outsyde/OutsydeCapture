@@ -126,7 +126,21 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Outsyde keeps your sign in secure on this device. It does not use Face ID."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Outsyde uses your location while you use the app to show nearby businesses and events. It does not track your location in the background.",
+          "locationAlwaysPermission": "Outsyde uses your location while you use the app to show nearby businesses and events. It does not track your location in the background.",
+          "locationFullAccuracyPermission": "Outsyde uses your precise location to show the businesses and events closest to you.",
+          "motionUsagePermission": "Outsyde does not use your motion or fitness activity."
+        }
+      ],
       [
         "expo-camera",
         {
@@ -162,6 +176,7 @@
         {
           "calendarPermission": "Outsyde adds events you have tickets for to your calendar.",
           "writeOnlyCalendarPermission": "Outsyde adds events you have tickets for to your calendar.",
+          "remindersPermission": "Outsyde adds events you have tickets for to your calendar. It does not read or change your reminders.",
           "writeOnlyAccess": true
         }
       ],
