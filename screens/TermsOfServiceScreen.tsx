@@ -55,7 +55,7 @@ export default function TermsOfServiceScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ThemedText type="small" style={[styles.lastUpdated, { color: theme.textSecondary }]}>
-          Last Updated: July 2026
+          Last Updated: November 2026
         </ThemedText>
 
         <Paragraph>
@@ -312,13 +312,58 @@ export default function TermsOfServiceScreen() {
           <BulletPoint>Outsyde is not liable for carrier errors, delays, or failures</BulletPoint>
 
           <ThemedText type="body" style={[styles.subheading, { color: theme.text }]}>
-            Event Tickets
+            Event Tickets and RSVPs
           </ThemedText>
-          <Paragraph>When the Platform supports ticketed events:</Paragraph>
-          <BulletPoint>Tickets are non-refundable unless the event is cancelled by the organizer</BulletPoint>
-          <BulletPoint>Postponed events may be eligible for refunds at Outsyde's discretion</BulletPoint>
-          <BulletPoint>Event organizers are solely responsible for the event, its cancellation, and any resulting refunds</BulletPoint>
-          <BulletPoint>Counterfeit or fraudulently obtained tickets may be voided without refund</BulletPoint>
+          <Paragraph>
+            {
+              'Event organizers ("Hosts") are independent and solely responsible for their events. Outsyde provides the Platform, sells tickets and takes RSVPs for Hosts, and processes payments and refunds.'
+            }
+          </Paragraph>
+          <BulletPoint>
+            {
+              "Each Host sets a refund policy for their event, shown on the event page before you get tickets: no refunds, or refunds until a set time before the event starts. Once an event is published, its refund policy can only become more flexible for ticket holders."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "When the Host's policy allows a refund, or the Host refunds your order, you get the ticket price back. The service fee is not refunded."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "Refunds can't be requested and RSVPs can't be cancelled after the event starts or after a ticket on the order has been checked in."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "If the Host or Outsyde cancels an event, every paid order is refunded in full, including the service fee, and every free RSVP is cancelled."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "Outsyde may put an event on hold while it reviews it, for example after a report. While an event is on hold, no tickets are sold, tickets already issued stay valid, and refunds and RSVP changes wait until the review ends."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "Some Hosts share the exact address only with ticket holders, on the day of the event."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "Your ticket's QR code is your entry. Keep it private. Tickets that are counterfeit or obtained by fraud may be cancelled without a refund."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "You can report an event that looks fake, unsafe or wrong. Outsyde reviews every report and may pause or cancel an event."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "Hosts must accept the Event Host Agreement before they publish an event. It covers fees, payouts and refunds between Outsyde and the Host."
+            }
+          </BulletPoint>
         </Section>
 
         <Section title="8. Independent Contractor Status">
