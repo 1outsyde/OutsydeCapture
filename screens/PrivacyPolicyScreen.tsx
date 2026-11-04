@@ -42,7 +42,7 @@ export default function PrivacyPolicyScreen() {
   const renderPrivacyPolicy = () => (
     <>
       <ThemedText type="small" style={[styles.lastUpdated, { color: theme.textSecondary }]}>
-        Last Updated: November 2, 2026
+        Last Updated: November 4, 2026
       </ThemedText>
 
       <Paragraph>
@@ -233,7 +233,7 @@ export default function PrivacyPolicyScreen() {
         </BulletPoint>
         <BulletPoint>
           {
-            "If you report an event, the Host is not told who reported it. Outsyde staff see your username, the reason and any note you add."
+            "If you report an event, we don't share your identity with the Host. Outsyde staff see your username, the reason and any note you add. We may disclose it if required by valid legal process, such as a subpoena or court order."
           }
         </BulletPoint>
         <BulletPoint>

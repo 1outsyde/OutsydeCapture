@@ -326,12 +326,17 @@ export default function TermsOfServiceScreen() {
           </BulletPoint>
           <BulletPoint>
             {
-              "When the Host's policy allows a refund, or the Host refunds your order, you get the ticket price back. The service fee is not refunded."
+              "The service fee is charged by Outsyde for use of the Platform. When the Host's policy allows a refund, or the Host refunds your order, you get the ticket price back, and the service fee is not refunded. The service fee is refunded only when the Host or Outsyde cancels the event."
             }
           </BulletPoint>
           <BulletPoint>
             {
-              "Refunds can't be requested and RSVPs can't be cancelled after the event starts or after a ticket on the order has been checked in."
+              "You can't request a refund or cancel an RSVP after the event starts or after a ticket on your order has been checked in. The Host may still refund your order until the Host's payout for the event is worked out, 3 days after the event ends."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "When you check out, your tickets are held for 10 minutes. If payment isn't completed in that time, the hold ends and the tickets may go to someone else. If you are charged but a ticket can't be issued, Outsyde refunds your full payment, including the service fee."
             }
           </BulletPoint>
           <BulletPoint>
@@ -351,7 +356,12 @@ export default function TermsOfServiceScreen() {
           </BulletPoint>
           <BulletPoint>
             {
-              "Your ticket's QR code is your entry. Keep it private. Tickets that are counterfeit or obtained by fraud may be cancelled without a refund."
+              "Your ticket's QR code is your entry. Keep it private. If Outsyde has reasonable grounds to believe a ticket is counterfeit, was obtained by fraud, or was obtained in breach of these Terms, Outsyde may cancel it. Where possible, Outsyde tells the ticket holder first. A ticket cancelled for fraud is not refunded."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "If you dispute a ticket charge with your bank or card issuer, Outsyde may share your order, ticket and check in records to respond. A dispute doesn't guarantee a refund, and Outsyde may review your account."
             }
           </BulletPoint>
           <BulletPoint>
@@ -362,6 +372,11 @@ export default function TermsOfServiceScreen() {
           <BulletPoint>
             {
               "Hosts must accept the Event Host Agreement before they publish an event. It covers fees, payouts and refunds between Outsyde and the Host."
+            }
+          </BulletPoint>
+          <BulletPoint>
+            {
+              "Outsyde is not the organizer of any event and is not responsible for the safety, legality or quality of an event or for a Host's conduct. The Limitation of Liability and Governing Law and Dispute Resolution sections of these Terms apply to every ticket and RSVP."
             }
           </BulletPoint>
         </Section>
