@@ -181,6 +181,7 @@
         }
       ],
       "./plugins/withLegacyStoragePermissions",
+      "./plugins/withStripeTapAndPayExclude",
       [
         "expo-build-properties",
         {
