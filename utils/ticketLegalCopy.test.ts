@@ -32,8 +32,16 @@ test("Terms: Event Tickets and RSVPs says what the platform does", () => {
   for (const fact of [
     "refunds until a set time before the event starts",
     "can only become more flexible for ticket holders",
-    "you get the ticket price back. The service fee is not refunded.",
-    "after the event starts or after a ticket on the order has been checked in",
+    "you get the ticket price back, and the service fee is not refunded.",
+    "The service fee is refunded only when the Host or Outsyde cancels the event.",
+    "after the event starts or after a ticket on your order has been checked in",
+    "The Host may still refund your order until the Host's payout for the event is worked out, 3 days after the event ends.",
+    "your tickets are held for 10 minutes",
+    "If you are charged but a ticket can't be issued, Outsyde refunds your full payment, including the service fee.",
+    "reasonable grounds to believe a ticket is counterfeit",
+    "Where possible, Outsyde tells the ticket holder first.",
+    "A dispute doesn't guarantee a refund",
+    "The Limitation of Liability and Governing Law and Dispute Resolution sections of these Terms apply to every ticket and RSVP.",
     "refunded in full, including the service fee, and every free RSVP is cancelled",
     "tickets already issued stay valid",
     "Event Host Agreement",
@@ -42,6 +50,17 @@ test("Terms: Event Tickets and RSVPs says what the platform does", () => {
   assert.ok(
     !t.includes("When the Platform supports ticketed events"),
     "old wording gone",
+  );
+  assert.ok(
+    !t.includes("Refunds can't be requested and RSVPs can't be cancelled"),
+    "old refund line gone",
+  );
+  assert.ok(
+    terms.includes('<Section title="19. Limitation of Liability">') &&
+      terms.includes(
+        '<Section title="23. Governing Law & Dispute Resolution">',
+      ),
+    "the sections named in the Terms exist",
   );
   assert.ok(!/Postponed events/.test(t), "no postpone promise (not a feature)");
   assert.ok(terms.includes("Last Updated: November 2026"));
@@ -57,7 +76,8 @@ test("Privacy: Events and Tickets section, numbered in order", () => {
     "first name or username, your ticket type and whether you have checked in",
     "They don't see your email address, phone number or payment details.",
     "not who bought them",
-    "the Host is not told who reported it",
+    "we don't share your identity with the Host",
+    "We may disclose it if required by valid legal process",
     "Apple Wallet",
   ])
     assert.ok(p.includes(fact), fact);
@@ -70,7 +90,11 @@ test("Privacy: Events and Tickets section, numbered in order", () => {
     titles,
     Array.from({ length: 18 }, (_, i) => i + 1),
   );
-  assert.ok(privacy.includes("Last Updated: November 2, 2026"));
+  assert.ok(
+    !p.includes("the Host is not told who reported it"),
+    "old absolute promise gone",
+  );
+  assert.ok(privacy.includes("Last Updated: November 4, 2026"));
 });
 
 test("checkout and event page lines", () => {
