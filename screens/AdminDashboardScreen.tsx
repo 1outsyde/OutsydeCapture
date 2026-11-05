@@ -18,12 +18,13 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import api, { AdminStats, AdminUser, AdminBusiness, AdminPhotographer, AdminInfluencer, AdminOrder, AdminBooking, AdminRefund, AdminConversation, PaymentStats } from "@/services/api";
+import api, { AdminStats, AdminUser, AdminBusiness, AdminPhotographer, AdminInfluencer, AdminOrder, AdminBooking, AdminConversation } from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
 
 type TabType = "users" | "businesses" | "photographers" | "payments" | "messages" | "influencers";
 type StatusFilter = "pending" | "approved" | "rejected" | "all";
-type PaymentSubTab = "orders" | "bookings" | "refunds";
+// Refunds is hidden until the refund request routes are decided (vault open decision 2, R33).
+type PaymentSubTab = "orders" | "bookings";
 
 const getBusinessStatus = (business: AdminBusiness): "pending" | "approved" | "rejected" => {
   return business.approvalStatus || business.status || "pending";
@@ -47,9 +48,7 @@ export default function AdminDashboardScreen() {
   const [influencers, setInfluencers] = useState<AdminInfluencer[]>([]);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
-  const [refunds, setRefunds] = useState<AdminRefund[]>([]);
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
-  const [paymentStats, setPaymentStats] = useState<PaymentStats>({ totalOrders: 0, orderRevenue: 0, totalBookings: 0, pendingRefunds: 0 });
 
   const [businessFilter, setBusinessFilter] = useState<StatusFilter>("all");
   const [influencerFilter, setInfluencerFilter] = useState<StatusFilter>("pending");
@@ -139,23 +138,15 @@ export default function AdminDashboardScreen() {
           setInfluencers(influencersData || []);
           break;
         case "payments":
-          // One missing endpoint must not blank the whole tab (payments/stats and refunds
-          // have no backend route today).
+          // The header numbers come from /api/admin/stats (loaded in fetchData). One failing
+          // list must not blank the other.
           const settled = await Promise.allSettled([
-            api.getPaymentStats(token),
             api.getAdminOrders(token),
             api.getAdminBookings(token),
-            api.getAdminRefunds(token),
           ]);
           const valueOf = <T,>(r: PromiseSettledResult<T>): T | null => (r.status === "fulfilled" ? r.value : null);
-          const paymentStatsData = valueOf(settled[0]);
-          const ordersData = valueOf(settled[1]);
-          const bookingsData = valueOf(settled[2]);
-          const refundsData = valueOf(settled[3]);
-          setPaymentStats(paymentStatsData || { totalOrders: 0, orderRevenue: 0, totalBookings: 0, pendingRefunds: 0 });
-          setOrders(ordersData || []);
-          setBookings(bookingsData || []);
-          setRefunds(refundsData || []);
+          setOrders(valueOf(settled[0]) || []);
+          setBookings(valueOf(settled[1]) || []);
           break;
         case "messages":
           const conversationsData = await api.getAdminConversations(token);
@@ -1065,57 +1056,28 @@ export default function AdminDashboardScreen() {
     </View>
   );
 
-  const renderRefundItem = ({ item }: { item: AdminRefund }) => (
-    <View style={styles.listItem}>
-      <View style={styles.listItemHeader}>
-        <Text style={styles.listItemName}>Refund #{item.id.slice(0, 8)}</Text>
-        <View style={[
-          styles.statusBadge,
-          item.status === "pending" ? styles.pendingBadge :
-          item.status === "approved" ? styles.approvedBadge : styles.rejectedBadge
-        ]}>
-          <Text style={[
-            styles.statusText,
-            item.status === "pending" ? styles.pendingText :
-            item.status === "approved" ? styles.approvedText : styles.rejectedText
-          ]}>
-            {item.status}
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.listItemInfo}>Customer: {item.userName}</Text>
-      <Text style={styles.listItemInfo}>Amount: ${item.amount.toFixed(2)}</Text>
-      <Text style={styles.listItemInfo}>Reason: {item.reason}</Text>
-    </View>
-  );
-
   const renderPaymentsContent = () => (
     <View style={styles.content}>
       <View style={styles.paymentStatsRow}>
         <View style={styles.paymentStatCard}>
           <Feather name="shopping-bag" size={20} color={theme.primary} />
           <Text style={styles.paymentStatLabel}>Total Orders</Text>
-          <Text style={styles.paymentStatValue}>{paymentStats.totalOrders}</Text>
+          <Text style={styles.paymentStatValue}>{stats.orders}</Text>
         </View>
         <View style={styles.paymentStatCard}>
           <Feather name="dollar-sign" size={20} color={theme.primary} />
-          <Text style={styles.paymentStatLabel}>Order Revenue</Text>
-          <Text style={styles.paymentStatValue}>${paymentStats.orderRevenue.toFixed(2)}</Text>
+          <Text style={styles.paymentStatLabel}>Total Revenue</Text>
+          <Text style={styles.paymentStatValue}>${(stats.revenue ?? 0).toFixed(2)}</Text>
         </View>
         <View style={styles.paymentStatCard}>
           <Feather name="calendar" size={20} color={theme.primary} />
           <Text style={styles.paymentStatLabel}>Total Bookings</Text>
-          <Text style={styles.paymentStatValue}>{paymentStats.totalBookings}</Text>
-        </View>
-        <View style={styles.paymentStatCard}>
-          <Feather name="refresh-cw" size={20} color="#FF9500" />
-          <Text style={styles.paymentStatLabel}>Pending Refunds</Text>
-          <Text style={styles.paymentStatValue}>{paymentStats.pendingRefunds}</Text>
+          <Text style={styles.paymentStatValue}>{stats.bookings}</Text>
         </View>
       </View>
 
       <View style={styles.subTabRow}>
-        {(["orders", "bookings", "refunds"] as PaymentSubTab[]).map((tab) => (
+        {(["orders", "bookings"] as PaymentSubTab[]).map((tab) => (
           <Pressable
             key={tab}
             style={[styles.subTab, paymentSubTab === tab && styles.activeSubTab]}
@@ -1123,9 +1085,7 @@ export default function AdminDashboardScreen() {
           >
             <Text style={[styles.subTabText, paymentSubTab === tab && styles.activeSubTabText]}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)} ({
-                tab === "orders" ? orders.length :
-                tab === "bookings" ? bookings.length :
-                refunds.length
+                tab === "orders" ? orders.length : bookings.length
               })
             </Text>
           </Pressable>
@@ -1141,11 +1101,6 @@ export default function AdminDashboardScreen() {
         bookings.length === 0 
           ? renderEmptyState("No Bookings", "No bookings to display", "calendar")
           : <FlatList data={bookings} renderItem={renderBookingItem} keyExtractor={(item) => item.id} />
-      ) : null}
-      {paymentSubTab === "refunds" ? (
-        refunds.length === 0 
-          ? renderEmptyState("No Refunds", "No refunds to display", "refresh-cw")
-          : <FlatList data={refunds} renderItem={renderRefundItem} keyExtractor={(item) => item.id} />
       ) : null}
     </View>
   );
