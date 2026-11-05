@@ -873,6 +873,11 @@ export interface AdminStats {
   photographers: number;
   orders: number;
   bookings: number;
+  // From GET /api/admin/stats (same source as goutsyde.com /admin). Revenue is in dollars there.
+  revenue?: number;
+  pendingRefunds?: number;
+  customers?: number;
+  rewardsRedeemedCents?: number;
 }
 
 export interface AdminUser {
@@ -1083,31 +1088,12 @@ export interface AdminBooking {
   discountAmountCents?: number;
 }
 
-export interface AdminRefund {
-  id: string;
-  orderId?: string;
-  bookingId?: string;
-  userId: string;
-  userName: string;
-  amount: number;
-  reason: string;
-  status: "pending" | "approved" | "rejected";
-  createdAt: string;
-}
-
 export interface AdminConversation {
   id: string;
   participants: { id: string; name: string; avatar?: string }[];
   lastMessage?: string;
   lastMessageAt?: string;
   messageCount: number;
-}
-
-export interface PaymentStats {
-  totalOrders: number;
-  orderRevenue: number;
-  totalBookings: number;
-  pendingRefunds: number;
 }
 
 export interface ApiPhotographer {
@@ -2607,9 +2593,29 @@ class ApiService {
   }
 
   async getAdminStats(authToken: string): Promise<AdminStats> {
-    return this.request<AdminStats>("/api/admin/stats", {
+    // The backend sends { stats: { totalUsers, totalBusinesses, ... } } (routes.ts /api/admin/stats).
+    // Read that shape, and still accept a flat shape so an older response can't blank the numbers.
+    const response: any = await this.request<any>("/api/admin/stats", {
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+    const s: any = response?.stats ?? response ?? {};
+    const num = (...vals: unknown[]): number => {
+      for (const v of vals) {
+        if (typeof v === "number" && Number.isFinite(v)) return v;
+      }
+      return 0;
+    };
+    return {
+      users: num(s.totalUsers, s.users),
+      businesses: num(s.totalBusinesses, s.businesses),
+      photographers: num(s.totalPhotographers, s.photographers),
+      orders: num(s.totalOrders, s.orders),
+      bookings: num(s.totalBookings, s.bookings),
+      revenue: num(s.totalRevenue, s.revenue),
+      pendingRefunds: num(s.pendingRefunds),
+      customers: num(s.regularCustomers, s.customers),
+      rewardsRedeemedCents: num(s.rewardsRedeemedCents),
+    };
   }
 
   async getAdminUsers(authToken: string, search?: string): Promise<AdminUser[]> {
@@ -2755,12 +2761,6 @@ class ApiService {
     });
   }
 
-  async getPaymentStats(authToken: string): Promise<PaymentStats> {
-    return this.request<PaymentStats>("/api/admin/payments/stats", {
-      headers: { "Authorization": `Bearer ${authToken}` },
-    });
-  }
-
   async getAdminOrders(authToken: string): Promise<AdminOrder[]> {
     // The backend sends { orders, total } with full order rows (cents). Normalize to the list shape.
     const response: any = await this.request<any>("/api/admin/orders", {
@@ -2800,12 +2800,6 @@ class ApiService {
         amount: typeof b.amount === "number" ? b.amount : typeof b.totalPrice === "number" ? b.totalPrice / 100 : 0,
         discountAmountCents: discountCents,
       } as AdminBooking;
-    });
-  }
-
-  async getAdminRefunds(authToken: string): Promise<AdminRefund[]> {
-    return this.request<AdminRefund[]>("/api/admin/refunds", {
-      headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
 
