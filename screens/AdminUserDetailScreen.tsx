@@ -11,6 +11,14 @@ import { RootStackParamList } from "@/navigation/types";
 
 type RouteType = RouteProp<RootStackParamList, "AdminUserDetail">;
 
+// "Dec 5, 2026"; null when missing or unreadable.
+function formatDeletionDate(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 interface UserDetailData {
   user: AdminUser & { phone?: string };
   signupDetails: { sections: { title: string; rows: AdminSignupDetailRow[] }[] };
@@ -100,6 +108,55 @@ export default function AdminUserDetailScreen() {
         },
       ]
     );
+  }, [data, getToken, userId, fetchUser]);
+
+  // Delete in 30 days / Cancel deletion: the same backend routes goutsyde.com /admin/users uses.
+  const [deletionLoading, setDeletionLoading] = useState(false);
+  const handleDeletion = useCallback(async (action: "schedule" | "cancel") => {
+    if (!data) return;
+    const token = await getToken();
+    if (!token) return;
+    const identity = data.user.username ? `@${data.user.username}` : data.user.email;
+    const run = async () => {
+      try {
+        setDeletionLoading(true);
+        if (action === "schedule") {
+          const res = await api.scheduleAdminUserDeletion(token, userId);
+          const when = formatDeletionDate(res?.scheduledDeletionAt);
+          Alert.alert(
+            res?.alreadyPending ? "Already scheduled" : "Deletion scheduled",
+            when ? `${identity} will be deleted on ${when}.` : `${identity} is scheduled for deletion.`
+          );
+        } else {
+          await api.cancelAdminUserDeletion(token, userId);
+          Alert.alert("Deletion cancelled", `${identity} will not be deleted.`);
+        }
+        await fetchUser();
+      } catch (err: any) {
+        // The backend explains blocks (Stripe balance, open orders, admin account) in the message.
+        Alert.alert(
+          action === "schedule" ? "Couldn't schedule the deletion" : "Couldn't cancel the deletion",
+          err?.message || "Please try again."
+        );
+      } finally {
+        setDeletionLoading(false);
+      }
+    };
+    if (action === "schedule") {
+      Alert.alert(
+        "Delete in 30 days?",
+        `${identity} will be signed out everywhere and emailed. The account is deleted in 30 days unless you cancel before then.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete in 30 days", style: "destructive", onPress: run },
+        ]
+      );
+    } else {
+      Alert.alert("Cancel deletion?", `${identity} keeps their account.`, [
+        { text: "Keep scheduled", style: "cancel" },
+        { text: "Cancel deletion", onPress: run },
+      ]);
+    }
   }, [data, getToken, userId, fetchUser]);
 
   const styles = StyleSheet.create({
@@ -258,6 +315,27 @@ export default function AdminUserDetailScreen() {
       fontSize: 15,
       fontWeight: "700",
     },
+    neutralButton: {
+      backgroundColor: theme.backgroundDefault,
+      borderColor: theme.border,
+    },
+    deletionNotice: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 12,
+      backgroundColor: "#FF950020",
+      borderWidth: 1,
+      borderColor: "#FF9500",
+    },
+    deletionNoticeText: {
+      flex: 1,
+      fontSize: 14,
+      lineHeight: 20,
+      color: theme.text,
+    },
   });
 
   if (loading) {
@@ -295,6 +373,8 @@ export default function AdminUserDetailScreen() {
   const createdAtLabel = user.createdAt ? new Date(user.createdAt).toLocaleString() : "Unknown";
   const phoneLabel = user.phone || "Not provided";
   const signupSections = data.signupDetails?.sections ?? [];
+  const deletionStatus = user.deletionStatus ?? "active";
+  const deletionDateLabel = formatDeletionDate(user.scheduledDeletionAt);
 
   return (
     <View style={styles.container}>
@@ -404,6 +484,55 @@ export default function AdminUserDetailScreen() {
             )}
           </TouchableOpacity>
         </View>
+
+        {!user.isAdmin && deletionStatus !== "deleted" ? (
+          <View style={styles.section}>
+            {deletionStatus === "pending_deletion" ? (
+              <View style={styles.deletionNotice} accessibilityRole="alert">
+                <Feather name="clock" size={18} color="#FF9500" />
+                <Text style={styles.deletionNoticeText}>
+                  {deletionDateLabel
+                    ? `Scheduled for deletion on ${deletionDateLabel}.`
+                    : "Scheduled for deletion."}
+                </Text>
+              </View>
+            ) : null}
+            <TouchableOpacity
+              style={[
+                styles.accountActionButton,
+                deletionStatus === "pending_deletion" ? styles.neutralButton : styles.disableButton,
+              ]}
+              onPress={() => handleDeletion(deletionStatus === "pending_deletion" ? "cancel" : "schedule")}
+              disabled={deletionLoading}
+              accessibilityRole="button"
+            >
+              {deletionLoading ? (
+                <ActivityIndicator color={deletionStatus === "pending_deletion" ? theme.text : "#FF3B30"} />
+              ) : (
+                <>
+                  <Feather
+                    name={deletionStatus === "pending_deletion" ? "rotate-ccw" : "trash-2"}
+                    size={18}
+                    color={deletionStatus === "pending_deletion" ? theme.text : "#FF3B30"}
+                  />
+                  <Text
+                    style={[
+                      styles.accountActionText,
+                      { color: deletionStatus === "pending_deletion" ? theme.text : "#FF3B30" },
+                    ]}
+                  >
+                    {deletionStatus === "pending_deletion" ? "Cancel deletion" : "Delete in 30 days"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {deletionStatus === "deleted" ? (
+          <View style={styles.section}>
+            <Text style={styles.mutedValue}>This account was deleted.</Text>
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
