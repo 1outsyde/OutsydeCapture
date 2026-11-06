@@ -30,7 +30,7 @@ type TabType = "all" | "consumer" | "business" | "photographer" | "product" | "s
 
 const TABS: { id: TabType; label: string; icon: string }[] = [
   { id: "all", label: "All", icon: "grid" },
-  { id: "consumer", label: "Consumers", icon: "user" },
+  { id: "consumer", label: "Outsyders", icon: "user" },
   { id: "photographer", label: "Photographers", icon: "camera" },
   { id: "business", label: "Businesses", icon: "briefcase" },
   { id: "product", label: "Products", icon: "shopping-bag" },
@@ -68,7 +68,7 @@ const getInitials = (name: string | undefined | null): string => {
 };
 
 const RESULT_TYPE_LABELS: Record<string, string> = {
-  consumer: "Consumer",
+  consumer: "Outsyder",
   business: "Business",
   photographer: "Photographer",
   product: "Product",
