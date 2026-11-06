@@ -1060,6 +1060,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const updatedUser: User = {
           ...user,
           username: backendUser.username ?? user.username,
+          // Change email (2026-11-06): the new address shows right after confirming, not only after the next sign in.
+          email: backendUser.email ?? user.email,
           displayName: backendUser.displayName ?? user.displayName,
           // profilePhotoUrl is the field name on the flat /api/auth/me response
           avatar: backendUser.profilePhotoUrl || backendUser.avatar || backendUser.profileImageUrl || user.avatar,

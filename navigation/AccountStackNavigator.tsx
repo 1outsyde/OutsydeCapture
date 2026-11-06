@@ -6,6 +6,7 @@ import ConsumerEditProfileScreen from "@/screens/ConsumerEditProfileScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import OutsydePointsScreen from "@/screens/OutsydePointsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import ChangeEmailScreen from "@/screens/ChangeEmailScreen";
 import AddressFormScreen from "@/components/settings/AddressFormScreen";
 import { useTheme } from "@/hooks/useTheme";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
@@ -51,6 +52,13 @@ export default function AccountStackNavigator() {
         component={SettingsScreen}
         options={{
           title: "Settings",
+        }}
+      />
+      <Stack.Screen
+        name="ChangeEmail"
+        component={ChangeEmailScreen}
+        options={{
+          title: "Change Email",
         }}
       />
       <Stack.Screen
