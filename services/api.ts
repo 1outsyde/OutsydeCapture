@@ -1,5 +1,6 @@
 import type { AdminSubscriptionSummary, AdminOfferSummary, OfferPlan } from "@/utils/adminPlans";
 import type { PushAudience, PushCounts, PushLimits, PushPerson, PushRecipientRow, PushScreensData, PushSendRow } from "@/utils/adminPush";
+import type { EmailBudget, EmailPerson, EmailPersonInfo, EmailRecipientRow, EmailSendRow, PersonEmailRow } from "@/utils/adminEmail";
 import type { BusinessReferralsInfo } from "@/utils/businessReferral";
 import {
   getAccessToken,
@@ -3068,6 +3069,39 @@ class ApiService {
     const r: any = await this.request(`/api/admin/push/sends/${encodeURIComponent(id)}`, { headers: { "Authorization": `Bearer ${authToken}` } });
     if (!r?.send) return null;
     return { send: r.send, recipients: Array.isArray(r.recipients) ? r.recipients : [] };
+  }
+
+  // Admin email history (read only; goutsyde.com /admin/emails?tab=history). Router level
+  // requirePlatformAdmin, Bearer accepted. Writing and sending broadcasts stays on goutsyde.com.
+  async getAdminEmailBudget(authToken: string): Promise<EmailBudget> {
+    const r: any = await this.request("/api/admin/emails/budget", { headers: { "Authorization": `Bearer ${authToken}` } });
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return { sentToday: Number(r?.sentToday) || 0, limit: num(r?.limit), remaining: num(r?.remaining) };
+  }
+
+  async listAdminEmailSends(authToken: string, before?: string): Promise<EmailSendRow[]> {
+    const qs = before ? `?limit=50&before=${encodeURIComponent(before)}` : "?limit=50";
+    const r: any = await this.request(`/api/admin/emails/sends${qs}`, { headers: { "Authorization": `Bearer ${authToken}` } });
+    return Array.isArray(r?.sends) ? r.sends : [];
+  }
+
+  async getAdminEmailSend(authToken: string, id: string): Promise<{ send: EmailSendRow; recipients: EmailRecipientRow[] } | null> {
+    const r: any = await this.request(`/api/admin/emails/sends/${encodeURIComponent(id)}`, { headers: { "Authorization": `Bearer ${authToken}` } });
+    if (!r?.send) return null;
+    return { send: r.send, recipients: Array.isArray(r.recipients) ? r.recipients : [] };
+  }
+
+  async searchAdminEmailPeople(authToken: string, q: string): Promise<EmailPerson[]> {
+    const r: any = await this.request(`/api/admin/emails/people?q=${encodeURIComponent(q)}`, { headers: { "Authorization": `Bearer ${authToken}` } });
+    return Array.isArray(r?.people) ? r.people : [];
+  }
+
+  async getAdminPersonEmails(authToken: string, userId: string): Promise<{ person: EmailPersonInfo; emails: PersonEmailRow[] } | null> {
+    const r: any = await this.request(`/api/admin/emails/people/${encodeURIComponent(userId)}/emails`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+    if (!r?.person) return null;
+    return { person: r.person, emails: Array.isArray(r.emails) ? r.emails : [] };
   }
 
   // Vendor plans (same routes and bodies as goutsyde.com /admin/vendors). Errors throw ApiError;
