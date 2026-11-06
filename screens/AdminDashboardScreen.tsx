@@ -950,6 +950,22 @@ export default function AdminDashboardScreen() {
             </View>
             <Feather name="chevron-right" size={18} color={C.dim} />
           </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.sectionRow, pressed && styles.sectionRowPressed]}
+            onPress={() => navigation.navigate("AdminSetupEmails")}
+            accessibilityRole="button"
+            accessibilityLabel="Account setup emails"
+            accessibilityHint="See who is due a setup reminder and send it"
+          >
+            <View style={styles.sectionIcon}>
+              <Feather name="user-check" size={17} color={C.gold} />
+            </View>
+            <View style={styles.sectionText}>
+              <Text style={styles.sectionTitle}>Account setup</Text>
+              <Text style={styles.sectionSub}>Claim and steps left emails</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={C.dim} />
+          </Pressable>
         </View>
       </ScrollView>
     );

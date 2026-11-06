@@ -1,6 +1,7 @@
 import type { AdminSubscriptionSummary, AdminOfferSummary, OfferPlan } from "@/utils/adminPlans";
 import type { PushAudience, PushCounts, PushLimits, PushPerson, PushRecipientRow, PushScreensData, PushSendRow } from "@/utils/adminPush";
 import type { EmailBudget, EmailPerson, EmailPersonInfo, EmailRecipientRow, EmailSendRow, PersonEmailRow } from "@/utils/adminEmail";
+import { setupSendBody, type DueReminder, type SetupEmailPreview } from "@/utils/adminSetup";
 import type { BusinessReferralsInfo } from "@/utils/businessReferral";
 import {
   getAccessToken,
@@ -3102,6 +3103,42 @@ class ApiService {
     });
     if (!r?.person) return null;
     return { person: r.person, emails: Array.isArray(r.emails) ? r.emails : [] };
+  }
+
+  // Account setup emails (goutsyde.com /admin/emails?tab=account-setup). Router level requirePlatformAdmin.
+  /** Everyone with a reminder due right now (the hourly job's check, as a dry run: nothing is sent). */
+  async getAdminSetupDue(authToken: string): Promise<DueReminder[]> {
+    const r: any = await this.request("/api/admin/account-setup/preview", { headers: { "Authorization": `Bearer ${authToken}` } });
+    return Array.isArray(r?.reminders) ? r.reminders : [];
+  }
+
+  /** The exact email one account would get now. Built, never sent; claim links are placeholders. */
+  async getAdminSetupEmailPreview(authToken: string, userId: string): Promise<SetupEmailPreview> {
+    const r: any = await this.request(`/api/admin/account-setup/preview/${encodeURIComponent(userId)}/email`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+    return {
+      subject: String(r?.subject ?? ""),
+      text: String(r?.text ?? ""),
+      template: r?.template,
+      reminderNumber: Number(r?.reminderNumber) || 0,
+      email: String(r?.email ?? ""),
+    };
+  }
+
+  /**
+   * Sends the due reminder to the ticked people only. setupSendBody always sets dryRun false and a
+   * non empty userIds list (without it the backend emails everyone due) and throws otherwise.
+   */
+  async sendAdminSetupReminders(authToken: string, picked: Iterable<string>): Promise<{ reminders?: DueReminder[]; notDue?: string[] }> {
+    const body = setupSendBody(picked);
+    return this.request("/api/admin/account-setup/send", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+      // The backend sends one by one before answering; up to 200 people can take over 30 s.
+      timeout: 120000,
+    });
   }
 
   // Vendor plans (same routes and bodies as goutsyde.com /admin/vendors). Errors throw ApiError;
