@@ -42,7 +42,7 @@ export default function UsernameField({
   }, []);
 
   const handleChange = (text: string) => {
-    const clean = text.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20);
+    const clean = text.toLowerCase().replace(/[^a-z0-9_.]/g, "").slice(0, 20);
     onChange(clean);
     setAvailability("idle");
     onAvailabilityChange(null);
