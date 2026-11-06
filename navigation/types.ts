@@ -1,11 +1,11 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
-import { BusinessAppointment, ConsumerOrderItem } from "@/services/api";
+import { BusinessAppointment, ConsumerOrderItem, AdminRefundRequestItem } from "@/services/api";
 import { Story } from "@/components/StoryRing";
 import type { FeedMode } from "@/utils/feedModes";
 
 // Sections of the in-app admin (screens/AdminDashboardScreen.tsx).
-export type AdminSection = "users" | "businesses" | "photographers" | "payments" | "messages" | "influencers";
+export type AdminSection = "users" | "businesses" | "photographers" | "payments" | "messages" | "influencers" | "reports";
 
 export type RootStackParamList = {
   Onboarding: { startAtSlide?: number } | undefined;
@@ -151,6 +151,8 @@ export type RootStackParamList = {
   AdminBusinessReview: { businessId: string };
   AdminPhotographerDetail: { photographerId: string };
   AdminInfluencerDetail: { applicationId: string };
+  // A pending refund request or quote report from the Admin Reports list (passed whole; the list route is the only read).
+  AdminRefundRequest: { request: AdminRefundRequestItem };
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
   BusinessBillingAddress: undefined;

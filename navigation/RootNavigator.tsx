@@ -45,6 +45,7 @@ import AdminUserDetailScreen from "@/screens/AdminUserDetailScreen";
 import AdminBusinessReviewScreen from "@/screens/AdminBusinessReviewScreen";
 import AdminPhotographerDetailScreen from "@/screens/AdminPhotographerDetailScreen";
 import AdminInfluencerDetailScreen from "@/screens/AdminInfluencerDetailScreen";
+import AdminRefundRequestScreen from "@/screens/AdminRefundRequestScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import BusinessBillingAddressScreen from "@/screens/BusinessBillingAddressScreen";
@@ -721,6 +722,26 @@ export default function RootNavigator() {
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Influencer",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16} style={{ paddingHorizontal: 8 }}>
+              <Feather name="arrow-left" size={24} color={theme.text} />
+            </Pressable>
+          ),
+          headerBackTitle: "Back",
+        })}
+      />
+
+      <Stack.Screen
+        name="AdminRefundRequest"
+        component={AdminRefundRequestScreen}
+        options={({ navigation }) => ({
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Report",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
