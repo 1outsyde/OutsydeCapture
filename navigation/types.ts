@@ -64,7 +64,9 @@ export type RootStackParamList = {
   };
   /** One quote and its booking (Quotes step 6c-1). start: the chat card's step, run once (utils/quoteLogic Start). */
   Quote: { quoteId: string; start?: string };
-  CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets"; _ts?: number } | undefined;
+  CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets" | "quotes"; _ts?: number } | undefined;
+  /** Request a quote on a contact for pricing service (Quotes step 6c-2b). */
+  RequestQuote: { serviceId: string; serviceName?: string };
   /** One event's tickets with QR codes (from GET /api/events/me/tickets). */
   TicketDetail: { eventId: string };
   /** Host: create (no id) or edit an event (p4-host). */

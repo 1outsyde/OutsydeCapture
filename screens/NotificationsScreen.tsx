@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { activityTarget } from "@/utils/ticketCheckoutLogic";
+import { activityQuoteId } from "@/utils/requestLogic";
 import { openTicketTarget } from "@/hooks/useTicketPushLinks";
 import {
   View,
@@ -162,7 +163,11 @@ export default function NotificationsScreen() {
     const bookingTarget = isBookingPushType(notification.type)
       ? bookingPushTarget({ type: notification.type, screen: notification.metadata?.screen })
       : null;
-    if (bookingTarget) {
+    // Quotes 6c-2b (call 5): every quote row opens its quote.
+    const quoteId = activityQuoteId(notification as { type: string; metadata?: Record<string, unknown> });
+    if (quoteId) {
+      navigation.navigate("Quote", { quoteId });
+    } else if (bookingTarget) {
       openBookingPushTarget(navigation, user, bookingTarget);
     } else if (notification.type === "plan_offer") {
       // Same as tapping the offer push: back to the main tabs, where the popup opens.

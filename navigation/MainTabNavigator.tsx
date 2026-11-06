@@ -33,6 +33,7 @@ import { useReferralPushLinks } from "@/hooks/useReferralPushLinks";
 import { useAnnouncementPushLinks } from "@/hooks/useAnnouncementPushLinks";
 import { useTicketPushLinks } from "@/hooks/useTicketPushLinks";
 import PlanOfferHost from "@/components/plan-offer/PlanOfferHost";
+import QuoteActionsHost from "@/components/quotes/QuoteActionsHost";
 import StaffPayoutsBanner, { shouldShowStaffPayoutsBanner } from "@/components/StaffPayoutsBanner";
 import { notifyHostSetupReturn, takeHostSetupPending } from "@/utils/host/hostGate";
 
@@ -439,6 +440,8 @@ export default function MainTabNavigator() {
       </SafeAreaInsetsContext.Provider>
       {/* Hidden plan offer popup: registers with the modal coordinator, so the Stripe prompt waits for it. */}
       <PlanOfferHost />
+      {/* Quotes 6c-2b: what is waiting on the customer, one at a time (same modal coordinator). */}
+      <QuoteActionsHost />
       <StripeConnectPrompt visible={showConnectPrompt} onSnooze={() => setSnoozed(true)} />
     </View>
   );

@@ -808,6 +808,8 @@ export interface VendorService {
   updatedAt?: string;
   depositAmountCents?: number | null;
   imageUrl?: string | null;
+  /** Contact for pricing: a request form, never booked (migration 068; the public list sends the full row). */
+  requestOnly?: boolean | null;
 }
 
 // Create/Update Product Request
@@ -6566,6 +6568,39 @@ class ApiService {
       headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify({}),
     });
+  }
+
+  // ── Requests and quotes (step 6c-2b) ──
+
+  /** A request only service's form (404 when the service doesn't take requests). */
+  async getRequestForm(serviceId: string): Promise<import("@/utils/requestLogic").RequestForm> {
+    return this.request(`/api/services/${encodeURIComponent(serviceId)}/request-form`);
+  }
+
+  /** Sends a request (5 per hour). The answer carries the chat it opened. */
+  async submitRequest(authToken: string, body: ReturnType<typeof import("@/utils/requestLogic").requestBody>): Promise<{ success: boolean; request: { id: string; status: string; conversationId: string | null } }> {
+    return this.request("/api/estimate-requests", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** The customer's quotes, newest first, each with its booking detail. */
+  async getMyQuotes(authToken: string): Promise<QuoteWire[]> {
+    const res = await this.request<{ quotes: QuoteWire[] }>("/api/me/quotes", { headers: { Authorization: `Bearer ${authToken}` } });
+    return res.quotes ?? [];
+  }
+
+  async getMyRequests(authToken: string): Promise<{ id: string; status: string; serviceName: string | null; businessName: string | null; conversationId: string | null; createdAt: string }[]> {
+    const res = await this.request<{ requests: any[] }>("/api/me/requests", { headers: { Authorization: `Bearer ${authToken}` } });
+    return res.requests ?? [];
+  }
+
+  /** Everything waiting on the customer (the pop-up), money first. */
+  async getQuoteActions(authToken: string): Promise<import("@/utils/requestLogic").QuoteAction[]> {
+    const res = await this.request<{ actions: import("@/utils/requestLogic").QuoteAction[] }>("/api/me/quote-actions", { headers: { Authorization: `Bearer ${authToken}` } });
+    return res.actions ?? [];
   }
 
   /** Report a problem inside the 6 hours. photos: uploaded URLs (folder "requests"), up to 5. */

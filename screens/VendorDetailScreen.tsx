@@ -76,6 +76,7 @@ import { StarDisplay, RatingBottomSheet } from "@/components/ratings";
 import type { PurchaseItem, RatingCheckResponse, RatingsResponse } from "@/types/ratings";
 import { displayRating } from "@/types/ratings";
 import { formatDuration } from "@/utils/duration";
+import { serviceAction } from "@/utils/requestLogic";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -138,6 +139,8 @@ type ServiceCard = {
   rating?: number;
   reviewCount?: number;
   imageUrl?: string;
+  /** Quotes step 6c-2b: contact for pricing, opens the request form instead of booking. */
+  requestOnly?: boolean;
 };
 
 type AvailabilitySlot = {
@@ -727,6 +730,7 @@ export default function VendorDetailScreen({ route }: Props) {
             rating: Number(item.rating ?? 0),
             reviewCount: Number(item.reviewCount ?? 0),
             imageUrl: item.imageUrl || undefined,
+            requestOnly: item.requestOnly === true,
           }));
 
         resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
@@ -1541,6 +1545,17 @@ export default function VendorDetailScreen({ route }: Props) {
         };
       }
 
+      // Every service is contact for pricing: Request a quote (the only one opens its form).
+      if (profile.hasServices && services.length > 0 && services.every((s) => s.requestOnly)) {
+        return {
+          label: "Request a quote →",
+          onPress: () => {
+            if (services.length === 1) navigation.navigate("RequestQuote", { serviceId: services[0].id, serviceName: services[0].name });
+            else setActiveTab("booking");
+          },
+        };
+      }
+
       // Vendor configured Book Now OR has no config but has services
       if (profile.hasServices) {
         return {
@@ -1566,7 +1581,7 @@ export default function VendorDetailScreen({ route }: Props) {
       label: "Message",
       onPress: handleMessage,
     };
-  }, [navigation, profile, products, addItem, openProduct, handleMessage, openBooking]);
+  }, [navigation, profile, products, services, addItem, openProduct, handleMessage, openBooking]);
 
   const reviewBreakdown = useMemo(() => {
     const dist = ratingsData?.distribution as Record<string, number> | undefined;
@@ -2166,9 +2181,16 @@ export default function VendorDetailScreen({ route }: Props) {
               <Pressable
                 key={service.id}
                 onPress={() => {
+                  // Contact for pricing always opens the request form (Legend 2026-11-05).
+                  if (service.requestOnly) {
+                    navigation.navigate("RequestQuote", { serviceId: service.id, serviceName: service.name });
+                    return;
+                  }
                   setSelectedStaffId(null);
                   openBooking({ serviceId: service.id });
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`${service.name}, ${serviceAction(service).price}, ${serviceAction(service).button}`}
                 style={{
                   backgroundColor: "rgba(0,0,0,0.30)",
                   borderRadius: 14,
@@ -2250,7 +2272,7 @@ export default function VendorDetailScreen({ route }: Props) {
                       marginBottom: 8,
                     }}
                   >
-                    {formatCents(service.priceCents)}
+                    {serviceAction(service).price}
                   </Text>
                   <View
                     style={{
@@ -2267,7 +2289,7 @@ export default function VendorDetailScreen({ route }: Props) {
                         fontWeight: "800",
                       }}
                     >
-                      Book
+                      {serviceAction(service).button}
                     </Text>
                   </View>
                 </View>
