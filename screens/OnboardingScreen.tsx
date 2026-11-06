@@ -64,7 +64,7 @@ const ROLE_OPTIONS: {
   {
     role: "consumer",
     icon: "shopping-bag",
-    label: "Consumer",
+    label: "Outsyder",
     description: "Browse, book sessions & shop local talent",
     accent: OB.greenAccent,
   },

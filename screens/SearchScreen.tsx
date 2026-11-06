@@ -30,7 +30,7 @@ type TabType = "all" | "consumer" | "business" | "photographer" | "product" | "s
 
 const TABS: { id: TabType; label: string; icon: string }[] = [
   { id: "all", label: "All", icon: "grid" },
-  { id: "consumer", label: "Consumers", icon: "user" },
+  { id: "consumer", label: "Outsyders", icon: "user" },
   { id: "photographer", label: "Photographers", icon: "camera" },
   { id: "business", label: "Businesses", icon: "briefcase" },
   { id: "product", label: "Products", icon: "shopping-bag" },
@@ -67,8 +67,15 @@ const getInitials = (name: string | undefined | null): string => {
   return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
 };
 
+/** Empty state noun from the tab's on-screen label (the tab id "consumer" is never shown). */
+const emptyNoun = (tab: TabType): string => {
+  if (tab === "all") return "results";
+  const label = TABS.find((t) => t.id === tab)?.label ?? "results";
+  return tab === "consumer" ? label : label.toLowerCase();
+};
+
 const RESULT_TYPE_LABELS: Record<string, string> = {
-  consumer: "Consumer",
+  consumer: "Outsyder",
   business: "Business",
   photographer: "Photographer",
   product: "Product",
@@ -1016,8 +1023,8 @@ export default function SearchScreen() {
             </ThemedText>
             <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center", fontSize: 14 }}>
               {searchQuery
-                ? `No ${activeTab === "all" ? "results" : activeTab + "s"} match "${searchQuery}"`
-                : `No ${activeTab === "all" ? "results" : activeTab + "s"} available`}
+                ? `No ${emptyNoun(activeTab)} match "${searchQuery}"`
+                : `No ${emptyNoun(activeTab)} available`}
             </ThemedText>
           </View>
         )
