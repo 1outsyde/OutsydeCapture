@@ -21,6 +21,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api, { AdminStats, AdminUser, AdminBusiness, AdminPhotographer, AdminInfluencer, AdminOrder, AdminBooking, AdminConversation, AdminRefundRequestItem } from "@/services/api";
+import { planLabel, adminOfferText } from "@/utils/adminPlans";
 import { RootStackParamList, AdminSection } from "@/navigation/types";
 
 type TabType = AdminSection;
@@ -551,6 +552,11 @@ export default function AdminDashboardScreen() {
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 12,
+    },
+    inlineTag: {
+      alignSelf: "flex-start",
+      marginTop: 2,
+      marginBottom: 2,
     },
     deletionBadge: {
       marginRight: 6,
@@ -1434,6 +1440,22 @@ export default function AdminDashboardScreen() {
                     {item.earnings !== undefined ? (
                       <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
                     ) : null}
+                    {status === "approved" ? (() => {
+                      // Plan and offer lines, same wording as goutsyde.com /admin/vendors.
+                      const plan = planLabel(item);
+                      const offerLine = item.planOffer ? adminOfferText(item.planOffer).text : null;
+                      return (
+                        <>
+                          <Text style={styles.listItemInfo}>Plan: {plan.text ?? "No plan"}</Text>
+                          {plan.needsStripeConnect ? (
+                            <View style={[styles.statusBadge, styles.pendingBadge, styles.inlineTag]}>
+                              <Text style={[styles.statusText, styles.pendingText]}>Needs Stripe Connect</Text>
+                            </View>
+                          ) : null}
+                          {offerLine ? <Text style={styles.listItemInfo}>{offerLine}</Text> : null}
+                        </>
+                      );
+                    })() : null}
                     <View style={styles.actionRow} pointerEvents="box-none">
                       <TouchableOpacity 
                         style={[styles.actionButton, styles.viewDetailsButton]}
@@ -1443,6 +1465,18 @@ export default function AdminDashboardScreen() {
                         <Feather name="eye" size={14} color={C.gold} />
                         <Text style={styles.viewDetailsButtonText}>View Details</Text>
                       </TouchableOpacity>
+                      {status === "approved" ? (
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.viewDetailsButton]}
+                          activeOpacity={0.7}
+                          onPress={() => navigation.navigate("AdminVendorPlan", { business: item })}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Plan for ${item.name}`}
+                        >
+                          <Feather name="award" size={14} color={C.gold} />
+                          <Text style={styles.viewDetailsButtonText}>Plan</Text>
+                        </TouchableOpacity>
+                      ) : null}
                       {status === "pending" ? (
                         <>
                           <TouchableOpacity 

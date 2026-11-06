@@ -1,6 +1,6 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 import { Photographer, PhotographyCategory } from "@/context/DataContext";
-import { BusinessAppointment, ConsumerOrderItem, AdminRefundRequestItem } from "@/services/api";
+import { BusinessAppointment, ConsumerOrderItem, AdminRefundRequestItem, AdminBusiness } from "@/services/api";
 import { Story } from "@/components/StoryRing";
 import type { FeedMode } from "@/utils/feedModes";
 
@@ -153,6 +153,8 @@ export type RootStackParamList = {
   AdminInfluencerDetail: { applicationId: string };
   // A pending refund request or quote report from the Admin Reports list (passed whole; the list route is the only read).
   AdminRefundRequest: { request: AdminRefundRequestItem };
+  // One business's plan tools, from the Admin Businesses list (passed whole; updated from each response).
+  AdminVendorPlan: { business: AdminBusiness };
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
   BusinessBillingAddress: undefined;

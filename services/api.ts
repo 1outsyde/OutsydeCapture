@@ -1,3 +1,4 @@
+import type { AdminSubscriptionSummary, AdminOfferSummary, OfferPlan } from "@/utils/adminPlans";
 import type { BusinessReferralsInfo } from "@/utils/businessReferral";
 import {
   getAccessToken,
@@ -960,6 +961,11 @@ export interface AdminBusiness {
   // Added by GET /api/admin/businesses (routes.ts owner enrichment).
   ownerName?: string;
   ownerEmail?: string;
+  // Also from GET /api/admin/businesses (same list goutsyde.com /admin/vendors reads). Optional.
+  subscription?: AdminSubscriptionSummary | null;
+  planOffer?: AdminOfferSummary | null;
+  hasConnectAccount?: boolean;
+  stripeOnboardingComplete?: boolean | null;
 }
 
 export interface AdminBusinessDetailOwner {
@@ -2980,6 +2986,46 @@ class ApiService {
   ): Promise<{ success: boolean; alreadyPending?: boolean; scheduledDeletionAt?: string }> {
     return this.request(`/api/admin/users/${encodeURIComponent(userId)}/schedule-deletion`, {
       method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Vendor plans (same routes and bodies as goutsyde.com /admin/vendors). Errors throw ApiError;
+  // read them with adminErrorMessage (offer routes nest { error: { code, message } }).
+  async grantFreePlan(
+    authToken: string,
+    businessId: string,
+    end: { permanent: true } | { expiresAt: string }
+  ): Promise<{ subscription: AdminSubscriptionSummary; connectReady?: boolean }> {
+    return this.request(`/api/admin/businesses/${encodeURIComponent(businessId)}/complimentary-subscription`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(end),
+    });
+  }
+
+  async revokeFreePlan(authToken: string, businessId: string): Promise<{ subscription: AdminSubscriptionSummary }> {
+    return this.request(`/api/admin/businesses/${encodeURIComponent(businessId)}/complimentary-subscription`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async offerPlan(
+    authToken: string,
+    businessId: string,
+    body: { plan: "grandfathered" } | { plan: Extract<OfferPlan, "free">; permanent: true } | { plan: Extract<OfferPlan, "free">; expiresAt: string }
+  ): Promise<{ success: boolean; offer: AdminOfferSummary; notified?: boolean }> {
+    return this.request(`/api/admin/businesses/${encodeURIComponent(businessId)}/plan-offer`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async withdrawPlanOffer(authToken: string, businessId: string): Promise<{ success: boolean; offer: AdminOfferSummary }> {
+    return this.request(`/api/admin/businesses/${encodeURIComponent(businessId)}/plan-offer`, {
+      method: "DELETE",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }
