@@ -220,6 +220,18 @@ export function stageOf(
   return "booked";
 }
 
+/** The customer can pay this quote here and now (review I2: the same check on the card and the screen). */
+export function canPayNow(
+  q: Pick<
+    Quote,
+    "status" | "paying" | "window" | "report" | "kind" | "jobDate" | "startTime"
+  >,
+): boolean {
+  return (
+    stageOf(q) === "pay" && q.kind !== "product" && !!q.jobDate && !!q.startTime
+  );
+}
+
 export function quoteChip(
   q: Pick<Quote, "status" | "paying" | "window" | "report">,
 ): string {
@@ -473,7 +485,7 @@ export function cardView(
     else if (live.status === "paid") out.note = "Paid.";
     else if (live.status !== "sent") out.note = closedLine(live.status);
     else if (live.paying) out.note = "Your payment is being confirmed.";
-    else if (mine)
+    else if (mine && canPayNow(live))
       out.buttons = [
         {
           label: `Pay ${money(live.amounts.payNowCents)}`,

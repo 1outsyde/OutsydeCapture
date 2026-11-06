@@ -148,8 +148,13 @@ export function useQuotePayments(getToken: () => Promise<string | null>) {
           step = approveStep(r, true) === "done" ? "done" : "failed";
         }
         if (step === "done") return { ok: true };
-        // The webhook finishes it: the screen reads the quote again.
-        if (r.status === "needs_action") return { ok: true };
+        // Review I1: still waiting on the bank after its check: say so, never "Approved".
+        if (r.status === "needs_action")
+          return {
+            ok: false,
+            message:
+              "Your bank is still confirming this card. Check back in a minute.",
+          };
         return {
           ok: false,
           message: "We couldn't approve this extra. Try again.",

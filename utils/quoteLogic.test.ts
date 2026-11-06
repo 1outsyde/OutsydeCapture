@@ -16,6 +16,7 @@ import {
   windowLeft,
   reportProblem,
   decidedLine,
+  canPayNow,
   cardView,
   parseStart,
   quoteIdsIn,
@@ -518,6 +519,20 @@ test("card copy follows the rules", () => {
     );
     assert.notEqual(v.pill, "", e);
   }
+});
+
+test("Pay only where it can be paid (review I2)", () => {
+  assert.equal(canPayNow(q()), true);
+  assert.equal(canPayNow(q({ kind: "product", dueDate: "2026-12-01" })), false);
+  assert.equal(canPayNow(q({ jobDate: null })), false);
+  assert.equal(canPayNow(q({ startTime: null })), false);
+  assert.equal(canPayNow(q({ paying: true })), false);
+  const v = cardView(card(), q({ kind: "product" }), { isCustomer: true });
+  assert.deepEqual(
+    v.buttons.map((b) => b.start),
+    ["view"],
+    "a product quote card: no Pay button",
+  );
 });
 
 test("starts and ids", () => {

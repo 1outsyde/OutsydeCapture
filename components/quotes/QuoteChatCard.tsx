@@ -53,7 +53,11 @@ export default function QuoteChatCard({
           {v.pill}
         </ThemedText>
         {loading && !live && card.type !== "request" ? (
-          <ActivityIndicator size="small" color={theme.brandTextDim} />
+          <ActivityIndicator
+            size="small"
+            color={theme.brandTextDim}
+            accessibilityLabel="Loading the quote"
+          />
         ) : null}
       </View>
       {v.title ? (

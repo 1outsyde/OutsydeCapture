@@ -420,9 +420,12 @@ export default function ChatScreen() {
   const quoteIds = useMemo(() => quoteIdsIn(messages), [messages]);
   const cardCount = useMemo(() => messages.filter((m) => m.kind === "quote" || m.kind === "request").length, [messages]);
   const quoteIdsKey = quoteIds.join(",");
+  // Review minor 3: one read path (on focus and when cards change while focused); an older answer never wins.
+  const quotesSeq = useRef(0);
   const loadQuotes = useCallback(async () => {
     const ids = quoteIdsKey ? quoteIdsKey.split(",") : [];
     if (!ids.length) return;
+    const seq = ++quotesSeq.current;
     setQuotesLoading(true);
     try {
       const token = await getToken();
@@ -434,6 +437,7 @@ export default function ChatScreen() {
           return [id, (err as ApiError)?.status === 404 ? null : undefined] as const;
         }
       }));
+      if (seq !== quotesSeq.current) return;
       setQuotes((prev) => {
         const next = { ...prev };
         for (const [id, qv] of got) if (qv !== undefined) next[id] = qv;
@@ -443,14 +447,13 @@ export default function ChatScreen() {
       setQuotesLoading(false);
     }
   }, [quoteIdsKey, getToken]);
-  useEffect(() => {
-    const t = setTimeout(loadQuotes, 0);
-    return () => clearTimeout(t);
-  }, [loadQuotes, cardCount]);
   useFocusEffect(
     useCallback(() => {
-      loadQuotes();
-    }, [loadQuotes]),
+      const t = setTimeout(loadQuotes, 0);
+      return () => clearTimeout(t);
+      // cardCount: a new card (a quote moment) reads the quotes again.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadQuotes, cardCount]),
   );
   const openQuote = useCallback(
     (quoteId: string, start: Start) => navigation.navigate("Quote", { quoteId, start }),

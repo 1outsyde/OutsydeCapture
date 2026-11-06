@@ -59,6 +59,7 @@ import {
   quoteChip,
   reportProblem,
   stageOf,
+  canPayNow,
   whenLine,
   windowLeft,
   type Quote,
@@ -69,7 +70,8 @@ type Busy =
   | null
   | "pay"
   | "decline"
-  | "card"
+  | "card:balance"
+  | "card:extras"
   | "confirm"
   | "report"
   | `approve:${string}`
@@ -166,20 +168,21 @@ export default function QuoteScreen() {
     [load, settle],
   );
 
-  const run = useCallback(
-    async (b: Busy, fn: () => Promise<void>) => {
-      if (busy) return;
-      setBusy(b);
-      setError("");
-      setOk("");
-      try {
-        await fn();
-      } finally {
-        if (alive.current) setBusy(null);
-      }
-    },
-    [busy],
-  );
+  // Review minor 4: a ref, so two quick taps never both start a step.
+  const busyRef = useRef(false);
+  const run = useCallback(async (b: Busy, fn: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(b);
+    setError("");
+    setOk("");
+    try {
+      await fn();
+    } finally {
+      busyRef.current = false;
+      if (alive.current) setBusy(null);
+    }
+  }, []);
 
   const pay = (cur: Quote) =>
     run("pay", async () =>
@@ -190,7 +193,7 @@ export default function QuoteScreen() {
       ),
     );
   const card = (cur: Quote, which: "balance" | "extras") =>
-    run("card", async () =>
+    run(`card:${which}`, async () =>
       finish(
         await steps.card(cur, which),
         which === "balance" ? "Your card is updated." : "Done. Thanks.",
@@ -207,7 +210,8 @@ export default function QuoteScreen() {
       await finish(
         r,
         "Approved.",
-        (f) => f.extras.find((x) => x.id === extraId)?.status !== "proposed",
+        // Review I1: done only once the extra is approved.
+        (f) => f.extras.find((x) => x.id === extraId)?.status === "approved",
       );
     });
   const declineExtra = (cur: Quote, extraId: string) =>
@@ -259,6 +263,7 @@ export default function QuoteScreen() {
   const sendReport = (cur: Quote) => {
     const problem = reportProblem(reason, photos.length);
     if (problem) {
+      setOk("");
       setError(problem);
       return;
     }
@@ -275,7 +280,7 @@ export default function QuoteScreen() {
           if (up?.url) urls.push(up.url);
         } catch {
           setError(
-            "A photo didn't upload. Try again, or send the report without it.",
+            "A photo didn't upload. Try again, or remove it and send the report.",
           );
           return;
         }
@@ -294,7 +299,7 @@ export default function QuoteScreen() {
     q: Quote,
     s: NonNullable<ReturnType<typeof parseStart>>,
   ) => {
-    if (s.kind === "pay" && stageOf(q) === "pay") pay(q);
+    if (s.kind === "pay" && canPayNow(q)) pay(q);
     else if (s.kind === "balance-card" && q.balance?.needsNewCard)
       card(q, "balance");
     else if (
@@ -471,7 +476,7 @@ export default function QuoteScreen() {
             {bal?.action && isCustomer ? (
               <PrimaryButton
                 label={bal.action.label}
-                busy={busy === "card"}
+                busy={busy === "card:balance"}
                 disabled={!!busy}
                 onPress={() => card(q, "balance")}
               />
@@ -546,7 +551,7 @@ export default function QuoteScreen() {
             {xp?.action && isCustomer ? (
               <PrimaryButton
                 label={xp.action.label}
-                busy={busy === "card"}
+                busy={busy === "card:extras"}
                 disabled={!!busy}
                 onPress={() => card(q, "extras")}
               />
@@ -595,7 +600,11 @@ export default function QuoteScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`Remove photo ${i + 1}`}
                     >
-                      <Image source={{ uri: p.uri }} style={styles.thumb} />
+                      <Image
+                        source={{ uri: p.uri }}
+                        style={styles.thumb}
+                        accessibilityLabel={`Photo ${i + 1}`}
+                      />
                     </Pressable>
                   ))}
                   {photos.length < MAX_PHOTOS ? (
@@ -650,10 +659,21 @@ export default function QuoteScreen() {
         {ok ? <OkText>{ok}</OkText> : null}
 
         <OutlineButton
-          label={`Message ${name}`}
-          onPress={() =>
-            navigation.navigate("Chat", { conversationId: q.conversationId })
-          }
+          label={isCustomer ? `Message ${name}` : "Message the customer"}
+          onPress={() => {
+            // Review minor 5: back to the chat it came from, never a second copy of it.
+            const routes = navigation.getState()?.routes ?? [];
+            const prev = routes[routes.length - 2] as
+              | { name?: string; params?: { conversationId?: string } }
+              | undefined;
+            if (
+              prev?.name === "Chat" &&
+              prev.params?.conversationId === q.conversationId
+            )
+              navigation.goBack();
+            else
+              navigation.navigate("Chat", { conversationId: q.conversationId });
+          }}
         />
       </ScrollView>
     </ThemedView>
