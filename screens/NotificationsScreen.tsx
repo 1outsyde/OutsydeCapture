@@ -184,7 +184,7 @@ export default function NotificationsScreen() {
       // 73, 78): the same screen their push opens. A team message opens their event.
       openTicketTarget(navigation, activityTarget(notification as any)!);
     } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
-      navigation.navigate("AdminDashboard");
+      navigation.navigate("AdminDashboard", { section: "businesses" });
     } else if (notification.metadata?.sessionId) {
       navigation.navigate("SessionDetail", {
         sessionId: notification.metadata.sessionId as string,

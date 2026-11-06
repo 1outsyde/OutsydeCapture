@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useLayoutEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,32 +11,67 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  BackHandler,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api, { AdminStats, AdminUser, AdminBusiness, AdminPhotographer, AdminInfluencer, AdminOrder, AdminBooking, AdminConversation } from "@/services/api";
-import { RootStackParamList } from "@/navigation/types";
+import { RootStackParamList, AdminSection } from "@/navigation/types";
 
-type TabType = "users" | "businesses" | "photographers" | "payments" | "messages" | "influencers";
+type TabType = AdminSection;
 type StatusFilter = "pending" | "approved" | "rejected" | "all";
 // Refunds is hidden until the refund request routes are decided (vault open decision 2, R33).
 type PaymentSubTab = "orders" | "bookings";
+
+// Admin home rows, in the order shown. Pending work first.
+const SECTIONS: { key: TabType; label: string; sub: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { key: "businesses", label: "Businesses", sub: "Applications, approve or reject", icon: "briefcase" },
+  { key: "users", label: "Users", sub: "Find, disable or enable accounts", icon: "users" },
+  { key: "photographers", label: "Photographers", sub: "Visibility, ban, deletion", icon: "camera" },
+  { key: "payments", label: "Payments", sub: "Revenue, orders and bookings", icon: "credit-card" },
+  { key: "influencers", label: "Influencers", sub: "Review applications", icon: "trending-up" },
+  { key: "messages", label: "Messages", sub: "All conversations", icon: "message-square" },
+];
+
+const sectionLabels = Object.fromEntries(SECTIONS.map((s) => [s.key, s.label])) as Record<TabType, string>;
 
 const getBusinessStatus = (business: AdminBusiness): "pending" | "approved" | "rejected" => {
   return business.approvalStatus || business.status || "pending";
 };
 
 export default function AdminDashboardScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, "AdminDashboard">>();
   const { getToken, isLoading: authLoading } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<TabType>("users");
+  // Outsyde brand v1 tokens (constants/theme.ts), light and dark. Dim text is cream at 70%
+  // (brandTextDim is too faint for 12px labels in dark). Gold text uses goldDim in light mode
+  // so it stays readable on white; icons and badges use brandGold.
+  const C = useMemo(() => ({
+    bg: theme.brandBg,
+    card: theme.brandBgElevated,
+    border: theme.brandSurfaceBorder,
+    text: theme.brandCream,
+    dim: theme.brandCream + "B3",
+    gold: theme.brandGold,
+    goldText: isDark ? theme.brandGold : theme.brandGoldDim,
+    onGold: isDark ? theme.brandBg : theme.brandCream, // dark text on a gold fill, both modes
+    primary: theme.brandPrimary,
+    primaryText: theme.brandPrimaryText,
+    success: theme.brandSuccess,
+    pending: theme.brandPending,
+    error: theme.brandError,
+  }), [theme, isDark]);
+
+  // null = Admin home. A section opens on its own with a back arrow to home.
+  const [activeTab, setActiveTab] = useState<TabType | null>(route.params?.section ?? null);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -99,6 +134,7 @@ export default function AdminDashboardScreen() {
   }, [getToken]);
 
   const fetchTabData = useCallback(async () => {
+    if (!activeTab) return; // Admin home only needs fetchData (stats + pending count).
     const token = await getToken();
     if (!token) return;
 
@@ -174,6 +210,71 @@ export default function AdminDashboardScreen() {
     setRefreshing(false);
   };
 
+  const openSection = useCallback((key: TabType) => {
+    setSearchQuery("");
+    setActiveTab(key);
+  }, []);
+
+  const goHome = useCallback(() => {
+    setSearchQuery("");
+    setActiveTab(null);
+  }, []);
+
+  // One header bar (RootNavigator sets the X to close): "Admin" on home, the section name with
+  // a back arrow inside a section.
+  useLayoutEffect(() => {
+    const label = activeTab ? sectionLabels[activeTab] : "Admin";
+    navigation.setOptions({
+      headerTitle: label,
+      headerTintColor: C.text,
+      headerStyle: { backgroundColor: C.bg },
+      headerLeft: activeTab
+        ? () => (
+            <Pressable
+              onPress={goHome}
+              hitSlop={16}
+              accessibilityRole="button"
+              accessibilityLabel="Back to Admin"
+            >
+              <Feather name="arrow-left" size={24} color={C.text} />
+            </Pressable>
+          )
+        : () => null,
+    });
+  }, [navigation, activeTab, C, goHome]);
+
+  // Android back from a section returns to Admin home instead of closing the admin.
+  useEffect(() => {
+    if (!activeTab) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      goHome();
+      return true;
+    });
+    return () => sub.remove();
+  }, [activeTab, goHome]);
+
+  // Coming back from a detail screen (business review, user, photographer, influencer) reloads
+  // the counts and the open section, so a badge drops right after an approve. Skips the first
+  // focus because the effects above already load on open.
+  // The callback stays stable (a changing callback would re-run on every search keystroke);
+  // it reads the latest loaders from a ref.
+  const hasFocusedOnce = useRef(false);
+  const latest = useRef({ authLoading, fetchData, fetchTabData });
+  useEffect(() => {
+    latest.current = { authLoading, fetchData, fetchTabData };
+  }, [authLoading, fetchData, fetchTabData]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnce.current) {
+        hasFocusedOnce.current = true;
+        return;
+      }
+      if (latest.current.authLoading) return;
+      latest.current.fetchData();
+      latest.current.fetchTabData();
+    }, [])
+  );
+
   const handleApprove = async (type: "business" | "influencer", id: string) => {
     const token = await getToken();
     if (!token) return;
@@ -248,100 +349,147 @@ export default function AdminDashboardScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: C.bg,
     },
-    header: {
+    homeContent: {
+      padding: 16,
+      paddingBottom: insets.bottom + 40,
+      gap: 16,
+    },
+    statGrid: {
       flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingTop: insets.top + 12,
-      paddingBottom: 12,
+      flexWrap: "wrap",
+      gap: 8,
     },
-    backButton: {
-      padding: 8,
-      marginRight: 12,
+    statTile: {
+      flexBasis: "30%",
+      flexGrow: 1,
+      backgroundColor: C.card,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderRadius: 12,
+      padding: 12,
     },
-    headerTitle: {
-      flex: 1,
-    },
-    title: {
-      fontSize: 22,
+    statTileValue: {
+      fontSize: 20,
       fontWeight: "700",
-      color: theme.text,
+      color: C.text,
+      fontVariant: ["tabular-nums"],
     },
-    subtitle: {
+    statTileLabel: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: C.dim,
       marginTop: 2,
     },
-    statsRow: {
-      flexDirection: "row",
-      paddingHorizontal: 8,
-      paddingVertical: 8,
-      gap: 6,
-    },
-    statCard: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 8,
-      paddingVertical: 6,
-      paddingHorizontal: 10,
+    needsCard: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: 12,
+      backgroundColor: C.primary,
+      borderRadius: 14,
+      padding: 14,
     },
-    statIcon: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: theme.primary + "20",
+    needsIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: C.gold + "2E",
       alignItems: "center",
       justifyContent: "center",
     },
-    statLabel: {
-      fontSize: 10,
-      color: theme.textSecondary,
+    needsText: {
+      flex: 1,
+      minWidth: 0,
     },
-    statValue: {
+    needsTitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: C.primaryText,
+    },
+    needsSub: {
+      fontSize: 13,
+      color: C.primaryText + "BF",
+      marginTop: 2,
+    },
+    needsButton: {
+      minHeight: 44,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      backgroundColor: C.gold,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    needsButtonText: {
       fontSize: 14,
       fontWeight: "700",
-      color: theme.text,
+      color: C.onGold,
     },
-    tabsContainer: {
-      backgroundColor: theme.backgroundDefault,
-      borderRadius: 12,
-      marginHorizontal: 12,
-      marginBottom: 12,
-      padding: 4,
+    sectionHeading: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 1,
+      textTransform: "uppercase",
+      color: C.dim,
+      marginTop: 4,
     },
-    tabsRow: {
-      flexDirection: "row",
+    sectionList: {
+      gap: 8,
     },
-    tab: {
-      flex: 1,
+    sectionRow: {
+      minHeight: 60,
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
+      gap: 12,
+      paddingHorizontal: 14,
       paddingVertical: 10,
-      paddingHorizontal: 8,
-      borderRadius: 8,
-      gap: 4,
+      backgroundColor: C.card,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderRadius: 12,
     },
-    activeTab: {
-      backgroundColor: theme.backgroundRoot,
+    sectionRowPressed: {
+      opacity: 0.7,
     },
-    tabText: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      fontWeight: "500",
+    sectionIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: C.gold + "1F",
+      alignItems: "center",
+      justifyContent: "center",
     },
-    activeTabText: {
-      color: theme.primary,
+    sectionText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    sectionTitle: {
+      fontSize: 15,
       fontWeight: "600",
+      color: C.text,
+    },
+    sectionSub: {
+      fontSize: 13,
+      color: C.dim,
+      marginTop: 1,
+    },
+    rowBadge: {
+      minWidth: 22,
+      height: 22,
+      paddingHorizontal: 7,
+      borderRadius: 11,
+      backgroundColor: C.gold,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    rowBadgeText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: C.onGold,
     },
     searchContainer: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: C.card,
       borderRadius: 10,
       marginHorizontal: 12,
       marginBottom: 8,
@@ -352,7 +500,7 @@ export default function AdminDashboardScreen() {
     searchInput: {
       flex: 1,
       fontSize: 15,
-      color: theme.text,
+      color: C.text,
     },
     filterRow: {
       flexDirection: "row",
@@ -364,27 +512,27 @@ export default function AdminDashboardScreen() {
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 16,
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: C.card,
       borderWidth: 1,
       borderColor: "transparent",
     },
     activeFilterChip: {
-      backgroundColor: theme.primary + "20",
-      borderColor: theme.primary,
+      backgroundColor: C.gold + "20",
+      borderColor: C.gold,
     },
     filterText: {
       fontSize: 12,
-      color: theme.textSecondary,
+      color: C.dim,
       fontWeight: "500",
     },
     activeFilterText: {
-      color: theme.primary,
+      color: C.goldText,
     },
     countBadge: {
       marginLeft: 12,
       marginBottom: 6,
       fontSize: 12,
-      color: theme.textSecondary,
+      color: C.dim,
     },
     contentArea: {
       flex: 1,
@@ -401,7 +549,7 @@ export default function AdminDashboardScreen() {
       paddingHorizontal: 12,
     },
     listItem: {
-      backgroundColor: theme.backgroundRoot,
+      backgroundColor: C.card,
       borderRadius: 10,
       padding: 12,
       marginBottom: 8,
@@ -418,7 +566,7 @@ export default function AdminDashboardScreen() {
     listItemName: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.text,
+      color: C.text,
       flex: 1,
     },
     statusBadge: {
@@ -427,29 +575,29 @@ export default function AdminDashboardScreen() {
       borderRadius: 12,
     },
     pendingBadge: {
-      backgroundColor: "#FFA50030",
+      backgroundColor: C.pending + "30",
     },
     approvedBadge: {
-      backgroundColor: "#34C75930",
+      backgroundColor: C.success + "30",
     },
     rejectedBadge: {
-      backgroundColor: "#FF3B3030",
+      backgroundColor: C.error + "30",
     },
     statusText: {
       fontSize: 11,
       fontWeight: "600",
     },
     pendingText: {
-      color: "#FFA500",
+      color: C.pending,
     },
     approvedText: {
-      color: "#34C759",
+      color: C.success,
     },
     rejectedText: {
-      color: "#FF3B30",
+      color: C.error,
     },
     pendingCountBadge: {
-      backgroundColor: "#FF3B30",
+      backgroundColor: C.gold,
       borderRadius: 10,
       minWidth: 18,
       height: 18,
@@ -458,13 +606,13 @@ export default function AdminDashboardScreen() {
       marginLeft: 6,
     },
     pendingCountText: {
-      color: "#FFFFFF",
+      color: C.onGold,
       fontSize: 11,
       fontWeight: "700",
     },
     listItemInfo: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: C.dim,
       marginBottom: 2,
     },
     actionRow: {
@@ -482,26 +630,26 @@ export default function AdminDashboardScreen() {
       gap: 6,
     },
     approveButton: {
-      backgroundColor: "#34C75920",
+      backgroundColor: C.success + "20",
     },
     rejectButton: {
-      backgroundColor: "#FF3B3020",
+      backgroundColor: C.error + "20",
     },
     viewDetailsButton: {
-      backgroundColor: `${theme.primary}20`,
+      backgroundColor: `${C.gold}20`,
     },
     viewDetailsButtonText: {
-      color: theme.primary,
+      color: C.goldText,
       fontSize: 13,
       fontWeight: "600",
     },
     approveButtonText: {
-      color: "#34C759",
+      color: C.success,
       fontSize: 13,
       fontWeight: "600",
     },
     rejectButtonText: {
-      color: "#FF3B30",
+      color: C.error,
       fontSize: 13,
       fontWeight: "600",
     },
@@ -514,19 +662,42 @@ export default function AdminDashboardScreen() {
     },
     paymentStatCard: {
       width: "48%",
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: C.card,
+      borderWidth: 1,
+      borderColor: C.border,
       borderRadius: 12,
       padding: 14,
     },
+    revenueCard: {
+      width: "100%",
+      backgroundColor: C.primary,
+      borderRadius: 14,
+      padding: 16,
+    },
+    revenueLabel: {
+      fontSize: 13,
+      color: C.primaryText + "CC",
+    },
+    revenueValue: {
+      fontSize: 30,
+      fontWeight: "700",
+      color: isDark ? C.gold : C.primaryText,
+      fontVariant: ["tabular-nums"],
+      marginVertical: 4,
+    },
+    revenueNote: {
+      fontSize: 13,
+      color: C.primaryText + "BF",
+    },
     paymentStatLabel: {
       fontSize: 12,
-      color: theme.textSecondary,
+      color: C.dim,
       marginBottom: 4,
     },
     paymentStatValue: {
       fontSize: 20,
       fontWeight: "700",
-      color: theme.text,
+      color: C.text,
     },
     subTabRow: {
       flexDirection: "row",
@@ -537,18 +708,18 @@ export default function AdminDashboardScreen() {
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 8,
-      backgroundColor: theme.backgroundDefault,
+      backgroundColor: C.card,
     },
     activeSubTab: {
-      backgroundColor: theme.primary + "20",
+      backgroundColor: C.gold + "20",
     },
     subTabText: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: C.dim,
       fontWeight: "500",
     },
     activeSubTabText: {
-      color: theme.primary,
+      color: C.goldText,
     },
     emptyState: {
       alignItems: "center",
@@ -561,12 +732,12 @@ export default function AdminDashboardScreen() {
     emptyTitle: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.text,
+      color: C.text,
       marginBottom: 4,
     },
     emptySubtitle: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: C.dim,
       textAlign: "center",
     },
     messagesContainer: {
@@ -576,40 +747,40 @@ export default function AdminDashboardScreen() {
     conversationList: {
       width: "40%",
       borderRightWidth: 1,
-      borderRightColor: theme.border,
+      borderRightColor: C.border,
     },
     conversationListHeader: {
       padding: 14,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      borderBottomColor: C.border,
     },
     conversationListTitle: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.text,
+      color: C.text,
     },
     conversationCount: {
       fontSize: 12,
-      color: theme.textSecondary,
+      color: C.dim,
       marginTop: 2,
     },
     conversationItem: {
       padding: 12,
       borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      borderBottomColor: C.border,
     },
     selectedConversation: {
-      backgroundColor: theme.primary + "10",
+      backgroundColor: C.gold + "10",
     },
     conversationName: {
       fontSize: 14,
       fontWeight: "600",
-      color: theme.text,
+      color: C.text,
       marginBottom: 4,
     },
     conversationPreview: {
       fontSize: 12,
-      color: theme.textSecondary,
+      color: C.dim,
     },
     messagePreviewContainer: {
       flex: 1,
@@ -618,7 +789,7 @@ export default function AdminDashboardScreen() {
     messagePreviewHeader: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.text,
+      color: C.text,
       marginBottom: 8,
     },
     messagePreviewEmpty: {
@@ -628,7 +799,7 @@ export default function AdminDashboardScreen() {
     },
     messagePreviewEmptyText: {
       fontSize: 14,
-      color: theme.textSecondary,
+      color: C.dim,
     },
     loadingContainer: {
       flex: 1,
@@ -637,100 +808,92 @@ export default function AdminDashboardScreen() {
     },
   });
 
-  const tabs: { key: TabType; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-    { key: "users", label: "Users", icon: "users" },
-    { key: "businesses", label: "Businesses", icon: "briefcase" },
-    { key: "photographers", label: "Photographers", icon: "camera" },
-    { key: "payments", label: "Payments", icon: "credit-card" },
-    { key: "messages", label: "Messages", icon: "message-square" },
-    { key: "influencers", label: "Influencers", icon: "trending-up" },
-  ];
-
-  const renderStatsCards = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsRow}>
-      <View style={styles.statCard}>
-        <View style={styles.statIcon}>
-          <Feather name="users" size={12} color={theme.primary} />
-        </View>
-        <View>
-          <Text style={styles.statValue}>{stats.users}</Text>
-          <Text style={styles.statLabel}>Users</Text>
-        </View>
-      </View>
-      <View style={styles.statCard}>
-        <View style={styles.statIcon}>
-          <Feather name="briefcase" size={12} color={theme.primary} />
-        </View>
-        <View>
-          <Text style={styles.statValue}>{stats.businesses}</Text>
-          <Text style={styles.statLabel}>Businesses</Text>
-        </View>
-      </View>
-      <View style={styles.statCard}>
-        <View style={styles.statIcon}>
-          <Feather name="camera" size={12} color={theme.primary} />
-        </View>
-        <View>
-          <Text style={styles.statValue}>{stats.photographers}</Text>
-          <Text style={styles.statLabel}>Photographers</Text>
-        </View>
-      </View>
-      <View style={styles.statCard}>
-        <View style={styles.statIcon}>
-          <Feather name="shopping-bag" size={12} color={theme.primary} />
-        </View>
-        <View>
-          <Text style={styles.statValue}>{stats.orders}</Text>
-          <Text style={styles.statLabel}>Orders</Text>
-        </View>
-      </View>
-      <View style={styles.statCard}>
-        <View style={styles.statIcon}>
-          <Feather name="calendar" size={12} color={theme.primary} />
-        </View>
-        <View>
-          <Text style={styles.statValue}>{stats.bookings}</Text>
-          <Text style={styles.statLabel}>Bookings</Text>
-        </View>
-      </View>
-    </ScrollView>
-  );
-
-  const renderTabs = () => (
-    <View style={styles.tabsContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.tabsRow}>
-          {tabs.map((tab) => (
-            <Pressable
-              key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-              onPress={() => {
-                setActiveTab(tab.key);
-                setSearchQuery("");
-              }}
-            >
-              <Feather
-                name={tab.icon}
-                size={14}
-                color={activeTab === tab.key ? theme.primary : theme.textSecondary}
-              />
-              <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
-                {tab.label}
-              </Text>
-              {tab.key === "businesses" && pendingBusinessCount > 0 && (
-                <View style={styles.pendingCountBadge}>
-                  <Text style={styles.pendingCountText}>{pendingBusinessCount}</Text>
-                </View>
-              )}
-            </Pressable>
+  const renderHome = () => {
+    const tiles: { label: string; value: string }[] = [
+      { label: "Users", value: String(stats.users) },
+      { label: "Businesses", value: String(stats.businesses) },
+      { label: "Photographers", value: String(stats.photographers) },
+      { label: "Orders", value: String(stats.orders) },
+      { label: "Bookings", value: String(stats.bookings) },
+      { label: "Revenue", value: `$${Math.round(stats.revenue ?? 0).toLocaleString("en-US")}` },
+    ];
+    return (
+      <ScrollView
+        contentContainerStyle={styles.homeContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.gold} />}
+      >
+        <View style={styles.statGrid}>
+          {tiles.map((s) => (
+            <View key={s.label} style={styles.statTile} accessible accessibilityLabel={`${s.label}: ${s.value}`}>
+              <Text style={styles.statTileValue}>{s.value}</Text>
+              <Text style={styles.statTileLabel}>{s.label}</Text>
+            </View>
           ))}
         </View>
+
+        {pendingBusinessCount > 0 ? (
+          <View style={styles.needsCard}>
+            <View style={styles.needsIcon}>
+              <Feather name="clock" size={18} color={C.gold} />
+            </View>
+            <View style={styles.needsText}>
+              <Text style={styles.needsTitle}>
+                {pendingBusinessCount === 1
+                  ? "1 business application waiting"
+                  : `${pendingBusinessCount} business applications waiting`}
+              </Text>
+              <Text style={styles.needsSub}>Approve or reject from Businesses</Text>
+            </View>
+            <Pressable
+              style={styles.needsButton}
+              accessibilityRole="button"
+              accessibilityLabel="Review pending business applications"
+              onPress={() => {
+                setBusinessFilter("pending");
+                openSection("businesses");
+              }}
+            >
+              <Text style={styles.needsButtonText}>Review</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <Text style={styles.sectionHeading} accessibilityRole="header">Manage</Text>
+        <View style={styles.sectionList}>
+          {SECTIONS.map((s) => {
+            const badge = s.key === "businesses" ? pendingBusinessCount : 0;
+            return (
+              <Pressable
+                key={s.key}
+                style={({ pressed }) => [styles.sectionRow, pressed && styles.sectionRowPressed]}
+                onPress={() => openSection(s.key)}
+                accessibilityRole="button"
+                accessibilityLabel={badge > 0 ? `${s.label}, ${badge} pending` : s.label}
+                accessibilityHint={s.sub}
+              >
+                <View style={styles.sectionIcon}>
+                  <Feather name={s.icon} size={17} color={C.gold} />
+                </View>
+                <View style={styles.sectionText}>
+                  <Text style={styles.sectionTitle}>{s.label}</Text>
+                  <Text style={styles.sectionSub}>{s.sub}</Text>
+                </View>
+                {badge > 0 ? (
+                  <View style={styles.rowBadge}>
+                    <Text style={styles.rowBadgeText}>{badge}</Text>
+                  </View>
+                ) : null}
+                <Feather name="chevron-right" size={18} color={C.dim} />
+              </Pressable>
+            );
+          })}
+        </View>
       </ScrollView>
-    </View>
-  );
+    );
+  };
 
   const renderSearchBar = () => {
-    if (activeTab === "messages" || activeTab === "payments") return null;
+    if (!activeTab || activeTab === "messages" || activeTab === "payments") return null;
     
     const placeholders: Record<TabType, string> = {
       users: "Search users by name or email...",
@@ -743,17 +906,17 @@ export default function AdminDashboardScreen() {
 
     return (
       <View style={styles.searchContainer}>
-        <Feather name="search" size={18} color={theme.textSecondary} />
+        <Feather name="search" size={18} color={C.dim} />
         <TextInput
           style={styles.searchInput}
           placeholder={placeholders[activeTab]}
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor={C.dim}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 ? (
           <Pressable onPress={() => setSearchQuery("")}>
-            <Feather name="x" size={18} color={theme.textSecondary} />
+            <Feather name="x" size={18} color={C.dim} />
           </Pressable>
         ) : null}
       </View>
@@ -778,7 +941,7 @@ export default function AdminDashboardScreen() {
 
   const renderEmptyState = (title: string, subtitle: string, icon: keyof typeof Feather.glyphMap) => (
     <View style={styles.emptyState}>
-      <Feather name={icon} size={48} color={theme.textSecondary} style={styles.emptyIcon} />
+      <Feather name={icon} size={48} color={C.dim} style={styles.emptyIcon} />
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptySubtitle}>{subtitle}</Text>
     </View>
@@ -848,7 +1011,7 @@ export default function AdminDashboardScreen() {
             activeOpacity={0.7}
             onPress={navigateToDetail}
           >
-            <Feather name="eye" size={14} color={theme.primary} />
+            <Feather name="eye" size={14} color={C.gold} />
             <Text style={styles.viewDetailsButtonText}>View Details</Text>
           </TouchableOpacity>
           {status === "pending" ? (
@@ -858,7 +1021,7 @@ export default function AdminDashboardScreen() {
                 activeOpacity={0.7}
                 onPress={() => handleApprove("business", item.id)}
               >
-                <Feather name="check" size={14} color="#34C759" />
+                <Feather name="check" size={14} color={C.success} />
                 <Text style={styles.approveButtonText}>Approve</Text>
               </TouchableOpacity>
               <TouchableOpacity 
@@ -866,7 +1029,7 @@ export default function AdminDashboardScreen() {
                 activeOpacity={0.7}
                 onPress={() => handleReject("business", item.id)}
               >
-                <Feather name="x" size={14} color="#FF3B30" />
+                <Feather name="x" size={14} color={C.error} />
                 <Text style={styles.rejectButtonText}>Reject</Text>
               </TouchableOpacity>
             </>
@@ -874,7 +1037,7 @@ export default function AdminDashboardScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, [styles, theme, navigation, handleApprove, handleReject]);
+  }, [styles, C, navigation, handleApprove, handleReject]);
 
   const businessKeyExtractor = useCallback((item: AdminBusiness) => item.id, []);
 
@@ -886,17 +1049,17 @@ export default function AdminDashboardScreen() {
   const BusinessListHeader = useMemo(() => (
     <View>
       <View style={styles.searchContainer}>
-        <Feather name="search" size={18} color={theme.textSecondary} />
+        <Feather name="search" size={18} color={C.dim} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search businesses..."
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor={C.dim}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 ? (
           <Pressable onPress={() => setSearchQuery("")}>
-            <Feather name="x" size={18} color={theme.textSecondary} />
+            <Feather name="x" size={18} color={C.dim} />
           </Pressable>
         ) : null}
       </View>
@@ -915,15 +1078,15 @@ export default function AdminDashboardScreen() {
       </View>
       <Text style={styles.countBadge}>{filteredBusinesses.length} businesses</Text>
     </View>
-  ), [styles, theme, searchQuery, businessFilter, filteredBusinesses.length]);
+  ), [styles, C, searchQuery, businessFilter, filteredBusinesses.length]);
 
   const BusinessEmptyComponent = useMemo(() => (
     <View style={styles.emptyState}>
-      <Feather name="briefcase" size={48} color={theme.textSecondary} style={styles.emptyIcon} />
+      <Feather name="briefcase" size={48} color={C.dim} style={styles.emptyIcon} />
       <Text style={styles.emptyTitle}>No Businesses</Text>
       <Text style={styles.emptySubtitle}>No businesses found</Text>
     </View>
-  ), [styles, theme]);
+  ), [styles, C]);
 
   const renderPhotographerItem = ({ item }: { item: AdminPhotographer }) => {
     const displayName = item.displayName || item.name || "(No Name)";
@@ -940,7 +1103,7 @@ export default function AdminDashboardScreen() {
       // The id here is the photographer's, not the user's: open the photographer detail screen.
       <Pressable style={styles.listItem} onPress={() => navigation.navigate("AdminPhotographerDetail", { photographerId: item.id })}>
         <Text style={styles.listItemName}>{displayName}</Text>
-        {flags ? <Text style={[styles.listItemInfo, { color: "#C62828", fontWeight: "600" }]}>{flags}</Text> : null}
+        {flags ? <Text style={[styles.listItemInfo, { color: C.error, fontWeight: "600" }]}>{flags}</Text> : null}
         {specialties ? <Text style={styles.listItemInfo}>{specialties}</Text> : null}
         {location ? <Text style={styles.listItemInfo}>{location}</Text> : null}
         {email ? <Text style={styles.listItemInfo}>{email}</Text> : null}
@@ -989,11 +1152,11 @@ export default function AdminDashboardScreen() {
       {item.status === "pending" ? (
         <View style={styles.actionRow}>
           <Pressable style={[styles.actionButton, styles.approveButton]} onPress={() => handleApprove("influencer", item.id)}>
-            <Feather name="check" size={14} color="#34C759" />
+            <Feather name="check" size={14} color={C.success} />
             <Text style={styles.approveButtonText}>Approve</Text>
           </Pressable>
           <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("influencer", item.id)}>
-            <Feather name="x" size={14} color="#FF3B30" />
+            <Feather name="x" size={14} color={C.error} />
             <Text style={styles.rejectButtonText}>Reject</Text>
           </Pressable>
         </View>
@@ -1059,18 +1222,18 @@ export default function AdminDashboardScreen() {
   const renderPaymentsContent = () => (
     <View style={styles.content}>
       <View style={styles.paymentStatsRow}>
+        <View style={styles.revenueCard}>
+          <Text style={styles.revenueLabel}>Total revenue</Text>
+          <Text style={styles.revenueValue}>${(stats.revenue ?? 0).toFixed(2)}</Text>
+          <Text style={styles.revenueNote}>Paid orders and bookings through Outsyde, all time</Text>
+        </View>
         <View style={styles.paymentStatCard}>
-          <Feather name="shopping-bag" size={20} color={theme.primary} />
+          <Feather name="shopping-bag" size={20} color={C.gold} />
           <Text style={styles.paymentStatLabel}>Total Orders</Text>
           <Text style={styles.paymentStatValue}>{stats.orders}</Text>
         </View>
         <View style={styles.paymentStatCard}>
-          <Feather name="dollar-sign" size={20} color={theme.primary} />
-          <Text style={styles.paymentStatLabel}>Total Revenue</Text>
-          <Text style={styles.paymentStatValue}>${(stats.revenue ?? 0).toFixed(2)}</Text>
-        </View>
-        <View style={styles.paymentStatCard}>
-          <Feather name="calendar" size={20} color={theme.primary} />
+          <Feather name="calendar" size={20} color={C.gold} />
           <Text style={styles.paymentStatLabel}>Total Bookings</Text>
           <Text style={styles.paymentStatValue}>{stats.bookings}</Text>
         </View>
@@ -1147,7 +1310,7 @@ export default function AdminDashboardScreen() {
           </View>
         ) : (
           <View style={styles.messagePreviewEmpty}>
-            <Feather name="message-square" size={32} color={theme.textSecondary} />
+            <Feather name="message-square" size={32} color={C.dim} />
             <Text style={styles.messagePreviewEmptyText}>Select a conversation to view messages</Text>
           </View>
         )}
@@ -1159,7 +1322,7 @@ export default function AdminDashboardScreen() {
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <ActivityIndicator size="large" color={C.gold} />
         </View>
       );
     }
@@ -1172,7 +1335,7 @@ export default function AdminDashboardScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.gold} />}
           >
             <Text style={styles.countBadge}>{filteredUsers.length} users</Text>
             {filteredUsers.length === 0
@@ -1209,7 +1372,7 @@ export default function AdminDashboardScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.gold} />}
           >
             {BusinessListHeader}
             {filteredBusinesses.length === 0 ? (
@@ -1255,7 +1418,7 @@ export default function AdminDashboardScreen() {
                         activeOpacity={0.7}
                         onPress={() => navigation.navigate("AdminBusinessReview", { businessId: item.id })}
                       >
-                        <Feather name="eye" size={14} color={theme.primary} />
+                        <Feather name="eye" size={14} color={C.gold} />
                         <Text style={styles.viewDetailsButtonText}>View Details</Text>
                       </TouchableOpacity>
                       {status === "pending" ? (
@@ -1265,7 +1428,7 @@ export default function AdminDashboardScreen() {
                             activeOpacity={0.7}
                             onPress={() => handleApprove("business", item.id)}
                           >
-                            <Feather name="check" size={14} color="#34C759" />
+                            <Feather name="check" size={14} color={C.success} />
                             <Text style={styles.approveButtonText}>Approve</Text>
                           </TouchableOpacity>
                           <TouchableOpacity 
@@ -1273,7 +1436,7 @@ export default function AdminDashboardScreen() {
                             activeOpacity={0.7}
                             onPress={() => handleReject("business", item.id)}
                           >
-                            <Feather name="x" size={14} color="#FF3B30" />
+                            <Feather name="x" size={14} color={C.error} />
                             <Text style={styles.rejectButtonText}>Reject</Text>
                           </TouchableOpacity>
                         </>
@@ -1295,7 +1458,7 @@ export default function AdminDashboardScreen() {
             contentContainerStyle={styles.content}
             nestedScrollEnabled={true}
             showsVerticalScrollIndicator={true}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.gold} />}
             ListHeaderComponent={() => (
               <Text style={styles.countBadge}>{filteredPhotographers.length} photographers</Text>
             )}
@@ -1315,7 +1478,7 @@ export default function AdminDashboardScreen() {
               renderItem={renderInfluencerItem}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.content}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.gold} />}
               ListHeaderComponent={() => (
                 <Text style={styles.countBadge}>{influencers.length} applications</Text>
               )}
@@ -1334,21 +1497,14 @@ export default function AdminDashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Feather name="arrow-left" size={24} color={theme.text} />
-        </Pressable>
-        <View style={styles.headerTitle}>
-          <Text style={styles.title}>Admin Dashboard</Text>
-          <Text style={styles.subtitle}>Platform management and oversight</Text>
+      {activeTab === null ? (
+        renderHome()
+      ) : (
+        <View style={styles.contentArea}>
+          {activeTab !== "businesses" ? renderSearchBar() : null}
+          {renderContent()}
         </View>
-      </View>
-
-      {renderTabs()}
-      <View style={styles.contentArea}>
-        {activeTab !== "businesses" ? renderSearchBar() : null}
-        {renderContent()}
-      </View>
+      )}
     </View>
   );
 }
