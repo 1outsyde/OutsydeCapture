@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { View } from "react-native";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,10 +37,16 @@ export default function BookServiceScreen() {
   }, [navigation]);
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
+      // The note and address boxes sit above the pinned bar (step 2): keep
+      // them visible while typing. The native header is above this view.
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
+    >
     <View
       style={{
         flex: 1,
-        backgroundColor: theme.backgroundRoot,
         paddingBottom: insets.bottom,
       }}
     >
@@ -60,5 +66,6 @@ export default function BookServiceScreen() {
         onDone={openSessions}
       />
     </View>
+    </KeyboardAvoidingView>
   );
 }

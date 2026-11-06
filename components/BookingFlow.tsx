@@ -37,6 +37,23 @@ import { RootStackParamList } from "@/navigation/types";
 import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicker";
 import { formatDuration } from "@/utils/duration";
 import { sheetOptions } from "@/utils/paymentSheetOptions";
+import { readableTextOn } from "@/constants/colorOptions";
+import {
+  visibleSlots,
+  groupByPeriod,
+  weekWindow,
+  weekStartFor,
+  previousWeekStart,
+  monthsTouched,
+  monthOf,
+  dayStatus,
+  isBookableStatus,
+  firstBookableDay,
+  priceLine,
+  toISODate,
+  fromISODate,
+  addDays,
+} from "@/utils/bookingTimeLogic";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DAY_SIZE = (SCREEN_WIDTH - Spacing.md * 2 - Spacing.xs * 6) / 7;
@@ -189,11 +206,6 @@ const formatTime = (time24: string): string => {
   return minute === "00" ? `${hour12}:00 ${period}` : `${hour12}:${minute} ${period}`;
 };
 
-const groupSlots = (slots: AvailabilitySlot[]) => {
-  const morning = slots.filter((s) => parseInt(s.startTime.split(":")[0], 10) < 12);
-  const afternoon = slots.filter((s) => parseInt(s.startTime.split(":")[0], 10) >= 12);
-  return { morning, afternoon };
-};
 
 // ─── Cancellation-policy helpers (local, mirrors AppointmentDetailScreen) ────
 
@@ -392,6 +404,9 @@ export default function BookingFlow({
   const accent = accentColor || theme.brandGold;
   const accentDim = accentColor ? accentColor + "CC" : theme.brandGoldDim;
   const accentSoft = accentColor ? accentColor + "25" : theme.brandGold + "25";
+  // Black or white text on the store color, whichever reads better (any wheel
+  // shade, light or dark mode). Booking redesign step 2.
+  const onAccent = readableTextOn(accent);
   const { getToken, isAuthenticated } = useAuth();
   const { refreshSessions } = useData();
   const navigation = useNavigation<NavigationProp>();
@@ -410,7 +425,20 @@ export default function BookingFlow({
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
-  const [calendarDays, setCalendarDays] = useState<AvailabilityCalendarDay[]>([]);
+  // Calendar days per service and month ("serviceId|YYYY-MM"): the week row can
+  // span two months and the month sheet can browse ahead (step 2 redesign).
+  const [calendarByKey, setCalendarByKey] = useState<Record<string, AvailabilityCalendarDay[]>>({});
+  const calendarInFlightRef = useRef<Set<string>>(new Set());
+  const todayISO = useMemo(() => toISODate(new Date()), []);
+  const [weekStart, setWeekStart] = useState<string>(() => toISODate(new Date()));
+  const [monthSheetOpen, setMonthSheetOpen] = useState(false);
+  const calendarFor = useCallback(
+    (ym: string): AvailabilityCalendarDay[] | undefined =>
+      selectedService ? calendarByKey[`${selectedService.id}|${ym}`] : undefined,
+    [calendarByKey, selectedService],
+  );
+  // The month sheet reads the month it is showing.
+  const calendarDays = calendarFor(currentMonth) ?? [];
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
@@ -582,14 +610,25 @@ export default function BookingFlow({
     fetchServices();
   }, []);
 
+  // Choose a time (step 2): load the months the week row shows, plus the
+  // month the calendar sheet is on while it is open.
   useEffect(() => {
-    if (step === 2 && selectedService) {
-      fetchCalendar();
-    }
-  }, [step, currentMonth, selectedService]);
+    if (step !== 2 || !selectedService) return;
+    const months = monthsTouched(weekWindow(weekStart));
+    if (monthSheetOpen && !months.includes(currentMonth)) months.push(currentMonth);
+    months.forEach((ym) => fetchCalendarMonth(ym));
+  }, [step, selectedService, weekStart, monthSheetOpen, currentMonth]);
+
+  // Open on the first day with openings in the week row, until the customer
+  // picks a day themselves.
+  useEffect(() => {
+    if (step !== 2 || !selectedService || selectedDate) return;
+    const first = firstBookableDay(weekWindow(weekStart), todayISO, calendarFor);
+    if (first) setSelectedDate(first);
+  }, [step, selectedService, selectedDate, weekStart, calendarFor, todayISO]);
 
   useEffect(() => {
-    if (step === 3 && selectedDate) {
+    if (step === 2 && selectedDate) {
       fetchSlots();
     }
   }, [step, selectedDate]);
@@ -707,47 +746,58 @@ export default function BookingFlow({
     }
   };
 
-  const fetchCalendar = async () => {
-    // Parse year and month from currentMonth (format: YYYY-MM)
-    const [yearStr, monthStr] = currentMonth.split("-");
+  // One month of day statuses for the selected service (same request as
+  // before; cached per service and month so the week row and month sheet share it).
+  const fetchCalendarMonth = async (ym: string) => {
+    const [yearStr, monthStr] = ym.split("-");
     const year = parseInt(yearStr, 10);
     const month = parseInt(monthStr, 10);
+    const service = selectedService;
 
     // HARD GUARD: Do NOT call API unless ALL required params are defined
-    if (!providerId || !providerType || !year || !month) {
+    if (!providerId || !providerType || !year || !month || !service) {
       return;
     }
+    const key = `${service.id}|${ym}`;
+    if (calendarByKey[key] || calendarInFlightRef.current.has(key)) return;
+    calendarInFlightRef.current.add(key);
 
     setLoadingCalendar(true);
     try {
-      console.log("[BookingFlow] Fetching calendar for:", { providerId, providerType, year, month });
-      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month, selectedService?.durationMinutes ?? 60, staffMemberId ?? undefined);
-      console.log("[BookingFlow] Calendar response:", JSON.stringify(response, null, 2));
-      setCalendarDays(response.days || []);
+      const response = await api.getAvailabilityCalendar(providerId, providerType, year, month, service.durationMinutes ?? 60, staffMemberId ?? undefined);
+      if (!mountedRef.current) return;
+      setCalendarByKey((prev) => ({ ...prev, [key]: response.days || [] }));
     } catch (err: any) {
       console.error("[BookingFlow] Calendar fetch error:", err);
-      setError(err.message || "Failed to load calendar");
+      if (mountedRef.current) setError(err.message || "Failed to load calendar");
     } finally {
-      setLoadingCalendar(false);
+      calendarInFlightRef.current.delete(key);
+      if (mountedRef.current) setLoadingCalendar(calendarInFlightRef.current.size > 0);
     }
   };
 
+  // Drops time lists that arrive after the customer picked another day.
+  const slotsReqSeqRef = useRef(0);
+
   const fetchSlots = async () => {
     if (!selectedDate || !selectedService) return;
+    const seq = ++slotsReqSeqRef.current;
     setLoadingSlots(true);
     try {
       const serviceDuration = selectedService.durationMinutes || 60;
       console.log("[BookingFlow] Fetching slots for:", { providerId, providerType, selectedDate, serviceDuration });
       const response = await api.getAvailabilitySlots(providerId, providerType, selectedDate, serviceDuration, staffMemberId ?? undefined);
       console.log("[BookingFlow] Slots response:", JSON.stringify(response, null, 2));
+      if (seq !== slotsReqSeqRef.current || !mountedRef.current) return;
       const availableSlots = response.slots?.filter((s) => s.status === "available") || [];
-      console.log("[BookingFlow] Available slots count:", availableSlots.length);
       setSlots(availableSlots);
     } catch (err: any) {
       console.error("[BookingFlow] Slots fetch error:", err);
-      setError(err.message || "Failed to load time slots");
+      if (seq === slotsReqSeqRef.current && mountedRef.current) {
+        setError(err.message || "Failed to load time slots");
+      }
     } finally {
-      setLoadingSlots(false);
+      if (seq === slotsReqSeqRef.current && mountedRef.current) setLoadingSlots(false);
     }
   };
 
@@ -772,16 +822,10 @@ export default function BookingFlow({
       });
 
       if (response.valid) {
+        // Step 2 redesign: tapping a time selects it; Continue moves on.
         setSelectedSlot(slot);
         setValidatedEndTime(response.endTime || null);
-        if (showsAddonsStep(selectedService)) {
-          setSelectedAddonIds([]);
-          setBookingCustomerDetails("");
-          setAddonFitError(null);
-          setShowAddonsStep(true);
-        } else {
-          setStep(4);
-        }
+        setAddonFitError(null);
       } else {
         setIncompatibleReason(response.reason || "This service requires more time than this slot allows.");
         setShowIncompatibleModal(true);
@@ -827,7 +871,7 @@ export default function BookingFlow({
           const m = totalMins % 60;
           const durationStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
           setAddonFitError(
-            `With selected add-ons, this service needs ${durationStr} total — not available at ${formatTime(selectedSlot.startTime)}. Please change your time.`
+            `With these add-ons this service takes ${durationStr}, which doesn't fit at ${formatTime(selectedSlot.startTime)}. Please pick another time.`
           );
           return;
         }
@@ -1146,6 +1190,8 @@ export default function BookingFlow({
     setSelectedService(service);
     setStep(2);
     setSelectedDate(null);
+    setWeekStart(todayISO);
+    setMonthSheetOpen(false);
     setSelectedSlot(null);
     setShowAddonsStep(false);
     setSelectedAddonIds([]);
@@ -1153,17 +1199,31 @@ export default function BookingFlow({
     setAddonFitError(null);
   };
 
+  // Step 2 redesign: picking a day stays on the same screen and keeps the
+  // add-ons and note; only the time is cleared.
   const handleDateSelect = (date: string, status: string) => {
-    if (status === "past" || status === "unavailable") return;
+    if (!isBookableStatus(status as any)) return;
     Haptics.selectionAsync();
+    if (date === selectedDate) return;
     setSelectedDate(date);
     setSlots([]);
-    setStep(3);
     setSelectedSlot(null);
-    setShowAddonsStep(false);
-    setSelectedAddonIds([]);
-    setBookingCustomerDetails("");
+    setValidatedEndTime(null);
     setAddonFitError(null);
+  };
+
+  // Picking a day in the month sheet also moves the week row to it.
+  const handleMonthDayPick = (date: string, status: string) => {
+    if (!isBookableStatus(status as any)) return;
+    handleDateSelect(date, status);
+    setWeekStart(weekStartFor(date, todayISO));
+    setMonthSheetOpen(false);
+  };
+
+  const openMonthSheet = () => {
+    Haptics.selectionAsync();
+    setCurrentMonth(monthOf(selectedDate ?? weekStart));
+    setMonthSheetOpen(true);
   };
 
   const handleSlotSelect = (slot: AvailabilitySlot) => {
@@ -1225,10 +1285,9 @@ export default function BookingFlow({
       setHoldErrorCopy(null);
       setError(null);
       setAddonFitError(null);
-      if (showsAddonsStep(selectedService)) {
-        setShowAddonsStep(true);
-      }
-      setStep(3);
+      // Step 2 redesign: back to Choose a time with the day, time, add-ons
+      // and note still picked.
+      setStep(2);
     }
   };
 
@@ -1275,7 +1334,7 @@ export default function BookingFlow({
           accessibilityRole="button"
         >
           <ThemedText
-            style={[styles.primaryButtonText, { color: theme.brandBg }]}
+            style={[styles.primaryButtonText, { color: onAccent }]}
           >
             {primaryLabel}
           </ThemedText>
@@ -1438,7 +1497,7 @@ export default function BookingFlow({
           <ThemedText
             style={[
               styles.primaryButtonText,
-              { color: disabled ? theme.brandTextDim : theme.brandBg },
+              { color: disabled ? theme.brandTextDim : onAccent },
             ]}
           >
             {amountsReady ? payLabel : "Pay"}
@@ -1671,38 +1730,419 @@ export default function BookingFlow({
     );
   };
 
-  const getDayStyle = (status: string | null, isSelected: boolean, isToday: boolean) => {
-    const base: any = {
-      width: DAY_SIZE,
-      height: DAY_SIZE,
-      borderRadius: BorderRadius.sm,
-      alignItems: "center",
-      justifyContent: "center",
-    };
 
-    if (isSelected) {
-      base.backgroundColor = accent;
-    } else if (status === "available") {
-      base.backgroundColor = theme.brandSuccess + "25";
-    } else if (status === "partial") {
-      base.backgroundColor = accentSoft;
-    } else if (status === "unavailable" || status === "past") {
-      base.backgroundColor = theme.brandSurfaceBorder;
-    }
+  // ─── Choose a time (booking redesign step 2, 2026-11-05) ──────────────────
+  const lastBookableMonth = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return monthOf(toISODate(d));
+  }, []);
 
-    if (isToday && !isSelected) {
-      base.borderWidth = 2;
-      base.borderColor = accent;
-    }
+  const shortDay = (iso: string) =>
+    fromISODate(iso).toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+  const longDay = (iso: string) =>
+    fromISODate(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-    return base;
+  const renderTimeButtons = (label: string, list: AvailabilitySlot[]) => {
+    if (list.length === 0) return null;
+    return (
+      <View style={{ marginBottom: Spacing.sm }}>
+        <ThemedText style={[styles.slotGroupLabel, { color: theme.brandTextDim }]}>{label}</ThemedText>
+        <View style={styles.timeGrid}>
+          {list.map((slot) => {
+            const isSel = selectedSlot?.id === slot.id;
+            return (
+              <Pressable
+                key={slot.id}
+                onPress={() => handleSlotSelect(slot)}
+                disabled={validating}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSel }}
+                accessibilityLabel={`${formatTime(slot.startTime)}${isSel ? ", selected" : ""}`}
+                style={[
+                  styles.timeButton,
+                  {
+                    backgroundColor: isSel ? accent : theme.brandBgElevated,
+                    borderColor: isSel ? accent : theme.brandSurfaceBorder,
+                  },
+                ]}
+              >
+                <ThemedText style={{ color: isSel ? onAccent : theme.brandCream, fontWeight: "700" }}>
+                  {formatTime(slot.startTime)}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    );
   };
 
-  const getDayTextColor = (status: string | null, isSelected: boolean) => {
-    if (isSelected) return theme.brandBg;
-    if (status === "past" || status === "unavailable") return theme.brandTextDim;
-    return theme.brandCream;
+  const renderChooseTime = () => {
+    if (!selectedService) return null;
+    const days = weekWindow(weekStart);
+    const canGoEarlier = weekStart > todayISO;
+    const canGoLater = monthOf(addDays(weekStart, days.length)) <= lastBookableMonth;
+    const firstMonth = monthOf(days[0]);
+    const lastMonth = monthOf(days[days.length - 1]);
+    const monthShort = (ym: string) =>
+      fromISODate(`${ym}-01`).toLocaleDateString("en-US", { month: "short" });
+    const weekLabel =
+      firstMonth === lastMonth
+        ? `${monthShort(firstMonth)} ${firstMonth.slice(0, 4)}`
+        : `${monthShort(firstMonth)} to ${monthShort(lastMonth)}`;
+    const visible = visibleSlots(slots);
+    const { morning, afternoon, evening } = groupByPeriod(visible);
+    const showExtras = showsAddonsStep(selectedService);
+    const hasAddons = (selectedService.addons?.length ?? 0) > 0;
+    const dayLoading = days.some((d) => dayStatus(d, todayISO, calendarFor(monthOf(d))) === "unknown");
+    const weekHasOpening = days.some((d) =>
+      isBookableStatus(dayStatus(d, todayISO, calendarFor(monthOf(d)))),
+    );
+
+    return (
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: Spacing.xl }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.serviceCard, { backgroundColor: theme.brandBgElevated, borderColor: theme.brandSurfaceBorder, marginBottom: Spacing.lg }]}>
+          {showServiceImages ? (
+            <ServiceThumb
+              service={selectedService}
+              showImage={hasServiceImage(selectedService)}
+              size={56}
+              radius={12}
+              onFail={markServiceImageFailed}
+            />
+          ) : null}
+          <View style={styles.serviceInfo}>
+            <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs }}>{providerName}</ThemedText>
+            <ThemedText style={[styles.serviceName, { color: theme.brandCream }]}>{selectedService.name}</ThemedText>
+            <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
+              {[formatDuration(selectedService.durationMinutes), priceLine(selectedService.priceCents, selectedService.depositAmountCents)]
+                .filter(Boolean)
+                .join(" · ")}
+            </ThemedText>
+          </View>
+          <Pressable onPress={goBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change service" style={{ paddingVertical: Spacing.sm, paddingLeft: Spacing.sm }}>
+            <ThemedText style={{ color: accent, fontWeight: "700" }}>Change</ThemedText>
+          </Pressable>
+        </View>
+
+        <View style={styles.sectionHeaderRow}>
+          <ThemedText style={[styles.sectionTitle, { color: theme.brandCream }]}>Pick a Day</ThemedText>
+          <View style={styles.weekNav}>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setWeekStart(previousWeekStart(weekStart, todayISO, days.length)); }}
+              disabled={!canGoEarlier}
+              accessibilityRole="button"
+              accessibilityLabel="Earlier days"
+              style={[styles.navButton, { backgroundColor: theme.brandBgElevated, borderColor: theme.brandSurfaceBorder, opacity: canGoEarlier ? 1 : 0.4 }]}
+            >
+              <Feather name="chevron-left" size={18} color={theme.brandCream} />
+            </Pressable>
+            <Pressable
+              onPress={openMonthSheet}
+              accessibilityRole="button"
+              accessibilityLabel="Open the full month calendar"
+              style={[styles.navButton, styles.monthButton, { backgroundColor: theme.brandBgElevated, borderColor: theme.brandSurfaceBorder }]}
+            >
+              <Feather name="calendar" size={16} color={accent} />
+              <ThemedText style={{ color: theme.brandCream, fontWeight: "700", fontSize: FontSizes.sm, marginLeft: 6 }}>{weekLabel}</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setWeekStart(addDays(weekStart, days.length)); }}
+              disabled={!canGoLater}
+              accessibilityRole="button"
+              accessibilityLabel="Later days"
+              style={[styles.navButton, { backgroundColor: theme.brandBgElevated, borderColor: theme.brandSurfaceBorder, opacity: canGoLater ? 1 : 0.4 }]}
+            >
+              <Feather name="chevron-right" size={18} color={theme.brandCream} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.weekRow}>
+          {days.map((iso) => {
+            const status = dayStatus(iso, todayISO, calendarFor(monthOf(iso)));
+            const open = isBookableStatus(status);
+            const isSel = selectedDate === iso;
+            const isToday = iso === todayISO;
+            return (
+              <Pressable
+                key={iso}
+                onPress={() => handleDateSelect(iso, status)}
+                disabled={!open}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSel, disabled: !open }}
+                accessibilityLabel={`${longDay(iso)}${open ? "" : ", no openings"}${isSel ? ", selected" : ""}`}
+                style={[
+                  styles.weekDay,
+                  {
+                    backgroundColor: isSel ? accent : open ? theme.brandBgElevated : "transparent",
+                    borderColor: isSel ? accent : isToday ? accent : theme.brandSurfaceBorder,
+                    opacity: status === "unknown" ? 0.5 : 1,
+                  },
+                ]}
+              >
+                <ThemedText style={{ fontSize: FontSizes.xs, fontWeight: "700", color: isSel ? onAccent : open ? theme.brandTextDim : theme.brandTextDim }}>
+                  {shortDay(iso)}
+                </ThemedText>
+                <ThemedText
+                  style={{
+                    fontSize: 19,
+                    lineHeight: 24,
+                    fontWeight: "800",
+                    color: isSel ? onAccent : open ? theme.brandCream : theme.brandTextDim,
+                    textDecorationLine: open || status === "unknown" ? "none" : "line-through",
+                  }}
+                >
+                  {fromISODate(iso).getDate()}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+        {!dayLoading && !weekHasOpening ? (
+          <ThemedText style={[styles.slotEmptyText, { color: theme.brandTextDim }]}>
+            No openings these days. Try later days or the calendar.
+          </ThemedText>
+        ) : null}
+
+        <ThemedText style={[styles.sectionTitle, { color: theme.brandCream, marginTop: Spacing.lg, marginBottom: Spacing.sm }]}>
+          Pick a Time
+        </ThemedText>
+        {!selectedDate ? (
+          <ThemedText style={[styles.slotEmptyText, { color: theme.brandTextDim }]}>
+            {dayLoading ? "Loading days..." : "Pick a day to see times."}
+          </ThemedText>
+        ) : loadingSlots ? (
+          <ActivityIndicator size="small" color={accent} style={{ marginVertical: Spacing.lg }} />
+        ) : visible.length === 0 ? (
+          <ThemedText style={[styles.slotEmptyText, { color: theme.brandTextDim }]}>
+            No times left on this day. Please pick another day.
+          </ThemedText>
+        ) : (
+          <>
+            {renderTimeButtons("Morning", morning)}
+            {renderTimeButtons("Afternoon", afternoon)}
+            {renderTimeButtons("Evening", evening)}
+          </>
+        )}
+        {validating ? (
+          <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>Checking this time...</ThemedText>
+        ) : null}
+
+        {showExtras ? (
+          <View style={{ marginTop: Spacing.lg }}>
+            {hasAddons ? (
+              <>
+                <ThemedText style={[styles.sectionTitle, { color: theme.brandCream, marginBottom: Spacing.sm }]}>Add-ons</ThemedText>
+                {(selectedService.addons ?? []).map((addon) => {
+                  const isSelected = selectedAddonIds.includes(addon.id);
+                  return (
+                    <Pressable
+                      key={addon.id}
+                      onPress={() => {
+                        setAddonFitError(null);
+                        setSelectedAddonIds((prev) =>
+                          isSelected ? prev.filter((id) => id !== addon.id) : [...prev, addon.id]
+                        );
+                      }}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: isSelected }}
+                      style={[
+                        styles.slotListRow,
+                        {
+                          backgroundColor: isSelected ? accentSoft : theme.brandBgElevated,
+                          borderColor: isSelected ? accent : theme.brandSurfaceBorder,
+                          marginBottom: Spacing.xs,
+                        },
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{addon.name}</ThemedText>
+                        {addon.description ? (
+                          <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>{addon.description}</ThemedText>
+                        ) : null}
+                        <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
+                          {formatPrice(addon.priceCents)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
+                        </ThemedText>
+                      </View>
+                      <View
+                        style={[
+                          styles.slotCheckCircle,
+                          { backgroundColor: isSelected ? accent : "transparent", borderWidth: 2, borderColor: isSelected ? accent : theme.brandSurfaceBorder },
+                        ]}
+                      >
+                        {isSelected && <Feather name="check" size={14} color={onAccent} />}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </>
+            ) : null}
+
+            <ThemedText style={{ color: theme.brandCream, fontWeight: "600", marginTop: Spacing.md, marginBottom: Spacing.xs }}>
+              Note for {providerName || "your provider"}{" "}
+              <ThemedText style={{ fontWeight: "400", color: theme.brandTextDim }}>(optional)</ThemedText>
+            </ThemedText>
+            <TextInput
+              value={bookingCustomerDetails}
+              onChangeText={(t) => setBookingCustomerDetails(t.slice(0, 1000))}
+              placeholder="Allergy notes, prep instructions, preferences…"
+              placeholderTextColor={theme.brandTextDim}
+              multiline
+              numberOfLines={3}
+              maxLength={1000}
+              style={{
+                backgroundColor: theme.brandBgElevated,
+                borderWidth: 1,
+                borderColor: theme.brandSurfaceBorder,
+                borderRadius: BorderRadius.md,
+                color: theme.brandCream,
+                padding: Spacing.sm,
+                minHeight: 80,
+                textAlignVertical: "top",
+                marginBottom: Spacing.xs,
+              }}
+            />
+            <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs, textAlign: "right" }}>
+              {bookingCustomerDetails.length}/1000
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {addonFitError ? (
+          <View style={{ backgroundColor: theme.brandError + "22", borderRadius: BorderRadius.sm, padding: Spacing.sm, marginTop: Spacing.md }}>
+            <ThemedText style={{ color: theme.brandError }}>{addonFitError}</ThemedText>
+          </View>
+        ) : null}
+      </ScrollView>
+    );
   };
+
+  const renderChooseTimeBar = () => {
+    if (!selectedService) return null;
+    const addonsCents = selectedAddonIds.reduce((sum, id) => {
+      const a = selectedService.addons?.find((x) => x.id === id);
+      return sum + (a?.priceCents ?? 0);
+    }, 0);
+    const ready = !!selectedSlot && !validating && !checkingAddonFit;
+    const endTime = validatedEndTime || selectedSlot?.endTime;
+    const whenLine =
+      selectedDate && selectedSlot
+        ? `${longDay(selectedDate)} · ${formatTime(selectedSlot.startTime)}${endTime ? ` to ${formatTime(endTime)}` : ""}`
+        : selectedDate
+          ? `${longDay(selectedDate)} · pick a time`
+          : "Pick a day and time";
+    return (
+      <View style={[styles.bottomBar, { backgroundColor: theme.brandBgElevated, borderTopColor: theme.brandSurfaceBorder }]}>
+        <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm, textAlign: "center", marginBottom: Spacing.sm }}>
+          {whenLine}
+        </ThemedText>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md }}>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs }}>Total</ThemedText>
+            <ThemedText style={{ color: theme.brandCream, fontWeight: "800", fontSize: FontSizes.lg }}>
+              {priceLine(selectedService.priceCents + addonsCents, selectedService.depositAmountCents)}
+            </ThemedText>
+          </View>
+          <Pressable
+            onPress={() => ready && handleAddonsContinue()}
+            disabled={!ready}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !ready }}
+            style={[styles.primaryButton, { flex: 1.2, marginTop: 0, backgroundColor: ready ? accent : theme.brandSurfaceBorder }]}
+          >
+            {checkingAddonFit ? (
+              <ActivityIndicator color={onAccent} />
+            ) : (
+              <ThemedText style={[styles.primaryButtonText, { color: ready ? onAccent : theme.brandTextDim }]}>Continue</ThemedText>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const renderMonthSheet = () => (
+    <Modal
+      visible={monthSheetOpen}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setMonthSheetOpen(false)}
+    >
+      <View style={styles.sheetBackdrop}>
+        <Pressable style={{ flex: 1 }} onPress={() => setMonthSheetOpen(false)} accessibilityLabel="Close calendar" />
+        <View style={[styles.monthSheet, { backgroundColor: theme.brandBgElevated, borderColor: theme.brandSurfaceBorder }]}>
+          <View style={[styles.sheetGrabber, { backgroundColor: theme.brandSurfaceBorder }]} />
+          <View style={styles.monthNav}>
+            <Pressable onPress={handlePrevMonth} hitSlop={12} accessibilityRole="button" accessibilityLabel="Previous month">
+              <Feather name="chevron-left" size={24} color={theme.brandCream} />
+            </Pressable>
+            <ThemedText style={[styles.monthTitle, { color: theme.brandCream }]}>{monthDisplay}</ThemedText>
+            <Pressable onPress={handleNextMonth} hitSlop={12} accessibilityRole="button" accessibilityLabel="Next month">
+              <Feather name="chevron-right" size={24} color={theme.brandCream} />
+            </Pressable>
+          </View>
+          <View style={styles.weekdayRow}>
+            {WEEKDAYS.map((day) => (
+              <View key={day} style={[styles.weekdayCell, { width: DAY_SIZE }]}>
+                <ThemedText style={[styles.weekdayText, { color: theme.brandTextDim }]}>{day}</ThemedText>
+              </View>
+            ))}
+          </View>
+          {loadingCalendar && calendarFor(currentMonth) === undefined ? (
+            <ActivityIndicator size="large" color={accent} style={styles.loader} />
+          ) : (
+            <View style={styles.calendarGrid}>
+              {calendarGrid.map((cell, index) => {
+                if (cell.date === null) {
+                  return <View key={index} pointerEvents="none" style={{ width: DAY_SIZE, height: DAY_SIZE }} />;
+                }
+                const open = cell.status === "available" || cell.status === "partial";
+                const isSel = selectedDate === cell.date;
+                return (
+                  <Pressable
+                    key={index}
+                    onPress={() => cell.date && cell.status && handleMonthDayPick(cell.date, cell.status)}
+                    disabled={!open}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSel, disabled: !open }}
+                    accessibilityLabel={`${cell.date ? longDay(cell.date) : ""}${open ? "" : ", no openings"}`}
+                    style={{
+                      width: DAY_SIZE,
+                      height: DAY_SIZE,
+                      borderRadius: DAY_SIZE / 2,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: isSel ? accent : "transparent",
+                      borderWidth: cell.isToday && !isSel ? 1.5 : 0,
+                      borderColor: accent,
+                    }}
+                  >
+                    <ThemedText
+                      style={{
+                        color: isSel ? onAccent : open ? theme.brandCream : theme.brandTextDim,
+                        fontWeight: open ? "700" : "400",
+                        fontSize: FontSizes.sm,
+                        textDecorationLine: open ? "none" : "line-through",
+                      }}
+                    >
+                      {cell.dayNum}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (!isAuthenticated) {
     return (
@@ -1719,48 +2159,24 @@ export default function BookingFlow({
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.brandBg }]}>
-      <View style={[styles.headerBar, { backgroundColor: theme.brandBgElevated, borderBottomColor: theme.brandSurfaceBorder }]}>
-        <ThemedText type="h3" style={{ color: theme.brandCream }}>
-          Book Appointment
-        </ThemedText>
-      </View>
+      {accentColor ? (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: accent + "28" }]} />
+      ) : null}
 
-      <View style={styles.stepperRow}>
-        {[1, 2, 3, 4, 5].map((s, i) => (
-          <View key={s} style={styles.stepperItem}>
-            {i > 0 && (
-              <View style={[styles.stepConnector, { backgroundColor: step >= s ? accentDim : theme.brandSurfaceBorder }]} />
-            )}
-            <View style={styles.stepDotWrap}>
-              <View
-                style={[
-                  styles.stepDot,
-                  {
-                    backgroundColor: step >= s ? accent : theme.brandSurfaceBorder,
-                  },
-                ]}
-              >
-                {step > s ? (
-                  <Feather name="check" size={12} color={theme.brandBg} />
-                ) : (
-                  <ThemedText style={{ color: step >= s ? theme.brandBg : theme.brandTextDim, fontSize: FontSizes.xs, fontWeight: "700" }}>
-                    {s}
-                  </ThemedText>
-                )}
-              </View>
-              <ThemedText style={[styles.stepLabel, { color: step >= s ? accent : theme.brandTextDim }]}>
-                {s === 1 ? "Service" : s === 2 ? "Date" : s === 3 ? "Time" : s === 4 ? "Review" : "Confirm"}
-              </ThemedText>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      {step > 1 && step < 5 && !paying && !paymentIntentExists && (
-        <Pressable onPress={goBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={20} color={accent} />
-          <ThemedText style={{ color: accent, marginLeft: Spacing.xs }}>Back</ThemedText>
-        </Pressable>
+      {(step === 2 || step === 4) && (
+        <View style={styles.stepLabelRow}>
+          {step === 4 && !paying && !paymentIntentExists ? (
+            <Pressable onPress={goBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back to times" style={styles.backButton}>
+              <Feather name="arrow-left" size={20} color={accent} />
+              <ThemedText style={{ color: accent, marginLeft: Spacing.xs }}>Back</ThemedText>
+            </Pressable>
+          ) : (
+            <View />
+          )}
+          <ThemedText style={[styles.stepLabelText, { color: theme.brandTextDim }]}>
+            {step === 2 ? "STEP 1 OF 2" : "STEP 2 OF 2"}
+          </ThemedText>
+        </View>
       )}
 
       {error && (
@@ -1839,358 +2255,9 @@ export default function BookingFlow({
         </View>
       )}
 
-      {step === 2 && (
-        <View style={styles.stepContent}>
-          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
-            Select a Date
-          </ThemedText>
-          <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft }]}>
-            <ServiceSummaryRow service={selectedService} showImage={hasServiceImage(selectedService)} onFail={markServiceImageFailed}>
-              <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
-              <ThemedText style={{ color: theme.brandTextDim }}>
-                {formatDuration(selectedService?.durationMinutes) ? `${formatDuration(selectedService?.durationMinutes)} • ` : ""}
-                {formatPrice(selectedService?.priceCents || 0)}
-              </ThemedText>
-            </ServiceSummaryRow>
-          </View>
-
-          <View style={styles.monthNav}>
-            <Pressable onPress={handlePrevMonth} hitSlop={12}>
-              <Feather name="chevron-left" size={24} color={theme.brandCream} />
-            </Pressable>
-            <ThemedText style={[styles.monthTitle, { color: theme.brandCream }]}>{monthDisplay}</ThemedText>
-            <Pressable onPress={handleNextMonth} hitSlop={12}>
-              <Feather name="chevron-right" size={24} color={theme.brandCream} />
-            </Pressable>
-          </View>
-
-          <View style={styles.weekdayRow}>
-            {WEEKDAYS.map((day) => (
-              <View key={day} style={[styles.weekdayCell, { width: DAY_SIZE }]}>
-                <ThemedText style={[styles.weekdayText, { color: theme.brandTextDim }]}>{day}</ThemedText>
-              </View>
-            ))}
-          </View>
-
-          {loadingCalendar ? (
-            <ActivityIndicator size="large" color={accent} style={styles.loader} />
-          ) : (
-            <View style={styles.calendarGrid}>
-              {calendarGrid.map((cell, index) => {
-                if (cell.date === null) {
-                  return (
-                    <View
-                      key={index}
-                      pointerEvents="none"
-                      style={{
-                        width: DAY_SIZE,
-                        height: DAY_SIZE,
-                        borderRadius: BorderRadius.sm,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {cell.dayNum !== null && (
-                        <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
-                          {cell.dayNum}
-                        </ThemedText>
-                      )}
-                    </View>
-                  );
-                }
-                return (
-                  <Pressable
-                    key={index}
-                    onPress={() => cell.date && cell.status && handleDateSelect(cell.date, cell.status)}
-                    disabled={!cell.date || cell.status === "past" || cell.status === "unavailable"}
-                    style={getDayStyle(cell.status, selectedDate === cell.date, cell.isToday)}
-                  >
-                    {cell.dayNum !== null && (
-                      <ThemedText
-                        style={{
-                          color: getDayTextColor(cell.status, selectedDate === cell.date),
-                          fontWeight: cell.isToday ? "700" : "400",
-                          fontSize: FontSizes.sm,
-                        }}
-                      >
-                        {cell.dayNum}
-                      </ThemedText>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      )}
-
-      {step === 3 && !showAddonsStep && (
-        <View style={styles.stepContent}>
-          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
-            Select a Time
-          </ThemedText>
-          <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft }]}>
-            <ServiceSummaryRow service={selectedService} showImage={hasServiceImage(selectedService)} onFail={markServiceImageFailed}>
-              <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService?.name}</ThemedText>
-              <ThemedText style={{ color: theme.brandTextDim }}>
-                {selectedDateDisplay} • {formatPrice(selectedService?.priceCents || 0)}
-              </ThemedText>
-            </ServiceSummaryRow>
-          </View>
-
-          {loadingSlots || validating ? (
-            <View style={styles.loader}>
-              <ActivityIndicator size="large" color={accent} />
-              <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
-                {validating ? "Validating..." : "Loading..."}
-              </ThemedText>
-            </View>
-          ) : (() => {
-            const displaySlots = slots.filter((slot) => {
-              const minutes = parseInt(slot.startTime.split(":")[1], 10);
-              return minutes === 0 || minutes === 30;
-            });
-            const { morning, afternoon } = groupSlots(displaySlots);
-            return (
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                {morning.length > 0 && (
-                  <>
-                    <ThemedText style={[styles.slotGroupLabel, { color: theme.brandTextDim }]}>
-                      Morning
-                    </ThemedText>
-                    {morning.map((slot) => (
-                      <Pressable
-                        key={slot.id}
-                        onPress={() => handleSlotSelect(slot)}
-                        disabled={slot.status !== "available"}
-                        style={[
-                          styles.slotListRow,
-                          {
-                            backgroundColor: selectedSlot?.id === slot.id ? accentSoft : theme.brandBgElevated,
-                            borderColor: selectedSlot?.id === slot.id ? accent : theme.brandSurfaceBorder,
-                          },
-                          slot.status !== "available" && styles.slotListRowUnavailable,
-                        ]}
-                      >
-                        <View>
-                          <ThemedText
-                            style={[
-                              styles.slotListTime,
-                              { color: selectedSlot?.id === slot.id ? accent : theme.brandCream },
-                            ]}
-                          >
-                            {formatTime(slot.startTime)}
-                          </ThemedText>
-                          <ThemedText style={[styles.slotListEnd, { color: theme.brandTextDim }]}>
-                            → {formatTime(slot.endTime)}
-                          </ThemedText>
-                        </View>
-                        {selectedSlot?.id === slot.id ? (
-                          <View style={[styles.slotCheckCircle, { backgroundColor: accent }]}>
-                            <Feather name="check" size={12} color={theme.brandBg} />
-                          </View>
-                        ) : slot.status === "available" ? (
-                          <View style={[styles.slotDotOpen, { backgroundColor: theme.brandSuccess }]} />
-                        ) : (
-                          <View style={[styles.slotDotTaken, { backgroundColor: theme.brandSurfaceBorder }]} />
-                        )}
-                      </Pressable>
-                    ))}
-                  </>
-                )}
-
-                {afternoon.length > 0 && (
-                  <>
-                    <ThemedText
-                      style={[styles.slotGroupLabel, { color: theme.brandTextDim, marginTop: Spacing.sm }]}
-                    >
-                      Afternoon
-                    </ThemedText>
-                    {afternoon.map((slot) => (
-                      <Pressable
-                        key={slot.id}
-                        onPress={() => handleSlotSelect(slot)}
-                        disabled={slot.status !== "available"}
-                        style={[
-                          styles.slotListRow,
-                          {
-                            backgroundColor: selectedSlot?.id === slot.id ? accentSoft : theme.brandBgElevated,
-                            borderColor: selectedSlot?.id === slot.id ? accent : theme.brandSurfaceBorder,
-                          },
-                          slot.status !== "available" && styles.slotListRowUnavailable,
-                        ]}
-                      >
-                        <View>
-                          <ThemedText
-                            style={[
-                              styles.slotListTime,
-                              { color: selectedSlot?.id === slot.id ? accent : theme.brandCream },
-                            ]}
-                          >
-                            {formatTime(slot.startTime)}
-                          </ThemedText>
-                          <ThemedText style={[styles.slotListEnd, { color: theme.brandTextDim }]}>
-                            → {formatTime(slot.endTime)}
-                          </ThemedText>
-                        </View>
-                        {selectedSlot?.id === slot.id ? (
-                          <View style={[styles.slotCheckCircle, { backgroundColor: accent }]}>
-                            <Feather name="check" size={12} color={theme.brandBg} />
-                          </View>
-                        ) : slot.status === "available" ? (
-                          <View style={[styles.slotDotOpen, { backgroundColor: theme.brandSuccess }]} />
-                        ) : (
-                          <View style={[styles.slotDotTaken, { backgroundColor: theme.brandSurfaceBorder }]} />
-                        )}
-                      </Pressable>
-                    ))}
-                  </>
-                )}
-
-                {displaySlots.length === 0 && (
-                  <ThemedText style={[styles.slotEmptyText, { color: theme.brandTextDim }]}>
-                    No available times for this date.
-                  </ThemedText>
-                )}
-
-                {selectedSlot && (
-                  <Pressable
-                    onPress={() => handleSlotSelect(selectedSlot)}
-                    style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.lg }]}
-                  >
-                    <ThemedText style={[styles.primaryButtonText, { color: theme.brandBg }]}>
-                      {`Confirm ${formatTime(selectedSlot.startTime)} →`}
-                    </ThemedText>
-                  </Pressable>
-                )}
-                {!selectedSlot && displaySlots.length > 0 && (
-                  <Pressable
-                    disabled
-                    style={[styles.primaryButton, { backgroundColor: theme.brandSurfaceBorder, marginTop: Spacing.lg }]}
-                  >
-                    <ThemedText style={[styles.primaryButtonText, { color: theme.brandTextDim }]}>
-                      Select a time
-                    </ThemedText>
-                  </Pressable>
-                )}
-              </ScrollView>
-            );
-          })()}
-        </View>
-      )}
-
-      {showAddonsStep && selectedService && selectedSlot && (
-        <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-          <ThemedText style={[styles.stepTitle, { color: theme.brandCream }]}>
-            {(selectedService.addons?.length ?? 0) > 0 ? "Add-ons" : "Details"}
-          </ThemedText>
-          <View style={[styles.selectedServiceSummary, { backgroundColor: accentSoft, marginBottom: Spacing.md }]}>
-            <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{selectedService.name}</ThemedText>
-            <ThemedText style={{ color: theme.brandTextDim }}>
-              {selectedDateDisplay} at {formatTime(selectedSlot.startTime)}
-            </ThemedText>
-          </View>
-          {(selectedService.addons?.length ?? 0) > 0 ? (
-            <ThemedText style={{ color: theme.brandTextDim, marginBottom: Spacing.sm }}>
-              Optional extras for your appointment:
-            </ThemedText>
-          ) : null}
-          {(selectedService.addons ?? []).map((addon) => {
-            const isSelected = selectedAddonIds.includes(addon.id);
-            return (
-              <Pressable
-                key={addon.id}
-                onPress={() => {
-                  setAddonFitError(null);
-                  setSelectedAddonIds((prev) =>
-                    isSelected ? prev.filter((id) => id !== addon.id) : [...prev, addon.id]
-                  );
-                }}
-                style={[
-                  styles.slotListRow,
-                  {
-                    backgroundColor: isSelected ? accentSoft : theme.brandBgElevated,
-                    borderColor: isSelected ? accent : theme.brandSurfaceBorder,
-                    marginBottom: Spacing.xs,
-                  },
-                ]}
-              >
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={{ fontWeight: "600", color: theme.brandCream }}>{addon.name}</ThemedText>
-                  {addon.description ? (
-                    <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
-                      {addon.description}
-                    </ThemedText>
-                  ) : null}
-                  <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.sm }}>
-                    {formatPrice(addon.priceCents)}{addon.durationMinutes > 0 ? ` · +${formatDuration(addon.durationMinutes)}` : ""}
-                  </ThemedText>
-                </View>
-                <View
-                  style={[
-                    styles.slotCheckCircle,
-                    { backgroundColor: isSelected ? accent : "transparent", borderWidth: 2, borderColor: isSelected ? accent : theme.brandSurfaceBorder },
-                  ]}
-                >
-                  {isSelected && <Feather name="check" size={14} color={theme.brandBg} />}
-                </View>
-              </Pressable>
-            );
-          })}
-
-          <ThemedText style={{ color: theme.brandCream, fontWeight: "600", marginTop: Spacing.md, marginBottom: Spacing.xs }}>
-            Details for your provider <ThemedText style={{ fontWeight: "400", color: theme.brandTextDim }}>(optional)</ThemedText>
-          </ThemedText>
-          <TextInput
-            value={bookingCustomerDetails}
-            onChangeText={(t) => setBookingCustomerDetails(t.slice(0, 1000))}
-            placeholder="Allergy notes, prep instructions, preferences…"
-            placeholderTextColor={theme.brandTextDim}
-            multiline
-            numberOfLines={4}
-            maxLength={1000}
-            style={{
-              backgroundColor: theme.brandBgElevated,
-              borderWidth: 1,
-              borderColor: theme.brandSurfaceBorder,
-              borderRadius: BorderRadius.md,
-              color: theme.brandCream,
-              padding: Spacing.sm,
-              minHeight: 96,
-              textAlignVertical: "top",
-              marginBottom: Spacing.xs,
-            }}
-          />
-          <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs, textAlign: "right", marginBottom: Spacing.md }}>
-            {bookingCustomerDetails.length}/1000
-          </ThemedText>
-
-          {addonFitError ? (
-            <View style={{ backgroundColor: (theme.brandError || "#FF3B30") + "22", borderRadius: BorderRadius.sm, padding: Spacing.sm, marginBottom: Spacing.md }}>
-              <ThemedText style={{ color: theme.brandError || "#FF3B30" }}>
-                {addonFitError}
-              </ThemedText>
-              <Pressable onPress={() => { setShowAddonsStep(false); setAddonFitError(null); }} style={{ marginTop: Spacing.xs }}>
-                <ThemedText style={{ color: accent, fontWeight: "600" }}>Change time</ThemedText>
-              </Pressable>
-            </View>
-          ) : null}
-
-          <Pressable
-            onPress={handleAddonsContinue}
-            disabled={checkingAddonFit}
-            style={[styles.primaryButton, { backgroundColor: accent, opacity: checkingAddonFit ? 0.6 : 1 }]}
-          >
-            {checkingAddonFit ? (
-              <ActivityIndicator color={theme.brandBg} />
-            ) : (
-              <ThemedText style={[styles.primaryButtonText, { color: theme.brandBg }]}>
-                Continue
-              </ThemedText>
-            )}
-          </Pressable>
-        </ScrollView>
-      )}
+      {step === 2 && renderChooseTime()}
+      {step === 2 && renderChooseTimeBar()}
+      {renderMonthSheet()}
 
       {!showAddonsStep && step === 4 && selectedSlot && selectedService && (
         <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
@@ -2393,7 +2460,7 @@ export default function BookingFlow({
                     borderColor: virtualLinkAcknowledged ? accent : theme.brandTextDim,
                     backgroundColor: virtualLinkAcknowledged ? accent : "transparent",
                   }]}>
-                    {virtualLinkAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                    {virtualLinkAcknowledged && <Feather name="check" size={13} color={onAccent} />}
                   </View>
                   <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
                     I understand I will join this meeting link at my scheduled appointment time.
@@ -2417,7 +2484,7 @@ export default function BookingFlow({
                       borderColor: cancellationPolicyAcknowledged ? accent : theme.brandTextDim,
                       backgroundColor: cancellationPolicyAcknowledged ? accent : "transparent",
                     }]}>
-                      {cancellationPolicyAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                      {cancellationPolicyAcknowledged && <Feather name="check" size={13} color={onAccent} />}
                     </View>
                     <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
                       {"I agree to the "}
@@ -2449,7 +2516,7 @@ export default function BookingFlow({
                       borderColor: platformTermsAcknowledged ? accent : theme.brandTextDim,
                       backgroundColor: platformTermsAcknowledged ? accent : "transparent",
                     }]}>
-                      {platformTermsAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                      {platformTermsAcknowledged && <Feather name="check" size={13} color={onAccent} />}
                     </View>
                     <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
                       {"I agree to the "}
@@ -2478,7 +2545,7 @@ export default function BookingFlow({
                       borderColor: vendorTermsAcknowledged ? accent : theme.brandTextDim,
                       backgroundColor: vendorTermsAcknowledged ? accent : "transparent",
                     }]}>
-                      {vendorTermsAcknowledged && <Feather name="check" size={13} color={theme.brandBg} />}
+                      {vendorTermsAcknowledged && <Feather name="check" size={13} color={onAccent} />}
                     </View>
                     <ThemedText style={{ color: theme.brandCream, flex: 1 }}>
                       {"I agree to "}
@@ -2674,6 +2741,101 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: Spacing.md,
+  },
+  // ── Choose a time (booking redesign step 2) ──
+  stepLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 32,
+    marginBottom: Spacing.sm,
+  },
+  stepLabelText: {
+    fontSize: FontSizes.xs,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: "800",
+  },
+  weekNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  navButton: {
+    minWidth: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthButton: {
+    flexDirection: "row",
+    paddingHorizontal: 10,
+  },
+  weekRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  weekDay: {
+    flex: 1,
+    height: 64,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  timeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  timeButton: {
+    width: (SCREEN_WIDTH - Spacing.md * 2 - Spacing.sm * 2) / 3 - 0.5,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomBar: {
+    borderTopWidth: 1,
+    marginHorizontal: -Spacing.md,
+    marginBottom: -Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  monthSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xl,
+  },
+  sheetGrabber: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: Spacing.sm,
   },
   headerBar: {
     paddingVertical: Spacing.md,
