@@ -63,6 +63,7 @@ import InfluencerAnalyticsScreen from "@/screens/InfluencerAnalyticsScreen";
 import InfluencerOnboardingScreen from "@/screens/InfluencerOnboardingScreen";
 import ProfileCompletionGateScreen from "@/screens/ProfileCompletionGateScreen";
 import StorefrontEditorScreen from "@/screens/StorefrontEditorScreen";
+import PhotographerManageBusinessScreen from "@/screens/PhotographerManageBusinessScreen";
 import SubscriptionPlanScreen from "@/screens/SubscriptionPlanScreen";
 import StaffManagementScreen from "@/screens/StaffManagementScreen";
 import ShootBookingScreen from "@/screens/ShootBookingScreen";
@@ -917,6 +918,17 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
+        }}
+      />
+
+      <Stack.Screen
+        name="PhotographerManageBusiness"
+        component={PhotographerManageBusinessScreen}
+        options={{
+          presentation: "card",
+          animation: "slide_from_right",
+          // The screen draws its own header (same as StorefrontEditor).
+          headerShown: false,
         }}
       />
 

@@ -214,7 +214,15 @@ export function PersonalSettingsMenu({
                   onPress={() => handleNavigate("PhotographerDashboard")}
                   color="#007AFF"
                   backgroundColor="#007AFF10"
-                  subtitle="Manage bookings, services, and earnings"
+                  subtitle="Bookings, calendar and earnings"
+                />
+                <MenuItem
+                  icon="edit-3"
+                  label="Manage business"
+                  onPress={() => handleNavigate("PhotographerManageBusiness")}
+                  color="#007AFF"
+                  backgroundColor="#007AFF10"
+                  subtitle="Services, your profile, hours and payouts"
                 />
               </View>
             ) : null}

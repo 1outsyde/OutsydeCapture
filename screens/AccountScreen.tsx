@@ -1469,7 +1469,7 @@ export default function AccountScreen() {
       return;
     }
     if (profile.role === "photographer") {
-      navigation.navigate("PhotographerDashboard", { openModal: "profile" });
+      navigation.navigate("PhotographerManageBusiness");
       return;
     }
     if (profile.role === "staff") {
@@ -1605,13 +1605,17 @@ export default function AccountScreen() {
               accentColor={accentColor}
             />
           </StoryRing>
-          {isOwner && profile.role === "business" ? (
-            // Business owners (2026-10-28): "Manage business" opens the same editor
-            // Edit Profile did; Dashboard opens the Business Dashboard.
+          {isOwner && (profile.role === "business" || profile.role === "photographer") ? (
+            // Business owners (2026-10-28) and photographers (2026-11-06): "Manage business"
+            // opens the editor Edit Profile did; Dashboard opens their dashboard.
             <View style={styles.ownerActions}>
               <Pressable
                 style={[styles.dashboardButton, { borderColor: accentColor }]}
-                onPress={() => navigation.navigate("BusinessDashboard")}
+                onPress={() =>
+                  profile.role === "photographer"
+                    ? navigation.navigate("PhotographerDashboard")
+                    : navigation.navigate("BusinessDashboard")
+                }
                 accessibilityRole="button"
               >
                 <Text style={[styles.dashboardButtonText, { color: accentColor }]}>Dashboard</Text>
@@ -3143,7 +3147,9 @@ export default function AccountScreen() {
         visible={isOwner && settingsVisible}
         onClose={() => setSettingsVisible(false)}
         onEditProfile={
-          isOwner && profile?.role !== "business" ? onEditProfilePress : undefined
+          isOwner && profile?.role !== "business" && profile?.role !== "photographer"
+            ? onEditProfilePress
+            : undefined
         }
         isMultiStaff={Boolean(profile?.isMultiStaff)}
         onOpenSaved={() => setActiveTab("saved")}
