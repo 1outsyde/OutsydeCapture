@@ -132,7 +132,13 @@ export default function StaffWorkProfileScreen({ route }: Props) {
   const [businessLogo, setBusinessLogo] = useState<string | undefined>(undefined);
   const { startChat } = useStartChat();
   const [brandColors, setBrandColors] = useState<BrandColorSpec | null>(null);
-  const [businessMeta, setBusinessMeta] = useState<{ address?: string | null; city?: string | null; state?: string | null } | null>(null);
+  const [businessMeta, setBusinessMeta] = useState<{
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    showAddress?: boolean;
+    vendorTerms?: string | null;
+  } | null>(null);
   const [services, setServices] = useState<StaffServiceCard[]>([]);
   const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(
     new Set(),
@@ -189,6 +195,9 @@ export default function StaffWorkProfileScreen({ route }: Props) {
         address: businessResult?.address,
         city: businessResult?.city,
         state: businessResult?.state,
+        // Booking step 3: respect a hidden address and show the business's terms.
+        showAddress: businessResult?.showAddress,
+        vendorTerms: businessResult?.vendorTermsAndConditions ?? null,
       });
 
       const member = (staffResult.staff || []).find(
@@ -271,6 +280,8 @@ export default function StaffWorkProfileScreen({ route }: Props) {
       providerAddress: businessMeta?.address,
       providerCity: businessMeta?.city,
       providerState: businessMeta?.state,
+      providerShowAddress: businessMeta?.showAddress,
+      providerVendorTerms: businessMeta?.vendorTerms,
       staffMemberId: staffId,
       accentColor,
     });

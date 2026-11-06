@@ -152,6 +152,9 @@ export interface ApiBusinessDetail {
   description?: string;
   subscriptionTier?: "basic" | "pro" | "premium";
   address?: string;
+  // toPublicBusinessDTO (backend serializers/business.ts): hide the street address when false.
+  showAddress?: boolean;
+  vendorTermsAndConditions?: string | null;
   website?: string;
   phone?: string;
   email?: string;
@@ -6192,6 +6195,9 @@ class ApiService {
     // Points code: an id to use it, null to use none. Leaving it out keeps
     // whatever code the booking already has (backend #314).
     promoCodeId?: string | null,
+    // The customer checked the agreement (booking step 3, backend #422). Saved
+    // once on the booking; older backends ignore it.
+    agreement?: { agreed: true; termsVersion: string },
   ): Promise<{
     clientSecret: string;
     paymentIntentId: string;
@@ -6233,6 +6239,7 @@ class ApiService {
   }> {
     const body: Record<string, unknown> = { ...(customerAddress ?? {}) };
     if (promoCodeId !== undefined) body.promoCodeId = promoCodeId;
+    if (agreement) body.agreement = agreement;
     body.paymentSheet = true;
     // Sends the login token like every other booking call. Without it the
     // backend only had the session cookie, which can be missing or expired.
