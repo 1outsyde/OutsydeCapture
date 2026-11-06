@@ -6919,6 +6919,20 @@ class ApiService {
     );
   }
 
+  /** Quotes step 6b: a goutsyde.com/q/<code> link (GET /api/quotes/link/:code). Signed out: a preview only. */
+  async getQuoteLink(
+    code: string,
+    authToken?: string,
+  ): Promise<{
+    access: "preview" | "customer" | "vendor" | "admin";
+    quoteId?: string;
+    preview: Record<string, unknown>;
+  }> {
+    return this.request(`/api/quotes/link/${encodeURIComponent(code)}`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+  }
+
   // ── Quotes, business lists (step 6d-2b) ──
 
   /** The owner's requests, newest first (GET /api/vendor/estimate-requests, owner only). */
