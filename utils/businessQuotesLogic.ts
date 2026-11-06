@@ -81,6 +81,8 @@ export function quoteListChip(q: ListQuote, now = Date.now()): string {
   if (pastExpiry(q, now)) return "Expired";
   if (q.status === "sent") return q.paying ? "Paying" : "Waiting to pay";
   if (q.status === "paid") {
+    // Deliverables D2: paid as a product order, not a booking.
+    if (q.kind === "product") return "Paid";
     if (q.bookingStatus === "completed") return "Complete";
     if (q.bookingStatus === "rescheduled") return "Rescheduled";
     if (q.bookingStatus && ENDED.includes(q.bookingStatus))

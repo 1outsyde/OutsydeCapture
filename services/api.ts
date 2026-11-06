@@ -1393,6 +1393,11 @@ export interface BusinessOrder {
   attributedInfluencerId?: string;
   // JSON-encoded {line1, city, state, zipCode} — parse before rendering; null for pre-fix orders
   shippingAddress?: string | null;
+  /** Deliverables D1b (additive): an order paid from a deliverable quote. shippingAddress is then plain text. */
+  quoteId?: string | null;
+  fulfillment?: "pickup" | "delivery" | null;
+  quoteTotalCents?: number | null;
+  paidDirectlyCents?: number | null;
   shipment?: {
     id: string;
     carrier: string;
@@ -6869,6 +6874,23 @@ class ApiService {
     });
   }
 
+  /** Deliverables D2: the customer adds or changes the delivery address of a Delivery quote before paying. */
+  async setQuoteDeliveryAddress(authToken: string, quoteId: string, address: string): Promise<{ quote: QuoteWire }> {
+    return this.request<{ quote: QuoteWire }>(`/api/quotes/${encodeURIComponent(quoteId)}/delivery-address`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ address }),
+    });
+  }
+
+  /** Deliverables D2: Mark picked up or Mark delivered (Pickup or Delivery orders, owner). */
+  async markOrderHandedOver(authToken: string, orderId: string): Promise<{ order: unknown; message?: string }> {
+    return this.request<{ order: unknown; message?: string }>(`/api/business/orders/${encodeURIComponent(orderId)}/handed-over`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+  }
+
   async declineQuote(authToken: string, quoteId: string, reason?: string): Promise<unknown> {
     return this.request(`/api/quotes/${encodeURIComponent(quoteId)}/decline`, {
       method: "POST",
@@ -7330,6 +7352,9 @@ export type QuoteWire = import("@/utils/quoteLogic").Quote;
 /** POST /api/quotes/:id/pay and /balance/card, /extras/card. */
 export interface QuotePayStart {
   clientSecret: string;
+  /** Deliverables D2: a deliverable is paid as a product order. */
+  orderId?: string;
+  orderNumber?: number;
   paymentIntentId?: string;
   captureMethod?: "automatic" | "manual";
   amountChargedNowCents?: number;
@@ -7613,6 +7638,11 @@ export interface ConsumerOrder {
   totalAmount: number;
   grossChargeAmount?: number | null;
   shippingAddress?: string | null;
+  /** Deliverables D1b (additive). */
+  quoteId?: string | null;
+  fulfillment?: "pickup" | "delivery" | null;
+  quoteTotalCents?: number | null;
+  paidDirectlyCents?: number | null;
   createdAt: string;
   carrier?: string | null;
   trackingNumber?: string | null;

@@ -41,6 +41,14 @@ import {
   PrimaryButton,
   TextButton,
 } from "@/components/host/hostUi";
+import {
+  DELIVERABLE_COPY,
+  canHandOver,
+  deliverablePaidLine,
+  deliverableWhenLine,
+  handOverLabel,
+  needsAddress,
+} from "@/utils/deliverableLogic";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useQuotePayments, type StepResult } from "@/hooks/useQuotePayments";
@@ -84,6 +92,8 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Busy =
   | null
   | "pay"
+  | "address"
+  | "hand-over"
   | "decline"
   | "card:balance"
   | "card:extras"
@@ -113,6 +123,8 @@ export default function QuoteScreen() {
   const [declinedCard, setDeclinedCard] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reason, setReason] = useState("");
+  // Deliverables D2: the delivery address box (customer, Delivery quotes).
+  const [addr, setAddr] = useState<string | null>(null);
   const [photos, setPhotos] = useState<{ uri: string; mime: string }[]>([]);
   const [extraOpen, setExtraOpen] = useState(false);
   const [extraDesc, setExtraDesc] = useState("");
@@ -211,7 +223,9 @@ export default function QuoteScreen() {
     run("pay", async () =>
       finish(
         await steps.pay(cur),
-        "Paid. You're booked.",
+        cur.kind === "product"
+          ? "Paid. Your order is in Orders."
+          : "Paid. You're booked.",
         (f) => f.status === "paid",
       ),
     );
@@ -342,6 +356,44 @@ export default function QuoteScreen() {
         "Extra taken back. Nothing was added.",
       );
     });
+  // Deliverables D2: the customer saves the delivery address before paying.
+  const saveAddress = (cur: Quote) =>
+    run("address", async () => {
+      const text = (addr ?? "").trim();
+      if (!text) {
+        setError(DELIVERABLE_COPY.addressNeeded);
+        return;
+      }
+      const ok = await bizStep(
+        (t) => api.setQuoteDeliveryAddress(t, cur.id, text),
+        DELIVERABLE_COPY.addressSaved,
+      );
+      if (ok) setAddr(null);
+    });
+
+  // Deliverables D2: Mark picked up or Mark delivered (the business, on the quote).
+  const handOver = (cur: Quote) => {
+    const label = handOverLabel(cur.fulfillment);
+    if (!cur.orderId) return;
+    Alert.alert(
+      `${label}?`,
+      "The customer gets an email. This can't be undone.",
+      [
+        { text: "Not yet", style: "cancel" },
+        {
+          text: label,
+          onPress: () =>
+            run("hand-over", async () => {
+              await bizStep(
+                (t) => api.markOrderHandedOver(t, cur.orderId!),
+                DELIVERABLE_COPY.handOverDone,
+              );
+            }),
+        },
+      ],
+    );
+  };
+
   const jobComplete = (cur: Quote) =>
     Alert.alert("Mark the job complete?", jobCompleteConfirm(cur), [
       { text: "Not yet", style: "cancel" },
@@ -482,7 +534,13 @@ export default function QuoteScreen() {
   const jc = manage
     ? jobCompleteState(q, readAt)
     : { show: false, ready: false };
-  const when = whenLine(q);
+  const product = q.kind === "product";
+  const when = product ? deliverableWhenLine(q) : whenLine(q);
+  const paidLine = product
+    ? deliverablePaidLine(q, manage ? "business" : "customer")
+    : null;
+  // Review 1 and 2: Mark picked up and the business Orders screen are the owner's (staff and admin can't open them).
+  const owner = manage && user?.role !== "staff";
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -516,6 +574,19 @@ export default function QuoteScreen() {
               {q.details}
             </ThemedText>
           ) : null}
+          {product && q.fulfillment === "delivery" && q.deliveryFeeCents ? (
+            <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
+              {`Delivery fee ${money(q.deliveryFeeCents)}, included in the total.`}
+            </ThemedText>
+          ) : null}
+          {product &&
+          q.fulfillment === "delivery" &&
+          q.deliveryAddress &&
+          (!isCustomer || addr === null) ? (
+            <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
+              {`Delivery to ${q.deliveryAddress}`}
+            </ThemedText>
+          ) : null}
           {q.extrasNote ? (
             <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
               {q.extrasNote}
@@ -535,22 +606,19 @@ export default function QuoteScreen() {
               </Hint>
             ) : (
               <>
-                {q.kind === "product" ? (
-                  <Hint>{"Editing product quotes isn't in the app yet."}</Hint>
-                ) : (
-                  <OutlineButton
-                    label="Edit quote"
-                    disabled={!!busy}
-                    onPress={() =>
-                      navigation.navigate("QuoteCompose", {
-                        conversationId: q.conversationId,
-                        quoteId: q.id,
-                        // Review 3: staff load their business's services.
-                        businessId: q.businessId,
-                      })
-                    }
-                  />
-                )}
+                {/* Deliverables D2: deliverables are edited in the app too. */}
+                <OutlineButton
+                  label="Edit quote"
+                  disabled={!!busy}
+                  onPress={() =>
+                    navigation.navigate("QuoteCompose", {
+                      conversationId: q.conversationId,
+                      quoteId: q.id,
+                      // Review 3: staff load their business's services.
+                      businessId: q.businessId,
+                    })
+                  }
+                />
                 <OutlineButton
                   label="Withdraw quote"
                   danger
@@ -594,12 +662,33 @@ export default function QuoteScreen() {
               <Hint>Your payment is being confirmed.</Hint>
             ) : null}
             {isCustomer && stage === "pay" ? (
-              q.kind === "product" ? (
-                <Hint>
-                  Paying for custom products in Outsyde is coming soon. Message
-                  the business to arrange payment for now.
-                </Hint>
-              ) : !q.jobDate || !q.startTime ? (
+              product &&
+              q.fulfillment === "delivery" &&
+              (needsAddress(q) || addr !== null) ? (
+                <>
+                  <Field
+                    label={DELIVERABLE_COPY.addressLabel.toUpperCase()}
+                    value={addr ?? q.deliveryAddress ?? ""}
+                    onChangeText={setAddr}
+                    multiline
+                    maxLength={300}
+                    placeholder="Street, town and ZIP code"
+                  />
+                  <Hint>{DELIVERABLE_COPY.addressHint}</Hint>
+                  <PrimaryButton
+                    label={DELIVERABLE_COPY.addressSave}
+                    busy={busy === "address"}
+                    disabled={!!busy}
+                    onPress={() => saveAddress(q)}
+                  />
+                  {q.deliveryAddress ? (
+                    <TextButton
+                      label="Keep the saved address"
+                      onPress={() => setAddr(null)}
+                    />
+                  ) : null}
+                </>
+              ) : !product && (!q.jobDate || !q.startTime) ? (
                 <Hint>
                   {
                     "This quote doesn't have a date and time yet. Ask the business to add them, then pay."
@@ -607,6 +696,14 @@ export default function QuoteScreen() {
                 </Hint>
               ) : (
                 <>
+                  {product &&
+                  q.fulfillment === "delivery" &&
+                  q.deliveryAddress ? (
+                    <TextButton
+                      label="Change the delivery address"
+                      onPress={() => setAddr(q.deliveryAddress ?? "")}
+                    />
+                  ) : null}
                   <PrimaryButton
                     label={`Pay ${money(q.amounts.payNowCents)}`}
                     busy={busy === "pay"}
@@ -626,7 +723,45 @@ export default function QuoteScreen() {
 
         {stage === "closed" ? <Hint>{closedLine(q.status)}</Hint> : null}
 
-        {q.status === "paid" ? (
+        {q.status === "paid" && product ? (
+          <Box title={manage ? "The order" : "Your order"}>
+            <ThemedText style={[styles.body, { color: theme.brandCream }]}>
+              {q.paymentMode === "full"
+                ? `Paid in full, ${money(q.amounts.payNowCents)}.`
+                : `Deposit paid, ${money(q.amounts.payNowCents)}. The rest, ${money(q.amounts.paidDirectlyCents)}, ${manage ? "is paid to you directly" : "goes to the business directly"}.`}
+            </ThemedText>
+            {paidLine ? <Hint>{paidLine}</Hint> : null}
+            {owner &&
+            q.orderId &&
+            canHandOver({
+              status: q.orderStatus ?? null,
+              fulfillment: q.fulfillment ?? null,
+            }) ? (
+              <PrimaryButton
+                label={handOverLabel(q.fulfillment)}
+                busy={busy === "hand-over"}
+                disabled={!!busy}
+                onPress={() => handOver(q)}
+              />
+            ) : null}
+            {q.orderId && (owner || !manage) ? (
+              <OutlineButton
+                label={DELIVERABLE_COPY.viewOrder}
+                disabled={!!busy}
+                onPress={() =>
+                  owner
+                    ? navigation.navigate("DashboardOrdersScreen" as any)
+                    : navigation.navigate("CartOrders", {
+                        openTab: "orders",
+                        _ts: Date.now(),
+                      })
+                }
+              />
+            ) : null}
+          </Box>
+        ) : null}
+
+        {q.status === "paid" && !product ? (
           <Box title="Your booking">
             <ThemedText style={[styles.body, { color: theme.brandCream }]}>
               {q.paymentMode === "full"
@@ -668,7 +803,7 @@ export default function QuoteScreen() {
           </Box>
         ) : null}
 
-        {q.extras.length || (manage && open) ? (
+        {!product && (q.extras.length || (manage && open)) ? (
           <Box title="Extras">
             {q.extras.map((x) => (
               <View

@@ -56,6 +56,7 @@ import {
 } from "@/utils/quoteLogic";
 import {
   EXPIRY_LINE,
+  DELIVERABLE_EXPIRY_LINE,
   durationOptions,
   editBody,
   emptyForm,
@@ -67,10 +68,14 @@ import {
   type QuoteBody,
   type QuoteForm,
 } from "@/utils/quoteSendLogic";
+import {
+  DELIVERABLE_COPY,
+  deliverableWhenLine,
+} from "@/utils/deliverableLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Svc = { id: string; name: string; durationMinutes?: number | null };
-type Sheet = null | "service" | "length";
+type Sheet = null | "service" | "length" | "product";
 
 const localZone = () => {
   try {
@@ -104,6 +109,8 @@ export default function QuoteComposeScreen() {
   const [loading, setLoading] = useState(editing);
   const [loadError, setLoadError] = useState("");
   const [services, setServices] = useState<Svc[]>([]);
+  // Deliverables D2: your own products, for the optional Product picker.
+  const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
   const [step, setStep] = useState<"form" | "review">("form");
   const [review, setReview] = useState<QuoteBody | null>(null);
   const [fieldErr, setFieldErr] = useState<{
@@ -113,13 +120,14 @@ export default function QuoteComposeScreen() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [picker, setPicker] = useState<
-    (PickerTarget & { field: "jobDate" | "startTime" }) | null
+    (PickerTarget & { field: "jobDate" | "startTime" | "dueDate" }) | null
   >(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const touched = useRef(false);
   const sending = useRef(false);
   // Review 3: the service saved on the quote; an edit leaves it out unless it changed.
   const [savedServiceId, setSavedServiceId] = useState<string | null>(null);
+  const [savedProductId, setSavedProductId] = useState<string | null>(null);
   // Review 1: load once. getToken changes on every auth render (a return to the app), which must never reload the
   // quote over the business's unsaved edits.
   const tokenRef = useRef(getToken);
@@ -133,7 +141,9 @@ export default function QuoteComposeScreen() {
       e &&
       (e.field === k ||
         (k === "total" && e.field === "totalCents") ||
-        (k === "deposit" && e.field === "depositCents"))
+        (k === "deposit" && e.field === "depositCents") ||
+        (k === "deliveryFee" && e.field === "deliveryFeeCents") ||
+        (k === "kind" && e.field === "kind"))
         ? null
         : e,
     );
@@ -153,7 +163,7 @@ export default function QuoteComposeScreen() {
         try {
           const q = await api.getQuote(token, p.quoteId);
           if (!live) return;
-          if (q.status !== "sent" || q.kind === "product") {
+          if (q.status !== "sent") {
             setLoadError(
               q.status === "paid"
                 ? "This quote is paid, so it can't be changed."
@@ -163,6 +173,7 @@ export default function QuoteComposeScreen() {
             if (!touched.current) setForm(formFromQuote(q));
             setVersion(q.version);
             setSavedServiceId(q.serviceId ?? null);
+            setSavedProductId((q as any).productId ?? null);
           }
         } catch (err) {
           if (live) setLoadError(errorMessage(err as ApiError));
@@ -190,6 +201,23 @@ export default function QuoteComposeScreen() {
           );
       } catch {
         // The service link is optional: no list, no picker.
+      }
+      // Deliverables D2: the owner's products (staff send without a product link).
+      if (user?.role !== "staff") {
+        try {
+          const pl = (await api.getVendorProducts(token)).products ?? [];
+          if (live)
+            setProducts(
+              pl
+                .filter(
+                  (x: any) =>
+                    x && x.isActive !== false && x.status !== "archived",
+                )
+                .map((x: any) => ({ id: x.id, name: x.name })),
+            );
+        } catch {
+          // Optional: no list, no picker.
+        }
       }
     })();
     return () => {
@@ -255,7 +283,7 @@ export default function QuoteComposeScreen() {
           token,
           p.quoteId,
           version,
-          editBody(review, savedServiceId),
+          editBody(review, savedServiceId, savedProductId),
         );
       else await api.sendQuote(token, p.conversationId, review, p.businessId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
@@ -299,6 +327,18 @@ export default function QuoteComposeScreen() {
     [services],
   );
   const serviceName = services.find((s) => s.id === form.serviceId)?.name;
+  // Review 4: a saved product that is no longer listed (archived) still shows, so the owner sees what the quote keeps.
+  const productName =
+    products.find((x) => x.id === form.productId)?.name ??
+    (form.productId ? "Saved product, no longer listed" : undefined);
+  const productOptions: Option[] = useMemo(
+    () => [
+      { value: "", label: DELIVERABLE_COPY.noProduct },
+      ...products.map((x) => ({ value: x.id, label: x.name })),
+    ],
+    [products],
+  );
+  const isProduct = form.kind === "product";
   const title = editing
     ? "Edit quote"
     : step === "review"
@@ -352,13 +392,36 @@ export default function QuoteComposeScreen() {
             {!editing && user?.role === "staff" && user.staffBusinessName ? (
               <Hint>{`Sending as ${user.staffBusinessName}.`}</Hint>
             ) : null}
-            {services.length ? (
+            <View style={{ gap: 6 }}>
+              <View style={styles.chips}>
+                <Chip
+                  label={DELIVERABLE_COPY.kindService}
+                  on={!isProduct}
+                  onPress={() => set("kind", "service")}
+                />
+                <Chip
+                  label={DELIVERABLE_COPY.kindDeliverable}
+                  on={isProduct}
+                  onPress={() => set("kind", "product")}
+                />
+              </View>
+              {isProduct ? <Hint>{DELIVERABLE_COPY.kindHint}</Hint> : null}
+            </View>
+            {!isProduct && services.length ? (
               <PickerBox
                 label="SERVICE (OPTIONAL)"
                 value={serviceName || "No service"}
                 onPress={() => setSheet("service")}
               />
             ) : null}
+            {isProduct && products.length ? (
+              <PickerBox
+                label="PRODUCT (OPTIONAL)"
+                value={productName || DELIVERABLE_COPY.noProduct}
+                onPress={() => setSheet("product")}
+              />
+            ) : null}
+            {errFor("productId")}
             {errFor("serviceId", "requestId")}
             <Field
               label="TITLE"
@@ -368,66 +431,120 @@ export default function QuoteComposeScreen() {
               placeholder="Two bedroom move"
             />
             {errFor("title")}
-            <View style={styles.row}>
-              <PickerBox
-                label="DATE"
-                value={form.jobDate ? dateLabel(form.jobDate) : "Pick a date"}
-                onPress={() =>
-                  setPicker({
-                    field: "jobDate",
-                    mode: "date",
-                    title: "Date of the job",
-                    value: form.jobDate,
-                    min: today,
-                    fallbackMonth: monthOf(form.jobDate) ?? monthOf(today)!,
-                  })
-                }
-              />
-              <PickerBox
-                label="START"
-                value={
-                  form.startTime ? timeLabel(form.startTime) : "Pick a time"
-                }
-                onPress={() =>
-                  setPicker({
-                    field: "startTime",
-                    mode: "time",
-                    title: "Start time",
-                    value: form.startTime,
-                    fallbackMonth: monthOf(today)!,
-                  })
-                }
-              />
-            </View>
-            {errFor("jobDate", "startTime")}
-            <PickerBox
-              label="LENGTH"
-              value={
-                form.durationMinutes
-                  ? lengthLabel(form.durationMinutes)
-                  : "How long it takes"
-              }
-              onPress={() => setSheet("length")}
-            />
-            {errFor("durationMinutes")}
+            {isProduct ? (
+              <>
+                <PickerBox
+                  label="DUE DATE (OPTIONAL)"
+                  value={form.dueDate ? dateLabel(form.dueDate) : "No due date"}
+                  onPress={() =>
+                    setPicker({
+                      field: "dueDate",
+                      mode: "date",
+                      title: "Due date",
+                      value: form.dueDate,
+                      min: today,
+                      fallbackMonth: monthOf(form.dueDate) ?? monthOf(today)!,
+                    })
+                  }
+                />
+                {form.dueDate ? (
+                  <Chip
+                    label="Remove the due date"
+                    on={false}
+                    onPress={() => set("dueDate", "")}
+                  />
+                ) : null}
+                {errFor("dueDate")}
+                <View style={{ gap: 6 }}>
+                  <Label>HOW IT GETS TO THEM</Label>
+                  <View style={styles.chips}>
+                    <Chip
+                      label={DELIVERABLE_COPY.pickup}
+                      on={form.fulfillment === "pickup"}
+                      onPress={() => set("fulfillment", "pickup")}
+                    />
+                    <Chip
+                      label={DELIVERABLE_COPY.delivery}
+                      on={form.fulfillment === "delivery"}
+                      onPress={() => set("fulfillment", "delivery")}
+                    />
+                  </View>
+                </View>
+                {errFor("fulfillment")}
+              </>
+            ) : null}
+            {!isProduct ? (
+              <>
+                <View style={styles.row}>
+                  <PickerBox
+                    label="DATE"
+                    value={
+                      form.jobDate ? dateLabel(form.jobDate) : "Pick a date"
+                    }
+                    onPress={() =>
+                      setPicker({
+                        field: "jobDate",
+                        mode: "date",
+                        title: "Date of the job",
+                        value: form.jobDate,
+                        min: today,
+                        fallbackMonth: monthOf(form.jobDate) ?? monthOf(today)!,
+                      })
+                    }
+                  />
+                  <PickerBox
+                    label="START"
+                    value={
+                      form.startTime ? timeLabel(form.startTime) : "Pick a time"
+                    }
+                    onPress={() =>
+                      setPicker({
+                        field: "startTime",
+                        mode: "time",
+                        title: "Start time",
+                        value: form.startTime,
+                        fallbackMonth: monthOf(today)!,
+                      })
+                    }
+                  />
+                </View>
+                {errFor("jobDate", "startTime")}
+                <PickerBox
+                  label="LENGTH"
+                  value={
+                    form.durationMinutes
+                      ? lengthLabel(form.durationMinutes)
+                      : "How long it takes"
+                  }
+                  onPress={() => setSheet("length")}
+                />
+                {errFor("durationMinutes")}
+              </>
+            ) : null}
             <Field
               label="WHAT'S INCLUDED (OPTIONAL)"
               value={form.details}
               onChangeText={(v) => set("details", v)}
               multiline
               maxLength={2000}
-              placeholder="Two movers, a truck, blankets and wrap"
+              placeholder={
+                isProduct
+                  ? "Vanilla, strawberry filling, name on top"
+                  : "Two movers, a truck, blankets and wrap"
+              }
             />
             {errFor("details")}
-            <Field
-              label="EXTRAS NOTE (OPTIONAL)"
-              value={form.extrasNote}
-              onChangeText={(v) => set("extrasNote", v)}
-              multiline
-              maxLength={300}
-              placeholder="Anything that could be added on the day, like extra stairs"
-            />
-            {errFor("extrasNote")}
+            {!isProduct ? (
+              <Field
+                label="EXTRAS NOTE (OPTIONAL)"
+                value={form.extrasNote}
+                onChangeText={(v) => set("extrasNote", v)}
+                multiline
+                maxLength={300}
+                placeholder="Anything that could be added on the day, like extra stairs"
+              />
+            ) : null}
+            {!isProduct ? errFor("extrasNote") : null}
             <Field
               label="TOTAL"
               value={form.total}
@@ -436,6 +553,18 @@ export default function QuoteComposeScreen() {
               placeholder="$0.00"
             />
             {errFor("totalCents")}
+            {isProduct && form.fulfillment === "delivery" ? (
+              <>
+                <Field
+                  label="DELIVERY FEE (OPTIONAL, PART OF THE TOTAL)"
+                  value={form.deliveryFee}
+                  onChangeText={(v) => set("deliveryFee", v)}
+                  keyboardType="decimal-pad"
+                  placeholder="$0.00"
+                />
+                {errFor("deliveryFeeCents")}
+              </>
+            ) : null}
             <View style={{ gap: 6 }}>
               <Label>PAYMENT</Label>
               <View style={styles.chips}>
@@ -462,27 +591,32 @@ export default function QuoteComposeScreen() {
                   placeholder="$0.00"
                 />
                 {errFor("depositCents")}
-                <Box title="The rest is paid">
-                  <RadioRow
-                    label="Through Outsyde"
-                    sub="Held on the customer's card the day before, charged when you mark the job complete."
-                    on={form.restPaid === "outsyde"}
-                    onPress={() => set("restPaid", "outsyde")}
-                  />
-                  <RadioRow
-                    label="Directly to you"
-                    sub="For example cash on the day. Outsyde doesn't hold it or protect it."
-                    on={form.restPaid === "outside"}
-                    onPress={() => set("restPaid", "outside")}
-                  />
-                </Box>
+                {isProduct ? <Hint>{DELIVERABLE_COPY.depositRest}</Hint> : null}
+                {!isProduct ? (
+                  <Box title="The rest is paid">
+                    <RadioRow
+                      label="Through Outsyde"
+                      sub="Held on the customer's card the day before, charged when you mark the job complete."
+                      on={form.restPaid === "outsyde"}
+                      onPress={() => set("restPaid", "outsyde")}
+                    />
+                    <RadioRow
+                      label="Directly to you"
+                      sub="For example cash on the day. Outsyde doesn't hold it or protect it."
+                      on={form.restPaid === "outside"}
+                      onPress={() => set("restPaid", "outside")}
+                    />
+                  </Box>
+                ) : null}
                 {errFor("restPaid")}
               </>
             ) : null}
             <Hint>
               {editing
-                ? `${EXPIRY_LINE} Saving starts the 7 days again.`
-                : EXPIRY_LINE}
+                ? `${isProduct ? DELIVERABLE_EXPIRY_LINE : EXPIRY_LINE} Saving starts the 7 days again.`
+                : isProduct
+                  ? DELIVERABLE_EXPIRY_LINE
+                  : EXPIRY_LINE}
             </Hint>
             <PrimaryButton label="Review quote" onPress={toReview} />
           </ScrollView>
@@ -511,13 +645,18 @@ export default function QuoteComposeScreen() {
                 {review.title}
               </ThemedText>
               <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
-                {whenLine({
-                  kind: "service",
-                  jobDate: review.jobDate,
-                  startTime: review.startTime,
-                  durationMinutes: review.durationMinutes,
-                  dueDate: null,
-                })}
+                {review.kind === "product"
+                  ? deliverableWhenLine({
+                      dueDate: review.dueDate ?? null,
+                      fulfillment: review.fulfillment ?? "pickup",
+                    })
+                  : whenLine({
+                      kind: "service",
+                      jobDate: review.jobDate,
+                      startTime: review.startTime,
+                      durationMinutes: review.durationMinutes,
+                      dueDate: null,
+                    })}
               </ThemedText>
               <ThemedText style={[styles.amount, { color: theme.brandCream }]}>
                 {money(review.totalCents)}
@@ -572,7 +711,14 @@ export default function QuoteComposeScreen() {
             {serviceName && review.serviceId ? (
               <Hint>{`Linked to ${serviceName}.`}</Hint>
             ) : null}
-            <Hint>{EXPIRY_LINE}</Hint>
+            <Hint>
+              {review.kind === "product"
+                ? DELIVERABLE_EXPIRY_LINE
+                : EXPIRY_LINE}
+            </Hint>
+            {review.kind === "product" && review.deliveryFeeCents ? (
+              <Hint>{`Delivery fee ${money(review.deliveryFeeCents)}, included in the total.`}</Hint>
+            ) : null}
             {error ? <ErrorText>{error}</ErrorText> : null}
             <PrimaryButton
               label={editing ? "Save and send update" : "Send quote"}
@@ -598,21 +744,35 @@ export default function QuoteComposeScreen() {
         onClose={() => setPicker(null)}
       />
       <OptionSheet
-        title={sheet === "service" ? "Service" : "Length"}
+        title={
+          sheet === "service"
+            ? "Service"
+            : sheet === "product"
+              ? "Product"
+              : "Length"
+        }
         options={
           sheet === "service"
             ? serviceOptions
-            : sheet === "length"
-              ? durationOptions(form.durationMinutes)
-              : null
+            : sheet === "product"
+              ? productOptions
+              : sheet === "length"
+                ? durationOptions(form.durationMinutes)
+                : null
         }
         selected={
           sheet === "service"
             ? (form.serviceId ?? "")
-            : String(form.durationMinutes ?? "")
+            : sheet === "product"
+              ? (form.productId ?? "")
+              : String(form.durationMinutes ?? "")
         }
         onPick={(v) => {
-          if (sheet === "service") {
+          if (sheet === "product") {
+            const pr = products.find((x) => x.id === v);
+            set("productId", pr ? pr.id : null);
+            if (pr && !form.title.trim()) set("title", pr.name.slice(0, 120));
+          } else if (sheet === "service") {
             const svc = services.find((s) => s.id === v);
             set("serviceId", svc ? svc.id : null);
             // A new quote picks up the service's name and length when those are still empty.

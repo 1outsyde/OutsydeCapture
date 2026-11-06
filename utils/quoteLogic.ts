@@ -43,6 +43,13 @@ export type Quote = {
   durationMinutes: number | null;
   timeZone: string | null;
   dueDate: string | null;
+  /** Deliverables (D1a/D1b, additive; older backends send none). */
+  fulfillment?: "pickup" | "delivery" | null;
+  deliveryFeeCents?: number | null;
+  deliveryAddress?: string | null;
+  productId?: string | null;
+  orderId?: string | null;
+  orderStatus?: string | null;
   totalCents: number;
   paymentMode: "deposit" | "full";
   depositCents: number | null;
@@ -141,8 +148,13 @@ export function whenLine(
     "jobDate" | "startTime" | "durationMinutes" | "dueDate" | "kind"
   >,
 ): string {
-  if (p.kind === "product")
-    return p.dueDate ? `Due ${dateLabel(p.dueDate)}` : "";
+  if (p.kind === "product") {
+    // Deliverables D2: "Due Fri, Nov 20 · Pickup" once the backend says how (D1a); older cards keep "Due ...".
+    const f = (p as { fulfillment?: string | null }).fulfillment;
+    const how = f === "delivery" ? "Delivery" : f === "pickup" ? "Pickup" : "";
+    const due = p.dueDate ? `Due ${dateLabel(p.dueDate)}` : "";
+    return [due, how].filter(Boolean).join(" · ");
+  }
   if (!p.jobDate) return "";
   const parts = [
     dateLabel(p.jobDate) + (p.startTime ? ` at ${timeLabel(p.startTime)}` : ""),
@@ -233,17 +245,28 @@ export function canPayNow(
   q: Pick<
     Quote,
     "status" | "paying" | "window" | "report" | "kind" | "jobDate" | "startTime"
-  >,
+  > &
+    Partial<Pick<Quote, "fulfillment" | "deliveryAddress">>,
 ): boolean {
-  return (
-    stageOf(q) === "pay" && q.kind !== "product" && !!q.jobDate && !!q.startTime
-  );
+  if (stageOf(q) !== "pay") return false;
+  // Deliverables D2: paid as a product order; a Delivery quote needs the customer's address first.
+  if (q.kind === "product")
+    return q.fulfillment !== "delivery" || !!q.deliveryAddress;
+  return !!q.jobDate && !!q.startTime;
 }
 
 export function quoteChip(
-  q: Pick<Quote, "status" | "paying" | "window" | "report">,
+  q: Pick<Quote, "status" | "paying" | "window" | "report"> &
+    Partial<Pick<Quote, "kind" | "orderStatus">>,
 ): string {
   const s = stageOf(q);
+  // Deliverables D2 (review 3): a paid deliverable is an order, not a booking.
+  if (q.kind === "product" && q.status === "paid")
+    return q.orderStatus === "delivered"
+      ? "Delivered"
+      : q.orderStatus === "cancelled"
+        ? "Refunded"
+        : "Paid";
   return (
     {
       pay: "Ready to pay",
