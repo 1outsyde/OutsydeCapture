@@ -4,6 +4,8 @@ import { BusinessAppointment, ConsumerOrderItem } from "@/services/api";
 import { Story } from "@/components/StoryRing";
 import type { FeedMode } from "@/utils/feedModes";
 
+// Sections of the in-app admin (screens/AdminDashboardScreen.tsx).
+export type AdminSection = "users" | "businesses" | "photographers" | "payments" | "messages" | "influencers";
 
 export type RootStackParamList = {
   Onboarding: { startAtSlide?: number } | undefined;
@@ -117,7 +119,8 @@ export type RootStackParamList = {
     orderId?: string;
   };
   Favorites: undefined;
-  AdminDashboard: undefined;
+  // section: open straight to one admin section (e.g. a business_pending notification). No param = Admin home.
+  AdminDashboard: { section?: AdminSection } | undefined;
   AdminUserDetail: { userId: string };
   AdminBusinessReview: { businessId: string };
   AdminPhotographerDetail: { photographerId: string };
