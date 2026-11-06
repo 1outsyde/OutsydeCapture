@@ -10,6 +10,7 @@ import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { usePlanOffer } from "@/hooks/usePlanOffer";
 import api from "@/services/api";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import {
@@ -42,6 +43,14 @@ export default function QuoteActionsHost() {
   const [othersOpen, setOthersOpen] = useState(isAnyOpenExcept(KEY));
   const lastCheck = useRef(0);
   const seq = useRef(0);
+  // Review I3: getToken changes on every auth render; a ref keeps the reads to launch, sign in and real opens.
+  const tokenRef = useRef(getToken);
+  useEffect(() => {
+    tokenRef.current = getToken;
+  }, [getToken]);
+  // Review C1: the plan offer goes first, so the two pop-ups never wait on each other.
+  const plan = usePlanOffer();
+  const planFirst = !!plan.offer && plan.wantsPopup;
 
   useEffect(() => {
     const sync = () => setOthersOpen(isAnyOpenExcept(KEY));
@@ -56,7 +65,7 @@ export default function QuoteActionsHost() {
       lastCheck.current = Date.now();
       const mine = ++seq.current;
       try {
-        const token = await getToken();
+        const token = await tokenRef.current();
         if (!token) return;
         const list = await api.getQuoteActions(token);
         if (mine === seq.current && uid) setData({ uid, list });
@@ -64,7 +73,7 @@ export default function QuoteActionsHost() {
         // Best effort: nothing shows when the list can't be read.
       }
     },
-    [signedIn, getToken, uid],
+    [signedIn, uid],
   );
 
   // On launch and sign in; each time the app comes back to the front is a new open (Not now is forgotten).
@@ -72,8 +81,12 @@ export default function QuoteActionsHost() {
     // Signed out: nothing shows (shown is null), and a new sign in reads the list again.
     if (!signedIn) return;
     const t = setTimeout(() => check(true), 0);
+    // A real open is coming back from the background (not Notification Center, Face ID or a dialog).
+    let wasBackground = false;
     const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") {
+      if (s === "background") wasBackground = true;
+      if (s === "active" && wasBackground) {
+        wasBackground = false;
         setSnoozed(new Set());
         check(true);
       }
@@ -88,7 +101,7 @@ export default function QuoteActionsHost() {
     signedIn && data && data.uid === uid
       ? nextAction(data.list, snoozed)
       : null;
-  const visible = !!shown && mainFocused && !othersOpen;
+  const visible = !!shown && mainFocused && !othersOpen && !planFirst;
   useEffect(() => registerWhile(KEY, visible), [visible]);
 
   if (!shown) return null;

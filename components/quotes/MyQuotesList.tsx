@@ -21,15 +21,26 @@ export default function MyQuotesList({ refreshKey }: { refreshKey: number }) {
   const navigation = useNavigation<Nav>();
   const { getToken, isAuthenticated, user } = useAuth();
   const signedIn = isAuthenticated && !user?.isGuest;
-  const [rows, setRows] = useState<TabRow[] | null>(null);
+  const uid = user?.id ?? null;
+  // Kept with the account it was read for (an account switch never shows the last account's rows).
+  const [data, setData] = useState<{
+    uid: string | null;
+    rows: TabRow[];
+  } | null>(null);
+  const rows = data && data.uid === uid ? data.rows : null;
   const [failed, setFailed] = useState(false);
   const seq = useRef(0);
+  // getToken changes on every auth render: a ref keeps the list from reloading each time.
+  const tokenRef = useRef(getToken);
+  useEffect(() => {
+    tokenRef.current = getToken;
+  }, [getToken]);
 
   const load = useCallback(async () => {
     if (!signedIn) return;
     const mine = ++seq.current;
     try {
-      const token = await getToken();
+      const token = await tokenRef.current();
       if (!token) {
         if (mine === seq.current) setFailed(true);
         return;
@@ -40,12 +51,12 @@ export default function MyQuotesList({ refreshKey }: { refreshKey: number }) {
         api.getQuoteActions(token).catch(() => []),
       ]);
       if (mine !== seq.current) return;
-      setRows(quotesTabRows(quotes as any, requests, actions));
+      setData({ uid, rows: quotesTabRows(quotes as any, requests, actions) });
       setFailed(false);
     } catch {
       if (mine === seq.current) setFailed(true);
     }
-  }, [signedIn, getToken]);
+  }, [signedIn, uid]);
 
   useFocusEffect(
     useCallback(() => {

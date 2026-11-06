@@ -66,7 +66,7 @@ export type RootStackParamList = {
   Quote: { quoteId: string; start?: string };
   CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets" | "quotes"; _ts?: number } | undefined;
   /** Request a quote on a contact for pricing service (Quotes step 6c-2b). */
-  RequestQuote: { serviceId: string; serviceName?: string };
+  RequestQuote: { serviceId: string; serviceName?: string; businessId?: string; businessName?: string };
   /** One event's tickets with QR codes (from GET /api/events/me/tickets). */
   TicketDetail: { eventId: string };
   /** Host: create (no id) or edit an event (p4-host). */

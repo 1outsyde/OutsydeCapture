@@ -298,7 +298,8 @@ const getMinimumPrice = (
     ...products.map((item) =>
       priceCentsToDollars(cardPriceCents(item.priceCents, item.variantSummary)),
     ),
-    ...services.map((item) => priceCentsToDollars(item.priceCents)),
+    // Review I2: contact for pricing services have no price to start from.
+    ...services.filter((item) => !item.requestOnly).map((item) => priceCentsToDollars(item.priceCents)),
   ].filter((price): price is number => price != null);
 
   return prices.length > 0 ? Math.min(...prices) : undefined;
@@ -1550,7 +1551,7 @@ export default function VendorDetailScreen({ route }: Props) {
         return {
           label: "Request a quote →",
           onPress: () => {
-            if (services.length === 1) navigation.navigate("RequestQuote", { serviceId: services[0].id, serviceName: services[0].name });
+            if (services.length === 1) navigation.navigate("RequestQuote", { serviceId: services[0].id, serviceName: services[0].name, businessId: profile.id, businessName: profile.name });
             else setActiveTab("booking");
           },
         };
@@ -2183,7 +2184,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 onPress={() => {
                   // Contact for pricing always opens the request form (Legend 2026-11-05).
                   if (service.requestOnly) {
-                    navigation.navigate("RequestQuote", { serviceId: service.id, serviceName: service.name });
+                    navigation.navigate("RequestQuote", { serviceId: service.id, serviceName: service.name, businessId: profile?.id, businessName: profile?.name });
                     return;
                   }
                   setSelectedStaffId(null);

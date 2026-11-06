@@ -1,7 +1,7 @@
 // Request a quote (Quotes step 6c-2b, calls 2 and 3): a contact for pricing service's own questions, the city when
 // the business lists cities, and a phone number. Name and email come from the account. Photos upload to the
 // requests folder. Sending opens the chat with the business, where the request card and the quote arrive.
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -28,6 +28,7 @@ import {
   Field,
   Hint,
   HostHeader,
+  OutlineButton,
   Label,
   PickerBox,
   PrimaryButton,
@@ -38,6 +39,7 @@ import DateTimeSheet, {
 import OptionSheet from "@/components/host/OptionSheet";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
+import { useStartChat } from "@/hooks/useStartChat";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/types";
 import api, { type ApiError } from "@/services/api";
@@ -64,7 +66,7 @@ const todayYmd = () => {
 export default function RequestQuoteScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<Nav>();
-  const { serviceId, serviceName } =
+  const { serviceId, serviceName, businessId, businessName } =
     useRoute<RouteProp<RootStackParamList, "RequestQuote">>().params;
   const { user, getToken, isAuthenticated } = useAuth();
   const signedIn = isAuthenticated && !!user && !user.isGuest;
@@ -73,7 +75,9 @@ export default function RequestQuoteScreen() {
   const [loadError, setLoadError] = useState("");
   const [answers, setAnswers] = useState<Answers>({});
   const [photos, setPhotos] = useState<Record<string, Photo[]>>({});
-  const [phone, setPhone] = useState(user?.phone ?? "");
+  // null until the customer edits it: until then it shows the account's phone (review minor 7).
+  const [phoneEdit, setPhone] = useState<string | null>(null);
+  const phone = phoneEdit ?? user?.phone ?? "";
   const [city, setCity] = useState("");
   const [picker, setPicker] = useState<
     (PickerTarget & { field: string }) | null
@@ -83,6 +87,10 @@ export default function RequestQuoteScreen() {
     null,
   );
   const [sending, setSending] = useState(false);
+  // Review minor 6: a ref stops a double send; each photo is uploaded once even if a send is retried.
+  const sendingRef = useRef(false);
+  const uploadedByUri = useRef<Record<string, string>>({});
+  const { startChat } = useStartChat();
 
   useEffect(() => {
     let live = true;
@@ -140,7 +148,7 @@ export default function RequestQuoteScreen() {
   };
 
   const send = useCallback(async () => {
-    if (!form || !user || sending) return;
+    if (!form || !user || sendingRef.current) return;
     const withPhotos: Answers = { ...answers };
     for (const [id, list] of Object.entries(photos))
       withPhotos[id] = list.map((p) => p.uri);
@@ -150,6 +158,7 @@ export default function RequestQuoteScreen() {
       return;
     }
     setError(null);
+    sendingRef.current = true;
     setSending(true);
     try {
       const token = await getToken();
@@ -161,12 +170,13 @@ export default function RequestQuoteScreen() {
       for (const [id, list] of Object.entries(photos)) {
         uploaded[id] = [];
         for (const p of list) {
-          const up: any = await uploadImage(
-            p.uri,
-            p.mime,
-            "requests",
-            token,
-          ).catch(() => null);
+          const done = uploadedByUri.current[p.uri];
+          const up: any = done
+            ? { url: done }
+            : await uploadImage(p.uri, p.mime, "requests", token).catch(
+                () => null,
+              );
+          if (up?.url) uploadedByUri.current[p.uri] = up.url;
           if (!up?.url) {
             setError({
               field: id,
@@ -195,12 +205,12 @@ export default function RequestQuoteScreen() {
             : errorMessage(e),
       });
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }, [
     form,
     user,
-    sending,
     answers,
     photos,
     phone,
@@ -230,13 +240,31 @@ export default function RequestQuoteScreen() {
       </ThemedView>
     );
   }
+  // Never a dead end (Legend 2026-11-05): wherever the form can't be sent, message the business instead.
+  const bizId = form?.business.id ?? businessId;
+  const bizName = form?.business.name ?? businessName ?? "the business";
+  const messageButton = bizId ? (
+    <OutlineButton
+      label={`Message ${bizName}`}
+      onPress={() =>
+        startChat({
+          participantId: bizId,
+          participantType: "business",
+          name: bizName,
+        })
+      }
+    />
+  ) : null;
   if (!form) {
     return (
       <ThemedView style={{ flex: 1 }}>
         <HostHeader title="Request a quote" left={back} />
         <Centered>
           {loadError ? (
-            <ErrorText>{loadError}</ErrorText>
+            <>
+              <ErrorText>{loadError}</ErrorText>
+              {messageButton}
+            </>
           ) : (
             <ActivityIndicator color={theme.brandGold} />
           )}
@@ -274,6 +302,12 @@ export default function RequestQuoteScreen() {
               onPress={() => setCityOpen(true)}
             />
             {fieldError("city")}
+          </View>
+        ) : form.cityRequired ? (
+          // Review minor 4: the business lists cities but none for this service yet.
+          <View style={{ gap: Spacing.sm }}>
+            <ErrorText>{`${bizName} doesn't offer this in any of its cities yet. Message them to ask.`}</ErrorText>
+            {messageButton}
           </View>
         ) : null}
 
@@ -349,7 +383,7 @@ export default function RequestQuoteScreen() {
                 <View style={styles.photos}>
                   {(photos[q.id] ?? []).map((p, i) => (
                     <Pressable
-                      key={p.uri}
+                      key={`${i}-${p.uri}`}
                       onPress={() =>
                         setPhotos((all) => ({
                           ...all,
