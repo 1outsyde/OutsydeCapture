@@ -259,6 +259,10 @@ export interface ApiMessage {
   text?: string;
   /** Photo URLs (up to 10). Backend #322+; older backends omit it. */
   mediaItems?: string[];
+  /** "text", or "quote" / "request" for a card (Quotes steps 1 and 2). Older backends omit it. */
+  kind?: string | null;
+  /** The card's own data (messages.card) for kind quote or request. */
+  card?: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -6499,6 +6503,76 @@ class ApiService {
     );
     return res.appointments ?? [];
   }
+
+  // ── Quotes in Messages (step 6c-1). Errors are thrown as ApiError (status, body.code, body.message). ──
+
+  /** One quote with its booking detail (balance, window, report, extras). */
+  async getQuote(authToken: string, quoteId: string): Promise<QuoteWire> {
+    const res = await this.request<{ quote: QuoteWire }>(`/api/quotes/${encodeURIComponent(quoteId)}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return res.quote;
+  }
+
+  /** Starts (or resumes) the deposit or full payment. paymentSheet: true adds the saved card fields. */
+  async payQuote(authToken: string, quoteId: string, version: number): Promise<QuotePayStart> {
+    return this.request<QuotePayStart>(`/api/quotes/${encodeURIComponent(quoteId)}/pay`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ version, paymentSheet: true }),
+    });
+  }
+
+  async declineQuote(authToken: string, quoteId: string, reason?: string): Promise<unknown> {
+    return this.request(`/api/quotes/${encodeURIComponent(quoteId)}/decline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(reason ? { reason } : {}),
+    });
+  }
+
+  /** Update your card (balance or extras) or Pay for extras: a new PaymentIntent for the payment sheet. */
+  async quoteCardPayment(authToken: string, quoteId: string, which: "balance" | "extras"): Promise<QuotePayStart> {
+    return this.request<QuotePayStart>(`/api/quotes/${encodeURIComponent(quoteId)}/${which}/card`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ paymentSheet: true }),
+    });
+  }
+
+  /** Approve an extra (the card on file, or newCard for the payment sheet). 402: the card was declined. */
+  async approveQuoteExtra(authToken: string, quoteId: string, extraId: string, newCard = false): Promise<QuoteApprove> {
+    return this.request<QuoteApprove>(`/api/quotes/${encodeURIComponent(quoteId)}/extras/${encodeURIComponent(extraId)}/approve`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(newCard ? { newCard: true, paymentSheet: true } : {}),
+    });
+  }
+
+  async declineQuoteExtra(authToken: string, quoteId: string, extraId: string): Promise<unknown> {
+    return this.request(`/api/quotes/${encodeURIComponent(quoteId)}/extras/${encodeURIComponent(extraId)}/decline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({}),
+    });
+  }
+
+  async confirmQuoteJob(authToken: string, quoteId: string): Promise<unknown> {
+    return this.request(`/api/quotes/${encodeURIComponent(quoteId)}/confirm`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({}),
+    });
+  }
+
+  /** Report a problem inside the 6 hours. photos: uploaded URLs (folder "requests"), up to 5. */
+  async reportQuoteJob(authToken: string, quoteId: string, reason: string, photos: string[]): Promise<unknown> {
+    return this.request(`/api/quotes/${encodeURIComponent(quoteId)}/report`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ reason, photos }),
+    });
+  }
 }
 
 // Availability Calendar types
@@ -6700,6 +6774,28 @@ export interface RecentBooking {
   businessName: string | null;
   status: string;
   appointmentDate: string;
+}
+
+/** GET /api/quotes/:id (Quotes steps 2 to 5a). Shape lives in utils/quoteLogic.ts (Quote). */
+export type QuoteWire = import("@/utils/quoteLogic").Quote;
+/** POST /api/quotes/:id/pay and /balance/card, /extras/card. */
+export interface QuotePayStart {
+  clientSecret: string;
+  paymentIntentId?: string;
+  captureMethod?: "automatic" | "manual";
+  amountChargedNowCents?: number;
+  amountCents?: number;
+  customerId?: string;
+  customerSessionClientSecret?: string;
+}
+/** POST /api/quotes/:id/extras/:extraId/approve. */
+export interface QuoteApprove {
+  status: "approved" | "needs_action";
+  intentType?: "payment" | "setup";
+  clientSecret?: string;
+  intentId?: string;
+  customerId?: string;
+  customerSessionClientSecret?: string;
 }
 
 export const api = new ApiService();

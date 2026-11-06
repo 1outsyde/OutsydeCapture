@@ -63,6 +63,7 @@ import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import BlockedUsersScreen from "@/screens/BlockedUsersScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
+import QuoteScreen from "@/screens/QuoteScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
 import AppointmentDetailScreen from "@/screens/AppointmentDetailScreen";
@@ -464,6 +465,12 @@ export default function RootNavigator() {
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
         }}
+      />
+
+      <Stack.Screen
+        name="Quote"
+        component={QuoteScreen}
+        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
       />
 
       <Stack.Screen
