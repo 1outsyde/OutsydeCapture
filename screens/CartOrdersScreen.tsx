@@ -29,12 +29,13 @@ import api, { getMyAppointments, BusinessAppointment, ConsumerOrder } from "@/se
 import { Session } from "@/context/DataContext";
 import { CATEGORY_LABELS, PhotographyCategory } from "@/types";
 import MyTicketsList from "@/components/events/MyTicketsList";
+import MyQuotesList from "@/components/quotes/MyQuotesList";
 import { cancelPreviewMessage, manualFeeLine } from "@/utils/cancelPreviewMessage";
 import { consumerOrderStatus } from "@/utils/orderStatus";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type CartOrdersRouteProp = RouteProp<RootStackParamList, "CartOrders">;
-type ActiveTab = "cart" | "bookings" | "orders" | "tickets";
+type ActiveTab = "cart" | "bookings" | "orders" | "tickets" | "quotes";
 
 type CombinedItem =
   | { kind: "photographer"; data: Session }
@@ -71,6 +72,7 @@ export default function CartOrdersScreen() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [ticketsRefreshKey, setTicketsRefreshKey] = useState(0);
+  const [quotesRefreshKey, setQuotesRefreshKey] = useState(0);
 
   // ─── Bookings state ───────────────────────────────────────────────────────
   const [bookingsFilter, setBookingsFilter] = useState<"upcoming" | "past">("upcoming");
@@ -188,6 +190,7 @@ export default function CartOrdersScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     if (activeTab === "tickets") setTicketsRefreshKey((k) => k + 1);
+    if (activeTab === "quotes") setQuotesRefreshKey((k) => k + 1);
     await Promise.all([fetchOrders(), fetchBusinessAppointments(), refreshSessions()]);
     setRefreshing(false);
   };
@@ -838,9 +841,9 @@ export default function CartOrdersScreen() {
 
       {/* Tabs */}
       <View style={styles.tabRow}>
-        {(["cart", "bookings", "orders", "tickets"] as ActiveTab[]).map((tab) => {
+        {(["cart", "bookings", "orders", "tickets", "quotes"] as ActiveTab[]).map((tab) => {
           const isActive = activeTab === tab;
-          const label = tab === "cart" ? "Cart" : tab === "bookings" ? "Bookings" : tab === "orders" ? "Orders" : "Tickets";
+          const label = tab === "cart" ? "Cart" : tab === "bookings" ? "Bookings" : tab === "orders" ? "Orders" : tab === "tickets" ? "Tickets" : "Quotes";
           return (
             <Pressable
               key={tab}
@@ -848,6 +851,10 @@ export default function CartOrdersScreen() {
               style={[styles.tabBtn, isActive ? styles.tabBtnActive : styles.tabBtnInactive]}
             >
               <ThemedText
+                // Five tabs since Quotes (6c-2b): shrink to fit on small phones rather than wrap.
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
                 style={[
                   styles.tabText,
                   { color: isActive ? "#000" : theme.brandCream },
@@ -870,6 +877,7 @@ export default function CartOrdersScreen() {
         {activeTab === "bookings" && renderBookingsTab()}
         {activeTab === "orders" && renderOrdersTab()}
         {activeTab === "tickets" && <MyTicketsList refreshKey={ticketsRefreshKey} />}
+        {activeTab === "quotes" && <MyQuotesList refreshKey={quotesRefreshKey} />}
       </ScrollView>
     </View>
   );

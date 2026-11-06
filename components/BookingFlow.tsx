@@ -683,7 +683,8 @@ export default function BookingFlow({
       } else {
         data = await api.getProviderServices(providerId, providerType);
       }
-      const activeServices = data.filter((s) => s.status === "live" || s.status === "active" || !s.status);
+      // Quotes 6c-2b: contact for pricing services are never booked here (they open the request form).
+      const activeServices = data.filter((s) => (s.status === "live" || s.status === "active" || !s.status) && (s as { requestOnly?: boolean | null }).requestOnly !== true);
       setServices(activeServices);
       // Open on the tapped service once, only if the customer hasn't moved on.
       if (preselectedServiceId && !preselectAppliedRef.current) {
