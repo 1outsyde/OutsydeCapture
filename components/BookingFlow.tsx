@@ -59,9 +59,15 @@ interface BookingFlowProps {
   providerVendorTerms?: string | null;
   staffMemberId?: string | null;
   accentColor?: string;
+  // The service the customer tapped on the profile: the flow opens on its
+  // date step (Back still reaches the service list). Ignored when the service
+  // isn't in the bookable list.
+  preselectedServiceId?: string;
   // Leaves booking mode and shows the provider's profile again. Called from
   // the hold-expired pop-up; without it the flow resets to its first step.
   onExit?: () => void;
+  // Done on the confirmation step. Without it, Done opens Sessions directly.
+  onDone?: () => void;
 }
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -378,7 +384,9 @@ export default function BookingFlow({
   providerVendorTerms,
   staffMemberId,
   accentColor,
+  preselectedServiceId,
   onExit,
+  onDone,
 }: BookingFlowProps) {
   const { theme } = useTheme();
   const accent = accentColor || theme.brandGold;
@@ -477,6 +485,8 @@ export default function BookingFlow({
   const holdReqSeqRef = useRef(0);
   const mountedRef = useRef(true);
   const stepRef = useRef<Step>(1);
+  // preselectedServiceId is applied once, on the first service list load.
+  const preselectAppliedRef = useRef(false);
   const payingRef = useRef(false);
   const announcedThresholdRef = useRef<number | null>(null);
 
@@ -675,6 +685,21 @@ export default function BookingFlow({
       }
       const activeServices = data.filter((s) => s.status === "live" || s.status === "active" || !s.status);
       setServices(activeServices);
+      // Open on the tapped service once, only if the customer hasn't moved on.
+      if (preselectedServiceId && !preselectAppliedRef.current) {
+        preselectAppliedRef.current = true;
+        const match = activeServices.find((s) => s.id === preselectedServiceId);
+        if (match && stepRef.current === 1) {
+          setSelectedService(match);
+          setSelectedDate(null);
+          setSelectedSlot(null);
+          setShowAddonsStep(false);
+          setSelectedAddonIds([]);
+          setBookingCustomerDetails("");
+          setAddonFitError(null);
+          setStep(2);
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load services");
     } finally {
@@ -2499,7 +2524,9 @@ export default function BookingFlow({
           </ThemedText>
           {renderConfirmationDetails()}
           <Pressable
-            onPress={() => navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))}
+            onPress={() =>
+              onDone ? onDone() : navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))
+            }
             style={[styles.primaryButton, { backgroundColor: theme.brandPrimary, marginTop: Spacing.xl }]}
           >
             <ThemedText style={[styles.primaryButtonText, { color: theme.brandPrimaryText }]}>Done</ThemedText>

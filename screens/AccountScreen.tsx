@@ -50,7 +50,6 @@ import SavedCollection from "@/components/SavedCollection";
 import { useNotifications } from "@/context/NotificationContext";
 import { PersonalSettingsMenu } from "@/components/PersonalSettingsMenu";
 import InviteTeamModal from "@/components/InviteTeamModal";
-import BookingFlow from "@/components/BookingFlow";
 import apiClient, {
   API_BASE_URL,
   ApiPost,
@@ -498,9 +497,6 @@ export default function AccountScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
-  const [bookingFlowActive, setBookingFlowActive] = useState(false);
-  const [bookingProviderId, setBookingProviderId] = useState<string | null>(null);
-  const [bookingProviderName, setBookingProviderName] = useState<string>("");
 
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -2098,9 +2094,19 @@ export default function AccountScreen() {
               <Pressable
                 key={service.id}
                 onPress={() => {
-                  setBookingProviderId(profile?.id ?? null);
-                  setBookingProviderName(profile?.name ?? "");
-                  setBookingFlowActive(true);
+                  // Booking redesign step 1 (2026-11-05): full screen booking, opened on
+                  // the tapped service, now with the store color and address too.
+                  if (!profile?.id) return;
+                  navigation.navigate("BookService", {
+                    providerId: profile.id,
+                    providerType: "business",
+                    providerName: profile.name ?? "",
+                    providerAddress: profile.address,
+                    providerCity: profile.city,
+                    providerState: profile.state,
+                    accentColor,
+                    preselectedServiceId: service.id,
+                  });
                 }}
                 style={{
                   backgroundColor: "rgba(0,0,0,0.30)",
@@ -3109,27 +3115,6 @@ export default function AccountScreen() {
         onInviteSent={() => setTeamRefreshKey((k) => k + 1)}
         brandColor={accentColor}
       />
-
-      <Modal
-        visible={bookingFlowActive}
-        animationType="slide"
-        onRequestClose={() => setBookingFlowActive(false)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#111111" }}>
-          <Pressable
-            onPress={() => setBookingFlowActive(false)}
-            style={{ padding: 16, alignSelf: "flex-start" }}
-          >
-            <Feather name="x" size={24} color="#FFFFFF" />
-          </Pressable>
-          <BookingFlow
-            providerId={bookingProviderId || ""}
-            providerType="business"
-            providerName={bookingProviderName}
-            onExit={() => setBookingFlowActive(false)}
-          />
-        </SafeAreaView>
-      </Modal>
 
     </SafeAreaView>
   );
