@@ -72,6 +72,12 @@ import { uploadImage } from "@/services/mediaUpload";
 import { availabilityEvents } from "@/services/availabilityEvents";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { MIN_DEPOSIT_CENTS, parseDepositInput } from "@/utils/deposit";
+import {
+  REQUEST_ONLY_LABEL,
+  REQUEST_ONLY_SUB,
+  STARTING_PRICE_LABEL,
+  requestOnlyPatch,
+} from "@/utils/businessQuotesLogic";
 import { formatDuration, joinMinutes, splitMinutes } from "@/utils/duration";
 import AddonLibraryTab from "@/components/addons/AddonLibraryTab";
 import { readableApiError } from "@/utils/apiError";
@@ -426,6 +432,9 @@ export default function StorefrontEditorScreen() {
   const [durationMinutesText, setDurationMinutesText] = useState("0");
   const [durationError, setDurationError] = useState<string | null>(null);
   const [depositTouched, setDepositTouched] = useState(false);
+  // Quotes step 6d-2b (call 7): contact for pricing. Sent only when changed (the form is sent whole on edit).
+  const [requestOnly, setRequestOnly] = useState(false);
+  const [requestOnlyTouched, setRequestOnlyTouched] = useState(false);
   const [depositServerError, setDepositServerError] = useState<string | null>(
     null,
   );
@@ -1411,6 +1420,8 @@ export default function StorefrontEditorScreen() {
       });
       applyLoadedDeposit(s.depositAmountCents);
       setDepositFromDefault(false);
+      setRequestOnly(s.requestOnly === true);
+      setRequestOnlyTouched(false);
       setServiceImageUrl(s.imageUrl ?? null);
       applyLoadedDuration(service.durationMinutes || 60);
     } else {
@@ -1442,6 +1453,8 @@ export default function StorefrontEditorScreen() {
       const defaultDeposit = typeof biz?.defaultDepositCents === "number" && biz.defaultDepositCents > 0 ? biz.defaultDepositCents : null;
       applyLoadedDeposit(defaultDeposit);
       setDepositFromDefault(defaultDeposit !== null);
+      setRequestOnly(false);
+      setRequestOnlyTouched(false);
       setServiceImageUrl(null);
       applyLoadedDuration(60);
     }
@@ -1521,8 +1534,8 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
-    // The deposit error is already shown inline under the field.
-    if (depositError) return;
+    // The deposit error is already shown inline under the field (hidden, and not sent, while contact for pricing is on).
+    if (depositError && !requestOnly) return;
 
     if (serviceForm.status === "live" && !canPublishServices) {
       Alert.alert("Cannot Publish", getPublishBlockerMessage());
@@ -1542,6 +1555,11 @@ export default function StorefrontEditorScreen() {
       serviceForm;
     const depositValue =
       depositEnabled && "cents" in parsedDeposit ? parsedDeposit.cents : null;
+    const requestOnlyField = requestOnlyPatch({
+      touched: requestOnlyTouched,
+      value: requestOnly,
+      isNew: !editingService,
+    });
 
     try {
       setSaving(true);
@@ -1550,14 +1568,16 @@ export default function StorefrontEditorScreen() {
         await api.updateVendorService(
           token,
           editingService.id,
-          depositTouched
+          depositTouched && !requestOnly
             ? {
                 ...baseServiceForm,
                 depositAmountCents: depositValue,
+                ...requestOnlyField,
                 ...(serviceImageTouched ? { imageUrl: serviceImageUrl } : {}),
               }
             : {
                 ...baseServiceForm,
+                ...requestOnlyField,
                 ...(serviceImageTouched ? { imageUrl: serviceImageUrl } : {}),
               },
         );
@@ -1565,7 +1585,8 @@ export default function StorefrontEditorScreen() {
       } else {
         const response = await api.createVendorService(token, {
           ...baseServiceForm,
-          depositAmountCents: depositValue,
+          depositAmountCents: requestOnly && depositError ? null : depositValue,
+          ...requestOnlyField,
           ...(serviceImageUrl ? { imageUrl: serviceImageUrl } : {}),
         });
         serviceId = response.service.id;
@@ -3871,7 +3892,28 @@ export default function StorefrontEditorScreen() {
           />
 
           <Text style={styles.formSectionTitle}>2. Price and time</Text>
-          <Text style={styles.inputLabel}>Price (in dollars)</Text>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.inputLabel}>{REQUEST_ONLY_LABEL}</Text>
+              <Text style={{ fontSize: 13, color: theme.brandTextDim }}>
+                {REQUEST_ONLY_SUB}
+              </Text>
+            </View>
+            <Switch
+              value={requestOnly}
+              onValueChange={(v) => {
+                setRequestOnly(v);
+                setRequestOnlyTouched(true);
+              }}
+              trackColor={{ true: theme.brandGold }}
+              accessibilityLabel={REQUEST_ONLY_LABEL}
+            />
+          </View>
+          <Text style={styles.inputLabel}>
+            {requestOnly
+              ? `${STARTING_PRICE_LABEL} (in dollars)`
+              : "Price (in dollars)"}
+          </Text>
           <TextInput
             style={styles.input}
             value={
@@ -3935,6 +3977,8 @@ export default function StorefrontEditorScreen() {
             </Text>
           )}
 
+          {/* Step 6d-2b: hidden (and kept as saved) while contact for pricing is on, since nothing is booked. */}
+          <View style={requestOnly ? { display: "none" } : undefined}>
           <View style={styles.switchRow}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={styles.inputLabel}>Require deposit at booking</Text>
@@ -4008,6 +4052,7 @@ export default function StorefrontEditorScreen() {
               ) : null}
             </>
           )}
+          </View>
 
           {/* ── Service Add-ons ── */}
           <View style={{ marginTop: 8, marginBottom: 4 }}>

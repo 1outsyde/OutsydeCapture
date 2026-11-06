@@ -78,6 +78,7 @@ import {
   vendorExtraStatusLine,
   vendorExtrasPaymentLine,
 } from "@/utils/quoteSendLogic";
+import { bookingEndedLine } from "@/utils/businessQuotesLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Busy =
@@ -632,6 +633,10 @@ export default function QuoteScreen() {
                 ? `Paid in full, ${money(q.amounts.payNowCents)}.`
                 : `Deposit paid, ${money(q.amounts.payNowCents)}.`}
             </ThemedText>
+            {/* Step 6d-2b (call 6): the booking's own status (backend #418). */}
+            {bookingEndedLine(q.bookingStatus) ? (
+              <Hint warn>{bookingEndedLine(q.bookingStatus)}</Hint>
+            ) : null}
             {manage ? (
               vBal ? (
                 <ThemedText style={[styles.body, { color: theme.brandCream }]}>

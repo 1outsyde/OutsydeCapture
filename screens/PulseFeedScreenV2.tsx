@@ -32,6 +32,7 @@ import PulseVideoCard, { PULSE_CARD_HEIGHT, PulseEngagementEvent } from "@/compo
 import { showReportBlockMenu, promptForReportReason } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
 import { apiVideoFit } from "@/utils/videoFit";
+import { postServiceTarget } from "@/utils/businessQuotesLogic";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -95,6 +96,10 @@ function convertApiPost(apiPost: ApiPost): Post {
     commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
     createdAt: apiPost.createdAt,
     serviceId: apiPost.photographerServiceId || apiPost.serviceId,
+    businessServiceId: apiPost.photographerServiceId
+      ? undefined
+      : apiPost.serviceId,
+    photographerServiceId: apiPost.photographerServiceId,
     productId: apiPost.productId,
     providerId,
     photographerId: apiPost.authorType === "photographer" ? userId : undefined,
@@ -376,13 +381,22 @@ export default function PulseFeedScreenV2() {
   }, [navigation]);
 
   const handleActionPress = useCallback((post: Post) => {
-    if (post.serviceId) {
+    // Quotes 6d-2b (call 9): a business service opens that business on the service; photographer services keep
+    // the shoot booking.
+    const target = postServiceTarget(post);
+    if (target?.kind === "business") {
+      navigation.navigate("VendorDetail", {
+        vendorId: target.vendorId,
+        initialTab: "services",
+        serviceId: target.serviceId,
+      });
+    } else if (post.serviceId) {
       const photographerId = post.photographerId || post.providerId || post.userId;
       const photographer = getPhotographer(photographerId);
       navigation.navigate("Booking", {
         photographer: photographer || undefined,
         photographerId,
-        preselectedServiceId: post.serviceId,
+        preselectedServiceId: target?.serviceId ?? post.serviceId,
       });
     } else if (post.productId) {
       const businessId = post.providerId || post.userId;

@@ -69,6 +69,10 @@ import { showReportBlockMenu } from "@/utils/moderationActions";
 import StoryRing from "@/components/StoryRing";
 import { formatDuration } from "@/utils/duration";
 import {
+  OWN_REQUEST_ONLY_LINE,
+  bookTabAction,
+} from "@/utils/businessQuotesLogic";
+import {
   BrandColorSpec,
   resolveBrandColor,
   parseBrandColorSpec,
@@ -175,6 +179,8 @@ type ServiceCard = {
   durationMinutes?: number;
   rating?: number;
   imageUrl?: string;
+  /** Contact for pricing (Quotes 6d-2b, call 8): never booked, the request form instead. */
+  requestOnly?: boolean;
 };
 
 type OwnerStaffMember = {
@@ -710,6 +716,7 @@ export default function AccountScreen() {
                 undefined,
               rating: Number(item.rating ?? 0),
               imageUrl: item.imageUrl || undefined,
+              requestOnly: item.requestOnly === true,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -1026,6 +1033,7 @@ export default function AccountScreen() {
                 undefined,
               rating: Number(item.rating ?? 0),
               imageUrl: item.imageUrl || undefined,
+              requestOnly: item.requestOnly === true,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -1239,6 +1247,7 @@ export default function AccountScreen() {
                 undefined,
               rating: Number(item.rating ?? 0),
               imageUrl: item.imageUrl || undefined,
+              requestOnly: item.requestOnly === true,
             }));
 
           resolvedServices = mappedServices;
@@ -2094,6 +2103,24 @@ export default function AccountScreen() {
               <Pressable
                 key={service.id}
                 onPress={() => {
+                  // Quotes 6d-2b (call 8): contact for pricing never opens a booking screen that leaves it out.
+                  const action = bookTabAction(service, {
+                    ownProfile: isOwner,
+                  });
+                  if (action === "own-request") {
+                    Alert.alert(service.name, OWN_REQUEST_ONLY_LINE);
+                    return;
+                  }
+                  if (action === "request") {
+                    if (!profile?.id) return;
+                    navigation.navigate("RequestQuote", {
+                      serviceId: service.id,
+                      serviceName: service.name,
+                      businessId: profile.id,
+                      businessName: profile.name ?? undefined,
+                    });
+                    return;
+                  }
                   // Booking redesign step 1 (2026-11-05): full screen booking, opened on
                   // the tapped service, now with the store color and address too.
                   if (!profile?.id) return;
@@ -2189,7 +2216,9 @@ export default function AccountScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    {formatCents(service.priceCents)}
+                    {service.requestOnly
+                      ? "Price on request"
+                      : formatCents(service.priceCents)}
                   </Text>
                   <View
                     style={{
@@ -2206,7 +2235,11 @@ export default function AccountScreen() {
                         fontWeight: "800",
                       }}
                     >
-                      Book
+                      {service.requestOnly
+                        ? isOwner
+                          ? "Request form"
+                          : "Request a quote"
+                        : "Book"}
                     </Text>
                   </View>
                 </View>

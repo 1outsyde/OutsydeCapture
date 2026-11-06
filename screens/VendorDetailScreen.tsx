@@ -77,6 +77,7 @@ import type { PurchaseItem, RatingCheckResponse, RatingsResponse } from "@/types
 import { displayRating } from "@/types/ratings";
 import { formatDuration } from "@/utils/duration";
 import { serviceAction } from "@/utils/requestLogic";
+import { serviceStart } from "@/utils/businessQuotesLogic";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -500,7 +501,7 @@ export default function VendorDetailScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, getToken } = useAuth();
   const { isDark } = useTheme();
-  const { vendorId, initialTab } = route.params;
+  const { vendorId, initialTab, serviceId: startServiceId } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileViewModel | null>(null);
@@ -1353,6 +1354,31 @@ export default function VendorDetailScreen({ route }: Props) {
 
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
+
+  // Quotes 6d-2b (call 9): opened on a service (a post tagged with it): its booking, its request form when contact
+  // for pricing, or the Book tab when it isn't listed. Once, after the profile and services load.
+  const serviceStarted = useRef(false);
+  useEffect(() => {
+    if (!profile || !startServiceId || serviceStarted.current) return;
+    serviceStarted.current = true;
+    const how = serviceStart(services, startServiceId);
+    const svc = services.find((x) => x.id === startServiceId);
+    // Next tick, never cleared: it must run once even if the profile updates again in between.
+    setTimeout(() => {
+      if (how === "request" && svc) {
+        navigation.navigate("RequestQuote", {
+          serviceId: svc.id,
+          serviceName: svc.name,
+          businessId: profile.id,
+          businessName: profile.name,
+        });
+      } else if (how === "book") {
+        openBooking({ serviceId: startServiceId });
+      } else if (tabOrder.includes("booking")) {
+        setActiveTab("booking");
+      }
+    }, 0);
+  }, [profile, services, startServiceId, navigation, openBooking, tabOrder]);
 
   useEffect(() => {
     if (!profile || isOwnProfile || !isAuthenticated) return;

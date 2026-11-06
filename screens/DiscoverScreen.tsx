@@ -61,6 +61,7 @@ import { postAspect } from "@/utils/postAspect";
 import StoryRing from "@/components/StoryRing";
 import StoriesBar from "@/components/StoriesBar";
 import FinishSetupCard from "@/components/FinishSetupCard";
+import { postServiceTarget } from "@/utils/businessQuotesLogic";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -221,6 +222,10 @@ export default function DiscoverScreen() {
       commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
       createdAt: apiPost.createdAt,
       serviceId: apiPost.photographerServiceId || apiPost.serviceId,
+      businessServiceId: apiPost.photographerServiceId
+        ? undefined
+        : apiPost.serviceId,
+      photographerServiceId: apiPost.photographerServiceId,
       productId: apiPost.productId,
       providerId,
       // Resolve businessId from the richest available source:
@@ -443,13 +448,22 @@ export default function DiscoverScreen() {
   };
 
   const handleActionPress = (post: Post) => {
-    if (post.serviceId) {
+    // Quotes 6d-2b (call 9): a business service opens that business on the service; photographer services keep
+    // the shoot booking.
+    const target = postServiceTarget(post);
+    if (target?.kind === "business") {
+      navigation.navigate("VendorDetail", {
+        vendorId: target.vendorId,
+        initialTab: "services",
+        serviceId: target.serviceId,
+      });
+    } else if (post.serviceId) {
       const photographerId = post.photographerId || post.providerId || post.userId;
       const photographer = getPhotographer(photographerId);
       navigation.navigate("Booking", {
         photographer: photographer || undefined,
         photographerId,
-        preselectedServiceId: post.serviceId,
+        preselectedServiceId: target?.serviceId ?? post.serviceId,
       });
     } else if (post.productId) {
       const businessId = post.providerId || post.userId;

@@ -30,6 +30,7 @@ import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { postAspect } from "@/utils/postAspect";
 import { apiVideoFit } from "@/utils/videoFit";
+import { postServiceTarget } from "@/utils/businessQuotesLogic";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -95,6 +96,10 @@ function convertApiPost(apiPost: ApiPost, author: Record<string, any>): Post {
     commentCount: (apiPost as any).commentCount ?? (apiPost as any).commentsCount ?? 0,
     createdAt: apiPost.createdAt,
     serviceId: apiPost.photographerServiceId || apiPost.serviceId,
+    businessServiceId: apiPost.photographerServiceId
+      ? undefined
+      : apiPost.serviceId,
+    photographerServiceId: apiPost.photographerServiceId,
     productId: apiPost.productId,
     providerId,
     photographerId: postType === "photographer" ? (providerId || userId) : undefined,
@@ -243,13 +248,22 @@ export default function PostDetailScreen() {
 
   const handleActionPress = useCallback(
     (post: Post) => {
-      if (post.serviceId) {
+      // Quotes 6d-2b (call 9): a business service opens that business on the service; photographer services keep
+      // the shoot booking.
+      const target = postServiceTarget(post);
+      if (target?.kind === "business") {
+        navigation.navigate("VendorDetail", {
+          vendorId: target.vendorId,
+          initialTab: "services",
+          serviceId: target.serviceId,
+        });
+      } else if (post.serviceId) {
         const photographerId = post.photographerId || post.providerId || post.userId;
         const photographer = getPhotographer(photographerId);
         navigation.navigate("Booking", {
           photographer: photographer || undefined,
           photographerId,
-          preselectedServiceId: post.serviceId,
+          preselectedServiceId: target?.serviceId ?? post.serviceId,
         });
       } else if (post.productId) {
         const businessId = post.providerId || post.userId;
