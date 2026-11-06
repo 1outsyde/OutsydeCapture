@@ -172,6 +172,11 @@ const normalizeService = (s: any): VendorService => ({
 // Keyboard toolbar with a "Done" button for the add-on sheet (number pads have no return key on iOS).
 const ADDON_KEYBOARD_DONE_ID = "addonKeyboardDone";
 
+// Booking gap (backend #420): the same choices the backend accepts.
+const BOOKING_GAP_CHOICES = [0, 5, 10, 15, 20, 30, 45, 60] as const;
+const bookingGapLabel = (m: number) =>
+  m === 0 ? "No time between bookings" : `${m} min between bookings`;
+
 export default function StorefrontEditorScreen() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -199,6 +204,9 @@ export default function StorefrontEditorScreen() {
     null,
   );
   const [savingPastClosing, setSavingPastClosing] = useState(false);
+  // "Time between bookings" (backend #420). null = backend didn't send the field, so the setting is hidden.
+  const [bookingGapMinutes, setBookingGapMinutes] = useState<number | null>(null);
+  const [savingBookingGap, setSavingBookingGap] = useState(false);
 
   const [coverImage, setCoverImage] = useState("");
   const [coverVideo, setCoverVideo] = useState("");
@@ -523,6 +531,9 @@ export default function StorefrontEditorScreen() {
       setIndustryDirty(false);
       setAllowPastClosing(
         typeof biz.allowPastClosing === "boolean" ? biz.allowPastClosing : null,
+      );
+      setBookingGapMinutes(
+        typeof biz.bookingGapMinutes === "number" ? biz.bookingGapMinutes : null,
       );
 
       const normalizeProduct = (p: any): VendorProduct => ({
@@ -1047,6 +1058,30 @@ export default function StorefrontEditorScreen() {
       );
     } finally {
       setSavingPastClosing(false);
+    }
+  };
+
+  const handlePickBookingGap = async (next: number) => {
+    const token = await getToken();
+    if (!token || savingBookingGap || next === bookingGapMinutes) return;
+    const previous = bookingGapMinutes;
+    setBookingGapMinutes(next);
+    setSavingBookingGap(true);
+    try {
+      const res = await api.updateVendorMyBusiness(token, {
+        bookingGapMinutes: next,
+      });
+      const saved = res?.business?.bookingGapMinutes;
+      if (typeof saved === "number") setBookingGapMinutes(saved);
+      availabilityEvents.emit();
+    } catch (error: any) {
+      setBookingGapMinutes(previous);
+      Alert.alert(
+        "Error",
+        error?.message || "Could not save this setting. Please try again.",
+      );
+    } finally {
+      setSavingBookingGap(false);
     }
   };
 
@@ -3208,6 +3243,35 @@ export default function StorefrontEditorScreen() {
             </Text>
           </View>
         )}
+        {bookingGapMinutes !== null && (
+          <View style={[styles.card, { marginTop: 16 }]}>
+            <Text style={styles.inputLabel}>Time between bookings</Text>
+            <Text style={[styles.visibilityHelp, { marginBottom: 12 }]}>
+              Time kept free after each booking so you can reset. If a booking
+              ends at 3:30 and you pick 15 min, the next one can start at 3:45.
+            </Text>
+            <View style={[styles.policyChips, { marginBottom: 0 }]}>
+              {BOOKING_GAP_CHOICES.map((m) => {
+                const on = bookingGapMinutes === m;
+                return (
+                  <Pressable
+                    key={m}
+                    onPress={() => handlePickBookingGap(m)}
+                    disabled={savingBookingGap}
+                    style={[styles.policyChip, on && styles.policyChipOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on, disabled: savingBookingGap }}
+                    accessibilityLabel={bookingGapLabel(m)}
+                  >
+                    <Text style={[styles.policyChipText, on && styles.policyChipTextOn]}>
+                      {m === 0 ? "None" : `${m} min`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -5061,6 +5125,20 @@ export default function StorefrontEditorScreen() {
                 accessibilityLabel="Run past closing"
               />
             </View>
+          ) : null}
+          {bookingGapMinutes !== null ? (
+            <Pressable
+              onPress={() => openSection("hours")}
+              style={[styles.hubRow, styles.hubRowDivider]}
+              accessibilityRole="button"
+              accessibilityLabel={`Time between bookings, ${bookingGapLabel(bookingGapMinutes)}`}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hubRowTitle}>Time between bookings</Text>
+                <Text style={styles.hubRowSub}>{bookingGapLabel(bookingGapMinutes)}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={theme.brandTextDim} />
+            </Pressable>
           ) : null}
         </View>
 
