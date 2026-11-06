@@ -64,7 +64,6 @@ import {
 } from "@/constants/colorOptions";
 import { hoursObjectToArray } from "@/components/HoursEditor";
 import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
-import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { useStartChat } from "@/hooks/useStartChat";
 import { useAuth } from "@/context/AuthContext";
@@ -508,7 +507,6 @@ export default function VendorDetailScreen({ route }: Props) {
   );
   const [staff, setStaff] = useState<StaffCardVM[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-  const [bookingFlowActive, setBookingFlowActive] = useState(false);
   const [posts, setPosts] = useState<PostCard[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -646,6 +644,29 @@ export default function VendorDetailScreen({ route }: Props) {
   // Black or white text/icons on top of the profile color (wheel colors can be any shade).
   const onAccent = readableTextOn(accentColor);
   const pageBg = `${accentColor}28`;
+
+  // Booking redesign step 1 (2026-11-05): booking opens as its own full screen
+  // (BookService) instead of inside the Book tab. A tapped service opens on its
+  // date step; a staff pick books that staff member.
+  const openBooking = useCallback(
+    (opts?: { serviceId?: string; staffId?: string | null }) => {
+      if (!profile) return;
+      navigation.navigate("BookService", {
+        providerId: vendorId,
+        providerType: profile.role === "photographer" ? "photographer" : "business",
+        providerName: profile.name || "",
+        providerAddress: profile.address,
+        providerCity: profile.city,
+        providerState: profile.state,
+        providerShowAddress: profile.showAddress,
+        providerVendorTerms: profile.vendorTermsAndConditions,
+        staffMemberId: opts?.staffId ?? null,
+        accentColor,
+        preselectedServiceId: opts?.serviceId,
+      });
+    },
+    [navigation, profile, vendorId, accentColor],
+  );
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -1356,9 +1377,6 @@ export default function VendorDetailScreen({ route }: Props) {
     return () => { active = false; };
   }, [profile]);
 
-  useEffect(() => {
-    return () => setBookingFlowActive(false);
-  }, []);
 
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [120, 220],
@@ -1458,7 +1476,7 @@ export default function VendorDetailScreen({ route }: Props) {
         label: "Book Now →",
         onPress: () => {
           setActiveTab("booking");
-          setBookingFlowActive(true);
+          openBooking();
         },
       };
     }
@@ -1529,7 +1547,7 @@ export default function VendorDetailScreen({ route }: Props) {
           label: "Book Now →",
           onPress: () => {
             setActiveTab("booking");
-            setBookingFlowActive(true);
+            openBooking();
           },
         };
       }
@@ -1548,7 +1566,7 @@ export default function VendorDetailScreen({ route }: Props) {
       label: "Message",
       onPress: handleMessage,
     };
-  }, [navigation, profile, products, addItem, openProduct, handleMessage]);
+  }, [navigation, profile, products, addItem, openProduct, handleMessage, openBooking]);
 
   const reviewBreakdown = useMemo(() => {
     const dist = ratingsData?.distribution as Record<string, number> | undefined;
@@ -1932,7 +1950,6 @@ export default function VendorDetailScreen({ route }: Props) {
         <Pressable
           key={tab}
           onPress={() => {
-              if (tab !== activeTab) setBookingFlowActive(false);
               setActiveTab(tab);
             }}
           style={{
@@ -2114,24 +2131,6 @@ export default function VendorDetailScreen({ route }: Props) {
   );
 
   const renderBookingTab = () => {
-    if (bookingFlowActive) {
-      return (
-        <BookingFlow
-          providerId={vendorId}
-          providerType={profile?.role === "photographer" ? "photographer" : "business"}
-          providerName={profile?.name || ""}
-          providerAddress={profile?.address}
-          providerCity={profile?.city}
-          providerState={profile?.state}
-          providerShowAddress={profile?.showAddress}
-          providerVendorTerms={profile?.vendorTermsAndConditions}
-          staffMemberId={selectedStaffId}
-          accentColor={accentColor}
-          onExit={() => setBookingFlowActive(false)}
-        />
-      );
-    }
-
     const hasServices = services.length > 0;
     const showTeam = Boolean(profile?.isMultiStaff);
 
@@ -2168,7 +2167,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 key={service.id}
                 onPress={() => {
                   setSelectedStaffId(null);
-                  setBookingFlowActive(true);
+                  openBooking({ serviceId: service.id });
                 }}
                 style={{
                   backgroundColor: "rgba(0,0,0,0.30)",
@@ -2335,7 +2334,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 }}
                 onBook={(staffId) => {
                   setSelectedStaffId(staffId);
-                  setBookingFlowActive(true);
+                  openBooking({ staffId });
                 }}
               />
             )}
@@ -2368,7 +2367,7 @@ export default function VendorDetailScreen({ route }: Props) {
                 {isAvailable ? (
                   <Pressable
                     style={[styles.slotButton, { borderColor: accentColor }]}
-                    onPress={() => setBookingFlowActive(true)}
+                    onPress={() => openBooking()}
                   >
                     <Text
                       style={[styles.slotButtonText, { color: accentColor }]}
@@ -2616,8 +2615,7 @@ export default function VendorDetailScreen({ route }: Props) {
 
   const showStickyBottom =
     !isOwnProfile &&
-    profile.role !== "consumer" &&
-    !(activeTab === "booking" && bookingFlowActive);
+    profile.role !== "consumer";
   const primaryAction = resolvePrimaryAction();
   const minLabel =
     profile.minPrice != null

@@ -19,6 +19,20 @@ export type RootStackParamList = {
   SelectPhotographer: undefined;
   PhotographerDetail: { photographer: Photographer };
   Booking: { photographer?: Photographer; photographerId?: string; preselectedServiceId?: string };
+  /** Full screen booking for a business, staff member or photographer profile (booking redesign step 1, 2026-11-05). */
+  BookService: {
+    providerId: string;
+    providerType: "photographer" | "business";
+    providerName: string;
+    providerAddress?: string | null;
+    providerCity?: string | null;
+    providerState?: string | null;
+    providerShowAddress?: boolean;
+    providerVendorTerms?: string | null;
+    staffMemberId?: string | null;
+    accentColor?: string;
+    preselectedServiceId?: string;
+  };
   VendorDetail: { vendorId: string; initialTab?: "products" | "services" | "reviews"; productId?: string };
   StaffWorkProfile: { businessId: string; staffId: string };
   PostDetail: { userId: string; initialPostId: string };

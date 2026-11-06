@@ -35,7 +35,6 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import apiClient from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
-import BookingFlow from "@/components/BookingFlow";
 import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
 import { StarDisplay } from "@/components/ratings";
@@ -139,7 +138,6 @@ export default function StaffWorkProfileScreen({ route }: Props) {
     new Set(),
   );
   const [activeTab, setActiveTab] = useState<StaffTab>("posts");
-  const [bookingFlowActive, setBookingFlowActive] = useState(false);
   // Follow (staff id → linked account on the backend).
   const { user, isAuthenticated, getToken } = useAuth();
   const getTokenRef = useRef(getToken);
@@ -263,9 +261,20 @@ export default function StaffWorkProfileScreen({ route }: Props) {
     }
   }, [staff]);
 
+  // Booking redesign step 1 (2026-11-05): opens the full screen booking (BookService)
+  // for this staff member, with the same business details as before.
   const goToBookingEntryPoint = useCallback(() => {
-    setBookingFlowActive(true);
-  }, []);
+    navigation.navigate("BookService", {
+      providerId: businessId,
+      providerType: "business",
+      providerName: businessName,
+      providerAddress: businessMeta?.address,
+      providerCity: businessMeta?.city,
+      providerState: businessMeta?.state,
+      staffMemberId: staffId,
+      accentColor,
+    });
+  }, [navigation, businessId, businessName, businessMeta, staffId, accentColor]);
 
   // Follow status for the signed-in viewer (token through a ref: runs when the profile changes,
   // not on every auth render).
@@ -375,35 +384,6 @@ export default function StaffWorkProfileScreen({ route }: Props) {
             Team member not found.
           </Text>
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (bookingFlowActive) {
-    return (
-      <SafeAreaView
-        style={[styles.safeArea, { backgroundColor: pageBg }]}
-        edges={["left", "right", "bottom"]}
-      >
-        <View style={[styles.headerRow, { paddingTop: insets.top + 6, paddingHorizontal: 14 }]}>
-          <Pressable
-            style={[styles.headerButton, { backgroundColor: headerButtonBg }]}
-            onPress={() => setBookingFlowActive(false)}
-          >
-            <Feather name="arrow-left" size={18} color={textPrimary} />
-          </Pressable>
-        </View>
-        <BookingFlow
-          providerId={businessId}
-          providerType="business"
-          providerName={businessName}
-          providerAddress={businessMeta?.address}
-          providerCity={businessMeta?.city}
-          providerState={businessMeta?.state}
-          staffMemberId={staffId}
-          accentColor={accentColor}
-          onExit={() => setBookingFlowActive(false)}
-        />
       </SafeAreaView>
     );
   }

@@ -8,6 +8,7 @@ import AuthScreen from "@/screens/AuthScreen";
 import SelectPhotographerScreen from "@/screens/SelectPhotographerScreen";
 import PhotographerDetailScreen from "@/screens/PhotographerDetailScreen";
 import BookingScreen from "@/screens/BookingScreen";
+import BookServiceScreen from "@/screens/BookServiceScreen";
 import SessionDetailScreen from "@/screens/SessionDetailScreen";
 import PhotoGalleryScreen from "@/screens/PhotoGalleryScreen";
 import ConversationScreen from "@/screens/ConversationScreen";
@@ -230,6 +231,31 @@ export default function RootNavigator() {
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
         }}
+      />
+
+      <Stack.Screen
+        name="BookService"
+        component={BookServiceScreen}
+        options={({ navigation, route }) => ({
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: route.params?.providerName || "Book",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => null,
+          headerRight: () => (
+            <Pressable
+              onPress={() => navigation.goBack()}
+              hitSlop={16}
+              accessibilityRole="button"
+              accessibilityLabel="Close booking"
+            >
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
 
       <Stack.Screen
