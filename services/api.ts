@@ -848,6 +848,8 @@ export interface VendorServiceInput {
   virtualLink?: string | null;
   depositAmountCents?: number | null;
   imageUrl?: string | null;
+  /** Contact for pricing (migration 068). Quotes 6d-2b: sent only when the switch was changed. */
+  requestOnly?: boolean;
 }
 
 export interface StaffServiceInput {
@@ -6789,6 +6791,59 @@ class ApiService {
     );
   }
 
+  // ── Quotes, business lists (step 6d-2b) ──
+
+  /** The owner's requests, newest first (GET /api/vendor/estimate-requests, owner only). */
+  async getVendorRequests(authToken: string): Promise<VendorRequest[]> {
+    const res = await this.request<{ requests: VendorRequest[] }>(
+      "/api/vendor/estimate-requests",
+      { headers: { Authorization: `Bearer ${authToken}` } },
+    );
+    return res.requests ?? [];
+  }
+
+  /** Close Request: moves it to closed (owner only). */
+  async closeVendorRequest(
+    authToken: string,
+    requestId: string,
+  ): Promise<VendorRequest> {
+    const res = await this.request<{ request: VendorRequest }>(
+      `/api/vendor/estimate-requests/${encodeURIComponent(requestId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ status: "closed" }),
+      },
+    );
+    return res.request;
+  }
+
+  /** The owner's quotes, newest first (GET /api/vendor/quotes, owner only). */
+  async getVendorQuotes(authToken: string): Promise<QuoteWire[]> {
+    const res = await this.request<{ quotes: QuoteWire[] }>(
+      "/api/vendor/quotes",
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
+    return res.quotes ?? [];
+  }
+
+  /** The quotes this staff member sent (GET /api/staff/quotes, backend #418). businessId: the business the app picked. */
+  async getStaffQuotes(
+    authToken: string,
+    businessId?: string,
+  ): Promise<QuoteWire[]> {
+    const q = businessId ? `?businessId=${encodeURIComponent(businessId)}` : "";
+    const res = await this.request<{ quotes: QuoteWire[] }>(
+      `/api/staff/quotes${q}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
+    return res.quotes ?? [];
+  }
+
   /** Job complete: charges the held balance and approved extras. 409 with code and message when blocked. */
   async completeQuoteJob(authToken: string, quoteId: string): Promise<unknown> {
     return this.request(
@@ -7002,6 +7057,20 @@ export interface RecentBooking {
   businessName: string | null;
   status: string;
   appointmentDate: string;
+}
+
+/** GET /api/vendor/estimate-requests (Quotes step 1, migration 096). Only the fields the app reads. */
+export interface VendorRequest {
+  id: string;
+  status: "new" | "called" | "quoted" | "booked" | "closed" | string;
+  serviceId: string | null;
+  serviceName: string | null;
+  city: string | null;
+  customerName: string | null;
+  preferredDate: string | null;
+  answers: unknown[];
+  conversationId: string | null;
+  createdAt: string;
 }
 
 /** GET /api/quotes/:id (Quotes steps 2 to 5a). Shape lives in utils/quoteLogic.ts (Quote). */

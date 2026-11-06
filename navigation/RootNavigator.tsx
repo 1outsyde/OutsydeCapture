@@ -68,6 +68,8 @@ import NotificationsScreen from "@/screens/NotificationsScreen";
 import QuoteScreen from "@/screens/QuoteScreen";
 import RequestQuoteScreen from "@/screens/RequestQuoteScreen";
 import QuoteComposeScreen from "@/screens/QuoteComposeScreen";
+import BusinessRequestsScreen from "@/screens/BusinessRequestsScreen";
+import BusinessQuotesScreen from "@/screens/BusinessQuotesScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
 import AppointmentDetailScreen from "@/screens/AppointmentDetailScreen";
@@ -515,6 +517,26 @@ export default function RootNavigator() {
           headerShown: false,
           animation: "slide_from_bottom",
           gestureEnabled: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="BusinessRequests"
+        component={BusinessRequestsScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="BusinessQuotes"
+        component={BusinessQuotesScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
         }}
       />
 

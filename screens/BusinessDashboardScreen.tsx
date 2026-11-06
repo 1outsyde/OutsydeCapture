@@ -27,6 +27,7 @@ import api, {
 import { consumeStripeReturn, markStripeReturn } from "@/utils/stripeReturnSignal";
 import { filterVisibleBookings, isPendingRequestStatus } from "@/utils/bookingStatus";
 import { syncMyTimeZoneOnce } from "@/utils/timeZoneSync";
+import { dashboardCounts } from "@/utils/businessQuotesLogic";
 import { RootStackParamList } from "@/navigation/types";
 import { displayRating } from "@/types/ratings";
 import { DayHours, getDefaultHours } from "@/components/HoursEditor";
@@ -384,6 +385,40 @@ export default function BusinessDashboardScreen() {
       fetchConnectReady();
       if (consumeStripeReturn()) refreshStripeStatus(true);
     }, [authLoading, user?.role, fetchConnectReady, refreshStripeStatus])
+  );
+
+  // Quotes step 6d-2b (call 2): the Requests and Quotes counts, read on every focus. A list that can't be read
+  // shows no count; the card still opens its list.
+  const [quoteCounts, setQuoteCounts] = useState<{
+    newRequests: number | null;
+    waitingQuotes: number | null;
+  }>({
+    newRequests: null,
+    waitingQuotes: null,
+  });
+  useFocusEffect(
+    useCallback(() => {
+      // Review 7 (6d-2b): only where the cards show (service and both businesses).
+      if (
+        authLoading ||
+        user?.role !== "business" ||
+        businessType === "product"
+      )
+        return;
+      let live = true;
+      (async () => {
+        const token = await getTokenRef.current();
+        if (!token) return;
+        const [requests, quotes] = await Promise.all([
+          api.getVendorRequests(token).catch(() => null),
+          api.getVendorQuotes(token).catch(() => null),
+        ]);
+        if (live) setQuoteCounts(dashboardCounts(requests, quotes));
+      })();
+      return () => {
+        live = false;
+      };
+    }, [authLoading, user?.role, businessType]),
   );
 
   // MainTabNavigator resets navigation on a Stripe return, which remounts this screen; the focus
@@ -1067,6 +1102,110 @@ export default function BusinessDashboardScreen() {
               <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
             </View>
           </Pressable>
+        )}
+
+        {(businessType === "service" || businessType === "both") && (
+          <>
+            <Pressable
+              style={styles.navCard}
+              onPress={() => navigation.navigate("BusinessRequests")}
+              accessibilityRole="button"
+              accessibilityLabel={`Requests${quoteCounts.newRequests ? `, ${quoteCounts.newRequests} new` : ""}`}
+            >
+              <View style={styles.navCardLeft}>
+                <View
+                  style={[
+                    styles.navCardIconBg,
+                    { backgroundColor: "rgba(201,147,58,0.12)" },
+                  ]}
+                >
+                  <Feather
+                    name="inbox"
+                    size={20}
+                    color={DASHBOARD_COLORS.gold}
+                  />
+                </View>
+                <View style={styles.navCardTextWrap}>
+                  <Text style={styles.navCardTitle}>Requests</Text>
+                  <Text style={styles.navCardSubtitle}>
+                    {quoteCounts.newRequests === null
+                      ? "Request forms from customers"
+                      : `${quoteCounts.newRequests} new`}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.navCardRight}>
+                {!!quoteCounts.newRequests && (
+                  <View
+                    style={[
+                      styles.navBadge,
+                      { backgroundColor: "rgba(224,169,59,0.15)" },
+                    ]}
+                  >
+                    <Text style={[styles.navBadgeText, { color: "#E0A93B" }]}>
+                      {quoteCounts.newRequests}
+                    </Text>
+                  </View>
+                )}
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={DASHBOARD_COLORS.creamDim}
+                />
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={styles.navCard}
+              onPress={() =>
+                navigation.navigate("BusinessQuotes", { mode: "owner" })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Quotes${quoteCounts.waitingQuotes ? `, ${quoteCounts.waitingQuotes} waiting on the customer` : ""}`}
+            >
+              <View style={styles.navCardLeft}>
+                <View
+                  style={[
+                    styles.navCardIconBg,
+                    { backgroundColor: "rgba(201,147,58,0.12)" },
+                  ]}
+                >
+                  <Feather
+                    name="file-text"
+                    size={20}
+                    color={DASHBOARD_COLORS.gold}
+                  />
+                </View>
+                <View style={styles.navCardTextWrap}>
+                  <Text style={styles.navCardTitle}>Quotes</Text>
+                  <Text style={styles.navCardSubtitle}>
+                    {quoteCounts.waitingQuotes === null
+                      ? "Quotes you sent in Messages"
+                      : `${quoteCounts.waitingQuotes} waiting on the customer`}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.navCardRight}>
+                {!!quoteCounts.waitingQuotes && (
+                  <View
+                    style={[
+                      styles.navBadge,
+                      { backgroundColor: "rgba(224,169,59,0.15)" },
+                    ]}
+                  >
+                    <Text style={[styles.navBadgeText, { color: "#E0A93B" }]}>
+                      {quoteCounts.waitingQuotes}
+                    </Text>
+                  </View>
+                )}
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={DASHBOARD_COLORS.creamDim}
+                />
+              </View>
+            </Pressable>
+          </>
         )}
 
         <Pressable style={styles.navCard} onPress={() => navigation.navigate("DashboardCreditsScreen")}>

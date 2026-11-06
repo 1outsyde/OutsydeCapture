@@ -55,6 +55,8 @@ export type Quote = {
   startsAt?: string | null;
   serviceId?: string | null;
   requestId?: string | null;
+  /** Step 6d-2a (backend #418): the paid quote's booking status, null before payment. Older backends omit it. */
+  bookingStatus?: string | null;
   customerId: string;
   senderId: string;
   conversationId: string;
@@ -403,10 +405,13 @@ export function decidedLine(
 
 /** The booking is paid and still open (not marked complete): extras and Job complete apply (step 6d-1). */
 export function bookingOpen(
-  q: Pick<Quote, "status" | "kind" | "appointmentId" | "balance" | "window">,
+  q: Pick<Quote, "status" | "kind" | "appointmentId" | "balance" | "window"> &
+    Partial<Pick<Quote, "bookingStatus">>,
 ): boolean {
   return (
     q.status === "paid" &&
+    // Step 6d-2b (call 6): a canceled or ended booking is not open. No field (an older backend): as before.
+    (q.bookingStatus == null || q.bookingStatus === "confirmed") &&
     q.kind !== "product" &&
     !!q.appointmentId &&
     !q.balance?.completedAt &&
@@ -419,7 +424,8 @@ export function jobCompleteState(
   q: Pick<
     Quote,
     "status" | "kind" | "appointmentId" | "balance" | "window" | "startsAt"
-  >,
+  > &
+    Partial<Pick<Quote, "bookingStatus">>,
   nowMs: number,
 ): { show: boolean; ready: boolean; hint?: string } {
   if (!bookingOpen(q)) return { show: false, ready: false };

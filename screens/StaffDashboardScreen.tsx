@@ -38,6 +38,7 @@ import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { uploadImage } from "@/services/mediaUpload";
 import { formatDuration } from "@/utils/duration";
+import { quoteIsOpen } from "@/utils/businessQuotesLogic";
 import { bookingStatusLabel, filterVisibleBookings, isActiveProviderStatus } from "@/utils/bookingStatus";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
@@ -121,6 +122,8 @@ export default function StaffDashboardScreen() {
   const [savingBlocked, setSavingBlocked] = useState(false);
 
   const businessId = staff?.businessId || user?.staffBusinessId;
+  // Quotes step 6d-2b (call 5): open quotes this staff member sent (null: the list couldn't be read).
+  const [openQuotes, setOpenQuotes] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -138,6 +141,11 @@ export default function StaffDashboardScreen() {
         api.getStaffMyServices(token, staffData.businessId).catch(() => ({ services: [] })),
         api.getStaffWeeklyAvailability(token, staffData.businessId).catch(() => ({ availability: [] })),
       ]);
+      // Off the main path: a slow or failed quotes list never holds up the dashboard.
+      api
+        .getStaffQuotes(token, staffData.businessId)
+        .then((list) => setOpenQuotes(list.filter(quoteIsOpen).length))
+        .catch(() => setOpenQuotes(null));
 
       // Unpaid checkouts (draft, pending_payment) are never shown or counted.
       setBookings(filterVisibleBookings(bookingsRes.bookings || []));
@@ -592,6 +600,34 @@ export default function StaffDashboardScreen() {
               </View>
               <Text style={styles.quickActionLabel}>Weekly Hours</Text>
               <Text style={styles.quickActionCount}>Recurring schedule</Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                navigation.navigate("BusinessQuotes", {
+                  mode: "staff",
+                  businessId: staff?.businessId,
+                })
+              }
+              // Review 6 (6d-2b): only once the staff profile (and so the business) is known.
+              disabled={!staff?.businessId}
+              style={[
+                styles.quickActionCard,
+                !staff?.businessId ? { opacity: 0.5 } : null,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`My quotes${openQuotes ? `, ${openQuotes} open` : ""}`}
+            >
+              <View style={styles.quickActionIcon}>
+                <Feather
+                  name="file-text"
+                  size={22}
+                  color={DASHBOARD_COLORS.gold}
+                />
+              </View>
+              <Text style={styles.quickActionLabel}>My quotes</Text>
+              <Text style={styles.quickActionCount}>
+                {openQuotes === null ? "Quotes you sent" : `${openQuotes} open`}
+              </Text>
             </Pressable>
           </View>
         </View>

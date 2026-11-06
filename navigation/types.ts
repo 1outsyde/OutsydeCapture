@@ -33,7 +33,13 @@ export type RootStackParamList = {
     accentColor?: string;
     preselectedServiceId?: string;
   };
-  VendorDetail: { vendorId: string; initialTab?: "products" | "services" | "reviews"; productId?: string };
+  VendorDetail: {
+    vendorId: string;
+    initialTab?: "products" | "services" | "reviews";
+    productId?: string;
+    /** Quotes step 6d-2b (call 9): open on this service (its booking, or its request form when contact for pricing). */
+    serviceId?: string;
+  };
   StaffWorkProfile: { businessId: string; staffId: string };
   PostDetail: { userId: string; initialPostId: string };
   /** Event page (GET /api/events/slug/:slug). */
@@ -64,6 +70,10 @@ export type RootStackParamList = {
   };
   /** One quote and its booking (Quotes step 6c-1). start: the chat card's step, run once (utils/quoteLogic Start). */
   Quote: { quoteId: string; start?: string };
+  /** Quotes step 6d-2b: the owner's Requests list. */
+  BusinessRequests: undefined;
+  /** Quotes step 6d-2b: owner (every quote) or staff (the quotes they sent, for the business the app picked). */
+  BusinessQuotes: { mode: "owner" | "staff"; businessId?: string };
   /** Quotes step 6d-1: Create a quote in a chat (or from a request card), or Edit one (quoteId). */
   QuoteCompose: {
     conversationId: string;

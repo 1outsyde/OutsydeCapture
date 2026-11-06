@@ -146,6 +146,9 @@ export interface Post {
   createdAt: string;
   // Optional commerce context
   serviceId?: string;
+  /** Quotes 6d-2b (call 9): the two kinds of tagged service kept apart (serviceId above merges them, for the cards). */
+  businessServiceId?: string;
+  photographerServiceId?: string;
   productId?: string;
   providerId?: string;
   // Rating targets — businessId for vendor posts, photographerId for photographer posts
