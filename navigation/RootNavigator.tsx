@@ -48,6 +48,7 @@ import AdminInfluencerDetailScreen from "@/screens/AdminInfluencerDetailScreen";
 import AdminRefundRequestScreen from "@/screens/AdminRefundRequestScreen";
 import AdminVendorPlanScreen from "@/screens/AdminVendorPlanScreen";
 import AdminPushScreen from "@/screens/AdminPushScreen";
+import AdminEmailsScreen from "@/screens/AdminEmailsScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import BusinessBillingAddressScreen from "@/screens/BusinessBillingAddressScreen";
@@ -817,6 +818,26 @@ export default function RootNavigator() {
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Push",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={16} style={{ paddingHorizontal: 8 }}>
+              <Feather name="arrow-left" size={24} color={theme.text} />
+            </Pressable>
+          ),
+          headerBackTitle: "Back",
+        })}
+      />
+
+      <Stack.Screen
+        name="AdminEmails"
+        component={AdminEmailsScreen}
+        options={({ navigation }) => ({
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Emails",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },

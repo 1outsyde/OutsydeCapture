@@ -169,6 +169,8 @@ export type RootStackParamList = {
   AdminVendorPlan: { business: AdminBusiness };
   // Send a push announcement and see push history (App Admin Step 7a).
   AdminPush: undefined;
+  // Email history, read only (App Admin Step 7b). Sending stays on goutsyde.com.
+  AdminEmails: undefined;
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
   BusinessBillingAddress: undefined;

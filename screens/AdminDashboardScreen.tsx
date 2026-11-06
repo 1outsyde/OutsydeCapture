@@ -22,6 +22,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import api, { AdminStats, AdminUser, AdminBusiness, AdminPhotographer, AdminInfluencer, AdminOrder, AdminBooking, AdminConversation, AdminRefundRequestItem } from "@/services/api";
 import { planLabel, adminOfferText } from "@/utils/adminPlans";
+import { emailBudgetLine, type EmailBudget } from "@/utils/adminEmail";
 import { RootStackParamList, AdminSection } from "@/navigation/types";
 
 type TabType = AdminSection;
@@ -105,6 +106,8 @@ export default function AdminDashboardScreen() {
   const [pendingBusinessCount, setPendingBusinessCount] = useState(0);
   // Push sends left today (shared with goutsyde.com). Null until loaded; a failure only hides the line.
   const [pushLeft, setPushLeft] = useState<{ remaining: number; max: number } | null>(null);
+  // Emails sent from the admin today (goutsyde.com sends them). Null until loaded.
+  const [emailBudget, setEmailBudget] = useState<EmailBudget | null>(null);
 
   const filteredUsers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -142,6 +145,9 @@ export default function AdminDashboardScreen() {
       api.getAdminPushLimits(token)
         .then((l) => setPushLeft({ remaining: l.remaining, max: l.max }))
         .catch(() => setPushLeft(null));
+      api.getAdminEmailBudget(token)
+        .then(setEmailBudget)
+        .catch(() => setEmailBudget(null));
     } catch (error) {
       console.error("Failed to fetch admin stats:", error);
       setStats({ users: 0, businesses: 0, photographers: 0, orders: 0, bookings: 0 });
@@ -922,6 +928,24 @@ export default function AdminDashboardScreen() {
               <Text style={styles.sectionTitle}>Push</Text>
               <Text style={styles.sectionSub}>
                 {pushLeft ? `Send an announcement. ${pushLeft.remaining} of ${pushLeft.max} left today` : "Send an announcement, see history"}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={C.dim} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.sectionRow, pressed && styles.sectionRowPressed]}
+            onPress={() => navigation.navigate("AdminEmails")}
+            accessibilityRole="button"
+            accessibilityLabel="Emails"
+            accessibilityHint="Email history by send and by person"
+          >
+            <View style={styles.sectionIcon}>
+              <Feather name="mail" size={17} color={C.gold} />
+            </View>
+            <View style={styles.sectionText}>
+              <Text style={styles.sectionTitle}>Emails</Text>
+              <Text style={styles.sectionSub}>
+                {emailBudget ? `History. ${emailBudgetLine(emailBudget)}` : "History by send and by person"}
               </Text>
             </View>
             <Feather name="chevron-right" size={18} color={C.dim} />
