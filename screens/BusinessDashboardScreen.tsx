@@ -749,7 +749,7 @@ export default function BusinessDashboardScreen() {
   type UpNextItem = { title: string; subtext?: string; iconName: string; urgency?: "red" | "amber" | "green" };
   let upNextItem: UpNextItem | null = null;
 
-  const p1 = upNextOrders.find((o: any) => o.status === "paid" && !o.shipment && new Date(o.orderDate).getTime() + 4 * DAY_MS < NOW);
+  const p1 = upNextOrders.find((o: any) => o.status === "paid" && !o.shipment && !o.fulfillment && new Date(o.orderDate).getTime() + 4 * DAY_MS < NOW);
   if (p1) {
     const orderNum = p1.id ? String(p1.id).slice(-6) : "";
     upNextItem = { title: "Overdue — ship immediately", subtext: `Order #${orderNum} · Paid ${new Date(p1.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, iconName: "package", urgency: "red" };
@@ -757,7 +757,8 @@ export default function BusinessDashboardScreen() {
 
   if (!upNextItem) {
     const p2 = upNextOrders.find((o: any) => {
-      if (o.status !== "paid" || o.shipment) return false;
+      // Deliverables D2: Pickup and Delivery orders don't ship.
+      if (o.status !== "paid" || o.shipment || o.fulfillment) return false;
       const deadline = new Date(o.orderDate).getTime() + 4 * DAY_MS;
       return deadline >= NOW && deadline < NOW + 2 * DAY_MS;
     });
@@ -783,7 +784,7 @@ export default function BusinessDashboardScreen() {
   }
 
   if (!upNextItem) {
-    const paidUnshipped = [...upNextOrders].filter((o: any) => o.status === "paid" && !o.shipment).sort((a: any, b: any) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime());
+    const paidUnshipped = [...upNextOrders].filter((o: any) => o.status === "paid" && !o.shipment && !o.fulfillment).sort((a: any, b: any) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime());
     if (paidUnshipped.length > 0) {
       const o = paidUnshipped[0];
       upNextItem = { title: `Order #${o.id ? String(o.id).slice(-6) : ""} — needs shipping`, subtext: `Paid ${new Date(o.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, iconName: "package" };

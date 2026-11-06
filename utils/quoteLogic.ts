@@ -43,6 +43,13 @@ export type Quote = {
   durationMinutes: number | null;
   timeZone: string | null;
   dueDate: string | null;
+  /** Deliverables (D1a/D1b, additive; older backends send none). */
+  fulfillment?: "pickup" | "delivery" | null;
+  deliveryFeeCents?: number | null;
+  deliveryAddress?: string | null;
+  productId?: string | null;
+  orderId?: string | null;
+  orderStatus?: string | null;
   totalCents: number;
   paymentMode: "deposit" | "full";
   depositCents: number | null;
@@ -233,11 +240,13 @@ export function canPayNow(
   q: Pick<
     Quote,
     "status" | "paying" | "window" | "report" | "kind" | "jobDate" | "startTime"
-  >,
+  > &
+    Partial<Pick<Quote, "fulfillment" | "deliveryAddress">>,
 ): boolean {
-  return (
-    stageOf(q) === "pay" && q.kind !== "product" && !!q.jobDate && !!q.startTime
-  );
+  if (stageOf(q) !== "pay") return false;
+  // Deliverables D2: paid as a product order; a Delivery quote needs the customer's address first.
+  if (q.kind === "product") return q.fulfillment !== "delivery" || !!q.deliveryAddress;
+  return !!q.jobDate && !!q.startTime;
 }
 
 export function quoteChip(

@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import api, { BusinessOrder } from "@/services/api";
 import OrderCard from "@/components/OrderCard";
 import { normalizeOrderStatus, ORDER_CANCELLED } from "@/utils/orderStatus";
+import { handOverLabel, showShipBy } from "@/utils/deliverableLogic";
 
 // Local type override: backend returns "paid" status but the shared type doesn't include it yet.
 type Order = Omit<BusinessOrder, "status"> & {
@@ -78,6 +79,8 @@ function formatShortDate(d: Date): string {
 
 function UrgencyBadge({ order }: { order: Order }) {
   if (order.status !== "paid" || order.shipment) return null;
+  // Deliverables D2: Pickup and Delivery orders don't ship, so no ship by reminder.
+  if (!showShipBy(order)) return null;
 
   const now = new Date();
   const orderDate = new Date(order.orderDate);
@@ -198,6 +201,28 @@ export default function DashboardOrdersScreen() {
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to mark as delivered");
     }
+  };
+
+  // Deliverables D2: Mark picked up or Mark delivered (POST /api/business/orders/:id/handed-over).
+  const handleHandOver = (orderId: string) => {
+    const o = orders.find((x) => x.id === orderId);
+    const label = handOverLabel(o?.fulfillment ?? null);
+    Alert.alert(`${label}?`, "The customer gets an email. This can't be undone.", [
+      { text: "Not yet", style: "cancel" },
+      {
+        text: label,
+        onPress: async () => {
+          const token = await getToken();
+          if (!token) return;
+          try {
+            await api.markOrderHandedOver(token, orderId);
+            fetchOrders();
+          } catch (err: any) {
+            Alert.alert("Couldn't update the order", err?.body?.message || err?.message || "Try again.");
+          }
+        },
+      },
+    ]);
   };
 
   const openShipModal = (orderId: string) => {
@@ -512,6 +537,7 @@ export default function DashboardOrdersScreen() {
                       onCancelOrder={handleCancelOrder}
                       onShipPress={openShipModal}
                       onMarkDelivered={handleMarkDelivered}
+                      onHandOver={handleHandOver}
                     />
                   </View>
                 ))}
@@ -526,6 +552,7 @@ export default function DashboardOrdersScreen() {
                   onCancelOrder={handleCancelOrder}
                   onShipPress={openShipModal}
                   onMarkDelivered={handleMarkDelivered}
+                  onHandOver={handleHandOver}
                 />
               </View>
             ))

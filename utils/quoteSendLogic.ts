@@ -62,6 +62,12 @@ export function centsInput(cents: number | null | undefined): string {
 // ─── The form ──────────────────────────────────────────────────────────────
 
 export type QuoteForm = {
+  /** Deliverables D2: a service has a date, start and length; a deliverable (a cake, a dress) has an optional due date. */
+  kind: "service" | "product";
+  dueDate: string;
+  fulfillment: "pickup" | "delivery";
+  deliveryFee: string;
+  productId: string | null;
   title: string;
   jobDate: string;
   startTime: string;
@@ -77,11 +83,17 @@ export type QuoteForm = {
 };
 
 export type QuoteBody = {
-  kind: "service";
+  kind: "service" | "product";
   title: string;
-  jobDate: string;
-  startTime: string;
-  durationMinutes: number;
+  /** Services only. Deliverables send null. */
+  jobDate: string | null;
+  startTime: string | null;
+  durationMinutes: number | null;
+  /** Deliverables only (D1a/D2). */
+  dueDate?: string | null;
+  fulfillment?: "pickup" | "delivery";
+  deliveryFeeCents?: number | null;
+  productId?: string | null;
   details: string | null;
   extrasNote: string | null;
   totalCents: number;
@@ -96,6 +108,11 @@ export type Fail = { ok: false; field: string; message: string };
 
 export function emptyForm(): QuoteForm {
   return {
+    kind: "service",
+    dueDate: "",
+    fulfillment: "pickup",
+    deliveryFee: "",
+    productId: null,
     title: "",
     jobDate: "",
     startTime: "",
@@ -125,7 +142,13 @@ function isRealDate(v: string): boolean {
 
 /** Edit: the form from the live quote. */
 export function formFromQuote(q: Quote): QuoteForm {
+  const any = q as any;
   return {
+    kind: q.kind === "product" ? "product" : "service",
+    dueDate: q.dueDate ?? "",
+    fulfillment: any.fulfillment === "delivery" ? "delivery" : "pickup",
+    deliveryFee: centsInput(any.deliveryFeeCents ?? null),
+    productId: any.productId ?? null,
     title: q.title,
     jobDate: q.jobDate ?? "",
     startTime: (q.startTime ?? "").slice(0, 5),
@@ -183,26 +206,34 @@ export function formToBody(f: QuoteForm): { ok: true; body: QuoteBody } | Fail {
       field: "extrasNote",
       message: `Keep the extras note to ${MAX_EXTRAS_NOTE} characters.`,
     };
-  if (!isRealDate(f.jobDate))
-    return {
-      ok: false,
-      field: "jobDate",
-      message: "Choose the date of the job.",
-    };
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(f.startTime))
-    return { ok: false, field: "startTime", message: "Choose a start time." };
-  const len = f.durationMinutes;
-  if (
-    len === null ||
-    !Number.isInteger(len) ||
-    len < MIN_MINUTES ||
-    len > MAX_MINUTES
-  ) {
-    return {
-      ok: false,
-      field: "durationMinutes",
-      message: "Choose how long the job takes, from 15 minutes to 3 days.",
-    };
+  const product = f.kind === "product";
+  let len: number | null = null;
+  if (product) {
+    // Deliverables: no time and no length; the due date is optional.
+    if (f.dueDate && !isRealDate(f.dueDate))
+      return { ok: false, field: "dueDate", message: "Choose a real due date." };
+  } else {
+    if (!isRealDate(f.jobDate))
+      return {
+        ok: false,
+        field: "jobDate",
+        message: "Choose the date of the job.",
+      };
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(f.startTime))
+      return { ok: false, field: "startTime", message: "Choose a start time." };
+    len = f.durationMinutes;
+    if (
+      len === null ||
+      !Number.isInteger(len) ||
+      len < MIN_MINUTES ||
+      len > MAX_MINUTES
+    ) {
+      return {
+        ok: false,
+        field: "durationMinutes",
+        message: "Choose how long the job takes, from 15 minutes to 3 days.",
+      };
+    }
   }
   const total = parseDollars(f.total);
   if (total === null || total < QUOTE_MIN_CENTS)
@@ -241,20 +272,53 @@ export function formToBody(f: QuoteForm): { ok: true; body: QuoteBody } | Fail {
       };
     depositCents = d;
   }
-  const body: QuoteBody = {
-    kind: "service",
-    title,
-    jobDate: f.jobDate,
-    startTime: f.startTime,
-    durationMinutes: len,
-    details: details || null,
-    extrasNote: extrasNote || null,
-    totalCents: total,
-    paymentMode: f.paymentMode,
-    depositCents,
-    restPaid: f.paymentMode === "deposit" ? f.restPaid : "outsyde",
-    serviceId: f.serviceId ?? null,
-  };
+  let deliveryFeeCents: number | null = null;
+  if (product && f.fulfillment === "delivery" && f.deliveryFee.trim()) {
+    const fee = parseDollars(f.deliveryFee);
+    if (fee === null || fee < 0)
+      return { ok: false, field: "deliveryFeeCents", message: "Enter the delivery fee." };
+    if (fee >= total)
+      return {
+        ok: false,
+        field: "deliveryFeeCents",
+        message: "The delivery fee is part of the total, so it must be less than the total.",
+      };
+    deliveryFeeCents = fee > 0 ? fee : null;
+  }
+  const body: QuoteBody = product
+    ? {
+        kind: "product",
+        title,
+        jobDate: null,
+        startTime: null,
+        durationMinutes: null,
+        dueDate: f.dueDate || null,
+        fulfillment: f.fulfillment,
+        deliveryFeeCents,
+        productId: f.productId ?? null,
+        details: details || null,
+        extrasNote: null,
+        totalCents: total,
+        paymentMode: f.paymentMode,
+        depositCents,
+        // D1a rule: a deliverable's deposit has the rest paid directly to the business.
+        restPaid: f.paymentMode === "deposit" ? "outside" : "outsyde",
+        serviceId: null,
+      }
+    : {
+        kind: "service",
+        title,
+        jobDate: f.jobDate,
+        startTime: f.startTime,
+        durationMinutes: len,
+        details: details || null,
+        extrasNote: extrasNote || null,
+        totalCents: total,
+        paymentMode: f.paymentMode,
+        depositCents,
+        restPaid: f.paymentMode === "deposit" ? f.restPaid : "outsyde",
+        serviceId: f.serviceId ?? null,
+      };
   if (f.requestId) body.requestId = f.requestId;
   return { ok: true, body };
 }
@@ -390,9 +454,14 @@ export function sendSide(
 export function editBody(
   body: QuoteBody,
   savedServiceId: string | null,
-): Omit<QuoteBody, "requestId" | "serviceId"> & { serviceId?: string | null } {
-  const { requestId: _r, serviceId, ...rest } = body;
-  return serviceId === savedServiceId ? rest : { ...rest, serviceId };
+  savedProductId: string | null = null,
+): Omit<QuoteBody, "requestId" | "serviceId" | "productId"> & { serviceId?: string | null; productId?: string | null } {
+  const { requestId: _r, serviceId, productId, ...rest } = body;
+  const out: Omit<QuoteBody, "requestId" | "serviceId" | "productId"> & { serviceId?: string | null; productId?: string | null } = { ...rest };
+  if (serviceId !== savedServiceId) out.serviceId = serviceId;
+  // Deliverables D2: the product goes the same way (left out when unchanged, so a retired product never blocks an edit).
+  if (body.kind === "product" && (productId ?? null) !== savedProductId) out.productId = productId ?? null;
+  return out;
 }
 
 export type ComposerKey = "camera" | "library" | "quote" | "extra";

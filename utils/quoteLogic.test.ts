@@ -523,15 +523,17 @@ test("card copy follows the rules", () => {
 
 test("Pay only where it can be paid (review I2)", () => {
   assert.equal(canPayNow(q()), true);
-  assert.equal(canPayNow(q({ kind: "product", dueDate: "2026-12-01" })), false);
+  // Deliverables D2: a deliverable is paid as a product order; a Delivery one needs the address first.
+  assert.equal(canPayNow(q({ kind: "product", dueDate: "2026-12-01", jobDate: null, startTime: null })), true);
+  assert.equal(canPayNow(q({ kind: "product", fulfillment: "delivery", deliveryAddress: null, jobDate: null, startTime: null } as any)), false);
   assert.equal(canPayNow(q({ jobDate: null })), false);
   assert.equal(canPayNow(q({ startTime: null })), false);
   assert.equal(canPayNow(q({ paying: true })), false);
-  const v = cardView(card(), q({ kind: "product" }), { isCustomer: true });
+  const v = cardView(card(), q({ kind: "product", fulfillment: "delivery", deliveryAddress: null } as any), { isCustomer: true });
   assert.deepEqual(
     v.buttons.map((b) => b.start),
     ["view"],
-    "a product quote card: no Pay button",
+    "a Delivery deliverable without an address: no Pay button on the card",
   );
 });
 

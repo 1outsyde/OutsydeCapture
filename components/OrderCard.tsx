@@ -4,12 +4,18 @@ import * as Clipboard from "expo-clipboard";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import { BusinessOrder } from "@/services/api";
+import { canHandOver, handOverLabel, orderDepositNote, orderFulfillmentLine } from "@/utils/deliverableLogic";
+
+// Order amounts come from the backend in cents (orders.items[].price, orders.total_amount).
+const dollars = (cents: number | null | undefined) => `$${((Number(cents) || 0) / 100).toFixed(2)}`;
 
 interface OrderCardProps {
   order: BusinessOrder;
   onCancelOrder: (orderId: string, status: string) => void;
   onShipPress: (orderId: string) => void;
   onMarkDelivered?: (orderId: string, shipmentId: string) => void;
+  /** Deliverables D2: Mark picked up or Mark delivered for Pickup or Delivery orders. */
+  onHandOver?: (orderId: string) => void;
 }
 
 const CARD = {
@@ -53,7 +59,9 @@ function parseAddress(
   }
 }
 
-export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDelivered }: OrderCardProps) {
+export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDelivered, onHandOver }: OrderCardProps) {
+  const fulfillmentLine = orderFulfillmentLine(order);
+  const depositNote = orderDepositNote(order, "business");
   const { theme } = useTheme();
   const sc = statusColor(order.status, theme.primary, theme.backgroundSecondary, theme.textSecondary);
   const address = parseAddress(order.shippingAddress);
@@ -215,7 +223,7 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
           {order.items.slice(0, 2).map((item, i) => (
             <View key={i}>
               <Text style={styles.itemLine}>
-                {item.quantity}× {item.name}{item.variantLabel ? ` (${item.variantLabel})` : ""} — ${item.price}
+                {item.quantity}× {item.name}{item.variantLabel ? ` (${item.variantLabel})` : ""}, {dollars(item.price)}
               </Text>
               {item.addonsLabel ? (
                 <Text style={[styles.itemLine, { opacity: 0.8 }]}>+ {item.addonsLabel}</Text>
@@ -252,7 +260,7 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
               You Earn: ${order.vendorNetAmount.toFixed(2)}
             </Text>
           ) : (
-            <Text style={styles.earnLabel}>Total: ${order.totalAmount}</Text>
+            <Text style={styles.earnLabel}>Total: {dollars(order.totalAmount)}</Text>
           )}
         </View>
       </View>
@@ -260,7 +268,9 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
       {/* Shipping address block */}
       <View style={styles.addressBlock}>
         <Feather name="map-pin" size={12} color={theme.textSecondary} style={{ marginTop: 1 }} />
-        {address ? (
+        {fulfillmentLine ? (
+          <Text style={styles.addressText}>{fulfillmentLine}</Text>
+        ) : address ? (
           <Text style={styles.addressText}>
             {address.line1}, {address.city}, {address.state} {address.zipCode}
           </Text>
@@ -271,7 +281,9 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
         )}
       </View>
 
-      {/* Tracking row — shown when shipment exists */}
+      {depositNote ? <Text style={[styles.addressText, { marginTop: 4 }]}>{depositNote}</Text> : null}
+
+      {/* Tracking row, shown when a shipment exists */}
       {order.shipment && (
         <Pressable
           style={styles.trackingBlock}
@@ -314,12 +326,22 @@ export default function OrderCard({ order, onCancelOrder, onShipPress, onMarkDel
           >
             <Text style={[styles.btnText, { color: "#FF3B30" }]}>Cancel</Text>
           </Pressable>
-          <Pressable
-            onPress={() => onShipPress(order.id)}
-            style={[styles.btn, { backgroundColor: "#5856D6", flex: 1 }]}
-          >
-            <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Ship</Text>
-          </Pressable>
+          {canHandOver(order) ? (
+            <Pressable
+              onPress={() => onHandOver?.(order.id)}
+              disabled={!onHandOver}
+              style={[styles.btn, { backgroundColor: "#5856D6", flex: 1 }]}
+            >
+              <Text style={[styles.btnText, { color: "#FFFFFF" }]}>{handOverLabel(order.fulfillment)}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => onShipPress(order.id)}
+              style={[styles.btn, { backgroundColor: "#5856D6", flex: 1 }]}
+            >
+              <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Ship</Text>
+            </Pressable>
+          )}
         </View>
       )}
       {order.status === "shipped" && onMarkDelivered && order.shipment && (
