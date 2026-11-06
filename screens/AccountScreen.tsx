@@ -151,6 +151,9 @@ type ProfileData = {
   showWebsite?: boolean;
   showStoreHours?: boolean;
   isMultiStaff?: boolean;
+  /** Booking step 3: the business hid its street address. */
+  showAddress?: boolean;
+  vendorTerms?: string | null;
 };
 
 type PostCard = {
@@ -798,6 +801,8 @@ export default function AccountScreen() {
             showWebsite: (business as any).showWebsite !== false,
             showStoreHours: (business as any).showStoreHours !== false,
             isMultiStaff: Boolean(business.isMultiStaff),
+            showAddress: business.showAddress,
+            vendorTerms: business.vendorTermsAndConditions ?? null,
           };
         } else if (resolvedType === "photographer") {
           console.log(
@@ -2131,6 +2136,8 @@ export default function AccountScreen() {
                     providerAddress: profile.address,
                     providerCity: profile.city,
                     providerState: profile.state,
+                    providerShowAddress: profile.showAddress,
+                    providerVendorTerms: profile.vendorTerms,
                     accentColor,
                     preselectedServiceId: service.id,
                   });
