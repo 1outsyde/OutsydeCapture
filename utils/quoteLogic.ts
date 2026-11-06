@@ -250,14 +250,23 @@ export function canPayNow(
 ): boolean {
   if (stageOf(q) !== "pay") return false;
   // Deliverables D2: paid as a product order; a Delivery quote needs the customer's address first.
-  if (q.kind === "product") return q.fulfillment !== "delivery" || !!q.deliveryAddress;
+  if (q.kind === "product")
+    return q.fulfillment !== "delivery" || !!q.deliveryAddress;
   return !!q.jobDate && !!q.startTime;
 }
 
 export function quoteChip(
-  q: Pick<Quote, "status" | "paying" | "window" | "report">,
+  q: Pick<Quote, "status" | "paying" | "window" | "report"> &
+    Partial<Pick<Quote, "kind" | "orderStatus">>,
 ): string {
   const s = stageOf(q);
+  // Deliverables D2 (review 3): a paid deliverable is an order, not a booking.
+  if (q.kind === "product" && q.status === "paid")
+    return q.orderStatus === "delivered"
+      ? "Delivered"
+      : q.orderStatus === "cancelled"
+        ? "Refunded"
+        : "Paid";
   return (
     {
       pay: "Ready to pay",

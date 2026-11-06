@@ -223,7 +223,9 @@ export default function QuoteScreen() {
     run("pay", async () =>
       finish(
         await steps.pay(cur),
-        "Paid. You're booked.",
+        cur.kind === "product"
+          ? "Paid. Your order is in Orders."
+          : "Paid. You're booked.",
         (f) => f.status === "paid",
       ),
     );
@@ -534,7 +536,11 @@ export default function QuoteScreen() {
     : { show: false, ready: false };
   const product = q.kind === "product";
   const when = product ? deliverableWhenLine(q) : whenLine(q);
-  const paidLine = product ? deliverablePaidLine(q) : null;
+  const paidLine = product
+    ? deliverablePaidLine(q, manage ? "business" : "customer")
+    : null;
+  // Review 1 and 2: Mark picked up and the business Orders screen are the owner's (staff and admin can't open them).
+  const owner = manage && user?.role !== "staff";
 
   return (
     <ThemedView style={{ flex: 1 }}>
@@ -724,16 +730,8 @@ export default function QuoteScreen() {
                 ? `Paid in full, ${money(q.amounts.payNowCents)}.`
                 : `Deposit paid, ${money(q.amounts.payNowCents)}. The rest, ${money(q.amounts.paidDirectlyCents)}, ${manage ? "is paid to you directly" : "goes to the business directly"}.`}
             </ThemedText>
-            {paidLine ? (
-              <Hint>
-                {manage &&
-                q.orderStatus !== "delivered" &&
-                q.orderStatus !== "cancelled"
-                  ? "Paid. The order is in Orders."
-                  : paidLine}
-              </Hint>
-            ) : null}
-            {manage &&
+            {paidLine ? <Hint>{paidLine}</Hint> : null}
+            {owner &&
             q.orderId &&
             canHandOver({
               status: q.orderStatus ?? null,
@@ -746,12 +744,12 @@ export default function QuoteScreen() {
                 onPress={() => handOver(q)}
               />
             ) : null}
-            {q.orderId ? (
+            {q.orderId && (owner || !manage) ? (
               <OutlineButton
                 label={DELIVERABLE_COPY.viewOrder}
                 disabled={!!busy}
                 onPress={() =>
-                  manage
+                  owner
                     ? navigation.navigate("DashboardOrdersScreen" as any)
                     : navigation.navigate("CartOrders", {
                         openTab: "orders",

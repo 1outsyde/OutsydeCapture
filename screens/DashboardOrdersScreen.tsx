@@ -275,7 +275,9 @@ export default function DashboardOrdersScreen() {
   type Group = { label: string; orders: Order[] };
   const groups: Group[] = sortMode === "action"
     ? [
-        { label: "Paid, ready to ship", orders: sorted.filter(o => o.status === "paid" && !o.shipment) },
+        // Deliverables D2 (review 9): Pickup and Delivery orders get their own heading.
+        { label: "Paid, ready to ship", orders: sorted.filter(o => o.status === "paid" && !o.shipment && !o.fulfillment) },
+        { label: "Paid, ready to hand over", orders: sorted.filter(o => o.status === "paid" && !o.shipment && !!o.fulfillment) },
         { label: "Pending", orders: sorted.filter(o => o.status === "pending") },
         { label: "Processing", orders: sorted.filter(o => o.status === "processing") },
         { label: "Shipped", orders: sorted.filter(o => o.status === "shipped") },

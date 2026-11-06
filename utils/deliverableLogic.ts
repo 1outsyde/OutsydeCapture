@@ -15,8 +15,15 @@ export function deliverableWhenLine(q: {
   dueDate?: string | null;
   fulfillment?: Fulfillment;
 }): string {
-  const how = q.fulfillment === "delivery" ? "Delivery" : "Pickup";
-  return isYmd(q.dueDate) ? `Due ${dateLabel(q.dueDate)} · ${how}` : how;
+  // Review 8: an older quote with no pickup or delivery says only its due date.
+  const how =
+    q.fulfillment === "delivery"
+      ? "Delivery"
+      : q.fulfillment === "pickup"
+        ? "Pickup"
+        : "";
+  const due = isYmd(q.dueDate) ? `Due ${dateLabel(q.dueDate)}` : "";
+  return [due, how].filter(Boolean).join(" · ");
 }
 
 /** A Delivery quote can't be paid until the customer adds the address. */
@@ -31,15 +38,19 @@ export function needsAddress(q: {
 }
 
 /** The line on a paid deliverable, from its order's status. */
-export function deliverablePaidLine(q: {
-  status: string;
-  orderStatus?: string | null;
-}): string | null {
+export function deliverablePaidLine(
+  q: { status: string; orderStatus?: string | null },
+  viewer: "customer" | "business" = "customer",
+): string | null {
   if (q.status !== "paid") return null;
   if (q.orderStatus === "delivered") return "Delivered.";
   if (q.orderStatus === "cancelled" || q.orderStatus === "refunded")
-    return "Refunded. The business cancelled this order.";
-  return "Paid. Your order is in Orders.";
+    return viewer === "business"
+      ? "Refunded. You cancelled this order."
+      : "Refunded. The business cancelled this order.";
+  return viewer === "business"
+    ? "Paid. The order is in Orders."
+    : "Paid. Your order is in Orders.";
 }
 
 export function handOverLabel(f: Fulfillment): string {

@@ -56,6 +56,7 @@ import {
 } from "@/utils/quoteLogic";
 import {
   EXPIRY_LINE,
+  DELIVERABLE_EXPIRY_LINE,
   durationOptions,
   editBody,
   emptyForm,
@@ -140,7 +141,9 @@ export default function QuoteComposeScreen() {
       e &&
       (e.field === k ||
         (k === "total" && e.field === "totalCents") ||
-        (k === "deposit" && e.field === "depositCents"))
+        (k === "deposit" && e.field === "depositCents") ||
+        (k === "deliveryFee" && e.field === "deliveryFeeCents") ||
+        (k === "kind" && e.field === "kind"))
         ? null
         : e,
     );
@@ -324,7 +327,10 @@ export default function QuoteComposeScreen() {
     [services],
   );
   const serviceName = services.find((s) => s.id === form.serviceId)?.name;
-  const productName = products.find((x) => x.id === form.productId)?.name;
+  // Review 4: a saved product that is no longer listed (archived) still shows, so the owner sees what the quote keeps.
+  const productName =
+    products.find((x) => x.id === form.productId)?.name ??
+    (form.productId ? "Saved product, no longer listed" : undefined);
   const productOptions: Option[] = useMemo(
     () => [
       { value: "", label: DELIVERABLE_COPY.noProduct },
@@ -607,8 +613,10 @@ export default function QuoteComposeScreen() {
             ) : null}
             <Hint>
               {editing
-                ? `${EXPIRY_LINE} Saving starts the 7 days again.`
-                : EXPIRY_LINE}
+                ? `${isProduct ? DELIVERABLE_EXPIRY_LINE : EXPIRY_LINE} Saving starts the 7 days again.`
+                : isProduct
+                  ? DELIVERABLE_EXPIRY_LINE
+                  : EXPIRY_LINE}
             </Hint>
             <PrimaryButton label="Review quote" onPress={toReview} />
           </ScrollView>
@@ -703,7 +711,14 @@ export default function QuoteComposeScreen() {
             {serviceName && review.serviceId ? (
               <Hint>{`Linked to ${serviceName}.`}</Hint>
             ) : null}
-            <Hint>{EXPIRY_LINE}</Hint>
+            <Hint>
+              {review.kind === "product"
+                ? DELIVERABLE_EXPIRY_LINE
+                : EXPIRY_LINE}
+            </Hint>
+            {review.kind === "product" && review.deliveryFeeCents ? (
+              <Hint>{`Delivery fee ${money(review.deliveryFeeCents)}, included in the total.`}</Hint>
+            ) : null}
             {error ? <ErrorText>{error}</ErrorText> : null}
             <PrimaryButton
               label={editing ? "Save and send update" : "Send quote"}

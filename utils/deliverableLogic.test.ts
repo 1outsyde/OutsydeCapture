@@ -42,7 +42,8 @@ test("the when line: Due date and Pickup or Delivery", () => {
   );
   assert.equal(
     deliverableWhenLine({ dueDate: "2026-11-20", fulfillment: null }),
-    "Due Fri, Nov 20 · Pickup",
+    "Due Fri, Nov 20",
+    "an older quote with no pickup or delivery says only its due date",
   );
 });
 
@@ -349,5 +350,35 @@ test("the chat card line and the Quotes list chip", async () => {
       expiresAt: new Date(Date.now() + 86400000).toISOString(),
     } as any),
     "Booked",
+  );
+});
+
+test("review fixes: the business's own words, and the header chip for a paid deliverable", async () => {
+  const { quoteChip } = await import("./quoteLogic");
+  assert.equal(
+    deliverablePaidLine(
+      { status: "paid", orderStatus: "cancelled" },
+      "business",
+    ),
+    "Refunded. You cancelled this order.",
+  );
+  assert.equal(
+    deliverablePaidLine({ status: "paid", orderStatus: "paid" }, "business"),
+    "Paid. The order is in Orders.",
+  );
+  const base = {
+    status: "paid",
+    paying: false,
+    window: null,
+    report: null,
+    kind: "product",
+  } as any;
+  assert.equal(quoteChip({ ...base, orderStatus: "paid" }), "Paid");
+  assert.equal(quoteChip({ ...base, orderStatus: "delivered" }), "Delivered");
+  assert.equal(quoteChip({ ...base, orderStatus: "cancelled" }), "Refunded");
+  assert.equal(
+    quoteChip({ ...base, kind: "service" }),
+    "Booked",
+    "a paid service quote still reads Booked",
   );
 });

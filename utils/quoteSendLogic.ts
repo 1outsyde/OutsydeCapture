@@ -38,6 +38,8 @@ const EXTRA_MAX_DESC = 200;
 
 export const EXPIRY_LINE =
   "The customer has 7 days to pay, or until the day before the job if that is sooner. A job less than a day away can be paid until it starts.";
+/** Deliverables D2 (review 3): a deliverable has no job, so the quote simply lasts 7 days. */
+export const DELIVERABLE_EXPIRY_LINE = "The customer has 7 days to pay.";
 export const EXTRA_FEE_LINE =
   "The customer pays a service fee on top. Nothing is charged unless they approve.";
 
