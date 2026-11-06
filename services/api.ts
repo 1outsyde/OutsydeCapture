@@ -477,6 +477,7 @@ export interface VendorBookerBusiness {
   id: string;
   ownerId: string;
   allowPastClosing?: boolean; // Backend migration 044 (#294); absent on older backends
+  bookingGapMinutes?: number; // Backend migration 104 (#420): minutes kept free after each booking; absent on older backends
   name: string;
   category: string;
   description?: string | null;
@@ -574,6 +575,7 @@ export interface BusinessOnboardingData {
   coverMediaType?: "image" | "video";
   logoImage?: string;
   allowPastClosing?: boolean; // Backend migration 044: bookings may end after closing
+  bookingGapMinutes?: number; // Backend migration 104: 0, 5, 10, 15, 20, 30, 45 or 60
 }
 
 // Stripe onboarding status
