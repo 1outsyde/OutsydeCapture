@@ -103,6 +103,8 @@ export default function AdminDashboardScreen() {
   const [paymentSubTab, setPaymentSubTab] = useState<PaymentSubTab>("orders");
   const [selectedConversation, setSelectedConversation] = useState<AdminConversation | null>(null);
   const [pendingBusinessCount, setPendingBusinessCount] = useState(0);
+  // Push sends left today (shared with goutsyde.com). Null until loaded; a failure only hides the line.
+  const [pushLeft, setPushLeft] = useState<{ remaining: number; max: number } | null>(null);
 
   const filteredUsers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -137,6 +139,9 @@ export default function AdminDashboardScreen() {
         }
       }
       setPendingBusinessCount(pendingList.length);
+      api.getAdminPushLimits(token)
+        .then((l) => setPushLeft({ remaining: l.remaining, max: l.max }))
+        .catch(() => setPushLeft(null));
     } catch (error) {
       console.error("Failed to fetch admin stats:", error);
       setStats({ users: 0, businesses: 0, photographers: 0, orders: 0, bookings: 0 });
@@ -899,6 +904,28 @@ export default function AdminDashboardScreen() {
               </Pressable>
             );
           })}
+        </View>
+
+        <Text style={styles.sectionHeading} accessibilityRole="header">Tools</Text>
+        <View style={styles.sectionList}>
+          <Pressable
+            style={({ pressed }) => [styles.sectionRow, pressed && styles.sectionRowPressed]}
+            onPress={() => navigation.navigate("AdminPush")}
+            accessibilityRole="button"
+            accessibilityLabel="Push"
+            accessibilityHint="Send a push announcement and see push history"
+          >
+            <View style={styles.sectionIcon}>
+              <Feather name="bell" size={17} color={C.gold} />
+            </View>
+            <View style={styles.sectionText}>
+              <Text style={styles.sectionTitle}>Push</Text>
+              <Text style={styles.sectionSub}>
+                {pushLeft ? `Send an announcement. ${pushLeft.remaining} of ${pushLeft.max} left today` : "Send an announcement, see history"}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={C.dim} />
+          </Pressable>
         </View>
       </ScrollView>
     );
