@@ -1,4 +1,5 @@
 import type { AdminSubscriptionSummary, AdminOfferSummary, OfferPlan } from "@/utils/adminPlans";
+import type { PushAudience, PushCounts, PushLimits, PushPerson, PushRecipientRow, PushScreensData, PushSendRow } from "@/utils/adminPush";
 import type { BusinessReferralsInfo } from "@/utils/businessReferral";
 import {
   getAccessToken,
@@ -2990,6 +2991,80 @@ class ApiService {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
+  }
+
+  // Admin push announcements (same routes as goutsyde.com /admin/emails?tab=push; router level
+  // requirePlatformAdmin, Bearer accepted). Errors throw ApiError with the nested { error: { code, message } }
+  // body; read them with pushErrorText.
+  async getAdminPushAudiences(authToken: string): Promise<PushCounts> {
+    const r = await this.request<{ counts?: PushCounts }>("/api/admin/push/audiences", { headers: { "Authorization": `Bearer ${authToken}` } });
+    const c: any = r?.counts ?? {};
+    return { vendors: Number(c.vendors) || 0, photographers: Number(c.photographers) || 0, consumers: Number(c.consumers) || 0, all: Number(c.all) || 0 };
+  }
+
+  async getAdminPushScreens(authToken: string): Promise<PushScreensData> {
+    const r: any = await this.request("/api/admin/push/screens", { headers: { "Authorization": `Bearer ${authToken}` } });
+    return {
+      screens: Array.isArray(r?.screens) ? r.screens : [],
+      byAudience: r?.byAudience ?? {},
+      defaultScreen: typeof r?.defaultScreen === "string" ? r.defaultScreen : "activity",
+      maxTitle: Number(r?.maxTitle) || 65,
+      maxBody: Number(r?.maxBody) || 178,
+    };
+  }
+
+  async getAdminPushLimits(authToken: string): Promise<PushLimits> {
+    const r: any = await this.request("/api/admin/push/limits", { headers: { "Authorization": `Bearer ${authToken}` } });
+    return {
+      sentToday: Number(r?.sentToday) || 0,
+      max: Number(r?.max) || 3,
+      remaining: Number(r?.remaining) || 0,
+      quietHours: !!r?.quietHours,
+      nowNewYork: typeof r?.nowNewYork === "string" ? r.nowNewYork : "",
+    };
+  }
+
+  async searchAdminPushPeople(authToken: string, q: string): Promise<PushPerson[]> {
+    const r = await this.request<{ people?: PushPerson[] }>(`/api/admin/push/people?q=${encodeURIComponent(q)}`, {
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+    return Array.isArray(r?.people) ? r.people : [];
+  }
+
+  /** To the signed in admin's own phone only; not counted in the daily limit. */
+  async sendAdminPushTest(
+    authToken: string,
+    body: { title: string; body: string; screen: string; url?: string }
+  ): Promise<{ sendId?: string; status?: string; error?: string | null }> {
+    return this.request("/api/admin/push/test", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Starts a send. The same clientKey again returns the same send (never a second one). */
+  async startAdminPushSend(
+    authToken: string,
+    body: { audience: PushAudience; userIds?: string[]; title: string; body: string; screen: string; url?: string; clientKey: string }
+  ): Promise<{ sendId: string; recipients: number; existing?: boolean }> {
+    return this.request("/api/admin/push/sends", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async listAdminPushSends(authToken: string, before?: string): Promise<{ sends: PushSendRow[]; dailyLimit: number }> {
+    const qs = before ? `?limit=50&before=${encodeURIComponent(before)}` : "?limit=50";
+    const r: any = await this.request(`/api/admin/push/sends${qs}`, { headers: { "Authorization": `Bearer ${authToken}` } });
+    return { sends: Array.isArray(r?.sends) ? r.sends : [], dailyLimit: Number(r?.dailyLimit) || 3 };
+  }
+
+  async getAdminPushSend(authToken: string, id: string): Promise<{ send: PushSendRow; recipients: PushRecipientRow[] } | null> {
+    const r: any = await this.request(`/api/admin/push/sends/${encodeURIComponent(id)}`, { headers: { "Authorization": `Bearer ${authToken}` } });
+    if (!r?.send) return null;
+    return { send: r.send, recipients: Array.isArray(r.recipients) ? r.recipients : [] };
   }
 
   // Vendor plans (same routes and bodies as goutsyde.com /admin/vendors). Errors throw ApiError;

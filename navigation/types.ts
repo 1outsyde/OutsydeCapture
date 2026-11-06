@@ -165,6 +165,8 @@ export type RootStackParamList = {
   AdminRefundRequest: { request: AdminRefundRequestItem };
   // One business's plan tools, from the Admin Businesses list (passed whole; updated from each response).
   AdminVendorPlan: { business: AdminBusiness };
+  // Send a push announcement and see push history (App Admin Step 7a).
+  AdminPush: undefined;
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
   BusinessBillingAddress: undefined;
