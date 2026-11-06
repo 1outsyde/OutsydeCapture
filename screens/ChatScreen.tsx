@@ -473,8 +473,15 @@ export default function ChatScreen() {
   // Quotes step 6d-1 (call 2): the business side of this chat (the owner, or staff for the business the app picked),
   // and the paid quotes here whose booking is still open (Add an extra).
   const side = useMemo(
-    () => sendSide(user, participantType, isSelfConversation),
-    [user, participantType, isSelfConversation],
+    () =>
+      sendSide(
+        user,
+        participantType,
+        isSelfConversation,
+        // Review 2: only once the other side is known (route params or the inbox), never the default.
+        !!params.participantType || !!convo,
+      ),
+    [user, participantType, isSelfConversation, params.participantType, convo],
   );
   const targets = useMemo(
     () => (side ? extraTargets(Object.values(quotes), user) : []),
@@ -782,7 +789,8 @@ export default function ChatScreen() {
         onPress: () => runKey(o.key),
       })),
     });
-    if (!shown) runKey(opts[0]?.key ?? "quote");
+    // Review 6: no sheet host, the library as before (or the quote when the photo tray is full).
+    if (!shown) runKey(room > 0 ? "library" : "quote");
   }, [
     side,
     targets.length,

@@ -37,7 +37,7 @@ const EXTRA_MIN_DESC = 3;
 const EXTRA_MAX_DESC = 200;
 
 export const EXPIRY_LINE =
-  "The customer has 7 days to pay, or until the day before the job if that is sooner.";
+  "The customer has 7 days to pay, or until the day before the job if that is sooner. A job less than a day away can be paid until it starts.";
 export const EXTRA_FEE_LINE =
   "The customer pays a service fee on top. Nothing is charged unless they approve.";
 
@@ -370,13 +370,29 @@ export function sendSide(
   user: Viewer,
   participantType: string | null | undefined,
   selfChat = false,
+  // Review 2: false until the chat's other side is known (a push can open the chat before the inbox loads, and the
+  // screen then defaults the other side to a customer).
+  known = true,
 ): { businessId: string | undefined } | null {
-  if (!user || selfChat || participantType === "business") return null;
+  if (!user || selfChat || !known || participantType === "business")
+    return null;
   if (user.role === "business" || (user.role !== "staff" && user.businessId))
     return { businessId: undefined };
   if (user.role === "staff" && user.staffBusinessId)
     return { businessId: user.staffBusinessId };
   return null;
+}
+
+/**
+ * The PATCH body (review 3): the service is left out unless it changed, so the backend keeps the saved one (a
+ * service retired since would otherwise block every edit). The request is never sent on an edit.
+ */
+export function editBody(
+  body: QuoteBody,
+  savedServiceId: string | null,
+): Omit<QuoteBody, "requestId" | "serviceId"> & { serviceId?: string | null } {
+  const { requestId: _r, serviceId, ...rest } = body;
+  return serviceId === savedServiceId ? rest : { ...rest, serviceId };
 }
 
 export type ComposerKey = "camera" | "library" | "quote" | "extra";
@@ -479,9 +495,12 @@ export function vendorExtraStatusLine(
       return "The customer's bank is confirming.";
     case "approved":
       if (p?.status === "captured") return "Approved and charged.";
+      if (p?.status === "held") return "Approved, held on the card.";
       if (p?.status === "scheduled")
         return "Approved. It is held on the card the day before the job.";
-      return "Approved, held on the card.";
+      if (p?.status === "hold_failed")
+        return "Approved, but it couldn't be held on the customer's card yet.";
+      return "Approved.";
     case "declined":
       return "The customer declined. Nothing was added.";
     case "withdrawn":

@@ -568,7 +568,8 @@ export function cardView(
   if (
     manage &&
     live &&
-    (ev === "paid" || ev === "balance_held") &&
+    // Review 9: one button per booking, on the paid card only.
+    ev === "paid" &&
     jobCompleteState(live, viewer.nowMs ?? 0).ready
   ) {
     out.buttons = [

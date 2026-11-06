@@ -6638,15 +6638,14 @@ class ApiService {
     authToken: string,
     quoteId: string,
     version: number,
-    body: import("@/utils/quoteSendLogic").QuoteBody,
+    body: ReturnType<typeof import("@/utils/quoteSendLogic").editBody>,
   ): Promise<QuoteWire> {
-    const { requestId: _drop, ...rest } = body;
     const res = await this.request<{ quote: QuoteWire }>(
       `/api/quotes/${encodeURIComponent(quoteId)}`,
       {
         method: "PATCH",
         headers: { Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify({ ...rest, version }),
+        body: JSON.stringify({ ...body, version }),
       },
     );
     return res.quote;

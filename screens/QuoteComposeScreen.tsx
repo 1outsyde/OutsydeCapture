@@ -31,6 +31,7 @@ import {
   Hint,
   HostHeader,
   Label,
+  ON_GOLD,
   OutlineButton,
   PickerBox,
   PrimaryButton,
@@ -56,6 +57,7 @@ import {
 import {
   EXPIRY_LINE,
   durationOptions,
+  editBody,
   emptyForm,
   formFromQuote,
   formFromRequest,
@@ -116,6 +118,14 @@ export default function QuoteComposeScreen() {
   const [sheet, setSheet] = useState<Sheet>(null);
   const touched = useRef(false);
   const sending = useRef(false);
+  // Review 3: the service saved on the quote; an edit leaves it out unless it changed.
+  const [savedServiceId, setSavedServiceId] = useState<string | null>(null);
+  // Review 1: load once. getToken changes on every auth render (a return to the app), which must never reload the
+  // quote over the business's unsaved edits.
+  const tokenRef = useRef(getToken);
+  useEffect(() => {
+    tokenRef.current = getToken;
+  }, [getToken]);
 
   const set = <K extends keyof QuoteForm>(k: K, v: QuoteForm[K]) => {
     touched.current = true;
@@ -134,7 +144,7 @@ export default function QuoteComposeScreen() {
   useEffect(() => {
     let live = true;
     (async () => {
-      const token = await getToken();
+      const token = await tokenRef.current();
       if (!token) {
         if (live) setLoadError("Sign in again to continue.");
         return;
@@ -150,8 +160,9 @@ export default function QuoteComposeScreen() {
                 : "This quote can't be changed now.",
             );
           } else {
-            setForm(formFromQuote(q));
+            if (!touched.current) setForm(formFromQuote(q));
             setVersion(q.version);
+            setSavedServiceId(q.serviceId ?? null);
           }
         } catch (err) {
           if (live) setLoadError(errorMessage(err as ApiError));
@@ -184,26 +195,36 @@ export default function QuoteComposeScreen() {
     return () => {
       live = false;
     };
-  }, [getToken, p.quoteId, p.businessId, user?.role]);
+  }, [p.quoteId, p.businessId, user?.role]);
 
-  const close = () => {
-    if (!touched.current || busy) {
-      navigation.goBack();
-      return;
-    }
-    Alert.alert(
-      editing ? "Discard your changes?" : "Discard this quote?",
-      "Nothing has been sent.",
-      [
-        { text: "Keep editing", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: () => navigation.goBack(),
-        },
-      ],
-    );
-  };
+  // Review 7: every way out (header, Android back, a swipe) is blocked while sending and asks first when there
+  // are unsent changes.
+  useEffect(
+    () =>
+      navigation.addListener("beforeRemove", (e) => {
+        if (sending.current) {
+          e.preventDefault();
+          return;
+        }
+        if (!touched.current) return;
+        e.preventDefault();
+        Alert.alert(
+          editing ? "Discard your changes?" : "Discard this quote?",
+          "Nothing has been sent.",
+          [
+            { text: "Keep editing", style: "cancel" },
+            {
+              text: "Discard",
+              style: "destructive",
+              onPress: () => navigation.dispatch(e.data.action),
+            },
+          ],
+        );
+      }),
+    [navigation, editing],
+  );
+
+  const close = () => navigation.goBack();
 
   const toReview = () => {
     const r = formToBody(form);
@@ -230,12 +251,18 @@ export default function QuoteComposeScreen() {
         return;
       }
       if (editing && p.quoteId && version !== null)
-        await api.editQuote(token, p.quoteId, version, review);
+        await api.editQuote(
+          token,
+          p.quoteId,
+          version,
+          editBody(review, savedServiceId),
+        );
       else await api.sendQuote(token, p.conversationId, review, p.businessId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
         () => {},
       );
       touched.current = false;
+      sending.current = false;
       navigation.goBack();
     } catch (err) {
       const e = err as ApiError;
@@ -298,13 +325,15 @@ export default function QuoteComposeScreen() {
     <ThemedView style={{ flex: 1 }}>
       <HostHeader
         title={title}
-        sub={step === "review" ? "This is what the customer gets" : undefined}
+        sub={step === "review" ? "A preview of the customer's card" : undefined}
         left={
           step === "review"
             ? {
                 icon: "chevron-left",
                 label: "Back",
-                onPress: () => setStep("form"),
+                onPress: () => {
+                  if (!busy) setStep("form");
+                },
               }
             : left
         }
@@ -319,6 +348,10 @@ export default function QuoteComposeScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {error ? <ErrorText>{error}</ErrorText> : null}
+            {/* Review 5: staff at more than one business see which one the quote is from. */}
+            {!editing && user?.role === "staff" && user.staffBusinessName ? (
+              <Hint>{`Sending as ${user.staffBusinessName}.`}</Hint>
+            ) : null}
             {services.length ? (
               <PickerBox
                 label="SERVICE (OPTIONAL)"
@@ -643,5 +676,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: Spacing.xs,
   },
-  fakeBtnText: { fontSize: 15, fontWeight: "700", color: "#0B0B0B" },
+  fakeBtnText: { fontSize: 15, fontWeight: "700", color: ON_GOLD },
 });

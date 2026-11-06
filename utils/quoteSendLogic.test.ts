@@ -27,6 +27,7 @@ import {
   vendorExtrasPaymentLine,
   EXPIRY_LINE,
   EXTRA_FEE_LINE,
+  editBody,
   type QuoteForm,
 } from "./quoteSendLogic";
 import { cardView, parseStart, type Quote, type Card } from "./quoteLogic";
@@ -643,8 +644,12 @@ test("business cards: View quote on a sent quote; Job complete on the booked car
       ["View quote", "view", false],
     ],
   );
+  // Review 9: one Job complete button per booking, on the paid card only.
   const held = cardView(card({ event: "balance_held" }), paid(), biz);
-  assert.equal(held.buttons[0].start, "job-complete");
+  assert.deepEqual(
+    held.buttons.map((b) => b.start),
+    ["view"],
+  );
   // Before the start, not complete yet, or not managing: View quote only.
   assert.deepEqual(
     cardView(card({ event: "paid" }), paid(), {
@@ -766,4 +771,52 @@ test("vendorExtrasPaymentLine: what the business needs to know about the extras 
     });
     assert.ok(t && clean(t) && !/your card/.test(t), st);
   }
+});
+
+test("vendorExtraStatusLine never says held when the hold failed or isn't placed yet (review 8)", () => {
+  assert.match(
+    vendorExtraStatusLine({ status: "approved" }, {
+      status: "hold_failed",
+    } as any),
+    /couldn't be held/,
+  );
+  for (const st of ["holding", "capturing", "releasing", "none"]) {
+    assert.equal(
+      vendorExtraStatusLine({ status: "approved" }, { status: st } as any),
+      "Approved.",
+      st,
+    );
+  }
+  assert.equal(
+    vendorExtraStatusLine({ status: "approved" }, null),
+    "Approved.",
+  );
+});
+
+test("EXPIRY_LINE covers a job less than a day away (review 8)", () => {
+  assert.match(EXPIRY_LINE, /less than a day away/);
+  assert.ok(clean(EXPIRY_LINE));
+});
+
+test("editBody leaves the service out unless it changed, so a retired service never blocks an edit (review 3)", () => {
+  const r = formToBody({ ...filled(), serviceId: "old" });
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  assert.equal("serviceId" in editBody(r.body, "old"), false);
+  assert.equal(editBody(r.body, "new").serviceId, "old");
+  assert.equal(editBody({ ...r.body, serviceId: null }, "old").serviceId, null);
+  assert.equal(
+    "requestId" in editBody({ ...r.body, requestId: "r1" }, null),
+    false,
+  );
+});
+
+test("sendSide waits until the chat's other side is known (review 2)", () => {
+  assert.equal(sendSide({ role: "business" }, "consumer", false, false), null);
+  assert.deepEqual(sendSide({ role: "business" }, "consumer", false, true), {
+    businessId: undefined,
+  });
+  assert.deepEqual(sendSide({ role: "business" }, "user"), {
+    businessId: undefined,
+  });
 });

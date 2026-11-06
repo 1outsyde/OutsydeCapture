@@ -544,6 +544,8 @@ export default function QuoteScreen() {
                       navigation.navigate("QuoteCompose", {
                         conversationId: q.conversationId,
                         quoteId: q.id,
+                        // Review 3: staff load their business's services.
+                        businessId: q.businessId,
                       })
                     }
                   />
