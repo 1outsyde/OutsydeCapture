@@ -120,6 +120,20 @@ export interface AccountSetupStatus {
   steps: { key: AccountSetupStepKey; state: "done" | "todo" | "waiting"; label: string }[];
 }
 
+/** An open change email request (GET /api/auth/email-change). */
+export interface EmailChangePending {
+  newEmail: string;
+  expiresAt: string;
+  triesLeft?: number;
+}
+
+export interface EmailChangeStatus {
+  success: boolean;
+  pending: EmailChangePending | null;
+  /** False for Google or Apple only accounts: no password box. */
+  passwordRequired: boolean;
+}
+
 export interface ApiError {
   message: string;
   status?: number;
@@ -4384,6 +4398,41 @@ class ApiService {
   async cancelAccountDeletion(authToken: string): Promise<{ success?: boolean }> {
     return this.request("/api/account/cancel-deletion", {
       method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Change email (backend #426 + #428). Errors throw ApiError; body.error.{code,message} is the backend's own wording.
+  async getEmailChange(authToken: string): Promise<EmailChangeStatus> {
+    return this.request("/api/auth/email-change", {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async requestEmailChange(
+    authToken: string,
+    newEmail: string,
+    password?: string
+  ): Promise<{ success: boolean; pending: EmailChangePending }> {
+    return this.request("/api/auth/email-change/request", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(password ? { newEmail, password } : { newEmail }),
+    });
+  }
+
+  async confirmEmailChange(authToken: string, code: string): Promise<{ success: boolean; email: string }> {
+    return this.request("/api/auth/email-change/confirm", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  async cancelEmailChange(authToken: string): Promise<{ success: boolean; cancelled: boolean }> {
+    return this.request("/api/auth/email-change", {
+      method: "DELETE",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
   }

@@ -261,6 +261,7 @@ export type AccountStackParamList = {
   Account: { userId?: string; userType?: "business" | "photographer" | "consumer" } | undefined;
   EditProfile: undefined;
   Settings: undefined;
+  ChangeEmail: undefined;
   AddressForm: { mode: "shipping" | "billing" };
   Notifications: undefined;
   OutsydePoints: undefined;
