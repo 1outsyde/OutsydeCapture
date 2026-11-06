@@ -16,6 +16,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import type { ServiceAddon, ServiceAddonPayload } from "@/services/api";
@@ -67,6 +68,7 @@ export default function ServiceAddonsEditor({
   accentColor,
 }: ServiceAddonsEditorProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
 
   const [addons, setAddons] = useState<ServiceAddon[]>([]);
@@ -346,9 +348,7 @@ export default function ServiceAddonsEditor({
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.sheetOverlay}
         >
-          {/* Tapping the dimmed area only hides the keyboard, so nothing typed is lost. */}
-          <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false} />
-          <View style={[styles.sheet, { backgroundColor: theme.background }]}>
+          <View style={[styles.sheet, styles.fullSheet, { backgroundColor: theme.background, paddingTop: insets.top + 16 }]}>
             <View style={styles.sheetHeader}>
               <Text style={{ color: theme.text, fontWeight: "700", fontSize: 17 }}>
                 {editingAddon ? "Edit Add-on" : "New Add-on"}
@@ -566,6 +566,8 @@ const styles = StyleSheet.create({
     // Half screen (no tall sheets, 2026-11-05 rule). Only the photographer service form uses this editor.
     maxHeight: "50%",
   },
+  // The add-on form takes the full screen so the keyboard leaves room to type.
+  fullSheet: { flex: 1, maxHeight: "100%", borderTopLeftRadius: 0, borderTopRightRadius: 0 },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   primaryButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   secondaryButton: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: "center" },

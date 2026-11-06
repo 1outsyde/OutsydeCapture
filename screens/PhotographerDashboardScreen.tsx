@@ -450,6 +450,9 @@ export default function PhotographerDashboardScreen() {
         // Don't set needsProfileSetup - allow dashboard access
       } else if (status === 403 || message.includes("403") || message.toLowerCase().includes("forbidden")) {
         setAuthError("You don't have permission to access this dashboard.");
+      } else if (opts?.quiet) {
+        // A failed quiet reload (coming back from Manage business) keeps what is on screen.
+        console.log("[Dashboard] Quiet reload failed, keeping the loaded data");
       } else {
         // Other errors - still allow dashboard access with default data
         console.log("[Dashboard] Error fetching profile, using default data");

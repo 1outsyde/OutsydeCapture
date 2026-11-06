@@ -120,7 +120,7 @@ export default function PhotographerManageBusinessScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "PhotographerManageBusiness">>();
-  const { getToken, logout, user, refreshUser } = useAuth();
+  const { getToken, logout, user, refreshUser, isLoading: authLoading } = useAuth();
 
   const initialSection = route.params?.section && SECTION_KEYS.includes(route.params.section)
     ? route.params.section
@@ -128,7 +128,9 @@ export default function PhotographerManageBusinessScreen() {
   const [section, setSection] = useState<SectionKey>(initialSection);
   // Opened straight on a page (dashboard Services, Base Hours, Edit Profile...): back from
   // that page returns to where the photographer came from, not to the hub.
-  const [entrySection] = useState<SectionKey>(initialSection);
+  const [entrySection, setEntrySection] = useState<SectionKey>(initialSection);
+  // Set right after a save on the entry page, so leaving the screen isn't asked about.
+  const leavingAfterSaveRef = useRef(false);
   const [showDoneSteps, setShowDoneSteps] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -380,6 +382,7 @@ export default function PhotographerManageBusinessScreen() {
 
   const hasFetchedRef = useRef(false);
   useEffect(() => {
+    if (authLoading) return;
     if (!user || user.role !== "photographer") {
       setLoadError("Manage business is only available for photographers");
       setLoading(false);
@@ -389,7 +392,7 @@ export default function PhotographerManageBusinessScreen() {
       hasFetchedRef.current = true;
       fetchData();
     }
-  }, [user?.id, user?.role]);
+  }, [authLoading, user?.id, user?.role]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -400,7 +403,8 @@ export default function PhotographerManageBusinessScreen() {
   // ── Leaving a page with unsaved edits asks first (same as the business pages) ──
   const snapshotFor = (key: SectionKey): string | null => {
     if (key === "branding" || key === "profile") {
-      return JSON.stringify([editProfile, ctaServiceTarget, ctaSpecificServiceId]);
+      // Username has its own Save button, so it isn't part of the page's unsaved check.
+      return JSON.stringify([{ ...editProfile, username: "" }, ctaServiceTarget, ctaSpecificServiceId]);
     }
     if (key === "hours") return JSON.stringify(hours);
     return null;
@@ -408,6 +412,8 @@ export default function PhotographerManageBusinessScreen() {
   const [baseline, setBaseline] = useState<string | null>(null);
   const openSection = (key: SectionKey) => {
     setShowDoneSteps(false);
+    // Once the photographer moves on from the page the screen opened on, back works level by level.
+    setEntrySection("hub");
     setBaseline(snapshotFor(key));
     setSection(key);
   };
@@ -442,6 +448,16 @@ export default function PhotographerManageBusinessScreen() {
 
   const isEntryPage = section === entrySection && entrySection !== "hub";
 
+  // After a save: the page the screen opened on closes (like the old sheet did); other pages go up.
+  const afterSave = (parent: SectionKey) => {
+    if (isEntryPage) {
+      leavingAfterSaveRef.current = true;
+      navigation.goBack();
+    } else {
+      openSection(parent);
+    }
+  };
+
   const goUp = () => {
     if (isEntryPage) {
       navigation.goBack();
@@ -455,7 +471,7 @@ export default function PhotographerManageBusinessScreen() {
   // here. The page the screen was opened on leaves the screen, asking first when unsaved.
   usePreventRemove(section !== "hub" && (!isEntryPage || hasUnsavedChanges()), ({ data }) => {
     const type = data.action.type;
-    if (type !== "GO_BACK" && type !== "POP") {
+    if (leavingAfterSaveRef.current || (type !== "GO_BACK" && type !== "POP")) {
       // Sign out, resets and the like are never blocked.
       navigation.dispatch(data.action);
       return;
@@ -775,7 +791,7 @@ export default function PhotographerManageBusinessScreen() {
       await api.updatePhotographerMe(token, updateData);
       Alert.alert("Success", "Profile updated successfully");
       await fetchData();
-      openSection("hub");
+      afterSave("hub");
     } catch (error: any) {
       console.error("[PhotographerManage] Failed to save profile:", error);
       const errorMessage = error?.message || "Failed to save profile";
@@ -835,7 +851,7 @@ export default function PhotographerManageBusinessScreen() {
       
       Alert.alert("Success", "Your availability has been updated");
       await fetchData();
-      openSection("booking");
+      afterSave("booking");
     } catch (error: any) {
       console.error("[PhotographerManage] Failed to save availability:", error);
       Alert.alert("Error", error.message || "Failed to save availability");
@@ -915,7 +931,7 @@ export default function PhotographerManageBusinessScreen() {
 
   const handleSaveBlockedDates = async () => {
     Alert.alert("Success", "Your blocked dates are saved automatically when added or removed");
-    openSection("booking");
+    afterSave("booking");
   };
 
   const handleAddService = () => {
