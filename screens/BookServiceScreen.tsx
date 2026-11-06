@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BookingFlow from "@/components/BookingFlow";
+import { useStartChat } from "@/hooks/useStartChat";
 import { useTheme } from "@/hooks/useTheme";
 import { RootStackParamList } from "@/navigation/types";
 
@@ -36,6 +37,19 @@ export default function BookServiceScreen() {
     navigation.navigate("Sessions");
   }, [navigation]);
 
+  // Message on the Booked screen (step 4): close booking first, then open the
+  // chat, so Back from the chat returns to the profile. Staff bookings message
+  // the business.
+  const { startChat } = useStartChat();
+  const openChat = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+    startChat({
+      participantId: p.providerId,
+      participantType: p.providerType === "photographer" ? "photographer" : "business",
+      name: p.providerName,
+    });
+  }, [navigation, startChat, p.providerId, p.providerType, p.providerName]);
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
@@ -64,6 +78,7 @@ export default function BookServiceScreen() {
         preselectedServiceId={p.preselectedServiceId}
         onExit={close}
         onDone={openSessions}
+        onMessage={openChat}
       />
     </View>
     </KeyboardAvoidingView>

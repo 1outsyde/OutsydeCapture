@@ -184,9 +184,9 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Outsyde adds events you have tickets for to your calendar.",
-          "writeOnlyCalendarPermission": "Outsyde adds events you have tickets for to your calendar.",
-          "remindersPermission": "Outsyde adds events you have tickets for to your calendar. It does not read or change your reminders.",
+          "calendarPermission": "Outsyde adds your tickets and bookings to your calendar.",
+          "writeOnlyCalendarPermission": "Outsyde adds your tickets and bookings to your calendar.",
+          "remindersPermission": "Outsyde adds your tickets and bookings to your calendar. It does not read or change your reminders.",
           "writeOnlyAccess": true
         }
       ],

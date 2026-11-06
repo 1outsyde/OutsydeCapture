@@ -6303,6 +6303,9 @@ class ApiService {
     promoCode?: string | null;
     amountChargedNowCents?: number;
     dueNowCents?: number;
+    // Outsyde points the customer gets once the booking settles (backend #424).
+    // Older backends leave it out; the Booked screen then shows no points line.
+    pendingPoints?: number;
     // Payment sheet customer session (backend #383), only sent because of paymentSheet: true
     // and only when the PaymentIntent has a customer. Both or neither.
     customerId?: string;
