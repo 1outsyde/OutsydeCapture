@@ -173,6 +173,8 @@ export type RootStackParamList = {
   AdminEmails: undefined;
   // Account setup emails: who is due, preview, send to ticked people (App Admin Step 7c).
   AdminSetupEmails: undefined;
+  // Business and friend referrals, $25 payout controls (App Admin Step 8).
+  AdminReferrals: undefined;
   // openModal "profile" is kept for older links; it now opens Manage business → Profile.
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   // Photographer Manage business (2026-11-06): hub, or straight to one page.

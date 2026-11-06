@@ -26,6 +26,7 @@ import AddressAutocompleteInput from "@/components/AddressAutocompleteInput";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius, Typography, FontSizes } from "@/constants/theme";
 import api, {
   BookingService,
@@ -38,6 +39,13 @@ import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicke
 import { formatDuration } from "@/utils/duration";
 import { sheetOptions } from "@/utils/paymentSheetOptions";
 import { readableTextOn } from "@/constants/colorOptions";
+import { needsCalendarPermission } from "@/utils/ticketCheckoutLogic";
+import {
+  bookedCalendarEvent,
+  bookedPlaceLine,
+  canAddToCalendar,
+  pendingPointsLine,
+} from "@/utils/bookingBookedLogic";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   agreementParts,
@@ -94,6 +102,9 @@ interface BookingFlowProps {
   onExit?: () => void;
   // Done on the confirmation step. Without it, Done opens Sessions directly.
   onDone?: () => void;
+  // Message on the Booked screen (step 4): closes booking, then opens the chat
+  // with the provider. Without it the button is hidden.
+  onMessage?: () => void;
 }
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -408,6 +419,7 @@ export default function BookingFlow({
   preselectedServiceId,
   onExit,
   onDone,
+  onMessage,
 }: BookingFlowProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -419,6 +431,7 @@ export default function BookingFlow({
   const onAccent = readableTextOn(accent);
   const { getToken, isAuthenticated } = useAuth();
   const { refreshSessions } = useData();
+  const { addNotification, sendBookingConfirmation, scheduleBookingReminders } = useNotifications();
   const navigation = useNavigation<NavigationProp>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
@@ -702,10 +715,15 @@ export default function BookingFlow({
   // Whether the business confirms bookings manually; only changes the Pay
   // button label, never blocks it.
   useEffect(() => {
-    if (providerType !== "business" || !providerId) return;
+    if (!providerId) return;
     let active = true;
-    api
-      .getBusiness(providerId)
+    // Step 5: photographers too (their manual accept is locked off on the
+    // server today, but the label should be right once it unlocks).
+    const load: Promise<{ autoAcceptBookings?: boolean } | null | undefined> =
+      providerType === "photographer"
+        ? (api.getPhotographer(providerId) as Promise<any>)
+        : api.getBusiness(providerId);
+    load
       .then((b) => {
         if (active && typeof b?.autoAcceptBookings === "boolean") {
           setAutoAcceptBookings(b.autoAcceptBookings);
@@ -940,6 +958,29 @@ export default function BookingFlow({
     }
   };
 
+  // Photographer bookings (step 5): copied from the old BookingScreen
+  // (≈:900-917) so the wording and timing stay the same.
+  const notifyPhotographerBooked = async (isPending: boolean) => {
+    if (!selectedDate || !selectedSlot) return;
+    const name = providerName || "the photographer";
+    const d = new Date(selectedDate + "T00:00:00");
+    const formattedDate = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const formattedTime = selectedSlot.startTime;
+    await addNotification({
+      type: "booking",
+      title: isPending ? "Booking Submitted" : "Booking Confirmed",
+      body: isPending
+        ? `Your booking request with ${name} on ${formattedDate} has been submitted. Awaiting provider approval (up to 48h).`
+        : `Your session with ${name} on ${formattedDate} has been confirmed.`,
+    });
+    if (!isPending) {
+      await sendBookingConfirmation(name, formattedDate, formattedTime);
+      const [yr, mo, dy] = selectedDate.split("-").map(Number);
+      const [hr, min] = selectedSlot.startTime.split(":").map(Number);
+      await scheduleBookingReminders(name, formattedDate, formattedTime, new Date(yr, mo - 1, dy, hr, min));
+    }
+  };
+
   const handlePay = async () => {
     // Guard before any await so a double tap cannot start two payments.
     if (payingRef.current) return;
@@ -1042,6 +1083,14 @@ export default function BookingFlow({
       setPaidSnapshot(snapshot);
       setPaymentData(pd);
       setBookingPending(Boolean(pd.requiresApproval));
+      if (providerType === "photographer") {
+        // Step 5: same phone alert, reminders and notification the old
+        // photographer screen gave. The server only emails reminders for
+        // business appointments, never shoots. Best effort, never blocks.
+        notifyPhotographerBooked(Boolean(pd.requiresApproval)).catch((e) =>
+          console.warn("[BookingFlow] booking notifications failed", e?.message),
+        );
+      }
       setStep(5);
     } catch (err: any) {
       console.warn("[BookingFlow] payment failed", err?.message);
@@ -1486,6 +1535,150 @@ export default function BookingFlow({
           </ThemedText>
         )}
       </View>
+    );
+  };
+
+  // Booking redesign step 4 (Legend 2026-11-06): the Booked screen. Details,
+  // amounts, pending points from the server, Add to calendar (not for requests
+  // still waiting), Message and Done, all in the store color.
+  const [calendarNote, setCalendarNote] = useState("");
+  const bookedEvent = useMemo(() => {
+    if (!selectedService || !selectedDate || !selectedSlot) return null;
+    const svc = selectedService;
+    const place = bookedPlaceLine({
+      locationType: svc.serviceLocationType,
+      businessAddress: providerAddress,
+      businessShowAddress: providerShowAddress,
+      businessCity: providerCity,
+      businessState: providerState,
+      alternateLine: [
+        svc.alternateAddress,
+        [svc.alternateCity, svc.alternateState].filter(Boolean).join(", "),
+        svc.alternateZipCode,
+      ].filter(Boolean).join(", "),
+      customerLine: [
+        customerServiceAddress,
+        [customerServiceCity, customerServiceState].filter((x) => x.trim()).join(", "),
+        customerServiceZipCode,
+      ].filter((x) => x && x.trim()).join(", "),
+      virtualLink: svc.virtualLink,
+    });
+    const addonMinutes = selectedAddonIds.reduce((m, id) => {
+      const a = svc.addons?.find((x) => x.id === id) as { durationMinutes?: number } | undefined;
+      return m + (a?.durationMinutes ?? 0);
+    }, 0);
+    return {
+      place,
+      event: bookedCalendarEvent({
+        serviceName: svc.name,
+        providerName,
+        date: selectedDate,
+        startTime: selectedSlot.startTime,
+        endTime: validatedEndTime || selectedSlot.endTime,
+        durationMinutes: (svc.durationMinutes ?? 0) + addonMinutes,
+        place,
+        virtualLink: svc.serviceLocationType === "virtual" ? svc.virtualLink : null,
+        bookingNumber: paymentData?.bookingNumber ?? null,
+      }),
+    };
+  }, [selectedService, selectedDate, selectedSlot, validatedEndTime, providerAddress, providerShowAddress,
+      providerCity, providerState, providerName, customerServiceAddress, customerServiceCity,
+      customerServiceState, customerServiceZipCode, selectedAddonIds, paymentData]);
+
+  const addBookingToCalendar = async () => {
+    const e = bookedEvent?.event;
+    if (!e) return;
+    setCalendarNote("");
+    try {
+      const Calendar = await import("expo-calendar/legacy");
+      // Below iOS 17 the system editor needs calendar permission first (same as tickets).
+      if (needsCalendarPermission(Platform.OS, Platform.Version)) {
+        const { granted } = await Calendar.requestCalendarPermissionsAsync();
+        if (!granted) {
+          setCalendarNote("Allow calendar access for Outsyde in Settings to add this booking.");
+          return;
+        }
+      }
+      await Calendar.createEventInCalendarAsync({
+        title: e.title,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        notes: e.notes,
+        ...(e.location ? { location: e.location } : {}),
+        ...(e.url ? { url: e.url } : {}),
+      });
+    } catch {
+      setCalendarNote("Couldn't open your calendar.");
+    }
+  };
+
+  const renderBookedScreen = () => {
+    if (!selectedService) return null;
+    const isRequest = bookingPending;
+    const points = pendingPointsLine(paymentData?.pendingPoints, isRequest);
+    const endTime = validatedEndTime || selectedSlot?.endTime;
+    const whenLine =
+      selectedDate && selectedSlot
+        ? `${selectedDateDisplay} · ${formatTime(selectedSlot.startTime)}${endTime ? ` to ${formatTime(endTime)}` : ""}`
+        : selectedDateDisplay;
+    const showCalendar = canAddToCalendar(isRequest, bookedEvent?.event ?? null);
+    const outline = [styles.secondaryButton, { borderColor: accent }];
+    return (
+      <ScrollView style={styles.stepContent} contentContainerStyle={{ paddingBottom: Spacing.xl }} showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: "center", marginTop: Spacing.lg }}>
+          <View style={[styles.bookedMark, { backgroundColor: isRequest ? accentSoft : accent }]}>
+            <Feather name={isRequest ? "clock" : "check"} size={30} color={isRequest ? accent : onAccent} />
+          </View>
+          <ThemedText style={[styles.successTitle, { color: theme.brandCream }]}>
+            {isRequest ? "Request sent" : "You're booked"}
+          </ThemedText>
+        </View>
+
+        <View style={[styles.reviewSection, { backgroundColor: theme.brandBgElevated, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: theme.brandSurfaceBorder }]}>
+          <ThemedText style={[styles.reviewValue, { color: theme.brandCream, fontWeight: "600" }]}>{selectedService.name}</ThemedText>
+          <ThemedText style={{ color: theme.brandTextDim, marginTop: 2 }}>{whenLine}</ThemedText>
+          {bookedEvent?.place ? (
+            <ThemedText style={{ color: theme.brandTextDim, marginTop: 2 }}>{bookedEvent.place}</ThemedText>
+          ) : selectedService.serviceLocationType === "virtual" ? (
+            <ThemedText style={{ color: theme.brandTextDim, marginTop: 2 }}>Online, link in your booking</ThemedText>
+          ) : null}
+          {renderConfirmationDetails()}
+          {points ? (
+            <View style={[styles.amountRow, { marginTop: Spacing.sm }]}>
+              <ThemedText style={{ color: theme.brandGold, fontWeight: "700" }}>{points.label}</ThemedText>
+              <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs }}>{points.when}</ThemedText>
+            </View>
+          ) : null}
+        </View>
+
+        {showCalendar ? (
+          <Pressable onPress={addBookingToCalendar} style={outline} accessibilityRole="button" accessibilityLabel="Add to calendar">
+            <Feather name="calendar" size={16} color={accent} />
+            <ThemedText style={{ color: accent, fontWeight: "600", marginLeft: Spacing.sm }}>Add to calendar</ThemedText>
+          </Pressable>
+        ) : null}
+        {calendarNote ? (
+          <ThemedText style={{ color: theme.brandTextDim, fontSize: FontSizes.xs, textAlign: "center", marginTop: Spacing.xs }}>{calendarNote}</ThemedText>
+        ) : null}
+        {onMessage ? (
+          <Pressable onPress={onMessage} style={outline} accessibilityRole="button" accessibilityLabel={`Message ${providerName}`}>
+            <Feather name="message-circle" size={16} color={accent} />
+            <ThemedText style={{ color: accent, fontWeight: "600", marginLeft: Spacing.sm }} numberOfLines={1}>
+              {`Message ${providerName}`}
+            </ThemedText>
+          </Pressable>
+        ) : null}
+        <Pressable
+          onPress={() =>
+            onDone ? onDone() : navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))
+          }
+          accessibilityRole="button"
+          style={[styles.primaryButton, { backgroundColor: accent, marginTop: Spacing.md }]}
+        >
+          <ThemedText style={[styles.primaryButtonText, { color: onAccent }]}>Done</ThemedText>
+        </Pressable>
+      </ScrollView>
     );
   };
 
@@ -2436,27 +2629,7 @@ export default function BookingFlow({
       )}
       {!showAddonsStep && step === 4 && selectedSlot && selectedService && renderPaySection()}
 
-      {step === 5 && (
-        <View style={[styles.stepContent, styles.successContainer]}>
-          <Feather
-            name={bookingPending ? "clock" : "check-circle"}
-            size={64}
-            color={bookingPending ? theme.warning : theme.brandSuccess}
-          />
-          <ThemedText style={[styles.successTitle, { color: theme.brandCream }]}>
-            {bookingPending ? "Request Submitted!" : "Booking Confirmed!"}
-          </ThemedText>
-          {renderConfirmationDetails()}
-          <Pressable
-            onPress={() =>
-              onDone ? onDone() : navigation.dispatch(CommonActions.navigate({ name: "Sessions" }))
-            }
-            style={[styles.primaryButton, { backgroundColor: theme.brandPrimary, marginTop: Spacing.xl }]}
-          >
-            <ThemedText style={[styles.primaryButtonText, { color: theme.brandPrimaryText }]}>Done</ThemedText>
-          </Pressable>
-        </View>
-      )}
+      {step === 5 && selectedService && renderBookedScreen()}
 
       {/* Cancellation policy detail modal */}
       <Modal
@@ -2676,6 +2849,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
+  },
+  bookedMark: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.md,
   },
   bottomBar: {
     borderTopWidth: 1,

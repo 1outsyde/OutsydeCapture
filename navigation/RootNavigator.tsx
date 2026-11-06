@@ -50,6 +50,7 @@ import AdminVendorPlanScreen from "@/screens/AdminVendorPlanScreen";
 import AdminPushScreen from "@/screens/AdminPushScreen";
 import AdminEmailsScreen from "@/screens/AdminEmailsScreen";
 import AdminSetupEmailsScreen from "@/screens/AdminSetupEmailsScreen";
+import AdminReferralsScreen from "@/screens/AdminReferralsScreen";
 import PhotographerDashboardScreen from "@/screens/PhotographerDashboardScreen";
 import BusinessDashboardScreen from "@/screens/BusinessDashboardScreen";
 import BusinessBillingAddressScreen from "@/screens/BusinessBillingAddressScreen";
@@ -272,17 +273,26 @@ export default function RootNavigator() {
       <Stack.Screen
         name="Booking"
         component={BookingScreen}
-        options={({ navigation }) => ({
+        options={({ navigation, route }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
-          headerTitle: "Book Session",
+          // Step 5: the photographer's name (BookingScreen sets it once loaded), with Close.
+          headerTitle:
+            (route.params?.photographer as { displayName?: string; name?: string } | undefined)?.displayName ||
+            route.params?.photographer?.name ||
+            "Book",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerLeft: () => null,
           headerRight: () => (
-            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              hitSlop={16}
+              accessibilityRole="button"
+              accessibilityLabel="Close booking"
+            >
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
           ),
@@ -865,6 +875,30 @@ export default function RootNavigator() {
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerLeft: () => (
             <Pressable onPress={() => navigation.goBack()} hitSlop={16} style={{ paddingHorizontal: 8 }}>
+              <Feather name="arrow-left" size={24} color={theme.text} />
+            </Pressable>
+          ),
+          headerBackTitle: "Back",
+        })}
+      />
+
+      <Stack.Screen
+        name="AdminReferrals"
+        component={AdminReferralsScreen}
+        options={({ navigation }) => ({
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+          headerShown: true,
+          headerTitle: "Referrals",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.backgroundRoot },
+          headerLeft: () => (
+            <Pressable
+              onPress={() => navigation.goBack()}
+              hitSlop={16}
+              style={{ paddingHorizontal: 8 }}
+            >
               <Feather name="arrow-left" size={24} color={theme.text} />
             </Pressable>
           ),
