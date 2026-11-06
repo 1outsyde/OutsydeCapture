@@ -36,6 +36,8 @@ import * as ImagePicker from "expo-image-picker";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import MessagePhotoGrid from "@/components/messaging/MessagePhotoGrid";
+import QuoteChatCard from "@/components/quotes/QuoteChatCard";
+import { quoteIdsIn, type Card, type Quote, type Start } from "@/utils/quoteLogic";
 import PhotoViewer from "@/components/messaging/PhotoViewer";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -206,6 +208,9 @@ export default function ChatScreen() {
   const participantUsername = (convo?.username || "").trim().replace(/^@/, "");
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Quotes step 6c-1 (call 3): the quotes behind this chat's quote cards, as they are now (null: can't be read).
+  const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
+  const [quotesLoading, setQuotesLoading] = useState(false);
   const [inputText, setInputText] = useState("");
   const [attachments, setAttachments] = useState<PickedPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -408,6 +413,51 @@ export default function ChatScreen() {
         appSub.remove();
       };
     }, [conversationId, fetchMessages]),
+  );
+
+  // Every quote moment posts a new card, so the quotes are read again when a card arrives and when the chat
+  // comes back into view (after the quote screen). Each quote once per read; a failure keeps what was shown.
+  const quoteIds = useMemo(() => quoteIdsIn(messages), [messages]);
+  const cardCount = useMemo(() => messages.filter((m) => m.kind === "quote" || m.kind === "request").length, [messages]);
+  const quoteIdsKey = quoteIds.join(",");
+  // Review minor 3: one read path (on focus and when cards change while focused); an older answer never wins.
+  const quotesSeq = useRef(0);
+  const loadQuotes = useCallback(async () => {
+    const ids = quoteIdsKey ? quoteIdsKey.split(",") : [];
+    if (!ids.length) return;
+    const seq = ++quotesSeq.current;
+    setQuotesLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const got = await Promise.all(ids.map(async (id) => {
+        try {
+          return [id, await api.getQuote(token, id)] as const;
+        } catch (err) {
+          return [id, (err as ApiError)?.status === 404 ? null : undefined] as const;
+        }
+      }));
+      if (seq !== quotesSeq.current) return;
+      setQuotes((prev) => {
+        const next = { ...prev };
+        for (const [id, qv] of got) if (qv !== undefined) next[id] = qv;
+        return next;
+      });
+    } finally {
+      setQuotesLoading(false);
+    }
+  }, [quoteIdsKey, getToken]);
+  useFocusEffect(
+    useCallback(() => {
+      const t = setTimeout(loadQuotes, 0);
+      return () => clearTimeout(t);
+      // cardCount: a new card (a quote moment) reads the quotes again.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadQuotes, cardCount]),
+  );
+  const openQuote = useCallback(
+    (quoteId: string, start: Start) => navigation.navigate("Quote", { quoteId, start }),
+    [navigation],
   );
 
   // ── rows ──────────────────────────────────────────────────────────────
@@ -692,7 +742,18 @@ export default function ChatScreen() {
       borderBottomRightRadius: isOwn && tail ? 6 : r,
     };
 
-    const content = (
+    const card = (m.kind === "quote" || m.kind === "request") && m.card ? (m.card as Card) : null;
+    const live = card?.quoteId ? quotes[card.quoteId] ?? null : null;
+    const content = card ? (
+      <QuoteChatCard
+        card={card}
+        live={live}
+        loading={quotesLoading}
+        isCustomer={!!live && live.customerId === user?.id}
+        width={Math.min(bubbleMax, 300)}
+        onStart={(start) => card.quoteId && openQuote(card.quoteId, start)}
+      />
+    ) : (
       <View
         style={{
           maxWidth: bubbleMax,

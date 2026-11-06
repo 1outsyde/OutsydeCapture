@@ -27,6 +27,10 @@ export interface Message {
   /** Real text ('' for a photo only message). Falls back to content on older backends. */
   text: string;
   mediaItems: string[];
+  /** "quote" or "request" for a card message (Quotes steps 1 and 2); "text" or absent otherwise. */
+  kind?: string | null;
+  /** The card's own data for a card message (utils/quoteLogic.ts Card). */
+  card?: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -75,6 +79,9 @@ export function mapApiMessage(msg: ApiMessage): Message {
     // Older backends have no `text`; their `content` is always the real text.
     text: typeof msg.text === "string" ? msg.text : msg.content || "",
     mediaItems,
+    // Quotes step 6c-1: card messages keep their kind and card (dropped before, so cards showed as text).
+    kind: typeof msg.kind === "string" ? msg.kind : null,
+    card: msg.card && typeof msg.card === "object" ? msg.card : null,
     createdAt: msg.createdAt,
   };
 }

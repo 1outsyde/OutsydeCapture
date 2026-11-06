@@ -46,6 +46,8 @@ export type RootStackParamList = {
     businessId?: string | null;
     photographerId?: string | null;
   };
+  /** One quote and its booking (Quotes step 6c-1). start: the chat card's step, run once (utils/quoteLogic Start). */
+  Quote: { quoteId: string; start?: string };
   CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets"; _ts?: number } | undefined;
   /** One event's tickets with QR codes (from GET /api/events/me/tickets). */
   TicketDetail: { eventId: string };
