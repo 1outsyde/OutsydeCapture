@@ -26,6 +26,7 @@ import AddressAutocompleteInput from "@/components/AddressAutocompleteInput";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { Spacing, BorderRadius, Typography, FontSizes } from "@/constants/theme";
 import api, {
   BookingService,
@@ -430,6 +431,7 @@ export default function BookingFlow({
   const onAccent = readableTextOn(accent);
   const { getToken, isAuthenticated } = useAuth();
   const { refreshSessions } = useData();
+  const { addNotification, sendBookingConfirmation, scheduleBookingReminders } = useNotifications();
   const navigation = useNavigation<NavigationProp>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
@@ -713,10 +715,15 @@ export default function BookingFlow({
   // Whether the business confirms bookings manually; only changes the Pay
   // button label, never blocks it.
   useEffect(() => {
-    if (providerType !== "business" || !providerId) return;
+    if (!providerId) return;
     let active = true;
-    api
-      .getBusiness(providerId)
+    // Step 5: photographers too (their manual accept is locked off on the
+    // server today, but the label should be right once it unlocks).
+    const load: Promise<{ autoAcceptBookings?: boolean } | null | undefined> =
+      providerType === "photographer"
+        ? (api.getPhotographer(providerId) as Promise<any>)
+        : api.getBusiness(providerId);
+    load
       .then((b) => {
         if (active && typeof b?.autoAcceptBookings === "boolean") {
           setAutoAcceptBookings(b.autoAcceptBookings);
@@ -951,6 +958,29 @@ export default function BookingFlow({
     }
   };
 
+  // Photographer bookings (step 5): copied from the old BookingScreen
+  // (≈:900-917) so the wording and timing stay the same.
+  const notifyPhotographerBooked = async (isPending: boolean) => {
+    if (!selectedDate || !selectedSlot) return;
+    const name = providerName || "the photographer";
+    const d = new Date(selectedDate + "T00:00:00");
+    const formattedDate = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const formattedTime = selectedSlot.startTime;
+    await addNotification({
+      type: "booking",
+      title: isPending ? "Booking Submitted" : "Booking Confirmed",
+      body: isPending
+        ? `Your booking request with ${name} on ${formattedDate} has been submitted. Awaiting provider approval (up to 48h).`
+        : `Your session with ${name} on ${formattedDate} has been confirmed.`,
+    });
+    if (!isPending) {
+      await sendBookingConfirmation(name, formattedDate, formattedTime);
+      const [yr, mo, dy] = selectedDate.split("-").map(Number);
+      const [hr, min] = selectedSlot.startTime.split(":").map(Number);
+      await scheduleBookingReminders(name, formattedDate, formattedTime, new Date(yr, mo - 1, dy, hr, min));
+    }
+  };
+
   const handlePay = async () => {
     // Guard before any await so a double tap cannot start two payments.
     if (payingRef.current) return;
@@ -1053,6 +1083,14 @@ export default function BookingFlow({
       setPaidSnapshot(snapshot);
       setPaymentData(pd);
       setBookingPending(Boolean(pd.requiresApproval));
+      if (providerType === "photographer") {
+        // Step 5: same phone alert, reminders and notification the old
+        // photographer screen gave. The server only emails reminders for
+        // business appointments, never shoots. Best effort, never blocks.
+        notifyPhotographerBooked(Boolean(pd.requiresApproval)).catch((e) =>
+          console.warn("[BookingFlow] booking notifications failed", e?.message),
+        );
+      }
       setStep(5);
     } catch (err: any) {
       console.warn("[BookingFlow] payment failed", err?.message);
