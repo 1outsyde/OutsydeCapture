@@ -171,6 +171,8 @@ export type RootStackParamList = {
   AdminPush: undefined;
   // Email history, read only (App Admin Step 7b). Sending stays on goutsyde.com.
   AdminEmails: undefined;
+  // Account setup emails: who is due, preview, send to ticked people (App Admin Step 7c).
+  AdminSetupEmails: undefined;
   PhotographerDashboard: { openModal?: "profile" } | undefined;
   BusinessDashboard: undefined;
   BusinessBillingAddress: undefined;
