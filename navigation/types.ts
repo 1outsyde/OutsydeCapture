@@ -64,6 +64,16 @@ export type RootStackParamList = {
   };
   /** One quote and its booking (Quotes step 6c-1). start: the chat card's step, run once (utils/quoteLogic Start). */
   Quote: { quoteId: string; start?: string };
+  /** Quotes step 6d-1: Create a quote in a chat (or from a request card), or Edit one (quoteId). */
+  QuoteCompose: {
+    conversationId: string;
+    businessId?: string;
+    quoteId?: string;
+    requestId?: string;
+    serviceId?: string;
+    serviceName?: string;
+    preferredDate?: string;
+  };
   CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets" | "quotes"; _ts?: number } | undefined;
   /** Request a quote on a contact for pricing service (Quotes step 6c-2b). */
   RequestQuote: { serviceId: string; serviceName?: string; businessId?: string; businessName?: string };

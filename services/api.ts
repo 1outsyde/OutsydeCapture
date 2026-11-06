@@ -6611,6 +6611,96 @@ class ApiService {
       body: JSON.stringify({ reason, photos }),
     });
   }
+
+  // ── Quotes, business side (step 6d-1). Owner, or the staff member who sent the quote. ──
+
+  /** Send a quote in a chat. businessId: only for staff (the business the app picked). 201 { quote }. */
+  async sendQuote(
+    authToken: string,
+    conversationId: string,
+    body: import("@/utils/quoteSendLogic").QuoteBody,
+    businessId?: string,
+  ): Promise<QuoteWire> {
+    const res = await this.request<{ quote: QuoteWire }>("/api/quotes", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({
+        ...body,
+        conversationId,
+        ...(businessId ? { businessId } : {}),
+      }),
+    });
+    return res.quote;
+  }
+
+  /** Edit until paid: the whole quote again, at the version shown (409 QUOTE_CHANGED when it moved on). */
+  async editQuote(
+    authToken: string,
+    quoteId: string,
+    version: number,
+    body: import("@/utils/quoteSendLogic").QuoteBody,
+  ): Promise<QuoteWire> {
+    const { requestId: _drop, ...rest } = body;
+    const res = await this.request<{ quote: QuoteWire }>(
+      `/api/quotes/${encodeURIComponent(quoteId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ ...rest, version }),
+      },
+    );
+    return res.quote;
+  }
+
+  async withdrawQuote(authToken: string, quoteId: string): Promise<unknown> {
+    return this.request(`/api/quotes/${encodeURIComponent(quoteId)}/withdraw`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({}),
+    });
+  }
+
+  /** Send an extra on a paid quote's booking. Only the customer's Approve adds it. */
+  async proposeQuoteExtra(
+    authToken: string,
+    quoteId: string,
+    description: string,
+    amountCents: number,
+  ): Promise<unknown> {
+    return this.request(`/api/quotes/${encodeURIComponent(quoteId)}/extras`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ description, amountCents }),
+    });
+  }
+
+  async withdrawQuoteExtra(
+    authToken: string,
+    quoteId: string,
+    extraId: string,
+  ): Promise<unknown> {
+    return this.request(
+      `/api/quotes/${encodeURIComponent(quoteId)}/extras/${encodeURIComponent(extraId)}/withdraw`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({}),
+      },
+    );
+  }
+
+  /** Job complete: charges the held balance and approved extras. 409 with code and message when blocked. */
+  async completeQuoteJob(authToken: string, quoteId: string): Promise<unknown> {
+    return this.request(
+      `/api/quotes/${encodeURIComponent(quoteId)}/job-complete`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({}),
+      },
+    );
+  }
+
 }
 
 // Availability Calendar types
