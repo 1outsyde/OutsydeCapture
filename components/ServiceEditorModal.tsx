@@ -116,6 +116,9 @@ interface ServiceEditorModalProps {
     // Contact-for-pricing services can't have add-ons.
     isContactForPricing?: boolean;
   };
+  // Opens as its own full screen instead of the tall sheet (photographer Manage
+  // business, 2026-11-06). Off by default, so staff keep the sheet until their step.
+  fullScreen?: boolean;
 }
 
 // Minimum hours for an hourly service: a whole number of 1 or more, else null.
@@ -166,6 +169,7 @@ export default function ServiceEditorModal({
   onClearDepositServerError,
   onUploadImage,
   addons,
+  fullScreen = false,
 }: ServiceEditorModalProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -366,11 +370,17 @@ export default function ServiceEditorModal({
   });
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={!fullScreen}
+      presentationStyle={fullScreen ? "fullScreen" : undefined}
+      onRequestClose={onClose}
+    >
+      <View style={fullScreen ? styles.fullScreenOverlay : [styles.overlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
         <View
           style={[
-            styles.modalContainer,
+            fullScreen ? styles.fullScreenContainer : styles.modalContainer,
             {
               backgroundColor: theme.background,
               paddingTop: insets.top + 16,
@@ -1027,6 +1037,12 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "90%",
+  },
+  fullScreenOverlay: {
+    flex: 1,
+  },
+  fullScreenContainer: {
+    flex: 1,
   },
   header: {
     flexDirection: "row",

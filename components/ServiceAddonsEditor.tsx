@@ -456,7 +456,7 @@ export default function ServiceAddonsEditor({
         onRequestClose={() => { if (!copying) setCopySource(null); }}
       >
         <View style={styles.sheetOverlay}>
-          <View style={[styles.sheet, { backgroundColor: theme.background, maxHeight: "80%" }]}>
+          <View style={[styles.sheet, { backgroundColor: theme.background }]}>
             <Text style={{ color: theme.text, fontWeight: "700", fontSize: 17, marginBottom: 4 }}>
               {`Add "${copySource?.name ?? ""}" to other services`}
             </Text>
@@ -563,7 +563,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 36,
-    maxHeight: "90%",
+    // Half screen (no tall sheets, 2026-11-05 rule). Only the photographer service form uses this editor.
+    maxHeight: "50%",
   },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   primaryButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
