@@ -547,6 +547,9 @@ export default function AdminDashboardScreen() {
       paddingVertical: 4,
       borderRadius: 12,
     },
+    deletionBadge: {
+      marginRight: 6,
+    },
     pendingBadge: {
       backgroundColor: C.pending + "30",
     },
@@ -1325,6 +1328,17 @@ export default function AdminDashboardScreen() {
                   >
                     <View style={styles.listItemHeader}>
                       <Text style={styles.listItemName}>{item.name}</Text>
+                      {item.deletionStatus === "pending_deletion" || item.deletionStatus === "deleted" ? (
+                        <View style={[styles.statusBadge, styles.pendingBadge, styles.deletionBadge]}>
+                          <Text style={[styles.statusText, styles.pendingText]}>
+                            {item.deletionStatus === "deleted"
+                              ? "Deleted"
+                              : formatAppliedDate(item.scheduledDeletionAt ?? undefined)
+                                ? `Deleting ${formatAppliedDate(item.scheduledDeletionAt ?? undefined)}`
+                                : "Deleting"}
+                          </Text>
+                        </View>
+                      ) : null}
                       <View style={[styles.statusBadge, item.status === "active" ? styles.approvedBadge : styles.rejectedBadge]}>
                         <Text style={[styles.statusText, item.status === "active" ? styles.approvedText : styles.rejectedText]}>
                           {item.status}

@@ -895,6 +895,15 @@ export interface AdminUser {
   accountType: "consumer" | "business" | "photographer";
   createdAt: string;
   status: "active" | "suspended";
+  // From GET /api/admin/users and /api/admin/users/:id (backend 2026-10-16). Optional so an
+  // older backend still renders.
+  isAdmin?: boolean;
+  deletionStatus?: "active" | "pending_deletion" | "deleted";
+  scheduledDeletionAt?: string | null;
+}
+
+function adminDeletionStatus(v: unknown): "active" | "pending_deletion" | "deleted" {
+  return v === "pending_deletion" || v === "deleted" ? v : "active";
 }
 
 export interface AdminBusiness {
@@ -2649,7 +2658,11 @@ class ApiService {
           ? "business"
           : "consumer",
       createdAt: user.createdAt || new Date().toISOString(),
-      status: user.status === "suspended" ? "suspended" : "active",
+      // The list sends isActive (no status field), so disabled users used to show as active.
+      status: user.status === "suspended" || user.isActive === false ? "suspended" : "active",
+      isAdmin: user.isAdmin === true,
+      deletionStatus: adminDeletionStatus(user.deletionStatus),
+      scheduledDeletionAt: user.scheduledDeletionAt ?? null,
     }));
   }
 
@@ -2889,6 +2902,9 @@ class ApiService {
         status,
         // 2026-10-18: phone was dropped here, so the screen always said "Not provided".
         phone: user.phone || undefined,
+        isAdmin: user.isAdmin === true,
+        deletionStatus: adminDeletionStatus(user.deletionStatus),
+        scheduledDeletionAt: user.scheduledDeletionAt ?? null,
       },
       // Every signup answer, interests first (backend 2026-10-18). Older backends send none.
       signupDetails: {
@@ -2910,6 +2926,27 @@ class ApiService {
 
   async enableAdminUser(authToken: string, userId: string): Promise<{ success: boolean; user?: unknown }> {
     return this.request<{ success: boolean; user?: unknown }>(`/api/admin/users/${userId}/enable`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Same routes as goutsyde.com /admin/users (routes.ts POST /api/admin/users/:userId/schedule-deletion
+  // and /cancel-deletion). Scheduling signs the person out everywhere, emails them, and deletes in
+  // 30 days. A Stripe balance or open orders blocks it (409, message says why); admins can't be
+  // deleted (403). Errors throw with the backend's message.
+  async scheduleAdminUserDeletion(
+    authToken: string,
+    userId: string
+  ): Promise<{ success: boolean; alreadyPending?: boolean; scheduledDeletionAt?: string }> {
+    return this.request(`/api/admin/users/${encodeURIComponent(userId)}/schedule-deletion`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  async cancelAdminUserDeletion(authToken: string, userId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/admin/users/${encodeURIComponent(userId)}/cancel-deletion`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
     });
