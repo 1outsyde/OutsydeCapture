@@ -28,6 +28,7 @@ import { useMessagePushLinks } from "@/hooks/useMessagePushLinks";
 import { useBookingPushLinks } from "@/hooks/useBookingPushLinks";
 import { useSubscriptionPushLinks } from "@/hooks/useSubscriptionPushLinks";
 import { useAccountSetupLinks } from "@/hooks/useAccountSetupLinks";
+import { useQuoteLinks } from "@/hooks/useQuoteLinks";
 import { usePlanOfferPushLinks } from "@/hooks/usePlanOfferPushLinks";
 import { useReferralPushLinks } from "@/hooks/useReferralPushLinks";
 import { useAnnouncementPushLinks } from "@/hooks/useAnnouncementPushLinks";
@@ -84,6 +85,8 @@ export default function MainTabNavigator() {
   const navigation = useNavigation<any>();
   // goutsyde.com/claim + /finish links and account-setup reminder push taps
   useAccountSetupLinks();
+  // goutsyde.com/q/<code> quote links → the quote (Quotes step 6b)
+  useQuoteLinks();
   // Tapped message push → that chat
   useMessagePushLinks();
   // Tapped booking request push → the bookings list (provider or customer)

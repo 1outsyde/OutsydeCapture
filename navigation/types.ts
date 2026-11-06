@@ -70,6 +70,8 @@ export type RootStackParamList = {
   };
   /** One quote and its booking (Quotes step 6c-1). start: the chat card's step, run once (utils/quoteLogic Start). */
   Quote: { quoteId: string; start?: string };
+  /** Quotes step 6b: a goutsyde.com/q/<code> link opened in the app. */
+  QuoteLink: { code: string };
   /** Quotes step 6d-2b: the owner's Requests list. */
   BusinessRequests: undefined;
   /** Quotes step 6d-2b: owner (every quote) or staff (the quotes they sent, for the business the app picked). */
