@@ -907,6 +907,9 @@ export interface AdminBusiness {
   approvalStatus?: "pending" | "approved" | "rejected";
   createdAt: string;
   earnings?: number;
+  // Added by GET /api/admin/businesses (routes.ts owner enrichment).
+  ownerName?: string;
+  ownerEmail?: string;
 }
 
 export interface AdminBusinessDetailOwner {

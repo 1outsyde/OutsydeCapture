@@ -40,6 +40,16 @@ const SECTIONS: { key: TabType; label: string; sub: string; icon: keyof typeof F
 
 const sectionLabels = Object.fromEntries(SECTIONS.map((s) => [s.key, s.label])) as Record<TabType, string>;
 
+// "Nov 5, 2026" from an ISO date; null when missing or unreadable so the row hides the line.
+const formatAppliedDate = (iso?: string | null): string | null => {
+  if (!iso) return null;
+  // A bare "YYYY-MM-DD" would parse as UTC midnight and show the day before in US time zones.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const d = dateOnly ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])) : new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
 const getBusinessStatus = (business: AdminBusiness): "pending" | "approved" | "rejected" => {
   return business.approvalStatus || business.status || "pending";
 };
@@ -298,45 +308,8 @@ export default function AdminDashboardScreen() {
     }
   };
 
-  const handleReject = async (type: "business" | "influencer", id: string, reason?: string) => {
-    const token = await getToken();
-    if (!token) return;
-    
-    const rejectionReason = reason || "Application did not meet requirements";
-    
-    Alert.alert(
-      "Confirm Rejection",
-      `Are you sure you want to reject this ${type}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              console.log(`[AdminDashboard] Rejecting ${type} with id: ${id}`);
-              await api.rejectApplication(token, type, id, rejectionReason);
-              Alert.alert("Success", `${type === "business" ? "Business" : "Influencer"} rejected`);
-              fetchTabData();
-            } catch (error: any) {
-              console.log("[AdminDashboard] Reject error:", error?.message || error);
-              const errorMessage = error?.message?.toLowerCase() || "";
-              if (errorMessage.includes("already approved")) {
-                Alert.alert("Already Approved", "This business has already been approved.");
-                fetchTabData();
-              } else if (errorMessage.includes("already rejected")) {
-                Alert.alert("Already Rejected", "This business has already been rejected.");
-                fetchTabData();
-              } else {
-                Alert.alert("Error", `Failed to reject application: ${error?.message || "Unknown error"}`);
-              }
-            }
-          },
-        },
-      ]
-    );
-  };
-
+  // Reject always goes through the review / detail screen, where a typed reason is required and
+  // saved (the quick buttons used to send a canned reason, or drop it for influencers).
   const navigateToUserDetail = useCallback((userId: string) => {
     if (!userId) {
       console.warn("[Admin] navigateToUserDetail called without userId");
@@ -1027,7 +1000,7 @@ export default function AdminDashboardScreen() {
               <TouchableOpacity 
                 style={[styles.actionButton, styles.rejectButton]} 
                 activeOpacity={0.7}
-                onPress={() => handleReject("business", item.id)}
+                onPress={() => navigation.navigate("AdminBusinessReview", { businessId: item.id })}
               >
                 <Feather name="x" size={14} color={C.error} />
                 <Text style={styles.rejectButtonText}>Reject</Text>
@@ -1037,7 +1010,7 @@ export default function AdminDashboardScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, [styles, C, navigation, handleApprove, handleReject]);
+  }, [styles, C, navigation, handleApprove]);
 
   const businessKeyExtractor = useCallback((item: AdminBusiness) => item.id, []);
 
@@ -1155,7 +1128,7 @@ export default function AdminDashboardScreen() {
             <Feather name="check" size={14} color={C.success} />
             <Text style={styles.approveButtonText}>Approve</Text>
           </Pressable>
-          <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => handleReject("influencer", item.id)}>
+          <Pressable style={[styles.actionButton, styles.rejectButton]} onPress={() => navigation.navigate("AdminInfluencerDetail", { applicationId: item.id })}>
             <Feather name="x" size={14} color={C.error} />
             <Text style={styles.rejectButtonText}>Reject</Text>
           </Pressable>
@@ -1406,9 +1379,13 @@ export default function AdminDashboardScreen() {
                         </Text>
                       </View>
                     </View>
+                    {item.ownerName ? <Text style={styles.listItemInfo}>Owner: {item.ownerName}</Text> : null}
                     <Text style={styles.listItemInfo}>{item.category}</Text>
                     <Text style={styles.listItemInfo}>{item.city}, {item.state}</Text>
                     {item.email ? <Text style={styles.listItemInfo}>{item.email}</Text> : null}
+                    {formatAppliedDate(item.createdAt) ? (
+                      <Text style={styles.listItemInfo}>Applied {formatAppliedDate(item.createdAt)}</Text>
+                    ) : null}
                     {item.earnings !== undefined ? (
                       <Text style={styles.listItemInfo}>Earnings: ${item.earnings.toFixed(2)}</Text>
                     ) : null}
@@ -1434,7 +1411,7 @@ export default function AdminDashboardScreen() {
                           <TouchableOpacity 
                             style={[styles.actionButton, styles.rejectButton]}
                             activeOpacity={0.7}
-                            onPress={() => handleReject("business", item.id)}
+                            onPress={() => navigation.navigate("AdminBusinessReview", { businessId: item.id })}
                           >
                             <Feather name="x" size={14} color={C.error} />
                             <Text style={styles.rejectButtonText}>Reject</Text>
