@@ -271,17 +271,26 @@ export default function RootNavigator() {
       <Stack.Screen
         name="Booking"
         component={BookingScreen}
-        options={({ navigation }) => ({
+        options={({ navigation, route }) => ({
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
-          headerTitle: "Book Session",
+          // Step 5: the photographer's name (BookingScreen sets it once loaded), with Close.
+          headerTitle:
+            (route.params?.photographer as { displayName?: string; name?: string } | undefined)?.displayName ||
+            route.params?.photographer?.name ||
+            "Book",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerLeft: () => null,
           headerRight: () => (
-            <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              hitSlop={16}
+              accessibilityRole="button"
+              accessibilityLabel="Close booking"
+            >
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
           ),

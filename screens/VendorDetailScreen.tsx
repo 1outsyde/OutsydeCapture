@@ -62,6 +62,7 @@ import {
   parseBrandColorSpec,
   readableTextOn,
 } from "@/constants/colorOptions";
+import { photographerBookingParams } from "@/utils/photographerBookingParams";
 import { hoursObjectToArray } from "@/components/HoursEditor";
 import StaffCardList, { StaffCardVM } from "@/components/StaffCardList";
 import { RootStackParamList } from "@/navigation/types";
@@ -190,6 +191,8 @@ type ProfileViewModel = {
   address?: string;
   hasPhysicalLocation?: boolean;
   showAddress?: boolean;
+  /** Photographers: studio address for booking (step 5). */
+  studioAddress?: string | null;
   contactEmail?: string;
   contactPhone?: string;
   websiteUrl?: string;
@@ -656,13 +659,23 @@ export default function VendorDetailScreen({ route }: Props) {
   const openBooking = useCallback(
     (opts?: { serviceId?: string; staffId?: string | null }) => {
       if (!profile) return;
+      // Step 5: photographers show their studio (or area) like the Booking route.
+      const ph = profile.role === "photographer"
+        ? photographerBookingParams(vendorId, {
+            name: profile.name,
+            studioAddress: profile.studioAddress,
+            city: profile.city,
+            state: profile.state,
+            location: profile.location,
+          }, colorMode)
+        : null;
       navigation.navigate("BookService", {
         providerId: vendorId,
         providerType: profile.role === "photographer" ? "photographer" : "business",
         providerName: profile.name || "",
-        providerAddress: profile.address,
-        providerCity: profile.city,
-        providerState: profile.state,
+        providerAddress: ph ? ph.providerAddress : profile.address,
+        providerCity: ph ? ph.providerCity : profile.city,
+        providerState: ph ? ph.providerState : profile.state,
         providerShowAddress: profile.showAddress,
         providerVendorTerms: profile.vendorTermsAndConditions,
         staffMemberId: opts?.staffId ?? null,
@@ -670,7 +683,7 @@ export default function VendorDetailScreen({ route }: Props) {
         preselectedServiceId: opts?.serviceId,
       });
     },
-    [navigation, profile, vendorId, accentColor],
+    [navigation, profile, vendorId, accentColor, colorMode],
   );
 
   const loadProfile = useCallback(async () => {
@@ -891,6 +904,7 @@ export default function VendorDetailScreen({ route }: Props) {
               id: String(photographer.id ?? vendorId),
               userId: String((photographer as any).userId ?? ""),
               role: "photographer",
+              studioAddress: (photographer as any).studioAddress ?? null,
               name:
                 photographer.name ||
                 (photographer as any).displayName ||
@@ -1037,6 +1051,7 @@ export default function VendorDetailScreen({ route }: Props) {
               id: String(photographer.id ?? vendorId),
               userId: String((photographer as any).userId ?? ""),
               role: "photographer",
+              studioAddress: (photographer as any).studioAddress ?? null,
               name:
                 (photographer as any).displayName ||
                 photographer.name ||
