@@ -323,3 +323,41 @@ test("serviceStart: the tagged service opens its booking or its request form; go
   assert.equal(serviceStart(list, "zz"), "tab");
   assert.equal(serviceStart([], "s1"), "tab");
 });
+
+test("review 4: a rescheduled booking counts as ended, with its own line", () => {
+  assert.equal(
+    quoteIsOpen(row({ status: "paid", bookingStatus: "rescheduled" })),
+    false,
+  );
+  assert.equal(
+    quoteListChip(row({ status: "paid", bookingStatus: "rescheduled" })),
+    "Rescheduled",
+  );
+  assert.equal(
+    bookingEndedLine("rescheduled"),
+    "This booking was marked as rescheduled.",
+  );
+  assert.equal(bookingOpen(paid("rescheduled")), false);
+});
+
+test("review 5: a sent quote past its expiry reads as expired before the backend job catches up", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const past = row({ expiresAt: "2026-11-19T00:00:00Z" });
+  const future = row({ expiresAt: "2026-11-21T00:00:00Z" });
+  assert.equal(quoteListChip(past, now), "Expired");
+  assert.equal(quoteIsOpen(past, now), false);
+  assert.equal(quoteListChip(future, now), "Waiting to pay");
+  assert.equal(quoteIsOpen(future, now), true);
+  assert.deepEqual(dashboardCounts([], [past, future], now), {
+    newRequests: 0,
+    waitingQuotes: 1,
+  });
+  // A quote being paid right now is never shown as expired (the backend waits for the payment).
+  assert.equal(
+    quoteListChip(
+      row({ expiresAt: "2026-11-19T00:00:00Z", paying: true }),
+      now,
+    ),
+    "Paying",
+  );
+});

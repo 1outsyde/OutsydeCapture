@@ -1612,6 +1612,14 @@ export default function StorefrontEditorScreen() {
       }
     } catch (error: any) {
       if (error.status === 400 && error.body?.code === "INVALID_DEPOSIT") {
+        // Review 2 (6d-2b): the deposit section is hidden while contact for pricing is on, so say it here.
+        if (requestOnly) {
+          Alert.alert(
+            "Check the starting price",
+            "This service still has a saved deposit that is more than this starting price. Raise the starting price, or turn off contact for pricing to change the deposit.",
+          );
+          return;
+        }
         setDepositServerError(error.message);
         if (editingService) {
           // Reload the saved deposit and status; keep the vendor's typed price

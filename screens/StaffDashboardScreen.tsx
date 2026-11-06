@@ -605,10 +605,15 @@ export default function StaffDashboardScreen() {
               onPress={() =>
                 navigation.navigate("BusinessQuotes", {
                   mode: "staff",
-                  businessId: businessId || undefined,
+                  businessId: staff?.businessId,
                 })
               }
-              style={styles.quickActionCard}
+              // Review 6 (6d-2b): only once the staff profile (and so the business) is known.
+              disabled={!staff?.businessId}
+              style={[
+                styles.quickActionCard,
+                !staff?.businessId ? { opacity: 0.5 } : null,
+              ]}
               accessibilityRole="button"
               accessibilityLabel={`My quotes${openQuotes ? `, ${openQuotes} open` : ""}`}
             >

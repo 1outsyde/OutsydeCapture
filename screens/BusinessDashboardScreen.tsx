@@ -398,7 +398,13 @@ export default function BusinessDashboardScreen() {
   });
   useFocusEffect(
     useCallback(() => {
-      if (authLoading || user?.role !== "business") return;
+      // Review 7 (6d-2b): only where the cards show (service and both businesses).
+      if (
+        authLoading ||
+        user?.role !== "business" ||
+        businessType === "product"
+      )
+        return;
       let live = true;
       (async () => {
         const token = await getTokenRef.current();
@@ -412,7 +418,7 @@ export default function BusinessDashboardScreen() {
       return () => {
         live = false;
       };
-    }, [authLoading, user?.role]),
+    }, [authLoading, user?.role, businessType]),
   );
 
   // MainTabNavigator resets navigation on a Stripe return, which remounts this screen; the focus

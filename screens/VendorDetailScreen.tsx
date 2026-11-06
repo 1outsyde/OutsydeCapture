@@ -1361,7 +1361,8 @@ export default function VendorDetailScreen({ route }: Props) {
   useEffect(() => {
     if (!profile || !startServiceId || serviceStarted.current) return;
     serviceStarted.current = true;
-    const how = serviceStart(services, startServiceId);
+    // Review 3 (6d-2b): your own post opens your Book tab, never your own request form or booking.
+    const how = isOwnProfile ? "tab" : serviceStart(services, startServiceId);
     const svc = services.find((x) => x.id === startServiceId);
     // Next tick, never cleared: it must run once even if the profile updates again in between.
     setTimeout(() => {
@@ -1378,7 +1379,15 @@ export default function VendorDetailScreen({ route }: Props) {
         setActiveTab("booking");
       }
     }, 0);
-  }, [profile, services, startServiceId, navigation, openBooking, tabOrder]);
+  }, [
+    profile,
+    services,
+    startServiceId,
+    navigation,
+    openBooking,
+    tabOrder,
+    isOwnProfile,
+  ]);
 
   useEffect(() => {
     if (!profile || isOwnProfile || !isAuthenticated) return;

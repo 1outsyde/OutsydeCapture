@@ -55,6 +55,7 @@ type ListQuote = {
   jobDate?: string | null;
   dueDate?: string | null;
   totalCents: number;
+  expiresAt?: string | null;
 };
 
 /** Booking statuses after which nothing more happens on the booking. */
@@ -65,12 +66,23 @@ const ENDED = [
   "expired",
   "no_show",
   "late_cancel",
+  // Review 4: an outcome the owner sets (PATCH /api/bookings/appointments/:id/status); no new booking is made.
+  "rescheduled",
 ];
 
-export function quoteListChip(q: ListQuote): string {
+/** Review 5: past its expiry, the backend job just hasn't marked it yet (a running payment waits, as the backend does). */
+const pastExpiry = (q: ListQuote, now: number) =>
+  q.status === "sent" &&
+  !q.paying &&
+  !!q.expiresAt &&
+  Date.parse(q.expiresAt) <= now;
+
+export function quoteListChip(q: ListQuote, now = Date.now()): string {
+  if (pastExpiry(q, now)) return "Expired";
   if (q.status === "sent") return q.paying ? "Paying" : "Waiting to pay";
   if (q.status === "paid") {
     if (q.bookingStatus === "completed") return "Complete";
+    if (q.bookingStatus === "rescheduled") return "Rescheduled";
     if (q.bookingStatus && ENDED.includes(q.bookingStatus))
       return "Booking canceled";
     return "Booked";
@@ -80,7 +92,8 @@ export function quoteListChip(q: ListQuote): string {
   return "Expired";
 }
 
-export function quoteIsOpen(q: ListQuote): boolean {
+export function quoteIsOpen(q: ListQuote, now = Date.now()): boolean {
+  if (pastExpiry(q, now)) return false;
   if (q.status === "sent") return true;
   if (q.status !== "paid") return false;
   return !q.bookingStatus || !ENDED.includes(q.bookingStatus);
@@ -103,13 +116,14 @@ export function quoteListLine(q: ListQuote): string {
 export function dashboardCounts(
   requests: { status: string }[] | null,
   quotes: ListQuote[] | null,
+  now = Date.now(),
 ): { newRequests: number | null; waitingQuotes: number | null } {
   return {
     newRequests: requests
       ? requests.filter((r) => r.status === "new").length
       : null,
     waitingQuotes: quotes
-      ? quotes.filter((q) => q.status === "sent").length
+      ? quotes.filter((q) => q.status === "sent" && !pastExpiry(q, now)).length
       : null,
   };
 }
@@ -129,6 +143,8 @@ export function bookingEndedLine(
       return "This booking was declined.";
     case "expired":
       return "This booking expired.";
+    case "rescheduled":
+      return "This booking was marked as rescheduled.";
     default:
       return null;
   }
