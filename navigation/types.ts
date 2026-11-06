@@ -134,6 +134,10 @@ export type RootStackParamList = {
     inventory?: number | null;
   };
   ProductOrderDetail: {
+    /** Deliverables D2 (additive): an order from a deliverable quote. */
+    quoteId?: string | null;
+    fulfillment?: "pickup" | "delivery" | null;
+    paidDirectlyCents?: number | null;
     orderId: string;
     orderNumber?: number;
     vendorName: string;

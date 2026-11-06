@@ -148,8 +148,13 @@ export function whenLine(
     "jobDate" | "startTime" | "durationMinutes" | "dueDate" | "kind"
   >,
 ): string {
-  if (p.kind === "product")
-    return p.dueDate ? `Due ${dateLabel(p.dueDate)}` : "";
+  if (p.kind === "product") {
+    // Deliverables D2: "Due Fri, Nov 20 · Pickup" once the backend says how (D1a); older cards keep "Due ...".
+    const f = (p as { fulfillment?: string | null }).fulfillment;
+    const how = f === "delivery" ? "Delivery" : f === "pickup" ? "Pickup" : "";
+    const due = p.dueDate ? `Due ${dateLabel(p.dueDate)}` : "";
+    return [due, how].filter(Boolean).join(" · ");
+  }
   if (!p.jobDate) return "";
   const parts = [
     dateLabel(p.jobDate) + (p.startTime ? ` at ${timeLabel(p.startTime)}` : ""),

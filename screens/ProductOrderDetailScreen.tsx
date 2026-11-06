@@ -1,3 +1,4 @@
+import { orderDepositNote, orderFulfillmentLine } from "@/utils/deliverableLogic";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -108,6 +109,9 @@ export default function ProductOrderDetailScreen() {
     estimatedDelivery,
     shipmentStatus,
   } = route.params;
+  // Deliverables D2: Pickup or Delivery instead of a shipping address, and what's paid directly on a deposit.
+  const fulfillmentLine = orderFulfillmentLine({ fulfillment: route.params.fulfillment ?? null, shippingAddress });
+  const depositNote = orderDepositNote({ paidDirectlyCents: route.params.paidDirectlyCents ?? null }, "customer");
 
   const orderRef = orderNumber != null
     ? `#${String(orderNumber).padStart(4, '0')}`
@@ -293,8 +297,18 @@ export default function ProductOrderDetailScreen() {
           </View>
         </View>
 
+        {fulfillmentLine || depositNote ? (
+          <View style={styles.section}>
+            <ThemedText type="caption" style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
+              HOW YOU GET IT
+            </ThemedText>
+            {fulfillmentLine ? <ThemedText type="body">{fulfillmentLine}</ThemedText> : null}
+            {depositNote ? <ThemedText type="body" style={{ color: theme.brandTextDim }}>{depositNote}</ThemedText> : null}
+          </View>
+        ) : null}
+
         {/* Shipping address */}
-        {parsedAddress && (
+        {!fulfillmentLine && parsedAddress && (
           <View style={styles.section}>
             <ThemedText type="caption" style={[styles.sectionLabel, { color: theme.brandTextDim }]}>
               SHIPPING ADDRESS
