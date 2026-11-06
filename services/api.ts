@@ -902,6 +902,43 @@ export interface AdminUser {
   scheduledDeletionAt?: string | null;
 }
 
+// Pending refund requests, from GET /api/admin/refund-requests (routes.ts). Same shape goutsyde.com
+// /admin/refunds reads. amount is integer CENTS. quoteReport is set only on a customer's report on a
+// quote booking (Quotes step 4b-1); those take one of three outcomes instead of approve or reject.
+export type AdminReportOutcome = "pay_full" | "partial_refund" | "full_refund";
+
+export interface AdminRefundRequestItem {
+  id: string;
+  requesterId: string;
+  requesterType: string;
+  targetType: string; // "order" | "shoot_booking" | "appointment"
+  targetId: string;
+  reason: string;
+  amount: number; // cents
+  status: string | null;
+  adminNotes: string | null;
+  createdAt: string;
+  requesterName: string | null;
+  requesterEmail: string | null;
+  quoteReport?: {
+    reportId: string;
+    quoteId: string;
+    appointmentId: string;
+    status: string;
+    photos: string[];
+    maxRefundCents: number;
+    outcomes: string[];
+  };
+}
+
+/** PATCH body, exactly as goutsyde.com sends it: pay in full as rejected, refunds as approved. */
+export interface AdminRefundDecision {
+  status: "approved" | "rejected";
+  adminNotes?: string;
+  outcome?: AdminReportOutcome;
+  amountCents?: number;
+}
+
 function adminDeletionStatus(v: unknown): "active" | "pending_deletion" | "deleted" {
   return v === "pending_deletion" || v === "deleted" ? v : "active";
 }
@@ -2942,6 +2979,31 @@ class ApiService {
     return this.request(`/api/admin/users/${encodeURIComponent(userId)}/schedule-deletion`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${authToken}` },
+    });
+  }
+
+  // Refund requests and quote reports (same routes as goutsyde.com /admin/refunds).
+  async getAdminRefundRequests(authToken: string): Promise<AdminRefundRequestItem[]> {
+    const response = await this.request<{ requests?: AdminRefundRequestItem[] } | AdminRefundRequestItem[]>(
+      "/api/admin/refund-requests",
+      { headers: { "Authorization": `Bearer ${authToken}` } }
+    );
+    const list = Array.isArray(response) ? response : response?.requests;
+    return Array.isArray(list) ? list : [];
+  }
+
+  // Decides one request. Money moves on the server: never call this twice for one tap. Errors
+  // throw ApiError with status (402 Stripe declined, nothing moved; 400 already processed;
+  // 500 the refund may already have been issued).
+  async decideAdminRefundRequest(
+    authToken: string,
+    id: string,
+    decision: AdminRefundDecision
+  ): Promise<{ success: boolean; outcome?: AdminReportOutcome; refundCents?: number }> {
+    return this.request(`/api/admin/refund-requests/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify(decision),
     });
   }
 

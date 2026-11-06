@@ -20,7 +20,7 @@ import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import api, { AdminStats, AdminUser, AdminBusiness, AdminPhotographer, AdminInfluencer, AdminOrder, AdminBooking, AdminConversation } from "@/services/api";
+import api, { AdminStats, AdminUser, AdminBusiness, AdminPhotographer, AdminInfluencer, AdminOrder, AdminBooking, AdminConversation, AdminRefundRequestItem } from "@/services/api";
 import { RootStackParamList, AdminSection } from "@/navigation/types";
 
 type TabType = AdminSection;
@@ -31,6 +31,7 @@ type PaymentSubTab = "orders" | "bookings";
 // Admin home rows, in the order shown. Pending work first.
 const SECTIONS: { key: TabType; label: string; sub: string; icon: keyof typeof Feather.glyphMap }[] = [
   { key: "businesses", label: "Businesses", sub: "Applications, approve or reject", icon: "briefcase" },
+  { key: "reports", label: "Reports", sub: "Quote reports and refund requests", icon: "flag" },
   { key: "users", label: "Users", sub: "Find, disable or enable accounts", icon: "users" },
   { key: "photographers", label: "Photographers", sub: "Visibility, ban, deletion", icon: "camera" },
   { key: "payments", label: "Payments", sub: "Revenue, orders and bookings", icon: "credit-card" },
@@ -94,6 +95,7 @@ export default function AdminDashboardScreen() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
+  const [refundRequests, setRefundRequests] = useState<AdminRefundRequestItem[]>([]);
 
   const [businessFilter, setBusinessFilter] = useState<StatusFilter>("all");
   const [influencerFilter, setInfluencerFilter] = useState<StatusFilter>("pending");
@@ -197,6 +199,9 @@ export default function AdminDashboardScreen() {
         case "messages":
           const conversationsData = await api.getAdminConversations(token);
           setConversations(conversationsData || []);
+          break;
+        case "reports":
+          setRefundRequests(await api.getAdminRefundRequests(token));
           break;
       }
     } catch (error) {
@@ -784,6 +789,9 @@ export default function AdminDashboardScreen() {
     },
   });
 
+  // From /api/admin/stats (count of pending refund requests, quote reports included).
+  const pendingReports = stats.pendingRefunds ?? 0;
+
   const renderHome = () => {
     const tiles: { label: string; value: string }[] = [
       { label: "Users", value: String(stats.users) },
@@ -834,10 +842,32 @@ export default function AdminDashboardScreen() {
           </View>
         ) : null}
 
+        {pendingReports > 0 ? (
+          <View style={styles.needsCard}>
+            <View style={styles.needsIcon}>
+              <Feather name="flag" size={18} color={C.gold} />
+            </View>
+            <View style={styles.needsText}>
+              <Text style={styles.needsTitle}>
+                {pendingReports === 1 ? "1 report waiting" : `${pendingReports} reports waiting`}
+              </Text>
+              <Text style={styles.needsSub}>Decide refunds from Reports</Text>
+            </View>
+            <Pressable
+              style={styles.needsButton}
+              accessibilityRole="button"
+              accessibilityLabel="Review pending reports"
+              onPress={() => openSection("reports")}
+            >
+              <Text style={styles.needsButtonText}>Review</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <Text style={styles.sectionHeading} accessibilityRole="header">Manage</Text>
         <View style={styles.sectionList}>
           {SECTIONS.map((s) => {
-            const badge = s.key === "businesses" ? pendingBusinessCount : 0;
+            const badge = s.key === "businesses" ? pendingBusinessCount : s.key === "reports" ? pendingReports : 0;
             return (
               <Pressable
                 key={s.key}
@@ -869,7 +899,7 @@ export default function AdminDashboardScreen() {
   };
 
   const renderSearchBar = () => {
-    if (!activeTab || activeTab === "messages" || activeTab === "payments") return null;
+    if (!activeTab || activeTab === "messages" || activeTab === "payments" || activeTab === "reports") return null;
     
     const placeholders: Record<TabType, string> = {
       users: "Search users by name or email...",
@@ -878,6 +908,7 @@ export default function AdminDashboardScreen() {
       influencers: "Search influencers...",
       payments: "",
       messages: "",
+      reports: "",
     };
 
     return (
@@ -1460,6 +1491,51 @@ export default function AdminDashboardScreen() {
         return renderPaymentsContent();
       case "messages":
         return renderMessagesContent();
+      case "reports":
+        return (
+          <FlatList
+            data={refundRequests}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.content}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.gold} />}
+            ListHeaderComponent={() => (
+              <Text style={styles.countBadge}>
+                {refundRequests.length === 1 ? "1 waiting" : `${refundRequests.length} waiting`}
+              </Text>
+            )}
+            ListEmptyComponent={() => renderEmptyState("No reports waiting", "Quote reports and refund requests show up here.", "flag")}
+            renderItem={({ item }) => {
+              const who = item.requesterName || item.requesterEmail || "Unknown person";
+              const held = item.quoteReport ? item.quoteReport.maxRefundCents : item.amount;
+              const sent = formatAppliedDate(item.createdAt);
+              return (
+                <Pressable
+                  style={({ pressed }) => [styles.listItem, pressed && styles.sectionRowPressed]}
+                  onPress={() => navigation.navigate("AdminRefundRequest", { request: item })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.quoteReport ? "Quote report" : "Refund request"} from ${who}`}
+                >
+                  <View style={styles.listItemHeader}>
+                    <Text style={styles.listItemName}>{who}</Text>
+                    <View style={[styles.statusBadge, styles.pendingBadge]}>
+                      <Text style={[styles.statusText, styles.pendingText]}>
+                        {item.quoteReport ? "Quote report" : "Refund request"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.listItemInfo} numberOfLines={2}>{item.reason || "No reason given."}</Text>
+                  <Text style={styles.listItemInfo}>
+                    {item.quoteReport ? "Held" : "Asked"}: ${((Number(held) || 0) / 100).toFixed(2)}
+                    {item.quoteReport && item.quoteReport.photos.length > 0
+                      ? ` · ${item.quoteReport.photos.length} photo${item.quoteReport.photos.length === 1 ? "" : "s"}`
+                      : ""}
+                    {sent ? ` · ${sent}` : ""}
+                  </Text>
+                </Pressable>
+              );
+            }}
+          />
+        );
       case "influencers":
         return (
           <>
