@@ -66,6 +66,7 @@ import BlockedUsersScreen from "@/screens/BlockedUsersScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import QuoteScreen from "@/screens/QuoteScreen";
 import RequestQuoteScreen from "@/screens/RequestQuoteScreen";
+import QuoteComposeScreen from "@/screens/QuoteComposeScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
 import AppointmentDetailScreen from "@/screens/AppointmentDetailScreen";
@@ -504,6 +505,16 @@ export default function RootNavigator() {
         name="Quote"
         component={QuoteScreen}
         options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+      />
+
+      <Stack.Screen
+        name="QuoteCompose"
+        component={QuoteComposeScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_bottom",
+          gestureEnabled: false,
+        }}
       />
 
       <Stack.Screen

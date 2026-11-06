@@ -38,6 +38,13 @@ import { ThemedView } from "@/components/ThemedView";
 import MessagePhotoGrid from "@/components/messaging/MessagePhotoGrid";
 import QuoteChatCard from "@/components/quotes/QuoteChatCard";
 import { quoteIdsIn, type Card, type Quote, type Start } from "@/utils/quoteLogic";
+import {
+  canManageView,
+  composerOptions,
+  extraTargets,
+  sendSide,
+  type ComposerKey,
+} from "@/utils/quoteSendLogic";
 import PhotoViewer from "@/components/messaging/PhotoViewer";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -211,6 +218,8 @@ export default function ChatScreen() {
   // Quotes step 6c-1 (call 3): the quotes behind this chat's quote cards, as they are now (null: can't be read).
   const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
   const [quotesLoading, setQuotesLoading] = useState(false);
+  // When the quotes were last read (Job complete on a booked card shows once the job has started).
+  const [quotesReadAt, setQuotesReadAt] = useState(0);
   const [inputText, setInputText] = useState("");
   const [attachments, setAttachments] = useState<PickedPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -443,6 +452,7 @@ export default function ChatScreen() {
         for (const [id, qv] of got) if (qv !== undefined) next[id] = qv;
         return next;
       });
+      setQuotesReadAt(Date.now());
     } finally {
       setQuotesLoading(false);
     }
@@ -459,6 +469,57 @@ export default function ChatScreen() {
     (quoteId: string, start: Start) => navigation.navigate("Quote", { quoteId, start }),
     [navigation],
   );
+
+  // Quotes step 6d-1 (call 2): the business side of this chat (the owner, or staff for the business the app picked),
+  // and the paid quotes here whose booking is still open (Add an extra).
+  const side = useMemo(
+    () =>
+      sendSide(
+        user,
+        participantType,
+        isSelfConversation,
+        // Review 2: only once the other side is known (route params or the inbox), never the default.
+        !!params.participantType || !!convo,
+      ),
+    [user, participantType, isSelfConversation, params.participantType, convo],
+  );
+  const targets = useMemo(
+    () => (side ? extraTargets(Object.values(quotes), user) : []),
+    [side, quotes, user],
+  );
+  const createQuote = useCallback(() => {
+    if (!side || !conversationId) return;
+    navigation.navigate("QuoteCompose", {
+      conversationId,
+      businessId: side.businessId,
+    });
+  }, [side, conversationId, navigation]);
+  const addExtra = useCallback(() => {
+    if (targets.length === 1) {
+      openQuote(targets[0].id, "extra");
+      return;
+    }
+    const pick = (i: number) => targets[i] && openQuote(targets[i].id, "extra");
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: "Add an extra to",
+          options: [...targets.map((t) => t.title), "Cancel"],
+          cancelButtonIndex: targets.length,
+        },
+        (i) => pick(i),
+      );
+      return;
+    }
+    const shown = showChoiceSheet({
+      title: "Add an extra to",
+      options: targets.map((t, i) => ({
+        label: t.title,
+        onPress: () => pick(i),
+      })),
+    });
+    if (!shown) pick(0);
+  }, [targets, openQuote]);
 
   // ── rows ──────────────────────────────────────────────────────────────
   const rows: Row[] = useMemo(() => {
@@ -692,6 +753,55 @@ export default function ChatScreen() {
     if (!shown) pickFromLibrary();
   }, [room, takePhoto, pickFromLibrary]);
 
+  // The composer button: photos for everyone, plus Create a quote (and Add an extra) for the business side.
+  const openComposer = useCallback(() => {
+    if (!side) {
+      openPhotoMenu();
+      return;
+    }
+    const opts = composerOptions({
+      business: true,
+      extraCount: targets.length,
+      photoRoom: room,
+    });
+    const runKey = (k: ComposerKey) => {
+      if (k === "camera") takePhoto();
+      else if (k === "library") pickFromLibrary();
+      else if (k === "quote") createQuote();
+      else if (k === "extra") addExtra();
+    };
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: [...opts.map((o) => o.label), "Cancel"],
+          cancelButtonIndex: opts.length,
+        },
+        (i) => {
+          if (opts[i]) runKey(opts[i].key);
+        },
+      );
+      return;
+    }
+    const shown = showChoiceSheet({
+      title: "Add to the chat",
+      options: opts.map((o) => ({
+        label: o.label,
+        onPress: () => runKey(o.key),
+      })),
+    });
+    // Review 6: no sheet host, the library as before (or the quote when the photo tray is full).
+    if (!shown) runKey(room > 0 ? "library" : "quote");
+  }, [
+    side,
+    targets.length,
+    room,
+    openPhotoMenu,
+    takePhoto,
+    pickFromLibrary,
+    createQuote,
+    addExtra,
+  ]);
+
   // ── render ────────────────────────────────────────────────────────────
   const bubbleMax = Math.round(screenW * 0.76);
   const gridW = Math.min(264, Math.round(screenW * 0.66));
@@ -744,14 +854,37 @@ export default function ChatScreen() {
 
     const card = (m.kind === "quote" || m.kind === "request") && m.card ? (m.card as Card) : null;
     const live = card?.quoteId ? quotes[card.quoteId] ?? null : null;
+    // Step 6d-1: a request card is the business's when it came from the customer to this business side; a quote
+    // card when this viewer manages that quote.
+    const cardManage = card
+      ? card.type === "request"
+        ? !!side && !isOwn
+        : !!live && canManageView(live, user)
+      : false;
     const content = card ? (
       <QuoteChatCard
         card={card}
         live={live}
         loading={quotesLoading}
         isCustomer={!!live && live.customerId === user?.id}
+        canManage={cardManage}
+        nowMs={quotesReadAt}
         width={Math.min(bubbleMax, 300)}
-        onStart={(start) => card.quoteId && openQuote(card.quoteId, start)}
+        onStart={(start) => {
+          if (start === "send-quote") {
+            if (!conversationId) return;
+            navigation.navigate("QuoteCompose", {
+              conversationId,
+              businessId: side?.businessId,
+              requestId: card.requestId,
+              serviceId: card.serviceId ?? undefined,
+              serviceName: card.serviceName ?? undefined,
+              preferredDate: card.preferredDate ?? undefined,
+            });
+            return;
+          }
+          if (card.quoteId) openQuote(card.quoteId, start);
+        }}
       />
     ) : (
       <View
@@ -1088,9 +1221,9 @@ export default function ChatScreen() {
 
           <View style={styles.inputRow}>
             <Pressable
-              onPress={openPhotoMenu}
+              onPress={openComposer}
               accessibilityRole="button"
-              accessibilityLabel="Add photos"
+              accessibilityLabel={side ? "Add photos or a quote" : "Add photos"}
               hitSlop={6}
               style={({ pressed }) => [
                 styles.roundBtn,
@@ -1101,7 +1234,11 @@ export default function ChatScreen() {
                 },
               ]}
             >
-              <Feather name="image" size={20} color={theme.brandGold} />
+              <Feather
+                name={side ? "plus" : "image"}
+                size={20}
+                color={theme.brandGold}
+              />
             </Pressable>
             <View
               style={[

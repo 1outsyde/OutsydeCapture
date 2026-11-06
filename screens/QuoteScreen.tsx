@@ -2,6 +2,9 @@
 // a card, approves or declines extras, pays for extras, and confirms or reports the job; the business sees the same
 // screen without the buttons. Opened from a chat card (route param start runs that card's step once). Wording
 // matches goutsyde.com/q. Copy: commas and periods only, never the fee rate.
+// Step 6d-1 (calls 4 to 6): the business (owner, or the staff member who sent it) gets Edit and Withdraw until paid,
+// Add an extra and Withdraw extra while the booking is open, and Job complete with a check first. The backend checks
+// every one again (canManage) and its block message is shown as is.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -64,6 +67,17 @@ import {
   windowLeft,
   type Quote,
 } from "@/utils/quoteLogic";
+import {
+  EXTRA_FEE_LINE,
+  bookingOpen,
+  canManageView,
+  checkExtra,
+  jobCompleteConfirm,
+  jobCompleteState,
+  vendorBalanceLine,
+  vendorExtraStatusLine,
+  vendorExtrasPaymentLine,
+} from "@/utils/quoteSendLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Busy =
@@ -75,7 +89,11 @@ type Busy =
   | "confirm"
   | "report"
   | `approve:${string}`
-  | `decline:${string}`;
+  | `decline:${string}`
+  | "withdraw"
+  | "extra"
+  | "job-complete"
+  | `withdraw-extra:${string}`;
 
 export default function QuoteScreen() {
   const { theme } = useTheme();
@@ -95,6 +113,9 @@ export default function QuoteScreen() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [photos, setPhotos] = useState<{ uri: string; mime: string }[]>([]);
+  const [extraOpen, setExtraOpen] = useState(false);
+  const [extraDesc, setExtraDesc] = useState("");
+  const [extraAmount, setExtraAmount] = useState("");
   const started = useRef(false);
   const hasQuote = useRef(false);
   // When the quote was last read (the window's time left is shown from it, not the clock during render).
@@ -151,6 +172,7 @@ export default function QuoteScreen() {
   );
 
   const isCustomer = !!q && q.customerId === user?.id;
+  const manage = !!q && canManageView(q, user);
 
   const finish = useCallback(
     async (r: StepResult, okText: string, done: (fresh: Quote) => boolean) => {
@@ -243,6 +265,97 @@ export default function QuoteScreen() {
       },
     ]);
 
+  // ── Business side (step 6d-1) ──
+  /** A business step: the backend's own message when it refuses (for example EXTRAS_NOT_HELD). */
+  const bizStep = async (
+    fn: (token: string) => Promise<unknown>,
+    okText: string,
+  ) => {
+    const token = await getToken();
+    if (!token) {
+      setError("Sign in again to continue.");
+      return false;
+    }
+    try {
+      await fn(token);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+        () => {},
+      );
+      setOk(okText);
+      await load();
+      return true;
+    } catch (err) {
+      setError(errorMessage(err as ApiError));
+      await load();
+      return false;
+    }
+  };
+  const withdrawQuote = (cur: Quote) =>
+    Alert.alert(
+      "Withdraw this quote?",
+      "The customer can't pay it anymore. They are told in your chat.",
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Withdraw",
+          style: "destructive",
+          onPress: () =>
+            run("withdraw", async () => {
+              await bizStep(
+                (t) => api.withdrawQuote(t, cur.id),
+                "Quote withdrawn.",
+              );
+            }),
+        },
+      ],
+    );
+  const sendExtra = (cur: Quote) => {
+    const c = checkExtra(extraDesc, extraAmount);
+    if (!c.ok) {
+      setOk("");
+      setError(c.message);
+      return;
+    }
+    return run("extra", async () => {
+      const done = await bizStep(
+        (t) =>
+          api.proposeQuoteExtra(
+            t,
+            cur.id,
+            c.body.description,
+            c.body.amountCents,
+          ),
+        "Extra sent. The customer is asked to approve it.",
+      );
+      if (done) {
+        setExtraOpen(false);
+        setExtraDesc("");
+        setExtraAmount("");
+      }
+    });
+  };
+  const withdrawExtra = (cur: Quote, extraId: string) =>
+    run(`withdraw-extra:${extraId}`, async () => {
+      await bizStep(
+        (t) => api.withdrawQuoteExtra(t, cur.id, extraId),
+        "Extra taken back. Nothing was added.",
+      );
+    });
+  const jobComplete = (cur: Quote) =>
+    Alert.alert("Mark the job complete?", jobCompleteConfirm(cur), [
+      { text: "Not yet", style: "cancel" },
+      {
+        text: "Job complete",
+        onPress: () =>
+          run("job-complete", async () => {
+            await bizStep(
+              (t) => api.completeQuoteJob(t, cur.id),
+              "Job marked complete.",
+            );
+          }),
+      },
+    ]);
+
   const pickPhotos = async () => {
     const room = MAX_PHOTOS - photos.length;
     if (room <= 0) return;
@@ -321,14 +434,22 @@ export default function QuoteScreen() {
 
   // The card's step, once, after the first load (and only for the customer, only while it is still due).
   useEffect(() => {
-    if (!q || started.current || !isCustomer) return;
+    if (!q || started.current || (!isCustomer && !manage)) return;
     started.current = true;
     const s = parseStart(start);
     if (!s) return;
+    if (manage) {
+      // Business starts: Add an extra opens the form; Job complete asks first (only while it still applies).
+      if (s.kind === "extra" && bookingOpen(q))
+        setTimeout(() => setExtraOpen(true), 0);
+      if (s.kind === "job-complete" && jobCompleteState(q, Date.now()).ready)
+        setTimeout(() => jobComplete(q), 0);
+      return;
+    }
     // Next tick, so the step's own state changes never run inside this effect.
     setTimeout(() => runStart(q, s), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, isCustomer, start]);
+  }, [q, isCustomer, manage, start]);
 
   const back = {
     icon: "chevron-left" as const,
@@ -354,6 +475,12 @@ export default function QuoteScreen() {
   const name = q.businessName || "The business";
   const bal = balanceLine(q);
   const xp = extrasPaymentLine(q.extrasPayment);
+  const vBal = manage ? vendorBalanceLine(q) : null;
+  const vXp = manage ? vendorExtrasPaymentLine(q.extrasPayment) : null;
+  const open = bookingOpen(q);
+  const jc = manage
+    ? jobCompleteState(q, readAt)
+    : { show: false, ready: false };
   const when = whenLine(q);
 
   return (
@@ -395,7 +522,44 @@ export default function QuoteScreen() {
           ) : null}
         </View>
 
-        {!isCustomer ? <Hint>This is what the customer sees.</Hint> : null}
+        {!isCustomer && (stage === "pay" || stage === "paying") ? (
+          <Hint>This is what the customer sees.</Hint>
+        ) : null}
+
+        {manage && (stage === "pay" || stage === "paying") ? (
+          <Box title="Your quote">
+            {stage === "paying" ? (
+              <Hint>
+                The customer is paying right now. Try again in a few minutes.
+              </Hint>
+            ) : (
+              <>
+                {q.kind === "product" ? (
+                  <Hint>{"Editing product quotes isn't in the app yet."}</Hint>
+                ) : (
+                  <OutlineButton
+                    label="Edit quote"
+                    disabled={!!busy}
+                    onPress={() =>
+                      navigation.navigate("QuoteCompose", {
+                        conversationId: q.conversationId,
+                        quoteId: q.id,
+                        // Review 3: staff load their business's services.
+                        businessId: q.businessId,
+                      })
+                    }
+                  />
+                )}
+                <OutlineButton
+                  label="Withdraw quote"
+                  danger
+                  disabled={!!busy}
+                  onPress={() => withdrawQuote(q)}
+                />
+              </>
+            )}
+          </Box>
+        ) : null}
 
         {stage === "pay" || stage === "paying" ? (
           <Box title="Payment">
@@ -468,11 +632,26 @@ export default function QuoteScreen() {
                 ? `Paid in full, ${money(q.amounts.payNowCents)}.`
                 : `Deposit paid, ${money(q.amounts.payNowCents)}.`}
             </ThemedText>
-            {bal ? (
+            {manage ? (
+              vBal ? (
+                <ThemedText style={[styles.body, { color: theme.brandCream }]}>
+                  {vBal}
+                </ThemedText>
+              ) : null
+            ) : bal ? (
               <ThemedText style={[styles.body, { color: theme.brandCream }]}>
                 {bal.text}
               </ThemedText>
             ) : null}
+            {jc.show && jc.ready ? (
+              <PrimaryButton
+                label="Job complete"
+                busy={busy === "job-complete"}
+                disabled={!!busy}
+                onPress={() => jobComplete(q)}
+              />
+            ) : null}
+            {jc.show && !jc.ready && jc.hint ? <Hint>{jc.hint}</Hint> : null}
             {bal?.action && isCustomer ? (
               <PrimaryButton
                 label={bal.action.label}
@@ -484,7 +663,7 @@ export default function QuoteScreen() {
           </Box>
         ) : null}
 
-        {q.extras.length ? (
+        {q.extras.length || (manage && open) ? (
           <Box title="Extras">
             {q.extras.map((x) => (
               <View
@@ -511,11 +690,20 @@ export default function QuoteScreen() {
                 </View>
                 <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
                   {money(x.amountCents)} plus a service fee.{" "}
-                  {x.status === "approved" &&
-                  q.extrasPayment?.status === "captured"
-                    ? "Approved and charged."
-                    : extraStatusLine(x)}
+                  {manage
+                    ? vendorExtraStatusLine(x, q.extrasPayment)
+                    : x.status === "approved" &&
+                        q.extrasPayment?.status === "captured"
+                      ? "Approved and charged."
+                      : extraStatusLine(x)}
                 </ThemedText>
+                {manage && x.canWithdraw ? (
+                  <TextButton
+                    label="Withdraw extra"
+                    disabled={!!busy}
+                    onPress={() => withdrawExtra(q, x.id)}
+                  />
+                ) : null}
                 {isCustomer && x.canApprove ? (
                   <View style={styles.pair}>
                     <PrimaryButton
@@ -543,10 +731,52 @@ export default function QuoteScreen() {
                 ) : null}
               </View>
             ))}
-            {xp ? (
+            {manage ? (
+              vXp ? (
+                <ThemedText style={[styles.body, { color: theme.brandCream }]}>
+                  {vXp}
+                </ThemedText>
+              ) : null
+            ) : xp ? (
               <ThemedText style={[styles.body, { color: theme.brandCream }]}>
                 {xp.text}
               </ThemedText>
+            ) : null}
+            {manage && open && !extraOpen ? (
+              <OutlineButton
+                label="Add an extra"
+                disabled={!!busy}
+                onPress={() => setExtraOpen(true)}
+              />
+            ) : null}
+            {manage && open && extraOpen ? (
+              <View style={{ gap: Spacing.sm }}>
+                <Field
+                  label="What is the extra"
+                  value={extraDesc}
+                  onChangeText={setExtraDesc}
+                  maxLength={200}
+                  placeholder="An extra flight of stairs"
+                />
+                <Field
+                  label="Amount"
+                  value={extraAmount}
+                  onChangeText={setExtraAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="$0.00"
+                />
+                <Hint>{EXTRA_FEE_LINE}</Hint>
+                <PrimaryButton
+                  label="Send extra"
+                  busy={busy === "extra"}
+                  disabled={!!busy}
+                  onPress={() => sendExtra(q)}
+                />
+                <TextButton
+                  label="Cancel"
+                  onPress={() => setExtraOpen(false)}
+                />
+              </View>
             ) : null}
             {xp?.action && isCustomer ? (
               <PrimaryButton
@@ -562,7 +792,9 @@ export default function QuoteScreen() {
         {stage === "window" && q.window ? (
           <Box title="How did it go?">
             <ThemedText style={[styles.body, { color: theme.brandCream }]}>
-              {`If something went wrong, report a problem within 6 hours. Otherwise ${name} is paid.`}
+              {manage
+                ? "The customer has 6 hours to confirm or report a problem. You are paid after that."
+                : `If something went wrong, report a problem within 6 hours. Otherwise ${name} is paid.`}
             </ThemedText>
             <Hint>{windowLeft(q.window.endsAt, readAt)}</Hint>
             {isCustomer && q.window.canConfirm ? (
@@ -644,15 +876,24 @@ export default function QuoteScreen() {
 
         {stage === "reported" ? (
           <Hint>
-            Outsyde is reviewing your report. The payment to the business is
-            paused until then.
+            {manage
+              ? "The customer reported a problem. Outsyde is reviewing it, and your payment is paused until then."
+              : "Outsyde is reviewing your report. The payment to the business is paused until then."}
           </Hint>
         ) : null}
         {stage === "decided" && q.report ? (
-          <Hint>{decidedLine(q.report, name)}</Hint>
+          <Hint>
+            {manage
+              ? "Outsyde reviewed the customer's report."
+              : decidedLine(q.report, name)}
+          </Hint>
         ) : null}
         {stage === "complete" ? (
-          <Hint>This job is complete. Thanks for booking through Outsyde.</Hint>
+          <Hint>
+            {manage
+              ? "This job is complete."
+              : "This job is complete. Thanks for booking through Outsyde."}
+          </Hint>
         ) : null}
 
         {error ? <ErrorText>{error}</ErrorText> : null}

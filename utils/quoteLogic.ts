@@ -50,6 +50,11 @@ export type Quote = {
   amounts: Amounts;
   expiresAt: string;
   businessName: string | null;
+  /** Step 6d-1 (already in the backend answer): the business, the job start, the linked service and request. */
+  businessId?: string;
+  startsAt?: string | null;
+  serviceId?: string | null;
+  requestId?: string | null;
   customerId: string;
   senderId: string;
   conversationId: string;
@@ -102,6 +107,7 @@ export type Card = {
   serviceName?: string;
   preferredDate?: string | null;
   requestId?: string;
+  serviceId?: string | null;
   answerCount?: number;
 };
 
@@ -395,6 +401,38 @@ export function decidedLine(
   return `Outsyde reviewed your report. ${name} is paid in full.`;
 }
 
+/** The booking is paid and still open (not marked complete): extras and Job complete apply (step 6d-1). */
+export function bookingOpen(
+  q: Pick<Quote, "status" | "kind" | "appointmentId" | "balance" | "window">,
+): boolean {
+  return (
+    q.status === "paid" &&
+    q.kind !== "product" &&
+    !!q.appointmentId &&
+    !q.balance?.completedAt &&
+    !q.window
+  );
+}
+
+/** Job complete (step 6d-1). show: the button belongs here. ready: the job has started (the backend refuses before). */
+export function jobCompleteState(
+  q: Pick<
+    Quote,
+    "status" | "kind" | "appointmentId" | "balance" | "window" | "startsAt"
+  >,
+  nowMs: number,
+): { show: boolean; ready: boolean; hint?: string } {
+  if (!bookingOpen(q)) return { show: false, ready: false };
+  const starts = q.startsAt ? new Date(q.startsAt).getTime() : NaN;
+  if (Number.isFinite(starts) && nowMs >= starts)
+    return { show: true, ready: true };
+  return {
+    show: true,
+    ready: false,
+    hint: "You can mark the job complete once it starts.",
+  };
+}
+
 // ─── Chat cards ─────────────────────────────────────────────────────────────
 
 /** What a card button starts on the quote screen. */
@@ -405,7 +443,11 @@ export type Start =
   | "extras-card"
   | "window"
   | `approve:${string}`
-  | `decline:${string}`;
+  | `decline:${string}`
+  // Step 6d-1, business side: Job complete and Add an extra on the quote screen; Send a quote from a request card.
+  | "job-complete"
+  | "extra"
+  | "send-quote";
 export type CardButton = { label: string; start: Start; primary?: boolean };
 export type CardView = {
   pill: string;
@@ -446,8 +488,9 @@ const PILLS: Record<string, string> = {
 export function cardView(
   c: Card,
   live: Quote | null,
-  viewer: { isCustomer: boolean },
+  viewer: { isCustomer: boolean; canManage?: boolean; nowMs?: number },
 ): CardView {
+  const manage = !viewer.isCustomer && viewer.canManage === true;
   if (c.type === "request") {
     const when = c.preferredDate
       ? `Preferred date ${dateLabel(c.preferredDate)}`
@@ -459,7 +502,11 @@ export function cardView(
       body: c.answerCount
         ? `${c.answerCount} ${c.answerCount === 1 ? "answer" : "answers"}`
         : undefined,
-      buttons: [],
+      // Step 6d-1 (call 3): the business starts a quote from the request.
+      buttons:
+        manage && c.requestId
+          ? [{ label: "Send a quote", start: "send-quote", primary: true }]
+          : [],
     };
   }
   const ev = c.event ?? "";
@@ -517,6 +564,20 @@ export function cardView(
     return out;
   }
   out.body = c.content || undefined;
+  // Step 6d-1 (call 6): Job complete on the booked card for the business, once the job has started.
+  if (
+    manage &&
+    live &&
+    // Review 9: one button per booking, on the paid card only.
+    ev === "paid" &&
+    jobCompleteState(live, viewer.nowMs ?? 0).ready
+  ) {
+    out.buttons = [
+      { label: "Job complete", start: "job-complete", primary: true },
+      view,
+    ];
+    return out;
+  }
   if (!mine || !live) return out;
   if (ev === "balance_failed" && live.balance?.needsNewCard)
     out.buttons = [
@@ -546,14 +607,31 @@ export function cardView(
   return out;
 }
 
-export function parseStart(
-  s: string | undefined | null,
-):
-  | { kind: "view" | "pay" | "balance-card" | "extras-card" | "window" }
+export function parseStart(s: string | undefined | null):
+  | {
+      kind:
+        | "view"
+        | "pay"
+        | "balance-card"
+        | "extras-card"
+        | "window"
+        | "job-complete"
+        | "extra";
+    }
   | { kind: "approve" | "decline"; extraId: string }
   | null {
   if (!s) return null;
-  if (["view", "pay", "balance-card", "extras-card", "window"].includes(s))
+  if (
+    [
+      "view",
+      "pay",
+      "balance-card",
+      "extras-card",
+      "window",
+      "job-complete",
+      "extra",
+    ].includes(s)
+  )
     return { kind: s as any };
   const m = /^(approve|decline):(.+)$/.exec(s);
   return m ? { kind: m[1] as "approve" | "decline", extraId: m[2] } : null;
