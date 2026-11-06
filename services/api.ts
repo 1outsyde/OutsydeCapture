@@ -2,6 +2,12 @@ import type { AdminSubscriptionSummary, AdminOfferSummary, OfferPlan } from "@/u
 import type { PushAudience, PushCounts, PushLimits, PushPerson, PushRecipientRow, PushScreensData, PushSendRow } from "@/utils/adminPush";
 import type { EmailBudget, EmailPerson, EmailPersonInfo, EmailRecipientRow, EmailSendRow, PersonEmailRow } from "@/utils/adminEmail";
 import { setupSendBody, type DueReminder, type SetupEmailPreview } from "@/utils/adminSetup";
+import {
+  ADMIN_ACTIONS,
+  normalizeReferrals,
+  type AdminAction as AdminReferralAction,
+  type AdminReferralsData,
+} from "@/utils/adminReferrals";
 import type { BusinessReferralsInfo } from "@/utils/businessReferral";
 import {
   getAccessToken,
@@ -3139,6 +3145,36 @@ class ApiService {
       // The backend sends one by one before answering; up to 200 people can take over 30 s.
       timeout: 120000,
     });
+  }
+
+  // ---- Admin referrals (App Admin Step 8, same routes as goutsyde.com /admin/referrals) ----
+
+  /** Business and friend referrals, payouts, totals and what needs attention. */
+  async getAdminReferrals(authToken: string): Promise<AdminReferralsData> {
+    const r: any = await this.request("/api/admin/referrals", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return normalizeReferrals(r);
+  }
+
+  /**
+   * Pause, release, cancel or retry one $25 payout. Only changes its state; the payout job sends the money.
+   * The backend refuses a repeat or a payout that may be sending (409), so a double tap can't do anything twice.
+   */
+  async adminReferralPayoutAction(
+    authToken: string,
+    payoutId: string,
+    action: AdminReferralAction,
+  ): Promise<void> {
+    if (!(ADMIN_ACTIONS as readonly string[]).includes(action))
+      throw new Error("Unknown action.");
+    await this.request(
+      `/api/admin/referrals/payouts/${encodeURIComponent(payoutId)}/${action}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
   }
 
   // Vendor plans (same routes and bodies as goutsyde.com /admin/vendors). Errors throw ApiError;

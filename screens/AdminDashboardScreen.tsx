@@ -966,6 +966,27 @@ export default function AdminDashboardScreen() {
             </View>
             <Feather name="chevron-right" size={18} color={C.dim} />
           </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.sectionRow,
+              pressed && styles.sectionRowPressed,
+            ]}
+            onPress={() => navigation.navigate("AdminReferrals")}
+            accessibilityRole="button"
+            accessibilityLabel="Referrals"
+            accessibilityHint="Business and friend referrals, and the $25 payouts"
+          >
+            <View style={styles.sectionIcon}>
+              <Feather name="gift" size={17} color={C.gold} />
+            </View>
+            <View style={styles.sectionText}>
+              <Text style={styles.sectionTitle}>Referrals</Text>
+              <Text style={styles.sectionSub}>
+                $25 business payouts and friend points
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={C.dim} />
+          </Pressable>
         </View>
       </ScrollView>
     );
