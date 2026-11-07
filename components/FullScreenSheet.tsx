@@ -30,6 +30,10 @@ export interface FullScreenSheetProps {
   borderColor?: string;
   /** iOS: called after the page has finished closing. */
   onDismiss?: () => void;
+  /** While true (e.g. saving), the close control and Android back do nothing. */
+  closeDisabled?: boolean;
+  /** Android keyboard handling; default leaves it to the window resizing. */
+  androidKeyboardBehavior?: "height";
   children: React.ReactNode;
 }
 
@@ -43,6 +47,8 @@ export function FullScreenSheet({
   tintColor,
   borderColor,
   onDismiss,
+  closeDisabled = false,
+  androidKeyboardBehavior,
   children,
 }: FullScreenSheetProps) {
   const { theme } = useTheme();
@@ -56,7 +62,9 @@ export function FullScreenSheet({
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (!closeDisabled) onClose();
+      }}
       onDismiss={onDismiss}
     >
       <View
@@ -72,7 +80,8 @@ export function FullScreenSheet({
         <View style={[styles.header, { borderBottomColor: border }]}>
           <Pressable
             onPress={onClose}
-            style={styles.side}
+            disabled={closeDisabled}
+            style={[styles.side, closeDisabled && styles.disabled]}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={closeLabel === "cancel" ? "Cancel" : "Close"}
@@ -94,7 +103,7 @@ export function FullScreenSheet({
         </View>
         <KeyboardAvoidingView
           style={styles.body}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : androidKeyboardBehavior}
         >
           {children}
         </KeyboardAvoidingView>
@@ -118,6 +127,9 @@ const styles = StyleSheet.create({
     minWidth: 64,
     minHeight: 44,
     justifyContent: "center",
+  },
+  disabled: {
+    opacity: 0.4,
   },
   sideRight: {
     alignItems: "flex-end",
