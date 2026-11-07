@@ -63,7 +63,10 @@ for (const f of FILES_2A) {
     const src = read(f);
     const bad = modalTags(src).filter((t) => /\btransparent\b/.test(t));
     assert.deepEqual(bad, [], `${f} still has transparent Modal(s)`);
-    assert.match(src, /import \{ FullScreenSheet \} from "@\/components\/FullScreenSheet"/);
+    assert.match(
+      src,
+      /import \{ FullScreenSheet \} from "@\/components\/FullScreenSheet"/,
+    );
   });
 }
 
@@ -74,7 +77,10 @@ test("StaffDashboard opens the service editor full screen", () => {
 });
 
 test("ServiceEditorModal handles the keyboard", () => {
-  assert.match(read("components/ServiceEditorModal.tsx"), /KeyboardAvoidingView/);
+  assert.match(
+    read("components/ServiceEditorModal.tsx"),
+    /KeyboardAvoidingView/,
+  );
 });
 
 test("RefundModal stays a dialog but handles the keyboard", () => {
