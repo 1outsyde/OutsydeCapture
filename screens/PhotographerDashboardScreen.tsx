@@ -9,7 +9,6 @@ import {
   Alert,
   RefreshControl,
   Linking,
-  Modal,
   AppState,
   AppStateStatus,
   Switch,
@@ -21,6 +20,7 @@ import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/nativ
 import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { parseBrandColorSpec, specToHex } from "@/constants/colorOptions";
 import { useAuth } from "@/context/AuthContext";
 import api, {
@@ -1312,33 +1312,6 @@ export default function PhotographerDashboardScreen() {
     },
 
     // ── Modal shells (internal content keeps theme — only outer shell changes) ──
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.6)",
-      justifyContent: "flex-end",
-    },
-    modalContent: {
-      backgroundColor: theme.brandBgElevated,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      height: "90%",
-    },
-    modalHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.brandSurfaceBorder,
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.brandCream,
-    },
-    modalCloseButton: { padding: 4 },
     modalScroll: { padding: 20 },
 
     // ── Form fields (modal-internal — keep theme tokens) ──────────────────
@@ -1386,132 +1359,128 @@ export default function PhotographerDashboardScreen() {
   });
 
   const renderBookingsModal = () => (
-    <Modal visible={activeModal === "bookings"} animationType="slide" transparent onRequestClose={() => setActiveModal(null)}>
-      <View style={styles.modalOverlay}>
-        <Pressable style={{ flex: 1 }} onPress={() => setActiveModal(null)} />
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Bookings</Text>
-            <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseButton}>
-              <Feather name="x" size={24} color={theme.text} />
-            </Pressable>
+    <FullScreenSheet
+      visible={activeModal === "bookings"}
+      onClose={() => setActiveModal(null)}
+      title="Bookings"
+      backgroundColor={theme.brandBgElevated}
+      tintColor={theme.brandCream}
+      borderColor={theme.brandSurfaceBorder}
+    >
+      <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+        {bookings.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Feather name="calendar" size={24} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+            <Text style={styles.emptyText}>No bookings yet</Text>
           </View>
-          <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-            {bookings.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <View style={styles.emptyIcon}>
-                  <Feather name="calendar" size={24} color={DASHBOARD_COLORS.creamDim} />
-                </View>
-                <Text style={styles.emptyText}>No bookings yet</Text>
-              </View>
-            ) : (
-              bookings.map(booking => {
-                const isPending = isPendingRequestStatus(booking.status);
-                const getStatusColor = (status: string) => {
-                  if (status === "confirmed") return "#34C759";
-                  if (isPendingRequestStatus(status)) return "#FF9500";
-                  if (isCanceledStatus(status) || status === "declined") return "#FF3B30";
-                  if (status === "completed") return DASHBOARD_COLORS.gold;
-                  if (isExpiredStatus(status) || status === "no_show") return "#8E8E93";
-                  return DASHBOARD_COLORS.creamDim;
-                };
-                return (
-                  <View key={booking.id} style={styles.bookingCard}>
-                    <View style={styles.bookingHeader}>
-                      <View style={styles.bookingAvatar}>
-                        <Text style={styles.bookingAvatarText}>
-                          {booking.clientName.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={styles.bookingInfo}>
-                        <Text style={styles.bookingClient}>{booking.clientName}</Text>
-                        <Text style={styles.bookingService}>{booking.sessionType}</Text>
-                      </View>
-                      <View style={{ alignItems: "flex-end" }}>
-                        {booking.subtotalAmount != null ? (
-                          <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
-                            Subtotal: ${booking.subtotalAmount.toFixed(2)}
-                          </Text>
-                        ) : null}
-                        {booking.bookingFeeAmount != null ? (
-                          <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
-                            Booking Fee: -${booking.bookingFeeAmount.toFixed(2)}
-                          </Text>
-                        ) : null}
-                        {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null ? (
-                          <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
-                            Influencer: -${booking.influencerCommissionAmount.toFixed(2)}
-                          </Text>
-                        ) : null}
-                        {booking.vendorNetAmount != null ? (
-                          <Text style={[styles.bookingAmount, { fontWeight: "700" }]}>
-                            You Earn: ${booking.vendorNetAmount.toFixed(2)}
-                          </Text>
-                        ) : (
-                          <Text style={styles.bookingAmount}>${booking.amount.toFixed(2)}</Text>
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.bookingDetails}>
-                      <View style={styles.bookingDate}>
-                        <Feather name="calendar" size={14} color={DASHBOARD_COLORS.creamDim} />
-                        <Text style={styles.bookingDateText}>{booking.date}</Text>
-                      </View>
-                      <View style={styles.bookingDate}>
-                        <Feather name="clock" size={14} color={DASHBOARD_COLORS.creamDim} />
-                        <Text style={styles.bookingDateText}>{booking.time}</Text>
-                      </View>
-                      <View style={[styles.bookingStatusBadge, { backgroundColor: getStatusColor(booking.status) + "20" }]}>
-                        <Text style={[styles.bookingStatusText, { color: getStatusColor(booking.status) }]}>
-                          {bookingStatusLabel(booking.status)}
-                        </Text>
-                      </View>
-                    </View>
-                    <BookingExtrasBlock
-                      addons={booking.addons}
-                      customerDetails={booking.customerDetails}
-                      inPersonDueCents={booking.inPersonDueCents}
-                      inPersonLabel="Collect in person"
-                      textColor={DASHBOARD_COLORS.cream}
-                      dimColor={DASHBOARD_COLORS.creamDim}
-                      accentColor={DASHBOARD_COLORS.gold}
-                      borderColor={DASHBOARD_COLORS.cardBorder}
-                    />
-                    {isPending && (
-                      <View style={styles.bookingActions}>
-                        <Pressable
-                          onPress={() => handleBookingAction(booking.id, "confirm")}
-                          style={[styles.bookingActionButton, styles.bookingConfirmButton]}
-                        >
-                          <Text style={[styles.bookingActionText, { color: "#FFFFFF" }]}>Accept</Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => handleBookingAction(booking.id, "cancel")}
-                          style={[styles.bookingActionButton, styles.bookingDeclineButton]}
-                        >
-                          <Text style={[styles.bookingActionText, { color: DASHBOARD_COLORS.cream }]}>Decline</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                    {booking.status === "confirmed" && (
-                      <View style={styles.bookingActions}>
-                        <Pressable
-                          onPress={() => handleRefundPress(booking)}
-                          style={[styles.bookingActionButton, { backgroundColor: theme.error + "15", borderColor: theme.error }]}
-                        >
-                          <Text style={[styles.bookingActionText, { color: theme.error }]}>Issue Refund</Text>
-                        </Pressable>
-                      </View>
+        ) : (
+          bookings.map(booking => {
+            const isPending = isPendingRequestStatus(booking.status);
+            const getStatusColor = (status: string) => {
+              if (status === "confirmed") return "#34C759";
+              if (isPendingRequestStatus(status)) return "#FF9500";
+              if (isCanceledStatus(status) || status === "declined") return "#FF3B30";
+              if (status === "completed") return DASHBOARD_COLORS.gold;
+              if (isExpiredStatus(status) || status === "no_show") return "#8E8E93";
+              return DASHBOARD_COLORS.creamDim;
+            };
+            return (
+              <View key={booking.id} style={styles.bookingCard}>
+                <View style={styles.bookingHeader}>
+                  <View style={styles.bookingAvatar}>
+                    <Text style={styles.bookingAvatarText}>
+                      {booking.clientName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.bookingInfo}>
+                    <Text style={styles.bookingClient}>{booking.clientName}</Text>
+                    <Text style={styles.bookingService}>{booking.sessionType}</Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    {booking.subtotalAmount != null ? (
+                      <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
+                        Subtotal: ${booking.subtotalAmount.toFixed(2)}
+                      </Text>
+                    ) : null}
+                    {booking.bookingFeeAmount != null ? (
+                      <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
+                        Booking Fee: -${booking.bookingFeeAmount.toFixed(2)}
+                      </Text>
+                    ) : null}
+                    {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null ? (
+                      <Text style={[styles.bookingAmount, { color: DASHBOARD_COLORS.creamDim, fontSize: 12 }]}>
+                        Influencer: -${booking.influencerCommissionAmount.toFixed(2)}
+                      </Text>
+                    ) : null}
+                    {booking.vendorNetAmount != null ? (
+                      <Text style={[styles.bookingAmount, { fontWeight: "700" }]}>
+                        You Earn: ${booking.vendorNetAmount.toFixed(2)}
+                      </Text>
+                    ) : (
+                      <Text style={styles.bookingAmount}>${booking.amount.toFixed(2)}</Text>
                     )}
                   </View>
-                );
-              })
-            )}
-            <View style={{ height: insets.bottom + 20 }} />
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+                </View>
+                <View style={styles.bookingDetails}>
+                  <View style={styles.bookingDate}>
+                    <Feather name="calendar" size={14} color={DASHBOARD_COLORS.creamDim} />
+                    <Text style={styles.bookingDateText}>{booking.date}</Text>
+                  </View>
+                  <View style={styles.bookingDate}>
+                    <Feather name="clock" size={14} color={DASHBOARD_COLORS.creamDim} />
+                    <Text style={styles.bookingDateText}>{booking.time}</Text>
+                  </View>
+                  <View style={[styles.bookingStatusBadge, { backgroundColor: getStatusColor(booking.status) + "20" }]}>
+                    <Text style={[styles.bookingStatusText, { color: getStatusColor(booking.status) }]}>
+                      {bookingStatusLabel(booking.status)}
+                    </Text>
+                  </View>
+                </View>
+                <BookingExtrasBlock
+                  addons={booking.addons}
+                  customerDetails={booking.customerDetails}
+                  inPersonDueCents={booking.inPersonDueCents}
+                  inPersonLabel="Collect in person"
+                  textColor={DASHBOARD_COLORS.cream}
+                  dimColor={DASHBOARD_COLORS.creamDim}
+                  accentColor={DASHBOARD_COLORS.gold}
+                  borderColor={DASHBOARD_COLORS.cardBorder}
+                />
+                {isPending && (
+                  <View style={styles.bookingActions}>
+                    <Pressable
+                      onPress={() => handleBookingAction(booking.id, "confirm")}
+                      style={[styles.bookingActionButton, styles.bookingConfirmButton]}
+                    >
+                      <Text style={[styles.bookingActionText, { color: "#FFFFFF" }]}>Accept</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleBookingAction(booking.id, "cancel")}
+                      style={[styles.bookingActionButton, styles.bookingDeclineButton]}
+                    >
+                      <Text style={[styles.bookingActionText, { color: DASHBOARD_COLORS.cream }]}>Decline</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {booking.status === "confirmed" && (
+                  <View style={styles.bookingActions}>
+                    <Pressable
+                      onPress={() => handleRefundPress(booking)}
+                      style={[styles.bookingActionButton, { backgroundColor: theme.error + "15", borderColor: theme.error }]}
+                    >
+                      <Text style={[styles.bookingActionText, { color: theme.error }]}>Issue Refund</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            );
+          })
+        )}
+        <View style={{ height: insets.bottom + 20 }} />
+      </ScrollView>
+    </FullScreenSheet>
   );
 
   const handleGoBack = () => {
