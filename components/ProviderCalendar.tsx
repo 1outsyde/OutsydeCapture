@@ -4,12 +4,14 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
-  Modal,
   Alert,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
+import { createAfterClose } from "@/utils/afterSheetClose";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { bookingStatusLabel, isPendingRequestStatus, isUnpaidBookingStatus } from "@/utils/bookingStatus";
 
@@ -79,6 +81,7 @@ export default function ProviderCalendar({
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
+  const [afterClose] = useState(() => createAfterClose(Platform.OS));
   const [blockMode, setBlockMode] = useState<"full" | "partial">("full");
   const [blockStartTime, setBlockStartTime] = useState("9:00 AM");
   const [blockEndTime, setBlockEndTime] = useState("5:00 PM");
@@ -323,154 +326,157 @@ export default function ProviderCalendar({
         </View>
       </View>
 
-      <Modal visible={showDayModal} transparent animationType="slide" onRequestClose={() => setShowDayModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>
-                {selectedDate ? new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : ""}
-              </ThemedText>
-              <Pressable onPress={() => setShowDayModal(false)}>
-                <Feather name="x" size={24} color={theme.text} />
+      <FullScreenSheet
+        visible={showDayModal}
+        onClose={() => setShowDayModal(false)}
+        onDismiss={afterClose.onDismiss}
+        title={
+          selectedDate
+            ? new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+            : ""
+        }
+        backgroundColor={theme.card}
+      >
+        <ScrollView style={styles.modalScroll}>
+          {selectedDateBookings.length > 0 && (
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>Bookings</ThemedText>
+              {selectedDateBookings.map(booking => (
+                <Pressable
+                  key={booking.id}
+                  style={[styles.bookingCard, { backgroundColor: theme.backgroundSecondary }]}
+                  onPress={() => {
+                    // Close the day view first; open the booking once it is gone,
+                    // or the next screen lands hidden underneath it.
+                    afterClose.queue(() => onBookingPress?.(booking));
+                    setShowDayModal(false);
+                    afterClose.runIfImmediate();
+                  }}
+                >
+                  <View style={styles.bookingInfo}>
+                    <ThemedText style={styles.bookingClient}>{booking.clientName}</ThemedText>
+                    <ThemedText style={[styles.bookingService, { color: theme.textSecondary }]}>
+                      {booking.serviceName} - {booking.startTime}
+                    </ThemedText>
+                  </View>
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: booking.status === "confirmed" ? theme.success : isPendingRequestStatus(booking.status) ? theme.warning : theme.textSecondary }
+                  ]}>
+                    <ThemedText style={styles.statusText}>
+                      {bookingStatusLabel(booking.status)}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {selectedDateBlocks.length > 0 && (
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>Blocked Times</ThemedText>
+              {selectedDateBlocks.map((block, idx) => (
+                <View key={block.id || idx} style={[styles.blockCard, { backgroundColor: theme.error + "10" }]}>
+                  <View style={styles.blockInfo}>
+                    <ThemedText style={styles.blockTime}>
+                      {block.isFullDay ? "All Day" : `${block.startTime} - ${block.endTime}`}
+                    </ThemedText>
+                    {block.reason && (
+                      <ThemedText style={[styles.blockReason, { color: theme.textSecondary }]}>
+                        {block.reason}
+                      </ThemedText>
+                    )}
+                  </View>
+                  {block.id && (
+                    <Pressable onPress={() => handleUnblock(block.id!)}>
+                      <Feather name="trash-2" size={18} color={theme.error} />
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Block This Date</ThemedText>
+            
+            <View style={styles.blockOptions}>
+              <Pressable
+                style={[
+                  styles.blockOption,
+                  { borderColor: blockMode === "full" ? theme.primary : theme.border },
+                  blockMode === "full" && { backgroundColor: theme.primary + "10" }
+                ]}
+                onPress={() => setBlockMode("full")}
+              >
+                <Feather name={blockMode === "full" ? "check-circle" : "circle"} size={18} color={blockMode === "full" ? theme.primary : theme.textSecondary} />
+                <ThemedText>Full Day</ThemedText>
+              </Pressable>
+              
+              <Pressable
+                style={[
+                  styles.blockOption,
+                  { borderColor: blockMode === "partial" ? theme.primary : theme.border },
+                  blockMode === "partial" && { backgroundColor: theme.primary + "10" }
+                ]}
+                onPress={() => setBlockMode("partial")}
+              >
+                <Feather name={blockMode === "partial" ? "check-circle" : "circle"} size={18} color={blockMode === "partial" ? theme.primary : theme.textSecondary} />
+                <ThemedText>Specific Hours</ThemedText>
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalScroll}>
-              {selectedDateBookings.length > 0 && (
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionTitle}>Bookings</ThemedText>
-                  {selectedDateBookings.map(booking => (
-                    <Pressable
-                      key={booking.id}
-                      style={[styles.bookingCard, { backgroundColor: theme.backgroundSecondary }]}
-                      onPress={() => onBookingPress?.(booking)}
-                    >
-                      <View style={styles.bookingInfo}>
-                        <ThemedText style={styles.bookingClient}>{booking.clientName}</ThemedText>
-                        <ThemedText style={[styles.bookingService, { color: theme.textSecondary }]}>
-                          {booking.serviceName} - {booking.startTime}
-                        </ThemedText>
-                      </View>
-                      <View style={[
-                        styles.statusBadge,
-                        { backgroundColor: booking.status === "confirmed" ? theme.success : isPendingRequestStatus(booking.status) ? theme.warning : theme.textSecondary }
-                      ]}>
-                        <ThemedText style={styles.statusText}>
-                          {bookingStatusLabel(booking.status)}
-                        </ThemedText>
-                      </View>
-                    </Pressable>
-                  ))}
+            {blockMode === "partial" && (
+              <View style={styles.timeSelectors}>
+                <View style={styles.timeSelector}>
+                  <ThemedText style={[styles.timeSelectorLabel, { color: theme.textSecondary }]}>From</ThemedText>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {TIME_OPTIONS.map(time => (
+                      <Pressable
+                        key={time}
+                        style={[
+                          styles.timeChip,
+                          { borderColor: blockStartTime === time ? theme.primary : theme.border },
+                          blockStartTime === time && { backgroundColor: theme.primary + "20" }
+                        ]}
+                        onPress={() => setBlockStartTime(time)}
+                      >
+                        <ThemedText style={{ fontSize: 12 }}>{time}</ThemedText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
                 </View>
-              )}
-
-              {selectedDateBlocks.length > 0 && (
-                <View style={styles.section}>
-                  <ThemedText style={styles.sectionTitle}>Blocked Times</ThemedText>
-                  {selectedDateBlocks.map((block, idx) => (
-                    <View key={block.id || idx} style={[styles.blockCard, { backgroundColor: theme.error + "10" }]}>
-                      <View style={styles.blockInfo}>
-                        <ThemedText style={styles.blockTime}>
-                          {block.isFullDay ? "All Day" : `${block.startTime} - ${block.endTime}`}
-                        </ThemedText>
-                        {block.reason && (
-                          <ThemedText style={[styles.blockReason, { color: theme.textSecondary }]}>
-                            {block.reason}
-                          </ThemedText>
-                        )}
-                      </View>
-                      {block.id && (
-                        <Pressable onPress={() => handleUnblock(block.id!)}>
-                          <Feather name="trash-2" size={18} color={theme.error} />
-                        </Pressable>
-                      )}
-                    </View>
-                  ))}
+                <View style={styles.timeSelector}>
+                  <ThemedText style={[styles.timeSelectorLabel, { color: theme.textSecondary }]}>To</ThemedText>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {TIME_OPTIONS.map(time => (
+                      <Pressable
+                        key={time}
+                        style={[
+                          styles.timeChip,
+                          { borderColor: blockEndTime === time ? theme.primary : theme.border },
+                          blockEndTime === time && { backgroundColor: theme.primary + "20" }
+                        ]}
+                        onPress={() => setBlockEndTime(time)}
+                      >
+                        <ThemedText style={{ fontSize: 12 }}>{time}</ThemedText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
                 </View>
-              )}
-
-              <View style={styles.section}>
-                <ThemedText style={styles.sectionTitle}>Block This Date</ThemedText>
-                
-                <View style={styles.blockOptions}>
-                  <Pressable
-                    style={[
-                      styles.blockOption,
-                      { borderColor: blockMode === "full" ? theme.primary : theme.border },
-                      blockMode === "full" && { backgroundColor: theme.primary + "10" }
-                    ]}
-                    onPress={() => setBlockMode("full")}
-                  >
-                    <Feather name={blockMode === "full" ? "check-circle" : "circle"} size={18} color={blockMode === "full" ? theme.primary : theme.textSecondary} />
-                    <ThemedText>Full Day</ThemedText>
-                  </Pressable>
-                  
-                  <Pressable
-                    style={[
-                      styles.blockOption,
-                      { borderColor: blockMode === "partial" ? theme.primary : theme.border },
-                      blockMode === "partial" && { backgroundColor: theme.primary + "10" }
-                    ]}
-                    onPress={() => setBlockMode("partial")}
-                  >
-                    <Feather name={blockMode === "partial" ? "check-circle" : "circle"} size={18} color={blockMode === "partial" ? theme.primary : theme.textSecondary} />
-                    <ThemedText>Specific Hours</ThemedText>
-                  </Pressable>
-                </View>
-
-                {blockMode === "partial" && (
-                  <View style={styles.timeSelectors}>
-                    <View style={styles.timeSelector}>
-                      <ThemedText style={[styles.timeSelectorLabel, { color: theme.textSecondary }]}>From</ThemedText>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {TIME_OPTIONS.map(time => (
-                          <Pressable
-                            key={time}
-                            style={[
-                              styles.timeChip,
-                              { borderColor: blockStartTime === time ? theme.primary : theme.border },
-                              blockStartTime === time && { backgroundColor: theme.primary + "20" }
-                            ]}
-                            onPress={() => setBlockStartTime(time)}
-                          >
-                            <ThemedText style={{ fontSize: 12 }}>{time}</ThemedText>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                    <View style={styles.timeSelector}>
-                      <ThemedText style={[styles.timeSelectorLabel, { color: theme.textSecondary }]}>To</ThemedText>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {TIME_OPTIONS.map(time => (
-                          <Pressable
-                            key={time}
-                            style={[
-                              styles.timeChip,
-                              { borderColor: blockEndTime === time ? theme.primary : theme.border },
-                              blockEndTime === time && { backgroundColor: theme.primary + "20" }
-                            ]}
-                            onPress={() => setBlockEndTime(time)}
-                          >
-                            <ThemedText style={{ fontSize: 12 }}>{time}</ThemedText>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  </View>
-                )}
-
-                <Pressable
-                  style={[styles.blockButton, { backgroundColor: theme.error }]}
-                  onPress={handleBlockConfirm}
-                >
-                  <Feather name="x-circle" size={18} color="#FFF" />
-                  <ThemedText style={styles.blockButtonText}>Block {blockMode === "full" ? "All Day" : "Selected Hours"}</ThemedText>
-                </Pressable>
               </View>
-            </ScrollView>
+            )}
+
+            <Pressable
+              style={[styles.blockButton, { backgroundColor: theme.error }]}
+              onPress={handleBlockConfirm}
+            >
+              <Feather name="x-circle" size={18} color="#FFF" />
+              <ThemedText style={styles.blockButtonText}>Block {blockMode === "full" ? "All Day" : "Selected Hours"}</ThemedText>
+            </Pressable>
           </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </FullScreenSheet>
     </View>
   );
 }
@@ -557,28 +563,6 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(128,128,128,0.2)",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
   },
   modalScroll: {
     padding: Spacing.lg,
