@@ -128,7 +128,11 @@ const profileOptions =
       index,
     );
     return mode === "fullScreenModal"
-      ? { ...extra, presentation: "fullScreenModal", animation: "slide_from_bottom" }
+      ? {
+          ...extra,
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }
       : {
           ...extra,
           presentation: "card",

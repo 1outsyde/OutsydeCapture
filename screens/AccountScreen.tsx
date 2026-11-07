@@ -517,6 +517,9 @@ export default function AccountScreen() {
   const routeUserType = params?.userType;
   const viewerMode = Boolean(routeUserId && routeUserId !== String(user?.id));
   const isOwner = !viewerMode;
+  // Opened as the UserProfile route (pushed or full screen modal), even
+  // for your own id: always show a back arrow so there is a way out.
+  const isPushedProfile = route.name === "UserProfile";
 
   useEffect(() => {
     console.log('[AccountScreen] mode', {
@@ -1496,7 +1499,7 @@ export default function AccountScreen() {
         <View style={styles.headerOverlay} />
       </Animated.View>
       <View style={styles.headerRow}>
-        {isOwner ? (
+        {isOwner && !isPushedProfile ? (
           <Pressable
             style={styles.headerButton}
             onPress={() => setSettingsVisible(true)}
@@ -3056,18 +3059,28 @@ export default function AccountScreen() {
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
-        {!isOwner && (
-          <View style={[styles.headerRow, { position: "absolute", top: insets.top + 6, left: 14, zIndex: 50 }]}>
-          <Pressable
-            style={styles.headerButton}
-            onPress={() => navigation.goBack()}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
+        {isPushedProfile && (
+          <View
+            style={[
+              styles.headerRow,
+              {
+                position: "absolute",
+                top: insets.top + 6,
+                left: 14,
+                zIndex: 50,
+              },
+            ]}
           >
-            <Feather name="arrow-left" size={18} color={COLORS.cream} />
-          </Pressable>
-        </View>
+            <Pressable
+              style={styles.headerButton}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Feather name="arrow-left" size={18} color={COLORS.cream} />
+            </Pressable>
+          </View>
         )}
         <View style={styles.loadingWrap}>
           <Feather name="user" size={46} color={COLORS.gold} />
@@ -3091,18 +3104,28 @@ export default function AccountScreen() {
   if (loading || !profile) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
-        {!isOwner && (
-          <View style={[styles.headerRow, { position: "absolute", top: insets.top + 6, left: 14, zIndex: 50 }]}>
-          <Pressable
-            style={styles.headerButton}
-            onPress={() => navigation.goBack()}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
+        {isPushedProfile && (
+          <View
+            style={[
+              styles.headerRow,
+              {
+                position: "absolute",
+                top: insets.top + 6,
+                left: 14,
+                zIndex: 50,
+              },
+            ]}
           >
-            <Feather name="arrow-left" size={18} color={COLORS.cream} />
-          </Pressable>
-        </View>
+            <Pressable
+              style={styles.headerButton}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Feather name="arrow-left" size={18} color={COLORS.cream} />
+            </Pressable>
+          </View>
         )}
         <View style={styles.loadingWrap}>
           <Text style={styles.loadingText}>Loading profile...</Text>

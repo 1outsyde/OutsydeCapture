@@ -2679,7 +2679,17 @@ export default function VendorDetailScreen({ route }: Props) {
   if (loading || !profile) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
-        <View style={[styles.headerRow, { position: "absolute", top: insets.top + 6, left: 14, zIndex: 50 }]}>
+        <View
+          style={[
+            styles.headerRow,
+            {
+              position: "absolute",
+              top: insets.top + 6,
+              left: 14,
+              zIndex: 50,
+            },
+          ]}
+        >
           <Pressable
             style={styles.headerButton}
             onPress={() => navigation.goBack()}
