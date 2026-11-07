@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Pressable, Platform } from "react-native";
 import {
   createNativeStackNavigator,
@@ -113,6 +113,9 @@ import {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// stackAware's push-vs-modal decision per route key (one root navigator).
+const aboveModalByKey = new Map<string, boolean>();
+
 // Profiles push full screen from the right (left-edge swipe back). If a modal
 // is lower on the stack, a push would land under it on iOS, so they open as a
 // full screen modal on top instead. See utils/profilePresentation.ts.
@@ -148,7 +151,6 @@ const profileOptions =
 
 export default function RootNavigator() {
   const { theme } = useTheme();
-  const aboveModalByKey = useRef(new Map<string, boolean>());
 
   // Every non-modal route: unchanged when opened from the tabs. With a modal
   // lower on the stack, a push would land under it on iOS, so it opens as a
@@ -171,18 +173,18 @@ export default function RootNavigator() {
       // Decided once per screen: a mounted screen must never switch between
       // push and modal (react-native-screens can drop it). Chat's getId can
       // move an existing Chat to the top; it keeps how it first opened.
-      let aboveModal = aboveModalByKey.current.get(route.key);
+      let aboveModal = aboveModalByKey.get(route.key);
       if (aboveModal === undefined) {
         aboveModal = isAboveModal(
           routes.map((r) => r.name),
           index,
         );
-        aboveModalByKey.current.set(route.key, aboveModal);
+        aboveModalByKey.set(route.key, aboveModal);
       }
-      if (aboveModalByKey.current.size > 200) {
+      if (aboveModalByKey.size > 200) {
         const live = new Set(routes.map((r) => r.key));
-        for (const k of aboveModalByKey.current.keys()) {
-          if (!live.has(k)) aboveModalByKey.current.delete(k);
+        for (const k of aboveModalByKey.keys()) {
+          if (!live.has(k)) aboveModalByKey.delete(k);
         }
       }
       return aboveModalOptions(
