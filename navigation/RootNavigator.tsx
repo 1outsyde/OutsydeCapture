@@ -138,7 +138,7 @@ export default function RootNavigator() {
         name="Auth"
         component={AuthScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Sign In",
@@ -218,7 +218,7 @@ export default function RootNavigator() {
         name="SelectPhotographer"
         component={SelectPhotographerScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Select Photographer",
@@ -238,10 +238,10 @@ export default function RootNavigator() {
         name="PhotographerDetail"
         component={PhotographerDetailScreen}
         options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
           gestureEnabled: true,
-          fullScreenGestureEnabled: true,
+          fullScreenGestureEnabled: false,
         }}
       />
 
@@ -303,10 +303,10 @@ export default function RootNavigator() {
         name="VendorDetail"
         component={VendorDetailScreen}
         options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
           gestureEnabled: true,
-          fullScreenGestureEnabled: true,
+          fullScreenGestureEnabled: false,
         }}
       />
 
@@ -314,10 +314,10 @@ export default function RootNavigator() {
         name="StaffWorkProfile"
         component={StaffWorkProfileScreen}
         options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
           gestureEnabled: true,
-          fullScreenGestureEnabled: true,
+          fullScreenGestureEnabled: false,
           headerShown: false,
         }}
       />
@@ -422,8 +422,8 @@ export default function RootNavigator() {
         name="FollowList"
         component={FollowListScreen}
         options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
           headerShown: false,
           gestureEnabled: true,
         }}
@@ -433,10 +433,10 @@ export default function RootNavigator() {
         name="UserProfile"
         component={AccountScreen}
         options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
+          presentation: "card",
+          animation: "slide_from_right",
           gestureEnabled: true,
-          fullScreenGestureEnabled: true,
+          fullScreenGestureEnabled: false,
         }}
       />
 
@@ -444,7 +444,7 @@ export default function RootNavigator() {
         name="SessionDetail"
         component={SessionDetailScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Session Details",
@@ -464,7 +464,7 @@ export default function RootNavigator() {
         name="AppointmentDetail"
         component={AppointmentDetailScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Appointment Details",
@@ -588,7 +588,7 @@ export default function RootNavigator() {
         name="CartOrders"
         component={CartOrdersScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Cart & Orders",
@@ -626,7 +626,7 @@ export default function RootNavigator() {
         name="Favorites"
         component={FavoritesScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Saved",
@@ -1023,7 +1023,7 @@ export default function RootNavigator() {
         name="InfluencerApplication"
         component={InfluencerApplicationScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Apply as Influencer",
@@ -1082,7 +1082,7 @@ export default function RootNavigator() {
         name="ProfileCompletionGate"
         component={ProfileCompletionGateScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Complete Your Profile",
@@ -1210,7 +1210,7 @@ export default function RootNavigator() {
         name="Notifications"
         component={NotificationsScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Notifications",
@@ -1262,7 +1262,7 @@ export default function RootNavigator() {
         name="Sessions"
         component={SessionsScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Upcoming",
@@ -1282,7 +1282,7 @@ export default function RootNavigator() {
         name="CreatePost"
         component={CreatePostScreen}
         options={{
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: false,
         }}
@@ -1303,7 +1303,7 @@ export default function RootNavigator() {
         name="StoryInsights"
         component={StoryInsightsScreen}
         options={{
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: false,
           gestureEnabled: false,
@@ -1313,7 +1313,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ForgotPassword"
         component={ForgotPasswordScreen}
-        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+        options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }}
       />
 
       <Stack.Screen
@@ -1325,7 +1325,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ClaimAccount"
         component={ClaimAccountScreen}
-        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+        options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }}
       />
 
       <Stack.Screen
@@ -1352,7 +1352,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="RateReview"
         component={RateReviewScreen}
-        options={{ headerShown: false, presentation: 'modal' }}
+        options={{ headerShown: false, presentation: 'fullScreenModal' }}
       />
     </Stack.Navigator>
   );
