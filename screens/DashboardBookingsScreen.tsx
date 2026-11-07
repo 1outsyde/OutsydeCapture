@@ -9,11 +9,11 @@ import {
   RefreshControl,
   StyleSheet,
   Image,
-  Modal,
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { BusinessBooking } from "@/services/api";
@@ -732,107 +732,97 @@ function SectionLabel({ children }: { children: string }) {
 // Full appointment details for the vendor: every add-on, the customer's whole note, and the money lines.
 // Read-only — Accept/Decline/Refund/No-show stay on the card, so this sheet never opens another modal.
 function BookingDetailSheet({ booking, onClose }: { booking: BusinessBooking | null; onClose: () => void }) {
-  const insets = useSafeAreaInsets();
-  const sc = booking ? statusColors(booking.status) : null;
-  const addons = booking?.addons ?? [];
+  // Keep the last booking on screen while the page slides away after closing.
+  const [lastBooking, setLastBooking] = useState<BusinessBooking | null>(booking);
+  if (booking && booking !== lastBooking) setLastBooking(booking);
+  const shown = booking ?? lastBooking;
+  const sc = shown ? statusColors(shown.status) : null;
+  const addons = shown?.addons ?? [];
   return (
-    <Modal visible={booking !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Close details" />
-        {booking && sc ? (
-          <View
-            style={{
-              backgroundColor: BG,
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              borderWidth: 1,
-              borderColor: CARD_BORDER,
-              maxHeight: "88%",
-              paddingTop: 18,
-              paddingHorizontal: 20,
-              paddingBottom: Math.max(insets.bottom, 16),
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <Text style={{ color: CREAM, fontSize: 18, fontWeight: "700" }}>Appointment details</Text>
-              <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
-                <Feather name="x" size={22} color={CREAM} />
-              </Pressable>
+    <FullScreenSheet
+      visible={booking !== null}
+      onClose={onClose}
+      title="Appointment details"
+      backgroundColor={BG}
+      tintColor={CREAM}
+      borderColor={CARD_BORDER}
+    >
+      {shown && sc ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: 18, paddingHorizontal: 20, paddingBottom: 16 }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: SURFACE, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              {shown.customerAvatar ? (
+                <Image source={{ uri: shown.customerAvatar }} style={{ width: 44, height: 44 }} />
+              ) : (
+                <Feather name="user" size={20} color={CREAM_DIM} />
+              )}
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: SURFACE, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                  {booking.customerAvatar ? (
-                    <Image source={{ uri: booking.customerAvatar }} style={{ width: 44, height: 44 }} />
-                  ) : (
-                    <Feather name="user" size={20} color={CREAM_DIM} />
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: CREAM, fontSize: 16, fontWeight: "600" }}>{booking.customerName}</Text>
-                  <Text style={{ color: CREAM_DIM, fontSize: 13, marginTop: 2 }}>{booking.date} at {booking.time}</Text>
-                </View>
-                <View style={{ backgroundColor: sc.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-                  <Text style={{ color: sc.text, fontSize: 12, fontWeight: "700" }}>{formatStatusLabel(booking.status)}</Text>
-                </View>
-              </View>
-
-              <SectionLabel>SERVICE</SectionLabel>
-              <Text style={{ color: CREAM, fontSize: 15, fontWeight: "600" }}>{booking.serviceName}</Text>
-
-              <SectionLabel>ADD-ONS</SectionLabel>
-              {addons.length === 0 ? (
-                <Text style={{ color: CREAM_DIM, fontSize: 14 }}>None</Text>
-              ) : (
-                addons.map((addon) => (
-                  <DetailRow
-                    key={addon.id}
-                    label={`+ ${addon.name}${addon.durationMinutes > 0 ? ` (adds ${addon.durationMinutes} min)` : ""}`}
-                    value={money(addon.priceCents)}
-                  />
-                ))
-              )}
-
-              <SectionLabel>CUSTOMER'S NOTES</SectionLabel>
-              {booking.customerDetails ? (
-                <Text selectable style={{ color: CREAM, fontSize: 14, lineHeight: 20 }}>
-                  {booking.customerDetails}
-                </Text>
-              ) : (
-                <Text style={{ color: CREAM_DIM, fontSize: 14 }}>No notes</Text>
-              )}
-
-              <SectionLabel>PAYMENT</SectionLabel>
-              {booking.subtotalAmount != null && <DetailRow label="Subtotal" value={`$${booking.subtotalAmount.toFixed(2)}`} />}
-              {booking.bookingFeeAmount != null && <DetailRow label="Fee" value={`-$${booking.bookingFeeAmount.toFixed(2)}`} />}
-              {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null && (
-                <DetailRow label="Influencer" value={`-$${booking.influencerCommissionAmount.toFixed(2)}`} />
-              )}
-              {typeof booking.depositAmountCents === "number" && booking.depositAmountCents > 0 ? (
-                <DetailRow label="Deposit paid online" value={money(booking.depositAmountCents)} />
-              ) : null}
-              {typeof booking.discountAmountCents === "number" && booking.discountAmountCents > 0 ? (
-                <DetailRow label="Outsyde rewards used" value={`${money(booking.discountAmountCents)}, paid by Outsyde`} />
-              ) : null}
-              {booking.vendorNetAmount != null ? (
-                <DetailRow label="You earn" value={`$${booking.vendorNetAmount.toFixed(2)}`} strong />
-              ) : (
-                <DetailRow label="Amount" value={`$${booking.amount}`} strong />
-              )}
-              {typeof booking.inPersonDueCents === "number" && booking.inPersonDueCents > 0 ? (
-                <DetailRow label="Collect in person" value={money(booking.inPersonDueCents)} strong />
-              ) : null}
-
-              <Pressable
-                onPress={onClose}
-                style={{ marginTop: 20, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: CARD_BORDER, alignItems: "center" }}
-              >
-                <Text style={{ color: CREAM, fontSize: 15, fontWeight: "600" }}>Close</Text>
-              </Pressable>
-            </ScrollView>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: CREAM, fontSize: 16, fontWeight: "600" }}>{shown.customerName}</Text>
+              <Text style={{ color: CREAM_DIM, fontSize: 13, marginTop: 2 }}>{shown.date} at {shown.time}</Text>
+            </View>
+            <View style={{ backgroundColor: sc.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Text style={{ color: sc.text, fontSize: 12, fontWeight: "700" }}>{formatStatusLabel(shown.status)}</Text>
+            </View>
           </View>
-        ) : null}
-      </View>
-    </Modal>
+
+          <SectionLabel>SERVICE</SectionLabel>
+          <Text style={{ color: CREAM, fontSize: 15, fontWeight: "600" }}>{shown.serviceName}</Text>
+
+          <SectionLabel>ADD-ONS</SectionLabel>
+          {addons.length === 0 ? (
+            <Text style={{ color: CREAM_DIM, fontSize: 14 }}>None</Text>
+          ) : (
+            addons.map((addon) => (
+              <DetailRow
+                key={addon.id}
+                label={`+ ${addon.name}${addon.durationMinutes > 0 ? ` (adds ${addon.durationMinutes} min)` : ""}`}
+                value={money(addon.priceCents)}
+              />
+            ))
+          )}
+
+          <SectionLabel>CUSTOMER'S NOTES</SectionLabel>
+          {shown.customerDetails ? (
+            <Text selectable style={{ color: CREAM, fontSize: 14, lineHeight: 20 }}>
+              {shown.customerDetails}
+            </Text>
+          ) : (
+            <Text style={{ color: CREAM_DIM, fontSize: 14 }}>No notes</Text>
+          )}
+
+          <SectionLabel>PAYMENT</SectionLabel>
+          {shown.subtotalAmount != null && <DetailRow label="Subtotal" value={`$${shown.subtotalAmount.toFixed(2)}`} />}
+          {shown.bookingFeeAmount != null && <DetailRow label="Fee" value={`-$${shown.bookingFeeAmount.toFixed(2)}`} />}
+          {shown.isInfluencerAttributed && shown.influencerCommissionAmount != null && (
+            <DetailRow label="Influencer" value={`-$${shown.influencerCommissionAmount.toFixed(2)}`} />
+          )}
+          {typeof shown.depositAmountCents === "number" && shown.depositAmountCents > 0 ? (
+            <DetailRow label="Deposit paid online" value={money(shown.depositAmountCents)} />
+          ) : null}
+          {typeof shown.discountAmountCents === "number" && shown.discountAmountCents > 0 ? (
+            <DetailRow label="Outsyde rewards used" value={`${money(shown.discountAmountCents)}, paid by Outsyde`} />
+          ) : null}
+          {shown.vendorNetAmount != null ? (
+            <DetailRow label="You earn" value={`$${shown.vendorNetAmount.toFixed(2)}`} strong />
+          ) : (
+            <DetailRow label="Amount" value={`$${shown.amount}`} strong />
+          )}
+          {typeof shown.inPersonDueCents === "number" && shown.inPersonDueCents > 0 ? (
+            <DetailRow label="Collect in person" value={money(shown.inPersonDueCents)} strong />
+          ) : null}
+
+          <Pressable
+            onPress={onClose}
+            style={{ marginTop: 20, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: CARD_BORDER, alignItems: "center" }}
+          >
+            <Text style={{ color: CREAM, fontSize: 15, fontWeight: "600" }}>Close</Text>
+          </Pressable>
+        </ScrollView>
+      ) : null}
+    </FullScreenSheet>
   );
 }

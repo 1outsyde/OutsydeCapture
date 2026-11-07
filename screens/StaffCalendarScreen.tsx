@@ -7,14 +7,12 @@ import {
   ActivityIndicator,
   StyleSheet,
   RefreshControl,
-  Modal,
   Switch,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
@@ -788,23 +786,19 @@ export default function StaffCalendarScreen() {
       </Pressable>
 
       {/* Block Modal */}
-      <Modal
+      <FullScreenSheet
         visible={blockModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setBlockModalVisible(false)}
+        onClose={() => setBlockModalVisible(false)}
+        title="Block Time"
+        closeLabel="cancel"
+        backgroundColor={BG}
+        tintColor={CREAM}
+        borderColor={BORDER}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setBlockModalVisible(false)} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalSheet}
+        <ScrollView
+          contentContainerStyle={styles.modalBody}
+          keyboardShouldPersistTaps="handled"
         >
-          {/* Handle bar */}
-          <View style={styles.modalHandle} />
-
-          {/* Header */}
-          <Text style={styles.modalTitle}>Block Time</Text>
-
           {/* Date row */}
           <View style={styles.modalRow}>
             <Feather name="calendar" size={16} color={GOLD} />
@@ -957,8 +951,8 @@ export default function StaffCalendarScreen() {
               ? <ActivityIndicator color="#000" />
               : <Text style={styles.submitBtnText}>Block Time</Text>}
           </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+        </ScrollView>
+      </FullScreenSheet>
     </View>
   );
 }
@@ -1140,30 +1134,7 @@ function makeStyles(topInset: number) {
       marginTop: -2,
     },
     // Modal
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
-    modalSheet: {
-      backgroundColor: "#0F0F0F",
-      borderTopWidth: 1,
-      borderTopColor: "rgba(255,255,255,0.08)",
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      padding: 20,
-      paddingBottom: 40,
-    },
-    modalHandle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: "#444",
-      alignSelf: "center",
-      marginBottom: 16,
-    },
-    modalTitle: {
-      color: CREAM,
-      fontSize: 16,
-      fontWeight: "700",
-      marginBottom: 20,
-    },
+    modalBody: { padding: 20, paddingBottom: 32 },
     modalRow: {
       flexDirection: "row",
       alignItems: "center",

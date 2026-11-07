@@ -6,6 +6,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -71,7 +73,10 @@ export default function RefundModal({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <View style={[styles.modal, { backgroundColor: theme.card }]}>
           <View style={styles.header}>
             <View style={[styles.iconCircle, { backgroundColor: theme.error + "15" }]}>
@@ -185,7 +190,7 @@ export default function RefundModal({
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

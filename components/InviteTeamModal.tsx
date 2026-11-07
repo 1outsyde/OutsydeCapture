@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Pressable,
   TextInput,
   ScrollView,
@@ -11,8 +10,8 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/services/api";
 
@@ -34,7 +33,6 @@ export default function InviteTeamModal({
   seatStatus,
 }: InviteTeamModalProps) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -104,208 +102,162 @@ export default function InviteTeamModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View
-          style={[
-            styles.modalContainer,
-            {
-              backgroundColor: theme.background,
-              paddingTop: insets.top + 16,
-              paddingBottom: insets.bottom + 16,
-            },
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <Pressable onPress={onClose} style={styles.closeButton}>
-              <Feather name="x" size={24} color={theme.text} />
-            </Pressable>
-            <Text style={[styles.title, { color: theme.text }]}>
-              Invite Team Member
+    <FullScreenSheet
+      visible={visible}
+      onClose={onClose}
+      title="Invite Team Member"
+      backgroundColor={theme.background}
+    >
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Seat cap warning */}
+        {seatStatus != null && seatStatus.maxStaff !== null && seatStatus.usedSeats >= seatStatus.maxStaff ? (
+          <View style={styles.seatCapBanner}>
+            <Feather name="alert-triangle" size={14} color="#F59E0B" />
+            <Text style={styles.seatCapText}>
+              {`You've used all ${seatStatus.maxStaff} seats on ${seatStatus.tierName}. Upgrade to add more team members.`}
             </Text>
-            <View style={{ width: 40 }} />
           </View>
+        ) : null}
 
-          <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Seat cap warning */}
-            {seatStatus != null && seatStatus.maxStaff !== null && seatStatus.usedSeats >= seatStatus.maxStaff ? (
-              <View style={styles.seatCapBanner}>
-                <Feather name="alert-triangle" size={14} color="#F59E0B" />
-                <Text style={styles.seatCapText}>
-                  {`You've used all ${seatStatus.maxStaff} seats on ${seatStatus.tierName}. Upgrade to add more team members.`}
-                </Text>
-              </View>
-            ) : null}
+        {/* Email */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: theme.text }]}>
+            Email address *
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.card,
+                color: theme.text,
+                borderColor: error && !email.trim() ? "#FF4444" : theme.border,
+              },
+            ]}
+            value={email}
+            onChangeText={(t) => {
+              setEmail(t);
+              if (error) setError(null);
+            }}
+            placeholder="teammate@example.com"
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoCorrect={false}
+            editable={!submitting}
+          />
+        </View>
 
-            {/* Email */}
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: theme.text }]}>
-                Email address *
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.card,
-                    color: theme.text,
-                    borderColor: error && !email.trim() ? "#FF4444" : theme.border,
-                  },
-                ]}
-                value={email}
-                onChangeText={(t) => {
-                  setEmail(t);
-                  if (error) setError(null);
-                }}
-                placeholder="teammate@example.com"
-                placeholderTextColor={theme.textSecondary}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-                editable={!submitting}
-              />
-            </View>
-
-            {/* Role toggle */}
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: theme.text }]}>Role</Text>
-              <View style={styles.roleRow}>
-                {(["staff", "manager"] as const).map((r) => {
-                  const active = role === r;
-                  return (
-                    <Pressable
-                      key={r}
-                      onPress={() => setRole(r)}
-                      disabled={submitting}
-                      style={[
-                        styles.roleButton,
-                        {
-                          borderColor: active ? brandColor : theme.border,
-                          backgroundColor: active
-                            ? `${brandColor}22`
-                            : theme.card,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.roleButtonText,
-                          { color: active ? brandColor : theme.textSecondary },
-                        ]}
-                      >
-                        {r.charAt(0).toUpperCase() + r.slice(1)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Phone (optional) */}
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: theme.text }]}>
-                Phone{" "}
-                <Text style={{ color: theme.textSecondary, fontWeight: "400" }}>
-                  (optional)
-                </Text>
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.card,
-                    color: theme.text,
-                    borderColor: theme.border,
-                  },
-                ]}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+1 555 000 0000"
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="phone-pad"
-                editable={!submitting}
-              />
-            </View>
-
-            {/* Inline error */}
-            {error ? (
-              <View style={styles.errorBox}>
-                <Feather name="alert-circle" size={14} color="#FF4444" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-          </ScrollView>
-
-          {/* Footer */}
-          <View style={[styles.footer, { borderTopColor: theme.border }]}>
-            <Pressable
-              onPress={onClose}
-              disabled={submitting}
-              style={[
-                styles.cancelButton,
-                { borderColor: theme.border },
-                submitting && styles.buttonDisabled,
-              ]}
-            >
-              <Text style={[styles.cancelButtonText, { color: theme.text }]}>
-                Cancel
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleSubmit}
-              disabled={submitting}
-              style={[
-                styles.sendButton,
-                { backgroundColor: brandColor },
-                submitting && styles.buttonDisabled,
-              ]}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#000" />
-              ) : (
-                <Text style={styles.sendButtonText}>Send Invite</Text>
-              )}
-            </Pressable>
+        {/* Role toggle */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: theme.text }]}>Role</Text>
+          <View style={styles.roleRow}>
+            {(["staff", "manager"] as const).map((r) => {
+              const active = role === r;
+              return (
+                <Pressable
+                  key={r}
+                  onPress={() => setRole(r)}
+                  disabled={submitting}
+                  style={[
+                    styles.roleButton,
+                    {
+                      borderColor: active ? brandColor : theme.border,
+                      backgroundColor: active
+                        ? `${brandColor}22`
+                        : theme.card,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.roleButtonText,
+                      { color: active ? brandColor : theme.textSecondary },
+                    ]}
+                  >
+                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
+
+        {/* Phone (optional) */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: theme.text }]}>
+            Phone{" "}
+            <Text style={{ color: theme.textSecondary, fontWeight: "400" }}>
+              (optional)
+            </Text>
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.card,
+                color: theme.text,
+                borderColor: theme.border,
+              },
+            ]}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="+1 555 000 0000"
+            placeholderTextColor={theme.textSecondary}
+            keyboardType="phone-pad"
+            editable={!submitting}
+          />
+        </View>
+
+        {/* Inline error */}
+        {error ? (
+          <View style={styles.errorBox}>
+            <Feather name="alert-circle" size={14} color="#FF4444" />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {/* Footer */}
+      <View style={[styles.footer, { borderTopColor: theme.border }]}>
+        <Pressable
+          onPress={onClose}
+          disabled={submitting}
+          style={[
+            styles.cancelButton,
+            { borderColor: theme.border },
+            submitting && styles.buttonDisabled,
+          ]}
+        >
+          <Text style={[styles.cancelButtonText, { color: theme.text }]}>
+            Cancel
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={handleSubmit}
+          disabled={submitting}
+          style={[
+            styles.sendButton,
+            { backgroundColor: brandColor },
+            submitting && styles.buttonDisabled,
+          ]}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : (
+            <Text style={styles.sendButtonText}>Send Invite</Text>
+          )}
+        </Pressable>
       </View>
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalContainer: {
-    flex: 1,
-    marginTop: 40,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
   content: {
     flex: 1,
     paddingHorizontal: 16,

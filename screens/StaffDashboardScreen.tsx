@@ -8,8 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  Modal,
   TextInput,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -18,7 +18,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 import api, {
   StaffMemberProfile,
   StaffBooking,
@@ -35,7 +35,8 @@ import ProviderCalendar, {
 import DateBlocker, { BlockedDate } from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
-import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
+import { createAfterClose } from "@/utils/afterSheetClose";
 import { uploadImage } from "@/services/mediaUpload";
 import { formatDuration } from "@/utils/duration";
 import { quoteIsOpen } from "@/utils/businessQuotesLogic";
@@ -104,6 +105,7 @@ export default function StaffDashboardScreen() {
   const [earnings, setEarnings] = useState({ total: 0, thisMonth: 0, pending: 0 });
 
   const [showServiceEditor, setShowServiceEditor] = useState(false);
+  const [servicesAfterClose] = useState(() => createAfterClose(Platform.OS));
   const [editingStaffService, setEditingStaffService] = useState<ServiceFormData | null>(null);
   const [depositServerError, setDepositServerError] = useState<string | null>(null);
 
@@ -657,370 +659,329 @@ export default function StaffDashboardScreen() {
       </ScrollView>
 
       {/* Bookings modal */}
-      <Modal
+      <FullScreenSheet
         visible={activeModal === "bookings"}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setActiveModal(null)}
+        onClose={() => setActiveModal(null)}
+        title="My Bookings"
       >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>My Bookings</Text>
-              <Pressable onPress={() => setActiveModal(null)}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView style={{ paddingHorizontal: Spacing.xl }}>
-              {bookings.length === 0 ? (
-                <Text style={styles.emptyText}>No bookings yet</Text>
-              ) : (
-                bookings.map((booking) => (
-                  <View key={booking.id} style={styles.listRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.listRowTitle}>
-                        {formatDateLabel(booking.appointmentDate)} · {booking.appointmentTime}
-                      </Text>
-                      <Text style={styles.listRowSubtitle}>{serviceNameFor(booking.serviceId)}</Text>
-                      {booking.staffPayout ? (
-                        <Text style={[styles.listRowSubtitle, { color: "#34C759" }]}>
-                          Your payout: {formatCurrency(booking.staffPayout)}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View style={styles.statusPill}>
-                      <Text style={styles.statusPillText}>{bookingStatusLabel(booking.status)}</Text>
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        <ScrollView
+          style={{ paddingHorizontal: Spacing.xl }}
+          contentContainerStyle={{ paddingTop: Spacing.md, paddingBottom: Spacing.lg }}
+        >
+          {bookings.length === 0 ? (
+            <Text style={styles.emptyText}>No bookings yet</Text>
+          ) : (
+            bookings.map((booking) => (
+              <View key={booking.id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listRowTitle}>
+                    {formatDateLabel(booking.appointmentDate)} · {booking.appointmentTime}
+                  </Text>
+                  <Text style={styles.listRowSubtitle}>{serviceNameFor(booking.serviceId)}</Text>
+                  {booking.staffPayout ? (
+                    <Text style={[styles.listRowSubtitle, { color: "#34C759" }]}>
+                      Your payout: {formatCurrency(booking.staffPayout)}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={styles.statusPill}>
+                  <Text style={styles.statusPillText}>{bookingStatusLabel(booking.status)}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </FullScreenSheet>
 
       {/* Services modal — full management flow */}
-      <Modal
+      <FullScreenSheet
         visible={activeModal === "services"}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setActiveModal(null)}
+        onClose={() => setActiveModal(null)}
+        onDismiss={servicesAfterClose.onDismiss}
+        title="My Services"
       >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg, maxHeight: "85%" }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>My Services</Text>
-              <Pressable onPress={() => setActiveModal(null)}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView style={{ paddingHorizontal: Spacing.xl }}>
-              <Pressable
-                style={[styles.addButton, { marginBottom: Spacing.lg }]}
-                onPress={() => {
-                  setDepositServerError(null);
-                  setEditingStaffService(null);
-                  setActiveModal(null);
-                  setTimeout(() => setShowServiceEditor(true), 100);
-                }}
-              >
-                <Feather name="plus" size={18} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>Add Service</Text>
-              </Pressable>
+        <ScrollView
+          style={{ paddingHorizontal: Spacing.xl }}
+          contentContainerStyle={{ paddingTop: Spacing.md, paddingBottom: Spacing.lg }}
+        >
+          <Pressable
+            style={[styles.addButton, { marginBottom: Spacing.lg }]}
+            onPress={() => {
+              setDepositServerError(null);
+              setEditingStaffService(null);
+              // Open the editor once My Services has fully closed (iOS can drop a
+              // second full screen page presented while the first is still closing).
+              servicesAfterClose.queue(() => setShowServiceEditor(true));
+              setActiveModal(null);
+              servicesAfterClose.runIfImmediate();
+            }}
+          >
+            <Feather name="plus" size={18} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>Add Service</Text>
+          </Pressable>
 
-              {services.length === 0 ? (
-                <Text style={styles.emptyText}>No services yet — tap Add Service to create one.</Text>
-              ) : (
-                services.map((service) => {
-                  const status = service.status || "draft";
-                  const statusColor =
-                    status === "live" ? "#34C759"
-                    : status === "archived" ? "#8E8E93"
-                    : "#FF9500";
-                  return (
-                    <View key={service.id} style={styles.listRow}>
-                      {service.imageUrl ? (
-                        <Image
-                          source={{ uri: service.imageUrl }}
-                          style={styles.serviceThumb}
-                          contentFit="cover"
-                        />
-                      ) : null}
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <Text style={styles.listRowTitle}>{service.name}</Text>
-                          <View style={{
-                            backgroundColor: statusColor + "22",
-                            paddingHorizontal: 7,
-                            paddingVertical: 2,
-                            borderRadius: 6,
-                          }}>
-                            <Text style={{ color: statusColor, fontSize: 11, fontWeight: "600", textTransform: "capitalize" }}>
-                              {status}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={styles.listRowSubtitle}>
-                          {formatCurrency(service.priceCents)}
-                          {service.durationMinutes ? ` · ${formatDuration(service.durationMinutes)}` : ""}
-                          {service.depositAmountCents && service.depositAmountCents > 0
-                            ? ` · ${formatCurrency(service.depositAmountCents)} deposit`
-                            : ""}
+          {services.length === 0 ? (
+            <Text style={styles.emptyText}>No services yet — tap Add Service to create one.</Text>
+          ) : (
+            services.map((service) => {
+              const status = service.status || "draft";
+              const statusColor =
+                status === "live" ? "#34C759"
+                : status === "archived" ? "#8E8E93"
+                : "#FF9500";
+              return (
+                <View key={service.id} style={styles.listRow}>
+                  {service.imageUrl ? (
+                    <Image
+                      source={{ uri: service.imageUrl }}
+                      style={styles.serviceThumb}
+                      contentFit="cover"
+                    />
+                  ) : null}
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Text style={styles.listRowTitle}>{service.name}</Text>
+                      <View style={{
+                        backgroundColor: statusColor + "22",
+                        paddingHorizontal: 7,
+                        paddingVertical: 2,
+                        borderRadius: 6,
+                      }}>
+                        <Text style={{ color: statusColor, fontSize: 11, fontWeight: "600", textTransform: "capitalize" }}>
+                          {status}
                         </Text>
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        {status === "draft" && (
-                          <Pressable
-                            onPress={() => handleGoLiveStaffService(service.id)}
-                            style={{ padding: 8 }}
-                            hitSlop={8}
-                          >
-                            <Feather name="zap" size={18} color="#34C759" />
-                          </Pressable>
-                        )}
-                        <Pressable
-                          onPress={() => {
-                            const formData: ServiceFormData = {
-                              id: service.id,
-                              name: service.name,
-                              description: service.description || "",
-                              category: (service as any).category || "Portrait",
-                              pricingModel: (service as any).pricingModel || "package",
-                              price: (service.priceCents / 100).toFixed(2),
-                              duration: String(service.durationMinutes || 60),
-                              packageHours: (service as any).packageHours ? String((service as any).packageHours) : "",
-                              status: service.status,
-                              serviceLocationType: (service as any).serviceLocationType ?? "business",
-                              alternateAddress: (service as any).alternateAddress ?? null,
-                              alternateCity: (service as any).alternateCity ?? null,
-                              alternateState: (service as any).alternateState ?? null,
-                              alternateZipCode: (service as any).alternateZipCode ?? null,
-                              virtualLink: (service as any).virtualLink ?? null,
-                              fullRefundWindow: (service as any).fullRefundWindow ?? undefined,
-                              hasPartialRefund: (service as any).hasPartialRefund ?? false,
-                              partialRefundWindow: (service as any).partialRefundWindow ?? null,
-                              partialRefundPercentage: (service as any).partialRefundPercentage ?? null,
-                              hasCancellationFee: (service as any).hasCancellationFee ?? false,
-                              cancellationFeeType: (service as any).cancellationFeeType ?? null,
-                              cancellationFeeAmount: (service as any).cancellationFeeAmount ?? null,
-                              depositAmountCents: service.depositAmountCents ?? null,
-                              imageUrl: service.imageUrl ?? null,
-                            };
-                            setDepositServerError(null);
-                            setEditingStaffService(formData);
-                            setActiveModal(null);
-                            setTimeout(() => setShowServiceEditor(true), 100);
-                          }}
-                          style={{ padding: 8 }}
-                          hitSlop={8}
-                        >
-                          <Feather name="edit-2" size={18} color={theme.text} />
-                        </Pressable>
-                        <Pressable
-                          onPress={() => handleDeleteStaffService(service.id, service.name)}
-                          style={{ padding: 8 }}
-                          hitSlop={8}
-                        >
-                          <Feather name="trash-2" size={18} color="#FF3B30" />
-                        </Pressable>
-                      </View>
                     </View>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Base Hours modal */}
-      <Modal
-        visible={activeModal === "hours"}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setActiveModal(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg, maxHeight: "85%" }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Base Hours</Text>
-              <Pressable onPress={() => setActiveModal(null)}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScreenKeyboardAwareScrollView style={{ paddingHorizontal: Spacing.xl }} contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }} keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalDescription}>
-                Add the specific dates you're available for bookings.
-              </Text>
-
-              {!addingHours ? (
-                <Pressable style={styles.addButton} onPress={() => setAddingHours(true)}>
-                  <Feather name="plus" size={18} color="#FFFFFF" />
-                  <Text style={styles.addButtonText}>Add Availability</Text>
-                </Pressable>
-              ) : (
-                <View style={styles.addForm}>
-                  <Text style={styles.formLabel}>Date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    value={hoursDate}
-                    onChangeText={setHoursDate}
-                    placeholder="2026-08-15"
-                    placeholderTextColor={theme.textSecondary}
-                    style={styles.textInput}
-                  />
-                  <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-                    <Pressable
-                      style={[styles.timeButton, { flex: 1 }]}
-                      onPress={() => setShowHoursTimePicker("start")}
-                    >
-                      <Text style={{ color: theme.text, fontWeight: "500" }}>{hoursStartTime}</Text>
-                      <Feather name="chevron-down" size={18} color={theme.textSecondary} />
-                    </Pressable>
-                    <Text style={{ alignSelf: "center", color: theme.textSecondary }}>to</Text>
-                    <Pressable
-                      style={[styles.timeButton, { flex: 1 }]}
-                      onPress={() => setShowHoursTimePicker("end")}
-                    >
-                      <Text style={{ color: theme.text, fontWeight: "500" }}>{hoursEndTime}</Text>
-                      <Feather name="chevron-down" size={18} color={theme.textSecondary} />
-                    </Pressable>
+                    <Text style={styles.listRowSubtitle}>
+                      {formatCurrency(service.priceCents)}
+                      {service.durationMinutes ? ` · ${formatDuration(service.durationMinutes)}` : ""}
+                      {service.depositAmountCents && service.depositAmountCents > 0
+                        ? ` · ${formatCurrency(service.depositAmountCents)} deposit`
+                        : ""}
+                    </Text>
                   </View>
-
-                  {showHoursTimePicker ? (
-                    <ScrollView style={{ maxHeight: 160, marginTop: 12 }}>
-                      {TIME_OPTIONS.map((time) => (
-                        <Pressable
-                          key={time}
-                          onPress={() => {
-                            if (showHoursTimePicker === "start") setHoursStartTime(time);
-                            else setHoursEndTime(time);
-                            setShowHoursTimePicker(null);
-                          }}
-                          style={styles.timeOptionRow}
-                        >
-                          <Text style={{ color: theme.text }}>{time}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  ) : null}
-
-                  <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    {status === "draft" && (
+                      <Pressable
+                        onPress={() => handleGoLiveStaffService(service.id)}
+                        style={{ padding: 8 }}
+                        hitSlop={8}
+                      >
+                        <Feather name="zap" size={18} color="#34C759" />
+                      </Pressable>
+                    )}
                     <Pressable
-                      style={[styles.secondaryButton, { flex: 1 }]}
                       onPress={() => {
-                        setAddingHours(false);
-                        setHoursDate("");
+                        const formData: ServiceFormData = {
+                          id: service.id,
+                          name: service.name,
+                          description: service.description || "",
+                          category: (service as any).category || "Portrait",
+                          pricingModel: (service as any).pricingModel || "package",
+                          price: (service.priceCents / 100).toFixed(2),
+                          duration: String(service.durationMinutes || 60),
+                          packageHours: (service as any).packageHours ? String((service as any).packageHours) : "",
+                          status: service.status,
+                          serviceLocationType: (service as any).serviceLocationType ?? "business",
+                          alternateAddress: (service as any).alternateAddress ?? null,
+                          alternateCity: (service as any).alternateCity ?? null,
+                          alternateState: (service as any).alternateState ?? null,
+                          alternateZipCode: (service as any).alternateZipCode ?? null,
+                          virtualLink: (service as any).virtualLink ?? null,
+                          fullRefundWindow: (service as any).fullRefundWindow ?? undefined,
+                          hasPartialRefund: (service as any).hasPartialRefund ?? false,
+                          partialRefundWindow: (service as any).partialRefundWindow ?? null,
+                          partialRefundPercentage: (service as any).partialRefundPercentage ?? null,
+                          hasCancellationFee: (service as any).hasCancellationFee ?? false,
+                          cancellationFeeType: (service as any).cancellationFeeType ?? null,
+                          cancellationFeeAmount: (service as any).cancellationFeeAmount ?? null,
+                          depositAmountCents: service.depositAmountCents ?? null,
+                          imageUrl: service.imageUrl ?? null,
+                        };
+                        setDepositServerError(null);
+                        setEditingStaffService(formData);
+                        // Open the editor once My Services has fully closed (iOS can drop a
+                        // second full screen page presented while the first is still closing).
+                        servicesAfterClose.queue(() => setShowServiceEditor(true));
+                        setActiveModal(null);
+                        servicesAfterClose.runIfImmediate();
                       }}
+                      style={{ padding: 8 }}
+                      hitSlop={8}
                     >
-                      <Text style={styles.secondaryButtonText}>Cancel</Text>
+                      <Feather name="edit-2" size={18} color={theme.text} />
                     </Pressable>
                     <Pressable
-                      style={[styles.addButton, { flex: 1, marginTop: 0 }]}
-                      onPress={handleAddAvailability}
-                      disabled={savingHours}
+                      onPress={() => handleDeleteStaffService(service.id, service.name)}
+                      style={{ padding: 8 }}
+                      hitSlop={8}
                     >
-                      {savingHours ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.addButtonText}>Save</Text>
-                      )}
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-
-              <Text style={[styles.formLabel, { marginTop: 20 }]}>Upcoming Availability</Text>
-              {availableSlots.length === 0 ? (
-                <Text style={styles.emptyText}>No availability set yet</Text>
-              ) : (
-                availableSlots.map((slot) => (
-                  <View key={slot.id} style={styles.listRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.listRowTitle}>{formatDateLabel(slot.date)}</Text>
-                      <Text style={styles.listRowSubtitle}>
-                        {convertTo12Hour(slot.startTime)} - {convertTo12Hour(slot.endTime)}
-                      </Text>
-                    </View>
-                    <Pressable onPress={() => handleRemoveAvailability(slot.id)}>
                       <Feather name="trash-2" size={18} color="#FF3B30" />
                     </Pressable>
                   </View>
-                ))
-              )}
-            </ScreenKeyboardAwareScrollView>
-          </View>
-        </View>
-      </Modal>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      </FullScreenSheet>
+
+      {/* Base Hours modal */}
+      <FullScreenSheet
+        visible={activeModal === "hours"}
+        onClose={() => setActiveModal(null)}
+        title="Base Hours"
+      >
+        <ScrollView
+          style={{ paddingHorizontal: Spacing.xl }}
+          contentContainerStyle={{ paddingTop: Spacing.md, paddingBottom: Spacing.lg }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.modalDescription}>
+            Add the specific dates you're available for bookings.
+          </Text>
+
+          {!addingHours ? (
+            <Pressable style={styles.addButton} onPress={() => setAddingHours(true)}>
+              <Feather name="plus" size={18} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Add Availability</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.addForm}>
+              <Text style={styles.formLabel}>Date (YYYY-MM-DD)</Text>
+              <TextInput
+                value={hoursDate}
+                onChangeText={setHoursDate}
+                placeholder="2026-08-15"
+                placeholderTextColor={theme.textSecondary}
+                style={styles.textInput}
+              />
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+                <Pressable
+                  style={[styles.timeButton, { flex: 1 }]}
+                  onPress={() => setShowHoursTimePicker("start")}
+                >
+                  <Text style={{ color: theme.text, fontWeight: "500" }}>{hoursStartTime}</Text>
+                  <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+                </Pressable>
+                <Text style={{ alignSelf: "center", color: theme.textSecondary }}>to</Text>
+                <Pressable
+                  style={[styles.timeButton, { flex: 1 }]}
+                  onPress={() => setShowHoursTimePicker("end")}
+                >
+                  <Text style={{ color: theme.text, fontWeight: "500" }}>{hoursEndTime}</Text>
+                  <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+                </Pressable>
+              </View>
+
+              {showHoursTimePicker ? (
+                <ScrollView style={{ maxHeight: 160, marginTop: 12 }}>
+                  {TIME_OPTIONS.map((time) => (
+                    <Pressable
+                      key={time}
+                      onPress={() => {
+                        if (showHoursTimePicker === "start") setHoursStartTime(time);
+                        else setHoursEndTime(time);
+                        setShowHoursTimePicker(null);
+                      }}
+                      style={styles.timeOptionRow}
+                    >
+                      <Text style={{ color: theme.text }}>{time}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : null}
+
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+                <Pressable
+                  style={[styles.secondaryButton, { flex: 1 }]}
+                  onPress={() => {
+                    setAddingHours(false);
+                    setHoursDate("");
+                  }}
+                >
+                  <Text style={styles.secondaryButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.addButton, { flex: 1, marginTop: 0 }]}
+                  onPress={handleAddAvailability}
+                  disabled={savingHours}
+                >
+                  {savingHours ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.addButtonText}>Save</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          <Text style={[styles.formLabel, { marginTop: 20 }]}>Upcoming Availability</Text>
+          {availableSlots.length === 0 ? (
+            <Text style={styles.emptyText}>No availability set yet</Text>
+          ) : (
+            availableSlots.map((slot) => (
+              <View key={slot.id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listRowTitle}>{formatDateLabel(slot.date)}</Text>
+                  <Text style={styles.listRowSubtitle}>
+                    {convertTo12Hour(slot.startTime)} - {convertTo12Hour(slot.endTime)}
+                  </Text>
+                </View>
+                <Pressable onPress={() => handleRemoveAvailability(slot.id)}>
+                  <Feather name="trash-2" size={18} color="#FF3B30" />
+                </Pressable>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </FullScreenSheet>
 
       {/* Block Dates modal — reuses the same DateBlocker component as Photographer Dashboard */}
-      <Modal
+      <FullScreenSheet
         visible={activeModal === "blocked"}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setActiveModal(null)}
+        onClose={() => setActiveModal(null)}
+        title="Block Dates"
       >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg, maxHeight: "90%" }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Block Dates</Text>
-              <Pressable onPress={() => setActiveModal(null)}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView style={{ paddingHorizontal: Spacing.xl }}>
-              <DateBlocker
-                blockedDates={dateBlockerBlockedDates}
-                onAdd={handleAddBlockedDate}
-                onRemove={handleRemoveBlockedDate}
-                isSaving={savingBlocked}
-              />
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        <ScrollView
+          style={{ paddingHorizontal: Spacing.xl }}
+          contentContainerStyle={{ paddingTop: Spacing.md, paddingBottom: Spacing.lg }}
+        >
+          <DateBlocker
+            blockedDates={dateBlockerBlockedDates}
+            onAdd={handleAddBlockedDate}
+            onRemove={handleRemoveBlockedDate}
+            isSaving={savingBlocked}
+          />
+        </ScrollView>
+      </FullScreenSheet>
 
       {/* Weekly Hours modal */}
-      <Modal
+      <FullScreenSheet
         visible={activeModal === "weeklyHours"}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setActiveModal(null)}
+        onClose={() => setActiveModal(null)}
+        title="Weekly Hours"
       >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setActiveModal(null)} />
-          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + Spacing.lg, maxHeight: "90%" }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Weekly Hours</Text>
-              <Pressable onPress={() => setActiveModal(null)}>
-                <Feather name="x" size={24} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView style={{ paddingHorizontal: Spacing.xl }}>
-              <HoursEditor
-                hours={weeklyHours}
-                onChange={setWeeklyHours}
-                onSave={handleSaveWeeklyHours}
-                isSaving={savingWeeklyHours}
-                title="Weekly Hours"
-                description="Set your recurring weekly availability for client bookings."
-                showSaveButton
-              />
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        <ScrollView
+          style={{ paddingHorizontal: Spacing.xl }}
+          contentContainerStyle={{ paddingTop: Spacing.md, paddingBottom: Spacing.lg }}
+        >
+          <HoursEditor
+            hours={weeklyHours}
+            onChange={setWeeklyHours}
+            onSave={handleSaveWeeklyHours}
+            isSaving={savingWeeklyHours}
+            title="Weekly Hours"
+            description="Set your recurring weekly availability for client bookings."
+            showSaveButton
+          />
+        </ScrollView>
+      </FullScreenSheet>
 
       <ServiceEditorModal
         visible={showServiceEditor}
+        fullScreen
         onClose={() => {
           setShowServiceEditor(false);
           setEditingStaffService(null);
@@ -1182,43 +1143,6 @@ function createStyles(theme: any, insets: { top: number; bottom: number }) {
       fontSize: 11,
       color: DASHBOARD_COLORS.creamDim,
       marginTop: 2,
-    },
-    modalOverlay: {
-      flex: 1,
-      justifyContent: "flex-end",
-    },
-    modalBackdrop: {
-      ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(0,0,0,0.5)",
-    },
-    modalContainer: {
-      backgroundColor: theme.backgroundRoot,
-      borderTopLeftRadius: BorderRadius.xl,
-      borderTopRightRadius: BorderRadius.xl,
-      maxHeight: "80%",
-    },
-    modalHandle: {
-      width: 40,
-      height: 4,
-      backgroundColor: theme.border,
-      borderRadius: 2,
-      alignSelf: "center",
-      marginTop: Spacing.md,
-      marginBottom: Spacing.sm,
-    },
-    modalHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: Spacing.xl,
-      paddingVertical: Spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: theme.border,
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: "700",
-      color: theme.text,
     },
     modalDescription: {
       fontSize: 14,
