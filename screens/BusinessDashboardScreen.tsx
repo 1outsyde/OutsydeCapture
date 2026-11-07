@@ -694,8 +694,25 @@ export default function BusinessDashboardScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() =>
+              navigation.canGoBack()
+                ? navigation.goBack()
+                : navigation.navigate("Main", { screen: "AccountTab", params: { screen: "Account" } })
+            }
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={24} color={DASHBOARD_COLORS.cream} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
       </View>
     );
   }

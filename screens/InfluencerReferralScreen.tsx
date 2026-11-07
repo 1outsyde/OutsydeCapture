@@ -105,8 +105,21 @@ export default function InfluencerReferralScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <ThemedView style={[styles.container, styles.centered, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.md, borderBottomColor: theme.border }]}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={24} color={theme.text} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
       </ThemedView>
     );
   }

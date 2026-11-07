@@ -310,19 +310,43 @@ export default function DashboardAnalyticsScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.centered, { backgroundColor: COLORS.black }]}>
-        <ActivityIndicator color={COLORS.gold} />
+      <View style={[styles.centered, { backgroundColor: COLORS.black }, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center" }}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="chevron-left" size={24} color={COLORS.textPrimary} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator color={COLORS.gold} />
+        </View>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.centered, { backgroundColor: COLORS.black }]}>
-        <Text style={{ color: COLORS.textMuted, marginBottom: 16 }}>{error}</Text>
-        <Pressable onPress={fetchData}>
-          <Text style={{ color: COLORS.gold }}>Try Again</Text>
-        </Pressable>
+      <View style={[styles.centered, { backgroundColor: COLORS.black }, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center" }}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="chevron-left" size={24} color={COLORS.textPrimary} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: COLORS.textMuted, marginBottom: 16 }}>{error}</Text>
+          <Pressable onPress={fetchData}>
+            <Text style={{ color: COLORS.gold }}>Try Again</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }

@@ -418,8 +418,21 @@ export default function DashboardCalendarScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={GOLD} />
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={22} color={CREAM} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={GOLD} />
+        </View>
       </View>
     );
   }

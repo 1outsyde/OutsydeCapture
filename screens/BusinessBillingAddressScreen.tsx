@@ -115,8 +115,21 @@ export default function BusinessBillingAddressScreen() {
 
   if (prefillLoading) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={DASHBOARD_COLORS.gold} />
+      <View style={[styles.container, styles.centered, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={22} color={DASHBOARD_COLORS.cream} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={DASHBOARD_COLORS.gold} />
+        </View>
       </View>
     );
   }

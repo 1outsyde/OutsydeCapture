@@ -235,8 +235,21 @@ export default function DashboardCreditsScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator color={GOLD} />
+      <View style={[styles.container, styles.loadingContainer, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={22} color={CREAM} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator color={GOLD} />
+        </View>
       </View>
     );
   }

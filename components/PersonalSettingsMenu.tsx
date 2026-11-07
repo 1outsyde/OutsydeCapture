@@ -155,25 +155,29 @@ export function PersonalSettingsMenu({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent
+      presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={[styles.overlay, { backgroundColor: theme.backgroundRoot }]}>
         <View
           style={[
             styles.menuContainer,
             {
               backgroundColor: theme.backgroundRoot,
+              paddingTop: insets.top,
               paddingBottom: insets.bottom + Spacing.lg,
             },
           ]}
         >
-          <View style={styles.handle} />
-
           <View style={styles.header}>
            <ThemedText type="h3">Menu</ThemedText>
-            <Pressable onPress={onClose} style={styles.closeButton}>
+            <Pressable
+              onPress={onClose}
+              style={styles.closeButton}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Close menu"
+            >
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
           </View>
@@ -507,25 +511,9 @@ export function PersonalSettingsMenu({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: "flex-end",
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   menuContainer: {
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    maxHeight: "85%",
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#999",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
+    flex: 1,
   },
   header: {
     flexDirection: "row",
