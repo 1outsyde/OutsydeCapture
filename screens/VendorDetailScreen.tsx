@@ -2679,6 +2679,27 @@ export default function VendorDetailScreen({ route }: Props) {
   if (loading || !profile) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
+        <View
+          style={[
+            styles.headerRow,
+            {
+              position: "absolute",
+              top: insets.top + 6,
+              left: 14,
+              zIndex: 50,
+            },
+          ]}
+        >
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={18} color={COLORS.cream} />
+          </Pressable>
+        </View>
         <View style={styles.loadingWrap}>
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>

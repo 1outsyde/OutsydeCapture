@@ -211,8 +211,8 @@ export default function FollowListScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot, paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
-          <Feather name="chevron-down" size={28} color={theme.text} />
+        <Pressable onPress={() => navigation.goBack()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back">
+          <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <ThemedText style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
           {title || "Profile"}

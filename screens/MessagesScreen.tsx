@@ -15,7 +15,6 @@ import {
   TextInput,
   FlatList,
   Keyboard,
-  Platform,
 } from "react-native";
 import type { TextInputInstance } from "react-native";
 import { Image } from "expo-image";
@@ -667,7 +666,7 @@ function NewMessageModal({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
       <View
@@ -675,16 +674,10 @@ function NewMessageModal({
           styles.modalContainer,
           {
             backgroundColor: theme.brandBg,
-            paddingTop: Platform.OS === "ios" ? Spacing.sm : insets.top,
+            paddingTop: insets.top + Spacing.sm,
           },
         ]}
       >
-        <View
-          style={[
-            styles.grabber,
-            { backgroundColor: theme.brandSurfaceBorder },
-          ]}
-        />
         <View style={styles.modalHeader}>
           <Pressable
             onPress={onClose}
@@ -1271,13 +1264,6 @@ const styles = StyleSheet.create({
   },
   goldButtonText: { color: "#0A0A0A", fontSize: 16, fontWeight: "700" },
   modalContainer: { flex: 1 },
-  grabber: {
-    alignSelf: "center",
-    width: 36,
-    height: 5,
-    borderRadius: 3,
-    marginBottom: Spacing.sm,
-  },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",

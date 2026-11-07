@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Pressable, Platform } from "react-native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import {
+  createNativeStackNavigator,
+  type NativeStackNavigationOptions,
+} from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 
 import MainTabNavigator from "@/navigation/MainTabNavigator";
@@ -102,8 +105,42 @@ import DashboardAnalyticsScreen from "@/screens/DashboardAnalyticsScreen";
 import FollowListScreen from "@/screens/FollowListScreen";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
+import { profilePresentationFor } from "@/utils/profilePresentation";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Profiles push full screen from the right (left-edge swipe back). If a modal
+// is lower on the stack, a push would land under it on iOS, so they open as a
+// full screen modal on top instead. See utils/profilePresentation.ts.
+const profileOptions =
+  (extra: NativeStackNavigationOptions = {}) =>
+  ({
+    navigation,
+    route,
+  }: {
+    navigation: { getState: () => { routes: { key: string; name: string }[] } };
+    route: { key: string };
+  }): NativeStackNavigationOptions => {
+    const routes = navigation.getState()?.routes ?? [];
+    const index = routes.findIndex((r) => r.key === route.key);
+    const mode = profilePresentationFor(
+      routes.map((r) => r.name),
+      index,
+    );
+    return mode === "fullScreenModal"
+      ? {
+          ...extra,
+          presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
+        }
+      : {
+          ...extra,
+          presentation: "card",
+          animation: "slide_from_right",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: false,
+        };
+  };
 
 export default function RootNavigator() {
   const { theme } = useTheme();
@@ -138,7 +175,7 @@ export default function RootNavigator() {
         name="Auth"
         component={AuthScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Sign In",
@@ -218,7 +255,7 @@ export default function RootNavigator() {
         name="SelectPhotographer"
         component={SelectPhotographerScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Select Photographer",
@@ -237,12 +274,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="PhotographerDetail"
         component={PhotographerDetailScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-        }}
+        options={profileOptions()}
       />
 
       <Stack.Screen
@@ -302,24 +334,13 @@ export default function RootNavigator() {
       <Stack.Screen
         name="VendorDetail"
         component={VendorDetailScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-        }}
+        options={profileOptions()}
       />
 
       <Stack.Screen
         name="StaffWorkProfile"
         component={StaffWorkProfileScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-          headerShown: false,
-        }}
+        options={profileOptions({ headerShown: false })}
       />
 
      <Stack.Screen
@@ -421,30 +442,20 @@ export default function RootNavigator() {
       <Stack.Screen
         name="FollowList"
         component={FollowListScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          headerShown: false,
-          gestureEnabled: true,
-        }}
+        options={profileOptions({ headerShown: false })}
       />
 
       <Stack.Screen
         name="UserProfile"
         component={AccountScreen}
-        options={{
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-        }}
+        options={profileOptions()}
       />
 
       <Stack.Screen
         name="SessionDetail"
         component={SessionDetailScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Session Details",
@@ -464,7 +475,7 @@ export default function RootNavigator() {
         name="AppointmentDetail"
         component={AppointmentDetailScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Appointment Details",
@@ -588,7 +599,7 @@ export default function RootNavigator() {
         name="CartOrders"
         component={CartOrdersScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Cart & Orders",
@@ -626,7 +637,7 @@ export default function RootNavigator() {
         name="Favorites"
         component={FavoritesScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Saved",
@@ -1023,7 +1034,7 @@ export default function RootNavigator() {
         name="InfluencerApplication"
         component={InfluencerApplicationScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Apply as Influencer",
@@ -1082,7 +1093,7 @@ export default function RootNavigator() {
         name="ProfileCompletionGate"
         component={ProfileCompletionGateScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Complete Your Profile",
@@ -1210,7 +1221,7 @@ export default function RootNavigator() {
         name="Notifications"
         component={NotificationsScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Notifications",
@@ -1240,7 +1251,7 @@ export default function RootNavigator() {
         component={ProductDetailScreen}
         options={{
           // Full screen (not a sheet). Same presentation CartCheckout and
-          // OrderSuccess already use; opened from VendorDetail (a modal) and
+          // OrderSuccess already use; opened from VendorDetail and
           // the Search tab, closed by the in-screen back arrow (goBack).
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
@@ -1262,7 +1273,7 @@ export default function RootNavigator() {
         name="Sessions"
         component={SessionsScreen}
         options={({ navigation }) => ({
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: true,
           headerTitle: "Upcoming",
@@ -1282,7 +1293,7 @@ export default function RootNavigator() {
         name="CreatePost"
         component={CreatePostScreen}
         options={{
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: false,
         }}
@@ -1303,7 +1314,7 @@ export default function RootNavigator() {
         name="StoryInsights"
         component={StoryInsightsScreen}
         options={{
-          presentation: "modal",
+          presentation: "fullScreenModal",
           animation: "slide_from_bottom",
           headerShown: false,
           gestureEnabled: false,
@@ -1313,7 +1324,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ForgotPassword"
         component={ForgotPasswordScreen}
-        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+        options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }}
       />
 
       <Stack.Screen
@@ -1325,7 +1336,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ClaimAccount"
         component={ClaimAccountScreen}
-        options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
+        options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }}
       />
 
       <Stack.Screen
@@ -1352,7 +1363,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="RateReview"
         component={RateReviewScreen}
-        options={{ headerShown: false, presentation: 'modal' }}
+        options={{ headerShown: false, presentation: 'fullScreenModal' }}
       />
     </Stack.Navigator>
   );
