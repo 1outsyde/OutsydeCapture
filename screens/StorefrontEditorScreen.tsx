@@ -2411,8 +2411,21 @@ export default function StorefrontEditorScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={theme.brandGold} />
+      <View style={[styles.loading, { justifyContent: "flex-start", alignItems: "stretch" }]}>
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={24} color={theme.brandCream} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.brandGold} />
+        </View>
       </View>
     );
   }

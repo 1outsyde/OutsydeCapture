@@ -8,7 +8,7 @@ import {
   Pressable,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, useFocusEffect, CommonActions } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect, CommonActions } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedView } from "@/components/ThemedView";
@@ -18,6 +18,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import api from "@/services/api";
+import { isAboveModal } from "@/utils/profilePresentation";
 
 const SUCCESS_COLOR = "#34C759";
 
@@ -31,6 +32,7 @@ export default function StaffOnboardingStatusScreen() {
   const { user, getToken, updateProfile, pendingStripeReturn, clearPendingStripeReturn, logout, skipStaffSetup } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const route = useRoute();
   const [loading, setLoading] = useState(false);
 
   // Local state for onboarding status — seeded from cached auth value, then refreshed
@@ -193,7 +195,28 @@ export default function StaffOnboardingStatusScreen() {
   // From sign-in (no history) it opens the app; from the red bar or Finish Setup it goes back.
   useLayoutEffect(() => {
     if (onboardingComplete) {
-      navigation.setOptions({ headerLeft: undefined });
+      // Opened on top of a pop-up it is a new full screen modal with no
+      // native back button, so keep an arrow there; otherwise use the native one.
+      const state = (navigation as any).getState?.();
+      const routes: { key: string; name: string }[] = state?.routes ?? [];
+      const index = routes.findIndex((r) => r.key === route.key);
+      if (isAboveModal(routes.map((r) => r.name), index)) {
+        navigation.setOptions({
+          headerLeft: () => (
+            <Pressable
+              onPress={() => navigation.goBack()}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              style={styles.backButton}
+            >
+              <Feather name="chevron-left" size={28} color={theme.text} />
+            </Pressable>
+          ),
+        });
+      } else {
+        navigation.setOptions({ headerLeft: undefined });
+      }
       return;
     }
     navigation.setOptions({
@@ -209,7 +232,7 @@ export default function StaffOnboardingStatusScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, onboardingComplete, handleNotNow, theme.text]);
+  }, [navigation, route.key, onboardingComplete, handleNotNow, theme.text]);
 
   const handleCompleteStripeSetup = async () => {
     const token = await getToken();

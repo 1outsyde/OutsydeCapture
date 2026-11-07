@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   TextInput,
@@ -57,6 +57,21 @@ export default function ResetPasswordScreen() {
     return null;
   };
 
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (redirectTimer.current) clearTimeout(redirectTimer.current);
+  }, []);
+  const redirected = useRef(false);
+  const goToSignIn = () => {
+    if (redirected.current) return;
+    redirected.current = true;
+    if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    redirectTimer.current = null;
+    navigation.dispatch(
+      CommonActions.reset({ index: 0, routes: [{ name: "Auth", params: { returnTo: undefined } }] })
+    );
+  };
+
   const handleSubmit = async () => {
     const err = validate();
     if (err) { setError(err); return; }
@@ -72,11 +87,7 @@ export default function ResetPasswordScreen() {
       });
       if (res.ok) {
         setDone(true);
-        setTimeout(() => {
-          navigation.dispatch(
-            CommonActions.reset({ index: 0, routes: [{ name: "Auth", params: { returnTo: undefined } }] })
-          );
-        }, 2500);
+        redirectTimer.current = setTimeout(goToSignIn, 2500);
       } else {
         const body = await res.json().catch(() => ({}));
         if (res.status === 400) {
@@ -104,6 +115,20 @@ export default function ResetPasswordScreen() {
             Your password has been changed successfully. Redirecting you to sign in...
           </ThemedText>
           <ActivityIndicator color={DS.greenBright} style={{ marginTop: 24 }} />
+          <Pressable
+            onPress={goToSignIn}
+            accessibilityRole="button"
+            style={{ marginTop: 24, alignSelf: "stretch" }}
+          >
+            <LinearGradient
+              colors={[DS.greenBright, DS.greenAccent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryBtn}
+            >
+              <ThemedText style={styles.primaryBtnText}>Sign in</ThemedText>
+            </LinearGradient>
+          </Pressable>
         </View>
       </View>
     );

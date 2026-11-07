@@ -66,3 +66,31 @@ export function profilePresentationFor(
     ? "fullScreenModal"
     : "card";
 }
+
+// Same rule for every other non-modal root route. `base` is the route's own
+// options. Opened with no modal below: returned unchanged. With a modal
+// below: shown as a full screen modal on top, and if it draws the native
+// header (which has no back button inside a new modal) it gets `backButton`
+// as headerLeft, unless it already sets one.
+export function aboveModalOptions<
+  T extends { headerShown?: boolean; headerLeft?: unknown },
+>(
+  base: T,
+  aboveModal: boolean,
+  backButton: () => unknown,
+): T | (T & { presentation: "fullScreenModal"; animation: "slide_from_bottom" }) {
+  if (!aboveModal) return base;
+  return {
+    ...base,
+    presentation: "fullScreenModal",
+    animation: "slide_from_bottom",
+    ...(base.headerShown && !base.headerLeft ? { headerLeft: backButton } : {}),
+  };
+}
+
+export function isAboveModal(
+  routeNames: readonly string[],
+  index: number,
+): boolean {
+  return profilePresentationFor(routeNames, index) === "fullScreenModal";
+}

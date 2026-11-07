@@ -105,9 +105,16 @@ import DashboardAnalyticsScreen from "@/screens/DashboardAnalyticsScreen";
 import FollowListScreen from "@/screens/FollowListScreen";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
-import { profilePresentationFor } from "@/utils/profilePresentation";
+import {
+  aboveModalOptions,
+  isAboveModal,
+  profilePresentationFor,
+} from "@/utils/profilePresentation";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// stackAware's push-vs-modal decision per route key (one root navigator).
+const aboveModalByKey = new Map<string, boolean>();
 
 // Profiles push full screen from the right (left-edge swipe back). If a modal
 // is lower on the stack, a push would land under it on iOS, so they open as a
@@ -144,6 +151,58 @@ const profileOptions =
 
 export default function RootNavigator() {
   const { theme } = useTheme();
+
+  // Every non-modal route: unchanged when opened from the tabs. With a modal
+  // lower on the stack, a push would land under it on iOS, so it opens as a
+  // full screen modal on top, with a back arrow if it uses the native header.
+  // See utils/profilePresentation.ts.
+  const stackAware =
+    (base: NativeStackNavigationOptions = {}) =>
+    ({
+      navigation,
+      route,
+    }: {
+      navigation: {
+        getState: () => { routes: { key: string; name: string }[] };
+        goBack: () => void;
+      };
+      route: { key: string };
+    }): NativeStackNavigationOptions => {
+      const routes = navigation.getState()?.routes ?? [];
+      const index = routes.findIndex((r) => r.key === route.key);
+      // Decided once per screen: a mounted screen must never switch between
+      // push and modal (react-native-screens can drop it). Chat's getId can
+      // move an existing Chat to the top; it keeps how it first opened.
+      let aboveModal = aboveModalByKey.get(route.key);
+      if (aboveModal === undefined) {
+        aboveModal = isAboveModal(
+          routes.map((r) => r.name),
+          index,
+        );
+        aboveModalByKey.set(route.key, aboveModal);
+      }
+      if (aboveModalByKey.size > 200) {
+        const live = new Set(routes.map((r) => r.key));
+        for (const k of aboveModalByKey.keys()) {
+          if (!live.has(k)) aboveModalByKey.delete(k);
+        }
+      }
+      return aboveModalOptions(
+        base,
+        aboveModal,
+        () => (
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={16}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={24} color={theme.text} />
+          </Pressable>
+        ),
+      ) as NativeStackNavigationOptions;
+    };
+
   const [initialRoute, setInitialRoute] = useState<"Onboarding" | "Main" | null>(null);
 
   useEffect(() => {
@@ -357,86 +416,86 @@ export default function RootNavigator() {
       <Stack.Screen
         name="EventDetail"
         component={EventDetailScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="TicketDetail"
         component={TicketDetailScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="EventEditor"
         component={EventEditorScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_bottom",
           // A swipe would drop unsaved details: leave with Close or Back.
           gestureEnabled: false,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="YourEvents"
         component={YourEventsScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="ManageEvent"
         component={ManageEventScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="DoorTeam"
         component={DoorTeamScreen}
-        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+        options={stackAware({ headerShown: false, animation: "slide_from_right", gestureEnabled: true })}
       />
 
       <Stack.Screen
         name="DoorEvents"
         component={DoorEventsScreen}
-        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+        options={stackAware({ headerShown: false, animation: "slide_from_right", gestureEnabled: true })}
       />
 
       <Stack.Screen
         name="DoorInvite"
         component={DoorInviteScreen}
-        options={{ headerShown: false, animation: "slide_from_bottom", gestureEnabled: true }}
+        options={stackAware({ headerShown: false, animation: "slide_from_bottom", gestureEnabled: true })}
       />
 
       <Stack.Screen
         name="MyTeam"
         component={MyTeamScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="DoorScanner"
         component={DoorScannerScreen}
-        options={{ headerShown: false, animation: "slide_from_bottom", gestureEnabled: false }}
+        options={stackAware({ headerShown: false, animation: "slide_from_bottom", gestureEnabled: false })}
       />
 
       <Stack.Screen
@@ -513,7 +572,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="Conversation"
         component={ConversationScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -522,59 +581,59 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="RequestQuote"
         component={RequestQuoteScreen}
-        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+        options={stackAware({ headerShown: false, animation: "slide_from_right", gestureEnabled: true })}
       />
 
       <Stack.Screen
         name="Quote"
         component={QuoteScreen}
-        options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }}
+        options={stackAware({ headerShown: false, animation: "slide_from_right", gestureEnabled: true })}
       />
 
       <Stack.Screen
         name="QuoteCompose"
         component={QuoteComposeScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_bottom",
           gestureEnabled: false,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="BusinessRequests"
         component={BusinessRequestsScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="BusinessQuotes"
         component={BusinessQuotesScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="QuoteLink"
         component={QuoteLinkScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
-        }}
+        })}
       />
 
       <Stack.Screen
@@ -583,7 +642,7 @@ export default function RootNavigator() {
         // One screen per conversation: opening chat B (e.g. from a push) while chat A is open
         // pushes a new screen instead of swapping A's params, so A's draft/photos never go to B.
         getId={({ params }) => params?.conversationId}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -592,7 +651,7 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
@@ -624,7 +683,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="CheckoutScreen"
         component={CheckoutScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
 
       <Stack.Screen
@@ -920,7 +979,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="PhotographerDashboard"
         component={PhotographerDashboardScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -929,24 +988,24 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="PhotographerManageBusiness"
         component={PhotographerManageBusinessScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           // The screen draws its own header (same as StorefrontEditor).
           headerShown: false,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="BusinessDashboard"
         component={BusinessDashboardScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           // The screen draws its own header with a back arrow (2026-10-28: this
@@ -957,58 +1016,58 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
       <Stack.Screen
         name="DashboardOrdersScreen"
         component={DashboardOrdersScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="BusinessBillingAddress"
         component={BusinessBillingAddressScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="DashboardBookingsScreen"
         component={DashboardBookingsScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="DashboardCalendarScreen"
         component={DashboardCalendarScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="StaffCalendarScreen"
         component={StaffCalendarScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="PhotographerCalendarScreen"
         component={PhotographerCalendarScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="PhotographerBookingsScreen"
         component={PhotographerBookingsScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="DashboardCreditsScreen"
         component={DashboardCreditsScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
       <Stack.Screen
         name="DashboardAnalytics"
         component={DashboardAnalyticsScreen}
-        options={{ headerShown: false }}
+        options={stackAware({ headerShown: false })}
       />
 
       <Stack.Screen
         name="StaffDashboard"
         component={StaffDashboardScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1017,17 +1076,17 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="EditStaffProfile"
         component={EditStaffProfileScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: false,
-        }}
+        })}
       />
 
       <Stack.Screen
@@ -1053,7 +1112,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="InfluencerDashboard"
         component={InfluencerDashboardScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1062,31 +1121,31 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="InfluencerReferral"
         component={InfluencerReferralScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="InfluencerAnalytics"
         component={InfluencerAnalyticsScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="InfluencerOnboarding"
         component={InfluencerOnboardingScreen}
-        options={{
+        options={stackAware({
           headerShown: false,
-        }}
+        })}
       />
 
       <Stack.Screen
@@ -1112,7 +1171,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="StorefrontEditor"
         component={StorefrontEditorScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           // The screen draws its own header with a back arrow (2026-10-28: this
@@ -1123,13 +1182,13 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="SubscriptionPlan"
         component={SubscriptionPlanScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1138,13 +1197,13 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="StaffManagement"
         component={StaffManagementScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1153,19 +1212,19 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="ShootBooking"
         component={ShootBookingScreen}
-        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+        options={stackAware({ headerShown: false, presentation: "card", animation: "slide_from_right" })}
       />
 
       <Stack.Screen
         name="TermsOfService"
         component={TermsOfServiceScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1174,13 +1233,13 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="PrivacyPolicy"
         component={PrivacyPolicyScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1189,23 +1248,23 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
         name="SupportContact"
         component={SupportContactScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: false,
-        }}
+        })}
       />
 
       <Stack.Screen
         name="BlockedUsers"
         component={BlockedUsersScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1214,7 +1273,7 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           headerBackTitle: "Back",
-        }}
+        })}
       />
 
       <Stack.Screen
@@ -1240,10 +1299,10 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ProfileFeed"
         component={ProfileFeedScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           headerShown: false,
-        }}
+        })}
       />
 
       <Stack.Screen
@@ -1330,7 +1389,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="ResetPassword"
         component={ResetPasswordScreen}
-        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+        options={stackAware({ headerShown: false, presentation: "card", animation: "slide_from_right" })}
       />
 
       <Stack.Screen
@@ -1342,13 +1401,13 @@ export default function RootNavigator() {
       <Stack.Screen
         name="FinishSetup"
         component={FinishSetupScreen}
-        options={{ headerShown: false, presentation: "card", animation: "slide_from_right" }}
+        options={stackAware({ headerShown: false, presentation: "card", animation: "slide_from_right" })}
       />
 
       <Stack.Screen
         name="StaffOnboarding"
         component={StaffOnboardingStatusScreen}
-        options={{
+        options={stackAware({
           presentation: "card",
           animation: "slide_from_right",
           headerShown: true,
@@ -1357,7 +1416,7 @@ export default function RootNavigator() {
           headerTintColor: theme.text,
           headerStyle: { backgroundColor: theme.backgroundRoot },
           gestureEnabled: false,
-        }}
+        })}
       />
 
       <Stack.Screen
