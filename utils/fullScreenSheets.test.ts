@@ -88,4 +88,25 @@ test("RefundModal stays a dialog but handles the keyboard", () => {
   assert.match(src, /KeyboardAvoidingView/);
 });
 
+test("StaffDashboard opens the service editor after My Services has closed", () => {
+  const src = read("screens/StaffDashboardScreen.tsx");
+  assert.doesNotMatch(src, /setTimeout\(\(\) => setShowServiceEditor\(true\)/);
+  const sheet =
+    /<FullScreenSheet\s+visible=\{activeModal === "services"\}[\s\S]*?title="My Services"/.exec(src)?.[0] ?? "";
+  assert.match(sheet, /onDismiss=\{servicesAfterClose\.onDismiss\}/);
+  assert.match(src, /servicesAfterClose\.queue\(\(\) => setShowServiceEditor\(true\)\)/);
+});
+
+test("Photographer Bookings does not add the home-bar inset twice", () => {
+  const src = read("screens/PhotographerDashboardScreen.tsx");
+  const start = src.indexOf("const renderBookingsModal");
+  const body = src.slice(start, src.indexOf("</FullScreenSheet>", start));
+  assert.doesNotMatch(body, /insets\.bottom/);
+});
+
+test("Appointment details keeps showing the booking while it closes", () => {
+  const src = read("screens/DashboardBookingsScreen.tsx");
+  assert.match(src, /const shown = booking \?\? lastBooking/);
+});
+
 console.log(`\n${passed} passed`);

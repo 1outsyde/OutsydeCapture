@@ -732,8 +732,12 @@ function SectionLabel({ children }: { children: string }) {
 // Full appointment details for the vendor: every add-on, the customer's whole note, and the money lines.
 // Read-only — Accept/Decline/Refund/No-show stay on the card, so this sheet never opens another modal.
 function BookingDetailSheet({ booking, onClose }: { booking: BusinessBooking | null; onClose: () => void }) {
-  const sc = booking ? statusColors(booking.status) : null;
-  const addons = booking?.addons ?? [];
+  // Keep the last booking on screen while the page slides away after closing.
+  const [lastBooking, setLastBooking] = useState<BusinessBooking | null>(booking);
+  if (booking && booking !== lastBooking) setLastBooking(booking);
+  const shown = booking ?? lastBooking;
+  const sc = shown ? statusColors(shown.status) : null;
+  const addons = shown?.addons ?? [];
   return (
     <FullScreenSheet
       visible={booking !== null}
@@ -743,30 +747,30 @@ function BookingDetailSheet({ booking, onClose }: { booking: BusinessBooking | n
       tintColor={CREAM}
       borderColor={CARD_BORDER}
     >
-      {booking && sc ? (
+      {shown && sc ? (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingTop: 18, paddingHorizontal: 20, paddingBottom: 16 }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: SURFACE, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-              {booking.customerAvatar ? (
-                <Image source={{ uri: booking.customerAvatar }} style={{ width: 44, height: 44 }} />
+              {shown.customerAvatar ? (
+                <Image source={{ uri: shown.customerAvatar }} style={{ width: 44, height: 44 }} />
               ) : (
                 <Feather name="user" size={20} color={CREAM_DIM} />
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: CREAM, fontSize: 16, fontWeight: "600" }}>{booking.customerName}</Text>
-              <Text style={{ color: CREAM_DIM, fontSize: 13, marginTop: 2 }}>{booking.date} at {booking.time}</Text>
+              <Text style={{ color: CREAM, fontSize: 16, fontWeight: "600" }}>{shown.customerName}</Text>
+              <Text style={{ color: CREAM_DIM, fontSize: 13, marginTop: 2 }}>{shown.date} at {shown.time}</Text>
             </View>
             <View style={{ backgroundColor: sc.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-              <Text style={{ color: sc.text, fontSize: 12, fontWeight: "700" }}>{formatStatusLabel(booking.status)}</Text>
+              <Text style={{ color: sc.text, fontSize: 12, fontWeight: "700" }}>{formatStatusLabel(shown.status)}</Text>
             </View>
           </View>
 
           <SectionLabel>SERVICE</SectionLabel>
-          <Text style={{ color: CREAM, fontSize: 15, fontWeight: "600" }}>{booking.serviceName}</Text>
+          <Text style={{ color: CREAM, fontSize: 15, fontWeight: "600" }}>{shown.serviceName}</Text>
 
           <SectionLabel>ADD-ONS</SectionLabel>
           {addons.length === 0 ? (
@@ -782,33 +786,33 @@ function BookingDetailSheet({ booking, onClose }: { booking: BusinessBooking | n
           )}
 
           <SectionLabel>CUSTOMER'S NOTES</SectionLabel>
-          {booking.customerDetails ? (
+          {shown.customerDetails ? (
             <Text selectable style={{ color: CREAM, fontSize: 14, lineHeight: 20 }}>
-              {booking.customerDetails}
+              {shown.customerDetails}
             </Text>
           ) : (
             <Text style={{ color: CREAM_DIM, fontSize: 14 }}>No notes</Text>
           )}
 
           <SectionLabel>PAYMENT</SectionLabel>
-          {booking.subtotalAmount != null && <DetailRow label="Subtotal" value={`$${booking.subtotalAmount.toFixed(2)}`} />}
-          {booking.bookingFeeAmount != null && <DetailRow label="Fee" value={`-$${booking.bookingFeeAmount.toFixed(2)}`} />}
-          {booking.isInfluencerAttributed && booking.influencerCommissionAmount != null && (
-            <DetailRow label="Influencer" value={`-$${booking.influencerCommissionAmount.toFixed(2)}`} />
+          {shown.subtotalAmount != null && <DetailRow label="Subtotal" value={`$${shown.subtotalAmount.toFixed(2)}`} />}
+          {shown.bookingFeeAmount != null && <DetailRow label="Fee" value={`-$${shown.bookingFeeAmount.toFixed(2)}`} />}
+          {shown.isInfluencerAttributed && shown.influencerCommissionAmount != null && (
+            <DetailRow label="Influencer" value={`-$${shown.influencerCommissionAmount.toFixed(2)}`} />
           )}
-          {typeof booking.depositAmountCents === "number" && booking.depositAmountCents > 0 ? (
-            <DetailRow label="Deposit paid online" value={money(booking.depositAmountCents)} />
+          {typeof shown.depositAmountCents === "number" && shown.depositAmountCents > 0 ? (
+            <DetailRow label="Deposit paid online" value={money(shown.depositAmountCents)} />
           ) : null}
-          {typeof booking.discountAmountCents === "number" && booking.discountAmountCents > 0 ? (
-            <DetailRow label="Outsyde rewards used" value={`${money(booking.discountAmountCents)}, paid by Outsyde`} />
+          {typeof shown.discountAmountCents === "number" && shown.discountAmountCents > 0 ? (
+            <DetailRow label="Outsyde rewards used" value={`${money(shown.discountAmountCents)}, paid by Outsyde`} />
           ) : null}
-          {booking.vendorNetAmount != null ? (
-            <DetailRow label="You earn" value={`$${booking.vendorNetAmount.toFixed(2)}`} strong />
+          {shown.vendorNetAmount != null ? (
+            <DetailRow label="You earn" value={`$${shown.vendorNetAmount.toFixed(2)}`} strong />
           ) : (
-            <DetailRow label="Amount" value={`$${booking.amount}`} strong />
+            <DetailRow label="Amount" value={`$${shown.amount}`} strong />
           )}
-          {typeof booking.inPersonDueCents === "number" && booking.inPersonDueCents > 0 ? (
-            <DetailRow label="Collect in person" value={money(booking.inPersonDueCents)} strong />
+          {typeof shown.inPersonDueCents === "number" && shown.inPersonDueCents > 0 ? (
+            <DetailRow label="Collect in person" value={money(shown.inPersonDueCents)} strong />
           ) : null}
 
           <Pressable

@@ -9,6 +9,7 @@ import {
   Alert,
   RefreshControl,
   TextInput,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -35,6 +36,7 @@ import DateBlocker, { BlockedDate } from "@/components/DateBlocker";
 import ServiceEditorModal, { ServiceFormData } from "@/components/ServiceEditorModal";
 import HoursEditor, { DayHours, getDefaultHours } from "@/components/HoursEditor";
 import { FullScreenSheet } from "@/components/FullScreenSheet";
+import { createAfterClose } from "@/utils/afterSheetClose";
 import { uploadImage } from "@/services/mediaUpload";
 import { formatDuration } from "@/utils/duration";
 import { quoteIsOpen } from "@/utils/businessQuotesLogic";
@@ -103,6 +105,7 @@ export default function StaffDashboardScreen() {
   const [earnings, setEarnings] = useState({ total: 0, thisMonth: 0, pending: 0 });
 
   const [showServiceEditor, setShowServiceEditor] = useState(false);
+  const [servicesAfterClose] = useState(() => createAfterClose(Platform.OS));
   const [editingStaffService, setEditingStaffService] = useState<ServiceFormData | null>(null);
   const [depositServerError, setDepositServerError] = useState<string | null>(null);
 
@@ -694,6 +697,7 @@ export default function StaffDashboardScreen() {
       <FullScreenSheet
         visible={activeModal === "services"}
         onClose={() => setActiveModal(null)}
+        onDismiss={servicesAfterClose.onDismiss}
         title="My Services"
       >
         <ScrollView
@@ -705,8 +709,11 @@ export default function StaffDashboardScreen() {
             onPress={() => {
               setDepositServerError(null);
               setEditingStaffService(null);
+              // Open the editor once My Services has fully closed (iOS can drop a
+              // second full screen page presented while the first is still closing).
+              servicesAfterClose.queue(() => setShowServiceEditor(true));
               setActiveModal(null);
-              setTimeout(() => setShowServiceEditor(true), 100);
+              servicesAfterClose.runIfImmediate();
             }}
           >
             <Feather name="plus" size={18} color="#FFFFFF" />
@@ -793,8 +800,11 @@ export default function StaffDashboardScreen() {
                         };
                         setDepositServerError(null);
                         setEditingStaffService(formData);
+                        // Open the editor once My Services has fully closed (iOS can drop a
+                        // second full screen page presented while the first is still closing).
+                        servicesAfterClose.queue(() => setShowServiceEditor(true));
                         setActiveModal(null);
-                        setTimeout(() => setShowServiceEditor(true), 100);
+                        servicesAfterClose.runIfImmediate();
                       }}
                       style={{ padding: 8 }}
                       hitSlop={8}

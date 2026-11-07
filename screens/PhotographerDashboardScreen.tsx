@@ -1478,7 +1478,7 @@ export default function PhotographerDashboardScreen() {
             );
           })
         )}
-        <View style={{ height: insets.bottom + 20 }} />
+        <View style={{ height: 20 }} />
       </ScrollView>
     </FullScreenSheet>
   );
