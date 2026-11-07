@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Pressable, Platform } from "react-native";
 import {
   createNativeStackNavigator,
@@ -148,6 +148,7 @@ const profileOptions =
 
 export default function RootNavigator() {
   const { theme } = useTheme();
+  const aboveModalByKey = useRef(new Map<string, boolean>());
 
   // Every non-modal route: unchanged when opened from the tabs. With a modal
   // lower on the stack, a push would land under it on iOS, so it opens as a
@@ -167,12 +168,26 @@ export default function RootNavigator() {
     }): NativeStackNavigationOptions => {
       const routes = navigation.getState()?.routes ?? [];
       const index = routes.findIndex((r) => r.key === route.key);
-      return aboveModalOptions(
-        base,
-        isAboveModal(
+      // Decided once per screen: a mounted screen must never switch between
+      // push and modal (react-native-screens can drop it). Chat's getId can
+      // move an existing Chat to the top; it keeps how it first opened.
+      let aboveModal = aboveModalByKey.current.get(route.key);
+      if (aboveModal === undefined) {
+        aboveModal = isAboveModal(
           routes.map((r) => r.name),
           index,
-        ),
+        );
+        aboveModalByKey.current.set(route.key, aboveModal);
+      }
+      if (aboveModalByKey.current.size > 200) {
+        const live = new Set(routes.map((r) => r.key));
+        for (const k of aboveModalByKey.current.keys()) {
+          if (!live.has(k)) aboveModalByKey.current.delete(k);
+        }
+      }
+      return aboveModalOptions(
+        base,
+        aboveModal,
         () => (
           <Pressable
             onPress={() => navigation.goBack()}

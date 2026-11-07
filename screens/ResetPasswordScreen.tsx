@@ -61,7 +61,10 @@ export default function ResetPasswordScreen() {
   useEffect(() => () => {
     if (redirectTimer.current) clearTimeout(redirectTimer.current);
   }, []);
+  const redirected = useRef(false);
   const goToSignIn = () => {
+    if (redirected.current) return;
+    redirected.current = true;
     if (redirectTimer.current) clearTimeout(redirectTimer.current);
     redirectTimer.current = null;
     navigation.dispatch(
@@ -113,11 +116,18 @@ export default function ResetPasswordScreen() {
           </ThemedText>
           <ActivityIndicator color={DS.greenBright} style={{ marginTop: 24 }} />
           <Pressable
-            style={[styles.primaryBtn, { marginTop: 24, alignSelf: "stretch" }]}
             onPress={goToSignIn}
             accessibilityRole="button"
+            style={{ marginTop: 24, alignSelf: "stretch" }}
           >
-            <ThemedText style={styles.primaryBtnText}>Sign in</ThemedText>
+            <LinearGradient
+              colors={[DS.greenBright, DS.greenAccent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryBtn}
+            >
+              <ThemedText style={styles.primaryBtnText}>Sign in</ThemedText>
+            </LinearGradient>
           </Pressable>
         </View>
       </View>
