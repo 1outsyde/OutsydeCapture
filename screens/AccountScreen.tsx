@@ -3056,6 +3056,19 @@ export default function AccountScreen() {
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
+        {!isOwner && (
+          <View style={[styles.headerRow, { position: "absolute", top: insets.top + 6, left: 14, zIndex: 50 }]}>
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={18} color={COLORS.cream} />
+          </Pressable>
+        </View>
+        )}
         <View style={styles.loadingWrap}>
           <Feather name="user" size={46} color={COLORS.gold} />
           <Text style={[styles.loadingText, { marginTop: 10 }]}>
@@ -3078,6 +3091,19 @@ export default function AccountScreen() {
   if (loading || !profile) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
+        {!isOwner && (
+          <View style={[styles.headerRow, { position: "absolute", top: insets.top + 6, left: 14, zIndex: 50 }]}>
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={18} color={COLORS.cream} />
+          </Pressable>
+        </View>
+        )}
         <View style={styles.loadingWrap}>
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>

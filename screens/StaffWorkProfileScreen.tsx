@@ -366,7 +366,20 @@ export default function StaffWorkProfileScreen({ route }: Props) {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: pageBg }]}
+        edges={["left", "right", "bottom"]}
+      >
+        <View style={[styles.headerRow, { paddingTop: insets.top + 6, paddingHorizontal: 14 }]}>
+          <Pressable
+            style={[styles.headerButton, { backgroundColor: headerButtonBg }]}
+            onPress={goBackToBusiness}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={18} color={textPrimary} />
+          </Pressable>
+        </View>
         <View style={styles.loadingWrap}>
           <Text style={[styles.loadingText, { color: textSecondary }]}>
             Loading profile...

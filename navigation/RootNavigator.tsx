@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Pressable, Platform } from "react-native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import {
+  createNativeStackNavigator,
+  type NativeStackNavigationOptions,
+} from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 
 import MainTabNavigator from "@/navigation/MainTabNavigator";
@@ -102,8 +105,38 @@ import DashboardAnalyticsScreen from "@/screens/DashboardAnalyticsScreen";
 import FollowListScreen from "@/screens/FollowListScreen";
 import { RootStackParamList } from "@/navigation/types";
 import { useTheme } from "@/hooks/useTheme";
+import { profilePresentationFor } from "@/utils/profilePresentation";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Profiles push full screen from the right (left-edge swipe back). If a modal
+// is lower on the stack, a push would land under it on iOS, so they open as a
+// full screen modal on top instead. See utils/profilePresentation.ts.
+const profileOptions =
+  (extra: NativeStackNavigationOptions = {}) =>
+  ({
+    navigation,
+    route,
+  }: {
+    navigation: { getState: () => { routes: { key: string; name: string }[] } };
+    route: { key: string };
+  }): NativeStackNavigationOptions => {
+    const routes = navigation.getState()?.routes ?? [];
+    const index = routes.findIndex((r) => r.key === route.key);
+    const mode = profilePresentationFor(
+      routes.map((r) => r.name),
+      index,
+    );
+    return mode === "fullScreenModal"
+      ? { ...extra, presentation: "fullScreenModal", animation: "slide_from_bottom" }
+      : {
+          ...extra,
+          presentation: "card",
+          animation: "slide_from_right",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: false,
+        };
+  };
 
 export default function RootNavigator() {
   const { theme } = useTheme();
@@ -237,12 +270,7 @@ export default function RootNavigator() {
       <Stack.Screen
         name="PhotographerDetail"
         component={PhotographerDetailScreen}
-        options={{
-          presentation: "card",
-          animation: "slide_from_right",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: false,
-        }}
+        options={profileOptions()}
       />
 
       <Stack.Screen
@@ -302,24 +330,13 @@ export default function RootNavigator() {
       <Stack.Screen
         name="VendorDetail"
         component={VendorDetailScreen}
-        options={{
-          presentation: "card",
-          animation: "slide_from_right",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: false,
-        }}
+        options={profileOptions()}
       />
 
       <Stack.Screen
         name="StaffWorkProfile"
         component={StaffWorkProfileScreen}
-        options={{
-          presentation: "card",
-          animation: "slide_from_right",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: false,
-          headerShown: false,
-        }}
+        options={profileOptions({ headerShown: false })}
       />
 
      <Stack.Screen
@@ -421,23 +438,13 @@ export default function RootNavigator() {
       <Stack.Screen
         name="FollowList"
         component={FollowListScreen}
-        options={{
-          presentation: "card",
-          animation: "slide_from_right",
-          headerShown: false,
-          gestureEnabled: true,
-        }}
+        options={profileOptions({ headerShown: false })}
       />
 
       <Stack.Screen
         name="UserProfile"
         component={AccountScreen}
-        options={{
-          presentation: "card",
-          animation: "slide_from_right",
-          gestureEnabled: true,
-          fullScreenGestureEnabled: false,
-        }}
+        options={profileOptions()}
       />
 
       <Stack.Screen
@@ -1240,7 +1247,7 @@ export default function RootNavigator() {
         component={ProductDetailScreen}
         options={{
           // Full screen (not a sheet). Same presentation CartCheckout and
-          // OrderSuccess already use; opened from VendorDetail (a modal) and
+          // OrderSuccess already use; opened from VendorDetail and
           // the Search tab, closed by the in-screen back arrow (goBack).
           presentation: "fullScreenModal",
           animation: "slide_from_bottom",
