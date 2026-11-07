@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Switch,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -389,7 +391,13 @@ export default function ServiceEditorModal({
           ]}
         >
           <View style={styles.header}>
-            <Pressable onPress={onClose} style={styles.closeButton}>
+            <Pressable
+              onPress={onClose}
+              style={styles.closeButton}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            >
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
             <Text style={[styles.title, { color: theme.text }]}>
@@ -398,7 +406,15 @@ export default function ServiceEditorModal({
             <View style={{ width: 40 }} />
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView
+            style={fullScreen ? styles.keyboardFull : styles.keyboard}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* ── Basic Info ── */}
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Service Name *</Text>
@@ -1022,6 +1038,7 @@ export default function ServiceEditorModal({
               )}
             </Pressable>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </View>
     </Modal>
@@ -1061,6 +1078,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
+  },
+  keyboard: {
+    flexShrink: 1,
+  },
+  keyboardFull: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 16,
