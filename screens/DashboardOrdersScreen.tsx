@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  Modal,
   Pressable,
   TextInput,
   ActivityIndicator,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import api, { BusinessOrder } from "@/services/api";
@@ -232,6 +232,12 @@ export default function DashboardOrdersScreen() {
     setShipModalVisible(true);
   };
 
+  const closeShipSheet = () => {
+    setShipModalVisible(false);
+    setShipCarrier("");
+    setShipTracking("");
+  };
+
   const handleShipOrder = async () => {
     const token = await getToken();
     if (!token) return;
@@ -359,22 +365,6 @@ export default function DashboardOrdersScreen() {
       lineHeight: 18,
       maxWidth: 260,
     },
-    shipOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.7)",
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 24,
-    },
-    shipCard: {
-      width: "100%",
-      backgroundColor: "#1A1A1A",
-      borderRadius: 16,
-      padding: 24,
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.1)",
-    },
-    shipTitle: { color: CREAM, fontSize: 18, fontWeight: "700", marginBottom: 20 },
     shipLabel: {
       color: "#999",
       fontSize: 12,
@@ -406,6 +396,7 @@ export default function DashboardOrdersScreen() {
       paddingVertical: 10,
       fontSize: 15,
     },
+    shipBody: { padding: 24 },
     shipActions: { flexDirection: "row", gap: 12, marginTop: 24 },
     shipBtn: {
       flex: 1,
@@ -575,82 +566,74 @@ export default function DashboardOrdersScreen() {
         </View>
       </ScrollView>
 
-      {/* Ship Modal */}
-      <Modal
+      {/* Ship order: full page */}
+      <FullScreenSheet
         visible={shipModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShipModalVisible(false)}
+        onClose={closeShipSheet}
+        title="Ship Order"
+        closeLabel="cancel"
+        backgroundColor={BG}
+        tintColor={CREAM}
+        borderColor={CARD_BORDER}
       >
-        <View style={styles.shipOverlay}>
-          <View style={styles.shipCard}>
-            <Text style={styles.shipTitle}>Ship Order</Text>
-
-            <Text style={styles.shipLabel}>Carrier</Text>
-            <View style={styles.carrierRow}>
-              {(["UPS", "FedEx", "USPS", "DHL", "Other"] as const).map(c => {
-                const sel = shipCarrier === c;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setShipCarrier(c)}
-                    style={[styles.carrierChip, sel && styles.carrierChipSelected]}
-                  >
-                    <Text style={[styles.carrierChipText, sel && styles.carrierChipTextSelected]}>
-                      {c}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <Text style={[styles.shipLabel, { marginTop: 16 }]}>Tracking Number</Text>
-            <TextInput
-              style={styles.trackingInput}
-              placeholder="Enter tracking number"
-              placeholderTextColor="#555"
-              value={shipTracking}
-              onChangeText={setShipTracking}
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-            />
-
-            <View style={styles.shipActions}>
-              <Pressable
-                onPress={() => {
-                  setShipModalVisible(false);
-                  setShipCarrier("");
-                  setShipTracking("");
-                }}
-                style={[styles.shipBtn, { backgroundColor: "rgba(255,255,255,0.08)" }]}
-              >
-                <Text style={[styles.shipBtnText, { color: "#CCC" }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleShipOrder}
-                disabled={!shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting}
-                style={[
-                  styles.shipBtn,
-                  {
-                    backgroundColor: "#1A3C34",
-                    opacity:
-                      !shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting
-                        ? 0.5
-                        : 1,
-                  },
-                ]}
-              >
-                {shipSubmitting ? (
-                  <ActivityIndicator size="small" color={GOLD} />
-                ) : (
-                  <Text style={[styles.shipBtnText, { color: GOLD }]}>Confirm Shipment</Text>
-                )}
-              </Pressable>
-            </View>
+        <ScrollView
+          contentContainerStyle={styles.shipBody}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.shipLabel}>Carrier</Text>
+          <View style={styles.carrierRow}>
+            {(["UPS", "FedEx", "USPS", "DHL", "Other"] as const).map(c => {
+              const sel = shipCarrier === c;
+              return (
+                <Pressable
+                  key={c}
+                  onPress={() => setShipCarrier(c)}
+                  style={[styles.carrierChip, sel && styles.carrierChipSelected]}
+                >
+                  <Text style={[styles.carrierChipText, sel && styles.carrierChipTextSelected]}>
+                    {c}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-        </View>
-      </Modal>
+
+          <Text style={[styles.shipLabel, { marginTop: 16 }]}>Tracking Number</Text>
+          <TextInput
+            style={styles.trackingInput}
+            placeholder="Enter tracking number"
+            placeholderTextColor="#555"
+            value={shipTracking}
+            onChangeText={setShipTracking}
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+          />
+
+          <View style={styles.shipActions}>
+            <Pressable
+              onPress={handleShipOrder}
+              disabled={!shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting}
+              style={[
+                styles.shipBtn,
+                {
+                  backgroundColor: "#1A3C34",
+                  opacity:
+                    !shipCarrier.trim() || shipTracking.trim().length < 5 || shipSubmitting
+                      ? 0.5
+                      : 1,
+                },
+              ]}
+            >
+              {shipSubmitting ? (
+                <ActivityIndicator size="small" color={GOLD} />
+              ) : (
+                <Text style={[styles.shipBtnText, { color: GOLD }]}>Confirm Shipment</Text>
+              )}
+            </Pressable>
+          </View>
+        </ScrollView>
+      </FullScreenSheet>
     </View>
   );
 }
