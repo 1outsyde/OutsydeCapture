@@ -5,9 +5,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
+  Keyboard,
   Pressable,
   ScrollView,
   Switch,
@@ -15,6 +13,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -370,30 +370,32 @@ export default function AddonLibraryTab({
     const canConfirm = !sheetBusy && (sheet.kind !== "attach" || count > 0);
     const allSelected = list.length > 0 && selected.length === list.length;
 
+    const headerTitle =
+      sheet.kind === "attach"
+        ? "Add to services"
+        : sheet.kind === "off"
+          ? "Turn off"
+          : sheet.kind === "on"
+            ? "Turn on"
+            : "Delete add-on";
+
     return (
-      <Modal
+      <FullScreenSheet
         visible
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          if (!sheetBusy) setSheet(null);
-        }}
+        onClose={() => setSheet(null)}
+        closeDisabled={sheetBusy}
+        title={headerTitle}
+        closeLabel="cancel"
+        backgroundColor={theme.brandBg}
+        tintColor={theme.brandCream}
+        borderColor={theme.brandSurface}
       >
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "flex-end",
-            backgroundColor: "rgba(0,0,0,0.55)",
-          }}
-        >
           <View
             style={{
-              backgroundColor: theme.brandBg,
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              padding: 20,
-              paddingBottom: 36,
-              maxHeight: "80%",
+              flex: 1,
+              paddingHorizontal: 20,
+              paddingTop: 16,
+              paddingBottom: 12,
             }}
           >
             <Text
@@ -452,7 +454,7 @@ export default function AddonLibraryTab({
                 </Pressable>
               </View>
             ) : null}
-            <ScrollView style={{ flexGrow: 0, marginBottom: 12 }}>
+            <ScrollView style={{ flex: 1, marginBottom: 12 }}>
               {list.length === 0 ? (
                 <Text style={{ color: theme.brandTextDim, fontSize: 13 }}>
                   {sheet.kind === "attach"
@@ -519,24 +521,7 @@ export default function AddonLibraryTab({
                 {sheetError}
               </Text>
             ) : null}
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <Pressable
-                disabled={sheetBusy}
-                onPress={() => setSheet(null)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: theme.brandTextDim,
-                  alignItems: "center",
-                  opacity: sheetBusy ? 0.6 : 1,
-                }}
-              >
-                <Text style={{ color: theme.brandCream, fontWeight: "600" }}>
-                  Cancel
-                </Text>
-              </Pressable>
+            <View style={{ flexDirection: "row" }}>
               <Pressable
                 disabled={!canConfirm}
                 onPress={confirmSheet}
@@ -569,52 +554,44 @@ export default function AddonLibraryTab({
               </Pressable>
             </View>
           </View>
-        </View>
-      </Modal>
+      </FullScreenSheet>
     );
   };
 
   const renderForm = () => (
-    <Modal
+    <FullScreenSheet
       visible={formVisible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => {
-        if (!saving) setFormVisible(false);
-      }}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{
-          flex: 1,
-          justifyContent: "flex-end",
-          backgroundColor: "rgba(0,0,0,0.55)",
-        }}
-      >
-        <View
-          style={{
-            backgroundColor: theme.brandBg,
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-            padding: 20,
-            paddingBottom: 36,
-            maxHeight: "85%",
-          }}
+      onClose={() => setFormVisible(false)}
+      closeDisabled={saving}
+      title={editing ? "Edit Add-on" : "New Add-on"}
+      closeLabel="cancel"
+      androidKeyboardBehavior="height"
+      backgroundColor={theme.brandBg}
+      tintColor={theme.brandCream}
+      borderColor={theme.brandSurface}
+      right={
+        <Pressable
+          onPress={Keyboard.dismiss}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Hide keyboard"
         >
+          <Text style={{ color: theme.brandGold, fontSize: 15, fontWeight: "600" }}>
+            Done
+          </Text>
+        </Pressable>
+      }
+    >
           <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingTop: 16,
+              paddingBottom: 16,
+            }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            <Text
-              style={{
-                color: theme.brandCream,
-                fontWeight: "700",
-                fontSize: 17,
-                marginBottom: 12,
-              }}
-            >
-              {editing ? "Edit add-on" : "New add-on"}
-            </Text>
             {editing && editing.services.length > 0 ? (
               <Text style={{ ...smallText, marginBottom: 12 }}>
                 {
@@ -760,23 +737,15 @@ export default function AddonLibraryTab({
                 {formError}
               </Text>
             ) : null}
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
-              <Pressable
-                disabled={saving}
-                onPress={() => setFormVisible(false)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: theme.brandTextDim,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: theme.brandCream, fontWeight: "600" }}>
-                  Cancel
-                </Text>
-              </Pressable>
+          </ScrollView>
+            <View
+              style={{
+                flexDirection: "row",
+                paddingHorizontal: 20,
+                paddingTop: 12,
+                paddingBottom: 12,
+              }}
+            >
               <Pressable
                 disabled={saving}
                 onPress={saveForm}
@@ -798,10 +767,7 @@ export default function AddonLibraryTab({
                 )}
               </Pressable>
             </View>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </FullScreenSheet>
   );
 
   return (

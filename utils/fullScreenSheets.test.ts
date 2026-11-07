@@ -142,7 +142,8 @@ for (const f of FILES_2B) {
 // An add-on editor sheet: the FullScreenSheet whose title mentions "New Add-on".
 function editorSheets(src: string): string[] {
   const out: string[] = [];
-  const re = /<FullScreenSheet\b[\s\S]*?\n\s*>\n/g;
+  // From the opening tag to the ">" line at the same indentation.
+  const re = /\n( *)<FullScreenSheet\b[\s\S]*?\n\1>\n/g;
   for (const m of src.matchAll(re)) if (m[0].includes('"New Add-on"')) out.push(m[0]);
   return out;
 }
