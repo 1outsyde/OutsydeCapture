@@ -14,7 +14,6 @@ import {
   FlatList,
   Image,
   AppState,
-  KeyboardAvoidingView,
   Keyboard,
   InputAccessoryView,
   Platform,
