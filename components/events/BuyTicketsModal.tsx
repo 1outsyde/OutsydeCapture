@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { sheetOptions } from "@/utils/paymentSheetOptions";
+import { sheetOptions, sheetStyle } from "@/utils/paymentSheetOptions";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -75,7 +75,7 @@ export default function BuyTicketsModal({
   onNeedSignIn,
   onOpenTerms,
 }: Props) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
@@ -225,7 +225,7 @@ export default function BuyTicketsModal({
       merchantDisplayName: "Outsyde",
       allowsDelayedPaymentMethods: false,
       // Apple Pay on iPhone; saved cards and the Save box when the backend sent a session.
-      ...sheetOptions(res, Platform.OS),
+      ...sheetOptions(res, Platform.OS, sheetStyle(isDark)),
     });
     if (!alive.current) return;
     if (initError) {

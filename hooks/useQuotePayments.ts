@@ -7,7 +7,8 @@ import { Platform } from "react-native";
 import { useStripe } from "@stripe/stripe-react-native";
 
 import api, { type ApiError, type QuotePayStart } from "@/services/api";
-import { sheetOptions } from "@/utils/paymentSheetOptions";
+import { sheetOptions, sheetStyle } from "@/utils/paymentSheetOptions";
+import { useTheme } from "@/hooks/useTheme";
 import {
   approveStep,
   errorMessage,
@@ -38,6 +39,7 @@ export function useQuotePayments(getToken: () => Promise<string | null>) {
     handleNextAction,
     handleNextActionForSetup,
   } = useStripe();
+  const { isDark } = useTheme();
 
   /** Opens the payment sheet for a PaymentIntent (charged now or held) or a SetupIntent (a card check). */
   const runSheet = useCallback(
@@ -56,7 +58,7 @@ export function useQuotePayments(getToken: () => Promise<string | null>) {
         ...(setup
           ? { setupIntentClientSecret: start.clientSecret }
           : { paymentIntentClientSecret: start.clientSecret }),
-        ...sheetOptions(start, Platform.OS),
+        ...sheetOptions(start, Platform.OS, sheetStyle(isDark)),
       } as any);
       if (init.error)
         return {
@@ -68,7 +70,7 @@ export function useQuotePayments(getToken: () => Promise<string | null>) {
       if (out.next === "canceled") return { ok: false, canceled: true };
       return { ok: false, message: out.message };
     },
-    [initPaymentSheet, presentPaymentSheet],
+    [initPaymentSheet, presentPaymentSheet, isDark],
   );
 
   const token = useCallback(async () => {

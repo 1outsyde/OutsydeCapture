@@ -14,6 +14,7 @@ import {
 } from "../utils/tokenStorage";
 import { needsSetupFromLoginError, type NeedsSetup } from "@/utils/accountSetup";
 import { uploadImage } from "@/services/mediaUpload";
+import { logSafeUrl } from "@/utils/logSafeUrl";
 
 export type UserRole = "consumer" | "business" | "photographer" | "staff";
 export type ApprovalStatus = "approved" | "pending" | "rejected";
@@ -394,7 +395,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Handle cold-start deep links
     Linking.getInitialURL().then((url) => {
       if (url) {
-        console.log("[DeepLink] Initial URL:", url);
+        console.log("[DeepLink] Initial URL:", logSafeUrl(url));
         captureReferralFromURL(url);
         if (url.includes("reset-password")) {
           const params = parseResetPasswordURL(url);
@@ -410,7 +411,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }).catch(() => {});
     const linkSub = Linking.addEventListener("url", ({ url }) => {
-      console.log("[DeepLink] Received URL:", url);
+      console.log("[DeepLink] Received URL:", logSafeUrl(url));
       captureReferralFromURL(url);
       if (url.includes("reset-password")) {
         const params = parseResetPasswordURL(url);
