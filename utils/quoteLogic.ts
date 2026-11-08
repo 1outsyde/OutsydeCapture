@@ -739,3 +739,13 @@ export function errorMessage(
     m.trim() || "Something went wrong. Check your connection and try again."
   );
 }
+
+/**
+ * Body of POST /api/quotes/:id/pay. paymentSheet adds the saved card fields. redirectCapable
+ * (app payment methods Step 3, backend #429) lets a product quote take Klarna, Afterpay, Cash App
+ * Pay and Amazon Pay; the backend ignores it for service quotes, which stay card on file. The
+ * route's body is loose, so an older backend ignores the new key.
+ */
+export function quotePayBody(version: number) {
+  return { version, paymentSheet: true, redirectCapable: true };
+}

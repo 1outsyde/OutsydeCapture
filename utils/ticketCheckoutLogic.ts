@@ -582,17 +582,46 @@ export function walletButtonKind(
   return os === "ios" && hasNativeModule ? "native" : "text";
 }
 
-// ─── Older backend without paymentSheet ──────────────────────────────────────
+// ─── Older backend that refuses the app's newer keys ─────────────────────────
 
 /**
- * True when a backend from before #383 refused the checkout only because of the
- * `paymentSheet` key (its strict schema answers 400 INVALID_EVENT "Unrecognized key(s) ...
- * 'paymentSheet'"). The app then retries once without it, same idempotency key.
+ * What the app adds to every ticket checkout. paymentSheet: the backend also sends a customer
+ * session (saved cards, Save box), backend #383. redirectCapable: the app can finish Klarna,
+ * Afterpay, Cash App Pay and Amazon Pay, backend #429 (app payment methods Step 3).
  */
-export function rejectedPaymentSheetFlag(err: unknown): boolean {
-  const e = err as { status?: unknown; body?: { error?: { code?: unknown; message?: unknown } } } | null;
-  if (!e || e.status !== 400) return false;
+export const TICKET_CHECKOUT_FLAGS = {
+  paymentSheet: true,
+  redirectCapable: true,
+} as const;
+const DROPPABLE = new Set<string>(Object.keys(TICKET_CHECKOUT_FLAGS));
+
+/**
+ * A backend from before #383 or #429 refuses keys it doesn't know (strict schema, 400 INVALID_EVENT
+ * "body: Unrecognized key(s) in object: 'paymentSheet', 'redirectCapable'"). Returns the body without
+ * the refused keys so the app can retry once with the same idempotency key, or null when this isn't
+ * that refusal: another error, a key the app can't drop, or a key it didn't send.
+ */
+export function withoutRejectedKeys<T extends Record<string, unknown>>(
+  body: T,
+  err: unknown,
+): Partial<T> | null {
+  const e = err as {
+    status?: unknown;
+    body?: { error?: { code?: unknown; message?: unknown } };
+  } | null;
+  if (!e || e.status !== 400) return null;
   const code = e.body?.error?.code;
   const message = e.body?.error?.message;
-  return code === "INVALID_EVENT" && typeof message === "string" && message.includes("Unrecognized key") && message.includes("paymentSheet");
+  if (
+    code !== "INVALID_EVENT" ||
+    typeof message !== "string" ||
+    !message.includes("Unrecognized key")
+  )
+    return null;
+  const keys = Array.from(message.matchAll(/'([^']+)'/g), (m) => m[1]);
+  if (keys.length === 0 || keys.some((k) => !DROPPABLE.has(k) || !(k in body)))
+    return null;
+  const next: Partial<T> = { ...body };
+  for (const k of keys) delete (next as Record<string, unknown>)[k];
+  return next;
 }

@@ -6,6 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  quotePayBody,
   money,
   whenLine,
   payLines,
@@ -620,4 +621,13 @@ test("payment steps (call 4)", () => {
     errorMessage({ message: "Network request failed" }),
     "Something went wrong. Check your connection and try again.",
   );
+});
+
+// ─── App payment methods Step 3: product quotes get every payment method ─────
+test("quote pay asks for the saved card fields and every payment method", () => {
+  assert.deepEqual(quotePayBody(3), {
+    version: 3,
+    paymentSheet: true,
+    redirectCapable: true,
+  });
 });
