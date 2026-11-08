@@ -367,6 +367,8 @@ export default function CreatePostScreen() {
         ? {
             aspectOptions: POST_ASPECT_OPTIONS,
             initialAspectKey: postShape.key,
+            // A Free photo reopens at its own shape.
+            initialAspect: postShape.aspect,
             initialFraction: photo.fraction,
           }
         : { initialFraction: photo.fraction },
