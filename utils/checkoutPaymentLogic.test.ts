@@ -12,6 +12,8 @@ import {
   cartIntentBody,
   checkoutElementConfig,
   pickerReady,
+  previewFor,
+  resultErrorText,
 } from "./checkoutPaymentLogic";
 
 const style = { scheme: "light" as const, publishableKey: "pk_test_123" };
@@ -225,4 +227,44 @@ test("pay button waits for the picker, a method, an address and no other checkou
     assert.equal(pickerReady({ ...ok, [k]: false }), false, k);
   for (const k of ["busy", "empty", "loadFailed"] as const)
     assert.equal(pickerReady({ ...ok, [k]: true }), false, k);
+});
+
+test("preview counts only for the cart and code it priced; pay waits until it answers", () => {
+  assert.deepEqual(previewFor(null, "k1"), { pending: true, cents: null });
+  assert.deepEqual(previewFor({ key: "k1", cents: 2025 }, "k1"), {
+    pending: false,
+    cents: 2025,
+  });
+  assert.deepEqual(
+    previewFor({ key: "k0", cents: 2025 }, "k1"),
+    { pending: true, cents: null },
+    "a points code change makes the old preview stale",
+  );
+  assert.deepEqual(
+    previewFor({ key: "k1", cents: null }, "k1"),
+    { pending: false, cents: null },
+    "a failed preview stops waiting; the shown estimate is checked instead",
+  );
+});
+
+test("Stripe's picker sends its failure as text on both phones (StripeSdkImpl+Embedded.swift:129)", () => {
+  assert.equal(
+    resultErrorText({
+      status: "failed",
+      error: "Your card was declined." as unknown as Error,
+    }),
+    "Your card was declined.",
+  );
+  assert.equal(
+    resultErrorText({ status: "failed", error: new Error("Card expired") }),
+    "Card expired",
+  );
+  assert.equal(
+    resultErrorText({ status: "failed", error: undefined as unknown as Error }),
+    null,
+  );
+  assert.equal(
+    resultErrorText({ status: "failed", error: "  " as unknown as Error }),
+    null,
+  );
 });

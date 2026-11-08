@@ -46,6 +46,8 @@ import {
   payButtonLabel,
   payIn4Shown,
   pickerReady,
+  previewFor,
+  resultErrorText,
 } from "@/utils/checkoutPaymentLogic";
 
 // Checkout refusals from the server (POST /api/cart/payment-intent) that carry
@@ -144,6 +146,12 @@ export default function CheckoutScreen() {
   const [elementConfig, setElementConfig] = useState<ReturnType<typeof checkoutElementConfig> | null>(null);
   const who = useRef({ user, isDark });
   useEffect(() => { who.current = { user, isDark }; });
+  // getToken is a new function on every AuthContext render (AuthContext.tsx:932), and the app coming back to
+  // the foreground re-renders it (refreshUser). Loading through a ref keeps that from reloading the screen,
+  // which would rebuild the picker in the middle of a Klarna or Cash App return.
+  const tokenRef = useRef(getToken);
+  useEffect(() => { tokenRef.current = getToken; });
+  const [pickerKey, setPickerKey] = useState(0);
   const [picker, setPicker] = useState<CheckoutPickerState>({ option: null, loaded: false, failed: false });
   const [sheetOpen, setSheetOpen] = useState(false);
   const pickerRef = useRef<CheckoutPickerHandle>(null);
@@ -187,11 +195,13 @@ export default function CheckoutScreen() {
     let cancelled = false;
 
     async function loadPaymentData() {
+      let sessionResult: Awaited<ReturnType<typeof getCheckoutSession>> = {};
+      let defaultAddr: SavedAddress | null = null;
       try {
-        const token = await getToken();
+        const token = await tokenRef.current();
         if (!token || cancelled) return;
 
-        const [sessionResult, addrResult] = await Promise.all([
+        const [sessionLoaded, addrResult] = await Promise.all([
           // No session (Stripe outage, no email): the picker still works with a new card.
           getCheckoutSession(token, checkoutSessionBody(Platform.OS)).catch(() => ({})),
           getSavedAddresses(token).catch(() => ({ addresses: [] })),
@@ -199,23 +209,26 @@ export default function CheckoutScreen() {
 
         if (cancelled) return;
 
+        sessionResult = sessionLoaded;
         setSavedAddresses(addrResult.addresses);
-        const defaultAddr = addrResult.addresses.find((a) => a.isDefault) ?? addrResult.addresses[0] ?? null;
+        defaultAddr = addrResult.addresses.find((a) => a.isDefault) ?? addrResult.addresses[0] ?? null;
         if (defaultAddr) {
           setSelectedAddressId(defaultAddr.id);
           setUseNewAddress(false);
         } else {
           setUseNewAddress(true);
         }
-        setElementConfig(checkoutElementConfig({
-          os: Platform.OS,
-          style: sheetStyle(who.current.isDark),
-          session: sessionResult,
-          user: who.current.user,
-          address: defaultAddr,
-        }));
       } finally {
         if (!cancelled) {
+          // Always set (even signed out or offline) so the payment row never spins forever; once only.
+          const built = checkoutElementConfig({
+            os: Platform.OS,
+            style: sheetStyle(who.current.isDark),
+            session: sessionResult,
+            user: who.current.user,
+            address: defaultAddr,
+          });
+          setElementConfig((prev) => prev ?? built);
           setSessionLoading(false);
           setAddressesLoading(false);
         }
@@ -224,7 +237,7 @@ export default function CheckoutScreen() {
 
     loadPaymentData();
     return () => { cancelled = true; };
-  }, [getToken]);
+  }, []);
 
   // ─── Derived flags ────────────────────────────────────────────────────────
   const hasNewAddressFields =
@@ -271,30 +284,31 @@ export default function CheckoutScreen() {
   const itemsKey = JSON.stringify(checkoutItems);
   const previewKey = `${itemsKey}|${appliedCode?.id ?? ""}`;
   // Keyed to the cart and code it priced, so a stale preview never shows after either changes.
-  const [preview, setPreview] = useState<{ key: string; cents: number } | null>(null);
-  const previewCents = preview && preview.key === previewKey ? preview.cents : null;
+  const [preview, setPreview] = useState<{ key: string; cents: number | null } | null>(null);
+  const { pending: previewPending, cents: previewCents } = previewFor(preview, previewKey);
   useEffect(() => {
     if (isEmpty) return;
     let alive = true;
     (async () => {
       try {
-        const token = await getToken();
+        const token = await tokenRef.current();
         if (!token || !alive) return;
         const res = await previewCartPrice(token, {
           items: JSON.parse(itemsKey),
           ...(appliedCode ? { promoCodeId: appliedCode.id } : {}),
         });
         if (!alive) return;
-        if (typeof res?.amountChargedCents === "number") setPreview({ key: previewKey, cents: res.amountChargedCents });
+        setPreview({ key: previewKey, cents: typeof res?.amountChargedCents === "number" ? res.amountChargedCents : null });
         const fb = shownBreakdown(res?.feeBreakdown as FeeBreakdown | undefined);
         if (fb) setBackendFeeBreakdown(fb);
       } catch {
-        // No preview (older backend, offline): the local estimate shows; the charge still sets the total.
+        // No preview (offline, server error): the shown estimate is what the charge is checked against.
+        if (alive) setPreview({ key: previewKey, cents: null });
       }
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewKey, itemsKey, appliedCode?.id, isEmpty, getToken]);
+  }, [previewKey, isEmpty]);
 
   const localTotalCents = Math.round((clientTotal - (appliedCode?.discountCents ?? 0) / 100) * 100);
   const totalCents = previewCents ?? (backendFeeBreakdown
@@ -406,9 +420,9 @@ export default function CheckoutScreen() {
   // The picker's confirm handler reads the screen through this ref, so its setup never changes.
   type Attempt = { token: string; feeBreakdown: FeeBreakdown | null; handled: boolean };
   const attemptRef = useRef<Attempt | null>(null);
-  const latest = useRef({ createOrder, showCheckoutError, previewCents, previewKey });
+  const latest = useRef({ createOrder, showCheckoutError, shownCents: totalCents, previewKey });
   useEffect(() => {
-    latest.current = { createOrder, showCheckoutError, previewCents, previewKey };
+    latest.current = { createOrder, showCheckoutError, shownCents: totalCents, previewKey };
   });
 
   // Built once; amounts change through setAmount (the SDK rebuilds the picker if this object changes).
@@ -426,7 +440,8 @@ export default function CheckoutScreen() {
           const { clientSecret, feeBreakdown } = await latest.current.createOrder(attempt.token);
           attempt.feeBreakdown = feeBreakdown;
           const charged = chargedCents(feeBreakdown);
-          if (!chargeMatchesPreview(latest.current.previewCents, charged)) {
+          // Checked against the total on screen (the preview, or the estimate if the preview failed).
+          if (!chargeMatchesPreview(latest.current.shownCents, charged)) {
             if (charged != null) setPreview({ key: latest.current.previewKey, cents: charged });
             Alert.alert(
               "Your total changed",
@@ -450,7 +465,7 @@ export default function CheckoutScreen() {
     loaded: picker.loaded,
     hasOption: !!picker.option,
     hasAddress: hasShippingAddress,
-    busy: checkoutLoading || sessionLoading || addressesLoading,
+    busy: checkoutLoading || sessionLoading || addressesLoading || previewPending,
     empty: isEmpty,
     loadFailed: picker.failed,
   });
@@ -460,7 +475,7 @@ export default function CheckoutScreen() {
     if (!payReady || !pickerRef.current) return;
     if (!oneAtATime.start()) return;
     setCardError(null);
-    const token = await getToken();
+    const token = await tokenRef.current();
     if (!token) { oneAtATime.done(); Alert.alert("Checkout failed. Please try again."); return; }
     setCheckoutLoading(true);
     const attempt: Attempt = { token, feeBreakdown: null, handled: false };
@@ -470,7 +485,7 @@ export default function CheckoutScreen() {
       if (result.status === "completed") {
         finishOrder(token, attempt.feeBreakdown);
       } else if (result.status === "failed" && !attempt.handled) {
-        setCardError(result.error?.message || "Payment failed. Please try again.");
+        setCardError(resultErrorText(result) || "Payment failed. Please try again.");
       }
       // canceled: the customer backed out (or left Klarna, Afterpay or Cash App); nothing was charged.
     } catch {
@@ -894,9 +909,17 @@ export default function CheckoutScreen() {
             </Pressable>
           ) : null}
           {picker.failed ? (
-            <ThemedText type="body" style={styles.cardErrorText}>
-              {"Payment options didn't load. Go back and open checkout again."}
-            </ThemedText>
+            <Pressable
+              onPress={() => {
+                setPicker({ option: null, loaded: false, failed: false });
+                setPickerKey((k) => k + 1);
+              }}
+              accessibilityRole="button"
+            >
+              <ThemedText type="body" style={styles.cardErrorText}>
+                {"Payment options didn't load. Tap to try again."}
+              </ThemedText>
+            </Pressable>
           ) : null}
 
           {cardError !== null && (
@@ -985,6 +1008,7 @@ export default function CheckoutScreen() {
 
       {elementConfig ? (
         <CheckoutPaymentPicker
+          key={pickerKey}
           ref={pickerRef}
           intentConfig={intentConfig}
           config={elementConfig}

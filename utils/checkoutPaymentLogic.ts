@@ -199,3 +199,34 @@ export function pickerReady(s: {
     !s.loadFailed
   );
 }
+
+/**
+ * The preview for the current cart and points code. pending: still asking (pay waits). A failed preview
+ * (cents null) stops waiting; the charge is then checked against the estimate on screen.
+ */
+export function previewFor(
+  preview: { key: string; cents: number | null } | null,
+  key: string,
+): { pending: boolean; cents: number | null } {
+  if (!preview || preview.key !== key) return { pending: true, cents: null };
+  return { pending: false, cents: preview.cents };
+}
+
+/**
+ * The failure text from the picker's confirm. The native sides send `error` as a string
+ * (stripe-react-native 0.81.0 StripeSdkImpl+Embedded.swift:129, EmbeddedPaymentElementView.kt:179),
+ * despite the Error type. Null when there's nothing to show.
+ */
+export function resultErrorText(result: {
+  status: "failed";
+  error: Error | string;
+}): string | null {
+  const e = result.error as unknown;
+  const text =
+    typeof e === "string"
+      ? e
+      : e && typeof (e as Error).message === "string"
+        ? (e as Error).message
+        : "";
+  return text.trim() ? text.trim() : null;
+}
