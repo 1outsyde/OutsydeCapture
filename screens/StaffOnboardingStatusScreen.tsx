@@ -1,3 +1,4 @@
+import { BASE_URL } from "@/constants/config";
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import {
   StyleSheet,
@@ -74,7 +75,7 @@ export default function StaffOnboardingStatusScreen() {
           const businessIdParam = user?.staffBusinessId
             ? `?businessId=${encodeURIComponent(user.staffBusinessId)}`
             : "";
-          const res = await fetch(`https://outsyde-backend.onrender.com/api/staff/me${businessIdParam}`, {
+          const res = await fetch(`${BASE_URL}/api/staff/me${businessIdParam}`, {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
@@ -127,7 +128,7 @@ export default function StaffOnboardingStatusScreen() {
         const businessIdParam = user?.staffBusinessId
           ? `?businessId=${encodeURIComponent(user.staffBusinessId)}`
           : "";
-        const res = await fetch(`https://outsyde-backend.onrender.com/api/staff/me${businessIdParam}`, {
+        const res = await fetch(`${BASE_URL}/api/staff/me${businessIdParam}`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

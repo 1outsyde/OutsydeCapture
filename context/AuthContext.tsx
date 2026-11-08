@@ -1,3 +1,4 @@
+import { BASE_URL } from "@/constants/config";
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { EXPO_PUSH_TOKEN_KEY } from "@/services/messagePush";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -315,7 +316,7 @@ type StaffProfile = {
 //   ambiguous which business." Logged clearly since it's a silent choice.
 async function resolveStaffProfile(accessToken: string): Promise<StaffProfile | null> {
   try {
-    const staffRes = await fetch("https://outsyde-backend.onrender.com/api/staff/me", {
+    const staffRes = await fetch(`${BASE_URL}/api/staff/me`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -496,7 +497,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const headers: HeadersInit = { "Content-Type": "application/json" };
         if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
-        const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+        const response = await fetch(`${BASE_URL}/api/auth/me`, {
           method: "GET",
           credentials: "include",
           headers,
@@ -543,7 +544,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const refreshToken = await getRefreshToken();
           if (refreshToken) {
             try {
-              const refreshRes = await fetch("https://outsyde-backend.onrender.com/api/auth/refresh", {
+              const refreshRes = await fetch(`${BASE_URL}/api/auth/refresh`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ refreshToken }),
@@ -876,7 +877,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Send refresh token to backend to revoke server-side
       try {
         const refreshToken = await getRefreshToken();
-        await fetch("https://outsyde-backend.onrender.com/api/auth/logout", {
+        await fetch(`${BASE_URL}/api/auth/logout`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -892,7 +893,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const pushToken = await AsyncStorage.getItem(EXPO_PUSH_TOKEN_KEY);
         const accessToken = await getAccessToken();
         if (pushToken && accessToken) {
-          await fetch("https://outsyde-backend.onrender.com/api/push/expo-token", {
+          await fetch(`${BASE_URL}/api/push/expo-token`, {
             method: "DELETE",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
             body: JSON.stringify({ expoPushToken: pushToken }),
@@ -944,7 +945,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = async (): Promise<LoginResult> => {
     setIsLoading(true);
     try {
-      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+      const response = await fetch(`${BASE_URL}/api/auth/me`, {
         method: "GET",
         credentials: "include",
         headers: {
@@ -1038,7 +1039,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const accessToken = await getAccessToken();
       const refreshHeaders: HeadersInit = { "Content-Type": "application/json" };
       if (accessToken) refreshHeaders["Authorization"] = `Bearer ${accessToken}`;
-      const response = await fetch("https://outsyde-backend.onrender.com/api/auth/me", {
+      const response = await fetch(`${BASE_URL}/api/auth/me`, {
         method: "GET",
         credentials: "include",
         headers: refreshHeaders,

@@ -1,3 +1,4 @@
+import { BASE_URL } from "@/constants/config";
 import React, { useState, useRef, useEffect } from "react";
 import {
   View,
@@ -19,7 +20,7 @@ import { CommonActions } from "@react-navigation/native";
 import { ThemedText } from "@/components/ThemedText";
 import { RootStackParamList } from "@/navigation/types";
 
-const API_BASE_URL = "https://outsyde-backend.onrender.com";
+const API_BASE_URL = BASE_URL;
 
 const DS = {
   bg: "#080C08",
