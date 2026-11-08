@@ -37,7 +37,7 @@ import api, {
 import { RootStackParamList } from "@/navigation/types";
 import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicker";
 import { formatDuration } from "@/utils/duration";
-import { sheetOptions } from "@/utils/paymentSheetOptions";
+import { sheetOptions, sheetStyle } from "@/utils/paymentSheetOptions";
 import { readableTextOn } from "@/constants/colorOptions";
 import { needsCalendarPermission } from "@/utils/ticketCheckoutLogic";
 import {
@@ -421,7 +421,7 @@ export default function BookingFlow({
   onDone,
   onMessage,
 }: BookingFlowProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const accent = accentColor || theme.brandGold;
   const accentDim = accentColor ? accentColor + "CC" : theme.brandGoldDim;
@@ -1046,7 +1046,7 @@ export default function BookingFlow({
         paymentIntentClientSecret: pd.clientSecret,
         defaultBillingDetails: { name: providerName },
         // Apple Pay on iPhone; saved cards and the Save box when the backend sent a session.
-        ...sheetOptions(pd, Platform.OS),
+        ...sheetOptions(pd, Platform.OS, sheetStyle(isDark)),
       });
       if (initError) {
         if (isHoldExpiredNow() || isPaymentIntentGoneError(initError)) {

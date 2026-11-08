@@ -12,6 +12,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { StripeProvider } from "@stripe/stripe-react-native";
+import { StripeLinkHandler } from "@/components/StripeLinkHandler";
 import RootNavigator from "@/navigation/RootNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -151,6 +152,7 @@ function AppContent() {
                 merchantIdentifier="merchant.com.outsyde.app"
                 urlScheme="outsyde"
               >
+                              <StripeLinkHandler />
                               <AppShell />
                             </StripeProvider>
                           </CalendarProvider>
