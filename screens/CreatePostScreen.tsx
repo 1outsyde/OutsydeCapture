@@ -86,7 +86,21 @@ const CAMERA_ICON_SIZE = 40;
 // Bottom block above the home bar: 12 top + 72 shutter row + 14 gap + 20 mode words.
 const CAMERA_BOTTOM_BLOCK = 118;
 const CAMERA_CORNER = 18;
-const RECORD_MAX_SECONDS = 15;
+// Length chips row on the Post camera (Pulse): 28 pt chips + 10 pt gap above the shutter row.
+const CAMERA_CHIPS_BLOCK = 38;
+// Story camera recordings and PHOTO hold-to-record: 15 seconds.
+const QUICK_RECORD_SECONDS = 15;
+// Pulse lengths, TikTok style. PHOTO = tap for a photo, hold for a quick video.
+type CaptureChip = "10m" | "60s" | "15s" | "photo";
+const CAPTURE_CHIPS: { key: CaptureChip; label: string; seconds: number | null }[] = [
+  { key: "10m", label: "10m", seconds: 600 },
+  { key: "60s", label: "60s", seconds: 60 },
+  { key: "15s", label: "15s", seconds: 15 },
+  { key: "photo", label: "PHOTO", seconds: null },
+];
+// Pulse videos from the library: up to 10 minutes (60 after chunked uploads). The picker reports
+// milliseconds; half a second of slack keeps a 10:00.0 clip that reports 10:00.03 from being refused.
+const PULSE_MAX_VIDEO_MS = 10 * 60 * 1000 + 500;
 const THUMB_HEIGHT = 120;
 const POST_CROP_PRESET: CropPreset = { aspect: 4 / 5, shape: "rect", title: "Crop post" };
 
@@ -177,6 +191,8 @@ export default function CreatePostScreen() {
   };
 
   const switchMode = (newMode: "post" | "story") => {
+    // A tap-started recording leaves the finger free to swipe: keep the mode until it stops.
+    if (recordingRef.current) return;
     setMode(newMode);
     setStep(1);
     setPostImage("");
@@ -233,7 +249,20 @@ export default function CreatePostScreen() {
     };
   }, []);
 
-  // Recording timer pill. Display only: the 15 s stop is recordingTimerRef / maxDuration.
+  // Post camera length chip (Pulse). Kept while the screen is open.
+  const [captureChip, setCaptureChip] = useState<CaptureChip>("photo");
+  const chipSeconds = CAPTURE_CHIPS.find((c) => c.key === captureChip)?.seconds ?? null;
+  // A length chip in Post mode: tap starts and tap stops recording.
+  const tapToRecord = mode === "post" && chipSeconds !== null;
+  // The limit of the recording in progress (set when it starts), for the stop and the timer.
+  const [recordLimit, setRecordLimit] = useState(QUICK_RECORD_SECONDS);
+  const recordLimitRef = useRef(QUICK_RECORD_SECONDS);
+  // True while a recording started by a tap is running (a tap stops it; releasing does not).
+  const tapRecordingRef = useRef(false);
+  // Mirrors isRecording for gesture callbacks, which can hold an older render's value.
+  const recordingRef = useRef(false);
+
+  // Recording timer pill. Display only: the stop is recordingTimerRef / maxDuration.
   // Counts only once startRecording runs (on Android, after the switch to video mode).
   const recordLiveRef = useRef(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -241,7 +270,7 @@ export default function CreatePostScreen() {
     if (!isRecording) return;
     const id = setInterval(() => {
       if (recordLiveRef.current) {
-        setRecordSeconds((n) => Math.min(RECORD_MAX_SECONDS, n + 1));
+        setRecordSeconds((n) => Math.min(recordLimitRef.current, n + 1));
       }
     }, 1000);
     return () => {
@@ -311,6 +340,10 @@ export default function CreatePostScreen() {
 
     const assets = result.assets;
     if (assets.length === 1 && isVideoAsset(assets[0])) {
+      if ((assets[0].duration ?? 0) > PULSE_MAX_VIDEO_MS) {
+        Alert.alert("Video too long", "Pulse videos can be up to 10 minutes. Pick a shorter one.");
+        return;
+      }
       // Single video: a Pulse post. Fill for tall videos, Fit for wide ones; changeable on step 2.
       clearPostPhotos();
       setVideoFit(defaultVideoFit(assets[0].width, assets[0].height));
@@ -450,6 +483,16 @@ export default function CreatePostScreen() {
   };
 
   const handleShutterTap = async () => {
+    // A length chip (Pulse): tap starts a recording, the next tap stops it.
+    if (tapRecordingRef.current) {
+      await stopRecordingNow();
+      return;
+    }
+    if (tapToRecord && chipSeconds !== null) {
+      if (recordingRef.current) return; // a held recording is running
+      await beginRecording(chipSeconds, true);
+      return;
+    }
     if (!cameraPermission?.granted) {
       await requestCameraPermission();
       return;
@@ -490,7 +533,9 @@ export default function CreatePostScreen() {
   // Full screen camera: the floating X / flip row at the top and the shutter block at the bottom.
   const cameraTopInset = insets.top + CAMERA_TOP_GAP + CAMERA_ICON_SIZE;
   const cameraBottomPad = insets.bottom || 16;
-  const cameraBottomInset = CAMERA_BOTTOM_BLOCK + cameraBottomPad;
+  const showChips = mode === "post";
+  const cameraBottomInset =
+    CAMERA_BOTTOM_BLOCK + (showChips ? CAMERA_CHIPS_BLOCK : 0) + cameraBottomPad;
 
   // The 4:5 frame shown as corner marks in Post mode, in camera area points. It sits in the open
   // space between the top buttons and the shutter block, so it never lands under the controls.
@@ -505,19 +550,28 @@ export default function CreatePostScreen() {
     : null;
 
   const startRecording = async () => {
+    const limit = recordLimitRef.current;
     setRecordSeconds(0);
     recordLiveRef.current = true;
+    recordingRef.current = true;
     setIsRecording(true);
     recordingTimerRef.current = setTimeout(async () => {
       await cameraRef.current?.stopRecording();
+      recordingRef.current = false;
       setIsRecording(false);
-    }, 15000);
-    const result = await cameraRef.current?.recordAsync({ maxDuration: 15 });
+    }, limit * 1000);
+    const result = await cameraRef.current?.recordAsync({ maxDuration: limit });
+    recordingRef.current = false;
+    tapRecordingRef.current = false;
+    if (recordingTimerRef.current) {
+      clearTimeout(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
     if (!result?.uri) {
       setIsRecording(false);
-      if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
       return;
     }
+    setIsRecording(false);
     // Camera recordings are full screen and tall: start on Fill.
     if (mode === "post") {
       clearPostPhotos();
@@ -540,6 +594,7 @@ export default function CreatePostScreen() {
 
   const startAndroidRecording = async () => {
     androidHoldingRef.current = true;
+    recordingRef.current = true;
     setIsRecording(true);
     // Switch to video and wait for the camera to re-open (or 3s, whichever first).
     await new Promise<void>((resolve) => {
@@ -557,7 +612,10 @@ export default function CreatePostScreen() {
       if (androidHoldingRef.current) {
         await startRecording();
       } else {
-        setIsRecording(false); // released before the camera was ready: no video
+        // Released (or tapped to stop) before the camera was ready: no video.
+        recordingRef.current = false;
+        tapRecordingRef.current = false;
+        setIsRecording(false);
       }
     } finally {
       androidHoldingRef.current = false;
@@ -565,7 +623,8 @@ export default function CreatePostScreen() {
     }
   };
 
-  const handleShutterPressIn = async () => {
+  // Starts a recording of up to `seconds`. `byTap`: a tap stops it, releasing the shutter does not.
+  const beginRecording = async (seconds: number, byTap: boolean) => {
     if (!cameraPermission?.granted) {
       await requestCameraPermission();
       return;
@@ -574,6 +633,10 @@ export default function CreatePostScreen() {
       await requestMicPermission();
       return;
     }
+    if (recordingRef.current) return;
+    recordLimitRef.current = seconds;
+    setRecordLimit(seconds);
+    tapRecordingRef.current = byTap;
     if (Platform.OS === "android") {
       await startAndroidRecording();
       return;
@@ -581,15 +644,30 @@ export default function CreatePostScreen() {
     await startRecording();
   };
 
-  const handleShutterPressOut = async () => {
+  // Stops the recording in progress (or, on Android, one still waiting for video mode).
+  const stopRecordingNow = async () => {
     if (Platform.OS === "android") androidHoldingRef.current = false;
-    if (!isRecording) return;
+    tapRecordingRef.current = false;
     if (recordingTimerRef.current) {
       clearTimeout(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
+    if (!recordingRef.current) return;
     await cameraRef.current?.stopRecording();
+    recordingRef.current = false;
     setIsRecording(false);
+  };
+
+  const handleShutterPressIn = async () => {
+    // Hold: on a length chip, up to that length; on PHOTO and in Story, a quick video.
+    if (tapRecordingRef.current || recordingRef.current) return;
+    await beginRecording(tapToRecord && chipSeconds !== null ? chipSeconds : QUICK_RECORD_SECONDS, false);
+  };
+
+  const handleShutterPressOut = async () => {
+    // A recording started by a tap keeps going until the next tap.
+    if (tapRecordingRef.current) return;
+    await stopRecordingNow();
   };
 
   const handleCreatePost = async () => {
@@ -628,7 +706,10 @@ export default function CreatePostScreen() {
         feedSurface: postLayout,
       };
       if (isVideo) {
-        const uploadResult = await uploadVideo(postImage, "video/mp4", authToken);
+        setUploadProgress("Uploading 0%");
+        const uploadResult = await uploadVideo(postImage, "video/mp4", authToken, (p) =>
+          setUploadProgress(`Uploading ${p.percent}%`),
+        );
         if (!uploadResult.uploadId) throw new Error("Failed to upload video. Please try again.");
         postData.videoUrl = uploadResult.uploadId;
         postData.mediaType = "video";
@@ -789,6 +870,7 @@ export default function CreatePostScreen() {
   );
 
   const renderShareButton = () => (
+    <>
     <Pressable
       onPress={handleCreatePost}
       disabled={postSaving || !postImage}
@@ -814,9 +896,18 @@ export default function CreatePostScreen() {
         </ThemedText>
       )}
     </Pressable>
+    {postSaving && postLayout === "pulse" ? (
+      <ThemedText
+        type="caption"
+        style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.xs }}
+      >
+        Keep Outsyde open while your video uploads.
+      </ThemedText>
+    ) : null}
+    </>
   );
 
-  const recordClock = (n: number) => `0:${String(n).padStart(2, "0")}`;
+  const recordClock = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
   const showingPick = !!postImage;
 
   return (
@@ -892,6 +983,8 @@ export default function CreatePostScreen() {
                           ? androidCameraMode
                           : undefined
                       }
+                      // TikTok posts at 1080p; without this iPhones record at their highest (often 4K).
+                      videoQuality="1080p"
                       onCameraReady={
                         Platform.OS === "android"
                           ? handleCameraReady
@@ -901,6 +994,7 @@ export default function CreatePostScreen() {
                   ) : null}
                   {cameraPermission?.granted &&
                   mode === "post" &&
+                  captureChip === "photo" &&
                   !isRecording &&
                   cameraFrame ? (
                     // The 4:5 post frame as corner marks: what a photo keeps (changeable on the crop screen).
@@ -1073,12 +1167,12 @@ export default function CreatePostScreen() {
                   { top: insets.top + CAMERA_TOP_GAP + 6 },
                 ]}
                 accessibilityLiveRegion="polite"
-                accessibilityLabel={`Recording, ${recordSeconds} of ${RECORD_MAX_SECONDS} seconds`}
+                accessibilityLabel={`Recording, ${recordClock(recordSeconds)} of ${recordClock(recordLimit)}`}
               >
                 <View style={styles.recordDot} />
                 <ThemedText style={styles.recordPillText}>
                   {recordClock(recordSeconds)} /{" "}
-                  {recordClock(RECORD_MAX_SECONDS)}
+                  {recordClock(recordLimit)}
                 </ThemedText>
               </View>
             )}
@@ -1087,6 +1181,42 @@ export default function CreatePostScreen() {
             <View
               style={[styles.cameraBottom, { paddingBottom: cameraBottomPad }]}
             >
+              {/* Pulse lengths (Post mode): a length records video by tap, PHOTO takes photos. */}
+              {showChips ? (
+                <View
+                  style={[
+                    styles.chipsRow,
+                    (isRecording || showingPick) && { opacity: 0 },
+                  ]}
+                  pointerEvents={isRecording || showingPick ? "none" : "auto"}
+                  accessibilityRole="radiogroup"
+                >
+                  {CAPTURE_CHIPS.map((c) => {
+                    const on = c.key === captureChip;
+                    return (
+                      <Pressable
+                        key={c.key}
+                        onPress={() => setCaptureChip(c.key)}
+                        disabled={isRecording}
+                        hitSlop={6}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                        accessibilityLabel={
+                          c.seconds === null
+                            ? "Photo"
+                            : `Video up to ${c.seconds >= 60 ? `${c.seconds / 60} minute${c.seconds > 60 ? "s" : ""}` : `${c.seconds} seconds`}`
+                        }
+                        testID={`capture-chip-${c.key}`}
+                        style={[styles.captureChip, on && styles.captureChipOn]}
+                      >
+                        <ThemedText style={[styles.captureChipText, on && styles.captureChipTextOn]}>
+                          {c.label}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
               <View style={styles.controlsRow}>
                 <View style={styles.controlsSide}>
                   {!isRecording && (
@@ -1134,12 +1264,15 @@ export default function CreatePostScreen() {
                     accessibilityLabel={
                       isRecording
                         ? "Stop recording"
-                        : "Take a photo, hold to record a video"
+                        : tapToRecord
+                          ? "Start recording"
+                          : "Take a photo, hold to record a video"
                     }
                   >
                     <View
                       style={[
                         styles.shutterInner,
+                        tapToRecord && styles.shutterInnerVideo,
                         isRecording && styles.shutterInnerRecording,
                       ]}
                     />
@@ -1707,6 +1840,34 @@ const styles = StyleSheet.create({
     width: 48,
     alignItems: "center",
   },
+  chipsRow: {
+    height: 28,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  captureChip: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  captureChipOn: {
+    backgroundColor: "#FFFFFF",
+  },
+  captureChipText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  captureChipTextOn: {
+    color: "#171717",
+  },
   modeRow: {
     height: 20,
     marginTop: 14,
@@ -1766,6 +1927,9 @@ const styles = StyleSheet.create({
     height: 58,
     borderRadius: 29,
     backgroundColor: "#fff",
+  },
+  shutterInnerVideo: {
+    backgroundColor: "#C62828",
   },
   shutterButtonRecording: {
     borderColor: "#C62828",
