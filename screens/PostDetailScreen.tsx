@@ -4,11 +4,10 @@ import {
   Alert,
   Dimensions,
   FlatList,
-  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -22,12 +21,12 @@ import { useAuth } from "@/context/AuthContext";
 import { useSavedPosts } from "@/context/SavedPostsContext";
 import { useData, Post, PostType } from "@/context/DataContext";
 import { useTheme } from "@/hooks/useTheme";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { ThemedText } from "@/components/ThemedText";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { ProFeedCard } from "@/components/ProFeedCard";
 import PulseVideoCard, { PULSE_CARD_HEIGHT } from "@/components/PulseVideoCard";
-import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 import { postAspect } from "@/utils/postAspect";
 import { apiVideoFit } from "@/utils/videoFit";
 import { postServiceTarget } from "@/utils/businessQuotesLogic";
@@ -489,47 +488,46 @@ export default function PostDetailScreen() {
         </View>
       )}
 
-      <Modal
+      <FullScreenSheet
         visible={editingPostId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCancelEdit}
+        onClose={handleCancelEdit}
+        closeDisabled={saveBusy}
+        title="Edit Caption"
+        closeLabel="cancel"
+        backgroundColor={theme.card ?? theme.backgroundRoot}
+        tintColor={theme.text}
+        borderColor={theme.border}
+        right={
+          <Pressable
+            onPress={handleSaveEdit}
+            disabled={saveBusy}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Save caption"
+          >
+            <ThemedText style={{ color: theme.brandGold ?? theme.primary, fontWeight: "700", fontSize: 16 }}>
+              {saveBusy ? "Saving..." : "Save"}
+            </ThemedText>
+          </Pressable>
+        }
       >
-        <TouchableWithoutFeedback onPress={handleCancelEdit}>
-          <View style={styles.editOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.editPanel, { backgroundColor: theme.card ?? theme.backgroundRoot }]}>
-                <ThemedText style={styles.editTitle}>Edit Caption</ThemedText>
-                <ScreenKeyboardAwareScrollView
-                  contentContainerStyle={{ paddingTop: 0, paddingHorizontal: 0 }}
-                  keyboardShouldPersistTaps="handled"
-                >
-                <TextInput
-                  value={editedCaption}
-                  onChangeText={setEditedCaption}
-                  multiline
-                  maxLength={2000}
-                  style={[styles.editInput, { color: theme.text, borderColor: theme.border ?? theme.textSecondary }]}
-                  placeholder="Write a caption..."
-                  placeholderTextColor={theme.textSecondary}
-                  autoFocus
-                />
-                <View style={styles.editActionsRow}>
-                  <Pressable onPress={handleCancelEdit} style={styles.editActionButton} disabled={saveBusy}>
-                    <ThemedText style={{ color: theme.textSecondary }}>Cancel</ThemedText>
-                  </Pressable>
-                  <Pressable onPress={handleSaveEdit} style={styles.editActionButton} disabled={saveBusy}>
-                    <ThemedText style={{ color: theme.brandGold ?? theme.primary, fontWeight: "600" }}>
-                      {saveBusy ? "Saving..." : "Save"}
-                    </ThemedText>
-                  </Pressable>
-                </View>
-                </ScreenKeyboardAwareScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: Spacing.lg }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TextInput
+            value={editedCaption}
+            onChangeText={setEditedCaption}
+            multiline
+            maxLength={2000}
+            style={[styles.editInput, { color: theme.text, borderColor: theme.border ?? theme.textSecondary }]}
+            placeholder="Write a caption..."
+            placeholderTextColor={theme.textSecondary}
+            autoFocus
+          />
+        </ScrollView>
+      </FullScreenSheet>
     </View>
   );
 }
@@ -617,37 +615,13 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.6)",
     fontSize: 14,
   },
-  editOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.lg,
-  },
-  editPanel: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-  },
-  editTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: Spacing.sm,
-  },
   editInput: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
     borderWidth: 1,
     borderRadius: 8,
     padding: Spacing.sm,
-    minHeight: 80,
+    minHeight: 160,
     textAlignVertical: "top",
-  },
-  editActionsRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  editActionButton: {
-    padding: 4,
   },
 });

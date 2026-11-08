@@ -32,7 +32,10 @@ export interface FullScreenSheetProps {
   onDismiss?: () => void;
   /** While true (e.g. saving), the close control and Android back do nothing. */
   closeDisabled?: boolean;
-  /** Android keyboard handling; default leaves it to the window resizing. */
+  /**
+   * Android keyboard handling. Defaults to "height": the app runs edge to
+   * edge, so the window no longer resizes for the keyboard on its own.
+   */
   androidKeyboardBehavior?: "height";
   children: React.ReactNode;
 }
@@ -48,7 +51,7 @@ export function FullScreenSheet({
   borderColor,
   onDismiss,
   closeDisabled = false,
-  androidKeyboardBehavior,
+  androidKeyboardBehavior = "height",
   children,
 }: FullScreenSheetProps) {
   const { theme } = useTheme();

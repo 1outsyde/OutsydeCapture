@@ -65,7 +65,7 @@ for (const f of FILES_2A) {
     assert.deepEqual(bad, [], `${f} still has transparent Modal(s)`);
     assert.match(
       src,
-      /import \{ FullScreenSheet \} from "@\/components\/FullScreenSheet"/,
+      /import \{ FullScreenSheet \} from ["']@\/components\/FullScreenSheet["']/,
     );
   });
 }
@@ -135,7 +135,7 @@ for (const f of FILES_2B) {
     const src = read(f);
     const bad = modalTags(src).filter((t) => /\btransparent\b/.test(t));
     assert.deepEqual(bad, [], `${f} still has transparent Modal(s)`);
-    assert.match(src, /import \{ FullScreenSheet \} from "@\/components\/FullScreenSheet"/);
+    assert.match(src, /import \{ FullScreenSheet \} from ["']@\/components\/FullScreenSheet["']/);
   });
 }
 
@@ -166,6 +166,76 @@ test("copy and checklist sheets block closing while busy", () => {
   const lib = read("components/addons/AddonLibraryTab.tsx");
   assert.match(lib, /closeDisabled=\{sheetBusy\}/);
   assert.match(lib, /closeDisabled=\{saving\}/);
+});
+
+// ---- 2c: customer pop-ups ----
+
+const FILES_2C = [
+  "components/ratings/RatingBottomSheet.tsx",
+  "components/events/BuyTicketsModal.tsx",
+  "components/events/ReportEventSheet.tsx",
+  "screens/PostDetailScreen.tsx",
+  "components/plan-offer/PlanOfferSheet.tsx",
+  "screens/StoryViewerScreen.tsx",
+];
+
+for (const f of FILES_2C) {
+  test(`${f}: no transparent sheets, uses FullScreenSheet`, () => {
+    const src = read(f);
+    const bad = modalTags(src).filter((t) => /\btransparent\b/.test(t));
+    assert.deepEqual(bad, [], `${f} still has transparent Modal(s)`);
+    assert.match(src, /import \{ FullScreenSheet \} from ["']@\/components\/FullScreenSheet["']/);
+  });
+}
+
+test("Story viewers no longer use the swipe sheet library", () => {
+  assert.doesNotMatch(read("screens/StoryViewerScreen.tsx"), /@gorhom\/bottom-sheet/);
+});
+
+test("Story viewers pause the story and resume with the remaining time", () => {
+  const src = read("screens/StoryViewerScreen.tsx");
+  assert.match(src, /remainingStoryMs\(/);
+  assert.match(src, /paused=\{viewersOpen\}/);
+  assert.match(src, /if \(viewersOpen\) \{\s*cancelAnimation\(progress\);\s*return;/);
+  assert.match(src, /\}, \[currentStory\?\.id, advance, viewersOpen\]\);/);
+  // A new story starts from 0 without reading the old bar's live value.
+  assert.match(src, /resumeProgress\(isNewStory, /);
+});
+
+test("Edit caption: Cancel left, Save right", () => {
+  const sheets = [...read("screens/PostDetailScreen.tsx").matchAll(/\n( *)<FullScreenSheet\b[\s\S]*?\n\1>\n/g)].map((m) => m[0]);
+  const edit = sheets.find((s) => s.includes('"Edit Caption"')) ?? "";
+  assert.match(edit, /closeLabel="cancel"/);
+  assert.match(edit, /right=\{[\s\S]*Save/);
+});
+
+test("Report keeps the older Android keyboard setting and blocks close while sending", () => {
+  const src = read("components/events/ReportEventSheet.tsx");
+  assert.match(src, /androidKeyboardBehavior="height"/);
+  assert.match(src, /closeDisabled=\{/);
+});
+
+test("Buy tickets and the plan offer block closing while busy", () => {
+  assert.match(read("components/events/BuyTicketsModal.tsx"), /closeDisabled=\{closeBlocked\}/);
+  assert.match(read("components/events/BuyTicketsModal.tsx"), /const closeBlocked = step === "starting" \|\| step === "pay" \|\| step === "confirming";/);
+  assert.match(read("components/plan-offer/PlanOfferSheet.tsx"), /closeDisabled=\{busy\}/);
+});
+
+for (const f of ["screens/DiscoverScreen.tsx", "screens/PulseFeedScreenV2.tsx"]) {
+  test(`${f}: comments stay a sheet (Legend's exception)`, () => {
+    const tags = modalTags(read(f));
+    assert.ok(tags.some((t) => /comments/i.test(t) && /\btransparent\b/.test(t)), "comments sheet is no longer transparent");
+  });
+  test(`${f}: story ring opens the story after comments close`, () => {
+    const src = read(f);
+    assert.match(src, /commentsAfterClose\.queue\(\(\) =>\s*navigation\.navigate\("StoryViewer"/);
+    assert.match(src, /onDismiss=\{commentsAfterClose\.onDismiss\}/);
+    assert.match(src, /commentsAfterClose\.queue\([\s\S]*?\);\s*handleCloseComments\(\);\s*commentsAfterClose\.runIfImmediate\(\);/);
+  });
+}
+
+test("FullScreenSheet: Android shrinks for the keyboard by default (edge to edge, the window doesn't resize)", () => {
+  assert.match(read("components/FullScreenSheet.tsx"), /androidKeyboardBehavior = "height"/);
 });
 
 console.log(`\n${passed} passed`);

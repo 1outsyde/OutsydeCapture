@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { sheetOptions, sheetStyle } from "@/utils/paymentSheetOptions";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -10,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useStripePayment } from "@/hooks/useStripePayment";
 import api from "@/services/api";
 import { EVENT_CREAM, EVENT_GOLD, EVENT_GREEN, EVENT_GREEN_TEXT } from "@/components/events/eventColors";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import {
   CHECKOUT_FEE_NOTE,
   GENERIC_ERROR,
@@ -76,7 +76,6 @@ export default function BuyTicketsModal({
   onOpenTerms,
 }: Props) {
   const { theme, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = useStripePayment();
 
@@ -279,8 +278,10 @@ export default function BuyTicketsModal({
     confirm(res.orderId as string);
   };
 
+  // Closing is refused while a checkout is starting, paying or confirming.
+  const closeBlocked = step === "starting" || step === "pay" || step === "confirming";
   const close = () => {
-    if (step === "starting" || step === "pay" || step === "confirming") return;
+    if (closeBlocked) return;
     onClose();
   };
 
@@ -289,9 +290,17 @@ export default function BuyTicketsModal({
   const resultKind: BuyResult | null = step === "paid" || step === "processing" || step === "expired" ? step : null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close} statusBarTranslucent>
+    <FullScreenSheet
+      visible={visible}
+      onClose={close}
+      closeDisabled={closeBlocked}
+      title={resultKind ? "Your tickets" : step === "pay" || step === "confirming" ? "Payment" : "Choose tickets"}
+      backgroundColor={theme.backgroundRoot}
+      tintColor={theme.text}
+      borderColor={theme.border}
+    >
       {resultKind ? (
-        <View style={[styles.result, { backgroundColor: theme.backgroundRoot, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+        <View style={[styles.result, { backgroundColor: theme.backgroundRoot, paddingTop: 24, paddingBottom: 24 }]}>
           {(() => {
             const copy = resultCopy(resultKind, checkout?.order?.ticketCount ?? qty);
             const icon = resultKind === "paid" ? "check" : resultKind === "processing" ? "clock" : "alert-circle";
@@ -331,7 +340,7 @@ export default function BuyTicketsModal({
           <ThemedText style={[styles.resultBody, { color: theme.textSecondary }]}>Confirming your payment</ThemedText>
         </View>
       ) : step === "pay" && checkout ? (
-        <View style={[styles.result, { backgroundColor: theme.backgroundRoot, justifyContent: "flex-start", alignItems: "stretch", paddingTop: insets.top + 40 }]}>
+        <View style={[styles.result, { backgroundColor: theme.backgroundRoot, justifyContent: "flex-start", alignItems: "stretch", paddingTop: 24 }]}>
           <ThemedText style={[styles.sheetTitle, { color: theme.text }]}>{event.title}</ThemedText>
           <View style={styles.hold}>
             <Feather name="clock" size={16} color="#F5D26B" />
@@ -354,21 +363,10 @@ export default function BuyTicketsModal({
           <ActivityIndicator color={EVENT_GOLD} style={{ marginTop: 24 }} />
         </View>
       ) : (
-        <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close" accessibilityRole="button" />
-          <View style={[styles.sheet, { backgroundColor: theme.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={[styles.grabber, { backgroundColor: theme.border }]} />
-            <View style={styles.sheetHead}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <ThemedText style={[styles.sheetTitle, { color: theme.text }]} accessibilityRole="header">Choose tickets</ThemedText>
-                <ThemedText style={[styles.small, { color: theme.textSecondary }]}>One ticket type per order</ThemedText>
-              </View>
-              <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close" style={[styles.closeBtn, { backgroundColor: theme.backgroundRoot }]}>
-                <Feather name="x" size={18} color={theme.text} />
-              </Pressable>
-            </View>
+        <View style={styles.page}>
+            <ThemedText style={[styles.small, { color: theme.textSecondary }]}>One ticket type per order</ThemedText>
 
-            <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: 10 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
               {paidTypes.map((t) => {
                 const onSale = t.salesStatus === "on_sale";
                 const on = onSale && t.id === pickedId;
@@ -444,20 +442,15 @@ export default function BuyTicketsModal({
             >
               {busy ? <ActivityIndicator color="#0B0B0B" /> : <ThemedText style={[styles.ctaText, !picked && { color: theme.textSecondary }]}>Continue to payment</ThemedText>}
             </Pressable>
-          </View>
         </View>
       )}
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
-  sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 10, gap: 14 },
-  grabber: { width: 40, height: 5, borderRadius: 3, alignSelf: "center" },
-  sheetHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  page: { flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 14 },
   sheetTitle: { fontSize: 20, fontWeight: "800" },
-  closeBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   small: { fontSize: 12, lineHeight: 17 },
   type: { borderWidth: 1, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10 },
   typeName: { fontSize: 15, fontWeight: "600" },

@@ -10,7 +10,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,9 +17,9 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/services/api";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useAuth } from "@/context/AuthContext";
 import {
   acceptErrorAction,
@@ -37,7 +36,6 @@ const C = {
   black: "#000000",
   cream: "#F5F0E6",
   creamLine: "#E2D9C6",
-  grip: "#CFC6B4",
   ink: "#111111",
   body: "#3A3A3A",
   muted: "#555555",
@@ -83,7 +81,6 @@ export default function PlanOfferSheet({
   onFinished,
   onSetUpPayouts,
 }: Props) {
-  const insets = useSafeAreaInsets();
   const { getToken, refreshUser } = useAuth();
   const [mode, setMode] = useState<Mode>("offer");
   const [busy, setBusy] = useState(false);
@@ -198,31 +195,17 @@ export default function PlanOfferSheet({
   const isFree = offer.plan === "free";
 
   return (
-    <Modal
+    <FullScreenSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={close}
-      statusBarTranslucent
+      onClose={close}
+      closeDisabled={busy}
+      title="Your plan"
+      backgroundColor={done ? C.black : C.cream}
+      tintColor={done ? C.cream : C.ink}
+      borderColor={done ? C.darkLine : C.creamLine}
     >
       {done ? (
-        <View
-          style={[
-            styles.dark,
-            { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 },
-          ]}
-        >
-          <View style={styles.darkTop}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              onPress={close}
-              style={styles.darkX}
-              hitSlop={8}
-            >
-              <Feather name="x" size={20} color={C.cream} />
-            </Pressable>
-          </View>
+        <View style={[styles.dark, { paddingTop: 16, paddingBottom: 24 }]}>
           <ScrollView contentContainerStyle={styles.darkContent}>
             <View style={styles.badge}>
               <Feather name="check" size={40} color={C.black} />
@@ -264,24 +247,12 @@ export default function PlanOfferSheet({
           </Pressable>
         </View>
       ) : (
-        <View style={styles.overlay}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            accessibilityLabel="Close"
-            onPress={close}
-          />
-          <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              onPress={close}
-              style={styles.sheetX}
-              hitSlop={8}
+          <View style={styles.sheet}>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ gap: 18, paddingBottom: 24 }}
+              bounces={false}
             >
-              <Feather name="x" size={18} color={C.ink} />
-            </Pressable>
-            <View style={styles.grip} />
-            <ScrollView contentContainerStyle={{ gap: 18 }} bounces={false}>
               {mode === "offer" ? (
                 <>
                   <View
@@ -380,45 +351,17 @@ export default function PlanOfferSheet({
               </Text>
             </ScrollView>
           </View>
-        </View>
       )}
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
   sheet: {
+    flex: 1,
     backgroundColor: C.cream,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 28,
+    paddingTop: 24,
     paddingHorizontal: 24,
-    maxHeight: "92%",
-  },
-  sheetX: {
-    position: "absolute",
-    top: 14,
-    right: 14,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: C.creamLine,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2,
-  },
-  grip: {
-    alignSelf: "center",
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: C.grip,
-    marginBottom: 18,
   },
   tag: {
     alignSelf: "flex-start",
@@ -480,13 +423,6 @@ const styles = StyleSheet.create({
   btnPlainText: { fontSize: 16, fontWeight: "600", color: C.body },
   fine: { textAlign: "center", fontSize: 13, color: C.fine, marginBottom: 4 },
   dark: { flex: 1, backgroundColor: C.black, paddingHorizontal: 24 },
-  darkTop: { flexDirection: "row", justifyContent: "flex-end" },
-  darkX: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   darkContent: { gap: 24, paddingTop: 8 },
   badge: {
     width: 76,

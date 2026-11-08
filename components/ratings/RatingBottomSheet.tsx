@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import {
-  Modal,
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   StyleSheet,
-  Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FullScreenSheet } from '@/components/FullScreenSheet';
 import { StarPicker } from './StarPicker';
 import { PurchaseItem, RatingTargetType } from '../../types/ratings';
 
@@ -34,7 +32,6 @@ export function RatingBottomSheet({
   purchases,
   existingRating,
 }: RatingBottomSheetProps) {
-  const insets = useSafeAreaInsets();
   const [selectedRating, setSelectedRating] = useState<number>(existingRating ?? 0);
   const [selectedPurchase, setSelectedPurchase] = useState<PurchaseItem | null>(
     purchases.length === 1 ? purchases[0] : null,
@@ -63,29 +60,15 @@ export function RatingBottomSheet({
   };
 
   return (
-    <Modal
+    <FullScreenSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      title={`Rate ${targetName}`}
+      backgroundColor="#fff"
+      tintColor="#111827"
+      borderColor="#E5E7EB"
     >
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-      <View
-        style={[
-          styles.sheet,
-          // Android: clear the system navigation bar (edge-to-edge). iOS keeps 34.
-          Platform.OS === 'android' && { paddingBottom: 16 + insets.bottom },
-        ]}
-      >
-        <View style={styles.handle} />
-        <View style={styles.header}>
-          <Text style={styles.title}>Rate {targetName}</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={styles.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
           <StarPicker value={selectedRating} onChange={setSelectedRating} size={40} showLabel />
 
           {purchases.length > 1 && (
@@ -126,52 +109,13 @@ export function RatingBottomSheet({
             )}
           </TouchableOpacity>
         </View>
-      </View>
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  scroll: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  closeBtnText: {
-    fontSize: 16,
-    color: '#6B7280',
   },
   content: {
     padding: 24,
@@ -217,6 +161,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingTop: 12,
+    paddingBottom: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E5E7EB',
   },
