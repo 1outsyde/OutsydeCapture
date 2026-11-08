@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  Modal,
   Pressable,
   TextInput,
   ScrollView,
@@ -10,14 +9,13 @@ import {
   Switch,
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
   InputAccessoryView,
   Platform,
   StyleSheet,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useAuth } from "@/context/AuthContext";
 import type { ServiceAddon, ServiceAddonPayload } from "@/services/api";
 import { formatDuration } from "@/utils/duration";
@@ -68,7 +66,6 @@ export default function ServiceAddonsEditor({
   accentColor,
 }: ServiceAddonsEditorProps) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
 
   const [addons, setAddons] = useState<ServiceAddon[]>([]);
@@ -338,27 +335,25 @@ export default function ServiceAddonsEditor({
       ) : null}
 
       {/* Add-on editor sheet (nested in the parent Modal) */}
-      <Modal
+      <FullScreenSheet
         visible={editorVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setEditorVisible(false)}
+        onClose={() => {
+          setEditorVisible(false);
+          setFormError(null);
+        }}
+        title={editingAddon ? "Edit Add-on" : "New Add-on"}
+        closeLabel="cancel"
+        androidKeyboardBehavior="height"
+        backgroundColor={theme.background}
+        right={
+          <Pressable onPress={Keyboard.dismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel="Hide keyboard">
+            <Text style={{ color: accentColor, fontSize: 15, fontWeight: "600" }}>Done</Text>
+          </Pressable>
+        }
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.sheetOverlay}
-        >
-          <View style={[styles.sheet, styles.fullSheet, { backgroundColor: theme.background, paddingTop: insets.top + 16 }]}>
-            <View style={styles.sheetHeader}>
-              <Text style={{ color: theme.text, fontWeight: "700", fontSize: 17 }}>
-                {editingAddon ? "Edit Add-on" : "New Add-on"}
-              </Text>
-              <Pressable onPress={Keyboard.dismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel="Hide keyboard">
-                <Text style={{ color: accentColor, fontSize: 15, fontWeight: "600" }}>Done</Text>
-              </Pressable>
-            </View>
             <ScrollView
-              style={{ flexGrow: 0 }}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             >
@@ -420,13 +415,7 @@ export default function ServiceAddonsEditor({
                 </>
               ) : null}
             </ScrollView>
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
-              <Pressable
-                onPress={() => { setEditorVisible(false); setFormError(null); }}
-                style={[styles.secondaryButton, { borderColor: theme.border }]}
-              >
-                <Text style={{ color: theme.textSecondary, fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
+            <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 }}>
               <Pressable
                 onPress={handleSave}
                 disabled={saving}
@@ -435,7 +424,6 @@ export default function ServiceAddonsEditor({
                 {saving ? <ActivityIndicator color="#000" /> : <Text style={{ color: "#000", fontWeight: "700" }}>Save</Text>}
               </Pressable>
             </View>
-          </View>
           {Platform.OS === "ios" ? (
             <InputAccessoryView nativeID={KEYBOARD_DONE_ID}>
               <View style={[styles.accessoryBar, { backgroundColor: theme.card }]}>
@@ -445,20 +433,20 @@ export default function ServiceAddonsEditor({
               </View>
             </InputAccessoryView>
           ) : null}
-        </KeyboardAvoidingView>
-      </Modal>
+      </FullScreenSheet>
 
       {/* "Add to other services" sheet (also nested) */}
-      <Modal
+      <FullScreenSheet
         visible={copySource !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => { if (!copying) setCopySource(null); }}
+        onClose={() => setCopySource(null)}
+        closeDisabled={copying}
+        title="Add to other services"
+        closeLabel="cancel"
+        backgroundColor={theme.background}
       >
-        <View style={styles.sheetOverlay}>
-          <View style={[styles.sheet, { backgroundColor: theme.background }]}>
+          <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 }}>
             <Text style={{ color: theme.text, fontWeight: "700", fontSize: 17, marginBottom: 4 }}>
-              {`Add "${copySource?.name ?? ""}" to other services`}
+              {copySource?.name ?? ""}
             </Text>
             {copySource ? (
               <Text style={{ color: theme.textSecondary, fontSize: 13, marginBottom: 12 }}>
@@ -482,7 +470,7 @@ export default function ServiceAddonsEditor({
                 </Text>
               </Pressable>
             </View>
-            <ScrollView style={{ flexGrow: 0, marginBottom: 12 }}>
+            <ScrollView style={{ flex: 1, marginBottom: 12 }}>
               {copyTargets.map((svc) => {
                 const checked = copyTargetIds.includes(svc.id);
                 return (
@@ -507,14 +495,7 @@ export default function ServiceAddonsEditor({
             <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 16 }}>
               {"Each service gets its own copy. Changing this add-on later won't change the copies."}
             </Text>
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <Pressable
-                disabled={copying}
-                onPress={() => setCopySource(null)}
-                style={[styles.secondaryButton, { borderColor: theme.border, opacity: copying ? 0.6 : 1 }]}
-              >
-                <Text style={{ color: theme.text, fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
+            <View style={{ flexDirection: "row" }}>
               <Pressable
                 disabled={copying || copyTargetIds.length === 0}
                 onPress={handleCopy}
@@ -533,8 +514,7 @@ export default function ServiceAddonsEditor({
               </Pressable>
             </View>
           </View>
-        </View>
-      </Modal>
+      </FullScreenSheet>
     </View>
   );
 }
@@ -556,19 +536,7 @@ const styles = StyleSheet.create({
   promptBox: { marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
   input: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, fontSize: 16 },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 },
-  sheetOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
-  sheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 36,
-    // Half screen (no tall sheets, 2026-11-05 rule). Only the photographer service form uses this editor.
-    maxHeight: "50%",
-  },
   // The add-on form takes the full screen so the keyboard leaves room to type.
-  fullSheet: { flex: 1, maxHeight: "100%", borderTopLeftRadius: 0, borderTopRightRadius: 0 },
-  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   primaryButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   secondaryButton: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: "center" },
   checkRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10, marginBottom: 8 },

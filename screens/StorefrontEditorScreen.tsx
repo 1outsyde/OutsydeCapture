@@ -14,7 +14,6 @@ import {
   FlatList,
   Image,
   AppState,
-  KeyboardAvoidingView,
   Keyboard,
   InputAccessoryView,
   Platform,
@@ -80,6 +79,7 @@ import {
 } from "@/utils/businessQuotesLogic";
 import { formatDuration, joinMinutes, splitMinutes } from "@/utils/duration";
 import AddonLibraryTab from "@/components/addons/AddonLibraryTab";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { readableApiError } from "@/utils/apiError";
 import { money } from "@/utils/addonLibrary";
 import {
@@ -4705,29 +4705,27 @@ export default function StorefrontEditorScreen() {
       </View>
       {/* Nested inside the service modal: iOS can't present a second sibling Modal while this one is open. */}
       {/* Add-on editor modal */}
-      <Modal
+      <FullScreenSheet
         visible={addonModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setAddonModalVisible(false)}
+        onClose={() => {
+          setAddonModalVisible(false);
+          setAddonError(null);
+        }}
+        title={editingAddon ? "Edit Add-on" : "New Add-on"}
+        closeLabel="cancel"
+        androidKeyboardBehavior="height"
+        backgroundColor={theme.brandBg}
+        tintColor={theme.brandCream}
+        borderColor={theme.brandSurface}
+        right={
+          <Pressable onPress={Keyboard.dismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel="Hide keyboard">
+            <Text style={{ color: theme.brandGold, fontSize: 15, fontWeight: "600" }}>Done</Text>
+          </Pressable>
+        }
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}
-        >
-          {/* Tapping the dimmed area only hides the keyboard, so nothing typed is lost. */}
-          <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false} />
-          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36, maxHeight: "90%" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17 }}>
-                {editingAddon ? "Edit Add-on" : "New Add-on"}
-              </Text>
-              <Pressable onPress={Keyboard.dismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel="Hide keyboard">
-                <Text style={{ color: theme.brandGold, fontSize: 15, fontWeight: "600" }}>Done</Text>
-              </Pressable>
-            </View>
             <ScrollView
-              style={{ flexGrow: 0 }}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             >
@@ -4792,13 +4790,7 @@ export default function StorefrontEditorScreen() {
               </>
             )}
             </ScrollView>
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
-              <Pressable
-                onPress={() => { setAddonModalVisible(false); setAddonError(null); }}
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandSurface, alignItems: "center" }}
-              >
-                <Text style={{ color: theme.brandTextDim, fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
+            <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 }}>
               <Pressable
                 onPress={async () => {
                   setAddonError(null);
@@ -4852,7 +4844,6 @@ export default function StorefrontEditorScreen() {
                 )}
               </Pressable>
             </View>
-          </View>
           {Platform.OS === "ios" ? (
             <InputAccessoryView nativeID={ADDON_KEYBOARD_DONE_ID}>
               <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.brandSurface }}>
@@ -4862,21 +4853,21 @@ export default function StorefrontEditorScreen() {
               </View>
             </InputAccessoryView>
           ) : null}
-        </KeyboardAvoidingView>
-      </Modal>
+      </FullScreenSheet>
       {/* "Add to other services" sheet — also nested so it opens over the service modal on iOS. */}
-      <Modal
+      <FullScreenSheet
         visible={copyAddonSource !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          if (!copyingAddon) setCopyAddonSource(null);
-        }}
+        onClose={() => setCopyAddonSource(null)}
+        closeDisabled={copyingAddon}
+        title="Add to other services"
+        closeLabel="cancel"
+        backgroundColor={theme.brandBg}
+        tintColor={theme.brandCream}
+        borderColor={theme.brandSurface}
       >
-        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" }}>
-          <View style={{ backgroundColor: theme.brandBg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 36, maxHeight: "80%" }}>
+          <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 }}>
             <Text style={{ color: theme.brandCream, fontWeight: "700", fontSize: 17, marginBottom: 4 }}>
-              Add "{copyAddonSource?.name}" to other services
+              {copyAddonSource?.name}
             </Text>
             {copyAddonSource ? (
               <Text style={{ color: theme.brandTextDim, fontSize: 13, marginBottom: 12 }}>
@@ -4902,7 +4893,7 @@ export default function StorefrontEditorScreen() {
                 </Text>
               </Pressable>
             </View>
-            <ScrollView style={{ flexGrow: 0, marginBottom: 12 }}>
+            <ScrollView style={{ flex: 1, marginBottom: 12 }}>
               {copyTargetServices.map((svc) => {
                 const checked = copyTargetIds.includes(svc.id);
                 return (
@@ -4941,14 +4932,7 @@ export default function StorefrontEditorScreen() {
             <Text style={{ color: theme.brandTextDim, fontSize: 12, marginBottom: 16 }}>
               {"It comes from your add-ons, so changes you make on the Add-ons page reach every service it's on."}
             </Text>
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <Pressable
-                disabled={copyingAddon}
-                onPress={() => setCopyAddonSource(null)}
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.brandTextDim, alignItems: "center", opacity: copyingAddon ? 0.6 : 1 }}
-              >
-                <Text style={{ color: theme.brandCream, fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
+            <View style={{ flexDirection: "row" }}>
               <Pressable
                 disabled={copyingAddon || copyTargetIds.length === 0}
                 onPress={handleCopyAddon}
@@ -4964,8 +4948,7 @@ export default function StorefrontEditorScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
-      </Modal>
+      </FullScreenSheet>
     </Modal>
   );
 
