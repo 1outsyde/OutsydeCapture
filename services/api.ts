@@ -1,3 +1,4 @@
+import { BASE_URL } from "@/constants/config";
 import type { AdminSubscriptionSummary, AdminOfferSummary, OfferPlan } from "@/utils/adminPlans";
 import type { PushAudience, PushCounts, PushLimits, PushPerson, PushRecipientRow, PushScreensData, PushSendRow } from "@/utils/adminPush";
 import type { EmailBudget, EmailPerson, EmailPersonInfo, EmailRecipientRow, EmailSendRow, PersonEmailRow } from "@/utils/adminEmail";
@@ -37,7 +38,7 @@ import type {
   RatingTargetType,
 } from "../types/ratings";
 
-export const API_BASE_URL = "https://outsyde-backend.onrender.com";
+export const API_BASE_URL = BASE_URL;
 
 // ─── Token refresh queue ─────────────────────────────────────────────────────
 let _isRefreshing = false;
