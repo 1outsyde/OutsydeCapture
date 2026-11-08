@@ -14,6 +14,9 @@
  * photo can reopen where it was left or line up with the camera frame. Without those props it
  * behaves exactly as in 2a.
  *
+ * Free crop (posts): a "Free" chip lets people drag the box's top and bottom handles (corners
+ * included) to any shape between 4:5 and 1.91:1, with a live label and a light buzz at each limit.
+ *
  * Geometry lives in utils/crop/cropMath.ts (unit tested).
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -38,13 +41,16 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import * as Haptics from "expo-haptics";
 import {
+  aspectLabel,
   boxSizeFor,
   clampAspect,
   clampOffset,
   clampZoom,
   coverScale,
   cropRectFor,
+  freeAspectFromDrag,
   outputSizeFor,
   rectFractionOf,
   viewForFraction,
@@ -66,11 +72,14 @@ export type CropResult = {
   fraction: FracRect;
 };
 
-/** A shape chip. "original" = the photo's own shape, held between 4:5 and 1.91:1. */
+/**
+ * A shape chip. "original" = the photo's own shape, held between 4:5 and 1.91:1.
+ * "free" = any shape in those limits, set by dragging the box handles.
+ */
 export type AspectOption = {
   key: string;
   label: string;
-  aspect: number | "original";
+  aspect: number | "original" | "free";
 };
 
 /** The post shapes, 4:5 first. */
@@ -79,6 +88,7 @@ export const POST_ASPECT_OPTIONS: AspectOption[] = [
   { key: "1:1", label: "1:1", aspect: 1 },
   { key: "16:9", label: "16:9", aspect: 16 / 9 },
   { key: "original", label: "Original", aspect: "original" },
+  { key: "free", label: "Free", aspect: "free" },
 ];
 
 export interface ImageCropperProps {
@@ -93,6 +103,8 @@ export interface ImageCropperProps {
   aspectOptions?: AspectOption[];
   /** Chip picked when the screen opens (defaults to the first). */
   initialAspectKey?: string;
+  /** Shape a Free crop reopens at (only used when initialAspectKey is "free"). */
+  initialAspect?: number;
   /** Where the crop starts, as fractions of the photo (defaults to centered). */
   initialFraction?: FracRect | null;
   onCancel: () => void;
@@ -103,6 +115,8 @@ export interface ImageCropperProps {
 const DECODE_MAX = 2400;
 const SIDE_GUTTER = 16;
 const DIM = "rgba(0,0,0,0.62)";
+/** Touch area of a Free crop handle, centered on the box edge (points). */
+const HANDLE_REACH = 44;
 
 export default function ImageCropper({
   visible,
@@ -112,6 +126,7 @@ export default function ImageCropper({
   title = "Crop photo",
   aspectOptions,
   initialAspectKey,
+  initialAspect,
   initialFraction,
   onCancel,
   onDone,
@@ -150,15 +165,29 @@ export default function ImageCropper({
         : (initialAspectKey ?? options[0].key)
       : undefined;
   const chosen = options?.find((o) => o.key === chosenKey) ?? options?.[0];
+  const isFree = chosen?.aspect === "free";
+  // Free crop shape, keyed by the source like the chip choice. Until it's dragged it is the shape
+  // the screen opened with (a reopened Free photo) or the one on screen when Free was tapped.
+  const [freeShape, setFreeShape] = useState<{
+    source: string;
+    aspect: number;
+  } | null>(null);
+  const originalAspect = clampAspect(
+    prepared ? prepared.size.width / prepared.size.height : 4 / 5,
+  );
+  const freeAspect =
+    freeShape && freeShape.source === active
+      ? freeShape.aspect
+      : clampAspect(initialAspect ?? 4 / 5);
   const effectiveAspect = !chosen
     ? shape === "circle"
       ? 1
       : aspect
     : chosen.aspect === "original"
-      ? clampAspect(
-          prepared ? prepared.size.width / prepared.size.height : 4 / 5,
-        )
-      : chosen.aspect;
+      ? originalAspect
+      : chosen.aspect === "free"
+        ? freeAspect
+        : chosen.aspect;
 
   const box = useMemo(
     () =>
@@ -188,7 +217,19 @@ export default function ImageCropper({
     boxW.set(box.width);
     boxH.set(box.height);
     baseScale.set(base);
-  }, [box.width, box.height, base, boxW, boxH, baseScale]);
+    // A new box size (Free crop drag): keep the photo covering it.
+    if (prepared) {
+      const c = clampOffset(
+        tx.get(),
+        ty.get(),
+        prepared.size,
+        box,
+        base * zoom.get(),
+      );
+      tx.set(c.tx);
+      ty.set(c.ty);
+    }
+  }, [box, base, boxW, boxH, baseScale, prepared, tx, ty, zoom]);
 
   // Prepare the photo each time the cropper opens with a new source.
   useEffect(() => {
@@ -237,6 +278,10 @@ export default function ImageCropper({
 
   const pickAspect = (key: string) => {
     if (!active || key === chosenKey) return;
+    if (options?.find((o) => o.key === key)?.aspect === "free") {
+      // Free starts from the shape on screen, so nothing jumps.
+      setFreeShape({ source: active, aspect: clampAspect(effectiveAspect) });
+    }
     setChoice({ source: active, key });
     // New shape: start again centered, fully zoomed out.
     zoom.set(1);
@@ -283,6 +328,40 @@ export default function ImageCropper({
 
   const gestures = Gesture.Simultaneous(pinch, pan);
 
+  // Free crop handles: drag the top or bottom edge (corners included) to change the shape.
+  const [resizing, setResizing] = useState(false);
+  // Shared values (not refs) so the gesture callbacks can read and write them.
+  const dragStartHeight = useSharedValue(0);
+  const dragLimit = useSharedValue<"tall" | "wide" | null>(null);
+  const onHandleDrag = (dy: number, edge: "top" | "bottom") => {
+    if (!active) return;
+    const r = freeAspectFromDrag(box.width, dragStartHeight.get(), dy, edge);
+    if (r.limit && r.limit !== dragLimit.get()) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    dragLimit.set(r.limit);
+    setFreeShape({ source: active, aspect: r.aspect });
+  };
+  const handlePan = (edge: "top" | "bottom") =>
+    Gesture.Pan()
+      .runOnJS(true)
+      .enabled(isFree && !!prepared && !saving)
+      .onStart(() => {
+        dragStartHeight.set(box.height);
+        dragLimit.set(null);
+        setResizing(true);
+      })
+      .onUpdate((e) => onHandleDrag(e.translationY, edge))
+      .onFinalize(() => setResizing(false));
+  const topHandle = handlePan("top");
+  const bottomHandle = handlePan("bottom");
+
+  // Cancel drops a dragged Free shape, so a reopen starts from the saved one (initialAspect).
+  const handleCancel = () => {
+    setFreeShape(null);
+    onCancel();
+  };
+
   const photoStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: tx.get() },
@@ -310,6 +389,8 @@ export default function ImageCropper({
         format: SaveFormat.JPEG,
         compress: 0.85,
       });
+      // A dragged Free shape lives only for this opening; a reopen starts from initialAspect.
+      setFreeShape(null);
       onDone({
         uri: saved.uri,
         width: Math.round(saved.width),
@@ -339,7 +420,7 @@ export default function ImageCropper({
       animationType="slide"
       presentationStyle="fullScreen"
       statusBarTranslucent
-      onRequestClose={onCancel}
+      onRequestClose={handleCancel}
     >
       <GestureHandlerRootView style={styles.root}>
         <GestureDetector gesture={gestures}>
@@ -462,10 +543,97 @@ export default function ImageCropper({
           </View>
         </GestureDetector>
 
+        {/* Free crop: shape label and the top / bottom handles (above the photo, so a touch on a
+            handle resizes and a touch anywhere else moves or zooms the photo). */}
+        {isFree && prepared ? (
+          <>
+            <View
+              pointerEvents="none"
+              style={[
+                styles.shapePill,
+                { top: boxTop + HANDLE_REACH / 2 + 10 },
+              ]}
+            >
+              <Text style={styles.shapePillText} testID="crop-free-label">
+                {aspectLabel(effectiveAspect)}
+              </Text>
+            </View>
+            {(["top", "bottom"] as const).map((edge) => (
+              <GestureDetector
+                key={edge}
+                gesture={edge === "top" ? topHandle : bottomHandle}
+              >
+                <View
+                  testID={`crop-free-${edge}`}
+                  accessibilityLabel={
+                    edge === "top"
+                      ? "Drag to change the shape, top"
+                      : "Drag to change the shape, bottom"
+                  }
+                  style={[
+                    styles.handleZone,
+                    {
+                      left: boxLeft - HANDLE_REACH / 2,
+                      width: box.width + HANDLE_REACH,
+                      top:
+                        (edge === "top" ? boxTop : boxTop + box.height) -
+                        HANDLE_REACH / 2,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.corner,
+                      edge === "top"
+                        ? {
+                            left: HANDLE_REACH / 2 - 2,
+                            top: HANDLE_REACH / 2 - 2,
+                            borderLeftWidth: 4,
+                            borderTopWidth: 4,
+                          }
+                        : {
+                            left: HANDLE_REACH / 2 - 2,
+                            bottom: HANDLE_REACH / 2 - 2,
+                            borderLeftWidth: 4,
+                            borderBottomWidth: 4,
+                          },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.corner,
+                      edge === "top"
+                        ? {
+                            right: HANDLE_REACH / 2 - 2,
+                            top: HANDLE_REACH / 2 - 2,
+                            borderRightWidth: 4,
+                            borderTopWidth: 4,
+                          }
+                        : {
+                            right: HANDLE_REACH / 2 - 2,
+                            bottom: HANDLE_REACH / 2 - 2,
+                            borderRightWidth: 4,
+                            borderBottomWidth: 4,
+                          },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.edgeBar,
+                      resizing && styles.edgeBarActive,
+                      { top: HANDLE_REACH / 2 - 2 },
+                    ]}
+                  />
+                </View>
+              </GestureDetector>
+            ))}
+          </>
+        ) : null}
+
         {/* Top bar: outside the gesture area so taps always reach the buttons. */}
         <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
           <Pressable
-            onPress={onCancel}
+            onPress={handleCancel}
             hitSlop={12}
             accessibilityRole="button"
             testID="crop-cancel"
@@ -517,7 +685,10 @@ export default function ImageCropper({
             </View>
           ) : null}
           <Text style={error ? styles.error : styles.hint} pointerEvents="none">
-            {error ?? "Pinch to zoom, drag to move"}
+            {error ??
+              (isFree
+                ? "Drag the corners or edges, pinch to zoom"
+                : "Pinch to zoom, drag to move")}
           </Text>
         </View>
       </GestureHandlerRootView>
@@ -574,7 +745,44 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   hint: { color: "rgba(255,255,255,0.8)", fontSize: 14 },
-  chips: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+  },
+  shapePill: {
+    position: "absolute",
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  shapePillText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  handleZone: { position: "absolute", height: HANDLE_REACH },
+  corner: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    borderColor: "#FFFFFF",
+  },
+  edgeBar: {
+    position: "absolute",
+    alignSelf: "center",
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#FFFFFF",
+  },
+  edgeBarActive: { backgroundColor: "#E8B930" },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 7,

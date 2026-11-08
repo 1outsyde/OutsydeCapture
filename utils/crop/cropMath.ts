@@ -284,3 +284,39 @@ export function openAreaFrame(
     height: box.height,
   };
 }
+
+// ── Free crop (posts): the box shape from a handle drag ──────────────────────
+
+/**
+ * Free crop: the box shape after dragging its top or bottom handle by `dy` points. The box stays
+ * centered, so both edges move: the dragged edge follows the finger and the other mirrors it, and
+ * the height changes by twice the drag. The shape is held to the post limits (4:5 to 1.91:1);
+ * `limit` says when it is resting on one of them.
+ */
+export function freeAspectFromDrag(
+  boxWidth: number,
+  startHeight: number,
+  dy: number,
+  edge: "top" | "bottom",
+  min = POST_MIN_ASPECT,
+  max = POST_MAX_ASPECT,
+): { aspect: number; limit: "tall" | "wide" | null } {
+  const height = startHeight + (edge === "bottom" ? 2 * dy : -2 * dy);
+  const raw = height > 0 && boxWidth > 0 ? boxWidth / height : max;
+  const aspect = clampAspect(raw, min, max);
+  const limit = aspect <= min ? "tall" : aspect >= max ? "wide" : null;
+  return { aspect, limit };
+}
+
+/** The shape as people read it, for the live label: "4:5", "1:1", "16:9", else "1.12 : 1". */
+export function aspectLabel(aspect: number): string {
+  const named: [number, string][] = [
+    [4 / 5, "4:5"],
+    [1, "1:1"],
+    [16 / 9, "16:9"],
+    [1.91, "1.91:1"],
+  ];
+  for (const [value, label] of named)
+    if (Math.abs(aspect - value) < 0.005) return label;
+  return `${aspect.toFixed(2)} : 1`;
+}

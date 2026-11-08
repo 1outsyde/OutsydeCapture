@@ -44,6 +44,8 @@ export type CropSource = "library" | "camera";
 export type CropOptions = {
   aspectOptions?: AspectOption[];
   initialAspectKey?: string;
+  /** Shape a Free crop reopens at (posts). */
+  initialAspect?: number;
   initialFraction?: FracRect | null;
 };
 
@@ -127,6 +129,7 @@ export function useCropPicker() {
       title={state?.preset.title}
       aspectOptions={state?.options?.aspectOptions}
       initialAspectKey={state?.options?.initialAspectKey}
+      initialAspect={state?.options?.initialAspect}
       initialFraction={state?.options?.initialFraction}
       onCancel={() => finish(null)}
       onDone={(r) => finish(r)}

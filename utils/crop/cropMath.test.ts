@@ -16,6 +16,8 @@ import {
   cameraFrameFraction,
   MAX_ZOOM,
   openAreaFrame,
+  freeAspectFromDrag,
+  aspectLabel,
 } from "./cropMath";
 
 const landscape = { width: 4032, height: 3024 }; // 4:3 phone photo
@@ -255,4 +257,30 @@ test("openAreaFrame output maps back into the photo with cameraFrameFraction", (
   assert.ok(
     f.x >= 0 && f.y >= 0 && f.x + f.w <= 1 + 1e-9 && f.y + f.h <= 1 + 1e-9,
   );
+});
+
+test("freeAspectFromDrag: the dragged edge follows the finger, the shape stays in the limits", () => {
+  // 361 wide box at 1:1. Dragging the bottom edge up 40 makes it 80 shorter.
+  const up = freeAspectFromDrag(361, 361, -40, "bottom");
+  assert.ok(Math.abs(up.aspect - 361 / 281) < 1e-9);
+  assert.equal(up.limit, null);
+  // Dragging the top edge down by the same amount gives the same shape.
+  const down = freeAspectFromDrag(361, 361, 40, "top");
+  assert.ok(Math.abs(down.aspect - up.aspect) < 1e-9);
+  // Pulling taller than 4:5 stops at 4:5.
+  const tall = freeAspectFromDrag(361, 361, 400, "bottom");
+  assert.equal(tall.aspect, 0.8);
+  assert.equal(tall.limit, "tall");
+  // Squashing wider than 1.91:1 stops at 1.91:1, even past zero height.
+  const wide = freeAspectFromDrag(361, 361, -1000, "bottom");
+  assert.equal(wide.aspect, 1.91);
+  assert.equal(wide.limit, "wide");
+});
+
+test("aspectLabel names the presets and shows the rest as x : 1", () => {
+  assert.equal(aspectLabel(0.8), "4:5");
+  assert.equal(aspectLabel(1), "1:1");
+  assert.equal(aspectLabel(16 / 9), "16:9");
+  assert.equal(aspectLabel(1.91), "1.91:1");
+  assert.equal(aspectLabel(1.1234), "1.12 : 1");
 });
