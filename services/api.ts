@@ -25,7 +25,11 @@ import {
 import { refundRequestBody } from "@/utils/refundAmount";
 import type { EventCard, EventPage } from "@/utils/eventsLogic";
 import type { CheckoutStart, MyTicket, TicketOrder } from "@/utils/ticketCheckoutLogic";
-import { rejectedPaymentSheetFlag } from "@/utils/ticketCheckoutLogic";
+import {
+  TICKET_CHECKOUT_FLAGS,
+  withoutRejectedKeys,
+} from "@/utils/ticketCheckoutLogic";
+import { quotePayBody } from "@/utils/quoteLogic";
 import type {
   RatingCheckResponse,
   Rating,
@@ -5202,14 +5206,16 @@ class ApiService {
         headers: { Authorization: `Bearer ${authToken}` },
         body: JSON.stringify(b),
       });
-    // paymentSheet: the app opens Stripe's payment sheet, so the backend also sends a
-    // customer session (saved cards, Save box). Backend #383. A backend from before #383
-    // refuses the unknown key, so retry once without it (same idempotency key).
+    // paymentSheet (backend #383) adds saved cards; redirectCapable (backend #429) adds Klarna,
+    // Afterpay, Cash App Pay and Amazon Pay. An older backend refuses keys it doesn't know, so
+    // retry once without the refused ones (same idempotency key).
+    const first = { ...body, ...TICKET_CHECKOUT_FLAGS };
     try {
-      return await send({ ...body, paymentSheet: true });
+      return await send(first);
     } catch (err) {
-      if (!rejectedPaymentSheetFlag(err)) throw err;
-      return send({ ...body });
+      const retry = withoutRejectedKeys(first, err);
+      if (!retry) throw err;
+      return send(retry);
     }
   }
 
@@ -6914,12 +6920,12 @@ class ApiService {
     return res.quote;
   }
 
-  /** Starts (or resumes) the deposit or full payment. paymentSheet: true adds the saved card fields. */
+  /** Starts (or resumes) the deposit or full payment. See quotePayBody for what the body asks for. */
   async payQuote(authToken: string, quoteId: string, version: number): Promise<QuotePayStart> {
     return this.request<QuotePayStart>(`/api/quotes/${encodeURIComponent(quoteId)}/pay`, {
       method: "POST",
       headers: { Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ version, paymentSheet: true }),
+      body: JSON.stringify(quotePayBody(version)),
     });
   }
 

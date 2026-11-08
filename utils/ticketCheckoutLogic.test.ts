@@ -438,22 +438,113 @@ test("walletLink: Apple Wallet only on iPhone, only a real https or http link", 
   assert.equal(walletLink("ios", { walletUrl: url }, true), null, "iPad: no Wallet app for passes");
 });
 
-// ─── Older backend without paymentSheet (strict schema) ──────────────────────
-import { rejectedPaymentSheetFlag } from "./ticketCheckoutLogic";
+// ─── Older backend that refuses the app's newer keys (strict schema) ─────────
+import {
+  TICKET_CHECKOUT_FLAGS,
+  withoutRejectedKeys,
+} from "./ticketCheckoutLogic";
 
-test("older backend rejecting the paymentSheet key is recognized", () => {
-  const err = { status: 400, body: { success: false, error: { code: "INVALID_EVENT", message: "body: Unrecognized key(s) in object: 'paymentSheet'" } } };
-  assert.equal(rejectedPaymentSheetFlag(err), true);
+const strict = (message: string, status = 400, code = "INVALID_EVENT") => ({
+  status,
+  body: { success: false, error: { code, message } },
+});
+const sent = {
+  ticketTypeId: "tt_1",
+  quantity: 2,
+  idempotencyKey: "key_12345",
+  ...TICKET_CHECKOUT_FLAGS,
+};
+
+test("the app asks for the payment sheet and every payment method", () => {
+  assert.deepEqual(TICKET_CHECKOUT_FLAGS, {
+    paymentSheet: true,
+    redirectCapable: true,
+  });
 });
 
-test("other 400s are not treated as the flag being rejected", () => {
-  assert.equal(rejectedPaymentSheetFlag({ status: 400, body: { error: { code: "INVALID_EVENT", message: "quantity: Too big" } } }), false);
-  assert.equal(rejectedPaymentSheetFlag({ status: 400, body: { error: { code: "SOLD_OUT", message: "paymentSheet" } } }), false);
-  assert.equal(rejectedPaymentSheetFlag({ status: 409, body: { error: { code: "INVALID_EVENT", message: "Unrecognized key(s) in object: 'paymentSheet'" } } }), false);
-  assert.equal(rejectedPaymentSheetFlag(null), false);
-  assert.equal(rejectedPaymentSheetFlag(new Error("network")), false);
+test("backend from before #383 (refuses both keys): retry without either, same idempotency key", () => {
+  const next = withoutRejectedKeys(
+    sent,
+    strict(
+      "body: Unrecognized key(s) in object: 'paymentSheet', 'redirectCapable'",
+    ),
+  );
+  assert.deepEqual(next, {
+    ticketTypeId: "tt_1",
+    quantity: 2,
+    idempotencyKey: "key_12345",
+  });
 });
 
+test("backend with #383 but not #429 (refuses redirectCapable): retry keeps the payment sheet", () => {
+  const next = withoutRejectedKeys(
+    sent,
+    strict("body: Unrecognized key(s) in object: 'redirectCapable'"),
+  );
+  assert.deepEqual(next, {
+    ticketTypeId: "tt_1",
+    quantity: 2,
+    idempotencyKey: "key_12345",
+    paymentSheet: true,
+  });
+});
+
+test("the older paymentSheet only refusal still retries", () => {
+  const next = withoutRejectedKeys(
+    { ticketTypeId: "tt_1", paymentSheet: true },
+    strict("body: Unrecognized key(s) in object: 'paymentSheet'"),
+  );
+  assert.deepEqual(next, { ticketTypeId: "tt_1" });
+});
+
+test("never retries when the refusal names a key the app can't drop", () => {
+  assert.equal(
+    withoutRejectedKeys(
+      sent,
+      strict("body: Unrecognized key(s) in object: 'ticketTypeId'"),
+    ),
+    null,
+  );
+  assert.equal(
+    withoutRejectedKeys(
+      sent,
+      strict(
+        "body: Unrecognized key(s) in object: 'redirectCapable', 'linkCode'",
+      ),
+    ),
+    null,
+  );
+});
+
+test("never retries a key the app didn't send", () => {
+  assert.equal(
+    withoutRejectedKeys(
+      { ticketTypeId: "tt_1" },
+      strict("body: Unrecognized key(s) in object: 'paymentSheet'"),
+    ),
+    null,
+  );
+});
+
+test("other errors are not treated as a refused key", () => {
+  assert.equal(withoutRejectedKeys(sent, strict("quantity: Too big")), null);
+  assert.equal(
+    withoutRejectedKeys(
+      sent,
+      strict("paymentSheet redirectCapable", 400, "SOLD_OUT"),
+    ),
+    null,
+  );
+  assert.equal(
+    withoutRejectedKeys(
+      sent,
+      strict("body: Unrecognized key(s) in object: 'paymentSheet'", 409),
+    ),
+    null,
+  );
+  assert.equal(withoutRejectedKeys(sent, null), null);
+  assert.equal(withoutRejectedKeys(sent, new Error("network")), null);
+});
 test("walletButtonKind: Apple's button only on iOS with the native module, text button anywhere else", () => {
   assert.equal(walletButtonKind("ios", true), "native");
   assert.equal(
