@@ -195,6 +195,11 @@ test("Story viewers no longer use the swipe sheet library", () => {
 test("Story viewers pause the story and resume with the remaining time", () => {
   const src = read("screens/StoryViewerScreen.tsx");
   assert.match(src, /remainingStoryMs\(/);
+  assert.match(src, /paused=\{viewersOpen\}/);
+  assert.match(src, /if \(viewersOpen\) \{\s*cancelAnimation\(progress\);\s*return;/);
+  assert.match(src, /\}, \[currentStory\?\.id, advance, viewersOpen\]\);/);
+  // A new story starts from 0 without reading the old bar's live value.
+  assert.match(src, /resumeProgress\(isNewStory, /);
 });
 
 test("Edit caption: Cancel left, Save right", () => {
@@ -211,8 +216,9 @@ test("Report keeps the older Android keyboard setting and blocks close while sen
 });
 
 test("Buy tickets and the plan offer block closing while busy", () => {
-  assert.match(read("components/events/BuyTicketsModal.tsx"), /closeDisabled=\{/);
-  assert.match(read("components/plan-offer/PlanOfferSheet.tsx"), /closeDisabled=\{/);
+  assert.match(read("components/events/BuyTicketsModal.tsx"), /closeDisabled=\{closeBlocked\}/);
+  assert.match(read("components/events/BuyTicketsModal.tsx"), /const closeBlocked = step === "starting" \|\| step === "pay" \|\| step === "confirming";/);
+  assert.match(read("components/plan-offer/PlanOfferSheet.tsx"), /closeDisabled=\{busy\}/);
 });
 
 for (const f of ["screens/DiscoverScreen.tsx", "screens/PulseFeedScreenV2.tsx"]) {
@@ -224,6 +230,7 @@ for (const f of ["screens/DiscoverScreen.tsx", "screens/PulseFeedScreenV2.tsx"])
     const src = read(f);
     assert.match(src, /commentsAfterClose\.queue\(\(\) =>\s*navigation\.navigate\("StoryViewer"/);
     assert.match(src, /onDismiss=\{commentsAfterClose\.onDismiss\}/);
+    assert.match(src, /commentsAfterClose\.queue\([\s\S]*?\);\s*handleCloseComments\(\);\s*commentsAfterClose\.runIfImmediate\(\);/);
   });
 }
 

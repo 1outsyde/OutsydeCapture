@@ -36,7 +36,6 @@ const C = {
   black: "#000000",
   cream: "#F5F0E6",
   creamLine: "#E2D9C6",
-  grip: "#CFC6B4",
   ink: "#111111",
   body: "#3A3A3A",
   muted: "#555555",

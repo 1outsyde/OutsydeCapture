@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { remainingStoryMs } from "./storyPause";
+import { remainingStoryMs, resumeProgress } from "./storyPause";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -22,6 +22,13 @@ test("progress past the end is treated as done", () => {
 });
 test("negative progress is treated as not started", () => {
   assert.equal(remainingStoryMs(5000, -0.2), 5000);
+});
+
+test("a new story always starts from zero, whatever the old bar showed", () => {
+  assert.equal(resumeProgress(true, 0.6), 0);
+});
+test("resuming the same story keeps its place", () => {
+  assert.equal(resumeProgress(false, 0.6), 0.6);
 });
 
 console.log(`\n${passed} passed`);

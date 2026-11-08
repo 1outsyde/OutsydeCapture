@@ -33,7 +33,7 @@ import { Story } from "@/components/StoryRing";
 import { FitBackdrop } from "@/components/video/FitBackdrop";
 import { normalizeVideoFit, videoBlurUri } from "@/utils/videoFit";
 import { FullScreenSheet } from "@/components/FullScreenSheet";
-import { remainingStoryMs } from "@/utils/storyPause";
+import { remainingStoryMs, resumeProgress } from "@/utils/storyPause";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const IMAGE_MS = 5000;
@@ -293,7 +293,8 @@ export default function StoryViewerScreen() {
   const videoDurationMs = useRef<number | null>(null);
   useEffect(() => {
     if (!currentStory) return;
-    if (timedStoryId.current !== currentStory.id) {
+    const isNewStory = timedStoryId.current !== currentStory.id;
+    if (isNewStory) {
       timedStoryId.current = currentStory.id;
       videoDurationMs.current = null;
       progress.value = 0;
@@ -302,9 +303,10 @@ export default function StoryViewerScreen() {
       cancelAnimation(progress);
       return;
     }
+    const start = resumeProgress(isNewStory, progress.value);
 
     if (currentStory.mediaType === "image") {
-      const remaining = remainingStoryMs(IMAGE_MS, progress.value);
+      const remaining = remainingStoryMs(IMAGE_MS, start);
       progress.value = withTiming(1, { duration: remaining, easing: Easing.linear });
       const t = setTimeout(advance, remaining);
       return () => {
@@ -316,7 +318,7 @@ export default function StoryViewerScreen() {
     // Video: animation starts from onDurationKnown, or resumes here after a pause.
     if (videoDurationMs.current != null) {
       progress.value = withTiming(1, {
-        duration: remainingStoryMs(videoDurationMs.current, progress.value),
+        duration: remainingStoryMs(videoDurationMs.current, start),
         easing: Easing.linear,
       });
     }
