@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { createAfterClose } from "@/utils/afterSheetClose";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import { useData, Post } from "@/context/DataContext";
@@ -150,6 +151,7 @@ export default function PulseFeedScreenV2() {
 
   // Comments modal state
   const [commentsVisible, setCommentsVisible] = useState(false);
+  const [commentsAfterClose] = useState(() => createAfterClose(Platform.OS));
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
   const [modalComments, setModalComments] = useState<any[]>([]);
@@ -562,6 +564,7 @@ export default function PulseFeedScreenV2() {
         animationType="slide"
         transparent
         onRequestClose={handleCloseComments}
+        onDismiss={commentsAfterClose.onDismiss}
       >
         <View style={styles.modalWrap}>
           <Pressable
@@ -611,14 +614,20 @@ export default function PulseFeedScreenV2() {
                         size={36}
                         isOwnProfile={(c.userId || c.user?.id) === user?.id}
                         onAddStory={() => {}}
-                        onViewStory={(stories) =>
-                          navigation.navigate("StoryViewer", {
-                            userId: c.userId || c.user?.id || "",
-                            stories,
-                            authorName: displayName,
-                            authorAvatarUrl: avatarUri,
-                          })
-                        }
+                        onViewStory={(stories) => {
+                          // Close comments first; the story opens once they are gone
+                          // (iOS can't show it over the comments sheet).
+                          commentsAfterClose.queue(() =>
+                            navigation.navigate("StoryViewer", {
+                              userId: c.userId || c.user?.id || "",
+                              stories,
+                              authorName: displayName,
+                              authorAvatarUrl: avatarUri,
+                            }),
+                          );
+                          handleCloseComments();
+                          commentsAfterClose.runIfImmediate();
+                        }}
                       >
                         {avatarUri ? (
                           <Image
