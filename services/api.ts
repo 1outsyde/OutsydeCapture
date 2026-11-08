@@ -7631,6 +7631,37 @@ export async function deletePaymentMethod(token: string, paymentMethodId: string
   return apiDelete(`/api/me/payment-methods/${paymentMethodId}`, token) as Promise<{ success: boolean }>;
 }
 
+/**
+ * App payment methods Step 4b: the product checkout's customer session, before any PaymentIntent exists
+ * (backend #429; chosenCardsOnly on Android, backend #430). {} when there's no session: the picker still
+ * works with a new card.
+ */
+export async function getCheckoutSession(
+  token: string,
+  body: { chosenCardsOnly?: true },
+): Promise<{ customerId?: unknown; customerSessionClientSecret?: unknown }> {
+  const res: any = await apiPost(
+    "/api/me/payment-methods/checkout-session",
+    body,
+    token,
+  );
+  return res && typeof res === "object" ? res : {};
+}
+
+/** Step 4b: the exact total the cart will be charged, without charging (backend #429 /api/cart/price-preview). */
+export async function previewCartPrice(
+  token: string,
+  body: { items: unknown[]; promoCodeId?: string },
+): Promise<{
+  amountChargedCents?: number;
+  feeBreakdown?: Record<string, number>;
+}> {
+  return apiPost("/api/cart/price-preview", body, token) as Promise<{
+    amountChargedCents?: number;
+    feeBreakdown?: Record<string, number>;
+  }>;
+}
+
 export async function setDefaultPaymentMethod(token: string, paymentMethodId: string): Promise<{ success: boolean }> {
   return apiPatch("/api/me/payment-methods/default", { paymentMethodId }, token) as Promise<{ success: boolean }>;
 }

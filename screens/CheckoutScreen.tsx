@@ -2,23 +2,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useStripe, PlatformPay, PlatformPayButton, isPlatformPaySupported } from "@stripe/stripe-react-native";
+import { useStripe, PlatformPay, PlatformPayButton, isPlatformPaySupported, type PaymentSheet } from "@stripe/stripe-react-native";
 
 import AddressAutocompleteInput, { AddressFields } from "@/components/AddressAutocompleteInput";
-import CardInputForm from "@/components/CardInputForm";
-import SavedCardSelector from "@/components/SavedCardSelector";
+import CheckoutPaymentPicker, { type CheckoutPickerHandle, type CheckoutPickerState } from "@/components/CheckoutPaymentPicker";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
@@ -29,15 +28,25 @@ import { apiPost } from "@/api/client";
 import { RootStackParamList } from "@/navigation/types";
 import UsePointsPicker, { SelectedPointsCode } from "@/components/UsePointsPicker";
 import {
-  getPaymentMethods,
   getSavedAddresses,
-  createSetupIntent,
-  deletePaymentMethod,
   createSavedAddress,
-  type SavedCard,
+  getCheckoutSession,
+  previewCartPrice,
   type SavedAddress,
 } from "@/services/api";
-import { splitSavedCards, applePayCartItems, chargedCents, applePayOutcome, shownBreakdown, makeOneAtATime } from "@/utils/savedCardsLogic";
+import { applePayCartItems, chargedCents, applePayOutcome, shownBreakdown, makeOneAtATime } from "@/utils/savedCardsLogic";
+import { sheetStyle } from "@/utils/paymentSheetOptions";
+import {
+  cartIntentBody,
+  chargeMatchesPreview,
+  checkoutElementConfig,
+  checkoutSessionBody,
+  intentAmount,
+  methodSub,
+  payButtonLabel,
+  payIn4Shown,
+  pickerReady,
+} from "@/utils/checkoutPaymentLogic";
 
 // Checkout refusals from the server (POST /api/cart/payment-intent) that carry
 // a message written for the customer: sold out, pick an option, no longer
@@ -91,14 +100,14 @@ interface FeeBreakdown {
 }
 
 export default function CheckoutScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<CheckoutRoute>();
   const insets = useSafeAreaInsets();
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
   const { mode, buyNowItem } = route.params;
   const { items: cartItems, removeVendorItems, subtotal: cartSubtotal } = useCart();
-  const { confirmPayment, confirmSetupIntent, confirmPlatformPayPayment } = useStripe();
+  const { confirmPlatformPayPayment } = useStripe();
 
   const checkoutItems = mode === "buyNow" && buyNowItem
     ? [{
@@ -126,16 +135,18 @@ export default function CheckoutScreen() {
     ? buyNowItem.priceCents * buyNowItem.quantity
     : cartSubtotal;
 
-  // ─── Saved cards ──────────────────────────────────────────────────────────
-  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
-  // Older cards (saved before the save rules, backend #383) never go up front; see splitSavedCards.
-  const [olderCardIds, setOlderCardIds] = useState<string[]>([]);
-  const [cardsLoading, setCardsLoading] = useState(true);
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [useNewCard, setUseNewCard] = useState(false);
-  const [isNewCardComplete, setIsNewCardComplete] = useState(false);
-  // Off by default: a card is saved only when the customer turns this on (p4-applepay).
-  const [saveNewCard, setSaveNewCard] = useState(false);
+  // ─── Payment (app payment methods Step 4b) ────────────────────────────────
+  // Stripe's embedded picker lists the customer's saved cards (booking cards too, Legend 2026-11-07),
+  // a new card, Klarna, Afterpay, Cash App Pay, Amazon Pay and, on Android, Google Pay. Cards can't be
+  // removed here (Option 1). Apple Pay keeps its own button on top.
+  const [sessionLoading, setSessionLoading] = useState(true);
+  // The picker's setup, built once when the session and the starting address are known (checkoutElementConfig).
+  const [elementConfig, setElementConfig] = useState<ReturnType<typeof checkoutElementConfig> | null>(null);
+  const who = useRef({ user, isDark });
+  useEffect(() => { who.current = { user, isDark }; });
+  const [picker, setPicker] = useState<CheckoutPickerState>({ option: null, loaded: false, failed: false });
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const pickerRef = useRef<CheckoutPickerHandle>(null);
   // Apple Pay: iPhone only, and only when this device can pay with it.
   const [applePayReady, setApplePayReady] = useState(false);
   useEffect(() => {
@@ -144,7 +155,6 @@ export default function CheckoutScreen() {
     isPlatformPaySupported().then((ok) => { if (alive) setApplePayReady(ok); }).catch(() => {});
     return () => { alive = false; };
   }, []);
-  const [cardholderName, setCardholderName] = useState("");
 
   // ─── Saved addresses ──────────────────────────────────────────────────────
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
@@ -168,11 +178,11 @@ export default function CheckoutScreen() {
   const [pointsCode, setPointsCode] = useState<SelectedPointsCode | null>(null);
   const [pointsRefreshKey, setPointsRefreshKey] = useState(0);
   const [refusedCodeIds, setRefusedCodeIds] = useState<Set<string>>(() => new Set());
-  // A changed code makes an earlier server breakdown stale; show the local preview again.
+  // A changed code makes an earlier server breakdown stale; show the local preview until the new one lands.
   useEffect(() => { setBackendFeeBreakdown(null); }, [pointsCode?.id]);
   const [cardError, setCardError] = useState<string | null>(null);
 
-  // ─── Load saved cards + addresses on mount ────────────────────────────────
+  // ─── Load the checkout session + addresses on mount ───────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -181,35 +191,32 @@ export default function CheckoutScreen() {
         const token = await getToken();
         if (!token || cancelled) return;
 
-        const [pmResult, addrResult] = await Promise.all([
-          getPaymentMethods(token).catch(() => ({ paymentMethods: [] as SavedCard[], defaultPaymentMethodId: null, olderPaymentMethodIds: [] as string[] })),
+        const [sessionResult, addrResult] = await Promise.all([
+          // No session (Stripe outage, no email): the picker still works with a new card.
+          getCheckoutSession(token, checkoutSessionBody(Platform.OS)).catch(() => ({})),
           getSavedAddresses(token).catch(() => ({ addresses: [] })),
         ]);
 
         if (cancelled) return;
 
-        setSavedCards(pmResult.paymentMethods);
-        setOlderCardIds(pmResult.olderPaymentMethodIds);
-        const { upFront } = splitSavedCards(pmResult.paymentMethods, pmResult.olderPaymentMethodIds);
-        if (upFront) {
-          setSelectedCardId(upFront.id);
-          setUseNewCard(false);
-        } else {
-          // No card up front (none saved, or only older ones): the new card form opens.
-          setUseNewCard(true);
-        }
-
         setSavedAddresses(addrResult.addresses);
-        if (addrResult.addresses.length > 0) {
-          const defaultAddr = addrResult.addresses.find((a) => a.isDefault) ?? addrResult.addresses[0];
+        const defaultAddr = addrResult.addresses.find((a) => a.isDefault) ?? addrResult.addresses[0] ?? null;
+        if (defaultAddr) {
           setSelectedAddressId(defaultAddr.id);
           setUseNewAddress(false);
         } else {
           setUseNewAddress(true);
         }
+        setElementConfig(checkoutElementConfig({
+          os: Platform.OS,
+          style: sheetStyle(who.current.isDark),
+          session: sessionResult,
+          user: who.current.user,
+          address: defaultAddr,
+        }));
       } finally {
         if (!cancelled) {
-          setCardsLoading(false);
+          setSessionLoading(false);
           setAddressesLoading(false);
         }
       }
@@ -230,41 +237,24 @@ export default function CheckoutScreen() {
     (!useNewAddress && selectedAddressId !== null) ||
     (useNewAddress && hasNewAddressFields);
 
-  const hasPaymentMethod =
-    (!useNewCard && selectedCardId !== null) ||
-    (useNewCard && isNewCardComplete && cardholderName.trim().length > 0);
-
   const isEmpty = mode === "buyNow"
     ? !buyNowItem
     : cartItems.length === 0;
 
-  const confirmDisabled =
-    isEmpty ||
-    !hasShippingAddress ||
-    !hasPaymentMethod ||
-    checkoutLoading ||
-    cardsLoading ||
-    addressesLoading;
-
-  // Apple Pay needs everything except a card.
+  // Apple Pay needs everything except a picked method.
   const applePayDisabled =
     isEmpty ||
     !hasShippingAddress ||
     checkoutLoading ||
-    cardsLoading ||
+    sessionLoading ||
     addressesLoading;
-
-  const { upFront: upFrontCard, others: otherCards } = useMemo(
-    () => splitSavedCards(savedCards, olderCardIds),
-    [savedCards, olderCardIds],
-  );
 
   // ─── Price computation ────────────────────────────────────────────────────
   const clientServiceFee = useMemo(() => (subtotal / 100) * 0.08, [subtotal]);
-const clientTotal = useMemo(() => (subtotal / 100) * 1.08, [subtotal]);
-// Fallback until the backend fee breakdown arrives. Points are worth half the service fee
-// (4% of the subtotal) at 500 points per $1, so points = subtotal cents x 0.2 (backend loyaltyLedger.ts).
-const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
+  const clientTotal = useMemo(() => (subtotal / 100) * 1.08, [subtotal]);
+  // Fallback until the backend fee breakdown arrives. Points are worth half the service fee
+  // (4% of the subtotal) at 500 points per $1, so points = subtotal cents x 0.2 (backend loyaltyLedger.ts).
+  const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
   const displayedSubtotal = backendFeeBreakdown ? backendFeeBreakdown.basePriceCents / 100 : subtotal / 100;
   const displayedServiceFee = backendFeeBreakdown ? backendFeeBreakdown.consumerUpchargeCents / 100 : clientServiceFee;
@@ -273,33 +263,48 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
   const displayedRewards = backendFeeBreakdown
     ? (backendFeeBreakdown.discountCents ?? 0) / 100
     : (appliedCode?.discountCents ?? 0) / 100;
-  const displayedTotal = backendFeeBreakdown
-    ? (backendFeeBreakdown.amountChargedCents ?? backendFeeBreakdown.totalChargedToConsumerCents) / 100
-    : clientTotal - displayedRewards;
   const displayedPoints = backendFeeBreakdown ? backendFeeBreakdown.outsydePointsEarned : clientPoints;
 
-  // ─── Delete saved card ────────────────────────────────────────────────────
-  const handleDeleteCard = useCallback(async (cardId: string) => {
-    try {
-      const token = await getToken();
-      if (!token) return;
-      await deletePaymentMethod(token, cardId);
-      setSavedCards((prev) => {
-        const updated = prev.filter((c) => c.id !== cardId);
-        if (selectedCardId === cardId) {
-          if (updated.length > 0) {
-            setSelectedCardId(updated[0].id);
-          } else {
-            setSelectedCardId(null);
-            setUseNewCard(true);
-          }
-        }
-        return updated;
-      });
-    } catch {
-      Alert.alert("Could not remove card. Please try again.");
-    }
-  }, [getToken, selectedCardId]);
+  // ─── Exact total before paying (backend /api/cart/price-preview) ──────────
+  // The same pricing as the real charge. The picker shows the methods that fit this amount, and the
+  // charge is refused if it comes back different (chargeMatchesPreview).
+  const itemsKey = JSON.stringify(checkoutItems);
+  const previewKey = `${itemsKey}|${appliedCode?.id ?? ""}`;
+  // Keyed to the cart and code it priced, so a stale preview never shows after either changes.
+  const [preview, setPreview] = useState<{ key: string; cents: number } | null>(null);
+  const previewCents = preview && preview.key === previewKey ? preview.cents : null;
+  useEffect(() => {
+    if (isEmpty) return;
+    let alive = true;
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token || !alive) return;
+        const res = await previewCartPrice(token, {
+          items: JSON.parse(itemsKey),
+          ...(appliedCode ? { promoCodeId: appliedCode.id } : {}),
+        });
+        if (!alive) return;
+        if (typeof res?.amountChargedCents === "number") setPreview({ key: previewKey, cents: res.amountChargedCents });
+        const fb = shownBreakdown(res?.feeBreakdown as FeeBreakdown | undefined);
+        if (fb) setBackendFeeBreakdown(fb);
+      } catch {
+        // No preview (older backend, offline): the local estimate shows; the charge still sets the total.
+      }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewKey, itemsKey, appliedCode?.id, isEmpty, getToken]);
+
+  const localTotalCents = Math.round((clientTotal - (appliedCode?.discountCents ?? 0) / 100) * 100);
+  const totalCents = previewCents ?? (backendFeeBreakdown
+    ? (backendFeeBreakdown.amountChargedCents ?? backendFeeBreakdown.totalChargedToConsumerCents)
+    : localTotalCents);
+  const displayedTotal = totalCents / 100;
+
+  useEffect(() => {
+    pickerRef.current?.setAmount(intentAmount(previewCents, localTotalCents));
+  }, [previewCents, localTotalCents, picker.loaded]);
 
   // ─── Resolve shipping address for the PI call ─────────────────────────────
   const resolveShippingAddress = () => {
@@ -317,9 +322,169 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
     };
   };
 
-  // ─── Checkout ─────────────────────────────────────────────────────────────
-  const handleCheckout = async (method: "card" | "applePay" = "card") => {
-    if (method === "card" ? confirmDisabled : applePayDisabled) return;
+  // ─── Refusals and errors (same alerts as before Step 4b) ──────────────────
+  const showCheckoutError = (message: string) => {
+    if (message.includes("ADDRESS_REQUIRED")) {
+      Alert.alert(
+        "Shipping Address Required",
+        "Please add a shipping address to continue.",
+        [{ text: "OK" }]
+      );
+    } else if (message.includes("INVALID_ADDRESS")) {
+      Alert.alert(
+        "Invalid Address",
+        "Please check your shipping address and try again.",
+        [{ text: "OK" }]
+      );
+    } else if (checkoutRefusalMessage(message)) {
+      if (PROMO_REFUSAL_CODES.some((c) => message.includes(c))) {
+        const refusedId = appliedCode?.id;
+        if (refusedId && message.includes("PROMO_IN_USE")) setRefusedCodeIds((prev) => new Set(prev).add(refusedId));
+        setPointsCode(null);
+        setPointsRefreshKey((k) => k + 1);
+      }
+      Alert.alert(
+        "Can't Complete Checkout",
+        checkoutRefusalMessage(message)!,
+        [{ text: "OK" }]
+      );
+    } else if (message.includes("STRIPE_NOT_ONBOARDED")) {
+      Alert.alert(
+        "Vendor Unavailable",
+        "One or more items in your cart cannot be purchased at this " +
+          "time. Please remove them and try again, or contact support.",
+        [{ text: "OK" }]
+      );
+    } else {
+      Alert.alert(
+        "Checkout Failed",
+        "Something went wrong. Please try again or contact support " +
+          "if the issue continues.",
+        [{ text: "OK" }]
+      );
+    }
+  };
+
+  // ─── After a payment goes through ─────────────────────────────────────────
+  const finishOrder = (token: string, feeBreakdown: FeeBreakdown | null) => {
+    if (useNewAddress && saveNewAddress && hasNewAddressFields) {
+      createSavedAddress(token, {
+        line1: shippingAddress.line1.trim(),
+        city: shippingAddress.city.trim(),
+        state: shippingAddress.state.trim(),
+        zipCode: shippingAddress.zipCode.trim(),
+        isDefault: savedAddresses.length === 0,
+      }).catch(() => {});
+    }
+
+    const itemCount = checkoutItems.reduce((sum, i) => sum + i.quantity, 0);
+    const totalCharged = feeBreakdown?.amountChargedCents ?? feeBreakdown?.totalChargedToConsumerCents ?? 0;
+    const pointsEarned = feeBreakdown?.outsydePointsEarned ?? 0;
+    if (mode === "cart") {
+      Array.from(new Set(cartItems.map(i => i.vendorId))).forEach(vid => removeVendorItems(vid));
+    }
+    // buyNow never wrote to cart — nothing to clear
+    setBackendFeeBreakdown(null);
+    navigation.navigate("OrderSuccess", { itemCount, totalCharged, pointsEarned });
+  };
+
+  // ─── The order and PaymentIntent, made when the customer taps pay ─────────
+  // Same route and fields as before, plus redirectCapable (backend #429). Returns the client secret.
+  const createOrder = async (token: string): Promise<{ clientSecret: string; feeBreakdown: FeeBreakdown | null }> => {
+    const res = await apiPost(
+      "/api/cart/payment-intent",
+      cartIntentBody(checkoutItems, resolveShippingAddress(), appliedCode?.id ?? null),
+      token
+    ) as { clientSecret?: string; feeBreakdown?: FeeBreakdown };
+    const feeBreakdown = res?.feeBreakdown ?? null;
+    // Multi shop carts answer with the total only: keep the local preview lines then.
+    setBackendFeeBreakdown(shownBreakdown(feeBreakdown));
+    if (!res?.clientSecret) throw new Error("Missing clientSecret");
+    return { clientSecret: res.clientSecret, feeBreakdown };
+  };
+
+  // The picker's confirm handler reads the screen through this ref, so its setup never changes.
+  type Attempt = { token: string; feeBreakdown: FeeBreakdown | null; handled: boolean };
+  const attemptRef = useRef<Attempt | null>(null);
+  const latest = useRef({ createOrder, showCheckoutError, previewCents, previewKey });
+  useEffect(() => {
+    latest.current = { createOrder, showCheckoutError, previewCents, previewKey };
+  });
+
+  // Built once; amounts change through setAmount (the SDK rebuilds the picker if this object changes).
+  const [intentConfig] = useState<PaymentSheet.IntentConfiguration>(() => ({
+    mode: { amount: intentAmount(null, localTotalCents), currencyCode: "USD" },
+    confirmHandler: (_pm, _save, intentCreationCallback) => {
+      const attempt = attemptRef.current;
+      const fail = (message: string) => {
+        if (attempt) attempt.handled = true;
+        intentCreationCallback({ error: { code: "Failed", message } });
+      };
+      if (!attempt) return fail("Checkout failed. Please try again.");
+      (async () => {
+        try {
+          const { clientSecret, feeBreakdown } = await latest.current.createOrder(attempt.token);
+          attempt.feeBreakdown = feeBreakdown;
+          const charged = chargedCents(feeBreakdown);
+          if (!chargeMatchesPreview(latest.current.previewCents, charged)) {
+            if (charged != null) setPreview({ key: latest.current.previewKey, cents: charged });
+            Alert.alert(
+              "Your total changed",
+              `The total is now $${((charged ?? 0) / 100).toFixed(2)}. Check your order and tap pay again.`,
+              [{ text: "OK" }]
+            );
+            return fail("Your total changed. Check your order and tap pay again.");
+          }
+          intentCreationCallback({ clientSecret });
+        } catch (err: any) {
+          latest.current.showCheckoutError(err?.message ?? "");
+          fail("Checkout didn't go through.");
+        }
+      })();
+    },
+  }));
+
+  const closeSheet = useCallback(() => setSheetOpen(false), [setSheetOpen]);
+
+  const payReady = pickerReady({
+    loaded: picker.loaded,
+    hasOption: !!picker.option,
+    hasAddress: hasShippingAddress,
+    busy: checkoutLoading || sessionLoading || addressesLoading,
+    empty: isEmpty,
+    loadFailed: picker.failed,
+  });
+
+  // ─── Pay with the picked method ───────────────────────────────────────────
+  const handlePay = async () => {
+    if (!payReady || !pickerRef.current) return;
+    if (!oneAtATime.start()) return;
+    setCardError(null);
+    const token = await getToken();
+    if (!token) { oneAtATime.done(); Alert.alert("Checkout failed. Please try again."); return; }
+    setCheckoutLoading(true);
+    const attempt: Attempt = { token, feeBreakdown: null, handled: false };
+    attemptRef.current = attempt;
+    try {
+      const result = await pickerRef.current.confirm();
+      if (result.status === "completed") {
+        finishOrder(token, attempt.feeBreakdown);
+      } else if (result.status === "failed" && !attempt.handled) {
+        setCardError(result.error?.message || "Payment failed. Please try again.");
+      }
+      // canceled: the customer backed out (or left Klarna, Afterpay or Cash App); nothing was charged.
+    } catch {
+      if (!attempt.handled) setCardError("Payment failed. Please try again.");
+    } finally {
+      attemptRef.current = null;
+      setCheckoutLoading(false);
+      oneAtATime.done();
+    }
+  };
+
+  // ─── Apple Pay (unchanged path, p4-applepay) ──────────────────────────────
+  const handleApplePay = async () => {
+    if (applePayDisabled) return;
     if (!oneAtATime.start()) return;
     setCardError(null);
 
@@ -328,7 +493,6 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
     setCheckoutLoading(true);
     try {
-      // Step 1 — Create PaymentIntent
       const resolvedAddress = resolveShippingAddress();
       const paymentIntentResponse = await apiPost(
         "/api/cart/payment-intent",
@@ -342,144 +506,27 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
       const clientSecret = paymentIntentResponse?.clientSecret;
       const feeBreakdown = paymentIntentResponse?.feeBreakdown ?? null;
-      // Multi shop carts answer with the total only: keep the local preview lines then.
       setBackendFeeBreakdown(shownBreakdown(feeBreakdown));
       if (!clientSecret) throw new Error("Missing clientSecret");
 
-      // Step 2 (Apple Pay) — the sheet shows the charge the server set; the card is not saved.
-      if (method === "applePay") {
-        const cents = chargedCents(feeBreakdown) ?? Math.round(displayedTotal * 100);
-        const { error: apError } = await confirmPlatformPayPayment(clientSecret, {
-          applePay: {
-            cartItems: applePayCartItems(cents).map((i) => ({ ...i, paymentType: PlatformPay.PaymentType.Immediate })),
-            merchantCountryCode: "US",
-            currencyCode: "USD",
-          },
-        });
-        const outcome = applePayOutcome(apError as any);
-        if (outcome === "canceled") return;
-        if (outcome === "failed") {
-          setCardError(apError?.message || "Apple Pay didn't go through. Try again, or pay with a card.");
-          return;
-        }
+      // The sheet shows the charge the server set; the card is not saved.
+      const cents = chargedCents(feeBreakdown) ?? Math.round(displayedTotal * 100);
+      const { error: apError } = await confirmPlatformPayPayment(clientSecret, {
+        applePay: {
+          cartItems: applePayCartItems(cents).map((i) => ({ ...i, paymentType: PlatformPay.PaymentType.Immediate })),
+          merchantCountryCode: "US",
+          currencyCode: "USD",
+        },
+      });
+      const outcome = applePayOutcome(apError as any);
+      if (outcome === "canceled") return;
+      if (outcome === "failed") {
+        setCardError(apError?.message || "Apple Pay didn't go through. Try again, or pay another way.");
+        return;
       }
-
-      // Step 2 (card) — Confirm payment
-      if (method === "card") {
-        let resolvedPaymentMethodId: string | undefined;
-
-        if (useNewCard && saveNewCard) {
-          // Vault the new card via SetupIntent first
-          const siResponse = await createSetupIntent(token);
-          if (!siResponse?.clientSecret) throw new Error("Missing SetupIntent clientSecret");
-
-          const { setupIntent, error: siError } = await confirmSetupIntent(siResponse.clientSecret, {
-            paymentMethodType: "Card",
-          });
-          if (siError) {
-            setCardError(siError.message ?? "Card setup failed.");
-            return;
-          }
-          resolvedPaymentMethodId = (setupIntent as any)?.paymentMethodId ?? undefined;
-
-          // Refresh saved cards list in background after vaulting
-          getPaymentMethods(token).then((result) => {
-            setSavedCards(result.paymentMethods);
-            setOlderCardIds(result.olderPaymentMethodIds);
-          }).catch(() => {});
-        }
-
-        const billingDetails = { name: cardholderName.trim() };
-        const paymentData: any = resolvedPaymentMethodId
-          ? {
-              paymentMethodType: "Card",
-              paymentMethodData: { paymentMethodId: resolvedPaymentMethodId, billingDetails },
-            }
-          : useNewCard
-          ? { paymentMethodType: "Card", paymentMethodData: { billingDetails } }
-          : {
-              paymentMethodType: "Card",
-              paymentMethodData: { paymentMethodId: selectedCardId!, billingDetails },
-            };
-
-        const { paymentIntent, error: piError } = await confirmPayment(
-          clientSecret,
-          paymentData
-        );
-
-        if (piError) {
-          if ((piError as any)?.code === "Canceled") {
-            Alert.alert("Payment cancelled.");
-            return;
-          }
-          setCardError(piError.message ?? "Payment failed. Please try again.");
-          return;
-        }
-
-        if (!paymentIntent) throw new Error("Payment not confirmed");
-      }
-
-      // Step 3 — Post-payment cleanup
-      if (useNewAddress && saveNewAddress && hasNewAddressFields) {
-        createSavedAddress(token, {
-          line1: shippingAddress.line1.trim(),
-          city: shippingAddress.city.trim(),
-          state: shippingAddress.state.trim(),
-          zipCode: shippingAddress.zipCode.trim(),
-          isDefault: savedAddresses.length === 0,
-        }).catch(() => {});
-      }
-
-      const itemCount = checkoutItems.reduce((sum, i) => sum + i.quantity, 0);
-      const totalCharged = feeBreakdown?.amountChargedCents ?? feeBreakdown?.totalChargedToConsumerCents ?? 0;
-      const pointsEarned = feeBreakdown?.outsydePointsEarned ?? 0;
-      if (mode === "cart") {
-        Array.from(new Set(cartItems.map(i => i.vendorId))).forEach(vid => removeVendorItems(vid));
-      }
-      // buyNow never wrote to cart — nothing to clear
-      setBackendFeeBreakdown(null);
-      navigation.navigate("OrderSuccess", { itemCount, totalCharged, pointsEarned });
+      finishOrder(token, feeBreakdown);
     } catch (err: any) {
-      const message: string = err?.message ?? "";
-      if (message.includes("ADDRESS_REQUIRED")) {
-        Alert.alert(
-          "Shipping Address Required",
-          "Please add a shipping address to continue.",
-          [{ text: "OK" }]
-        );
-      } else if (message.includes("INVALID_ADDRESS")) {
-        Alert.alert(
-          "Invalid Address",
-          "Please check your shipping address and try again.",
-          [{ text: "OK" }]
-        );
-      } else if (checkoutRefusalMessage(message)) {
-        if (PROMO_REFUSAL_CODES.some((c) => message.includes(c))) {
-          const refusedId = appliedCode?.id;
-          if (refusedId && message.includes("PROMO_IN_USE")) setRefusedCodeIds((prev) => new Set(prev).add(refusedId));
-          setPointsCode(null);
-          setPointsRefreshKey((k) => k + 1);
-        }
-        Alert.alert(
-          "Can't Complete Checkout",
-          checkoutRefusalMessage(message)!,
-          [{ text: "OK" }]
-        );
-      } else if (message.includes("STRIPE_NOT_ONBOARDED")) {
-        Alert.alert(
-          "Vendor Unavailable",
-          "One or more items in your cart cannot be purchased at this " +
-            "time. Please remove them and try again, or contact support.",
-          [{ text: "OK" }]
-        );
-      } else {
-        Alert.alert(
-          "Checkout Failed",
-          "Something went wrong. Please try again or contact support " +
-            "if the issue continues.",
-          [{ text: "OK" }]
-        );
-      }
+      showCheckoutError(err?.message ?? "");
     } finally {
       setCheckoutLoading(false);
       oneAtATime.done();
@@ -610,6 +657,19 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
     loadingSection: {
       alignItems: "center",
       paddingVertical: Spacing.md,
+    },
+    methodRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.md,
+      minHeight: 56,
+      paddingVertical: Spacing.sm,
+    },
+    methodMark: {
+      width: 40,
+      height: 28,
+      borderRadius: 6,
+      backgroundColor: theme.brandSurface,
     },
     cardErrorText: {
       color: theme.brandError,
@@ -787,53 +847,57 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
           )}
         </View>
 
-        {/* Payment */}
+        {/* Payment (Step 4b compact layout): Apple Pay on top, the picked method with Change, pay in 4 */}
         <ThemedText type="h4" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
           Payment
         </ThemedText>
         <View style={styles.card}>
-          {cardsLoading ? (
+          {applePayReady && (
+            <ApplePayBlock disabled={applePayDisabled} onPress={handleApplePay} theme={theme} />
+          )}
+          {sessionLoading || !elementConfig || (!picker.loaded && !picker.failed) ? (
             <View style={styles.loadingSection}>
               <ActivityIndicator size="small" color={theme.brandGold} />
             </View>
-          ) : savedCards.length > 0 && !useNewCard ? (
-            <>
-              {applePayReady && (
-                <ApplePayBlock disabled={applePayDisabled} onPress={() => handleCheckout("applePay")} theme={theme} />
-              )}
-              <SavedCardSelector
-                cards={upFrontCard ? [upFrontCard] : []}
-                otherCards={otherCards}
-                selectedCardId={selectedCardId}
-                onSelectCard={(id) => { setSelectedCardId(id); setUseNewCard(false); }}
-                onAddNewCard={() => { setUseNewCard(true); setSelectedCardId(null); setCardError(null); }}
-                onDeleteCard={handleDeleteCard}
-                addLabel="New payment method"
-              />
-            </>
           ) : (
-            <>
-              {applePayReady && (
-                <ApplePayBlock disabled={applePayDisabled} onPress={() => handleCheckout("applePay")} theme={theme} />
+            <Pressable
+              style={styles.methodRow}
+              onPress={() => { setCardError(null); setSheetOpen(true); }}
+              accessibilityRole="button"
+              accessibilityLabel={picker.option ? `Paying with ${picker.option.label}. Change` : "Choose how to pay"}
+            >
+              {picker.option?.image ? (
+                <Image source={{ uri: `data:image/png;base64,${picker.option.image}` }} style={styles.methodMark} resizeMode="contain" />
+              ) : (
+                <View style={[styles.methodMark, { alignItems: "center", justifyContent: "center" }]}>
+                  <Feather name="credit-card" size={18} color={theme.brandGold} />
+                </View>
               )}
-              {savedCards.length > 0 && (
-                <Pressable
-                  style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.sm }}
-                  onPress={() => { setUseNewCard(false); setSelectedCardId((upFrontCard ?? savedCards[0]).id); setCardError(null); }}
-                >
-                  <Feather name="arrow-left" size={16} color={theme.brandGold} />
-                  <ThemedText type="body" style={{ color: theme.brandGold }}>Use saved card</ThemedText>
-                </Pressable>
-              )}
-              <CardInputForm
-                onCardComplete={setIsNewCardComplete}
-                saveCard={saveNewCard}
-                onSaveToggle={setSaveNewCard}
-                cardholderName={cardholderName}
-                onCardholderNameChange={setCardholderName}
-              />
-            </>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="body" numberOfLines={1}>
+                  {picker.option ? picker.option.label : "Choose how to pay"}
+                </ThemedText>
+                {methodSub(picker.option?.paymentMethodType, totalCents) ? (
+                  <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
+                    {methodSub(picker.option?.paymentMethodType, totalCents)}
+                  </ThemedText>
+                ) : null}
+              </View>
+              <ThemedText type="body" style={{ color: theme.brandGold }}>Change</ThemedText>
+            </Pressable>
           )}
+          {payIn4Shown(totalCents) && picker.loaded ? (
+            <Pressable onPress={() => { setCardError(null); setSheetOpen(true); }} style={{ marginTop: Spacing.sm }}>
+              <ThemedText type="caption" style={{ color: theme.brandTextDim, textAlign: "center" }}>
+                Or pay in 4 interest free with Klarna or Afterpay
+              </ThemedText>
+            </Pressable>
+          ) : null}
+          {picker.failed ? (
+            <ThemedText type="body" style={styles.cardErrorText}>
+              {"Payment options didn't load. Go back and open checkout again."}
+            </ThemedText>
+          ) : null}
 
           {cardError !== null && (
             <ThemedText type="body" style={styles.cardErrorText}>
@@ -896,12 +960,12 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
 
         {/* Confirm & Pay */}
         <Pressable
-          onPress={() => handleCheckout("card")}
-          disabled={confirmDisabled}
+          onPress={handlePay}
+          disabled={!payReady}
           style={({ pressed }) => [
             styles.checkoutButton,
             {
-              backgroundColor: confirmDisabled ? theme.brandPrimary + "66" : theme.brandPrimary,
+              backgroundColor: !payReady ? theme.brandPrimary + "66" : theme.brandPrimary,
               opacity: pressed ? 0.85 : 1,
             },
           ]}
@@ -910,17 +974,32 @@ const clientPoints = useMemo(() => Math.round(subtotal * 0.2), [subtotal]);
             <ActivityIndicator size="small" color={theme.brandPrimaryText} />
           ) : (
             <>
-              <Feather name="credit-card" size={18} color={theme.brandPrimaryText} />
-              <ThemedText type="body" style={{ color: theme.brandPrimaryText }}>Confirm & Pay</ThemedText>
+              <Feather name="lock" size={18} color={theme.brandPrimaryText} />
+              <ThemedText type="body" style={{ color: theme.brandPrimaryText }}>
+                {payButtonLabel(picker.option?.paymentMethodType, totalCents)}
+              </ThemedText>
             </>
           )}
         </Pressable>
       </ScrollView>
+
+      {elementConfig ? (
+        <CheckoutPaymentPicker
+          ref={pickerRef}
+          intentConfig={intentConfig}
+          config={elementConfig}
+          open={sheetOpen}
+          onClose={closeSheet}
+          onState={setPicker}
+          theme={theme}
+          bottomInset={insets.bottom}
+        />
+      ) : null}
     </View>
   );
 }
 
-/** Apple Pay button above the cards, with the "or pay with a card" divider (p4-applepay). */
+/** Apple Pay button above the picked method, with the "Or pay another way" divider (p4-applepay, Step 4b). */
 function ApplePayBlock({ disabled, onPress, theme }: { disabled: boolean; onPress: () => void; theme: any }) {
   return (
     <View style={{ gap: Spacing.sm, marginBottom: Spacing.sm }}>
@@ -933,7 +1012,7 @@ function ApplePayBlock({ disabled, onPress, theme }: { disabled: boolean; onPres
         style={{ width: "100%", height: 48, opacity: disabled ? 0.5 : 1 }}
       />
       <ThemedText type="caption" style={{ color: theme.brandTextDim, textAlign: "center" }}>
-        or pay with a card
+        Or pay another way
       </ThemedText>
     </View>
   );
