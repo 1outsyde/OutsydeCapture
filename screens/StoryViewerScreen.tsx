@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
   Dimensions,
+  FlatList,
   Platform,
   Pressable,
   StyleSheet,
@@ -31,10 +32,8 @@ import { API_BASE_URL } from "@/services/api";
 import { Story } from "@/components/StoryRing";
 import { FitBackdrop } from "@/components/video/FitBackdrop";
 import { normalizeVideoFit, videoBlurUri } from "@/utils/videoFit";
-import BottomSheet, {
-  BottomSheetFlatList,
-  BottomSheetBackdrop,
-} from "@gorhom/bottom-sheet";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
+import { remainingStoryMs } from "@/utils/storyPause";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const IMAGE_MS = 5000;
@@ -152,9 +151,11 @@ interface VideoStoryProps {
   story: Story;
   onDurationKnown: (durationSeconds: number) => void;
   onVideoEnd: () => void;
+  /** True while the viewers page is open: the video holds its place. */
+  paused: boolean;
 }
 
-function VideoStory({ story, onDurationKnown, onVideoEnd }: VideoStoryProps) {
+function VideoStory({ story, onDurationKnown, onVideoEnd, paused }: VideoStoryProps) {
   const player = useVideoPlayerRecreate(story.mediaUrl, (p) => {
     p.loop = false;
     p.muted = false;
@@ -163,6 +164,13 @@ function VideoStory({ story, onDurationKnown, onVideoEnd }: VideoStoryProps) {
 
   const reportedDuration = useRef(false);
   const reportedEnd = useRef(false);
+
+  useEffect(() => {
+    try {
+      if (paused) player.pause();
+      else player.play();
+    } catch {}
+  }, [paused, player]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -215,10 +223,9 @@ export default function StoryViewerScreen() {
   const isAuthor = !!user?.id && user.id === currentStory?.authorId;
 
   // ── Viewer sheet state (author only) ─────────────────────────────────────
-  const [viewerSheetIndex, setViewerSheetIndex] = useState(-1);
+  const [viewersOpen, setViewersOpen] = useState(false);
   const [viewerData, setViewerData] = useState<{ viewCount: number; viewers: ViewerEntry[] } | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
-  const snapPoints = useMemo(() => ["50%"], []);
 
   const fetchViewers = useCallback(async (storyId: string) => {
     setViewerLoading(true);
@@ -234,7 +241,7 @@ export default function StoryViewerScreen() {
 
   const handleOpenViewerSheet = useCallback(() => {
     if (!isAuthor || !currentStory?.id) return;
-    setViewerSheetIndex(0);
+    setViewersOpen(true);
     fetchViewers(currentStory.id);
   }, [isAuthor, currentStory?.id, fetchViewers]);
 
@@ -280,30 +287,51 @@ export default function StoryViewerScreen() {
   // Runs whenever the active story changes. Starts progress animation for
   // images immediately; video timing is started by onDurationKnown once the
   // player reports a duration.
+  // While the viewers page is open the story holds its place (progress bar,
+  // timer and video); closing it carries on from the same spot.
+  const timedStoryId = useRef<string | null>(null);
+  const videoDurationMs = useRef<number | null>(null);
   useEffect(() => {
     if (!currentStory) return;
-    progress.value = 0;
+    if (timedStoryId.current !== currentStory.id) {
+      timedStoryId.current = currentStory.id;
+      videoDurationMs.current = null;
+      progress.value = 0;
+    }
+    if (viewersOpen) {
+      cancelAnimation(progress);
+      return;
+    }
 
     if (currentStory.mediaType === "image") {
-      progress.value = withTiming(1, { duration: IMAGE_MS, easing: Easing.linear });
-      const t = setTimeout(advance, IMAGE_MS);
+      const remaining = remainingStoryMs(IMAGE_MS, progress.value);
+      progress.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+      const t = setTimeout(advance, remaining);
       return () => {
         clearTimeout(t);
         cancelAnimation(progress);
       };
     }
 
-    // Video: animation starts from onDurationKnown
+    // Video: animation starts from onDurationKnown, or resumes here after a pause.
+    if (videoDurationMs.current != null) {
+      progress.value = withTiming(1, {
+        duration: remainingStoryMs(videoDurationMs.current, progress.value),
+        easing: Easing.linear,
+      });
+    }
     return () => {
       cancelAnimation(progress);
     };
-  }, [currentStory?.id, advance]);
+  }, [currentStory?.id, advance, viewersOpen]);
 
   const handleDurationKnown = useCallback(
     (dur: number) => {
+      videoDurationMs.current = dur * 1000;
+      if (viewersOpen) return;
       progress.value = withTiming(1, { duration: dur * 1000, easing: Easing.linear });
     },
-    [progress]
+    [progress, viewersOpen]
   );
 
   const handleVideoEnd = useCallback(() => advance(), [advance]);
@@ -380,6 +408,7 @@ export default function StoryViewerScreen() {
             story={currentStory}
             onDurationKnown={handleDurationKnown}
             onVideoEnd={handleVideoEnd}
+            paused={viewersOpen}
           />
         )}
 
@@ -478,26 +507,23 @@ export default function StoryViewerScreen() {
       </View>
     </GestureDetector>
     {isAuthor && (
-      <BottomSheet
-        index={viewerSheetIndex}
-        snapPoints={snapPoints}
-        onChange={setViewerSheetIndex}
-        enablePanDownToClose
-        backgroundStyle={{ backgroundColor: "#1a1a1a" }}
-        handleIndicatorStyle={{ backgroundColor: "#555" }}
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
-        )}
+      <FullScreenSheet
+        visible={viewersOpen}
+        onClose={() => setViewersOpen(false)}
+        title={`${viewerData?.viewCount ?? 0} views`}
+        backgroundColor="#1a1a1a"
+        tintColor="#FFFFFF"
+        borderColor="#333333"
       >
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>
-            👁 {viewerData?.viewCount ?? 0} views
-          </Text>
+        <View style={styles.pausedRow}>
+          <Feather name="pause" size={12} color="#A0A0A0" />
+          <Text style={styles.pausedText}>Your story is paused. Close to keep watching.</Text>
         </View>
         {viewerLoading ? (
           <ActivityIndicator style={{ marginTop: 32 }} color="#D4A94A" />
         ) : (
-          <BottomSheetFlatList
+          <FlatList
+            style={{ flex: 1 }}
             data={viewerData?.viewers ?? []}
             keyExtractor={(item) => item.userId}
             renderItem={({ item }) => <ViewerRow viewer={item} />}
@@ -507,7 +533,7 @@ export default function StoryViewerScreen() {
             }
           />
         )}
-      </BottomSheet>
+      </FullScreenSheet>
     )}
     </>
   );
@@ -599,7 +625,15 @@ const styles = StyleSheet.create({
   authorBarRow: { flexDirection: "row", alignItems: "center", gap: 16 },
   viewsPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)" },
   viewsPillText: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  sheetHeader: { paddingHorizontal: 16, paddingBottom: 8 },
-  sheetTitle: { color: "#D4A94A", fontSize: 17, fontWeight: "700" },
+  pausedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#333333",
+  },
+  pausedText: { color: "#A0A0A0", fontSize: 13 },
   sheetEmpty: { color: "#666", fontSize: 14, textAlign: "center", paddingTop: 32 },
 });
