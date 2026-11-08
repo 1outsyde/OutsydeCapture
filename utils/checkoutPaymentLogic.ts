@@ -72,9 +72,11 @@ export function payButtonLabel(
 export function chargeMatchesPreview(
   previewCents: number | null,
   chargedCents: number | null,
+  opts: { estimate?: boolean } = {},
 ): boolean {
   if (previewCents == null || chargedCents == null) return true;
-  return previewCents === chargedCents;
+  // The local estimate can be a cent off the server's fee rounding; the server preview never is.
+  return Math.abs(previewCents - chargedCents) <= (opts.estimate ? 1 : 0);
 }
 
 /** The picker's amount: the server preview when there is one, else the local estimate. Whole, positive cents. */

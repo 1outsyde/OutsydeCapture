@@ -268,3 +268,10 @@ test("Stripe's picker sends its failure as text on both phones (StripeSdkImpl+Em
     null,
   );
 });
+
+test("against an estimate (preview failed) a one cent rounding gap is allowed; against the preview it must be exact", () => {
+  assert.equal(chargeMatchesPreview(2025, 2026, { estimate: true }), true);
+  assert.equal(chargeMatchesPreview(2025, 2024, { estimate: true }), true);
+  assert.equal(chargeMatchesPreview(2025, 2027, { estimate: true }), false);
+  assert.equal(chargeMatchesPreview(2025, 2026, { estimate: false }), false);
+});

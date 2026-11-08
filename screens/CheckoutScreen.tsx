@@ -292,7 +292,9 @@ export default function CheckoutScreen() {
     (async () => {
       try {
         const token = await tokenRef.current();
-        if (!token || !alive) return;
+        if (!alive) return;
+        // No token: nothing to price with; stop waiting so the screen doesn't sit on a disabled button.
+        if (!token) return setPreview({ key: previewKey, cents: null });
         const res = await previewCartPrice(token, {
           items: JSON.parse(itemsKey),
           ...(appliedCode ? { promoCodeId: appliedCode.id } : {}),
@@ -420,9 +422,9 @@ export default function CheckoutScreen() {
   // The picker's confirm handler reads the screen through this ref, so its setup never changes.
   type Attempt = { token: string; feeBreakdown: FeeBreakdown | null; handled: boolean };
   const attemptRef = useRef<Attempt | null>(null);
-  const latest = useRef({ createOrder, showCheckoutError, shownCents: totalCents, previewKey });
+  const latest = useRef({ createOrder, showCheckoutError, shownCents: totalCents, previewKey, estimate: previewCents == null });
   useEffect(() => {
-    latest.current = { createOrder, showCheckoutError, shownCents: totalCents, previewKey };
+    latest.current = { createOrder, showCheckoutError, shownCents: totalCents, previewKey, estimate: previewCents == null };
   });
 
   // Built once; amounts change through setAmount (the SDK rebuilds the picker if this object changes).
@@ -441,7 +443,7 @@ export default function CheckoutScreen() {
           attempt.feeBreakdown = feeBreakdown;
           const charged = chargedCents(feeBreakdown);
           // Checked against the total on screen (the preview, or the estimate if the preview failed).
-          if (!chargeMatchesPreview(latest.current.shownCents, charged)) {
+          if (!chargeMatchesPreview(latest.current.shownCents, charged, { estimate: latest.current.estimate })) {
             if (charged != null) setPreview({ key: latest.current.previewKey, cents: charged });
             Alert.alert(
               "Your total changed",
