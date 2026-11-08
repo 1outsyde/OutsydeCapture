@@ -1,20 +1,16 @@
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { api } from "@/services/api";
 import { EVENT_GOLD } from "@/components/events/eventColors";
 import {
@@ -43,7 +39,6 @@ export default function ReportEventSheet(props: {
 }) {
   const { visible, eventId, getToken, onClose, onSent, onNeedSignIn } = props;
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const [reason, setReason] = useState<ReportReasonId | null>(null);
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
@@ -99,57 +94,21 @@ export default function ReportEventSheet(props: {
   const count = note.trim().length;
 
   return (
-    <Modal
+    <FullScreenSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={close}
-      statusBarTranslucent
+      onClose={close}
+      closeDisabled={busy}
+      title={REPORT_COPY.title}
+      androidKeyboardBehavior="height"
+      backgroundColor={theme.card}
+      tintColor={theme.text}
+      borderColor={theme.border}
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        // Android apps run edge to edge (the window no longer resizes for the keyboard): shrink the view instead.
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View style={styles.backdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={close}
-            accessibilityLabel="Close"
-            accessibilityRole="button"
-          />
-          <View
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: theme.card,
-                paddingBottom: insets.bottom + 20,
-              },
-            ]}
-            testID="report-sheet"
-          >
-            <View style={styles.head}>
-              <ThemedText
-                style={[styles.title, { color: theme.text }]}
-                accessibilityRole="header"
-              >
-                {REPORT_COPY.title}
-              </ThemedText>
-              <Pressable
-                onPress={close}
-                disabled={busy}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                hitSlop={8}
-                style={styles.closeBtn}
-              >
-                <Feather name="x" size={22} color={theme.text} />
-              </Pressable>
-            </View>
             <ScrollView
+              style={{ flex: 1 }}
+              testID="report-sheet"
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ gap: 10 }}
-              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ gap: 10, padding: 20 }}
             >
               {sent ? (
                 <View
@@ -287,41 +246,11 @@ export default function ReportEventSheet(props: {
                 </>
               )}
             </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  sheet: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 10,
-    maxHeight: "92%",
-  },
-  head: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  title: { fontSize: 20, fontWeight: "800" },
-  closeBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   sub: { fontSize: 13, lineHeight: 19 },
   option: {
     flexDirection: "row",
