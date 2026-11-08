@@ -15,6 +15,7 @@ import {
   viewForFraction,
   cameraFrameFraction,
   MAX_ZOOM,
+  openAreaFrame,
 } from "./cropMath";
 
 const landscape = { width: 4032, height: 3024 }; // 4:3 phone photo
@@ -202,4 +203,56 @@ test("cameraFrameFraction maps the on-screen frame into the photo", () => {
   assert.ok(Math.abs((f.w * 3024) / (f.h * 4032) - 0.8) < 1e-9);
   // Centered.
   assert.ok(Math.abs(f.x + f.w / 2 - 0.5) < 1e-9);
+});
+
+test("openAreaFrame fits 4:5 between the top buttons and the controls", () => {
+  // iPhone 15: 393 x 852, top buttons end at 105, controls take the bottom 190.
+  const f = openAreaFrame(0.8, { width: 393, height: 852 }, 105, 190, 16);
+  assert.ok(f);
+  assert.deepEqual(
+    { width: f.width, height: f.height },
+    { width: 361, height: 451 },
+  );
+  assert.equal(f.left, 16);
+  // Centered in the open band (105 to 662), so it stays clear of both.
+  assert.ok(
+    Math.abs(f.top + f.height / 2 - (105 + (852 - 105 - 190) / 2)) < 1e-9,
+  );
+  assert.ok(f.top >= 105 + 16);
+  assert.ok(f.top + f.height <= 852 - 190 - 16);
+});
+
+test("openAreaFrame shrinks by height on a small iPhone so it never sits under the controls", () => {
+  // iPhone SE: 375 x 667, no notch: top buttons end at 70, controls take the bottom 160.
+  const f = openAreaFrame(0.8, { width: 375, height: 667 }, 70, 160, 16);
+  assert.ok(f);
+  assert.ok(f.top >= 70 + 16);
+  assert.ok(f.top + f.height <= 667 - 160 - 16 + 1e-9);
+  assert.ok(Math.abs(f.width / f.height - 0.8) < 0.01);
+  assert.ok(Math.abs(f.left + f.width / 2 - 375 / 2) < 1e-9);
+});
+
+test("openAreaFrame gives no frame when there is no room", () => {
+  assert.equal(
+    openAreaFrame(0.8, { width: 393, height: 200 }, 105, 190, 16),
+    null,
+  );
+  assert.equal(
+    openAreaFrame(0, { width: 393, height: 852 }, 105, 190, 16),
+    null,
+  );
+});
+
+test("openAreaFrame output maps back into the photo with cameraFrameFraction", () => {
+  const area = { width: 393, height: 852 };
+  const frame = openAreaFrame(0.8, area, 105, 190, 16);
+  assert.ok(frame);
+  const f = cameraFrameFraction({ width: 4032, height: 3024 }, area, frame);
+  // Still a 4:5 piece of the photo, fully inside it.
+  assert.ok(
+    Math.abs((f.w * 3024) / (f.h * 4032) - frame.width / frame.height) < 1e-9,
+  );
+  assert.ok(
+    f.x >= 0 && f.y >= 0 && f.x + f.w <= 1 + 1e-9 && f.y + f.h <= 1 + 1e-9,
+  );
 });
