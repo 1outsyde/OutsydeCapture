@@ -253,6 +253,10 @@ for (const f of FILES_2D) {
     const bad = modalTags(src).filter((t) => /\btransparent\b/.test(t));
     assert.deepEqual(bad, [], `${f} still has transparent Modal(s)`);
     assert.match(src, /import \{ FullScreenSheet \} from ["']@\/components\/FullScreenSheet["']/);
+    assert.match(src, /<FullScreenSheet\b/, `${f} does not render FullScreenSheet`);
+    assert.doesNotMatch(src, /import \{[^}]*\bModal\b[^}]*\} from "react-native"/, `${f} still imports Modal`);
+    // FullScreenSheet already pads for the notch and home bar: never add it twice.
+    assert.doesNotMatch(src, /useSafeAreaInsets|insets\./, `${f} adds the safe area a second time`);
   });
 }
 
@@ -283,8 +287,11 @@ test("Agreement: close blocked while publishing", () => {
   assert.match(read("components/host/AgreementSheet.tsx"), /closeDisabled=\{working\}/);
 });
 
-test("Option list opens only when it has options", () => {
-  assert.match(read("components/host/OptionSheet.tsx"), /visible=\{!!options\}/);
+test("Option list is a full page that keeps its rows while it slides closed", () => {
+  const src = read("components/host/OptionSheet.tsx");
+  assert.match(src, /<FullScreenSheet visible=\{!!options\}/);
+  assert.match(src, /if \(options && options !== shown\) setShown\(options\);/);
+  assert.match(src, /\(shown \?\? \[\]\)\.map\(/);
 });
 
 test("Date and time pickers stay small (Legend's exception)", () => {

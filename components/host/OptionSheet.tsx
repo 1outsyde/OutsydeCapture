@@ -1,5 +1,5 @@
 /** A full page with a list to pick one value from (time zone, the ticket type that unlocks another). */
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
@@ -13,10 +13,13 @@ export default function OptionSheet({ title, options, selected, onPick, onClose 
   title: string; options: Option[] | null; selected: string; onPick: (v: string) => void; onClose: () => void;
 }) {
   const { theme } = useTheme();
+  // Keep the last list while the page slides closed, so it doesn't go blank.
+  const [shown, setShown] = useState<Option[] | null>(options);
+  if (options && options !== shown) setShown(options);
   return (
     <FullScreenSheet visible={!!options} onClose={onClose} title={title}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-        {(options ?? []).map((o) => {
+        {(shown ?? []).map((o) => {
           const on = o.value === selected;
           return (
             <Pressable key={o.value} onPress={() => onPick(o.value)} accessibilityRole="radio" accessibilityState={{ checked: on }}
