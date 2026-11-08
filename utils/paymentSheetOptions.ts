@@ -19,6 +19,7 @@ export interface PaymentSheetSession {
  */
 interface SheetExtras {
   applePay?: { merchantCountryCode: string };
+  style?: "alwaysLight" | "alwaysDark";
   googlePay?: {
     merchantCountryCode: string;
     currencyCode: string;
@@ -58,6 +59,10 @@ export function sheetOptions(
         testEnv: googlePayTestEnv(style.publishableKey),
       };
     }
+    // iOS: match the app's own light/dark setting, not the phone's, for the parts Stripe draws
+    // with system colors (keyboard, Apple Pay button, card scanner). Android has no per-sheet style.
+    if (os === "ios")
+      out.style = style.scheme === "dark" ? "alwaysDark" : "alwaysLight";
     out.returnURL = STRIPE_RETURN_URL;
     out.appearance = outsydeAppearance(style.scheme);
   }
