@@ -255,3 +255,32 @@ export function cameraFrameFraction(
   const h = Math.min(1 - y, frame.height / s / p.height);
   return { x, y, w, h };
 }
+
+// ── Full screen camera: where the post frame sits ───────────────────────────
+
+/**
+ * The post frame on a full screen camera. The camera fills `area`, but the top buttons and the
+ * bottom controls float over it, so the frame is fitted (with `gutter` on every side) into the open
+ * band between `topInset` and `bottomInset` and centered there. Returned in area points, the same
+ * space cameraFrameFraction reads.
+ */
+export function openAreaFrame(
+  aspect: number,
+  area: Size,
+  topInset: number,
+  bottomInset: number,
+  gutter: number,
+): { left: number; top: number; width: number; height: number } | null {
+  const bandTop = Math.max(0, topInset);
+  const bandHeight = area.height - bandTop - Math.max(0, bottomInset);
+  const maxWidth = area.width - gutter * 2;
+  const maxHeight = bandHeight - gutter * 2;
+  if (!(aspect > 0) || maxWidth <= 0 || maxHeight <= 0) return null;
+  const box = boxSizeFor(aspect, maxWidth, maxHeight);
+  return {
+    left: (area.width - box.width) / 2,
+    top: bandTop + (bandHeight - box.height) / 2,
+    width: box.width,
+    height: box.height,
+  };
+}

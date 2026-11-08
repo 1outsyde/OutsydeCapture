@@ -11,6 +11,8 @@ import {
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library/legacy";
 import * as Haptics from "expo-haptics";
@@ -36,7 +38,7 @@ import { useCropPicker, type CropPreset } from "@/components/crop/useCropPicker"
 import { POST_ASPECT_OPTIONS, type CropResult } from "@/components/crop/ImageCropper";
 import { cropPhotoToFile } from "@/components/crop/cropFile";
 import { useStoryEditor } from "@/components/crop/StoryEditor";
-import { boxSizeFor, cameraFrameFraction, type FracRect } from "@/utils/crop/cropMath";
+import { cameraFrameFraction, openAreaFrame, type FracRect } from "@/utils/crop/cropMath";
 import { VideoFitPicker } from "@/components/video/VideoFitPicker";
 import { defaultVideoFit, type VideoFit } from "@/utils/videoFit";
 
@@ -78,6 +80,13 @@ type PostShape = { aspect: number; key?: string };
 const DEFAULT_POST_SHAPE: PostShape = { aspect: 4 / 5, key: "4:5" };
 const CAMERA_FRAME_ASPECT = 4 / 5;
 const CAMERA_FRAME_GUTTER = 16;
+// Full screen camera layout (points). Top: gap under the status bar, then the 40 pt round buttons.
+const CAMERA_TOP_GAP = 8;
+const CAMERA_ICON_SIZE = 40;
+// Bottom block above the home bar: 12 top + 72 shutter row + 14 gap + 20 mode words.
+const CAMERA_BOTTOM_BLOCK = 118;
+const CAMERA_CORNER = 18;
+const RECORD_MAX_SECONDS = 15;
 const THUMB_HEIGHT = 120;
 const POST_CROP_PRESET: CropPreset = { aspect: 4 / 5, shape: "rect", title: "Crop post" };
 
@@ -223,6 +232,23 @@ export default function CreatePostScreen() {
       if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
     };
   }, []);
+
+  // Recording timer pill. Display only: the 15 s stop is recordingTimerRef / maxDuration.
+  // Counts only once startRecording runs (on Android, after the switch to video mode).
+  const recordLiveRef = useRef(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  useEffect(() => {
+    if (!isRecording) return;
+    const id = setInterval(() => {
+      if (recordLiveRef.current) {
+        setRecordSeconds((n) => Math.min(RECORD_MAX_SECONDS, n + 1));
+      }
+    }, 1000);
+    return () => {
+      clearInterval(id);
+      recordLiveRef.current = false;
+    };
+  }, [isRecording]);
 
   useEffect(() => {
     if (step !== 3 || attachItems.length > 0 || attachLoading) return;
@@ -459,23 +485,26 @@ export default function CreatePostScreen() {
     setStep(2);
   };
 
-  // The 4:5 frame drawn on the camera in Post mode, in camera area points.
-  const cameraFrame = (() => {
-    if (!cameraAreaSize) return null;
-    const box = boxSizeFor(
-      CAMERA_FRAME_ASPECT,
-      cameraAreaSize.width - CAMERA_FRAME_GUTTER * 2,
-      cameraAreaSize.height - CAMERA_FRAME_GUTTER * 2,
-    );
-    return {
-      left: (cameraAreaSize.width - box.width) / 2,
-      top: (cameraAreaSize.height - box.height) / 2,
-      width: box.width,
-      height: box.height,
-    };
-  })();
+  // Full screen camera: the floating X / flip row at the top and the shutter block at the bottom.
+  const cameraTopInset = insets.top + CAMERA_TOP_GAP + CAMERA_ICON_SIZE;
+  const cameraBottomPad = insets.bottom || 16;
+  const cameraBottomInset = CAMERA_BOTTOM_BLOCK + cameraBottomPad;
+
+  // The 4:5 frame shown as corner marks in Post mode, in camera area points. It sits in the open
+  // space between the top buttons and the shutter block, so it never lands under the controls.
+  const cameraFrame = cameraAreaSize
+    ? openAreaFrame(
+        CAMERA_FRAME_ASPECT,
+        cameraAreaSize,
+        cameraTopInset,
+        cameraBottomInset,
+        CAMERA_FRAME_GUTTER,
+      )
+    : null;
 
   const startRecording = async () => {
+    setRecordSeconds(0);
+    recordLiveRef.current = true;
     setIsRecording(true);
     recordingTimerRef.current = setTimeout(async () => {
       await cameraRef.current?.stopRecording();
@@ -785,61 +814,70 @@ export default function CreatePostScreen() {
     </Pressable>
   );
 
+  const recordClock = (n: number) => `0:${String(n).padStart(2, "0")}`;
+  const showingPick = !!postImage;
+
   return (
-    <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        {step === 1 ? (
-          <Pressable onPress={handleClose} hitSlop={16}>
-            <Feather name="x" size={24} color={theme.brandCream} />
-          </Pressable>
-        ) : (
+    <ThemedView
+      style={[
+        styles.container,
+        // Step 1 is the full screen camera: it runs under the status bar and paints its own black.
+        step === 1 ? styles.cameraScreen : { paddingTop: insets.top },
+      ]}
+    >
+      {/* Light status bar text over the camera, in light and dark mode. Reverts when steps 2 and 3 show. */}
+      {step === 1 ? <StatusBar style="light" /> : null}
+
+      {step !== 1 && (
+        <View style={styles.header}>
           <Pressable onPress={() => setStep(step === 3 ? 2 : 1)} hitSlop={16}>
             <Feather name="chevron-left" size={24} color={theme.brandCream} />
           </Pressable>
-        )}
-        <ThemedText type="h4" style={{ flex: 1, textAlign: "center", color: theme.brandCream }}>
-          {mode === "story" ? "Create Story" : "Create Post"}
-        </ThemedText>
-        <View style={{ width: 24 }} />
-      </View>
+          <ThemedText
+            type="h4"
+            style={{ flex: 1, textAlign: "center", color: theme.brandCream }}
+          >
+            {mode === "story" ? "Create Story" : "Create Post"}
+          </ThemedText>
+          <View style={{ width: 24 }} />
+        </View>
+      )}
 
       {step === 1 && (
         <GestureDetector gesture={modeSwipeGesture}>
           <View style={{ flex: 1 }}>
-            {/* ── Camera area: fills middle ── */}
+            {/* ── Camera: the whole screen. Everything else floats over it. ── */}
             <View
-              style={styles.cameraArea}
+              style={StyleSheet.absoluteFill}
               onLayout={(e) => {
                 const { width, height } = e.nativeEvent.layout;
                 setCameraAreaSize((prev) =>
-                  prev && prev.width === width && prev.height === height ? prev : { width, height },
+                  prev && prev.width === width && prev.height === height
+                    ? prev
+                    : { width, height },
                 );
               }}
             >
-              {postImage ? (
-                <>
-                  {postLayout === "pulse" ? (
-                    <View style={[StyleSheet.absoluteFill, styles.videoPlaceholder]}>
-                      <Feather name="video" size={48} color="#fff" />
-                      <ThemedText type="body" style={{ color: "#fff", marginTop: 12 }}>
-                        Video selected
-                      </ThemedText>
-                    </View>
-                  ) : (
-                    <Image
-                      source={{ uri: postImage }}
-                      style={StyleSheet.absoluteFill}
-                      contentFit="cover"
-                    />
-                  )}
-                  <Pressable
-                    onPress={() => { setPostImage(""); clearPostPhotos(); setPostLayout(null); }}
-                    style={styles.retakeButton}
-                    hitSlop={12}
+              {showingPick ? (
+                postLayout === "pulse" ? (
+                  <View
+                    style={[StyleSheet.absoluteFill, styles.videoPlaceholder]}
                   >
-                    <Feather name="x" size={20} color="#fff" />
-                  </Pressable>
-                </>
+                    <Feather name="video" size={48} color="#fff" />
+                    <ThemedText
+                      type="body"
+                      style={{ color: "#fff", marginTop: 12 }}
+                    >
+                      Video selected
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: postImage }}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                  />
+                )
               ) : (
                 <>
                   {cameraPermission?.granted ? (
@@ -847,40 +885,81 @@ export default function CreatePostScreen() {
                       ref={cameraRef}
                       style={StyleSheet.absoluteFill}
                       facing={facing}
-                      mode={Platform.OS === "android" ? androidCameraMode : undefined}
-                      onCameraReady={Platform.OS === "android" ? handleCameraReady : undefined}
+                      mode={
+                        Platform.OS === "android"
+                          ? androidCameraMode
+                          : undefined
+                      }
+                      onCameraReady={
+                        Platform.OS === "android"
+                          ? handleCameraReady
+                          : undefined
+                      }
                     />
                   ) : null}
-                  {cameraPermission?.granted && mode === "post" && !isRecording && cameraFrame ? (
-                    // The 4:5 post frame: what a photo keeps (it can be changed on the crop screen).
-                    <View pointerEvents="none" style={StyleSheet.absoluteFill} testID="camera-post-frame">
-                      <View style={[styles.frameDim, { left: 0, right: 0, top: 0, height: cameraFrame.top }]} />
+                  {cameraPermission?.granted &&
+                  mode === "post" &&
+                  !isRecording &&
+                  cameraFrame ? (
+                    // The 4:5 post frame as corner marks: what a photo keeps (changeable on the crop screen).
+                    <View
+                      pointerEvents="none"
+                      style={StyleSheet.absoluteFill}
+                      testID="camera-post-frame"
+                    >
                       <View
                         style={[
-                          styles.frameDim,
-                          { left: 0, right: 0, top: cameraFrame.top + cameraFrame.height, bottom: 0 },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.frameDim,
-                          { left: 0, width: cameraFrame.left, top: cameraFrame.top, height: cameraFrame.height },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.frameDim,
-                          { right: 0, width: cameraFrame.left, top: cameraFrame.top, height: cameraFrame.height },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.frameEdge,
+                          styles.frameCorner,
                           {
                             left: cameraFrame.left,
                             top: cameraFrame.top,
-                            width: cameraFrame.width,
-                            height: cameraFrame.height,
+                            borderLeftWidth: 2,
+                            borderTopWidth: 2,
+                          },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.frameCorner,
+                          {
+                            left:
+                              cameraFrame.left +
+                              cameraFrame.width -
+                              CAMERA_CORNER,
+                            top: cameraFrame.top,
+                            borderRightWidth: 2,
+                            borderTopWidth: 2,
+                          },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.frameCorner,
+                          {
+                            left: cameraFrame.left,
+                            top:
+                              cameraFrame.top +
+                              cameraFrame.height -
+                              CAMERA_CORNER,
+                            borderLeftWidth: 2,
+                            borderBottomWidth: 2,
+                          },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.frameCorner,
+                          {
+                            left:
+                              cameraFrame.left +
+                              cameraFrame.width -
+                              CAMERA_CORNER,
+                            top:
+                              cameraFrame.top +
+                              cameraFrame.height -
+                              CAMERA_CORNER,
+                            borderRightWidth: 2,
+                            borderBottomWidth: 2,
                           },
                         ]}
                       />
@@ -888,12 +967,22 @@ export default function CreatePostScreen() {
                   ) : null}
                   {cameraPermission?.granted ? null : (
                     <View style={styles.cameraPlaceholder}>
-                      <Feather name="camera" size={40} color="rgba(255,255,255,0.3)" />
+                      <Feather
+                        name="camera"
+                        size={40}
+                        color="rgba(255,255,255,0.3)"
+                      />
                       {cameraPermission?.granted === false && (
-                        <Pressable onPress={() => Linking.openSettings()} style={{ marginTop: 16 }}>
+                        <Pressable
+                          onPress={() => Linking.openSettings()}
+                          style={{ marginTop: 16 }}
+                        >
                           <ThemedText
                             type="body"
-                            style={{ color: "#D4A94A", textDecorationLine: "underline" }}
+                            style={{
+                              color: "#D4A94A",
+                              textDecorationLine: "underline",
+                            }}
                           >
                             Enable camera access
                           </ThemedText>
@@ -905,99 +994,217 @@ export default function CreatePostScreen() {
               )}
             </View>
 
-            {/* ── Bottom bar ── */}
-            <View style={[styles.step1BottomBar, { paddingBottom: insets.bottom || 16 }]}>
-              {/* POST | STORY tab row */}
-              <View style={[styles.tabRow, { borderBottomColor: theme.brandSurfaceBorder }]}>
+            {/* Soft fades so the white controls read over a bright camera. */}
+            {!isRecording && (
+              <LinearGradient
+                pointerEvents="none"
+                colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0)"]}
+                style={[styles.cameraFadeTop, { height: cameraTopInset + 40 }]}
+              />
+            )}
+            <LinearGradient
+              pointerEvents="none"
+              colors={[
+                "rgba(0,0,0,0)",
+                isRecording ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.7)",
+              ]}
+              style={[
+                styles.cameraFadeBottom,
+                { height: cameraBottomInset + 90 },
+              ]}
+            />
+
+            {/* ── Top: X at top left, flip at top right (hidden while recording) ── */}
+            {!isRecording && (
+              <View
+                style={[
+                  styles.cameraTopRow,
+                  { top: insets.top + CAMERA_TOP_GAP },
+                ]}
+              >
                 <Pressable
-                  style={[styles.tab, mode === "post" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
-                  onPress={() => switchMode("post")}
-                  disabled={isRecording}
-                >
-                  <ThemedText type="button" style={{ color: mode === "post" ? "#D4A94A" : theme.brandTextDim }}>
-                    Post
-                  </ThemedText>
-                </Pressable>
-                <Pressable
-                  style={[styles.tab, mode === "story" && { borderBottomWidth: 2, borderBottomColor: "#D4A94A" }]}
-                  onPress={() => switchMode("story")}
-                  disabled={isRecording}
-                >
-                  <ThemedText type="button" style={{ color: mode === "story" ? "#D4A94A" : theme.brandTextDim }}>
-                    Story
-                  </ThemedText>
-                </Pressable>
-                {/* Event: host an event (p4-host). Opens the event editor in place of this screen. */}
-                <Pressable
-                  style={styles.tab}
-                  onPress={() => navigation.replace("EventEditor", undefined)}
-                  disabled={isRecording}
+                  onPress={handleClose}
+                  hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel="Event, host an event"
+                  accessibilityLabel="Close"
+                  style={styles.cameraIconButton}
                 >
-                  <ThemedText type="button" style={{ color: theme.brandTextDim }}>
-                    Event
-                  </ThemedText>
+                  <Feather name="x" size={22} color="#fff" />
                 </Pressable>
+                {showingPick ? (
+                  // A photo or video picked earlier is showing: X clears it, back to the camera.
+                  <Pressable
+                    onPress={() => {
+                      setPostImage("");
+                      clearPostPhotos();
+                      setPostLayout(null);
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remove this and go back to the camera"
+                    style={styles.cameraIconButton}
+                    testID="camera-retake"
+                  >
+                    <Feather name="rotate-ccw" size={20} color="#fff" />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() =>
+                      setFacing((f) => (f === "back" ? "front" : "back"))
+                    }
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Flip camera"
+                    style={styles.cameraIconButton}
+                  >
+                    <Feather name="refresh-cw" size={20} color="#fff" />
+                  </Pressable>
+                )}
               </View>
+            )}
 
-              {/* Recording indicator */}
-              {isRecording && (
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "red", marginRight: 6 }} />
-                  <ThemedText style={{ color: "red", fontSize: 13 }}>Recording</ThemedText>
-                </View>
-              )}
+            {/* Recording timer pill */}
+            {isRecording && (
+              <View
+                style={[
+                  styles.recordPill,
+                  { top: insets.top + CAMERA_TOP_GAP + 6 },
+                ]}
+                accessibilityLiveRegion="polite"
+                accessibilityLabel={`Recording, ${recordSeconds} of ${RECORD_MAX_SECONDS} seconds`}
+              >
+                <View style={styles.recordDot} />
+                <ThemedText style={styles.recordPillText}>
+                  {recordClock(recordSeconds)} /{" "}
+                  {recordClock(RECORD_MAX_SECONDS)}
+                </ThemedText>
+              </View>
+            )}
 
-              {/* Gallery | Shutter | Flip row */}
+            {/* ── Bottom: gallery | shutter | (space), then POST · STORY · EVENT ── */}
+            <View
+              style={[styles.cameraBottom, { paddingBottom: cameraBottomPad }]}
+            >
               <View style={styles.controlsRow}>
-                <Pressable
-                  onPress={mode === "story" ? handlePickStoryMedia : handlePickPostImage}
-                  onPressIn={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                  }}
-                  disabled={isRecording}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open photo library"
-                  style={({ pressed }) => [
-                    styles.galleryButton,
-                    thumbUri ? styles.galleryButtonThumb : null,
-                    isRecording && { opacity: 0.4 },
-                    pressed && styles.galleryButtonPressed,
-                  ]}
-                >
-                  {thumbUri ? (
-                    <Image
-                      source={{ uri: thumbUri }}
-                      style={StyleSheet.absoluteFill}
-                      contentFit="cover"
-                      transition={200}
-                      onError={() => setThumbUri(null)}
-                    />
-                  ) : (
-                    <Feather name="image" size={24} color="#fff" />
+                <View style={styles.controlsSide}>
+                  {!isRecording && (
+                    <Pressable
+                      onPress={
+                        mode === "story"
+                          ? handlePickStoryMedia
+                          : handlePickPostImage
+                      }
+                      onPressIn={() => {
+                        Haptics.impactAsync(
+                          Haptics.ImpactFeedbackStyle.Light,
+                        ).catch(() => {});
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open photo library"
+                      style={({ pressed }) => [
+                        styles.galleryButton,
+                        thumbUri ? styles.galleryButtonThumb : null,
+                        pressed && styles.galleryButtonPressed,
+                      ]}
+                    >
+                      {thumbUri ? (
+                        <Image
+                          source={{ uri: thumbUri }}
+                          style={StyleSheet.absoluteFill}
+                          contentFit="cover"
+                          transition={200}
+                          onError={() => setThumbUri(null)}
+                        />
+                      ) : (
+                        <Feather name="image" size={22} color="#fff" />
+                      )}
+                    </Pressable>
                   )}
-                </Pressable>
+                </View>
 
                 <GestureDetector gesture={shutterGesture}>
                   <View
                     style={[
                       styles.shutterButton,
-                      isRecording && { borderColor: "red", borderWidth: 3 },
+                      isRecording && styles.shutterButtonRecording,
                     ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isRecording
+                        ? "Stop recording"
+                        : "Take a photo, hold to record a video"
+                    }
                   >
-                    <View style={[
-                      styles.shutterInner,
-                      isRecording && { backgroundColor: "red" },
-                    ]} />
+                    <View
+                      style={[
+                        styles.shutterInner,
+                        isRecording && styles.shutterInnerRecording,
+                      ]}
+                    />
                   </View>
                 </GestureDetector>
 
+                <View style={styles.controlsSide} />
+              </View>
+
+              {/* Mode words. Swiping left or right on the camera still switches Post and Story. */}
+              <View
+                style={[styles.modeRow, isRecording && { opacity: 0 }]}
+                pointerEvents={isRecording ? "none" : "auto"}
+              >
                 <Pressable
-                  style={styles.flipButton}
-                  onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+                  onPress={() => switchMode("post")}
+                  disabled={isRecording}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: mode === "post" }}
+                  accessibilityLabel="Post"
+                  style={styles.modeItem}
                 >
-                  <Feather name="refresh-cw" size={24} color="#fff" />
+                  <ThemedText
+                    style={[
+                      styles.modeText,
+                      mode === "post" && styles.modeTextOn,
+                    ]}
+                  >
+                    POST
+                  </ThemedText>
+                  <View
+                    style={[styles.modeDot, mode !== "post" && { opacity: 0 }]}
+                  />
+                </Pressable>
+                <Pressable
+                  onPress={() => switchMode("story")}
+                  disabled={isRecording}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: mode === "story" }}
+                  accessibilityLabel="Story"
+                  style={styles.modeItem}
+                >
+                  <ThemedText
+                    style={[
+                      styles.modeText,
+                      mode === "story" && styles.modeTextOn,
+                    ]}
+                  >
+                    STORY
+                  </ThemedText>
+                  <View
+                    style={[styles.modeDot, mode !== "story" && { opacity: 0 }]}
+                  />
+                </Pressable>
+                {/* Event: host an event (p4-host). Opens the event editor in place of this screen. */}
+                <Pressable
+                  onPress={() => navigation.replace("EventEditor", undefined)}
+                  disabled={isRecording}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Event, host an event"
+                  style={styles.modeItem}
+                >
+                  <ThemedText style={styles.modeText}>EVENT</ThemedText>
+                  <View style={[styles.modeDot, { opacity: 0 }]} />
                 </Pressable>
               </View>
             </View>
@@ -1394,14 +1601,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
   },
-  tabRow: {
-    flexDirection: "row",
-  },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-  },
   cameraButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1414,22 +1613,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  cameraArea: {
-    flex: 1,
-    backgroundColor: "#0a0a0a",
-  },
   videoFitBlock: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.md,
-  },
-  frameDim: {
-    position: "absolute",
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  frameEdge: {
-    position: "absolute",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.85)",
   },
   cameraPlaceholder: {
     flex: 1,
@@ -1441,33 +1627,115 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#0a0a0a",
   },
-  retakeButton: {
+  cameraScreen: {
+    backgroundColor: "#000",
+  },
+  cameraFadeTop: {
     position: "absolute",
-    top: 12,
-    right: 12,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    left: 0,
+    right: 0,
+    top: 0,
+  },
+  cameraFadeBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  cameraTopRow: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cameraIconButton: {
+    width: CAMERA_ICON_SIZE,
+    height: CAMERA_ICON_SIZE,
+    borderRadius: CAMERA_ICON_SIZE / 2,
+    backgroundColor: "rgba(0,0,0,0.35)",
     alignItems: "center",
     justifyContent: "center",
   },
-  step1BottomBar: {
-    backgroundColor: "#000",
-    paddingTop: 8,
+  frameCorner: {
+    position: "absolute",
+    width: CAMERA_CORNER,
+    height: CAMERA_CORNER,
+    borderColor: "rgba(255,255,255,0.9)",
+  },
+  recordPill: {
+    position: "absolute",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#C62828",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  recordDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
+  recordPillText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  cameraBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 12,
   },
   controlsRow: {
+    height: 72,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 40,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 32,
+  },
+  controlsSide: {
+    width: 48,
+    alignItems: "center",
+  },
+  modeRow: {
+    height: 20,
+    marginTop: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 26,
+  },
+  modeItem: {
+    alignItems: "center",
+  },
+  modeText: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  modeTextOn: {
+    color: "#fff",
+  },
+  modeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 2,
+    backgroundColor: "#E8B930",
   },
   galleryButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
@@ -1497,12 +1765,14 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     backgroundColor: "#fff",
   },
-  flipButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
+  shutterButtonRecording: {
+    borderColor: "#C62828",
+    borderWidth: 4,
+  },
+  shutterInnerRecording: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#C62828",
   },
 });
