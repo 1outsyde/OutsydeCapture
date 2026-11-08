@@ -227,4 +227,8 @@ for (const f of ["screens/DiscoverScreen.tsx", "screens/PulseFeedScreenV2.tsx"])
   });
 }
 
+test("FullScreenSheet: Android shrinks for the keyboard by default (edge to edge, the window doesn't resize)", () => {
+  assert.match(read("components/FullScreenSheet.tsx"), /androidKeyboardBehavior = "height"/);
+});
+
 console.log(`\n${passed} passed`);
