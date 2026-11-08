@@ -3,11 +3,11 @@
  * "Agree and publish" turns on only after the text was scrolled to the end (or fits) and the box is checked.
  */
 import React, { useMemo, useRef, useState } from "react";
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useTheme } from "@/hooks/useTheme";
 import { ErrorText, GOLD, Hint, ON_GOLD, PrimaryButton, TextButton } from "@/components/host/hostUi";
 import { parseAgreement, type Inline } from "@/utils/host/agreementText";
@@ -82,7 +82,6 @@ export default function AgreementSheet({ visible, agreement, loadError, notice, 
   onClose: () => void;
 }) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const [read, setRead] = useState(false);
   const [checked, setChecked] = useState(false);
   const box = useRef({ h: 0, content: 0 });
@@ -106,15 +105,8 @@ export default function AgreementSheet({ visible, agreement, loadError, notice, 
   const helper = working ? "Accepted. Publishing your event." : read ? "You can accept it now." : "Scroll to the end of the agreement to accept it.";
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={working ? undefined : onClose} accessibilityLabel="Close" accessibilityRole="button" />
-      <View style={[s.sheet, { backgroundColor: theme.backgroundRoot, borderColor: theme.border, paddingBottom: insets.bottom + 16 }]} accessibilityViewIsModal>
-        <View style={s.head}>
-          <ThemedText style={s.title} accessibilityRole="header">{agreement?.title ?? "Event Host Agreement"}</ThemedText>
-          <Pressable onPress={onClose} disabled={working} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10}>
-            <Feather name="x" size={22} color={theme.text} />
-          </Pressable>
-        </View>
+    <FullScreenSheet visible={visible} onClose={onClose} closeDisabled={working} title={agreement?.title ?? "Event Host Agreement"}>
+      <View style={s.body}>
         <Hint>Read it to the end to publish. You only accept it once.</Hint>
         {notice ? <ErrorText>{notice}</ErrorText> : null}
 
@@ -152,16 +144,13 @@ export default function AgreementSheet({ visible, agreement, loadError, notice, 
           </>
         ) : null}
       </View>
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet: { maxHeight: "90%", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 16, gap: 12, borderTopWidth: StyleSheet.hairlineWidth },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 18, fontWeight: "700", flex: 1 },
-  box: { maxHeight: 360, borderWidth: 1, borderRadius: 12 },
+  body: { flex: 1, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, gap: 12 },
+  box: { flex: 1, borderWidth: 1, borderRadius: 12 },
   check: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44 },
   checkBox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: "center", justifyContent: "center" },
 });
