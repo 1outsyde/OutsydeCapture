@@ -8,7 +8,7 @@
  * through /manage when the list doesn't have the event (not published, or ended over 14 days ago), so Undo still works.
  */
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Linking, Modal, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useFocusEffect, useIsFocused, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -297,17 +297,19 @@ export default function DoorScannerScreen() {
 
       {/* Type a code */}
       <Modal visible={typing} transparent animationType="slide" onRequestClose={() => setTyping(false)}>
-        <Pressable style={st.backdrop} onPress={() => setTyping(false)} accessibilityRole="button" accessibilityLabel="Close" />
-        <View style={[st.sheet, { backgroundColor: theme.backgroundRoot, borderColor: theme.border, paddingBottom: insets.bottom + 16 }]} accessibilityViewIsModal>
-          <ThemedText style={st.sheetTitle} accessibilityRole="header">Type a code</ThemedText>
-          <Hint>The 16 letters and numbers under the guest's QR code.</Hint>
-          <TextInput value={typed} onChangeText={(v) => setTyped(cleanTyped(v))} autoCapitalize="characters" autoCorrect={false} autoFocus
-            maxLength={CODE_LENGTH} placeholder="ABCD1234EFGH5678" placeholderTextColor={theme.textSecondary} accessibilityLabel="Ticket code"
-            style={[st.codeIn, { borderColor: theme.border, color: theme.text, backgroundColor: theme.backgroundDefault }]} testID="code-input"
-            onSubmitEditing={() => { if (typed.length === CODE_LENGTH) { setTyping(false); checkIn({ code: typed }); } }} />
-          <PrimaryButton label="Check in" disabled={typed.length !== CODE_LENGTH} onPress={() => { setTyping(false); checkIn({ code: typed }); }} />
-          <TextButton center label="Cancel" onPress={() => setTyping(false)} />
-        </View>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <Pressable style={st.backdrop} onPress={() => setTyping(false)} accessibilityRole="button" accessibilityLabel="Close" />
+          <View style={[st.sheet, { backgroundColor: theme.backgroundRoot, borderColor: theme.border, paddingBottom: insets.bottom + 16 }]} accessibilityViewIsModal>
+            <ThemedText style={st.sheetTitle} accessibilityRole="header">Type a code</ThemedText>
+            <Hint>The 16 letters and numbers under the guest's QR code.</Hint>
+            <TextInput value={typed} onChangeText={(v) => setTyped(cleanTyped(v))} autoCapitalize="characters" autoCorrect={false} autoFocus
+              maxLength={CODE_LENGTH} placeholder="ABCD1234EFGH5678" placeholderTextColor={theme.textSecondary} accessibilityLabel="Ticket code"
+              style={[st.codeIn, { borderColor: theme.border, color: theme.text, backgroundColor: theme.backgroundDefault }]} testID="code-input"
+              onSubmitEditing={() => { if (typed.length === CODE_LENGTH) { setTyping(false); checkIn({ code: typed }); } }} />
+            <PrimaryButton label="Check in" disabled={typed.length !== CODE_LENGTH} onPress={() => { setTyping(false); checkIn({ code: typed }); }} />
+            <TextButton center label="Cancel" onPress={() => setTyping(false)} />
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Guest list */}

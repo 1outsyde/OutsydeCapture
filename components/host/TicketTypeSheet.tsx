@@ -1,10 +1,9 @@
 /** Add or edit one ticket type (Events canvas 11, same rules as goutsyde.com's ticket sheet). */
 import React, { useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
+import { FullScreenSheet } from "@/components/FullScreenSheet";
 import { useTheme } from "@/hooks/useTheme";
 import { Box, ErrorText, Field, GOLD, Hint, ON_GOLD, PickerBox, PrimaryButton, RadioRow } from "@/components/host/hostUi";
 import DateTimeSheet, { type PickerTarget } from "@/components/host/DateTimeSheet";
@@ -25,7 +24,6 @@ export default function TicketTypeSheet({ initial, editing, others, timezone, on
   onClose: () => void;
 }) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const [sh, setSh] = useState<TicketSheet>(initial);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -57,79 +55,66 @@ export default function TicketTypeSheet({ initial, editing, others, timezone, on
   const afterName = others.find((o) => o.id === sh.unlockAfterId)?.name;
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
-        <View style={[s.sheet, { backgroundColor: theme.backgroundRoot, borderColor: theme.border }]} accessibilityViewIsModal>
-          <View style={s.head}>
-            <ThemedText style={s.title} accessibilityRole="header">{editing ? "Edit ticket type" : "New ticket type"}</ThemedText>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10}>
-              <Feather name="x" size={22} color={theme.text} />
-            </Pressable>
-          </View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 16, paddingBottom: insets.bottom + 20 }}>
-            <View style={[s.seg, { borderColor: theme.border }]} accessibilityRole="radiogroup" accessibilityLabel="Ticket price type">
-              {[false, true].map((paid) => {
-                const on = sh.paid === paid;
-                return (
-                  <Pressable key={String(paid)} onPress={() => setSh((p) => switchPaid(p, paid))} disabled={priceLocked}
-                    accessibilityRole="radio" accessibilityState={{ checked: on, disabled: priceLocked }}
-                    style={[s.segBtn, on ? { backgroundColor: GOLD } : null, { opacity: priceLocked && !on ? 0.45 : 1 }]}>
-                    <ThemedText style={{ fontWeight: "700", color: on ? ON_GOLD : theme.text }}>{paid ? "Paid" : "Free"}</ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <Field label="NAME" maxLength={80} placeholder={sh.paid ? "General admission" : "Free RSVP"} value={sh.name} onChangeText={(v) => set("name", v)} />
-
-            <View style={s.grid}>
-              {sh.paid ? (
-                <View style={s.cell}><Field label="PRICE" keyboardType="decimal-pad" placeholder="$0.00" editable={!priceLocked} value={sh.price} onChangeText={(v) => set("price", v)} /></View>
-              ) : null}
-              <View style={s.cell}><Field label="HOW MANY" keyboardType="number-pad" placeholder="100" value={sh.quantity} onChangeText={(v) => set("quantity", v)} /></View>
-              <View style={s.cell}><Field label="MAX PER ORDER" keyboardType="number-pad" value={sh.maxPerOrder} onChangeText={(v) => set("maxPerOrder", v)} /></View>
-              <View style={s.cell}><Field label="LIMIT PER PERSON" keyboardType="number-pad" placeholder="No limit" value={sh.perAccountLimit} onChangeText={(v) => set("perAccountLimit", v)} /></View>
-            </View>
-            {priceLocked ? <Hint>The price can't change once tickets are taken.</Hint> : null}
-            {sh.paid ? <Hint>Guests pay a service fee on top of your price.{earn != null ? ` You earn ${money(earn)} per ticket.` : ""}</Hint> : null}
-
-            <Box title="Sales start">
-              {starts.map((o) => <RadioRow key={o.value} label={o.label} on={sh.salesStart === o.value} onPress={() => set("salesStart", o.value)} />)}
-              {sh.salesStart === "date" ? (
-                <View style={[s.grid, { padding: 14, paddingTop: 4 }]}>
-                  <PickerBox label="DATE" value={dateLabel(sh.salesDate)}
-                    onPress={() => setPicker({ mode: "date", title: "Sales start date", value: sh.salesDate, min: today, fallbackMonth: monthOf(today)! })} />
-                  <PickerBox label="TIME" value={timeLabel(sh.salesTime)}
-                    onPress={() => setPicker({ mode: "time", title: "Sales start time", value: sh.salesTime, fallbackMonth: monthOf(today)! })} />
-                </View>
-              ) : null}
-              {sh.salesStart === "after" ? (
-                <View style={{ padding: 14, paddingTop: 4 }}>
-                  <PickerBox label="OPENS WHEN THIS RUNS OUT" value={afterName ?? "Pick a ticket type"} onPress={() => setPickAfter(true)} />
-                </View>
-              ) : null}
-            </Box>
-
-            {error ? <ErrorText>{error}</ErrorText> : null}
-            <PrimaryButton label={saving ? "Saving…" : editing ? "Save ticket" : "Add ticket"} onPress={submit} busy={saving} />
-          </ScrollView>
+    <FullScreenSheet visible onClose={onClose} title={editing ? "Edit ticket type" : "New ticket type"}>
+      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 16, padding: 16, paddingBottom: 20 }}>
+        <View style={[s.seg, { borderColor: theme.border }]} accessibilityRole="radiogroup" accessibilityLabel="Ticket price type">
+          {[false, true].map((paid) => {
+            const on = sh.paid === paid;
+            return (
+              <Pressable key={String(paid)} onPress={() => setSh((p) => switchPaid(p, paid))} disabled={priceLocked}
+                accessibilityRole="radio" accessibilityState={{ checked: on, disabled: priceLocked }}
+                style={[s.segBtn, on ? { backgroundColor: GOLD } : null, { opacity: priceLocked && !on ? 0.45 : 1 }]}>
+                <ThemedText style={{ fontWeight: "700", color: on ? ON_GOLD : theme.text }}>{paid ? "Paid" : "Free"}</ThemedText>
+              </Pressable>
+            );
+          })}
         </View>
-      </KeyboardAvoidingView>
+
+        <Field label="NAME" maxLength={80} placeholder={sh.paid ? "General admission" : "Free RSVP"} value={sh.name} onChangeText={(v) => set("name", v)} />
+
+        <View style={s.grid}>
+          {sh.paid ? (
+            <View style={s.cell}><Field label="PRICE" keyboardType="decimal-pad" placeholder="$0.00" editable={!priceLocked} value={sh.price} onChangeText={(v) => set("price", v)} /></View>
+          ) : null}
+          <View style={s.cell}><Field label="HOW MANY" keyboardType="number-pad" placeholder="100" value={sh.quantity} onChangeText={(v) => set("quantity", v)} /></View>
+          <View style={s.cell}><Field label="MAX PER ORDER" keyboardType="number-pad" value={sh.maxPerOrder} onChangeText={(v) => set("maxPerOrder", v)} /></View>
+          <View style={s.cell}><Field label="LIMIT PER PERSON" keyboardType="number-pad" placeholder="No limit" value={sh.perAccountLimit} onChangeText={(v) => set("perAccountLimit", v)} /></View>
+        </View>
+        {priceLocked ? <Hint>The price can't change once tickets are taken.</Hint> : null}
+        {sh.paid ? <Hint>Guests pay a service fee on top of your price.{earn != null ? ` You earn ${money(earn)} per ticket.` : ""}</Hint> : null}
+
+        <Box title="Sales start">
+          {starts.map((o) => <RadioRow key={o.value} label={o.label} on={sh.salesStart === o.value} onPress={() => set("salesStart", o.value)} />)}
+          {sh.salesStart === "date" ? (
+            <View style={[s.grid, { padding: 14, paddingTop: 4 }]}>
+              <PickerBox label="DATE" value={dateLabel(sh.salesDate)}
+                onPress={() => setPicker({ mode: "date", title: "Sales start date", value: sh.salesDate, min: today, fallbackMonth: monthOf(today)! })} />
+              <PickerBox label="TIME" value={timeLabel(sh.salesTime)}
+                onPress={() => setPicker({ mode: "time", title: "Sales start time", value: sh.salesTime, fallbackMonth: monthOf(today)! })} />
+            </View>
+          ) : null}
+          {sh.salesStart === "after" ? (
+            <View style={{ padding: 14, paddingTop: 4 }}>
+              <PickerBox label="OPENS WHEN THIS RUNS OUT" value={afterName ?? "Pick a ticket type"} onPress={() => setPickAfter(true)} />
+            </View>
+          ) : null}
+        </Box>
+      </ScrollView>
+      <View style={[s.foot, { borderTopColor: theme.border }]}>
+        {error ? <ErrorText>{error}</ErrorText> : null}
+        <PrimaryButton label={saving ? "Saving…" : editing ? "Save ticket" : "Add ticket"} onPress={submit} busy={saving} />
+      </View>
 
       <DateTimeSheet target={picker} onClose={() => setPicker(null)}
         onDone={(v) => { if (picker?.mode === "date") set("salesDate", v); else set("salesTime", v); setPicker(null); }} />
       <OptionSheet title="Opens when this runs out" options={pickAfter ? others.map((o) => ({ value: o.id, label: o.name })) : null}
         selected={sh.unlockAfterId} onClose={() => setPickAfter(false)} onPick={(v) => { set("unlockAfterId", v); setPickAfter(false); }} />
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet: { maxHeight: "88%", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  title: { fontSize: 18, fontWeight: "700" },
+  foot: { gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth },
   seg: { flexDirection: "row", borderWidth: 1, borderRadius: 24, padding: 3 },
   segBtn: { flex: 1, minHeight: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },

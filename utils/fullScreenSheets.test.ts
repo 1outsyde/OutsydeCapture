@@ -238,4 +238,65 @@ test("FullScreenSheet: Android shrinks for the keyboard by default (edge to edge
   assert.match(read("components/FullScreenSheet.tsx"), /androidKeyboardBehavior = "height"/);
 });
 
+// ---- 2d: event hosting pop-ups ----
+
+const FILES_2D = [
+  "components/host/TicketTypeSheet.tsx",
+  "components/host/TeamPersonSheet.tsx",
+  "components/host/AgreementSheet.tsx",
+  "components/host/OptionSheet.tsx",
+];
+
+for (const f of FILES_2D) {
+  test(`${f}: no transparent sheets, uses FullScreenSheet`, () => {
+    const src = read(f);
+    const bad = modalTags(src).filter((t) => /\btransparent\b/.test(t));
+    assert.deepEqual(bad, [], `${f} still has transparent Modal(s)`);
+    assert.match(src, /import \{ FullScreenSheet \} from ["']@\/components\/FullScreenSheet["']/);
+  });
+}
+
+// The part of a file between <FullScreenSheet and </FullScreenSheet>.
+function insideSheet(src: string): string {
+  const a = src.indexOf("<FullScreenSheet");
+  const b = src.indexOf("</FullScreenSheet>");
+  assert.ok(a !== -1 && b > a, "no FullScreenSheet block");
+  return src.slice(a, b);
+}
+
+test("Ticket type: its date picker and option list stay inside the page (else they open behind it on iPhone)", () => {
+  const inner = insideSheet(read("components/host/TicketTypeSheet.tsx"));
+  assert.match(inner, /<DateTimeSheet\b/);
+  assert.match(inner, /<OptionSheet\b/);
+});
+
+test("Team person: both date pickers stay inside the page, close blocked while busy", () => {
+  const src = read("components/host/TeamPersonSheet.tsx");
+  const inner = insideSheet(src);
+  assert.equal((inner.match(/<DateTimeSheet\b/g) ?? []).length, 2);
+  assert.match(src, /closeDisabled=\{!!busy\}/);
+  assert.match(src, /testID="person-sheet"/);
+  assert.doesNotMatch(src, /label="Close"/);
+});
+
+test("Agreement: close blocked while publishing", () => {
+  assert.match(read("components/host/AgreementSheet.tsx"), /closeDisabled=\{working\}/);
+});
+
+test("Option list opens only when it has options", () => {
+  assert.match(read("components/host/OptionSheet.tsx"), /visible=\{!!options\}/);
+});
+
+test("Date and time pickers stay small (Legend's exception)", () => {
+  assert.ok(modalTags(read("components/host/DateTimeSheet.tsx")).some((t) => /\btransparent\b/.test(t)));
+});
+
+test("Door scanner: Type a code stays small and rises above the keyboard", () => {
+  const src = read("screens/host/DoorScannerScreen.tsx");
+  const tag = modalTags(src).find((t) => /visible=\{typing\}/.test(t)) ?? "";
+  assert.match(tag, /\btransparent\b/);
+  const block = src.slice(src.indexOf(tag), src.indexOf("</Modal>", src.indexOf(tag)));
+  assert.match(block, /<KeyboardAvoidingView[\s\S]*behavior=\{Platform\.OS === "ios" \? "padding" : "height"\}/);
+});
+
 console.log(`\n${passed} passed`);
