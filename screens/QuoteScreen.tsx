@@ -26,11 +26,11 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import {
-  Box,
   Centered,
   ErrorText,
   Field,
@@ -87,6 +87,9 @@ import {
   vendorExtrasPaymentLine,
 } from "@/utils/quoteSendLogic";
 import { bookingEndedLine } from "@/utils/businessQuotesLogic";
+import { detailsNeedReadMore, hasDetailsCard, DETAILS_PREVIEW_LINES } from "@/utils/quoteView";
+
+import { QuoteCard as QCard } from "@/components/quotes/QuoteCard";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Busy =
@@ -108,6 +111,8 @@ type Busy =
 
 export default function QuoteScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<RootStackParamList, "Quote">>();
   const { quoteId, start } = route.params;
@@ -511,7 +516,7 @@ export default function QuoteScreen() {
   };
   if (!q) {
     return (
-      <ThemedView style={{ flex: 1 }}>
+      <ThemedView style={{ flex: 1, backgroundColor: theme.brandBg }}>
         <HostHeader title="Quote" left={back} />
         <Centered>
           {loadError ? (
@@ -541,10 +546,28 @@ export default function QuoteScreen() {
     : null;
   // Review 1 and 2: Mark picked up and the business Orders screen are the owner's (staff and admin can't open them).
   const owner = manage && user?.role !== "staff";
+  // Restyle: the customer's plain Ready to pay case pins Pay, Message and Decline at the bottom, like checkout.
+  // A delivery address still to give, or a quote missing its date, keeps today's in card flow.
+  const addressStep =
+    product && q.fulfillment === "delivery" && (needsAddress(q) || addr !== null);
+  const missingWhen = !product && (!q.jobDate || !q.startTime);
+  const pinPay = isCustomer && stage === "pay" && !addressStep && !missingWhen;
+  const payNowTop = isCustomer && (stage === "pay" || stage === "paying");
+  const openChat = () => {
+    // Review minor 5: back to the chat it came from, never a second copy of it.
+    const routes = navigation.getState()?.routes ?? [];
+    const prev = routes[routes.length - 2] as
+      | { name?: string; params?: { conversationId?: string } }
+      | undefined;
+    if (prev?.name === "Chat" && prev.params?.conversationId === q.conversationId)
+      navigation.goBack();
+    else navigation.navigate("Chat", { conversationId: q.conversationId });
+  };
+  const longDetails = detailsNeedReadMore(q.details);
 
   return (
-    <ThemedView style={{ flex: 1 }}>
-      <HostHeader title={name} sub={quoteChip(q)} left={back} />
+    <ThemedView style={{ flex: 1, backgroundColor: theme.brandBg }}>
+      <HostHeader title={name} left={back} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={
@@ -560,22 +583,22 @@ export default function QuoteScreen() {
         }
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ gap: 4 }}>
-          <ThemedText style={[styles.title, { color: theme.brandCream }]}>
+        {/* Top card: status, the vendor's title (wraps, never cut), when, and what's due now. */}
+        <View style={[styles.hero, { backgroundColor: theme.brandPrimary }]}>
+          <View style={[styles.pill, { backgroundColor: "rgba(232,185,48,0.18)" }]}>
+            <ThemedText style={[styles.pillText, { color: "#E8B930" }]}>{quoteChip(q)}</ThemedText>
+          </View>
+          <ThemedText
+            style={[styles.title, { color: theme.brandPrimaryText }]}
+            accessibilityRole="header"
+          >
             {q.title}
           </ThemedText>
           {when ? (
-            <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
-              {when}
-            </ThemedText>
-          ) : null}
-          {q.details ? (
-            <ThemedText style={[styles.body, { color: theme.brandCream }]}>
-              {q.details}
-            </ThemedText>
+            <ThemedText style={[styles.heroLine, { color: theme.brandPrimaryText }]}>{when}</ThemedText>
           ) : null}
           {product && q.fulfillment === "delivery" && q.deliveryFeeCents ? (
-            <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
+            <ThemedText style={[styles.heroDim, { color: theme.brandPrimaryText }]}>
               {`Delivery fee ${money(q.deliveryFeeCents)}, included in the total.`}
             </ThemedText>
           ) : null}
@@ -583,23 +606,61 @@ export default function QuoteScreen() {
           q.fulfillment === "delivery" &&
           q.deliveryAddress &&
           (!isCustomer || addr === null) ? (
-            <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
+            <ThemedText style={[styles.heroDim, { color: theme.brandPrimaryText }]}>
               {`Delivery to ${q.deliveryAddress}`}
             </ThemedText>
           ) : null}
-          {q.extrasNote ? (
-            <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
-              {q.extrasNote}
-            </ThemedText>
+          {payNowTop ? (
+            <View style={styles.heroDue}>
+              <ThemedText style={[styles.heroDim, { color: theme.brandPrimaryText }]}>
+                {stage === "paying" ? "Being confirmed" : "Pay now to lock it in"}
+              </ThemedText>
+              <ThemedText style={[styles.heroAmount, { color: theme.brandPrimaryText }]}>
+                {money(q.amounts.payNowCents)}
+              </ThemedText>
+            </View>
           ) : null}
         </View>
+
+        {/* What's included: only when the vendor wrote something (or an extras note). */}
+        {hasDetailsCard(q) ? (
+          <QCard title={q.details?.trim() ? "What's included" : undefined}>
+            {q.details?.trim() ? (
+              <>
+                <ThemedText
+                  style={[styles.body, { color: theme.brandCream }]}
+                  numberOfLines={longDetails && !detailsOpen ? DETAILS_PREVIEW_LINES : undefined}
+                >
+                  {q.details}
+                </ThemedText>
+                {longDetails ? (
+                  <TextButton
+                    label={detailsOpen ? "Show less" : "Read more"}
+                    gold
+                    onPress={() => setDetailsOpen((o) => !o)}
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {q.extrasNote ? (
+              <>
+                {q.details?.trim() ? (
+                  <View style={[styles.sep, { backgroundColor: theme.brandSurfaceBorder }]} />
+                ) : null}
+                <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
+                  {q.extrasNote}
+                </ThemedText>
+              </>
+            ) : null}
+          </QCard>
+        ) : null}
 
         {!isCustomer && (stage === "pay" || stage === "paying") ? (
           <Hint>This is what the customer sees.</Hint>
         ) : null}
 
         {manage && (stage === "pay" || stage === "paying") ? (
-          <Box title="Your quote">
+          <QCard title="Your quote">
             {stage === "paying" ? (
               <Hint>
                 The customer is paying right now. Try again in a few minutes.
@@ -627,11 +688,11 @@ export default function QuoteScreen() {
                 />
               </>
             )}
-          </Box>
+          </QCard>
         ) : null}
 
         {stage === "pay" || stage === "paying" ? (
-          <Box title="Payment">
+          <QCard title="Payment">
             {payLines(q.amounts, q.paymentMode).map((l) => (
               <View key={l.label} style={styles.line}>
                 <ThemedText
@@ -704,27 +765,17 @@ export default function QuoteScreen() {
                       onPress={() => setAddr(q.deliveryAddress ?? "")}
                     />
                   ) : null}
-                  <PrimaryButton
-                    label={`Pay ${money(q.amounts.payNowCents)}`}
-                    busy={busy === "pay"}
-                    disabled={!!busy}
-                    onPress={() => pay(q)}
-                  />
-                  <OutlineButton
-                    label="Decline quote"
-                    disabled={!!busy}
-                    onPress={() => declineQuote(q)}
-                  />
+                  {/* Pay and Decline sit in the pinned bar below (pinPay). */}
                 </>
               )
             ) : null}
-          </Box>
+          </QCard>
         ) : null}
 
         {stage === "closed" ? <Hint>{closedLine(q.status)}</Hint> : null}
 
         {q.status === "paid" && product ? (
-          <Box title={manage ? "The order" : "Your order"}>
+          <QCard title={manage ? "The order" : "Your order"}>
             <ThemedText style={[styles.body, { color: theme.brandCream }]}>
               {q.paymentMode === "full"
                 ? `Paid in full, ${money(q.amounts.payNowCents)}.`
@@ -758,11 +809,11 @@ export default function QuoteScreen() {
                 }
               />
             ) : null}
-          </Box>
+          </QCard>
         ) : null}
 
         {q.status === "paid" && !product ? (
-          <Box title="Your booking">
+          <QCard title="Your booking">
             <ThemedText style={[styles.body, { color: theme.brandCream }]}>
               {q.paymentMode === "full"
                 ? `Paid in full, ${money(q.amounts.payNowCents)}.`
@@ -800,11 +851,11 @@ export default function QuoteScreen() {
                 onPress={() => card(q, "balance")}
               />
             ) : null}
-          </Box>
+          </QCard>
         ) : null}
 
         {!product && (q.extras.length || (manage && open)) ? (
-          <Box title="Extras">
+          <QCard title="Extras">
             {q.extras.map((x) => (
               <View
                 key={x.id}
@@ -926,11 +977,11 @@ export default function QuoteScreen() {
                 onPress={() => card(q, "extras")}
               />
             ) : null}
-          </Box>
+          </QCard>
         ) : null}
 
         {stage === "window" && q.window ? (
-          <Box title="How did it go?">
+          <QCard title="How did it go?">
             <ThemedText style={[styles.body, { color: theme.brandCream }]}>
               {manage
                 ? "The customer has 6 hours to confirm or report a problem. You are paid after that."
@@ -1011,7 +1062,7 @@ export default function QuoteScreen() {
                 />
               </View>
             ) : null}
-          </Box>
+          </QCard>
         ) : null}
 
         {stage === "reported" ? (
@@ -1039,24 +1090,47 @@ export default function QuoteScreen() {
         {error ? <ErrorText>{error}</ErrorText> : null}
         {ok ? <OkText>{ok}</OkText> : null}
 
-        <OutlineButton
-          label={isCustomer ? `Message ${name}` : "Message the customer"}
-          onPress={() => {
-            // Review minor 5: back to the chat it came from, never a second copy of it.
-            const routes = navigation.getState()?.routes ?? [];
-            const prev = routes[routes.length - 2] as
-              | { name?: string; params?: { conversationId?: string } }
-              | undefined;
-            if (
-              prev?.name === "Chat" &&
-              prev.params?.conversationId === q.conversationId
-            )
-              navigation.goBack();
-            else
-              navigation.navigate("Chat", { conversationId: q.conversationId });
-          }}
-        />
+        {!pinPay ? (
+          <OutlineButton
+            label={isCustomer ? `Message ${name}` : "Message the customer"}
+            onPress={openChat}
+          />
+        ) : null}
       </ScrollView>
+
+      {pinPay ? (
+        <View
+          style={[
+            styles.payBar,
+            {
+              backgroundColor: theme.brandBgElevated,
+              borderTopColor: theme.brandSurfaceBorder,
+              paddingBottom: Math.max(insets.bottom, Spacing.md),
+            },
+          ]}
+        >
+          <PrimaryButton
+            label={`Pay ${money(q.amounts.payNowCents)}`}
+            busy={busy === "pay"}
+            disabled={!!busy}
+            onPress={() => pay(q)}
+          />
+          <View style={styles.payBarRow}>
+            <OutlineButton
+              label="Message"
+              style={{ flex: 1 }}
+              disabled={busy === "pay"}
+              onPress={openChat}
+            />
+            <OutlineButton
+              label="Decline"
+              style={{ flex: 1 }}
+              disabled={!!busy}
+              onPress={() => declineQuote(q)}
+            />
+          </View>
+        </View>
+      ) : null}
     </ThemedView>
   );
 }
@@ -1067,7 +1141,27 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingBottom: Spacing["3xl"],
   },
-  title: { fontSize: 22, fontWeight: "800" },
+  hero: { borderRadius: 18, padding: Spacing.md, paddingVertical: 18, gap: 6 },
+  pill: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  pillText: { fontSize: 12, fontWeight: "700" },
+  heroLine: { fontSize: 14, lineHeight: 20 },
+  heroDim: { fontSize: 13, lineHeight: 18, opacity: 0.75 },
+  heroDue: { marginTop: 8, gap: 2 },
+  heroAmount: { fontSize: 30, lineHeight: 36, fontWeight: "800", letterSpacing: -0.5 },
+  sep: { height: StyleSheet.hairlineWidth },
+  payBar: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 12,
+    gap: 10,
+  },
+  payBarRow: { flexDirection: "row", gap: 10 },
+  title: { fontSize: 22, lineHeight: 28, fontWeight: "800" },
   body: { fontSize: 15, lineHeight: 21 },
   strong: { fontSize: 15, fontWeight: "700" },
   total: { fontSize: 16, fontWeight: "800" },
