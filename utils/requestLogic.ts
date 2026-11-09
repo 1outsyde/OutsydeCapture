@@ -50,6 +50,8 @@ export type RequestForm = {
   business: { id: string; name: string };
   /** F2b: absent = a business (every form loaded before F2b). */
   vendorType?: "business" | "photographer";
+  /** Step P: absent = a service. A product form's service.id is the product's id (backend #436). */
+  itemType?: "service" | "product";
   cities: string[];
   cityRequired: boolean;
   phoneRequired: boolean;
@@ -161,7 +163,10 @@ export function requestBody(
     ...(f.vendorType === "photographer"
       ? { photographerId: f.business.id }
       : { businessId: f.business.id }),
-    serviceId: f.service.id,
+    // Step P (call Q5): a product request sends productId instead of serviceId (backend refuses both).
+    ...(f.itemType === "product"
+      ? { productId: f.service.id }
+      : { serviceId: f.service.id }),
     city: city.trim() || null,
     name,
     email: user.email,

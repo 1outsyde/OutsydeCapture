@@ -889,6 +889,8 @@ export default function ChatScreen() {
               serviceId: card.serviceId ?? undefined,
               serviceName: card.serviceName ?? undefined,
               preferredDate: card.preferredDate ?? undefined,
+              // Step P (call Q6): a product request starts a Deliverable with the product picked.
+              productId: card.productId ?? undefined,
             });
             return;
           }

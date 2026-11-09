@@ -74,7 +74,10 @@ export default function RequestQuoteScreen() {
     businessName,
     photographerId,
     photographerName,
+    productId,
   } = useRoute<RouteProp<RootStackParamList, "RequestQuote">>().params;
+  // Step P (call Q5): a business's contact for pricing product. Same screen, the product's form.
+  const isProduct = !!productId && !photographerId;
   // F2b: a photographer's contact for pricing service (backend F2a). Same screen, the photographer's form.
   const isPhotographer = !!photographerId;
   const { user, getToken, isAuthenticated } = useAuth();
@@ -105,7 +108,9 @@ export default function RequestQuoteScreen() {
     let live = true;
     (isPhotographer
       ? api.getPhotographerRequestForm(serviceId)
-      : api.getRequestForm(serviceId)
+      : isProduct
+        ? api.getProductRequestForm(productId!)
+        : api.getRequestForm(serviceId)
     )
       .then((f) => {
         if (live) {
@@ -119,14 +124,16 @@ export default function RequestQuoteScreen() {
             err?.status === 404
               ? isPhotographer
                 ? "This service isn't taking requests right now. Message the photographer instead."
-                : "This service isn't taking requests right now. Message the business instead."
+                : isProduct
+                  ? "This product isn't taking requests right now. Message the business instead."
+                  : "This service isn't taking requests right now. Message the business instead."
               : errorMessage(err),
           );
       });
     return () => {
       live = false;
     };
-  }, [serviceId, isPhotographer]);
+  }, [serviceId, isPhotographer, isProduct, productId]);
 
   const set = (id: string, v: string | string[] | undefined) =>
     setAnswers((a) => ({ ...a, [id]: v }));

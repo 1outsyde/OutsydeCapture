@@ -49,6 +49,7 @@ import {
   requestIsOpen,
   requestLine,
 } from "@/utils/businessQuotesLogic";
+import { requestItemLabel } from "@/utils/productRequestLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -202,6 +203,7 @@ export default function BusinessRequestsScreen() {
                     style={[styles.title, { color: theme.brandCream }]}
                     numberOfLines={2}
                   >
+                    {requestItemLabel(r) ? `${requestItemLabel(r)}: ` : ""}
                     {r.serviceName || "Request"}
                   </ThemedText>
                   <ThemedText
@@ -241,6 +243,8 @@ export default function BusinessRequestsScreen() {
                             serviceId: r.serviceId ?? undefined,
                             serviceName: r.serviceName ?? undefined,
                             preferredDate: r.preferredDate ?? undefined,
+                            // Step P (call Q6): a product request starts a Deliverable with the product picked.
+                            productId: r.productId ?? undefined,
                           })
                         }
                       />

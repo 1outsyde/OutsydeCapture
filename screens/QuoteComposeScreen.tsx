@@ -102,6 +102,8 @@ export default function QuoteComposeScreen() {
           serviceId: p.serviceId ?? null,
           serviceName: p.serviceName ?? null,
           preferredDate: p.preferredDate ?? null,
+          // Step P (call Q6): a product request starts a Deliverable with the product picked.
+          productId: p.productId ?? null,
         })
       : emptyForm(),
   );

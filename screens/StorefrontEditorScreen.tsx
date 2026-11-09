@@ -105,6 +105,11 @@ import {
   stepsFromSetupStatus,
   type PolicyDraft,
 } from "@/utils/businessDefaults";
+import {
+  isRequestProduct,
+  ownerProductPriceLine,
+  productRequestOnlyPatch,
+} from "@/utils/productRequestLogic";
 
 // The backend rejects vendor service durations under 5 minutes.
 const MIN_SERVICE_DURATION_MINUTES = 5;
@@ -382,6 +387,9 @@ export default function StorefrontEditorScreen() {
     null,
   );
   const [priceInput, setPriceInput] = useState("");
+  // Step P (call Q1): contact for pricing on a product. Sent only when changed (productRequestOnlyPatch).
+  const [productRequestOnly, setProductRequestOnly] = useState(false);
+  const [productRequestOnlyTouched, setProductRequestOnlyTouched] = useState(false);
   const [productForm, setProductForm] = useState<VendorProductInput>({
     name: "",
     description: "",
@@ -730,7 +738,7 @@ export default function StorefrontEditorScreen() {
 
   // Product and service forms: snapshot taken when the form opens.
   const productBaselineRef = useRef("");
-  const productSnapshot = () => JSON.stringify([productForm, priceInput, stockMode, stockInput]);
+  const productSnapshot = () => JSON.stringify([productForm, priceInput, stockMode, stockInput, productRequestOnly]);
   useEffect(() => {
     if (productModalVisible) productBaselineRef.current = productSnapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1168,6 +1176,8 @@ export default function StorefrontEditorScreen() {
 
     if (product) {
       setEditingProduct(product);
+      setProductRequestOnly(isRequestProduct(product));
+      setProductRequestOnlyTouched(false);
       const rawProduct = product as any;
       const centValue: number =
         Number.isFinite(Number(product.priceCents)) && product.priceCents > 0
@@ -1210,6 +1220,8 @@ export default function StorefrontEditorScreen() {
       }
     } else {
       setEditingProduct(null);
+      setProductRequestOnly(false);
+      setProductRequestOnlyTouched(false);
       addonsLoadForRef.current = null;
       setAddonsInitial([]);
       setPriceInput("");
@@ -1283,6 +1295,7 @@ export default function StorefrontEditorScreen() {
       priceCents: priceCentsValue,
       inventory: stock.inventory,
       trackInventory: stock.trackInventory,
+      ...productRequestOnlyPatch({ touched: productRequestOnlyTouched, value: productRequestOnly }),
     };
 
     if (payload.status === "live" && !canPublishProducts) {
@@ -2752,7 +2765,7 @@ export default function StorefrontEditorScreen() {
                           <Text
                             style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 1 }}
                           >
-                            ${(product.priceCents / 100).toFixed(2)} · {product.status}
+                            {ownerProductPriceLine(product, `$${(product.priceCents / 100).toFixed(2)}`)} · {product.status}
                           </Text>
                         </View>
                       </Pressable>
@@ -3352,7 +3365,7 @@ export default function StorefrontEditorScreen() {
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{product.name}</Text>
                 <Text style={styles.productPrice}>
-                  {formatPrice(product.priceCents)}
+                  {ownerProductPriceLine(product, formatPrice(product.priceCents))}
                 </Text>
                 {!product.imageUrl && product.status !== "archived" ? (
                   <Text style={{ fontSize: 12, fontWeight: "700", color: theme.brandGoldDim, marginBottom: 4 }}>
@@ -3558,7 +3571,27 @@ export default function StorefrontEditorScreen() {
       priceCents: p.priceCents,
       imageUrl: p.imageUrl ?? null,
       inventory: customerStock(p),
+      requestOnly: isRequestProduct(p),
     });
+  };
+
+  // Step P (call Q1): the form picker is a stack screen, which can't open over this Modal. Close it first, and only
+  // when nothing is unsaved (the picker saves to the saved product). Same as services.
+  const openProductRequestForm = () => {
+    const p = editingProduct;
+    if (!p?.id) return;
+    const go = () => {
+      setProductModalVisible(false);
+      navigation.navigate("ServiceRequestForm", { serviceId: p.id, serviceName: p.name, item: "product" });
+    };
+    if (!productHasUnsavedChanges()) {
+      go();
+      return;
+    }
+    Alert.alert("Save this product first?", "Your changes to this product aren't saved yet. Save them, then pick its request form.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard and continue", style: "destructive", onPress: go },
+    ]);
   };
 
   const renderProductModal = () => (
@@ -3618,7 +3651,52 @@ export default function StorefrontEditorScreen() {
             multiline
           />
 
-          <Text style={styles.inputLabel}>Price (in dollars)</Text>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.inputLabel}>{REQUEST_ONLY_LABEL}</Text>
+              <Text style={{ fontSize: 13, color: theme.brandTextDim }}>
+                Customers send a request form instead of buying. You quote them in Messages.
+              </Text>
+            </View>
+            <Switch
+              value={productRequestOnly}
+              onValueChange={(v) => {
+                setProductRequestOnly(v);
+                setProductRequestOnlyTouched(true);
+              }}
+              trackColor={{ true: theme.brandGold }}
+              accessibilityLabel={REQUEST_ONLY_LABEL}
+              testID="product-request-only"
+            />
+          </View>
+          {productRequestOnly ? (
+            editingProduct?.id && isRequestProduct(editingProduct) ? (
+              <Pressable
+                onPress={openProductRequestForm}
+                accessibilityRole="button"
+                accessibilityLabel="Request form, the questions customers answer for this product"
+                style={({ pressed }) => [
+                  styles.switchRow,
+                  { opacity: pressed ? 0.7 : 1, marginTop: -4 },
+                ]}
+              >
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.inputLabel}>Request form</Text>
+                  <Text style={{ fontSize: 13, color: theme.brandTextDim }}>
+                    The questions customers answer to ask for a quote.
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color={theme.brandGold} />
+              </Pressable>
+            ) : (
+              <Text style={{ fontSize: 13, color: theme.brandTextDim, marginBottom: 12 }}>
+                Save the product with Contact for pricing on, then pick its request form.
+              </Text>
+            )
+          ) : null}
+          <Text style={styles.inputLabel}>
+            {productRequestOnly ? `${STARTING_PRICE_LABEL} (in dollars)` : "Price (in dollars)"}
+          </Text>
           <TextInput
             style={styles.input}
             value={priceInput}
@@ -3628,96 +3706,99 @@ export default function StorefrontEditorScreen() {
             keyboardType="decimal-pad"
           />
 
-          <Text style={styles.inputLabel}>Stock</Text>
-          <View style={styles.policyChips}>
-            {([
-              ["unlimited", "No limit"],
-              ["count", "Count it"],
-              ["soldout", "Sold out"],
-            ] as const).map(([mode, label]) => {
-              const on = stockMode === mode;
-              return (
-                <Pressable
-                  key={mode}
-                  onPress={() => setStockMode(mode)}
-                  style={[styles.policyChip, on && styles.policyChipOn]}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: on }}
-                >
-                  <Text style={[styles.policyChipText, on && styles.policyChipTextOn]}>{label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {stockMode === "count" ? (
-            <TextInput
-              style={styles.input}
-              value={stockInput}
-              onChangeText={(v) => setStockInput(v.replace(/[^0-9]/g, "").slice(0, 7))}
-              placeholder="How many you have"
-              placeholderTextColor={theme.brandTextDim}
-              keyboardType="number-pad"
-              accessibilityLabel="How many you have"
-            />
-          ) : null}
-          <Text style={[styles.formSectionHelp, { marginTop: -8 }]}>
-            {stockMode === "unlimited"
-              ? "It never sells out. Good for things you make to order, like baked goods."
-              : stockMode === "soldout"
-                ? "Customers see Sold out and can't buy it until you change this."
-                : "It sells out when this many are bought. Customers never see the number."}
-          </Text>
-
-          <Text style={styles.formSectionTitle}>How customers customize it</Text>
-          <Text style={styles.formSectionHelp}>
-            Variations are versions of the product, like color, size or pack. Customers pick one of each.
-          </Text>
-          {optionsFallback ? (
-            <VariantBuilderSection
-              productId={editingProduct?.id}
-              initialVariants={initialVariants}
-              onVariantsChange={setLocalVariants}
-              authToken={productModalToken}
-            />
-          ) : (
-            <ProductOptionsEditor
-              key={`options-${productModalSession}-${optionsInitial ? "loaded" : "empty"}`}
-              ref={optionsEditorRef}
-              initial={optionsInitial}
-              productPriceCents={(() => {
-                const n = parseFloat(priceInput);
-                return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
-              })()}
-              productInventory={
-                stockMode === "unlimited"
-                  ? null
-                  : stockMode === "soldout"
-                    ? 0
-                    : (() => {
-                        const n = parseInt(stockInput, 10);
-                        return Number.isFinite(n) ? n : null;
-                      })()
-              }
-              authToken={productModalToken}
-            />
-          )}
-
-          <Text style={styles.formSectionTitle}>Add-ons</Text>
-          {addonsInitial === null ? (
-            <ActivityIndicator color={theme.brandGold} style={{ marginVertical: 12 }} />
-          ) : addonsInitial === "failed" ? (
-            <Text style={styles.formSectionHelp}>
-              {"Add-ons couldn't load. Close this item and open it again to edit them."}
+          {/* Step P (call Q1): stock, options and add-ons are hidden and kept while Contact for pricing is on. */}
+          <View style={productRequestOnly ? { display: "none" } : undefined}>
+            <Text style={styles.inputLabel}>Stock</Text>
+            <View style={styles.policyChips}>
+              {([
+                ["unlimited", "No limit"],
+                ["count", "Count it"],
+                ["soldout", "Sold out"],
+              ] as const).map(([mode, label]) => {
+                const on = stockMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    onPress={() => setStockMode(mode)}
+                    style={[styles.policyChip, on && styles.policyChipOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.policyChipText, on && styles.policyChipTextOn]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {stockMode === "count" ? (
+              <TextInput
+                style={styles.input}
+                value={stockInput}
+                onChangeText={(v) => setStockInput(v.replace(/[^0-9]/g, "").slice(0, 7))}
+                placeholder="How many you have"
+                placeholderTextColor={theme.brandTextDim}
+                keyboardType="number-pad"
+                accessibilityLabel="How many you have"
+              />
+            ) : null}
+            <Text style={[styles.formSectionHelp, { marginTop: -8 }]}>
+              {stockMode === "unlimited"
+                ? "It never sells out. Good for things you make to order, like baked goods."
+                : stockMode === "soldout"
+                  ? "Customers see Sold out and can't buy it until you change this."
+                  : "It sells out when this many are bought. Customers never see the number."}
             </Text>
-          ) : (
-            <ProductAddonsEditor
-              key={`addons-${productModalSession}`}
-              ref={addonsEditorRef}
-              initial={addonsInitial}
-              productId={editingProduct?.id ?? null}
-              authToken={productModalToken}
-            />
-          )}
+
+            <Text style={styles.formSectionTitle}>How customers customize it</Text>
+            <Text style={styles.formSectionHelp}>
+              Variations are versions of the product, like color, size or pack. Customers pick one of each.
+            </Text>
+            {optionsFallback ? (
+              <VariantBuilderSection
+                productId={editingProduct?.id}
+                initialVariants={initialVariants}
+                onVariantsChange={setLocalVariants}
+                authToken={productModalToken}
+              />
+            ) : (
+              <ProductOptionsEditor
+                key={`options-${productModalSession}-${optionsInitial ? "loaded" : "empty"}`}
+                ref={optionsEditorRef}
+                initial={optionsInitial}
+                productPriceCents={(() => {
+                  const n = parseFloat(priceInput);
+                  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
+                })()}
+                productInventory={
+                  stockMode === "unlimited"
+                    ? null
+                    : stockMode === "soldout"
+                      ? 0
+                      : (() => {
+                          const n = parseInt(stockInput, 10);
+                          return Number.isFinite(n) ? n : null;
+                        })()
+                }
+                authToken={productModalToken}
+              />
+            )}
+
+            <Text style={styles.formSectionTitle}>Add-ons</Text>
+            {addonsInitial === null ? (
+              <ActivityIndicator color={theme.brandGold} style={{ marginVertical: 12 }} />
+            ) : addonsInitial === "failed" ? (
+              <Text style={styles.formSectionHelp}>
+                {"Add-ons couldn't load. Close this item and open it again to edit them."}
+              </Text>
+            ) : (
+              <ProductAddonsEditor
+                key={`addons-${productModalSession}`}
+                ref={addonsEditorRef}
+                initial={addonsInitial}
+                productId={editingProduct?.id ?? null}
+                authToken={productModalToken}
+              />
+            )}
+          </View>
 
           {editingProduct ? (
             <Pressable

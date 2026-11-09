@@ -172,10 +172,24 @@ export function formFromRequest(c: {
   serviceId?: string | null;
   serviceName?: string | null;
   preferredDate?: string | null;
+  /** Step P (call Q6): a product request starts a Deliverable with the product picked. serviceName = its name. */
+  productId?: string | null;
 }): QuoteForm {
+  const title = (c.serviceName ?? "").trim().slice(0, MAX_TITLE);
+  if (c.productId) {
+    // The customer's preferred date is when they'd like it, so it fills the due date of a deliverable.
+    return {
+      ...emptyForm(),
+      kind: "product",
+      productId: c.productId,
+      title,
+      dueDate: c.preferredDate && isRealDate(c.preferredDate) ? c.preferredDate : "",
+      requestId: c.requestId ?? null,
+    };
+  }
   return {
     ...emptyForm(),
-    title: (c.serviceName ?? "").trim().slice(0, MAX_TITLE),
+    title,
     jobDate:
       c.preferredDate && isRealDate(c.preferredDate) ? c.preferredDate : "",
     serviceId: c.serviceId ?? null,
