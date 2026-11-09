@@ -78,6 +78,7 @@ import {
   parseBrandColorSpec,
   readableTextOn,
 } from "@/constants/colorOptions";
+import { PRICE_ON_REQUEST, isRequestProduct, pricedProducts } from "@/utils/productRequestLogic";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -293,7 +294,8 @@ const getMinimumPrice = (
   services: ServiceCard[],
 ): number | undefined => {
   const prices = [
-    ...products.map((item) =>
+    // Step P (call Q2): contact for pricing products have no price to start from.
+    ...pricedProducts(products).map((item) =>
       priceCentsToDollars(cardPriceCents(item.priceCents, item.variantSummary)),
     ),
     ...services.map((item) => priceCentsToDollars(item.priceCents)),
@@ -2071,10 +2073,11 @@ export default function AccountScreen() {
                   {product.name}
                 </Text>
                 <Text style={[styles.productPrice, { color: accentColor }]}>
-                  {cardPricePrefix(product.variantSummary)}
-                  {formatCents(cardPriceCents(product.priceCents, product.variantSummary))}
+                  {isRequestProduct(product)
+                    ? PRICE_ON_REQUEST
+                    : `${cardPricePrefix(product.variantSummary)}${formatCents(cardPriceCents(product.priceCents, product.variantSummary))}`}
                 </Text>
-                {cardOptionsLine(product.variantSummary) ? (
+                {!isRequestProduct(product) && cardOptionsLine(product.variantSummary) ? (
                   <Text style={styles.productOptionsLine} numberOfLines={1}>
                     {cardOptionsLine(product.variantSummary)}
                   </Text>

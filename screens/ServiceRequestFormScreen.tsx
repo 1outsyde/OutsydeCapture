@@ -72,6 +72,10 @@ export default function ServiceRequestFormScreen() {
   const serviceId = params.serviceId;
   // F2b: a photographer's contact for pricing service (default business, as in F1).
   const side = params.side ?? "business";
+  // Step P (call Q1): a business's contact for pricing product uses the same picker and the same library.
+  const item =
+    side === "business" && params.item === "product" ? "product" : "service";
+  const noun = item === "product" ? "product" : "service";
   const { getToken } = useAuth();
   const tokenRef = useRef(getToken);
   useEffect(() => {
@@ -121,7 +125,7 @@ export default function ServiceRequestFormScreen() {
         }
         const [lib, svc] = await Promise.all([
           api.getRequestFormLibrary(token, side),
-          api.getServiceRequestFormSettings(token, serviceId, side),
+          api.getServiceRequestFormSettings(token, serviceId, side, item),
         ]);
         if (!alive) return;
         const hasBase = lib.forms.some((f) => f.isBase);
@@ -151,7 +155,7 @@ export default function ServiceRequestFormScreen() {
     return () => {
       alive = false;
     };
-  }, [serviceId, side]);
+  }, [serviceId, side, item]);
 
   const ownWire = own.map(toWire);
   const settings = settingsFor(choice, { formId, withBase, own: ownWire });
@@ -191,7 +195,7 @@ export default function ServiceRequestFormScreen() {
     }
     Alert.alert(
       "Leave without saving?",
-      "This service keeps the form it had.",
+      `This ${noun} keeps the form it had.`,
       [
         { text: "Keep editing", style: "cancel" },
         {
@@ -228,7 +232,7 @@ export default function ServiceRequestFormScreen() {
         setError("Sign in again to save.");
         return;
       }
-      await api.setServiceRequestForm(token, serviceId, settings, side);
+      await api.setServiceRequestForm(token, serviceId, settings, side, item);
       navigation.goBack();
     } catch (err) {
       setError(errorMessage(err as ApiError));
@@ -289,8 +293,7 @@ export default function ServiceRequestFormScreen() {
               <Text
                 style={[styles.introText, { color: theme.brandPrimaryText }]}
               >
-                Right now this service asks customers no questions, only how to
-                reach them. Pick a form and save.
+                {`Right now this ${noun} asks customers no questions, only how to reach them. Pick a form and save.`}
               </Text>
             </View>
           ) : null}
@@ -300,7 +303,7 @@ export default function ServiceRequestFormScreen() {
               label="Your base form"
               sub={
                 base
-                  ? `${base.questions.length} question${base.questions.length === 1 ? "" : "s"}, shared by your services.`
+                  ? `${base.questions.length} question${base.questions.length === 1 ? "" : "s"}, shared by your ${side === "business" ? "services and products" : "services"}.`
                   : "You don't have a base form yet."
               }
               on={choice === "base"}
@@ -319,8 +322,8 @@ export default function ServiceRequestFormScreen() {
               onPress={() => pick("saved")}
             />
             <RadioRow
-              label="Just this service"
-              sub="Questions only this service asks."
+              label={`Just this ${noun}`}
+              sub={`Questions only this ${noun} asks.`}
               on={choice === "own"}
               onPress={() => pick("own")}
             />
@@ -349,7 +352,7 @@ export default function ServiceRequestFormScreen() {
           ) : null}
 
           {choice === "own" ? (
-            <QuoteCard title="This service's questions">
+            <QuoteCard title={`This ${noun}'s questions`}>
               {base ? (
                 <Switch
                   label="Start with the base form"

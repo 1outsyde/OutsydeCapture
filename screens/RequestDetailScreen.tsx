@@ -46,6 +46,7 @@ import {
   requestIsOpen,
   requestLine,
 } from "@/utils/businessQuotesLogic";
+import { requestItemLabel } from "@/utils/productRequestLogic";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -165,6 +166,7 @@ export default function RequestDetailScreen() {
             style={[styles.title, { color: theme.brandPrimaryText }]}
             accessibilityRole="header"
           >
+            {requestItemLabel(r) ? `${requestItemLabel(r)}: ` : ""}
             {r.serviceName || "Request"}
           </ThemedText>
           <ThemedText style={{ color: theme.brandPrimaryText, fontSize: 14 }}>

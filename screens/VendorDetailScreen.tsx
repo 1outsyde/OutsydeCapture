@@ -79,6 +79,13 @@ import { displayRating } from "@/types/ratings";
 import { formatDuration } from "@/utils/duration";
 import { serviceAction } from "@/utils/requestLogic";
 import { serviceStart } from "@/utils/businessQuotesLogic";
+import {
+  PRICE_ON_REQUEST,
+  isRequestProduct,
+  pricedProducts,
+  productCardAction,
+  productCardButtonLabel,
+} from "@/utils/productRequestLogic";
 
 const COLORS = {
   black: "#0A0A0A",
@@ -299,7 +306,8 @@ const getMinimumPrice = (
   services: ServiceCard[],
 ): number | undefined => {
   const prices = [
-    ...products.map((item) =>
+    // Step P (call Q2): contact for pricing products have no price to start from.
+    ...pricedProducts(products).map((item) =>
       priceCentsToDollars(cardPriceCents(item.priceCents, item.variantSummary)),
     ),
     // Review I2: contact for pricing services have no price to start from.
@@ -566,13 +574,15 @@ export default function VendorDetailScreen({ route }: Props) {
         priceCents: product.priceCents,
         imageUrl: product.imageUrl,
         inventory: customerStock(product),
+        requestOnly: isRequestProduct(product),
       });
     },
     [navigation],
   );
 
   const handleAddToCart = useCallback((product: VendorProduct) => {
-    if (mustChoose(product.variantSummary, product.addonSummary)) {
+    // Step P (call Q2): a contact for pricing product opens its page (Request a quote), never the cart.
+    if (isRequestProduct(product) || mustChoose(product.variantSummary, product.addonSummary)) {
       openProduct(product);
       return;
     }
@@ -1595,8 +1605,9 @@ export default function VendorDetailScreen({ route }: Props) {
               return;
             }
 
-            // A product with variations needs a pick first: open its page.
-            if (mustChoose(targetProduct.variantSummary, targetProduct.addonSummary)) {
+            // A product with variations needs a pick first, and a contact for pricing product is requested
+            // (step P, call Q2): open its page.
+            if (isRequestProduct(targetProduct) || mustChoose(targetProduct.variantSummary, targetProduct.addonSummary)) {
               openProduct(targetProduct);
               return;
             }
@@ -2173,6 +2184,7 @@ export default function VendorDetailScreen({ route }: Props) {
                     priceCents: product.priceCents,
                     imageUrl: product.imageUrl,
                     inventory: customerStock(product),
+                    requestOnly: isRequestProduct(product),
                   })
                 }
               >
@@ -2195,10 +2207,11 @@ export default function VendorDetailScreen({ route }: Props) {
                     {product.name}
                   </Text>
                   <Text style={[styles.productPrice, { color: accentColor }]}>
-                    {cardPricePrefix(product.variantSummary)}
-                    {formatCents(cardPriceCents(product.priceCents, product.variantSummary))}
+                    {isRequestProduct(product)
+                      ? PRICE_ON_REQUEST
+                      : `${cardPricePrefix(product.variantSummary)}${formatCents(cardPriceCents(product.priceCents, product.variantSummary))}`}
                   </Text>
-                  {cardOptionsLine(product.variantSummary) ? (
+                  {!isRequestProduct(product) && cardOptionsLine(product.variantSummary) ? (
                     <Text style={styles.productOptionsLine} numberOfLines={1}>
                       {cardOptionsLine(product.variantSummary)}
                     </Text>
@@ -2210,14 +2223,13 @@ export default function VendorDetailScreen({ route }: Props) {
                     ]}
                     onPress={() => handleAddToCart(product)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    accessibilityLabel={
-                      mustChoose(product.variantSummary, product.addonSummary)
-                        ? `Choose an option for ${product.name}`
-                        : `Add ${product.name} to cart`
-                    }
+                    accessibilityLabel={productCardButtonLabel(
+                      product.name,
+                      productCardAction(product, mustChoose(product.variantSummary, product.addonSummary)).button,
+                    )}
                   >
                     <Text style={[styles.productAddText, { color: accentColor }]}>
-                      {mustChoose(product.variantSummary, product.addonSummary) ? "Choose" : "Add"}
+                      {productCardAction(product, mustChoose(product.variantSummary, product.addonSummary)).button}
                     </Text>
                   </Pressable>
                 </View>

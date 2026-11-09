@@ -53,6 +53,7 @@ import {
   type AddonPicks,
   type PublicAddonGroup,
 } from "@/components/products/productAddonLogic";
+import { PRICE_ON_REQUEST, isRequestProduct, productRequestParams } from "@/utils/productRequestLogic";
 
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
 
@@ -78,7 +79,14 @@ export default function ProductDetailScreen() {
     priceCents,
     imageUrl,
     inventory: inventoryParam,
+    requestOnly: requestOnlyParam,
   } = route.params;
+  // Step P (call Q3): a contact for pricing product is requested, never bought as is. The card's flag is used until
+  // the product loads; then the product itself decides (so a tag, a favorite or a link work the same).
+  const [requestOnly, setRequestOnly] = useState<boolean>(requestOnlyParam === true);
+  // Review 1: opened without the flag (Saved, older links), the price and buying wait for the product itself, and stay
+  // off if it can't load, so a contact for pricing product never shows its starting price or a live Buy Now.
+  const [flagKnown, setFlagKnown] = useState<boolean>(requestOnlyParam !== undefined);
   // Save button (one Saved place, backend #378). Not shown on the business's own products.
   const saveTarget = productSaveTarget({ id, businessId, name, imageUrl, priceCents }, user?.businessId);
   const isSaved = !!saveTarget && isFavorite(saveTarget.id, "product");
@@ -121,6 +129,8 @@ export default function ProductDetailScreen() {
         const product = await api.getProductWithVariants(String(id));
         if (!cancelled) {
           const loadedVariants = product.variants ?? [];
+          setRequestOnly(isRequestProduct(product));
+          setFlagKnown(true);
           setInventory(customerStock(product));
           const loadedOptions = sortedOptions(product.options);
           setVariants(loadedVariants);
@@ -241,7 +251,7 @@ export default function ProductDetailScreen() {
     !variantsLoading &&
     !isOutOfStock &&
     (!hasVariants || (activeVariant !== null && !isVariantSoldOut(activeVariant)));
-  const canAddToCart = variationReady && !addonProblem;
+  const canAddToCart = variationReady && !addonProblem && flagKnown && !requestOnly;
   // Stock counts are not shown to customers (Legend 2026-10-28): only "Out of stock" / "Sold out".
 
   const buyNowLabel = isOutOfStock
@@ -263,8 +273,12 @@ export default function ProductDetailScreen() {
     ? { addons: chosenAddons, ...(chosenAddons.length > 0 ? { addonsLabel: addonsLabel(chosenAddons) } : {}) }
     : {};
 
+  const handleRequestQuote = () => {
+    navigation.navigate("RequestQuote", productRequestParams({ id: String(id), name, businessId }));
+  };
+
   const handleAddToCart = () => {
-    if (!canAddToCart) return;
+    if (!canAddToCart || requestOnly) return;
 
     addItem({
       productId: String(id),
@@ -293,7 +307,7 @@ export default function ProductDetailScreen() {
   };
 
   const handleBuyNow = () => {
-    if (!canAddToCart) return;
+    if (!canAddToCart || requestOnly) return;
     navigation.navigate("CheckoutScreen", {
       mode: "buyNow",
       buyNowItem: {
@@ -368,7 +382,7 @@ export default function ProductDetailScreen() {
             type="h4"
             style={[styles.price, { color: theme.brandGold }]}
           >
-            {displayPrice}
+            {requestOnly ? PRICE_ON_REQUEST : flagKnown ? displayPrice : ""}
           </ThemedText>
 
           {/* Description */}
@@ -381,83 +395,153 @@ export default function ProductDetailScreen() {
             </ThemedText>
           ) : null}
 
-          {/* Option pickers: one row per option (Length, Size, Color) */}
-          {optionMode &&
-            options.map((option, optionIndex) => {
-              const picked = picks[optionIndex];
-              const asSwatches = isColorOption(option);
-              const showChipPrice = pricesDiffer && optionIndex === 0;
-              const longest = option.values.reduce((n, ov) => Math.max(n, ov.value.length), 0);
-              const cols = longest > 8 ? 2 : longest > 4 ? 3 : 4;
-              const chipWidth = (screenWidth - Spacing.lg * 2 - optionGap * (cols - 1)) / cols;
-              return (
-                <View key={`${option.position}-${option.name}`} style={styles.optionSection}>
-                  <Text style={[styles.optionHeading, { color: theme.brandCream }]}>
-                    {picked ? `${option.name.toUpperCase()}: ` : `CHOOSE ${option.name.toUpperCase()}`}
-                    {picked ? <Text style={{ color: theme.brandGold }}>{picked}</Text> : null}
-                  </Text>
-                  <View style={[styles.optionGrid, { gap: asSwatches ? Spacing.md : optionGap }]}>
-                    {option.values.map((ov) => {
-                      const selected = !!picked && picked.toLowerCase() === ov.value.toLowerCase();
-                      const state = valueState(variants, picks, optionIndex, ov.value, productStockForPicker);
-                      const blocked = state !== "available";
-                      const chipPrice = showChipPrice ? uniformPriceFor(variants, optionIndex, ov.value) : null;
-                      const a11y = `${option.name} ${ov.value}${
-                        state === "soldout" ? ", sold out" : state === "unavailable" ? ", not available with this pick" : chipPrice != null ? `, ${formatCents(chipPrice)}` : ""
-                      }`;
-                      if (asSwatches) {
-                        return (
-                          <Pressable
-                            key={ov.value}
-                            onPress={() => pickOption(optionIndex, ov.value)}
-                            disabled={state === "soldout"}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected, disabled: blocked }}
-                            accessibilityLabel={a11y}
-                            style={({ pressed }) => [
-                              styles.swatchRing,
-                              {
-                                borderColor: selected ? theme.brandGold : "transparent",
-                                opacity: blocked ? 0.35 : pressed ? 0.75 : 1,
-                              },
-                            ]}
-                          >
-                            <View
-                              style={[
-                                styles.swatch,
-                                { backgroundColor: swatchFor(ov) ?? theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+          {/* Step P (call Q3): options, add-ons, stock and quantity are hidden (and kept) on a contact for pricing product. */}
+          {!requestOnly ? (
+            <>
+              {/* Option pickers: one row per option (Length, Size, Color) */}
+              {optionMode &&
+                options.map((option, optionIndex) => {
+                  const picked = picks[optionIndex];
+                  const asSwatches = isColorOption(option);
+                  const showChipPrice = pricesDiffer && optionIndex === 0;
+                  const longest = option.values.reduce((n, ov) => Math.max(n, ov.value.length), 0);
+                  const cols = longest > 8 ? 2 : longest > 4 ? 3 : 4;
+                  const chipWidth = (screenWidth - Spacing.lg * 2 - optionGap * (cols - 1)) / cols;
+                  return (
+                    <View key={`${option.position}-${option.name}`} style={styles.optionSection}>
+                      <Text style={[styles.optionHeading, { color: theme.brandCream }]}>
+                        {picked ? `${option.name.toUpperCase()}: ` : `CHOOSE ${option.name.toUpperCase()}`}
+                        {picked ? <Text style={{ color: theme.brandGold }}>{picked}</Text> : null}
+                      </Text>
+                      <View style={[styles.optionGrid, { gap: asSwatches ? Spacing.md : optionGap }]}>
+                        {option.values.map((ov) => {
+                          const selected = !!picked && picked.toLowerCase() === ov.value.toLowerCase();
+                          const state = valueState(variants, picks, optionIndex, ov.value, productStockForPicker);
+                          const blocked = state !== "available";
+                          const chipPrice = showChipPrice ? uniformPriceFor(variants, optionIndex, ov.value) : null;
+                          const a11y = `${option.name} ${ov.value}${
+                            state === "soldout" ? ", sold out" : state === "unavailable" ? ", not available with this pick" : chipPrice != null ? `, ${formatCents(chipPrice)}` : ""
+                          }`;
+                          if (asSwatches) {
+                            return (
+                              <Pressable
+                                key={ov.value}
+                                onPress={() => pickOption(optionIndex, ov.value)}
+                                disabled={state === "soldout"}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected, disabled: blocked }}
+                                accessibilityLabel={a11y}
+                                style={({ pressed }) => [
+                                  styles.swatchRing,
+                                  {
+                                    borderColor: selected ? theme.brandGold : "transparent",
+                                    opacity: blocked ? 0.35 : pressed ? 0.75 : 1,
+                                  },
+                                ]}
+                              >
+                                <View
+                                  style={[
+                                    styles.swatch,
+                                    { backgroundColor: swatchFor(ov) ?? theme.brandSurface, borderColor: theme.brandSurfaceBorder },
+                                  ]}
+                                />
+                                {blocked ? <View pointerEvents="none" style={[styles.swatchSlash, { backgroundColor: theme.brandCream }]} /> : null}
+                              </Pressable>
+                            );
+                          }
+                          return (
+                            <Pressable
+                              key={ov.value}
+                              onPress={() => pickOption(optionIndex, ov.value)}
+                              disabled={state === "soldout"}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected, disabled: blocked }}
+                              accessibilityLabel={a11y}
+                              style={({ pressed }) => [
+                                styles.optionChip,
+                                {
+                                  width: chipWidth,
+                                  height: showChipPrice ? 56 : 46,
+                                  borderWidth: selected ? 2 : 1,
+                                  borderStyle: blocked ? "dashed" : "solid",
+                                  borderColor: selected
+                                    ? theme.brandGold
+                                    : blocked
+                                    ? "rgba(255,255,255,0.15)"
+                                    : theme.brandSurfaceBorder,
+                                  backgroundColor: selected
+                                    ? "rgba(232,185,48,0.14)"
+                                    : blocked
+                                    ? "transparent"
+                                    : theme.brandSurface,
+                                  opacity: pressed && !blocked ? 0.75 : 1,
+                                },
                               ]}
-                            />
-                            {blocked ? <View pointerEvents="none" style={[styles.swatchSlash, { backgroundColor: theme.brandCream }]} /> : null}
-                          </Pressable>
-                        );
-                      }
+                            >
+                              <Text
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                                style={[
+                                  styles.optionLabel,
+                                  {
+                                    color: selected ? theme.brandGold : blocked ? theme.brandTextDim : theme.brandCream,
+                                    textDecorationLine: blocked ? "line-through" : "none",
+                                  },
+                                ]}
+                              >
+                                {ov.value}
+                              </Text>
+                              {showChipPrice || state === "soldout" ? (
+                                <Text style={[styles.optionPrice, { color: theme.brandTextDim }]}>
+                                  {state === "soldout" ? "Sold out" : chipPrice != null ? formatCents(chipPrice) : ""}
+                                </Text>
+                              ) : null}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })}
+
+              {/* Option picker (older variations with a label only) */}
+              {!optionMode && hasVariants && (
+                <View style={styles.optionSection}>
+                  <Text style={[styles.optionHeading, { color: theme.brandCream }]}>
+                    {selectedVariant ? "OPTION: " : "CHOOSE AN OPTION"}
+                    {selectedVariant ? (
+                      <Text style={{ color: theme.brandGold }}>{selectedVariant.label}</Text>
+                    ) : null}
+                  </Text>
+                  <View style={[styles.optionGrid, { gap: optionGap }]}>
+                    {variants.map((v: ProductVariant) => {
+                      const selected = selectedVariant?.id === v.id;
+                      const soldOut = isVariantSoldOut(v);
                       return (
                         <Pressable
-                          key={ov.value}
-                          onPress={() => pickOption(optionIndex, ov.value)}
-                          disabled={state === "soldout"}
+                          key={v.id}
+                          onPress={() => selectVariant(v)}
+                          disabled={soldOut}
                           accessibilityRole="button"
-                          accessibilityState={{ selected, disabled: blocked }}
-                          accessibilityLabel={a11y}
+                          accessibilityState={{ selected, disabled: soldOut }}
+                          accessibilityLabel={`${v.label}, ${soldOut ? "sold out" : formatCents(v.priceCents)}`}
                           style={({ pressed }) => [
                             styles.optionChip,
                             {
-                              width: chipWidth,
-                              height: showChipPrice ? 56 : 46,
+                              width: optionChipWidth,
                               borderWidth: selected ? 2 : 1,
-                              borderStyle: blocked ? "dashed" : "solid",
+                              borderStyle: soldOut ? "dashed" : "solid",
                               borderColor: selected
                                 ? theme.brandGold
-                                : blocked
+                                : soldOut
                                 ? "rgba(255,255,255,0.15)"
                                 : theme.brandSurfaceBorder,
                               backgroundColor: selected
                                 ? "rgba(232,185,48,0.14)"
-                                : blocked
+                                : soldOut
                                 ? "transparent"
                                 : theme.brandSurface,
-                              opacity: pressed && !blocked ? 0.75 : 1,
+                              opacity: pressed && !soldOut ? 0.75 : 1,
                             },
                           ]}
                         >
@@ -467,332 +551,299 @@ export default function ProductDetailScreen() {
                             style={[
                               styles.optionLabel,
                               {
-                                color: selected ? theme.brandGold : blocked ? theme.brandTextDim : theme.brandCream,
-                                textDecorationLine: blocked ? "line-through" : "none",
+                                color: selected
+                                  ? theme.brandGold
+                                  : soldOut
+                                  ? theme.brandTextDim
+                                  : theme.brandCream,
+                                textDecorationLine: soldOut ? "line-through" : "none",
                               },
                             ]}
                           >
-                            {ov.value}
+                            {v.label}
                           </Text>
-                          {showChipPrice || state === "soldout" ? (
-                            <Text style={[styles.optionPrice, { color: theme.brandTextDim }]}>
-                              {state === "soldout" ? "Sold out" : chipPrice != null ? formatCents(chipPrice) : ""}
-                            </Text>
-                          ) : null}
+                          <Text style={[styles.optionPrice, { color: theme.brandTextDim }]}>
+                            {soldOut ? "Sold out" : formatCents(v.priceCents)}
+                          </Text>
                         </Pressable>
                       );
                     })}
                   </View>
                 </View>
-              );
-            })}
+              )}
 
-          {/* Option picker (older variations with a label only) */}
-          {!optionMode && hasVariants && (
-            <View style={styles.optionSection}>
-              <Text style={[styles.optionHeading, { color: theme.brandCream }]}>
-                {selectedVariant ? "OPTION: " : "CHOOSE AN OPTION"}
-                {selectedVariant ? (
-                  <Text style={{ color: theme.brandGold }}>{selectedVariant.label}</Text>
-                ) : null}
-              </Text>
-              <View style={[styles.optionGrid, { gap: optionGap }]}>
-                {variants.map((v: ProductVariant) => {
-                  const selected = selectedVariant?.id === v.id;
-                  const soldOut = isVariantSoldOut(v);
+              {/* Inventory status */}
+              {isOutOfStock ? (
+                <View style={[styles.outOfStockBadge, { backgroundColor: theme.brandSurface }]}>
+                  <Feather name="x-circle" size={14} color={theme.brandError ?? "#FF3B30"} />
+                  <ThemedText
+                    type="caption"
+                    style={{ color: theme.brandError ?? "#FF3B30", marginLeft: Spacing.xs }}
+                  >
+                    Out of stock
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              {/* Add-ons: extras on top of the product (toppings, a name on the cake) */}
+              {hasAddons &&
+                addonGroups.map((group) => {
+                  const count = countInGroup(group, addonPicks);
+                  const pickOne = group.maxSelect === 1;
                   return (
-                    <Pressable
-                      key={v.id}
-                      onPress={() => selectVariant(v)}
-                      disabled={soldOut}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected, disabled: soldOut }}
-                      accessibilityLabel={`${v.label}, ${soldOut ? "sold out" : formatCents(v.priceCents)}`}
-                      style={({ pressed }) => [
-                        styles.optionChip,
-                        {
-                          width: optionChipWidth,
-                          borderWidth: selected ? 2 : 1,
-                          borderStyle: soldOut ? "dashed" : "solid",
-                          borderColor: selected
-                            ? theme.brandGold
-                            : soldOut
-                            ? "rgba(255,255,255,0.15)"
-                            : theme.brandSurfaceBorder,
-                          backgroundColor: selected
-                            ? "rgba(232,185,48,0.14)"
-                            : soldOut
-                            ? "transparent"
-                            : theme.brandSurface,
-                          opacity: pressed && !soldOut ? 0.75 : 1,
-                        },
-                      ]}
-                    >
-                      <Text
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        style={[
-                          styles.optionLabel,
-                          {
-                            color: selected
-                              ? theme.brandGold
-                              : soldOut
-                              ? theme.brandTextDim
-                              : theme.brandCream,
-                            textDecorationLine: soldOut ? "line-through" : "none",
-                          },
-                        ]}
-                      >
-                        {v.label}
-                      </Text>
-                      <Text style={[styles.optionPrice, { color: theme.brandTextDim }]}>
-                        {soldOut ? "Sold out" : formatCents(v.priceCents)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Inventory status */}
-          {isOutOfStock ? (
-            <View style={[styles.outOfStockBadge, { backgroundColor: theme.brandSurface }]}>
-              <Feather name="x-circle" size={14} color={theme.brandError ?? "#FF3B30"} />
-              <ThemedText
-                type="caption"
-                style={{ color: theme.brandError ?? "#FF3B30", marginLeft: Spacing.xs }}
-              >
-                Out of stock
-              </ThemedText>
-            </View>
-          ) : null}
-
-          {/* Add-ons: extras on top of the product (toppings, a name on the cake) */}
-          {hasAddons &&
-            addonGroups.map((group) => {
-              const count = countInGroup(group, addonPicks);
-              const pickOne = group.maxSelect === 1;
-              return (
-                <View key={group.id} style={styles.optionSection}>
-                  <View style={styles.addonHeadingRow}>
-                    <Text style={[styles.optionHeading, { color: theme.brandCream, flexShrink: 1 }]}>
-                      {group.name.toUpperCase()}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.addonHint,
-                        { color: group.minSelect > 0 && count < group.minSelect ? theme.brandGold : theme.brandTextDim },
-                      ]}
-                    >
-                      {groupHint(group)}
-                    </Text>
-                  </View>
-                  {group.addons.map((addon) => {
-                    const selected = addonPicks.ids.includes(addon.id);
-                    const text = addonPicks.text[addon.id] ?? "";
-                    return (
-                      <View key={addon.id}>
-                        <Pressable
-                          onPress={() => tapAddon(addon.id, group.id)}
-                          accessibilityRole={pickOne ? "radio" : "checkbox"}
-                          accessibilityState={{ checked: selected }}
-                          accessibilityLabel={`${addon.name}, ${formatAddonPrice(addon.priceCents)}`}
-                          style={({ pressed }) => [
-                            styles.addonRow,
-                            {
-                              backgroundColor: selected ? "rgba(232,185,48,0.14)" : theme.brandSurface,
-                              borderColor: selected ? theme.brandGold : theme.brandSurfaceBorder,
-                              opacity: pressed ? 0.8 : 1,
-                            },
+                    <View key={group.id} style={styles.optionSection}>
+                      <View style={styles.addonHeadingRow}>
+                        <Text style={[styles.optionHeading, { color: theme.brandCream, flexShrink: 1 }]}>
+                          {group.name.toUpperCase()}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.addonHint,
+                            { color: group.minSelect > 0 && count < group.minSelect ? theme.brandGold : theme.brandTextDim },
                           ]}
                         >
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.addonName, { color: theme.brandCream }]}>{addon.name}</Text>
-                            {addon.description ? (
-                              <Text style={[styles.addonDesc, { color: theme.brandTextDim }]}>{addon.description}</Text>
-                            ) : null}
-                          </View>
-                          <Text style={[styles.addonPrice, { color: selected ? theme.brandGold : theme.brandTextDim }]}>
-                            {formatAddonPrice(addon.priceCents)}
-                          </Text>
-                          <View
-                            style={[
-                              pickOne ? styles.addonRadio : styles.addonCheck,
-                              {
-                                borderColor: selected ? theme.brandGold : theme.brandSurfaceBorder,
-                                backgroundColor: selected ? theme.brandGold : "transparent",
-                              },
-                            ]}
-                          >
-                            {selected ? <Feather name="check" size={13} color="#000000" /> : null}
-                          </View>
-                        </Pressable>
-                        {selected && addon.acceptsText ? (
-                          <View style={{ marginTop: Spacing.xs }}>
-                            <TextInput
-                              value={text}
-                              onChangeText={(t) => setAddonPicks((p) => setPickText(p, addon.id, t.replace(/\n/g, " ")))}
-                              placeholder={addon.textLabel || "Type it here"}
-                              placeholderTextColor={theme.brandTextDim}
-                              maxLength={addon.textMaxLength + 20}
-                              accessibilityLabel={addon.textLabel || addon.name}
-                              style={[
-                                styles.addonInput,
-                                { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg },
-                              ]}
-                            />
-                            <Text
-                              style={[
-                                styles.addonCounter,
-                                { color: [...text.trim()].length > addon.textMaxLength ? (theme.brandError ?? "#FF3B30") : theme.brandTextDim },
+                          {groupHint(group)}
+                        </Text>
+                      </View>
+                      {group.addons.map((addon) => {
+                        const selected = addonPicks.ids.includes(addon.id);
+                        const text = addonPicks.text[addon.id] ?? "";
+                        return (
+                          <View key={addon.id}>
+                            <Pressable
+                              onPress={() => tapAddon(addon.id, group.id)}
+                              accessibilityRole={pickOne ? "radio" : "checkbox"}
+                              accessibilityState={{ checked: selected }}
+                              accessibilityLabel={`${addon.name}, ${formatAddonPrice(addon.priceCents)}`}
+                              style={({ pressed }) => [
+                                styles.addonRow,
+                                {
+                                  backgroundColor: selected ? "rgba(232,185,48,0.14)" : theme.brandSurface,
+                                  borderColor: selected ? theme.brandGold : theme.brandSurfaceBorder,
+                                  opacity: pressed ? 0.8 : 1,
+                                },
                               ]}
                             >
-                              {[...text.trim()].length}/{addon.textMaxLength}
-                            </Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.addonName, { color: theme.brandCream }]}>{addon.name}</Text>
+                                {addon.description ? (
+                                  <Text style={[styles.addonDesc, { color: theme.brandTextDim }]}>{addon.description}</Text>
+                                ) : null}
+                              </View>
+                              <Text style={[styles.addonPrice, { color: selected ? theme.brandGold : theme.brandTextDim }]}>
+                                {formatAddonPrice(addon.priceCents)}
+                              </Text>
+                              <View
+                                style={[
+                                  pickOne ? styles.addonRadio : styles.addonCheck,
+                                  {
+                                    borderColor: selected ? theme.brandGold : theme.brandSurfaceBorder,
+                                    backgroundColor: selected ? theme.brandGold : "transparent",
+                                  },
+                                ]}
+                              >
+                                {selected ? <Feather name="check" size={13} color="#000000" /> : null}
+                              </View>
+                            </Pressable>
+                            {selected && addon.acceptsText ? (
+                              <View style={{ marginTop: Spacing.xs }}>
+                                <TextInput
+                                  value={text}
+                                  onChangeText={(t) => setAddonPicks((p) => setPickText(p, addon.id, t.replace(/\n/g, " ")))}
+                                  placeholder={addon.textLabel || "Type it here"}
+                                  placeholderTextColor={theme.brandTextDim}
+                                  maxLength={addon.textMaxLength + 20}
+                                  accessibilityLabel={addon.textLabel || addon.name}
+                                  style={[
+                                    styles.addonInput,
+                                    { color: theme.brandCream, borderColor: theme.brandSurfaceBorder, backgroundColor: theme.brandBg },
+                                  ]}
+                                />
+                                <Text
+                                  style={[
+                                    styles.addonCounter,
+                                    { color: [...text.trim()].length > addon.textMaxLength ? (theme.brandError ?? "#FF3B30") : theme.brandTextDim },
+                                  ]}
+                                >
+                                  {[...text.trim()].length}/{addon.textMaxLength}
+                                </Text>
+                              </View>
+                            ) : null}
                           </View>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                  {addonLimitGroupId === group.id && group.maxSelect !== null ? (
-                    <Text style={[styles.addonHint, { color: theme.brandGold }]}>
-                      You can pick up to {group.maxSelect}. Tap one to remove it first.
-                    </Text>
-                  ) : null}
+                        );
+                      })}
+                      {addonLimitGroupId === group.id && group.maxSelect !== null ? (
+                        <Text style={[styles.addonHint, { color: theme.brandGold }]}>
+                          You can pick up to {group.maxSelect}. Tap one to remove it first.
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+
+              {/* Quantity stepper */}
+              <View style={styles.stepperRow}>
+                <ThemedText type="body" style={{ color: theme.brandTextDim }}>
+                  Quantity
+                </ThemedText>
+                <View style={styles.stepper}>
+                  <Pressable
+                    onPress={decrement}
+                    disabled={isOutOfStock || quantity <= 1}
+                    style={({ pressed }) => [
+                      styles.stepperBtn,
+                      { backgroundColor: theme.brandSurface, opacity: (isOutOfStock || quantity <= 1) ? 0.4 : pressed ? 0.7 : 1 },
+                    ]}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Feather name="minus" size={16} color={theme.brandCream} />
+                  </Pressable>
+                  <ThemedText type="h4" style={styles.stepperCount}>
+                    {quantity}
+                  </ThemedText>
+                  <Pressable
+                    onPress={increment}
+                    disabled={isOutOfStock || atMaxQuantity}
+                    style={({ pressed }) => [
+                      styles.stepperBtn,
+                      {
+                        backgroundColor: theme.brandSurface,
+                        opacity: (isOutOfStock || atMaxQuantity) ? 0.4 : pressed ? 0.7 : 1,
+                      },
+                    ]}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Feather name="plus" size={16} color={theme.brandCream} />
+                  </Pressable>
                 </View>
-              );
-            })}
+              </View>
 
-          {/* Quantity stepper */}
-          <View style={styles.stepperRow}>
-            <ThemedText type="body" style={{ color: theme.brandTextDim }}>
-              Quantity
-            </ThemedText>
-            <View style={styles.stepper}>
-              <Pressable
-                onPress={decrement}
-                disabled={isOutOfStock || quantity <= 1}
-                style={({ pressed }) => [
-                  styles.stepperBtn,
-                  { backgroundColor: theme.brandSurface, opacity: (isOutOfStock || quantity <= 1) ? 0.4 : pressed ? 0.7 : 1 },
-                ]}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                <Feather name="minus" size={16} color={theme.brandCream} />
-              </Pressable>
-              <ThemedText type="h4" style={styles.stepperCount}>
-                {quantity}
-              </ThemedText>
-              <Pressable
-                onPress={increment}
-                disabled={isOutOfStock || atMaxQuantity}
-                style={({ pressed }) => [
-                  styles.stepperBtn,
-                  {
-                    backgroundColor: theme.brandSurface,
-                    opacity: (isOutOfStock || atMaxQuantity) ? 0.4 : pressed ? 0.7 : 1,
-                  },
-                ]}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                <Feather name="plus" size={16} color={theme.brandCream} />
-              </Pressable>
-            </View>
-          </View>
+              {hasAddons ? (
+                <View style={styles.totalRow}>
+                  <ThemedText type="body" style={{ color: theme.brandTextDim }}>
+                    {addonsCents > 0 ? `${formatCents(basePriceCents)} + ${formatCents(addonsCents)} add-ons` : "Total"}
+                  </ThemedText>
+                  <ThemedText type="h4" style={{ color: theme.brandGold }}>
+                    {formatCents(unitPriceCents * quantity)}
+                  </ThemedText>
+                </View>
+              ) : null}
 
-          {hasAddons ? (
-            <View style={styles.totalRow}>
-              <ThemedText type="body" style={{ color: theme.brandTextDim }}>
-                {addonsCents > 0 ? `${formatCents(basePriceCents)} + ${formatCents(addonsCents)} add-ons` : "Total"}
-              </ThemedText>
-              <ThemedText type="h4" style={{ color: theme.brandGold }}>
-                {formatCents(unitPriceCents * quantity)}
-              </ThemedText>
-            </View>
+            </>
           ) : null}
 
-          {/* ── Dual CTA block ── */}
-          <View
-            style={{
-              backgroundColor: theme.brandSurface,
-              borderRadius: BorderRadius.lg,
-              padding: Spacing.sm,
-              marginTop: Spacing.xl,
-              borderWidth: 1,
-              borderColor: theme.brandSurfaceBorder,
-              gap: Spacing.sm,
-            }}
-          >
-            {/* Buy Now — primary */}
-            <Pressable
-              onPress={handleBuyNow}
-              disabled={!canAddToCart}
-              accessibilityLabel="Buy Now — instant purchase, skips cart"
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: Spacing.sm,
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.full,
-                backgroundColor: canAddToCart ? theme.brandGold : theme.brandSurface,
-                opacity: !canAddToCart ? 0.4 : pressed ? 0.85 : 1,
-              })}
-            >
-              <Feather
-                name="zap"
-                size={16}
-                color={canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999")}
-              />
-              <Text
-                numberOfLines={1}
+          {requestOnly ? (
+            <View style={{ marginTop: Spacing.xl, gap: Spacing.sm }}>
+              <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
+                Made to order. Tell the business what you need and they send you a quote in Messages.
+              </ThemedText>
+              <Pressable
+                onPress={handleRequestQuote}
+                accessibilityRole="button"
+                accessibilityLabel={`Request a quote for ${name || "this product"}`}
+                testID="product-request-quote"
+                style={({ pressed }) => ({
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: Spacing.sm,
+                  paddingVertical: Spacing.md,
+                  borderRadius: BorderRadius.full,
+                  backgroundColor: theme.brandGold,
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <Feather name="message-square" size={16} color="#000000" />
+                <Text style={{ fontSize: 16, fontWeight: "900", letterSpacing: -0.3, color: "#000000" }}>
+                  Request a quote
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {/* ── Dual CTA block ── */}
+              <View
                 style={{
-                  flexShrink: 1,
-                  fontSize: 16,
-                  fontWeight: "900",
-                  letterSpacing: -0.3,
-                  color: canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999"),
+                  backgroundColor: theme.brandSurface,
+                  borderRadius: BorderRadius.lg,
+                  padding: Spacing.sm,
+                  marginTop: Spacing.xl,
+                  borderWidth: 1,
+                  borderColor: theme.brandSurfaceBorder,
+                  gap: Spacing.sm,
                 }}
               >
-                {buyNowLabel}
-              </Text>
-            </Pressable>
+                {/* Buy Now — primary */}
+                <Pressable
+                  onPress={handleBuyNow}
+                  disabled={!canAddToCart}
+                  accessibilityLabel="Buy Now — instant purchase, skips cart"
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: Spacing.sm,
+                    paddingVertical: Spacing.md,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: canAddToCart ? theme.brandGold : theme.brandSurface,
+                    opacity: !canAddToCart ? 0.4 : pressed ? 0.85 : 1,
+                  })}
+                >
+                  <Feather
+                    name="zap"
+                    size={16}
+                    color={canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999")}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      flexShrink: 1,
+                      fontSize: 16,
+                      fontWeight: "900",
+                      letterSpacing: -0.3,
+                      color: canAddToCart ? "#000000" : (theme.brandTextDim ?? "#999"),
+                    }}
+                  >
+                    {buyNowLabel}
+                  </Text>
+                </Pressable>
 
-            {/* Add to Cart — secondary */}
-            <Pressable
-              onPress={handleAddToCart}
-              disabled={!canAddToCart}
-              accessibilityLabel="Add to Cart"
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: Spacing.sm,
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.full,
-                borderWidth: 1.5,
-                borderColor: canAddToCart ? theme.brandGold : theme.brandSurfaceBorder,
-                backgroundColor: "transparent",
-                opacity: !canAddToCart ? 0.4 : pressed ? 0.7 : 1,
-              })}
-            >
-              <Feather
-                name="shopping-cart"
-                size={16}
-                color={canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999")}
-              />
-              <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: "700",
-                  color: canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999"),
-                }}
-              >
-                Add to Cart
-              </Text>
-            </Pressable>
-          </View>
+                {/* Add to Cart — secondary */}
+                <Pressable
+                  onPress={handleAddToCart}
+                  disabled={!canAddToCart}
+                  accessibilityLabel="Add to Cart"
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: Spacing.sm,
+                    paddingVertical: Spacing.md,
+                    borderRadius: BorderRadius.full,
+                    borderWidth: 1.5,
+                    borderColor: canAddToCart ? theme.brandGold : theme.brandSurfaceBorder,
+                    backgroundColor: "transparent",
+                    opacity: !canAddToCart ? 0.4 : pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Feather
+                    name="shopping-cart"
+                    size={16}
+                    color={canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999")}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "700",
+                      color: canAddToCart ? theme.brandGold : (theme.brandTextDim ?? "#999"),
+                    }}
+                  >
+                    Add to Cart
+                  </Text>
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
 

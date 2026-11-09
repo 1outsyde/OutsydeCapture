@@ -117,6 +117,8 @@ export type Card = {
   preferredDate?: string | null;
   requestId?: string;
   serviceId?: string | null;
+  /** Step P (backend #436): the product a request card is for (Send a quote starts a Deliverable). */
+  productId?: string | null;
   answerCount?: number;
   /** F2b: set on a request sent to a photographer (backend F2a). */
   photographerId?: string | null;

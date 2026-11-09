@@ -88,6 +88,8 @@ export type RootStackParamList = {
     serviceId: string;
     serviceName?: string;
     side?: "business" | "photographer";
+    /** Step P: item product = a business's contact for pricing product (serviceId is the product's id). */
+    item?: "service" | "product";
   };
   /** Quotes step 6d-2b: owner (every quote) or staff (the quotes they sent, for the business the app picked). */
   BusinessQuotes: { mode: "owner" | "staff"; businessId?: string };
@@ -100,6 +102,8 @@ export type RootStackParamList = {
     serviceId?: string;
     serviceName?: string;
     preferredDate?: string;
+    /** Step P (call Q6): a product request starts a Deliverable with this product picked. */
+    productId?: string;
   };
   CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets" | "quotes"; _ts?: number } | undefined;
   /** Request a quote on a contact for pricing service (Quotes step 6c-2b). */
@@ -111,6 +115,8 @@ export type RootStackParamList = {
     /** F2b: a photographer's contact for pricing service (then businessId is not used). */
     photographerId?: string;
     photographerName?: string;
+    /** Step P (call Q5): a business's contact for pricing product (serviceId is the product's id too). */
+    productId?: string;
   };
   /** One event's tickets with QR codes (from GET /api/events/me/tickets). */
   TicketDetail: { eventId: string };
@@ -155,6 +161,8 @@ export type RootStackParamList = {
     priceCents: number;
     imageUrl?: string | null;
     inventory?: number | null;
+    /** Step P: the card's contact for pricing flag (the product page checks the product itself too). */
+    requestOnly?: boolean;
   };
   ProductOrderDetail: {
     /** Deliverables D2 (additive): an order from a deliverable quote. */

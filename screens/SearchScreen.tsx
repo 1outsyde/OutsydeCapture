@@ -298,6 +298,8 @@ export default function SearchScreen() {
         description: item.description,
         priceCents: item.price ?? 0,
         imageUrl: item.productImage || item.avatar,
+        // Step P (call Q4): the product page shows Price on request and Request a quote.
+        requestOnly: item.requestOnly === true,
       });
     } else if (item.resultType === "service") {
       const providerId = item.providerId || item.userId;

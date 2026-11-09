@@ -148,10 +148,15 @@ const formsPath = (side: RequestFormSide = "business") =>
   side === "photographer"
     ? "/api/photographers/me/request-forms"
     : "/api/vendor/request-forms";
-const formServicesPath = (side: RequestFormSide = "business") =>
+const formServicesPath = (side: RequestFormSide = "business", item: RequestFormItem = "service") =>
   side === "photographer"
     ? "/api/photographers/me/services"
+    : item === "product"
+    ? "/api/vendor/products"
     : "/api/vendor/services";
+
+/** Step P: the form settings are for a service (default) or a business's product (backend #436). */
+export type RequestFormItem = "service" | "product";
 
 /** A form in a business's request form library (GET /api/vendor/request-forms). */
 export interface VendorRequestForm {
@@ -765,6 +770,8 @@ export interface VendorProduct {
   variantSummary?: import("@/components/products/productCardLogic").VariantSummary | null;
   /** From the public storefront list (backend #371): null when the product has no add-ons. */
   addonSummary?: { groupCount: number; hasRequired: boolean } | null;
+  /** Request forms step P (backend #436): contact for pricing, customers send a request, never buy it as is. */
+  requestOnly?: boolean | null;
 }
 
 export interface ProductVariant {
@@ -880,6 +887,8 @@ export interface VendorProductInput {
   inventory?: number | null;
   trackInventory?: boolean;
   status?: ItemStatus;
+  /** Step P: contact for pricing. Sent only when the owner changes it. */
+  requestOnly?: boolean;
 }
 
 // Create/Update Service Request
@@ -1563,6 +1572,8 @@ export interface UnifiedSearchItem {
   userId?: string;
   providerUserId?: string;
   type: "business" | "photographer" | "product" | "service" | "consumer" | "staff";
+  /** Step P (backend #436): a contact for pricing product (only sent with includeRequestOnly). */
+  requestOnly?: boolean;
   name?: string;
   title?: string;
   subtitle?: string;
@@ -1958,6 +1969,8 @@ export interface UnifiedSearchResult {
   businessName?: string;
   price?: number;
   priceFormatted?: string;
+  /** Step P: a contact for pricing product (shows Price on request, opens its page). */
+  requestOnly?: boolean;
   productImage?: string;
   isFeatured?: boolean;
 }
@@ -2450,6 +2463,8 @@ class ApiService {
     if (params?.scope) queryString.append("scope", params.scope);
     if (params?.viewerUserId) queryString.append("viewerUserId", params.viewerUserId);
     if (params?.personalized) queryString.append("personalized", "true");
+    // Step P (call Q4): contact for pricing products too, marked requestOnly.
+    queryString.append("includeRequestOnly", "1");
     
     const endpoint = `/api/search${queryString.toString() ? `?${queryString.toString()}` : ""}`;
     
@@ -2568,7 +2583,7 @@ class ApiService {
         city: resolvedCity || "Unknown",
         state: resolvedState || "",
         rating: item.rating || item.ratingAvg || 0,
-        priceRange: item.priceRange ||
+        priceRange: item.requestOnly === true ? "Price on request" : item.priceRange ||
           (item.hourlyRate ? `$${(item.hourlyRate / 100).toFixed(0)}/hr` : "") ||
           (item.price ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}` : ""),
         category: item.category || item.type,
@@ -2583,10 +2598,15 @@ class ApiService {
         providerType: item.providerType,
         businessId: item.businessId,
         businessName: item.businessName,
+        // Step P (call Q4): a contact for pricing product shows no price (priceFormatted and priceRange say Price on
+        // request). The raw price stays so the product page has the right one if the business switched it off.
         price: item.price,
-        priceFormatted: item.price
+        priceFormatted: item.requestOnly === true
+          ? "Price on request"
+          : item.price
           ? `$${(item.price / 100).toFixed(2).replace(/\.00$/, "")}`
           : undefined,
+        requestOnly: item.requestOnly === true,
         productImage: isValidImageUrl(item.productImage) || undefined,
         isFeatured: item.is_featured ?? false,
       };
@@ -2605,7 +2625,8 @@ class ApiService {
   }
 
   async getBusinessPublicProducts(businessId: string): Promise<{ products: VendorProduct[] }> {
-    return this.request<{ products: VendorProduct[] }>(`/api/businesses/${businessId}/products`);
+    // Step P (call Q2): ask for contact for pricing products too (older builds never see them).
+    return this.request<{ products: VendorProduct[] }>(`/api/businesses/${businessId}/products?includeRequestOnly=1`);
   }
 
   async getBusinessPublicServices(businessId: string): Promise<{ services: VendorService[] }> {
@@ -7021,6 +7042,23 @@ class ApiService {
   }
 
   /**
+   * Step P (call Q5): a business's contact for pricing product form (backend #436). The answer has the same shape as
+   * a service's (service = the product, business, cities, questions), so it is the same RequestForm.
+   */
+  async getProductRequestForm(productId: string): Promise<import("@/utils/requestLogic").RequestForm> {
+    const raw = await this.request<any>(`/api/products/${encodeURIComponent(productId)}/request-form`);
+    return {
+      service: raw.service,
+      business: raw.business,
+      itemType: "product",
+      cities: Array.isArray(raw.cities) ? raw.cities : [],
+      cityRequired: raw.cityRequired === true,
+      phoneRequired: raw.phoneRequired !== false,
+      questions: Array.isArray(raw.questions) ? raw.questions : [],
+    };
+  }
+
+  /**
    * F2b: a photographer's contact for pricing service form (backend F2a). The answer names the photographer, not a
    * business; it is turned into the same RequestForm shape (business = the photographer, vendorType photographer).
    */
@@ -7105,12 +7143,13 @@ class ApiService {
     authToken: string,
     serviceId: string,
     side?: RequestFormSide,
+    item?: RequestFormItem,
   ): Promise<{
     settings: import("@/utils/requestFormEditor").ServiceFormSettings;
     resolved: import("@/utils/requestLogic").RequestQuestion[];
   }> {
     return this.request(
-      `${formServicesPath(side)}/${encodeURIComponent(serviceId)}/request-form`,
+      `${formServicesPath(side, item)}/${encodeURIComponent(serviceId)}/request-form`,
       { headers: { Authorization: `Bearer ${authToken}` } },
     );
   }
@@ -7121,12 +7160,13 @@ class ApiService {
     serviceId: string,
     settings: import("@/utils/requestFormEditor").ServiceFormSettings,
     side?: RequestFormSide,
+    item?: RequestFormItem,
   ): Promise<{
     settings: import("@/utils/requestFormEditor").ServiceFormSettings;
     resolved: import("@/utils/requestLogic").RequestQuestion[];
   }> {
     return this.request(
-      `${formServicesPath(side)}/${encodeURIComponent(serviceId)}/request-form`,
+      `${formServicesPath(side, item)}/${encodeURIComponent(serviceId)}/request-form`,
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${authToken}` },
@@ -7556,6 +7596,9 @@ export interface VendorRequest {
   status: "new" | "called" | "quoted" | "booked" | "closed" | string;
   serviceId: string | null;
   serviceName: string | null;
+  /** Step P (backend #436): set on a product request; serviceName then holds the product's name. */
+  productId?: string | null;
+  itemType?: "service" | "product";
   city: string | null;
   customerName: string | null;
   preferredDate: string | null;
@@ -7574,6 +7617,9 @@ export interface RequestDetail {
   vendorType?: "business" | "photographer";
   serviceId: string | null;
   serviceName: string | null;
+  /** Step P (backend #436): a product request. */
+  productId?: string | null;
+  itemType?: "service" | "product";
   city: string | null;
   preferredDate: string | null;
   details?: Record<string, string>;
