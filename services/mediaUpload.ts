@@ -1,4 +1,7 @@
+import { AppState } from "react-native";
+import { File } from "expo-file-system";
 import { API_BASE_URL } from "./api";
+import { runResumableUpload, type ChunkResponse } from "@/utils/resumableUpload";
 
 export interface UploadProgress {
   loaded: number;
@@ -146,6 +149,102 @@ export async function uploadVideo(
 
   if (!uploadResponse.ok) {
     throw new Error("Video upload to Mux failed");
+  }
+
+  return {
+    url: uploadId,
+    uploadId,
+    type: "video",
+    thumbnailUrl: undefined,
+  };
+}
+
+/** A piece that hasn't finished in this long is treated as lost and sent again. */
+const PIECE_TIMEOUT_MS = 180_000;
+
+/** Sends one piece of a resumable upload. Network trouble resolves { status: null }, never throws. */
+function sendPiece(
+  url: string,
+  bytes: Uint8Array,
+  headers: Record<string, string>,
+  onPieceProgress: (sent: number) => void,
+): Promise<ChunkResponse> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.timeout = PIECE_TIMEOUT_MS;
+    for (const [key, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(key, value);
+    }
+    if (xhr.upload) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onPieceProgress(event.loaded);
+      };
+    }
+    xhr.onload = () =>
+      resolve({ status: xhr.status || null, range: xhr.getResponseHeader("Range") });
+    xhr.onerror = () => resolve({ status: null });
+    xhr.ontimeout = () => resolve({ status: null });
+    // React Native sends a Uint8Array as its raw bytes (convertRequestBody: ArrayBufferView).
+    xhr.send(bytes);
+  });
+}
+
+/** Resolves once the app is in the foreground (iOS pauses the app, and the upload, in the background). */
+function waitUntilActive(): Promise<void> {
+  if (AppState.currentState === "active") return Promise.resolve();
+  return new Promise((resolve) => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        sub.remove();
+        resolve();
+      }
+    });
+  });
+}
+
+/**
+ * Pulse videos (up to 60 minutes): the same Mux direct upload as uploadVideo, but sent in 8 MB
+ * pieces so a dropped connection only resends the piece in flight, and an upload paused in the
+ * background carries on when the app comes back (Pulse length step B). Fully closing the app
+ * still loses it. Same result shape as uploadVideo.
+ */
+export async function uploadVideoResumable(
+  uri: string,
+  mimeType: string = "video/mp4",
+  authToken: string,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<VideoUploadResult> {
+  const urlResponse = await fetch(`${API_BASE_URL}/api/media/video-upload-url`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!urlResponse.ok) {
+    const error = await urlResponse.json().catch(() => ({}));
+    throw new Error(error.error || "Failed to get video upload URL");
+  }
+  const { uploadUrl, uploadId } = await urlResponse.json();
+
+  const handle = new File(uri).open();
+  try {
+    const total = handle.size ?? 0;
+    await runResumableUpload({
+      total,
+      readChunk: async (start, length) => {
+        handle.offset = start;
+        return handle.readBytes(length);
+      },
+      sendChunk: (bytes, headers, onPieceProgress) =>
+        sendPiece(uploadUrl, bytes, headers, onPieceProgress),
+      contentType: mimeType,
+      onProgress,
+      waitUntilActive,
+    });
+  } finally {
+    handle.close();
   }
 
   return {
