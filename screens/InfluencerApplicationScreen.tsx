@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import api, { type TaxonomyCategory } from "@/services/api";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -144,7 +145,7 @@ export default function InfluencerApplicationScreen() {
     return (
       <ThemedView style={styles.container}>
         {header}
-        <ActivityIndicator color={theme.primary} style={{ marginTop: Spacing.xl }} />
+        <OutsydeLoader style={{ marginTop: Spacing.xl }} />
       </ThemedView>
     );
   }

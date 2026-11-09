@@ -23,6 +23,7 @@ import {
   isCanceledStatus,
   isPendingRequestStatus,
 } from "@/utils/bookingStatus";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -700,7 +701,7 @@ export default function StaffCalendarScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={GOLD} />
+          <OutsydeLoader />
         </View>
       </View>
     );

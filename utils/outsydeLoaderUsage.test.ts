@@ -4,6 +4,7 @@
 //
 // Each entry: file -> how many OutsydeLoader elements it must contain.
 // Step 3a: what Outsyders see (20 loading states in 18 files).
+// Step 3b: business, staff and photographer tools (15 screens).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -28,17 +29,45 @@ const STEP_3A: Record<string, number> = {
   "screens/QuoteComposeScreen.tsx": 1,
 };
 
-let total = 0;
-for (const [file, want] of Object.entries(STEP_3A)) {
-  const src = readFileSync(file, "utf8");
-  const got = (src.match(/<OutsydeLoader[\s/>]/g) ?? []).length;
-  assert.ok(got >= want, `${file}: expected ${want} OutsydeLoader, found ${got}`);
-  assert.ok(src.includes('import OutsydeLoader from "@/components/OutsydeLoader"'), `${file}: import`);
-  total += want;
-}
-assert.equal(total, 20, "step 3a covers 20 loading states");
+const STEP_3B: Record<string, number> = {
+  "screens/BusinessDashboardScreen.tsx": 1,
+  "screens/StaffDashboardScreen.tsx": 1,
+  "screens/PhotographerDashboardScreen.tsx": 1,
+  "screens/DashboardOrdersScreen.tsx": 1,
+  "screens/DashboardCalendarScreen.tsx": 1,
+  "screens/PhotographerCalendarScreen.tsx": 1,
+  "screens/StaffCalendarScreen.tsx": 1,
+  "screens/StorefrontEditorScreen.tsx": 1,
+  "screens/PhotographerManageBusinessScreen.tsx": 1,
+  "screens/EditStaffProfileScreen.tsx": 1,
+  "screens/BusinessBillingAddressScreen.tsx": 1,
+  "screens/BusinessOnboardingScreen.tsx": 1,
+  "screens/PhotographerOnboardingScreen.tsx": 1,
+  "screens/InfluencerApplicationScreen.tsx": 1,
+  "screens/InfluencerReferralScreen.tsx": 1,
+};
 
-// The loading only screens in 3a must not render a large spinner any more.
+function checkStep(step: Record<string, number>): number {
+  let total = 0;
+  for (const [file, want] of Object.entries(step)) {
+    const src = readFileSync(file, "utf8");
+    const got = (src.match(/<OutsydeLoader[\s/>]/g) ?? []).length;
+    assert.ok(
+      got >= want,
+      `${file}: expected ${want} OutsydeLoader, found ${got}`,
+    );
+    assert.ok(
+      src.includes('import OutsydeLoader from "@/components/OutsydeLoader"'),
+      `${file}: import`,
+    );
+    total += want;
+  }
+  return total;
+}
+assert.equal(checkStep(STEP_3A), 20, "step 3a covers 20 loading states");
+assert.equal(checkStep(STEP_3B), 15, "step 3b covers 15 screens");
+
+// Loading only screens (3a, 3b) must not render any spinner any more.
 for (const file of [
   "screens/ChatScreen.tsx",
   "screens/ProfileFeedScreen.tsx",
@@ -47,8 +76,16 @@ for (const file of [
   "components/quotes/MyQuotesList.tsx",
   "screens/QuoteLinkScreen.tsx",
   "screens/QuoteComposeScreen.tsx",
+  "screens/DashboardCalendarScreen.tsx",
+  "screens/PhotographerCalendarScreen.tsx",
+  "screens/BusinessOnboardingScreen.tsx",
+  "screens/PhotographerOnboardingScreen.tsx",
+  "screens/InfluencerReferralScreen.tsx",
 ]) {
-  assert.ok(!readFileSync(file, "utf8").includes("<ActivityIndicator"), `${file}: no ActivityIndicator left`);
+  assert.ok(
+    !readFileSync(file, "utf8").includes("<ActivityIndicator"),
+    `${file}: no ActivityIndicator left`,
+  );
 }
 
 console.log("outsydeLoaderUsage tests passed");

@@ -41,6 +41,7 @@ import { uploadImage } from "@/services/mediaUpload";
 import { formatDuration } from "@/utils/duration";
 import { quoteIsOpen } from "@/utils/businessQuotesLogic";
 import { bookingStatusLabel, filterVisibleBookings, isActiveProviderStatus } from "@/utils/bookingStatus";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type ModalType = "bookings" | "services" | "hours" | "blocked" | "weeklyHours" | null;
 
@@ -464,7 +465,7 @@ export default function StaffDashboardScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={DASHBOARD_COLORS.gold} />
+        <OutsydeLoader />
       </View>
     );
   }
