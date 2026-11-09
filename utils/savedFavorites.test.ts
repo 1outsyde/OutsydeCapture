@@ -118,4 +118,21 @@ test("save button on a product page", () => {
   assert.equal(productSaveTarget({ ...p, id: "" }), null);
 });
 
+test("contact for pricing products never carry a price (step P follow up)", () => {
+  const [item] = favoritesFromServer({ favorites: [
+    { type: "product", id: "p9", name: "Custom cake", image: "", savedAt: "2026-11-09T00:00:00.000Z", businessId: "b1", requestOnly: true, priceCents: 4500 },
+  ] });
+  assert.equal(item.requestOnly, true);
+  assert.equal("priceCents" in item, false);
+  assert.deepEqual(savedOpenTarget(item), {
+    screen: "ProductDetail", params: { id: "p9", businessId: "b1", name: "Custom cake", priceCents: 0, requestOnly: true },
+  });
+  const t = productSaveTarget({ id: "p9", businessId: "b1", name: "Custom cake", priceCents: 4500, requestOnly: true });
+  assert.equal(t?.requestOnly, true);
+  assert.equal(t && "priceCents" in t, false);
+  const sold = productSaveTarget({ id: "p1", businessId: "b1", name: "Candle", priceCents: 1200, requestOnly: false });
+  assert.equal(sold?.priceCents, 1200);
+  assert.equal(sold && "requestOnly" in sold, false);
+});
+
 console.log(`\n${passed} passed`);
