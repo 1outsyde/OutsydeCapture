@@ -130,6 +130,8 @@ export default function PostDetailScreen() {
 
   const initialIndexRef = useRef(0);
   const listRef = useRef<FlatList>(null);
+  // True while someone drags a Pulse progress bar: the list stops paging so the drag can't flip videos.
+  const [scrubbing, setScrubbing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -376,6 +378,7 @@ export default function PostDetailScreen() {
             onAuthorPress={handleAuthorPress}
             onActionPress={handleActionPress}
             onEngagement={() => {}}
+            onScrubbingChange={setScrubbing}
           />
         </View>
       ) : (
@@ -436,6 +439,7 @@ export default function PostDetailScreen() {
       ) : (
         <FlatList
           ref={listRef}
+          scrollEnabled={!scrubbing}
           style={{ flex: 1 }}
           data={posts}
           renderItem={renderItem}

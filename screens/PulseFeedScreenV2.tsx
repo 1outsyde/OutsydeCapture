@@ -158,6 +158,8 @@ export default function PulseFeedScreenV2() {
   const [commentsLoading, setCommentsLoading] = useState(false);
 
   const listRef = useRef<FlatList>(null);
+  // True while someone drags a Pulse progress bar: the list stops paging so the drag can't flip videos.
+  const [scrubbing, setScrubbing] = useState(false);
 
   // ─── Data fetching ──────────────────────────────────────────────────────────
   const fetchPosts = useCallback(async (refresh = false) => {
@@ -461,6 +463,7 @@ export default function PulseFeedScreenV2() {
           onReport={handleReportPost}
           onBlock={handleBlockFromPost}
           currentUserId={String(user?.id || "")}
+          onScrubbingChange={setScrubbing}
         />
       );
     },
@@ -524,6 +527,7 @@ export default function PulseFeedScreenV2() {
     <View style={styles.root}>
       <FlatList
         ref={listRef}
+        scrollEnabled={!scrubbing}
         data={posts}
         renderItem={renderItem}
         keyExtractor={(item) => `pulse-v2-${item.id}`}
