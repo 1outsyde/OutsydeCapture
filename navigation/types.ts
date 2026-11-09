@@ -74,6 +74,10 @@ export type RootStackParamList = {
   QuoteLink: { code: string };
   /** Quotes step 6d-2b: the owner's Requests list. */
   BusinessRequests: undefined;
+  /** Request forms step F1: the owner's form library, one form, and a Contact for pricing service's form. */
+  RequestForms: undefined;
+  RequestFormEditor: { formId?: string; makeBase?: boolean };
+  ServiceRequestForm: { serviceId: string; serviceName?: string };
   /** Quotes step 6d-2b: owner (every quote) or staff (the quotes they sent, for the business the app picked). */
   BusinessQuotes: { mode: "owner" | "staff"; businessId?: string };
   /** Quotes step 6d-1: Create a quote in a chat (or from a request card), or Edit one (quoteId). */

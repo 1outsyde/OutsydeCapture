@@ -78,6 +78,9 @@ import QuoteScreen from "@/screens/QuoteScreen";
 import RequestQuoteScreen from "@/screens/RequestQuoteScreen";
 import QuoteComposeScreen from "@/screens/QuoteComposeScreen";
 import BusinessRequestsScreen from "@/screens/BusinessRequestsScreen";
+import RequestFormsScreen from "@/screens/RequestFormsScreen";
+import RequestFormEditorScreen from "@/screens/RequestFormEditorScreen";
+import ServiceRequestFormScreen from "@/screens/ServiceRequestFormScreen";
 import BusinessQuotesScreen from "@/screens/BusinessQuotesScreen";
 import QuoteLinkScreen from "@/screens/QuoteLinkScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
@@ -613,6 +616,37 @@ export default function RootNavigator() {
           headerShown: false,
           animation: "slide_from_right",
           gestureEnabled: true,
+        })}
+      />
+
+      <Stack.Screen
+        name="RequestForms"
+        component={RequestFormsScreen}
+        options={stackAware({
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+        })}
+      />
+
+      {/* Edits that ask before they're lost: no swipe back, Cancel asks. */}
+      <Stack.Screen
+        name="RequestFormEditor"
+        component={RequestFormEditorScreen}
+        options={stackAware({
+          headerShown: false,
+          animation: "slide_from_bottom",
+          gestureEnabled: false,
+        })}
+      />
+
+      <Stack.Screen
+        name="ServiceRequestForm"
+        component={ServiceRequestFormScreen}
+        options={stackAware({
+          headerShown: false,
+          animation: "slide_from_bottom",
+          gestureEnabled: false,
         })}
       />
 
