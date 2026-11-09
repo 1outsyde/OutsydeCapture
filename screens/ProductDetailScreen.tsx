@@ -88,7 +88,9 @@ export default function ProductDetailScreen() {
   // off if it can't load, so a contact for pricing product never shows its starting price or a live Buy Now.
   const [flagKnown, setFlagKnown] = useState<boolean>(requestOnlyParam !== undefined);
   // Save button (one Saved place, backend #378). Not shown on the business's own products.
-  const saveTarget = productSaveTarget({ id, businessId, name, imageUrl, priceCents }, user?.businessId);
+  const saveTarget = productSaveTarget({ id, businessId, name, imageUrl, priceCents, requestOnly }, user?.businessId);
+  // Step P follow up: the business previewing its own product sees what customers see, without requesting from itself.
+  const isOwnProduct = !!user?.businessId && !!businessId && String(user.businessId) === String(businessId);
   const isSaved = !!saveTarget && isFavorite(saveTarget.id, "product");
   const handleSaveToggle = () => {
     if (!saveTarget) return;
@@ -735,29 +737,33 @@ export default function ProductDetailScreen() {
           {requestOnly ? (
             <View style={{ marginTop: Spacing.xl, gap: Spacing.sm }}>
               <ThemedText type="caption" style={{ color: theme.brandTextDim }}>
-                Made to order. Tell the business what you need and they send you a quote in Messages.
+                {isOwnProduct
+                  ? "This is your product. Customers see a Request a quote button here and send you its request form."
+                  : "Made to order. Tell the business what you need and they send you a quote in Messages."}
               </ThemedText>
-              <Pressable
-                onPress={handleRequestQuote}
-                accessibilityRole="button"
-                accessibilityLabel={`Request a quote for ${name || "this product"}`}
-                testID="product-request-quote"
-                style={({ pressed }) => ({
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: Spacing.sm,
-                  paddingVertical: Spacing.md,
-                  borderRadius: BorderRadius.full,
-                  backgroundColor: theme.brandGold,
-                  opacity: pressed ? 0.85 : 1,
-                })}
-              >
-                <Feather name="message-square" size={16} color="#000000" />
-                <Text style={{ fontSize: 16, fontWeight: "900", letterSpacing: -0.3, color: "#000000" }}>
-                  Request a quote
-                </Text>
-              </Pressable>
+              {isOwnProduct ? null : (
+                <Pressable
+                  onPress={handleRequestQuote}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Request a quote for ${name || "this product"}`}
+                  testID="product-request-quote"
+                  style={({ pressed }) => ({
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: Spacing.sm,
+                    paddingVertical: Spacing.md,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: theme.brandGold,
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <Feather name="message-square" size={16} color="#000000" />
+                  <Text style={{ fontSize: 16, fontWeight: "900", letterSpacing: -0.3, color: "#000000" }}>
+                    Request a quote
+                  </Text>
+                </Pressable>
+              )}
             </View>
           ) : (
             <>

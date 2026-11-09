@@ -16,6 +16,8 @@ export interface FavoriteItem {
   /** product only */
   businessId?: string;
   priceCents?: number;
+  /** Step P follow up (backend #437): a contact for pricing product. It never carries a price. */
+  requestOnly?: boolean;
 }
 
 export type SavedSegment = "posts" | "business" | "photographer" | "product";
@@ -45,7 +47,11 @@ export function favoritesFromServer(body: unknown): FavoriteItem[] {
       subtitle: typeof f.subtitle === "string" && f.subtitle ? f.subtitle : undefined,
       savedAt: typeof f.savedAt === "string" ? f.savedAt : new Date(0).toISOString(),
       ...(typeof f.businessId === "string" ? { businessId: f.businessId } : {}),
-      ...(typeof f.priceCents === "number" ? { priceCents: f.priceCents } : {}),
+      ...(f.requestOnly === true
+        ? { requestOnly: true }
+        : typeof f.priceCents === "number"
+          ? { priceCents: f.priceCents }
+          : {}),
     });
   }
   return out;
@@ -147,7 +153,7 @@ export function profileSaveTarget(
 
 /** Save button on a product page. Hidden on the business's own products. */
 export function productSaveTarget(
-  p: { id?: string | null; businessId?: string | null; name?: string | null; imageUrl?: string | null; priceCents?: number | null },
+  p: { id?: string | null; businessId?: string | null; name?: string | null; imageUrl?: string | null; priceCents?: number | null; requestOnly?: boolean },
   viewerBusinessId?: string | null,
 ): Omit<FavoriteItem, "savedAt"> | null {
   if (!p.id) return null;
@@ -158,7 +164,12 @@ export function productSaveTarget(
     name: p.name || "Product",
     image: p.imageUrl || "",
     ...(p.businessId ? { businessId: String(p.businessId) } : {}),
-    ...(typeof p.priceCents === "number" ? { priceCents: p.priceCents } : {}),
+    // Step P follow up: a contact for pricing product is saved without its starting price.
+    ...(p.requestOnly === true
+      ? { requestOnly: true }
+      : typeof p.priceCents === "number"
+        ? { priceCents: p.priceCents }
+        : {}),
   };
 }
 
@@ -167,7 +178,7 @@ export function savedOpenTarget(
   item: FavoriteItem,
 ):
   | { screen: "VendorDetail"; params: { vendorId: string } }
-  | { screen: "ProductDetail"; params: { id: string; businessId: string; name: string; priceCents: number; imageUrl?: string } } {
+  | { screen: "ProductDetail"; params: { id: string; businessId: string; name: string; priceCents: number; imageUrl?: string; requestOnly?: boolean } } {
   if (item.type === "product") {
     return {
       screen: "ProductDetail",
@@ -177,6 +188,8 @@ export function savedOpenTarget(
         name: item.name,
         priceCents: item.priceCents ?? 0,
         ...(item.image ? { imageUrl: item.image } : {}),
+        // Step P follow up: opens straight on Price on request and Request a quote.
+        ...(item.requestOnly === true ? { requestOnly: true } : {}),
       },
     };
   }

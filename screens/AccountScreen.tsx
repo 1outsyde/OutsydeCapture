@@ -2048,11 +2048,23 @@ export default function AccountScreen() {
               key={String(product.id)}
               style={styles.productCard}
               onPress={() =>
-                Alert.alert(
-                  "Product details",
-                  "Product detail view will be available soon.",
-                )
+                // Step P follow up: a contact for pricing product opens its page (Request a quote).
+                isRequestProduct(product)
+                  ? navigation.navigate("ProductDetail", {
+                      id: String(product.id),
+                      businessId: String(product.businessId),
+                      name: product.name,
+                      description: product.description,
+                      priceCents: product.priceCents,
+                      imageUrl: product.imageUrl,
+                      requestOnly: true,
+                    })
+                  : Alert.alert(
+                      "Product details",
+                      "Product detail view will be available soon.",
+                    )
               }
+              accessibilityLabel={isRequestProduct(product) ? `Request a quote for ${product.name}` : undefined}
             >
               <View style={styles.productImageWrap}>
                 {product.imageUrl ? (
