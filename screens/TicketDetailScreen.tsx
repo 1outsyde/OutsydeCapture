@@ -43,6 +43,7 @@ import {
   type MyTicket,
   type TicketOrder,
 } from "@/utils/ticketCheckoutLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type Phase = "loading" | "ready" | "gone" | "error";
@@ -206,7 +207,7 @@ export default function TicketDetailScreen() {
         {header}
         <View style={styles.center}>
           {phase === "loading" ? (
-            <ActivityIndicator size="large" color={theme.brandGold} />
+            <OutsydeLoader />
           ) : (
             <>
               <ThemedText style={[styles.centerText, { color: theme.text }]}>

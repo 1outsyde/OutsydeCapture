@@ -20,6 +20,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing } from "@/constants/theme";
 import apiClient, { type FollowListRow } from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type Kind = "followers" | "following";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -246,7 +247,7 @@ export default function FollowListScreen() {
 
       {loading && rows.length === 0 ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <OutsydeLoader />
         </View>
       ) : (
         <FlatList

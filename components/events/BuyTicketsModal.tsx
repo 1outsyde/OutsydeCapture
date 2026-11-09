@@ -40,6 +40,7 @@ import {
   type BuyResult,
   type CheckoutStart,
 } from "@/utils/ticketCheckoutLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type Step = "choose" | "starting" | "pay" | "confirming" | BuyResult;
 
@@ -336,7 +337,7 @@ export default function BuyTicketsModal({
         </View>
       ) : step === "confirming" ? (
         <View style={[styles.result, { backgroundColor: theme.backgroundRoot }]}>
-          <ActivityIndicator size="large" color={EVENT_GOLD} />
+          <OutsydeLoader />
           <ThemedText style={[styles.resultBody, { color: theme.textSecondary }]}>Confirming your payment</ThemedText>
         </View>
       ) : step === "pay" && checkout ? (

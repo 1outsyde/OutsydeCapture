@@ -37,6 +37,7 @@ import api, {
   ApiMessageRecipient,
   ApiMessageSearchResult,
 } from "@/services/api";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -1056,7 +1057,7 @@ export default function MessagesScreen() {
       <ThemedView style={styles.container}>
         {header}
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.brandGold} />
+          <OutsydeLoader />
         </View>
       </ThemedView>
     );

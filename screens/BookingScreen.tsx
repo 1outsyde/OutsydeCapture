@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -14,6 +14,7 @@ import {
   photographerName,
   type PhotographerLike,
 } from "@/utils/photographerBookingParams";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Booking">;
@@ -70,7 +71,7 @@ export default function BookingScreen() {
   return (
     <View style={[styles.center, { backgroundColor: theme.backgroundRoot }]}>
       {loading ? (
-        <ActivityIndicator size="large" color={theme.brandGold} />
+        <OutsydeLoader />
       ) : (
         <>
           <ThemedText style={{ color: theme.text, textAlign: "center" }}>
