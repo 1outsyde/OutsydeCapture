@@ -59,6 +59,8 @@ const CUSTOMER_FACING_CHECKOUT_CODES = [
   "INVALID_VARIANT",
   "PRODUCT_UNAVAILABLE",
   "PRODUCT_VENDOR_MISMATCH",
+  // Step P (backend #436): a contact for pricing product ("This is priced on request. Send a request instead.")
+  "PRICE_ON_REQUEST",
   // Add-on refusals (backend #371)
   "ADDON_REQUIRED",
   "ADDON_LIMIT",

@@ -2598,8 +2598,9 @@ class ApiService {
         providerType: item.providerType,
         businessId: item.businessId,
         businessName: item.businessName,
-        // Step P (call Q4): a contact for pricing product shows no price.
-        price: item.requestOnly === true ? undefined : item.price,
+        // Step P (call Q4): a contact for pricing product shows no price (priceFormatted and priceRange say Price on
+        // request). The raw price stays so the product page has the right one if the business switched it off.
+        price: item.price,
         priceFormatted: item.requestOnly === true
           ? "Price on request"
           : item.price

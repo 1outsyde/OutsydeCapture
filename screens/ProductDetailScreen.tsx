@@ -84,6 +84,9 @@ export default function ProductDetailScreen() {
   // Step P (call Q3): a contact for pricing product is requested, never bought as is. The card's flag is used until
   // the product loads; then the product itself decides (so a tag, a favorite or a link work the same).
   const [requestOnly, setRequestOnly] = useState<boolean>(requestOnlyParam === true);
+  // Review 1: opened without the flag (Saved, older links), the price and buying wait for the product itself, and stay
+  // off if it can't load, so a contact for pricing product never shows its starting price or a live Buy Now.
+  const [flagKnown, setFlagKnown] = useState<boolean>(requestOnlyParam !== undefined);
   // Save button (one Saved place, backend #378). Not shown on the business's own products.
   const saveTarget = productSaveTarget({ id, businessId, name, imageUrl, priceCents }, user?.businessId);
   const isSaved = !!saveTarget && isFavorite(saveTarget.id, "product");
@@ -127,6 +130,7 @@ export default function ProductDetailScreen() {
         if (!cancelled) {
           const loadedVariants = product.variants ?? [];
           setRequestOnly(isRequestProduct(product));
+          setFlagKnown(true);
           setInventory(customerStock(product));
           const loadedOptions = sortedOptions(product.options);
           setVariants(loadedVariants);
@@ -247,7 +251,7 @@ export default function ProductDetailScreen() {
     !variantsLoading &&
     !isOutOfStock &&
     (!hasVariants || (activeVariant !== null && !isVariantSoldOut(activeVariant)));
-  const canAddToCart = variationReady && !addonProblem;
+  const canAddToCart = variationReady && !addonProblem && flagKnown && !requestOnly;
   // Stock counts are not shown to customers (Legend 2026-10-28): only "Out of stock" / "Sold out".
 
   const buyNowLabel = isOutOfStock
@@ -378,7 +382,7 @@ export default function ProductDetailScreen() {
             type="h4"
             style={[styles.price, { color: theme.brandGold }]}
           >
-            {requestOnly ? PRICE_ON_REQUEST : displayPrice}
+            {requestOnly ? PRICE_ON_REQUEST : flagKnown ? displayPrice : ""}
           </ThemedText>
 
           {/* Description */}

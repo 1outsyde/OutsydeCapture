@@ -1257,19 +1257,22 @@ export default function StorefrontEditorScreen() {
       return;
     }
 
+    // Step P (review 3): while Contact for pricing is on, the hidden stock, options and add-ons sections are neither
+    // checked nor saved, so they can't block the save or change without the owner seeing it. They stay as they were.
+    const hiddenForRequest = productRequestOnly;
     // Options editor: check it before saving anything (null = untouched).
-    const optionsSave = optionsFallback ? null : optionsEditorRef.current?.getSaveBody() ?? null;
+    const optionsSave = optionsFallback || hiddenForRequest ? null : optionsEditorRef.current?.getSaveBody() ?? null;
     if (optionsSave && "error" in optionsSave) {
       Alert.alert("Check your options", optionsSave.error);
       return;
     }
-    const addonsSave = addonsEditorRef.current?.getSaveBody() ?? null;
+    const addonsSave = hiddenForRequest ? null : addonsEditorRef.current?.getSaveBody() ?? null;
     if (addonsSave && "error" in addonsSave) {
       Alert.alert("Check your add-ons", addonsSave.error);
       return;
     }
 
-    const hasVariantRows = optionsFallback && localVariants.some((v: LocalVariant) => !v.isDeleted);
+    const hasVariantRows = !hiddenForRequest && optionsFallback && localVariants.some((v: LocalVariant) => !v.isDeleted);
     if (hasVariantRows) {
       const validVariants = localVariants.filter(
         (v: LocalVariant) => !v.isDeleted && v.label.trim().length > 0 && v.priceCents > 0
@@ -1285,7 +1288,7 @@ export default function StorefrontEditorScreen() {
     const priceCentsValue = Math.round(parsedDollars * 100);
 
     const stock = stockPayload(stockMode, stockInput);
-    if ("error" in stock) {
+    if (!hiddenForRequest && "error" in stock) {
       Alert.alert("Stock", stock.error);
       return;
     }
@@ -1293,8 +1296,13 @@ export default function StorefrontEditorScreen() {
     const payload: typeof productForm = {
       ...productForm,
       priceCents: priceCentsValue,
-      inventory: stock.inventory,
-      trackInventory: stock.trackInventory,
+      // While Contact for pricing is on, an existing product's hidden stock is left as it is (not sent). A new one
+      // gets its stock choice, or No limit when that choice isn't valid (the server default would be 0, Sold out).
+      ...("error" in stock
+        ? editingProduct ? {} : { inventory: null, trackInventory: false }
+        : hiddenForRequest && editingProduct
+          ? {}
+          : { inventory: stock.inventory, trackInventory: stock.trackInventory }),
       ...productRequestOnlyPatch({ touched: productRequestOnlyTouched, value: productRequestOnly }),
     };
 
@@ -1350,7 +1358,7 @@ export default function StorefrontEditorScreen() {
       }
 
       // Older editor only (fallback): new → POST, dirty existing → PATCH
-      const validVariants = optionsFallback
+      const validVariants = optionsFallback && !hiddenForRequest
         ? localVariants.filter(
             (v: LocalVariant) => !v.isDeleted && v.label.trim().length > 0 && v.priceCents > 0
           )
