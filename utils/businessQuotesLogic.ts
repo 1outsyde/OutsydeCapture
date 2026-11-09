@@ -219,3 +219,50 @@ export function serviceStart(
   if (!s) return "tab";
   return s.requestOnly === true ? "request" : "book";
 }
+
+// ─── The Request screen (Request forms F2b, call 11) ────────────────────────
+
+/** One answer as the Request screen shows it: text (dates and choices written out) or photos. */
+export type AnswerRow =
+  | { kind: "text"; label: string; text: string }
+  | { kind: "photos"; label: string; urls: string[] };
+
+/**
+ * The answers of a request, in form order, as the vendor reads them. Dates read "Sat, Jun 13", several choices are
+ * joined with commas, photos keep only real links. Empty answers are left out (the backend never saves them).
+ */
+export function requestAnswerRows(
+  answers:
+    | { label?: string | null; type?: string | null; value?: unknown }[]
+    | null
+    | undefined,
+): AnswerRow[] {
+  const out: AnswerRow[] = [];
+  for (const a of answers ?? []) {
+    const label = (a?.label ?? "").trim() || "Question";
+    if (a?.type === "photos") {
+      const urls = (Array.isArray(a.value) ? a.value : []).filter(
+        (u): u is string => typeof u === "string" && /^https?:\/\//.test(u),
+      );
+      if (urls.length) out.push({ kind: "photos", label, urls });
+      continue;
+    }
+    const v = a?.value;
+    const text = Array.isArray(v)
+      ? v.filter((x) => typeof x === "string" && x.trim()).join(", ")
+      : typeof v === "string"
+        ? a?.type === "date" && isYmd(v)
+          ? dateLabel(v)
+          : v.trim()
+        : "";
+    if (text) out.push({ kind: "text", label, text });
+  }
+  return out;
+}
+
+/** The tel: link for a phone number as typed (digits and a leading plus), or null when there is no number. */
+export function phoneLink(phone: string | null | undefined): string | null {
+  const t = (phone ?? "").trim();
+  const digits = t.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "");
+  return digits.replace(/\D/g, "").length >= 7 ? `tel:${digits}` : null;
+}

@@ -118,6 +118,8 @@ export type Card = {
   requestId?: string;
   serviceId?: string | null;
   answerCount?: number;
+  /** F2b: set on a request sent to a photographer (backend F2a). */
+  photographerId?: string | null;
 };
 
 export function money(cents: number | null | undefined): string {
@@ -476,7 +478,9 @@ export type Start =
   // Step 6d-1, business side: Job complete and Add an extra on the quote screen; Send a quote from a request card.
   | "job-complete"
   | "extra"
-  | "send-quote";
+  | "send-quote"
+  // Request forms F2b (call 11): the receiver of a request card opens the Request screen with every answer.
+  | "view-request";
 export type CardButton = { label: string; start: Start; primary?: boolean };
 export type CardView = {
   pill: string;
@@ -517,7 +521,13 @@ const PILLS: Record<string, string> = {
 export function cardView(
   c: Card,
   live: Quote | null,
-  viewer: { isCustomer: boolean; canManage?: boolean; nowMs?: number },
+  // receiver (F2b, additive): this viewer is the one the request card was sent to (business owner or photographer).
+  viewer: {
+    isCustomer: boolean;
+    canManage?: boolean;
+    nowMs?: number;
+    receiver?: boolean;
+  },
 ): CardView {
   const manage = !viewer.isCustomer && viewer.canManage === true;
   if (c.type === "request") {
@@ -532,10 +542,20 @@ export function cardView(
         ? `${c.answerCount} ${c.answerCount === 1 ? "answer" : "answers"}`
         : undefined,
       // Step 6d-1 (call 3): the business starts a quote from the request.
-      buttons:
-        manage && c.requestId
-          ? [{ label: "Send a quote", start: "send-quote", primary: true }]
-          : [],
+      buttons: [
+        ...(manage && c.requestId
+          ? [
+              {
+                label: "Send a quote",
+                start: "send-quote",
+                primary: true,
+              } as CardButton,
+            ]
+          : []),
+        ...(viewer.receiver === true && c.requestId
+          ? [{ label: "View request", start: "view-request" } as CardButton]
+          : []),
+      ],
     };
   }
   const ev = c.event ?? "";

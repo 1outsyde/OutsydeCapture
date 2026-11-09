@@ -89,6 +89,10 @@ export interface ServiceFormData {
   // removed one, and edits only send imageUrl when it is touched.
   imageUrl?: string | null;
   imageTouched?: boolean;
+  // Request forms F2b (photographers): customers send a request instead of booking. Only used when the editor is
+  // opened with the contactForPricing prop; touched = changed here, so edits only send it when changed.
+  isContactForPricing?: boolean;
+  contactForPricingTouched?: boolean;
 }
 
 export type DepositMode = "always" | "packageOnly" | "hidden";
@@ -121,6 +125,9 @@ interface ServiceEditorModalProps {
   // Opens as its own full screen instead of the tall sheet (photographer Manage
   // business, 2026-11-06). Off by default, so staff keep the sheet until their step.
   fullScreen?: boolean;
+  // Request forms F2b: shows the Contact for pricing switch (photographers). Omitted (staff) = no switch, as before.
+  // onOpenRequestForm opens the saved service's request form; the caller closes this editor first.
+  contactForPricing?: { onOpenRequestForm?: () => void };
 }
 
 // Minimum hours for an hourly service: a whole number of 1 or more, else null.
@@ -172,6 +179,7 @@ export default function ServiceEditorModal({
   onUploadImage,
   addons,
   fullScreen = false,
+  contactForPricing,
 }: ServiceEditorModalProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -179,6 +187,8 @@ export default function ServiceEditorModal({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const [formData, setFormData] = useState<ServiceFormData>(EMPTY_FORM);
+  // The form as loaded, to tell whether anything changed before leaving for the request form (F2b).
+  const loadedSnapRef = useRef(JSON.stringify(EMPTY_FORM));
   const [uploadingImage, setUploadingImage] = useState(false);
   // Bumped on every open/close/initialData change so an upload that finishes
   // after the form was reset cannot write into the next service.
@@ -217,7 +227,7 @@ export default function ServiceEditorModal({
     setUploadingImage(false);
     applyLoadedDeposit(initialData?.depositAmountCents);
     if (initialData) {
-      setFormData({
+      const next: ServiceFormData = {
         id: initialData.id,
         name: initialData.name || "",
         description: initialData.description || "",
@@ -244,15 +254,48 @@ export default function ServiceEditorModal({
         depositTouched: false,
         imageUrl: initialData.imageUrl ?? null,
         imageTouched: false,
-      });
+        isContactForPricing: initialData.isContactForPricing === true,
+        contactForPricingTouched: false,
+      };
+      setFormData(next);
+      loadedSnapRef.current = JSON.stringify(next);
     } else {
       setFormData(EMPTY_FORM);
+      loadedSnapRef.current = JSON.stringify(EMPTY_FORM);
     }
   }, [initialData, visible]);
 
+  // F2b: contact for pricing (only with the contactForPricing prop). While on, there is no price, pricing model,
+  // deposit or add-ons: the backend keeps no price and refuses a deposit without one.
+  const cfp = !!contactForPricing && formData.isContactForPricing === true;
+  const pricingModel: "package" | "hourly" = cfp
+    ? "package"
+    : formData.pricingModel;
+  const savedAsCfp =
+    !!initialData?.id && initialData?.isContactForPricing === true;
+  const openRequestForm = () => {
+    const go = contactForPricing?.onOpenRequestForm;
+    if (!go) return;
+    const changed =
+      JSON.stringify(formData) !== loadedSnapRef.current || depositTouched;
+    if (!changed) {
+      go();
+      return;
+    }
+    Alert.alert(
+      "Save this service first?",
+      "Your changes to this service aren't saved yet. Save them, then pick its request form.",
+      [
+        { text: "Keep editing", style: "cancel" },
+        { text: "Discard and continue", style: "destructive", onPress: go },
+      ],
+    );
+  };
+
   const depositVisible =
-    depositMode === "always" ||
-    (depositMode === "packageOnly" && formData.pricingModel === "package");
+    !cfp &&
+    (depositMode === "always" ||
+      (depositMode === "packageOnly" && formData.pricingModel === "package"));
   const priceCents = Math.round(parseFloat(formData.price || "0") * 100);
   const parsedDeposit = parseDepositInput(depositInput);
   // Whole minimum hours for an hourly service, or null when missing or invalid.
@@ -296,12 +339,12 @@ export default function ServiceEditorModal({
     if (!formData.name.trim()) {
       return;
     }
-    if (!formData.price || parseFloat(formData.price) < 7) {
+    if (!cfp && (!formData.price || parseFloat(formData.price) < 7)) {
       Alert.alert("Invalid Price", "Price must be at least $7.00");
       return;
     }
 
-    if (formData.pricingModel === "hourly" && minHours === null) {
+    if (!cfp && formData.pricingModel === "hourly" && minHours === null) {
       setHoursError("Enter the minimum hours (a whole number, 1 or more)");
       return;
     }
@@ -323,10 +366,12 @@ export default function ServiceEditorModal({
 
     let dataToSave: ServiceFormData = {
       ...formData,
+      // F2b: a contact for pricing service is saved as a package with no price.
+      pricingModel,
       depositAmountCents,
       depositTouched: depositWasTouched,
     };
-    if (formData.pricingModel === "package") {
+    if (pricingModel === "package") {
       if (parseInt(durationMinutesText || "0", 10) > 59) {
         setDurationError("Minutes must be between 0 and 59.");
         return;
@@ -474,7 +519,7 @@ export default function ServiceEditorModal({
             ) : null}
 
             {addons ? (
-              addons.isContactForPricing ? (
+              (contactForPricing ? cfp : addons.isContactForPricing) ? (
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: theme.text }]}>Add-ons</Text>
                   <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
@@ -539,7 +584,88 @@ export default function ServiceEditorModal({
               )}
             </View>
 
-            {!hidePricingModelToggle && (
+            {contactForPricing ? (
+              <View style={styles.field}>
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text
+                      style={[
+                        styles.label,
+                        { color: theme.text, marginBottom: 0 },
+                      ]}
+                    >
+                      Contact for pricing
+                    </Text>
+                    <Text
+                      style={{ fontSize: 13, color: theme.textSecondary }}
+                    >
+                      Customers send a request instead of booking. You reply
+                      in Messages. Price, deposit and add-ons are hidden while
+                      this is on.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={cfp}
+                    onValueChange={(v) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        isContactForPricing: v,
+                        contactForPricingTouched: true,
+                      }));
+                      clearDepositServerError();
+                    }}
+                    trackColor={{ true: brandColor }}
+                    accessibilityLabel="Contact for pricing"
+                  />
+                </View>
+                {cfp && savedAsCfp && contactForPricing.onOpenRequestForm ? (
+                  <Pressable
+                    onPress={openRequestForm}
+                    accessibilityRole="button"
+                    accessibilityLabel="Request form"
+                    style={[
+                      styles.picker,
+                      {
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                        marginTop: 4,
+                        height: undefined,
+                        minHeight: 56,
+                        paddingVertical: 8,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          color: theme.text,
+                          fontSize: 15,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Request form
+                      </Text>
+                      <Text
+                        style={{ color: theme.textSecondary, fontSize: 13 }}
+                      >
+                        The questions customers answer
+                      </Text>
+                    </View>
+                    <Feather
+                      name="chevron-right"
+                      size={18}
+                      color={theme.textSecondary}
+                    />
+                  </Pressable>
+                ) : cfp ? (
+                  <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                    Save this service, then pick its request form.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {!hidePricingModelToggle && !cfp && (
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Pricing Model</Text>
               <View style={styles.pricingModelRow}>
@@ -580,6 +706,7 @@ export default function ServiceEditorModal({
             )}
 
             <View style={styles.row}>
+              {cfp ? null : (
               <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
                 <Text style={[styles.label, { color: theme.text }]}>
                   {formData.pricingModel === "hourly" ? "Hourly Rate ($) *" : "Price ($) *"}
@@ -603,7 +730,8 @@ export default function ServiceEditorModal({
                   keyboardType="decimal-pad"
                 />
               </View>
-              {formData.pricingModel === "hourly" ? (
+              )}
+              {pricingModel === "hourly" ? (
                 <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
                   <Text style={[styles.label, { color: theme.text }]}>Min Hours</Text>
                   <TextInput

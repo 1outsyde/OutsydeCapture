@@ -14,7 +14,12 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 
@@ -43,6 +48,10 @@ const countLine = (n: number) =>
 export default function RequestFormsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<Nav>();
+  // F2b: the photographer's own library (default business, as in F1).
+  const side =
+    useRoute<RouteProp<RootStackParamList, "RequestForms">>().params?.side ??
+    "business";
   const { getToken } = useAuth();
   const [forms, setForms] = useState<VendorRequestForm[] | null>(null);
   const [error, setError] = useState("");
@@ -59,13 +68,13 @@ export default function RequestFormsScreen() {
         setError("Sign in again to see your forms.");
         return;
       }
-      const res = await api.getRequestFormLibrary(token);
+      const res = await api.getRequestFormLibrary(token, side);
       setForms(res.forms);
       setError("");
     } catch (err) {
       setError(errorMessage(err as ApiError));
     }
-  }, []);
+  }, [side]);
 
   useFocusEffect(
     useCallback(() => {
@@ -84,7 +93,9 @@ export default function RequestFormsScreen() {
   const row = (f: VendorRequestForm, first: boolean) => (
     <Pressable
       key={f.id}
-      onPress={() => navigation.navigate("RequestFormEditor", { formId: f.id })}
+      onPress={() =>
+        navigation.navigate("RequestFormEditor", { formId: f.id, side })
+      }
       accessibilityRole="button"
       accessibilityLabel={`${f.name}, ${countLine(f.questions.length)}`}
       style={({ pressed }) => [
@@ -170,6 +181,7 @@ export default function RequestFormsScreen() {
                       onPress={() =>
                         navigation.navigate("RequestFormEditor", {
                           makeBase: true,
+                          side,
                         })
                       }
                     />
@@ -188,7 +200,9 @@ export default function RequestFormsScreen() {
                 )}
                 <OutlineButton
                   label="New form"
-                  onPress={() => navigation.navigate("RequestFormEditor", {})}
+                  onPress={() =>
+                    navigation.navigate("RequestFormEditor", { side })
+                  }
                 />
               </QuoteCard>
 

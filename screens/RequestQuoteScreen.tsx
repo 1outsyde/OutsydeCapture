@@ -67,8 +67,16 @@ const todayYmd = () => {
 export default function RequestQuoteScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<Nav>();
-  const { serviceId, serviceName, businessId, businessName } =
-    useRoute<RouteProp<RootStackParamList, "RequestQuote">>().params;
+  const {
+    serviceId,
+    serviceName,
+    businessId,
+    businessName,
+    photographerId,
+    photographerName,
+  } = useRoute<RouteProp<RootStackParamList, "RequestQuote">>().params;
+  // F2b: a photographer's contact for pricing service (backend F2a). Same screen, the photographer's form.
+  const isPhotographer = !!photographerId;
   const { user, getToken, isAuthenticated } = useAuth();
   const signedIn = isAuthenticated && !!user && !user.isGuest;
 
@@ -95,8 +103,10 @@ export default function RequestQuoteScreen() {
 
   useEffect(() => {
     let live = true;
-    api
-      .getRequestForm(serviceId)
+    (isPhotographer
+      ? api.getPhotographerRequestForm(serviceId)
+      : api.getRequestForm(serviceId)
+    )
       .then((f) => {
         if (live) {
           setForm(f);
@@ -107,14 +117,16 @@ export default function RequestQuoteScreen() {
         if (live)
           setLoadError(
             err?.status === 404
-              ? "This service isn't taking requests right now. Message the business instead."
+              ? isPhotographer
+                ? "This service isn't taking requests right now. Message the photographer instead."
+                : "This service isn't taking requests right now. Message the business instead."
               : errorMessage(err),
           );
       });
     return () => {
       live = false;
     };
-  }, [serviceId]);
+  }, [serviceId, isPhotographer]);
 
   const set = (id: string, v: string | string[] | undefined) =>
     setAnswers((a) => ({ ...a, [id]: v }));
@@ -242,15 +254,20 @@ export default function RequestQuoteScreen() {
     );
   }
   // Never a dead end (Legend 2026-11-05): wherever the form can't be sent, message the business instead.
-  const bizId = form?.business.id ?? businessId;
-  const bizName = form?.business.name ?? businessName ?? "the business";
+  const bizId =
+    form?.business.id ?? (isPhotographer ? photographerId : businessId);
+  const bizName =
+    form?.business.name ??
+    (isPhotographer
+      ? (photographerName ?? "the photographer")
+      : (businessName ?? "the business"));
   const messageButton = bizId ? (
     <OutlineButton
       label={`Message ${bizName}`}
       onPress={() =>
         startChat({
           participantId: bizId,
-          participantType: "business",
+          participantType: isPhotographer ? "photographer" : "business",
           name: bizName,
         })
       }

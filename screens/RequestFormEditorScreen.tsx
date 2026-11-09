@@ -75,6 +75,8 @@ export default function RequestFormEditorScreen() {
   const { params } = useRoute<R>();
   const formId = params?.formId ?? null;
   const makeBase = !formId && params?.makeBase === true;
+  // F2b: whose library (default business, as in F1).
+  const side = params?.side ?? "business";
   const { getToken } = useAuth();
   const tokenRef = useRef(getToken);
   useEffect(() => {
@@ -107,7 +109,7 @@ export default function RequestFormEditorScreen() {
           setError("Sign in again to edit this form.");
           return;
         }
-        const res = await api.getRequestFormLibrary(token);
+        const res = await api.getRequestFormLibrary(token, side);
         const f = res.forms.find((x) => x.id === formId);
         if (!alive) return;
         if (!f) {
@@ -129,7 +131,7 @@ export default function RequestFormEditorScreen() {
     return () => {
       alive = false;
     };
-  }, [formId]);
+  }, [formId, side]);
 
   const problems = useMemo(
     () => formProblems(name, questions),
@@ -184,8 +186,9 @@ export default function RequestFormEditorScreen() {
         name: name.trim().replace(/\s+/g, " "),
         questions: questions.map(toWire),
       };
-      if (formId) await api.updateRequestForm(token, formId, body);
-      else await api.createRequestForm(token, { ...body, isBase: makeBase });
+      if (formId) await api.updateRequestForm(token, formId, body, side);
+      else
+        await api.createRequestForm(token, { ...body, isBase: makeBase }, side);
       navigation.goBack();
     } catch (err) {
       setError(saveError(err as ApiError));
@@ -207,7 +210,7 @@ export default function RequestFormEditorScreen() {
           try {
             const token = await tokenRef.current();
             if (!token) return;
-            await api.deleteRequestForm(token, formId);
+            await api.deleteRequestForm(token, formId, side);
             navigation.goBack();
           } catch (err) {
             setError(saveError(err as ApiError));

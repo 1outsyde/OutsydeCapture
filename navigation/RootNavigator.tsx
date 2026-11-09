@@ -81,6 +81,7 @@ import BusinessRequestsScreen from "@/screens/BusinessRequestsScreen";
 import RequestFormsScreen from "@/screens/RequestFormsScreen";
 import RequestFormEditorScreen from "@/screens/RequestFormEditorScreen";
 import ServiceRequestFormScreen from "@/screens/ServiceRequestFormScreen";
+import RequestDetailScreen from "@/screens/RequestDetailScreen";
 import BusinessQuotesScreen from "@/screens/BusinessQuotesScreen";
 import QuoteLinkScreen from "@/screens/QuoteLinkScreen";
 import ProfileFeedScreen from "@/screens/ProfileFeedScreen";
@@ -612,6 +613,17 @@ export default function RootNavigator() {
       <Stack.Screen
         name="BusinessRequests"
         component={BusinessRequestsScreen}
+        options={stackAware({
+          headerShown: false,
+          animation: "slide_from_right",
+          gestureEnabled: true,
+        })}
+      />
+
+      {/* Request forms F2b: one request with every answer (business owner or photographer). */}
+      <Stack.Screen
+        name="RequestDetail"
+        component={RequestDetailScreen}
         options={stackAware({
           headerShown: false,
           animation: "slide_from_right",

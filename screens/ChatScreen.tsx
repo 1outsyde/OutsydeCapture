@@ -858,7 +858,8 @@ export default function ChatScreen() {
     // card when this viewer manages that quote.
     const cardManage = card
       ? card.type === "request"
-        ? !!side && !isOwn
+        ? // F2b (review 3): a request to a photographer is never quoted as a business.
+          !!side && !isOwn && !card.photographerId
         : !!live && canManageView(live, user)
       : false;
     const content = card ? (
@@ -868,9 +869,17 @@ export default function ChatScreen() {
         loading={quotesLoading}
         isCustomer={!!live && live.customerId === user?.id}
         canManage={cardManage}
+        receiver={card.type === "request" && !isOwn}
         nowMs={quotesReadAt}
         width={Math.min(bubbleMax, 300)}
         onStart={(start) => {
+          if (start === "view-request") {
+            if (card.requestId)
+              navigation.navigate("RequestDetail", {
+                requestId: card.requestId,
+              });
+            return;
+          }
           if (start === "send-quote") {
             if (!conversationId) return;
             navigation.navigate("QuoteCompose", {

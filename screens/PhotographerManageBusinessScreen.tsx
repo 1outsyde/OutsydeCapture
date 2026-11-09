@@ -934,6 +934,10 @@ export default function PhotographerManageBusinessScreen() {
     afterSave("booking");
   };
 
+  // F2b: contact for pricing services show Price on request, not $0.
+  const isCfpService = (id: string) =>
+    rawServices.find((s) => s.id === id)?.isContactForPricing === true;
+
   const handleAddService = () => {
     setEditingService(null);
     setDepositServerError(null);
@@ -970,6 +974,7 @@ export default function PhotographerManageBusinessScreen() {
       cancellationFeeAmount: rawService?.cancellationFeeAmount ?? null,
       depositAmountCents: rawService?.depositAmountCents ?? null,
       imageUrl: rawService?.imageUrl ?? null,
+      isContactForPricing: rawService?.isContactForPricing === true,
     });
     setDepositServerError(null);
     setShowServiceEditor(true);
@@ -987,14 +992,19 @@ export default function PhotographerManageBusinessScreen() {
     if (!token) return;
 
     try {
+      // Request forms F2b: a contact for pricing service has no price or deposit (the backend clears the price
+      // and refuses a deposit without one). The flag is sent on create, and on edit only when it was changed.
+      const cfp = data.isContactForPricing === true;
       const payload: Partial<VendorBookerPhotographerService> = {
         name: data.name,
         description: data.description || null,
         category: data.category || null,
-        pricingModel: data.pricingModel || "package",
+        pricingModel: cfp ? "package" : data.pricingModel || "package",
         // Hourly sends the rate and minimum hours; the backend computes the
         // price (rate x hours) and duration (hours x 60). Package is unchanged.
-        ...(data.pricingModel === "hourly"
+        ...(cfp
+          ? { estimatedDurationMinutes: parseInt(data.duration) || 60 }
+          : data.pricingModel === "hourly"
           ? {
               hourlyRateCents: Math.round(parseFloat(data.price) * 100),
               packageHours: parseInt(data.packageHours ?? "", 10),
@@ -1019,8 +1029,13 @@ export default function PhotographerManageBusinessScreen() {
       };
       // Sent on create; on edit only when changed, so an untouched form never
       // overwrites a deposit set elsewhere.
-      if (!data.id || data.depositTouched) {
-        payload.depositAmountCents = data.depositAmountCents ?? null;
+      if (!data.id || data.depositTouched || cfp) {
+        payload.depositAmountCents = cfp
+          ? null
+          : (data.depositAmountCents ?? null);
+      }
+      if (data.id ? data.contactForPricingTouched === true : cfp) {
+        payload.isContactForPricing = cfp;
       }
 
       // Edit sends the image only when it was uploaded or removed; create only
@@ -1483,6 +1498,13 @@ export default function PhotographerManageBusinessScreen() {
             tag: missingPhotos ? `${missingPhotos} ${missingPhotos === 1 ? "needs" : "need"} a photo` : null,
             onPress: () => openSection("services"),
           })}
+          {renderHubRow({
+            icon: "clipboard",
+            title: "Request forms",
+            sub: "Questions customers answer when they ask for a quote",
+            onPress: () =>
+              navigation.navigate("RequestForms", { side: "photographer" }),
+          })}
         </View>
 
         <Text style={styles.hubGroupLabel}>Your storefront</Text>
@@ -1941,7 +1963,9 @@ export default function PhotographerManageBusinessScreen() {
                         <Text
                           style={{ fontSize: 12, color: theme.brandTextDim, marginTop: 1 }}
                         >
-                          ${service.price.toFixed(2)}
+                          {isCfpService(service.id)
+                            ? "Price on request"
+                            : `$${service.price.toFixed(2)}`}
                           {service.depositAmountCents && service.depositAmountCents > 0
                             ? ` · $${(service.depositAmountCents / 100).toFixed(2)} deposit`
                             : ""}
@@ -2240,7 +2264,11 @@ export default function PhotographerManageBusinessScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <Text style={styles.bookingAmount}>${service.price}</Text>
+                <Text style={styles.bookingAmount}>
+                  {isCfpService(service.id)
+                    ? "Price on request"
+                    : `$${service.price}`}
+                </Text>
               </View>
               <View style={[styles.bookingDetails, { marginTop: 12 }]}>
                 <View style={styles.bookingDate}>
@@ -2515,6 +2543,22 @@ export default function PhotographerManageBusinessScreen() {
         onClearDepositServerError={() => setDepositServerError(null)}
         onUploadImage={handleUploadServiceImage}
         fullScreen
+        contactForPricing={{
+          // Request forms F2b: the saved service's request form. A stack screen can't open over this Modal, so the
+          // editor closes first (it already asked about unsaved changes).
+          onOpenRequestForm: editingService?.id
+            ? () => {
+                const svc = editingService;
+                setShowServiceEditor(false);
+                setEditingService(null);
+                navigation.navigate("ServiceRequestForm", {
+                  serviceId: svc.id!,
+                  serviceName: svc.name,
+                  side: "photographer",
+                });
+              }
+            : undefined,
+        }}
         addons={{
           api: PHOTOGRAPHER_ADDONS_API,
           // Other services the photographer still offers: not archived, not

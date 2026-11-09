@@ -252,6 +252,52 @@ test("a service's stored settings map to the three choices and back", () => {
   });
 });
 
+test("F2b: just this service needs a question of its own, or the base form first", () => {
+  const none: never[] = [];
+  const one = [{ type: "short_text" as const, required: false }];
+  assert.match(
+    serviceChoiceProblem("own", {
+      formId: null,
+      hasBase: true,
+      withBase: false,
+      own: none,
+      baseQuestions: one,
+    })!,
+    /at least one question/,
+  );
+  assert.match(
+    serviceChoiceProblem("own", {
+      formId: null,
+      hasBase: false,
+      withBase: false,
+      own: none,
+      baseQuestions: none,
+    })!,
+    /at least one question/,
+  );
+  assert.equal(
+    serviceChoiceProblem("own", {
+      formId: null,
+      hasBase: true,
+      withBase: true,
+      own: none,
+      baseQuestions: one,
+    }),
+    null,
+    "base form first with nothing of its own is fine",
+  );
+  assert.equal(
+    serviceChoiceProblem("own", {
+      formId: null,
+      hasBase: true,
+      withBase: false,
+      own: one,
+      baseQuestions: one,
+    }),
+    null,
+  );
+});
+
 test("a service's choice is checked before saving", () => {
   const none: never[] = [];
   assert.equal(

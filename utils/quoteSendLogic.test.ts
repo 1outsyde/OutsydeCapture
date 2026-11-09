@@ -708,6 +708,49 @@ test("request cards: Send a quote for the business, nothing for the customer", (
   assert.deepEqual(cardView(r, null, { isCustomer: false }).buttons, []);
 });
 
+test("F2b: request cards: View request for whoever received it, business or photographer", () => {
+  const r: Card = {
+    type: "request",
+    requestId: "r1",
+    serviceName: "Wedding day coverage",
+    answerCount: 3,
+  };
+  assert.deepEqual(
+    cardView(r, null, {
+      isCustomer: false,
+      canManage: true,
+      receiver: true,
+    }).buttons.map((b) => [b.label, b.start]),
+    [
+      ["Send a quote", "send-quote"],
+      ["View request", "view-request"],
+    ],
+  );
+  assert.deepEqual(
+    cardView(r, null, {
+      isCustomer: false,
+      canManage: false,
+      receiver: true,
+    }).buttons.map((b) => [b.label, b.start]),
+    [["View request", "view-request"]],
+    "a photographer: no quotes yet, only the request",
+  );
+  assert.deepEqual(
+    cardView(r, null, { isCustomer: false, receiver: false }).buttons,
+    [],
+    "the customer who sent it",
+  );
+  assert.deepEqual(
+    cardView({ ...r, requestId: undefined }, null, {
+      isCustomer: false,
+      receiver: true,
+    }).buttons,
+    [],
+    "an old card with no request id",
+  );
+  assert.equal(parseStart("view-request"), null);
+});
+
 test("parseStart knows the business starts", () => {
   assert.deepEqual(parseStart("job-complete"), { kind: "job-complete" });
   assert.deepEqual(parseStart("extra"), { kind: "extra" });

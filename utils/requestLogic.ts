@@ -46,7 +46,10 @@ export type RequestQuestion = {
 };
 export type RequestForm = {
   service: { id: string; name: string; description?: string | null };
+  /** The business, or (vendorType photographer, F2b) the photographer the request goes to. */
   business: { id: string; name: string };
+  /** F2b: absent = a business (every form loaded before F2b). */
+  vendorType?: "business" | "photographer";
   cities: string[];
   cityRequired: boolean;
   phoneRequired: boolean;
@@ -153,8 +156,11 @@ export function requestBody(
       .map((s) => (s ?? "").trim())
       .filter(Boolean)
       .join(" ") || "Outsyde customer";
+  // F2b: exactly one of businessId or photographerId (backend F2a refuses both).
   return {
-    businessId: f.business.id,
+    ...(f.vendorType === "photographer"
+      ? { photographerId: f.business.id }
+      : { businessId: f.business.id }),
     serviceId: f.service.id,
     city: city.trim() || null,
     name,

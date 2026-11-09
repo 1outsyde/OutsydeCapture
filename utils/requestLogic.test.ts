@@ -190,6 +190,35 @@ test("what is sent", () => {
   );
 });
 
+test("F2b: a photographer's form sends photographerId, never businessId", () => {
+  const body = requestBody(
+    form({
+      vendorType: "photographer",
+      business: { id: "p1", name: "Lens" },
+      cityRequired: false,
+      cities: [],
+    }),
+    { firstName: "Tasha", lastName: "M", email: "t@x.test" },
+    { date: "2027-06-13" },
+    {},
+    "5165550142",
+    "",
+  ) as Record<string, unknown>;
+  assert.equal(body.photographerId, "p1");
+  assert.equal("businessId" in body, false);
+  assert.equal(body.serviceId, "s1");
+  const biz = requestBody(
+    form({ vendorType: "business" }),
+    { firstName: "A", lastName: "", email: "a@x.test" },
+    {},
+    {},
+    "7575551234",
+    "Norfolk",
+  ) as Record<string, unknown>;
+  assert.equal(biz.businessId, "b1");
+  assert.equal("photographerId" in biz, false);
+});
+
 const act = (o: Partial<QuoteAction>): QuoteAction => ({
   kind: "approve_extra",
   quoteId: "q1",
