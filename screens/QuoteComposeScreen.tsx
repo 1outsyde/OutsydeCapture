@@ -4,7 +4,6 @@
 // shown next to the field it names. Copy: commas and periods only, never the fee rate.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -72,6 +71,7 @@ import {
   DELIVERABLE_COPY,
   deliverableWhenLine,
 } from "@/utils/deliverableLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Svc = { id: string; name: string; durationMinutes?: number | null };
@@ -353,11 +353,7 @@ export default function QuoteComposeScreen() {
       <ThemedView style={{ flex: 1 }}>
         <HostHeader title={title} left={left} />
         <Centered>
-          {loadError ? (
-            <ErrorText>{loadError}</ErrorText>
-          ) : (
-            <ActivityIndicator color={theme.brandGold} />
-          )}
+          {loadError ? <ErrorText>{loadError}</ErrorText> : <OutsydeLoader />}
         </Centered>
       </ThemedView>
     );

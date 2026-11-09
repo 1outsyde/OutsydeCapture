@@ -75,6 +75,7 @@ import {
   fromISODate,
   addDays,
 } from "@/utils/bookingTimeLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DAY_SIZE = (SCREEN_WIDTH - Spacing.md * 2 - Spacing.xs * 6) / 7;
@@ -2301,7 +2302,7 @@ export default function BookingFlow({
             ))}
           </View>
           {loadingCalendar && calendarFor(currentMonth) === undefined ? (
-            <ActivityIndicator size="large" color={accent} style={styles.loader} />
+            <OutsydeLoader style={styles.loader} />
           ) : (
             <View style={styles.calendarGrid}>
               {calendarGrid.map((cell, index) => {
@@ -2400,7 +2401,7 @@ export default function BookingFlow({
             Select a Service
           </ThemedText>
           {loadingServices ? (
-            <ActivityIndicator size="large" color={accent} style={styles.loader} />
+            <OutsydeLoader style={styles.loader} />
           ) : services.length === 0 && requestServices.length === 0 ? (
             <View style={styles.emptyState}>
               <Feather name="calendar" size={32} color={theme.brandTextDim} />

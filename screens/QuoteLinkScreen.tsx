@@ -3,13 +3,7 @@
 // opens the quote after sign in (Auth goes back here and this screen reads the link again). Another account or a bad
 // link: a message, plus View on the web in the in-app browser (never back into the app). Copy: commas and periods only.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
 import {
   useFocusEffect,
   useNavigation,
@@ -41,6 +35,7 @@ import {
   quoteWebUrl,
   type QuoteLinkOutcome,
 } from "@/utils/quoteLinks";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -105,7 +100,7 @@ export default function QuoteLinkScreen() {
       <ThemedView style={{ flex: 1 }}>
         <HostHeader title="Quote" left={back} />
         <Centered>
-          <ActivityIndicator color={theme.brandGold} />
+          <OutsydeLoader />
         </Centered>
       </ThemedView>
     );

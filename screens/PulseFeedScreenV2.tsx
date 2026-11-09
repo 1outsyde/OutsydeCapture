@@ -34,6 +34,7 @@ import { showReportBlockMenu, promptForReportReason } from "@/utils/moderationAc
 import StoryRing from "@/components/StoryRing";
 import { apiVideoFit } from "@/utils/videoFit";
 import { postServiceTarget } from "@/utils/businessQuotesLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -497,7 +498,7 @@ export default function PulseFeedScreenV2() {
   if (loading && posts.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <OutsydeLoader />
         <ThemedText style={{ marginTop: Spacing.md, color: "#FFFFFF" }}>
           Loading Pulse...
         </ThemedText>

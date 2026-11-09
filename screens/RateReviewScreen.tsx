@@ -19,6 +19,7 @@ import apiClient from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { RootStackParamList } from '@/navigation/types';
 import { RatingTargetType, PurchaseType } from '@/types/ratings';
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 const GOLD = '#C9933A';
 const MIN_REVIEW_CHARS = 20;
@@ -189,7 +190,7 @@ export default function RateReviewScreen({ route, navigation }: Props) {
 
         {bookingFetching ? (
           <View style={styles.centeredContainer}>
-            <ActivityIndicator color={GOLD} size="large" />
+            <OutsydeLoader />
           </View>
         ) : bookingFetchError ? (
           <View style={styles.centeredContainer}>

@@ -13,7 +13,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Alert,
   ActionSheetIOS,
   ScrollView,
@@ -61,6 +60,7 @@ import { uploadImage } from "@/services/mediaUpload";
 import { setActiveConversation, onMessagePush } from "@/services/messagePush";
 import { showReportBlockMenu } from "@/utils/moderationActions";
 import { showChoiceSheet } from "@/utils/choiceSheet";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "Chat">;
@@ -1055,7 +1055,7 @@ export default function ChatScreen() {
   if (isLoading) {
     return (
       <ThemedView style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={theme.brandGold} />
+        <OutsydeLoader />
       </ThemedView>
     );
   }

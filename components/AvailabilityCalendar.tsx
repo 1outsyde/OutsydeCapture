@@ -17,6 +17,7 @@ import api, {
   AvailabilityCalendarDay,
   AvailabilitySlot,
 } from "@/services/api";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DAY_SIZE = (SCREEN_WIDTH - Spacing.md * 2 - Spacing.xs * 6) / 7;
@@ -287,7 +288,7 @@ export default function AvailabilityCalendar({
 
       {loadingCalendar ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <OutsydeLoader />
         </View>
       ) : calendarError ? (
         <View style={styles.errorContainer}>
