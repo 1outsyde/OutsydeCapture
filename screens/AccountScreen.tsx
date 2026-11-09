@@ -848,6 +848,10 @@ export default function AccountScreen() {
                 undefined,
               rating: Number((item as any).rating ?? 0),
               imageUrl: item.imageUrl || undefined,
+              // Request forms F2b: a photographer's contact for pricing service opens the request form.
+              requestOnly:
+                (item as { isContactForPricing?: boolean })
+                  .isContactForPricing === true,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -1150,6 +1154,10 @@ export default function AccountScreen() {
               durationMinutes: (item as any).durationMinutes || undefined,
               rating: Number((item as any).rating ?? 0),
               imageUrl: item.imageUrl || undefined,
+              // Request forms F2b: a photographer's contact for pricing service opens the request form.
+              requestOnly:
+                (item as { isContactForPricing?: boolean })
+                  .isContactForPricing === true,
             }));
 
           resolvedPosts = toPosts(postResponse.posts || []);
@@ -2125,11 +2133,31 @@ export default function AccountScreen() {
                   }
                   if (action === "request") {
                     if (!profile?.id) return;
-                    navigation.navigate("RequestQuote", {
-                      serviceId: service.id,
-                      serviceName: service.name,
-                      businessId: profile.id,
-                      businessName: profile.name ?? undefined,
+                    navigation.navigate(
+                      "RequestQuote",
+                      profile.role === "photographer"
+                        ? {
+                            serviceId: service.id,
+                            serviceName: service.name,
+                            photographerId: profile.id,
+                            photographerName: profile.name ?? undefined,
+                          }
+                        : {
+                            serviceId: service.id,
+                            serviceName: service.name,
+                            businessId: profile.id,
+                            businessName: profile.name ?? undefined,
+                          },
+                    );
+                    return;
+                  }
+                  // F2b (B8): a photographer's service is booked as a photographer (this opened a business booking
+                  // with the photographer's id). The Booking route loads the photographer, like search does.
+                  if (profile?.role === "photographer") {
+                    if (!profile.id) return;
+                    navigation.navigate("Booking", {
+                      photographerId: profile.id,
+                      preselectedServiceId: service.id,
                     });
                     return;
                   }

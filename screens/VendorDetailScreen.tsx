@@ -653,6 +653,25 @@ export default function VendorDetailScreen({ route }: Props) {
   const onAccent = readableTextOn(accentColor);
   const pageBg = `${accentColor}28`;
 
+  // Request a quote on a contact for pricing service: a business's, or (F2b) a photographer's.
+  const requestQuoteParams = useCallback(
+    (svc: { id: string; name: string }): RootStackParamList["RequestQuote"] =>
+      profile?.role === "photographer"
+        ? {
+            serviceId: svc.id,
+            serviceName: svc.name,
+            photographerId: profile.id,
+            photographerName: profile.name,
+          }
+        : {
+            serviceId: svc.id,
+            serviceName: svc.name,
+            businessId: profile?.id,
+            businessName: profile?.name,
+          },
+    [profile],
+  );
+
   // Booking redesign step 1 (2026-11-05): booking opens as its own full screen
   // (BookService) instead of inside the Book tab. A tapped service opens on its
   // date step; a staff pick books that staff member.
@@ -896,6 +915,8 @@ export default function VendorDetailScreen({ route }: Props) {
                 rating: Number((item as any).rating ?? 0),
                 reviewCount: Number((item as any).reviewCount ?? 0),
                 imageUrl: item.imageUrl || undefined,
+                // Request forms F2b: a photographer's contact for pricing service opens the request form.
+                requestOnly: item.isContactForPricing === true,
               }));
 
             resolvedPosts = normalizePosts(postResponse.posts || [], postOwnerId);
@@ -1043,6 +1064,8 @@ export default function VendorDetailScreen({ route }: Props) {
                   durationMinutes: (item as any).durationMinutes || undefined,
                   rating: Number((item as any).rating ?? 0),
                   reviewCount: Number((item as any).reviewCount ?? 0),
+                  // F2b (review 2): same as the main path.
+                  requestOnly: item.isContactForPricing === true,
                 }));
             } catch {
               resolvedServices = [];
@@ -1382,12 +1405,7 @@ export default function VendorDetailScreen({ route }: Props) {
     // Next tick, never cleared: it must run once even if the profile updates again in between.
     setTimeout(() => {
       if (how === "request" && svc) {
-        navigation.navigate("RequestQuote", {
-          serviceId: svc.id,
-          serviceName: svc.name,
-          businessId: profile.id,
-          businessName: profile.name,
-        });
+        navigation.navigate("RequestQuote", requestQuoteParams(svc));
       } else if (how === "book") {
         openBooking({ serviceId: startServiceId });
       } else if (tabOrder.includes("booking")) {
@@ -1402,6 +1420,7 @@ export default function VendorDetailScreen({ route }: Props) {
     openBooking,
     tabOrder,
     isOwnProfile,
+    requestQuoteParams,
   ]);
 
   useEffect(() => {
@@ -1601,7 +1620,11 @@ export default function VendorDetailScreen({ route }: Props) {
         return {
           label: "Request a quote →",
           onPress: () => {
-            if (services.length === 1) navigation.navigate("RequestQuote", { serviceId: services[0].id, serviceName: services[0].name, businessId: profile.id, businessName: profile.name });
+            if (services.length === 1)
+              navigation.navigate(
+                "RequestQuote",
+                requestQuoteParams(services[0]),
+              );
             else setActiveTab("booking");
           },
         };
@@ -1632,7 +1655,17 @@ export default function VendorDetailScreen({ route }: Props) {
       label: "Message",
       onPress: handleMessage,
     };
-  }, [navigation, profile, products, services, addItem, openProduct, handleMessage, openBooking]);
+  }, [
+    navigation,
+    profile,
+    products,
+    services,
+    addItem,
+    openProduct,
+    handleMessage,
+    openBooking,
+    requestQuoteParams,
+  ]);
 
   const reviewBreakdown = useMemo(() => {
     const dist = ratingsData?.distribution as Record<string, number> | undefined;
@@ -2234,7 +2267,10 @@ export default function VendorDetailScreen({ route }: Props) {
                 onPress={() => {
                   // Contact for pricing always opens the request form (Legend 2026-11-05).
                   if (service.requestOnly) {
-                    navigation.navigate("RequestQuote", { serviceId: service.id, serviceName: service.name, businessId: profile?.id, businessName: profile?.name });
+                    navigation.navigate(
+                      "RequestQuote",
+                      requestQuoteParams(service),
+                    );
                     return;
                   }
                   setSelectedStaffId(null);

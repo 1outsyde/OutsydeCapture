@@ -21,6 +21,7 @@ export default function QuoteChatCard({
   isCustomer,
   canManage = false,
   nowMs = 0,
+  receiver = false,
   width,
   onStart,
 }: {
@@ -31,11 +32,13 @@ export default function QuoteChatCard({
   /** Step 6d-1: the business side of this card (Send a quote, Job complete). */
   canManage?: boolean;
   nowMs?: number;
+  /** F2b: this viewer received the request card (business owner or photographer): View request. */
+  receiver?: boolean;
   width: number;
   onStart: (start: Start) => void;
 }) {
   const { theme } = useTheme();
-  const v = cardView(card, live, { isCustomer, canManage, nowMs });
+  const v = cardView(card, live, { isCustomer, canManage, nowMs, receiver });
   return (
     <View
       style={[

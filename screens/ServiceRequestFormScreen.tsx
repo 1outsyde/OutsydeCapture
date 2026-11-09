@@ -70,6 +70,8 @@ export default function ServiceRequestFormScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<R>();
   const serviceId = params.serviceId;
+  // F2b: a photographer's contact for pricing service (default business, as in F1).
+  const side = params.side ?? "business";
   const { getToken } = useAuth();
   const tokenRef = useRef(getToken);
   useEffect(() => {
@@ -96,12 +98,12 @@ export default function ServiceRequestFormScreen() {
     try {
       const token = await tokenRef.current();
       if (!token) return;
-      const lib = await api.getRequestFormLibrary(token);
+      const lib = await api.getRequestFormLibrary(token, side);
       setForms(lib.forms);
     } catch (err) {
       setError(errorMessage(err as ApiError));
     }
-  }, []);
+  }, [side]);
   useFocusEffect(
     useCallback(() => {
       loadLibrary();
@@ -118,8 +120,8 @@ export default function ServiceRequestFormScreen() {
           return;
         }
         const [lib, svc] = await Promise.all([
-          api.getRequestFormLibrary(token),
-          api.getServiceRequestFormSettings(token, serviceId),
+          api.getRequestFormLibrary(token, side),
+          api.getServiceRequestFormSettings(token, serviceId, side),
         ]);
         if (!alive) return;
         const hasBase = lib.forms.some((f) => f.isBase);
@@ -149,7 +151,7 @@ export default function ServiceRequestFormScreen() {
     return () => {
       alive = false;
     };
-  }, [serviceId]);
+  }, [serviceId, side]);
 
   const ownWire = own.map(toWire);
   const settings = settingsFor(choice, { formId, withBase, own: ownWire });
@@ -226,7 +228,7 @@ export default function ServiceRequestFormScreen() {
         setError("Sign in again to save.");
         return;
       }
-      await api.setServiceRequestForm(token, serviceId, settings);
+      await api.setServiceRequestForm(token, serviceId, settings, side);
       navigation.goBack();
     } catch (err) {
       setError(errorMessage(err as ApiError));
@@ -325,7 +327,7 @@ export default function ServiceRequestFormScreen() {
             <TextButton
               label="Manage request forms"
               gold
-              onPress={() => navigation.navigate("RequestForms")}
+              onPress={() => navigation.navigate("RequestForms", { side })}
             />
           </QuoteCard>
 

@@ -73,11 +73,22 @@ export type RootStackParamList = {
   /** Quotes step 6b: a goutsyde.com/q/<code> link opened in the app. */
   QuoteLink: { code: string };
   /** Quotes step 6d-2b: the owner's Requests list. */
-  BusinessRequests: undefined;
+  BusinessRequests: { side?: "business" | "photographer" } | undefined;
+  /** Request forms F2b: one request with every answer (business owner or photographer). */
+  RequestDetail: { requestId: string };
   /** Request forms step F1: the owner's form library, one form, and a Contact for pricing service's form. */
-  RequestForms: undefined;
-  RequestFormEditor: { formId?: string; makeBase?: boolean };
-  ServiceRequestForm: { serviceId: string; serviceName?: string };
+  /** F2b: side photographer = the photographer's own library (default business, as in F1). */
+  RequestForms: { side?: "business" | "photographer" } | undefined;
+  RequestFormEditor: {
+    formId?: string;
+    makeBase?: boolean;
+    side?: "business" | "photographer";
+  };
+  ServiceRequestForm: {
+    serviceId: string;
+    serviceName?: string;
+    side?: "business" | "photographer";
+  };
   /** Quotes step 6d-2b: owner (every quote) or staff (the quotes they sent, for the business the app picked). */
   BusinessQuotes: { mode: "owner" | "staff"; businessId?: string };
   /** Quotes step 6d-1: Create a quote in a chat (or from a request card), or Edit one (quoteId). */
@@ -92,7 +103,15 @@ export type RootStackParamList = {
   };
   CartOrders: { openTab?: "cart" | "bookings" | "orders" | "tickets" | "quotes"; _ts?: number } | undefined;
   /** Request a quote on a contact for pricing service (Quotes step 6c-2b). */
-  RequestQuote: { serviceId: string; serviceName?: string; businessId?: string; businessName?: string };
+  RequestQuote: {
+    serviceId: string;
+    serviceName?: string;
+    businessId?: string;
+    businessName?: string;
+    /** F2b: a photographer's contact for pricing service (then businessId is not used). */
+    photographerId?: string;
+    photographerName?: string;
+  };
   /** One event's tickets with QR codes (from GET /api/events/me/tickets). */
   TicketDetail: { eventId: string };
   /** Host: create (no id) or edit an event (p4-host). */

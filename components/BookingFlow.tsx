@@ -17,7 +17,11 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
-import { useNavigation, CommonActions } from "@react-navigation/native";
+import {
+  useNavigation,
+  CommonActions,
+  StackActions,
+} from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -437,6 +441,9 @@ export default function BookingFlow({
 
   const [step, setStep] = useState<Step>(1);
   const [services, setServices] = useState<BookingService[]>([]);
+  // F2b review 1: a photographer's contact for pricing services, listed under the bookable ones as Request a quote
+  // (never a dead end when Booking opens without a service).
+  const [requestServices, setRequestServices] = useState<BookingService[]>([]);
   const [selectedService, setSelectedService] = useState<BookingService | null>(null);
   const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(new Set());
   const hasServiceImage = (s?: BookingService | null) =>
@@ -747,8 +754,47 @@ export default function BookingFlow({
         data = await api.getProviderServices(providerId, providerType);
       }
       // Quotes 6c-2b: contact for pricing services are never booked here (they open the request form).
-      const activeServices = data.filter((s) => (s.status === "live" || s.status === "active" || !s.status) && (s as { requestOnly?: boolean | null }).requestOnly !== true);
+      // Request forms F2b: photographer services say so with isContactForPricing.
+      const isRequest = (s: BookingService) =>
+        (s as { requestOnly?: boolean | null }).requestOnly === true ||
+        (providerType === "photographer" &&
+          (s as { isContactForPricing?: boolean | null })
+            .isContactForPricing === true);
+      const activeServices = data.filter(
+        (s) =>
+          (s.status === "live" || s.status === "active" || !s.status) &&
+          !isRequest(s),
+      );
       setServices(activeServices);
+      setRequestServices(
+        providerType === "photographer"
+          ? data.filter(
+              (s) =>
+                (s.status === "live" || s.status === "active" || !s.status) &&
+                isRequest(s),
+            )
+          : [],
+      );
+      // F2b: opened on a photographer's contact for pricing service (search, a tagged post): its request form
+      // instead, never a booking that leaves it out. Only once, and only before the customer moved on.
+      const requested =
+        preselectedServiceId &&
+        !preselectAppliedRef.current &&
+        providerType === "photographer"
+          ? data.find((s) => s.id === preselectedServiceId && isRequest(s))
+          : undefined;
+      if (requested && stepRef.current === 1) {
+        preselectAppliedRef.current = true;
+        navigation.dispatch(
+          StackActions.replace("RequestQuote", {
+            serviceId: requested.id,
+            serviceName: requested.name,
+            photographerId: providerId,
+            photographerName: providerName,
+          }),
+        );
+        return;
+      }
       // Open on the tapped service once, only if the customer hasn't moved on.
       if (preselectedServiceId && !preselectAppliedRef.current) {
         preselectAppliedRef.current = true;
@@ -2355,7 +2401,7 @@ export default function BookingFlow({
           </ThemedText>
           {loadingServices ? (
             <ActivityIndicator size="large" color={accent} style={styles.loader} />
-          ) : services.length === 0 ? (
+          ) : services.length === 0 && requestServices.length === 0 ? (
             <View style={styles.emptyState}>
               <Feather name="calendar" size={32} color={theme.brandTextDim} />
               <ThemedText style={{ color: theme.brandTextDim, marginTop: Spacing.sm }}>
@@ -2411,6 +2457,67 @@ export default function BookingFlow({
               </Pressable>
             ))
           )}
+          {!loadingServices
+            ? requestServices.map((service) => (
+                <Pressable
+                  key={service.id}
+                  onPress={() =>
+                    navigation.navigate("RequestQuote", {
+                      serviceId: service.id,
+                      serviceName: service.name,
+                      photographerId: providerId,
+                      photographerName: providerName,
+                    })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`${service.name}, price on request, request a quote`}
+                  style={[
+                    styles.serviceCard,
+                    {
+                      backgroundColor: theme.brandBgElevated,
+                      borderColor: theme.brandSurfaceBorder,
+                    },
+                  ]}
+                >
+                  <View style={styles.serviceInfo}>
+                    <ThemedText
+                      style={[styles.serviceName, { color: theme.brandCream }]}
+                    >
+                      {service.name}
+                    </ThemedText>
+                    {service.description ? (
+                      <ThemedText
+                        style={{
+                          color: theme.brandTextDim,
+                          marginTop: Spacing.xs,
+                        }}
+                        numberOfLines={2}
+                      >
+                        {service.description}
+                      </ThemedText>
+                    ) : null}
+                    <ThemedText
+                      style={{
+                        color: theme.brandTextDim,
+                        marginTop: Spacing.xs,
+                      }}
+                    >
+                      Price on request
+                    </ThemedText>
+                  </View>
+                  <View style={styles.servicePrice}>
+                    <ThemedText style={[styles.priceText, { color: accent }]}>
+                      Request a quote
+                    </ThemedText>
+                    <Feather
+                      name="chevron-right"
+                      size={20}
+                      color={theme.brandTextDim}
+                    />
+                  </View>
+                </Pressable>
+              ))
+            : null}
         </View>
       )}
 

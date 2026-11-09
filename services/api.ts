@@ -139,6 +139,20 @@ export interface EmailChangeStatus {
   passwordRequired: boolean;
 }
 
+/**
+ * Whose request forms an editor screen works on (Request forms F2b). Business = /api/vendor/... (F1, the default);
+ * photographer = /api/photographers/me/... (backend F2a, same bodies and answers).
+ */
+export type RequestFormSide = "business" | "photographer";
+const formsPath = (side: RequestFormSide = "business") =>
+  side === "photographer"
+    ? "/api/photographers/me/request-forms"
+    : "/api/vendor/request-forms";
+const formServicesPath = (side: RequestFormSide = "business") =>
+  side === "photographer"
+    ? "/api/photographers/me/services"
+    : "/api/vendor/services";
+
 /** A form in a business's request form library (GET /api/vendor/request-forms). */
 export interface VendorRequestForm {
   id: string;
@@ -7006,23 +7020,68 @@ class ApiService {
     return this.request(`/api/services/${encodeURIComponent(serviceId)}/request-form`);
   }
 
+  /**
+   * F2b: a photographer's contact for pricing service form (backend F2a). The answer names the photographer, not a
+   * business; it is turned into the same RequestForm shape (business = the photographer, vendorType photographer).
+   */
+  async getPhotographerRequestForm(
+    serviceId: string,
+  ): Promise<import("@/utils/requestLogic").RequestForm> {
+    const raw = await this.request<any>(
+      `/api/photographer-services/${encodeURIComponent(serviceId)}/request-form`,
+    );
+    return {
+      service: raw.service,
+      business: {
+        id: String(raw.photographer?.id ?? ""),
+        name: String(raw.photographer?.name ?? ""),
+      },
+      vendorType: "photographer",
+      cities: Array.isArray(raw.cities) ? raw.cities : [],
+      cityRequired: raw.cityRequired === true,
+      phoneRequired: raw.phoneRequired !== false,
+      questions: Array.isArray(raw.questions) ? raw.questions : [],
+    };
+  }
+
   // ── Request forms, the business side (step F1). Owner only; staff get 404 (no business of their own). ──
 
   /** The business's form library: the base form first, then saved forms by name. */
-  async getRequestFormLibrary(authToken: string): Promise<{ forms: VendorRequestForm[]; baseFormId: string | null }> {
-    return this.request("/api/vendor/request-forms", { headers: { Authorization: `Bearer ${authToken}` } });
+  async getRequestFormLibrary(
+    authToken: string,
+    side?: RequestFormSide,
+  ): Promise<{ forms: VendorRequestForm[]; baseFormId: string | null }> {
+    return this.request(formsPath(side), {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
   }
 
-  async createRequestForm(authToken: string, body: { name: string; isBase?: boolean; questions: import("@/utils/requestLogic").RequestQuestion[] }): Promise<{ form: VendorRequestForm }> {
-    return this.request("/api/vendor/request-forms", {
+  async createRequestForm(
+    authToken: string,
+    body: {
+      name: string;
+      isBase?: boolean;
+      questions: import("@/utils/requestLogic").RequestQuestion[];
+    },
+    side?: RequestFormSide,
+  ): Promise<{ form: VendorRequestForm }> {
+    return this.request(formsPath(side), {
       method: "POST",
       headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(body),
     });
   }
 
-  async updateRequestForm(authToken: string, formId: string, body: { name?: string; questions?: import("@/utils/requestLogic").RequestQuestion[] }): Promise<{ form: VendorRequestForm }> {
-    return this.request(`/api/vendor/request-forms/${encodeURIComponent(formId)}`, {
+  async updateRequestForm(
+    authToken: string,
+    formId: string,
+    body: {
+      name?: string;
+      questions?: import("@/utils/requestLogic").RequestQuestion[];
+    },
+    side?: RequestFormSide,
+  ): Promise<{ form: VendorRequestForm }> {
+    return this.request(`${formsPath(side)}/${encodeURIComponent(formId)}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(body),
@@ -7030,25 +7089,50 @@ class ApiService {
   }
 
   /** Removes a saved form (never the base form; refused while a service uses it). */
-  async deleteRequestForm(authToken: string, formId: string): Promise<{ success: boolean }> {
-    return this.request(`/api/vendor/request-forms/${encodeURIComponent(formId)}`, {
+  async deleteRequestForm(
+    authToken: string,
+    formId: string,
+    side?: RequestFormSide,
+  ): Promise<{ success: boolean }> {
+    return this.request(`${formsPath(side)}/${encodeURIComponent(formId)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${authToken}` },
     });
   }
 
   /** A service's form settings and the questions customers answer. */
-  async getServiceRequestFormSettings(authToken: string, serviceId: string): Promise<{ settings: import("@/utils/requestFormEditor").ServiceFormSettings; resolved: import("@/utils/requestLogic").RequestQuestion[] }> {
-    return this.request(`/api/vendor/services/${encodeURIComponent(serviceId)}/request-form`, { headers: { Authorization: `Bearer ${authToken}` } });
+  async getServiceRequestFormSettings(
+    authToken: string,
+    serviceId: string,
+    side?: RequestFormSide,
+  ): Promise<{
+    settings: import("@/utils/requestFormEditor").ServiceFormSettings;
+    resolved: import("@/utils/requestLogic").RequestQuestion[];
+  }> {
+    return this.request(
+      `${formServicesPath(side)}/${encodeURIComponent(serviceId)}/request-form`,
+      { headers: { Authorization: `Bearer ${authToken}` } },
+    );
   }
 
   /** Saves a service's form settings (Contact for pricing services only, so after the service itself is saved). */
-  async setServiceRequestForm(authToken: string, serviceId: string, settings: import("@/utils/requestFormEditor").ServiceFormSettings): Promise<{ settings: import("@/utils/requestFormEditor").ServiceFormSettings; resolved: import("@/utils/requestLogic").RequestQuestion[] }> {
-    return this.request(`/api/vendor/services/${encodeURIComponent(serviceId)}/request-form`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify(settings),
-    });
+  async setServiceRequestForm(
+    authToken: string,
+    serviceId: string,
+    settings: import("@/utils/requestFormEditor").ServiceFormSettings,
+    side?: RequestFormSide,
+  ): Promise<{
+    settings: import("@/utils/requestFormEditor").ServiceFormSettings;
+    resolved: import("@/utils/requestLogic").RequestQuestion[];
+  }> {
+    return this.request(
+      `${formServicesPath(side)}/${encodeURIComponent(serviceId)}/request-form`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(settings),
+      },
+    );
   }
 
   /** Sends a request (5 per hour). The answer carries the chat it opened. */
@@ -7187,13 +7271,35 @@ class ApiService {
     return res.requests ?? [];
   }
 
-  /** Close Request: moves it to closed (owner only). */
+  /** F2b: the signed in photographer's requests, newest first (backend F2a). Same fields as the business list. */
+  async getPhotographerRequests(authToken: string): Promise<VendorRequest[]> {
+    const res = await this.request<{ requests: VendorRequest[] }>(
+      "/api/photographers/me/requests",
+      { headers: { Authorization: `Bearer ${authToken}` } },
+    );
+    return res.requests ?? [];
+  }
+
+  /** F2b: one request as its business owner or photographer sees it (every answer, the phone). 404 for anyone else. */
+  async getRequestDetail(
+    authToken: string,
+    requestId: string,
+  ): Promise<RequestDetail> {
+    const res = await this.request<{ request: RequestDetail }>(
+      `/api/requests/${encodeURIComponent(requestId)}`,
+      { headers: { Authorization: `Bearer ${authToken}` } },
+    );
+    return res.request;
+  }
+
+  /** Close Request: moves it to closed (owner only; side photographer = the photographer's own route, F2b). */
   async closeVendorRequest(
     authToken: string,
     requestId: string,
+    side: RequestFormSide = "business",
   ): Promise<VendorRequest> {
     const res = await this.request<{ request: VendorRequest }>(
-      `/api/vendor/estimate-requests/${encodeURIComponent(requestId)}`,
+      `${side === "photographer" ? "/api/photographers/me/requests" : "/api/vendor/estimate-requests"}/${encodeURIComponent(requestId)}`,
       {
         method: "PATCH",
         headers: { Authorization: `Bearer ${authToken}` },
@@ -7456,6 +7562,33 @@ export interface VendorRequest {
   answers: unknown[];
   conversationId: string | null;
   createdAt: string;
+}
+
+/** GET /api/requests/:id for the business owner or photographer (F2b reads these fields). */
+export interface RequestDetail {
+  id: string;
+  status: string;
+  businessId: string | null;
+  businessName: string | null;
+  photographerId?: string | null;
+  vendorType?: "business" | "photographer";
+  serviceId: string | null;
+  serviceName: string | null;
+  city: string | null;
+  preferredDate: string | null;
+  details?: Record<string, string>;
+  answers: {
+    questionId: string;
+    label: string;
+    type: string;
+    value: string | string[];
+  }[];
+  conversationId: string | null;
+  createdAt: string;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
 }
 
 /** GET /api/quotes/:id (Quotes steps 2 to 5a). Shape lives in utils/quoteLogic.ts (Quote). */

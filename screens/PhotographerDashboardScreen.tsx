@@ -51,6 +51,7 @@ import {
   isPendingRequestStatus,
 } from "@/utils/bookingStatus";
 import { syncMyTimeZoneOnce } from "@/utils/timeZoneSync";
+import { dashboardCounts } from "@/utils/businessQuotesLogic";
 
 // Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
 const DASHBOARD_COLORS = {
@@ -513,6 +514,27 @@ export default function PhotographerDashboardScreen() {
         return;
       }
       if (hasFetchedRef.current) fetchDashboardRef.current({ quiet: true });
+    }, []),
+  );
+
+  // Request forms F2b: the photographer's request count, read again on every visit (null until read).
+  const [newRequests, setNewRequests] = useState<number | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      (async () => {
+        try {
+          const token = await getTokenRef.current();
+          if (!token) return;
+          const rows = await api.getPhotographerRequests(token);
+          if (alive) setNewRequests(dashboardCounts(rows, null).newRequests);
+        } catch {
+          // The card still opens the list, which shows the error.
+        }
+      })();
+      return () => {
+        alive = false;
+      };
     }, []),
   );
 
@@ -1897,6 +1919,53 @@ export default function PhotographerDashboardScreen() {
                 </View>
               )}
               <Feather name="chevron-right" size={18} color={DASHBOARD_COLORS.creamDim} />
+            </View>
+          </Pressable>
+
+          <Pressable
+            style={styles.navCard}
+            onPress={() =>
+              navigation.navigate("BusinessRequests", { side: "photographer" })
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`Requests${newRequests ? `, ${newRequests} new` : ""}`}
+          >
+            <View style={styles.navCardLeft}>
+              <View
+                style={[
+                  styles.navCardIconBg,
+                  { backgroundColor: "rgba(201,147,58,0.12)" },
+                ]}
+              >
+                <Feather name="inbox" size={20} color={DASHBOARD_COLORS.gold} />
+              </View>
+              <View style={styles.navCardTextWrap}>
+                <Text style={styles.navCardTitle}>Requests</Text>
+                <Text style={styles.navCardSubtitle}>
+                  {newRequests
+                    ? `${newRequests} new`
+                    : "Request forms customers sent you"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.navCardRight}>
+              {newRequests ? (
+                <View
+                  style={[
+                    styles.navBadge,
+                    { backgroundColor: "rgba(224,169,59,0.15)" },
+                  ]}
+                >
+                  <Text style={[styles.navBadgeText, { color: "#E0A93B" }]}>
+                    {newRequests}
+                  </Text>
+                </View>
+              ) : null}
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={DASHBOARD_COLORS.creamDim}
+              />
             </View>
           </Pressable>
 

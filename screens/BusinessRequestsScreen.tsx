@@ -1,6 +1,8 @@
 // The owner's Requests list (Quotes step 6d-2b, call 3). Open and All, newest first. Each request: Send a quote
 // (prefilled, as from the chat's request card), Open chat, and Close request. Quoted and booked are set by the backend.
 // Owner only (GET /api/vendor/estimate-requests). Copy: commas and periods only.
+// Request forms F2b: side photographer = the photographer's own requests (GET /api/photographers/me/requests), with
+// no Send a quote (photographer quotes are a later project); every row opens the Request screen with its answers.
 import React, {
   useCallback,
   useEffect,
@@ -16,7 +18,12 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -48,6 +55,9 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function BusinessRequestsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<Nav>();
+  const side =
+    useRoute<RouteProp<RootStackParamList, "BusinessRequests">>().params
+      ?.side ?? "business";
   const { getToken } = useAuth();
   const [rows, setRows] = useState<VendorRequest[] | null>(null);
   const [error, setError] = useState("");
@@ -66,12 +76,16 @@ export default function BusinessRequestsScreen() {
         setError("Sign in again to see your requests.");
         return;
       }
-      setRows(await api.getVendorRequests(token));
+      setRows(
+        side === "photographer"
+          ? await api.getPhotographerRequests(token)
+          : await api.getVendorRequests(token),
+      );
       setError("");
     } catch (err) {
       setError(errorMessage(err as ApiError));
     }
-  }, []);
+  }, [side]);
 
   useFocusEffect(
     useCallback(() => {
@@ -99,7 +113,7 @@ export default function BusinessRequestsScreen() {
             try {
               const token = await tokenRef.current();
               if (!token) return;
-              const updated = await api.closeVendorRequest(token, r.id);
+              const updated = await api.closeVendorRequest(token, r.id, side);
               setRows((all) =>
                 (all ?? []).map((x) =>
                   x.id === r.id ? { ...x, ...updated } : x,
@@ -202,16 +216,21 @@ export default function BusinessRequestsScreen() {
                 <ThemedText style={[styles.dim, { color: theme.brandTextDim }]}>
                   {requestLine(r)}
                 </ThemedText>
-                {answers ? (
-                  <ThemedText
-                    style={[styles.dim, { color: theme.brandTextDim }]}
-                  >
-                    {`${answers} ${answers === 1 ? "answer" : "answers"}`}
-                  </ThemedText>
-                ) : null}
+                {/* F2b (call 11): the request with every answer, the photos and the phone. */}
+                <TextButton
+                  gold
+                  label={
+                    answers
+                      ? `View ${answers} ${answers === 1 ? "answer" : "answers"}`
+                      : "View request"
+                  }
+                  onPress={() =>
+                    navigation.navigate("RequestDetail", { requestId: r.id })
+                  }
+                />
                 {r.conversationId ? (
                   <View style={styles.pair}>
-                    {open ? (
+                    {open && side === "business" ? (
                       <PrimaryButton
                         style={{ flex: 1 }}
                         label="Send a quote"

@@ -18,6 +18,8 @@ import {
   requestOnlyPatch,
   bookTabAction,
   postServiceTarget,
+  requestAnswerRows,
+  phoneLink,
   serviceStart,
   REQUEST_ONLY_LABEL,
   REQUEST_ONLY_SUB,
@@ -360,4 +362,39 @@ test("review 5: a sent quote past its expiry reads as expired before the backend
     ),
     "Paying",
   );
+});
+
+test("F2b: the Request screen's answers", () => {
+  const rows = requestAnswerRows([
+    { label: "What kind of day is it?", type: "choice", value: "Wedding" },
+    { label: "Wedding date", type: "date", value: "2027-06-13" },
+    { label: "Extras", type: "choice", value: ["Second shooter", "Album"] },
+    {
+      label: "Looks you love",
+      type: "photos",
+      value: ["https://r2/requests/a.jpg", "javascript:alert(1)", 7],
+    },
+    { label: "Empty", type: "short_text", value: "  " },
+    { label: "", type: "long_text", value: " Ceremony at 4 " },
+  ]);
+  assert.deepEqual(rows, [
+    { kind: "text", label: "What kind of day is it?", text: "Wedding" },
+    { kind: "text", label: "Wedding date", text: "Sun, Jun 13" },
+    { kind: "text", label: "Extras", text: "Second shooter, Album" },
+    {
+      kind: "photos",
+      label: "Looks you love",
+      urls: ["https://r2/requests/a.jpg"],
+    },
+    { kind: "text", label: "Question", text: "Ceremony at 4" },
+  ]);
+  assert.deepEqual(requestAnswerRows(null), []);
+  assert.deepEqual(
+    requestAnswerRows([{ label: "Photos", type: "photos", value: [] }]),
+    [],
+  );
+  assert.equal(phoneLink(" (516) 555 0142 "), "tel:5165550142");
+  assert.equal(phoneLink("+1 516 555 0142"), "tel:+15165550142");
+  assert.equal(phoneLink("12"), null);
+  assert.equal(phoneLink(null), null);
 });

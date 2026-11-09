@@ -302,6 +302,10 @@ export function serviceChoiceProblem(
   if (choice === "base" && !opts.hasBase)
     return "Make a base form first, or choose another option";
   if (choice === "own") {
+    // F2b (call 9): with nothing saved, the backend asks the base form, so "just this service" needs a question
+    // of its own (or the base form first) to mean what it says.
+    if (!opts.withBase && opts.own.length === 0)
+      return "Add at least one question, or pick Your base form";
     const combined = [
       ...(opts.withBase ? opts.baseQuestions : []),
       ...opts.own,
