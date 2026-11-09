@@ -12,7 +12,11 @@ import {
   MIN_SPRAY_SIZE,
   SETTLE,
   STROKES,
+  LAUNCH_MAX_MS,
+  LAUNCH_MIN_MS,
+  LAUNCH_MIN_REDUCED_MS,
   easeInOut,
+  launchShouldHide,
   loaderColors,
   phase,
   strokeRect,
@@ -97,5 +101,30 @@ const src = readFileSync("components/OutsydeLoader.tsx", "utf8");
 assert.ok(!/from\s+["']react-native-svg["']/.test(src), "no react-native-svg import");
 assert.ok(src.includes("useReducedMotion"), "honours reduce motion");
 assert.ok(src.includes('accessibilityRole="progressbar"'), "screen reader role");
+
+// launch overlay: plays once, waits for the app, never blocks forever
+assert.equal(LAUNCH_MIN_MS, 1650);
+assert.equal(launchShouldHide(true, LAUNCH_MIN_MS - 1, false), false, "spray finishes first");
+assert.equal(launchShouldHide(true, LAUNCH_MIN_MS, false), true);
+assert.equal(launchShouldHide(false, 5000, false), false, "waits for the app");
+assert.equal(launchShouldHide(false, LAUNCH_MAX_MS, false), true, "hard cap");
+assert.equal(launchShouldHide(true, LAUNCH_MIN_REDUCED_MS, true), true, "reduce motion is quick");
+assert.ok(LAUNCH_MAX_MS <= 8000);
+
+// native splash: plain emerald both modes, no logo image (spray starts empty);
+// the app icon stays the same file
+const appJson = JSON.parse(readFileSync("app.json", "utf8")).expo;
+const splash = appJson.plugins.find((p: unknown) => Array.isArray(p) && p[0] === "expo-splash-screen")[1];
+assert.equal(splash.backgroundColor, "#1A3C34");
+assert.equal(splash.dark.backgroundColor, "#1A3C34");
+assert.equal(splash.image, undefined, "no image on the native splash");
+assert.equal(appJson.icon, "./assets/images/outsyde-icon.png", "app icon unchanged");
+
+// App.tsx mounts the overlay once, driven by navigation readiness
+const app = readFileSync("App.tsx", "utf8");
+assert.equal((app.match(/<LaunchOverlay /g) ?? []).length, 1, "one launch overlay");
+assert.ok(app.includes("onReady={() => setNavReady(true)}"), "ready from NavigationContainer");
+const overlay = readFileSync("components/LaunchOverlay.tsx", "utf8");
+assert.ok(overlay.includes('pointerEvents={hiding ? "none" : "auto"}'), "lets touches through when hiding");
 
 console.log("outsydeLoaderLogic tests passed");

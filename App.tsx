@@ -33,11 +33,13 @@ import { PurchaseItem } from "@/types/ratings";
 import api from "@/services/api";
 import { registerWhile } from "@/utils/modalCoordinator";
 import ChoiceSheetHost from "@/components/ChoiceSheetHost";
+import LaunchOverlay from "@/components/LaunchOverlay";
 
 // Inner shell: has access to all context providers, owns rating-prompt state.
 function AppShell() {
   const { isAuthenticated, getToken } = useAuth();
   const [promptPurchases, setPromptPurchases] = useState<PurchaseItem[]>([]);
+  const [navReady, setNavReady] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
   useEffect(() => registerWhile("rating-prompt", promptVisible), [promptVisible]);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState as AppStateStatus);
@@ -116,7 +118,7 @@ function AppShell() {
 
   return (
     <>
-      <NavigationContainer>
+      <NavigationContainer onReady={() => setNavReady(true)}>
         <RootNavigator />
       </NavigationContainer>
       <RatingPromptOverlay
@@ -125,6 +127,7 @@ function AppShell() {
         onClose={handleDismiss}
         onRate={handleRate}
       />
+      <LaunchOverlay ready={navReady} />
     </>
   );
 }

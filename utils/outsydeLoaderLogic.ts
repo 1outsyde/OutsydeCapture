@@ -58,6 +58,21 @@ export function easeInOut(x: number): number {
   return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
 }
 
+// Cold launch overlay (components/LaunchOverlay.tsx): the spray plays once,
+// until the full logo has settled, then fades into the app. If the app is not
+// ready yet it keeps looping; a hard cap stops it from ever blocking the app.
+export const LAUNCH_MIN_MS = Math.round(SETTLE.to * LOOP_MS);
+export const LAUNCH_MIN_REDUCED_MS = 400;
+export const LAUNCH_MAX_MS = 8000;
+export const LAUNCH_FADE_MS = 300;
+
+/** Should the launch overlay start fading out now? */
+export function launchShouldHide(ready: boolean, elapsedMs: number, reducedMotion: boolean): boolean {
+  if (elapsedMs >= LAUNCH_MAX_MS) return true;
+  const min = reducedMotion ? LAUNCH_MIN_REDUCED_MS : LAUNCH_MIN_MS;
+  return ready && elapsedMs >= min;
+}
+
 export type StrokeRect = {
   left: number;
   top: number;
