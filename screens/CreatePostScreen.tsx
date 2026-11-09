@@ -30,7 +30,7 @@ import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareS
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/services/api";
-import { uploadImage, uploadVideo } from "@/services/mediaUpload";
+import { uploadImage, uploadVideo, uploadVideoResumable } from "@/services/mediaUpload";
 import { feedEvents } from "@/services/feedEvents";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
@@ -98,9 +98,10 @@ const CAPTURE_CHIPS: { key: CaptureChip; label: string; seconds: number | null }
   { key: "15s", label: "15s", seconds: 15 },
   { key: "photo", label: "PHOTO", seconds: null },
 ];
-// Pulse videos from the library: up to 10 minutes (60 after chunked uploads). The picker reports
-// milliseconds; half a second of slack keeps a 10:00.0 clip that reports 10:00.03 from being refused.
-const PULSE_MAX_VIDEO_MS = 10 * 60 * 1000 + 500;
+// Pulse videos from the library: up to 60 minutes, like TikTok uploads (they go up in pieces, so a
+// dropped connection doesn't start over). The camera records up to 10 minutes. The picker reports
+// milliseconds; half a second of slack keeps a 60:00.0 clip that reports 60:00.03 from being refused.
+const PULSE_MAX_VIDEO_MS = 60 * 60 * 1000 + 500;
 const THUMB_HEIGHT = 120;
 const POST_CROP_PRESET: CropPreset = { aspect: 4 / 5, shape: "rect", title: "Crop post" };
 
@@ -341,7 +342,7 @@ export default function CreatePostScreen() {
     const assets = result.assets;
     if (assets.length === 1 && isVideoAsset(assets[0])) {
       if ((assets[0].duration ?? 0) > PULSE_MAX_VIDEO_MS) {
-        Alert.alert("Video too long", "Pulse videos can be up to 10 minutes. Pick a shorter one.");
+        Alert.alert("Video too long", "Pulse videos can be up to 60 minutes. Pick a shorter one.");
         return;
       }
       // Single video: a Pulse post. Fill for tall videos, Fit for wide ones; changeable on step 2.
@@ -707,7 +708,8 @@ export default function CreatePostScreen() {
       };
       if (isVideo) {
         setUploadProgress("Uploading 0%");
-        const uploadResult = await uploadVideo(postImage, "video/mp4", authToken, (p) =>
+        // Pulse videos go up in pieces (up to 60 minutes); stories keep the single upload.
+        const uploadResult = await uploadVideoResumable(postImage, "video/mp4", authToken, (p) =>
           setUploadProgress(`Uploading ${p.percent}%`),
         );
         if (!uploadResult.uploadId) throw new Error("Failed to upload video. Please try again.");
@@ -901,7 +903,7 @@ export default function CreatePostScreen() {
         type="caption"
         style={{ color: theme.brandTextDim, textAlign: "center", marginTop: Spacing.xs }}
       >
-        Keep Outsyde open while your video uploads.
+        {"Keep Outsyde open while your video uploads. If you switch apps, it picks up when you're back."}
       </ThemedText>
     ) : null}
     </>
