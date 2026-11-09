@@ -23,6 +23,7 @@ import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareS
 import apiClient from "@/services/api";
 import { resolveBrandColor, parseBrandColorSpec, specToHex, toColorPayload } from "@/constants/colorOptions";
 import ColorWheelPicker from "@/components/ColorWheelPicker";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 const SPECIALTY_OPTIONS = [
   "Nails", "Hair", "Braids", "Locs", "Makeup", "Skincare",
@@ -315,7 +316,7 @@ export default function EditStaffProfileScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={theme.brandGold} />
+          <OutsydeLoader />
         </View>
       </View>
     );

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
 import { RootStackParamList } from "@/navigation/types";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 // ─── Color system — matches BusinessDashboardScreen exactly ─────────────────
 
@@ -128,7 +129,7 @@ export default function BusinessBillingAddressScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={DASHBOARD_COLORS.gold} />
+          <OutsydeLoader />
         </View>
       </View>
     );

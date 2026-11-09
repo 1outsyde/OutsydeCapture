@@ -4,7 +4,6 @@ import {
   View,
   FlatList,
   Pressable,
-  ActivityIndicator,
   RefreshControl,
   Dimensions,
 } from "react-native";
@@ -20,6 +19,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { ApiPost } from "@/services/api";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "ProfileFeed">;
@@ -203,7 +203,7 @@ export default function ProfileFeedScreen() {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={dotColor} />
+          <OutsydeLoader />
         </View>
       </ThemedView>
     );

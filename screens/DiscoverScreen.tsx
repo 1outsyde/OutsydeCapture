@@ -63,6 +63,7 @@ import StoryRing from "@/components/StoryRing";
 import StoriesBar from "@/components/StoriesBar";
 import FinishSetupCard from "@/components/FinishSetupCard";
 import { postServiceTarget } from "@/utils/businessQuotesLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -699,7 +700,7 @@ export default function DiscoverScreen() {
   if (feedLoading && feedPosts.length === 0 && feedMode === "pro") {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <OutsydeLoader />
         <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
           Loading feed...
         </ThemedText>
@@ -814,7 +815,7 @@ export default function DiscoverScreen() {
                   </View>
                 ) : (followingLoading && !followingLoaded) ? (
                   <View style={styles.followingEmpty}>
-                    <ActivityIndicator size="large" color={theme.primary} />
+                    <OutsydeLoader />
                   </View>
                 ) : (
                   <View style={styles.followingEmpty}>

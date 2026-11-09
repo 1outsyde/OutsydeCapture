@@ -52,6 +52,7 @@ import {
 } from "@/utils/bookingStatus";
 import { syncMyTimeZoneOnce } from "@/utils/timeZoneSync";
 import { dashboardCounts } from "@/utils/businessQuotesLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 // Shared dark palette — matches BusinessDashboardScreen & StaffDashboardScreen exactly
 const DASHBOARD_COLORS = {
@@ -1554,7 +1555,7 @@ export default function PhotographerDashboardScreen() {
   if (loading || authLoading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={DASHBOARD_COLORS.gold} />
+        <OutsydeLoader />
       </View>
     );
   }

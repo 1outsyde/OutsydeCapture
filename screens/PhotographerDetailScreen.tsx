@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Pressable, ScrollView, Dimensions, Alert, Platform, ActivityIndicator } from "react-native";
+import { StyleSheet, View, Pressable, ScrollView, Dimensions, Alert, Platform } from "react-native";
 import { Image } from "expo-image";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -24,6 +24,7 @@ import StoryRing from "@/components/StoryRing";
 import { RatingBottomSheet } from "@/components/ratings";
 import type { RatingCheckResponse } from "@/types/ratings";
 import { displayRating } from "@/types/ratings";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, "PhotographerDetail">;
@@ -358,7 +359,7 @@ export default function PhotographerDetailScreen() {
             <View style={[styles.skeletonAvatar, { backgroundColor: theme.backgroundDefault }]} />
             <View style={[styles.skeletonTitle, { backgroundColor: theme.backgroundDefault }]} />
             <View style={[styles.skeletonSubtitle, { backgroundColor: theme.backgroundDefault }]} />
-            <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: Spacing.xl }} />
+            <OutsydeLoader style={{ marginTop: Spacing.xl }} />
             <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
               Loading profile...
             </ThemedText>

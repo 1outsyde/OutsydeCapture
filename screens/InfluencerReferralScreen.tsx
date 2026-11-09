@@ -4,7 +4,6 @@ import {
   View,
   ScrollView,
   Pressable,
-  ActivityIndicator,
   Alert,
   RefreshControl,
 } from "react-native";
@@ -20,6 +19,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { api, InfluencerStats } from "@/services/api";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 const TIER_CONFIG = {
   Bronze: { color: "#CD7F32", min: 0, max: 1, icon: "award" },
@@ -118,7 +118,7 @@ export default function InfluencerReferralScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <OutsydeLoader />
         </View>
       </ThemedView>
     );

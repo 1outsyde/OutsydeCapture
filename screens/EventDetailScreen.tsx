@@ -40,6 +40,7 @@ import {
   type EventPage,
 } from "@/utils/eventsLogic";
 import { REPORT_COPY, canShowReport, isOnHold } from "@/utils/reportEventLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type Phase = "loading" | "ready" | "notfound" | "error";
@@ -214,7 +215,7 @@ export default function EventDetailScreen() {
       <View style={[styles.center, { backgroundColor: theme.backgroundRoot }]}>
         {back}
         {phase === "loading" ? (
-          <ActivityIndicator size="large" color={theme.primary} />
+          <OutsydeLoader />
         ) : (
           <>
             <ThemedText style={[styles.centerTitle, { color: theme.text }]}>

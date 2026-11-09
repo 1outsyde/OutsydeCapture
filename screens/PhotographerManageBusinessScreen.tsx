@@ -62,6 +62,7 @@ import {
   visibilityBanner,
   type PhotographerSetupTarget,
 } from "@/utils/photographerSetup";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 // Photographer Manage business (2026-11-06): the same hub and pages as the business
 // Manage business (StorefrontEditorScreen), replacing the tall sheets that lived on
@@ -2475,7 +2476,7 @@ export default function PhotographerManageBusinessScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={theme.brandGold} />
+          <OutsydeLoader />
         </View>
       </View>
     );

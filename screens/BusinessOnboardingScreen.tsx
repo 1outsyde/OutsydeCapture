@@ -4,7 +4,6 @@ import {
   View,
   Pressable,
   TextInput,
-  ActivityIndicator,
   Alert,
   ScrollView,
   Platform,
@@ -24,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
 import api, { VendorBookerBusiness, BusinessOnboardingData } from "@/services/api";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -260,7 +260,7 @@ export default function BusinessOnboardingScreen() {
   if (loading) {
     return (
       <ThemedView style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <OutsydeLoader />
         <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>
           Loading business profile...
         </ThemedText>

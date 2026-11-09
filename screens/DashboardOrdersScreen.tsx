@@ -19,6 +19,7 @@ import api, { BusinessOrder } from "@/services/api";
 import OrderCard from "@/components/OrderCard";
 import { normalizeOrderStatus, ORDER_CANCELLED } from "@/utils/orderStatus";
 import { handOverLabel, showShipBy } from "@/utils/deliverableLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 // Local type override: backend returns "paid" status but the shared type doesn't include it yet.
 type Order = Omit<BusinessOrder, "status"> & {
@@ -423,7 +424,7 @@ export default function DashboardOrdersScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={GOLD} />
+          <OutsydeLoader />
         </View>
       </View>
     );

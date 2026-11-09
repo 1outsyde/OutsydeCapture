@@ -22,6 +22,7 @@ import api, { UnifiedSearchResult, SearchResultType, ApiError } from "@/services
 import RoleBadge from "@/components/RoleBadge";
 import StoryRing from "@/components/StoryRing";
 import { RootStackParamList } from "@/navigation/types";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 const SEARCH_HISTORY_KEY = "@search_history";
 const MAX_HISTORY = 5;
@@ -1035,7 +1036,7 @@ export default function SearchScreen() {
       {/* Loading indicator */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E8B930" />
+          <OutsydeLoader />
           <ThemedText type="body" style={{ marginTop: Spacing.md, color: theme.textSecondary }}>Searching...</ThemedText>
         </View>
       ) : null}

@@ -2,7 +2,7 @@
 // Needs you from the pop-up's list. A quote opens the quote screen; a request opens its chat with the business.
 // refreshKey changes on pull to refresh.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -13,6 +13,7 @@ import api from "@/services/api";
 import type { RootStackParamList } from "@/navigation/types";
 import { BorderRadius, Spacing } from "@/constants/theme";
 import { quotesTabRows, type TabRow } from "@/utils/requestLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -84,13 +85,7 @@ export default function MyQuotesList({ refreshKey }: { refreshKey: number }) {
         {"We couldn't load your quotes. Pull down to try again."}
       </ThemedText>
     );
-  if (!rows)
-    return (
-      <ActivityIndicator
-        color={theme.brandGold}
-        style={{ marginTop: Spacing.xl }}
-      />
-    );
+  if (!rows) return <OutsydeLoader style={{ marginTop: Spacing.xl }} />;
   if (!rows.length) {
     return (
       <ThemedText style={[styles.empty, dim]}>
