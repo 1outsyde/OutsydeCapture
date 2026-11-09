@@ -25,6 +25,8 @@ import StoryRing from "@/components/StoryRing";
 import { DoubleTapLike } from "@/components/DoubleTapLike";
 import { FitBackdrop } from "@/components/video/FitBackdrop";
 import { normalizeVideoFit, videoBlurUri, type VideoFit } from "@/utils/videoFit";
+import { PulseProgressBar } from "@/components/video/PulseProgressBar";
+import { shouldShowProgress } from "@/utils/pulseProgress";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -52,6 +54,8 @@ export interface PulseVideoCardProps {
   onReport?: (post: Post) => void;
   onBlock?: (post: Post) => void;
   currentUserId?: string;
+  /** Called when someone starts / stops dragging the progress bar, so the feed can stop paging. */
+  onScrubbingChange?: (scrubbing: boolean) => void;
 }
 
 // ─── Web video (HTML element) ────────────────────────────────────────────────
@@ -64,6 +68,10 @@ interface VideoInnerProps {
   onEngagement?: (e: PulseEngagementEvent) => void;
   /** fill = zoom to the whole screen (default); fit = the whole video, over the backdrop. */
   fit?: VideoFit;
+  /** Native only: playback time (seconds) while active, for the progress bar. */
+  onTime?: (current: number, duration: number) => void;
+  /** Native only: filled with a seek function (seconds) while mounted. */
+  seekRef?: React.MutableRefObject<((seconds: number) => void) | null>;
 }
 
 function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement, fit = "fill" }: VideoInnerProps) {
@@ -141,8 +149,20 @@ function WebPulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngageme
 }
 
 // ─── Native video (expo-video) ───────────────────────────────────────────────
-function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngagement, fit = "fill" }: VideoInnerProps) {
+function NativePulseVideo({
+  videoUrl,
+  isActive,
+  isPaused,
+  muted,
+  postId,
+  onEngagement,
+  fit = "fill",
+  onTime,
+  seekRef,
+}: VideoInnerProps) {
   const watchStartTime = useRef<number | null>(null);
+  // When the progress bar last moved the video, so that jump isn't counted as a rewatch.
+  const seekedAt = useRef(0);
   const totalWatchTime = useRef(0);
   const loopCount = useRef(0);
   const videoDuration = useRef(0);
@@ -151,6 +171,8 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngag
   const player = useVideoPlayerRecreate(videoUrl, (p) => {
     p.loop = true;
     p.muted = muted;
+    // Progress bar: timeUpdate 4 times a second (only the card on screen listens).
+    p.timeUpdateEventInterval = 0.25;
   });
 
   useEffect(() => {
@@ -194,7 +216,12 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngag
       try {
         if (player.duration && player.duration > 0) videoDuration.current = player.duration;
         if (player.currentTime !== undefined) {
-          if (videoDuration.current > 0 && player.currentTime < lastTime.current - 1) {
+          const seekedRecently = Date.now() - seekedAt.current < 2000;
+          if (
+            videoDuration.current > 0 &&
+            player.currentTime < lastTime.current - 1 &&
+            !seekedRecently
+          ) {
             loopCount.current += 1;
           }
           lastTime.current = player.currentTime;
@@ -203,6 +230,29 @@ function NativePulseVideo({ videoUrl, isActive, isPaused, muted, postId, onEngag
     }, 1000);
     return () => clearInterval(interval);
   }, [player]);
+
+  // Progress bar: time updates (4 a second) only while this card is on screen.
+  useEffect(() => {
+    if (!isActive || !onTime) return;
+    const sub = player.addListener("timeUpdate", ({ currentTime }) => {
+      onTime(currentTime, player.duration);
+    });
+    return () => sub.remove();
+  }, [isActive, onTime, player]);
+
+  useEffect(() => {
+    if (!seekRef) return;
+    seekRef.current = (seconds: number) => {
+      seekedAt.current = Date.now();
+      lastTime.current = seconds;
+      try {
+        player.currentTime = seconds;
+      } catch {}
+    };
+    return () => {
+      seekRef.current = null;
+    };
+  }, [player, seekRef]);
 
   return (
     <VideoView
@@ -231,6 +281,7 @@ export default function PulseVideoCard({
   onReport,
   onBlock,
   currentUserId,
+  onScrubbingChange,
 }: PulseVideoCardProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -241,12 +292,52 @@ export default function PulseVideoCard({
   // (see MainTabNavigator.tsx: height = 83 + insets.bottom / 2), so
   // bottom-anchored elements here must add their own clearance.
   const TAB_BAR_OVERLAY = 83 + insets.bottom / 2;
-  const authorBlockBottom = TAB_BAR_OVERLAY + 16;
-  const actionBarBottom = TAB_BAR_OVERLAY + 16;
+
+  // Progress bar (Pulse length step C1): videos over 60 s, native app, card on screen.
+  const [playback, setPlayback] = useState<{ current: number; duration: number }>({
+    current: 0,
+    duration: 0,
+  });
+  const [scrubbing, setScrubbing] = useState(false);
+  const seekRef = useRef<((seconds: number) => void) | null>(null);
+  const handleTime = useCallback((current: number, duration: number) => {
+    setPlayback((p) =>
+      Math.abs(p.current - current) < 0.05 && p.duration === duration ? p : { current, duration },
+    );
+  }, []);
+  const showProgress =
+    Platform.OS !== "web" && isActive && !!post.videoUrl && shouldShowProgress(playback.duration);
+  // Room for the bar: the author block and buttons sit 12 points higher when it shows.
+  const progressRoom = showProgress ? 12 : 0;
+  const authorBlockBottom = TAB_BAR_OVERLAY + 16 + progressRoom;
+  const actionBarBottom = TAB_BAR_OVERLAY + 16 + progressRoom;
+
+  const setScrub = useCallback(
+    (on: boolean) => {
+      setScrubbing(on);
+      onScrubbingChange?.(on);
+    },
+    [onScrubbingChange],
+  );
+  const handleScrubEnd = useCallback(
+    (seconds: number) => {
+      // -1 = cancelled: no seek.
+      if (seconds >= 0) {
+        seekRef.current?.(seconds);
+        setPlayback((p) => ({ ...p, current: seconds }));
+      }
+      setScrub(false);
+    },
+    [setScrub],
+  );
 
   useEffect(() => {
-    if (!isActive) setIsPaused(false);
-  }, [isActive]);
+    if (!isActive) {
+      setIsPaused(false);
+      setPlayback({ current: 0, duration: 0 });
+      if (scrubbing) setScrub(false);
+    }
+  }, [isActive, scrubbing, setScrub]);
 
   const handleTap = useCallback(() => {
     if (!isActive) return;
@@ -284,10 +375,12 @@ export default function PulseVideoCard({
             fit={fit}
             videoUrl={post.videoUrl}
             isActive={isActive}
-            isPaused={isPaused}
+            isPaused={isPaused || scrubbing}
             muted={muted}
             postId={post.id}
             onEngagement={handleEngagement}
+            onTime={handleTime}
+            seekRef={seekRef}
           />
         ) : post.image ? (
           <Image
@@ -317,7 +410,10 @@ export default function PulseVideoCard({
       />
 
       {/* Right engagement stack */}
-      <View style={[styles.actionBar, { bottom: actionBarBottom }]} pointerEvents="box-none">
+      <View
+        style={[styles.actionBar, { bottom: actionBarBottom }, scrubbing && styles.hiddenWhileScrubbing]}
+        pointerEvents={scrubbing ? "none" : "box-none"}
+      >
         <Pressable
           onPress={() => onLike(post.id)}
           style={({ pressed }) => [styles.actionItem, { opacity: pressed ? 0.7 : 1 }]}
@@ -401,7 +497,10 @@ export default function PulseVideoCard({
       </View>
 
       {/* Bottom-left author block */}
-      <View style={[styles.authorBlock, { bottom: authorBlockBottom }]} pointerEvents="box-none">
+      <View
+        style={[styles.authorBlock, { bottom: authorBlockBottom }, scrubbing && styles.hiddenWhileScrubbing]}
+        pointerEvents={scrubbing ? "none" : "box-none"}
+      >
         <Pressable onPress={() => onAuthorPress(post)} style={styles.authorRow}>
           <StoryRing
             userId={post.userId || post.authorId || ""}
@@ -476,11 +575,23 @@ export default function PulseVideoCard({
         ) : null}
       </View>
 
+      {/* Progress bar on videos over 60 s: drag to skip (drawn on top, so it never pauses or likes). */}
+      {showProgress ? (
+        <PulseProgressBar
+          current={playback.current}
+          duration={playback.duration}
+          bottom={TAB_BAR_OVERLAY + 2}
+          onScrubStart={() => setScrub(true)}
+          onScrub={() => {}}
+          onScrubEnd={handleScrubEnd}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  hiddenWhileScrubbing: { opacity: 0 },
   videoClear: { backgroundColor: "transparent" },
   card: {
     width: SCREEN_WIDTH,
