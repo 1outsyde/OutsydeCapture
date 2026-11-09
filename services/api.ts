@@ -139,6 +139,16 @@ export interface EmailChangeStatus {
   passwordRequired: boolean;
 }
 
+/** A form in a business's request form library (GET /api/vendor/request-forms). */
+export interface VendorRequestForm {
+  id: string;
+  name: string;
+  isBase: boolean;
+  questions: import("@/utils/requestLogic").RequestQuestion[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ApiError {
   message: string;
   status?: number;
@@ -6994,6 +7004,51 @@ class ApiService {
   /** A request only service's form (404 when the service doesn't take requests). */
   async getRequestForm(serviceId: string): Promise<import("@/utils/requestLogic").RequestForm> {
     return this.request(`/api/services/${encodeURIComponent(serviceId)}/request-form`);
+  }
+
+  // ── Request forms, the business side (step F1). Owner only; staff get 404 (no business of their own). ──
+
+  /** The business's form library: the base form first, then saved forms by name. */
+  async getRequestFormLibrary(authToken: string): Promise<{ forms: VendorRequestForm[]; baseFormId: string | null }> {
+    return this.request("/api/vendor/request-forms", { headers: { Authorization: `Bearer ${authToken}` } });
+  }
+
+  async createRequestForm(authToken: string, body: { name: string; isBase?: boolean; questions: import("@/utils/requestLogic").RequestQuestion[] }): Promise<{ form: VendorRequestForm }> {
+    return this.request("/api/vendor/request-forms", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateRequestForm(authToken: string, formId: string, body: { name?: string; questions?: import("@/utils/requestLogic").RequestQuestion[] }): Promise<{ form: VendorRequestForm }> {
+    return this.request(`/api/vendor/request-forms/${encodeURIComponent(formId)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Removes a saved form (never the base form; refused while a service uses it). */
+  async deleteRequestForm(authToken: string, formId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/vendor/request-forms/${encodeURIComponent(formId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+  }
+
+  /** A service's form settings and the questions customers answer. */
+  async getServiceRequestFormSettings(authToken: string, serviceId: string): Promise<{ settings: import("@/utils/requestFormEditor").ServiceFormSettings; resolved: import("@/utils/requestLogic").RequestQuestion[] }> {
+    return this.request(`/api/vendor/services/${encodeURIComponent(serviceId)}/request-form`, { headers: { Authorization: `Bearer ${authToken}` } });
+  }
+
+  /** Saves a service's form settings (Contact for pricing services only, so after the service itself is saved). */
+  async setServiceRequestForm(authToken: string, serviceId: string, settings: import("@/utils/requestFormEditor").ServiceFormSettings): Promise<{ settings: import("@/utils/requestFormEditor").ServiceFormSettings; resolved: import("@/utils/requestLogic").RequestQuestion[] }> {
+    return this.request(`/api/vendor/services/${encodeURIComponent(serviceId)}/request-form`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(settings),
+    });
   }
 
   /** Sends a request (5 per hour). The answer carries the chat it opened. */

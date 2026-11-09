@@ -3921,6 +3921,25 @@ export default function StorefrontEditorScreen() {
     ]);
   };
 
+  // Request forms F1: the form picker is a stack screen, which can't open over this Modal. Close it first, and
+  // only when nothing is unsaved (the picker saves to the saved service).
+  const openServiceRequestForm = () => {
+    const svc = editingService;
+    if (!svc?.id) return;
+    const go = () => {
+      setServiceModalVisible(false);
+      navigation.navigate("ServiceRequestForm", { serviceId: svc.id, serviceName: svc.name });
+    };
+    if (serviceSnapshot() === serviceBaselineRef.current) {
+      go();
+      return;
+    }
+    Alert.alert("Save this service first?", "Your changes to this service aren't saved yet. Save them, then pick its request form.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard and continue", style: "destructive", onPress: go },
+    ]);
+  };
+
   const renderServiceModal = () => (
     <Modal visible={serviceModalVisible} animationType="slide" onRequestClose={closeServiceModal}>
       <View style={styles.modal}>
@@ -3994,6 +4013,31 @@ export default function StorefrontEditorScreen() {
               accessibilityLabel={REQUEST_ONLY_LABEL}
             />
           </View>
+          {requestOnly ? (
+            editingService?.id && editingService.requestOnly === true ? (
+              <Pressable
+                onPress={openServiceRequestForm}
+                accessibilityRole="button"
+                accessibilityLabel="Request form, the questions customers answer for this service"
+                style={({ pressed }) => [
+                  styles.switchRow,
+                  { opacity: pressed ? 0.7 : 1, marginTop: -4 },
+                ]}
+              >
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.inputLabel}>Request form</Text>
+                  <Text style={{ fontSize: 13, color: theme.brandTextDim }}>
+                    The questions customers answer to ask for a quote.
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color={theme.brandGold} />
+              </Pressable>
+            ) : (
+              <Text style={{ fontSize: 13, color: theme.brandTextDim, marginBottom: 12 }}>
+                Save the service with Contact for pricing on, then pick its request form.
+              </Text>
+            )
+          ) : null}
           <Text style={styles.inputLabel}>
             {requestOnly
               ? `${STARTING_PRICE_LABEL} (in dollars)`
@@ -5098,6 +5142,12 @@ export default function StorefrontEditorScreen() {
             title: "Add-ons",
             sub: "Extras customers can add to a service or product",
             onPress: () => openSection("addons"),
+          })}
+          {renderHubRow({
+            icon: "clipboard",
+            title: "Request forms",
+            sub: "Questions customers answer when they ask for a quote",
+            onPress: () => navigation.navigate("RequestForms"),
           })}
         </View>
 
