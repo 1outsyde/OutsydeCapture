@@ -126,12 +126,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/outsyde-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#000000",
+          "backgroundColor": "#1A3C34",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1A3C34"
           }
         }
       ],
