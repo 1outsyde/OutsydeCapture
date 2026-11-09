@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   Pressable,
-  ActivityIndicator,
   StyleSheet,
   RefreshControl,
 } from "react-native";
@@ -21,6 +20,7 @@ import {
   isCanceledStatus,
   isPendingRequestStatus,
 } from "@/utils/bookingStatus";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 const BG = "#0F0F0F";
 const GOLD = "#C9933A";
@@ -431,7 +431,7 @@ export default function DashboardCalendarScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={GOLD} />
+          <OutsydeLoader />
         </View>
       </View>
     );

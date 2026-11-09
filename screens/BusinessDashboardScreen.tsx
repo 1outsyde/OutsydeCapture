@@ -38,6 +38,7 @@ import PlanOfferBanner, {
   usePlanOfferBannerVisible,
 } from "@/components/plan-offer/PlanOfferBanner";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 type BusinessType = "service" | "product" | "both";
 
@@ -711,7 +712,7 @@ export default function BusinessDashboardScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={theme.primary} />
+          <OutsydeLoader />
         </View>
       </View>
     );

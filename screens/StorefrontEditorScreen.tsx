@@ -110,6 +110,7 @@ import {
   ownerProductPriceLine,
   productRequestOnlyPatch,
 } from "@/utils/productRequestLogic";
+import OutsydeLoader from "@/components/OutsydeLoader";
 
 // The backend rejects vendor service durations under 5 minutes.
 const MIN_SERVICE_DURATION_MINUTES = 5;
@@ -2445,7 +2446,7 @@ export default function StorefrontEditorScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={theme.brandGold} />
+          <OutsydeLoader />
         </View>
       </View>
     );
