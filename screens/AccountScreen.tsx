@@ -34,7 +34,7 @@ import {
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1510,12 +1510,8 @@ export default function AccountScreen() {
       </Animated.View>
       <View style={styles.headerRow}>
         {isOwner && !isPushedProfile ? (
-          <Pressable
-            style={styles.headerButton}
-            onPress={() => setSettingsVisible(true)}
-          >
-            <Feather name="menu" size={18} color={COLORS.white} />
-          </Pressable>
+          // Account menu redesign (Legend 2026-11-10): ☰ moved to the top right; this keeps the title centered.
+          <View style={styles.headerButtonSpacer} />
         ) : (
           <Pressable
             style={styles.headerButton}
@@ -1532,21 +1528,6 @@ export default function AccountScreen() {
           {profile?.name || "Profile"}
         </Animated.Text>
         <View style={styles.headerRight}>
-          {isOwner ? (
-            <Pressable
-              style={styles.headerButton}
-              onPress={() => navigation.navigate("Notifications")}
-            >
-              <Feather name="bell" size={18} color={COLORS.white} />
-              {unreadCount > 0 ? (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
-          ) : null}
           {!isOwner && isAuthenticated && profile && (
             <Pressable
               style={styles.headerButton}
@@ -1565,9 +1546,25 @@ export default function AccountScreen() {
               <Feather name="more-horizontal" size={18} color={COLORS.white} />
             </Pressable>
           )}
-          <Pressable style={styles.headerButton} onPress={shareProfile}>
-            <Feather name="share-2" size={18} color={COLORS.white} />
+          <Pressable
+            style={styles.headerButton}
+            onPress={shareProfile}
+            accessibilityRole="button"
+            accessibilityLabel="Share profile"
+          >
+            <Ionicons name="share-social" size={18} color={COLORS.white} />
           </Pressable>
+          {/* The bell left the Account tab (Inbox shows the same badge); the menu sits top right. */}
+          {isOwner && !isPushedProfile ? (
+            <Pressable
+              style={styles.headerButton}
+              onPress={() => setSettingsVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open menu"
+            >
+              <Ionicons name="menu" size={20} color={COLORS.white} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </Animated.View>
@@ -3245,6 +3242,9 @@ export default function AccountScreen() {
         }
         isMultiStaff={Boolean(profile?.isMultiStaff)}
         onOpenSaved={() => setActiveTab("saved")}
+        profileName={profile?.name}
+        profileHandle={profile?.handle}
+        profileAvatarUrl={profile?.avatarUrl}
       />
 
       <InviteTeamModal
@@ -3303,6 +3303,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.14)",
+    marginHorizontal: 2,
+  },
+  headerButtonSpacer: {
+    width: 36,
+    height: 36,
     marginHorizontal: 2,
   },
   headerTitle: {
