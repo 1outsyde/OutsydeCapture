@@ -3,7 +3,7 @@ import { StyleSheet, View, Platform, Alert, Pressable, AppState, AppStateStatus 
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { api } from "@/services/api";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets, SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { useNavigation, useIsFocused, CommonActions } from "@react-navigation/native";
@@ -68,7 +68,7 @@ function CreateTabButton(props: BottomTabBarButtonProps) {
       hitSlop={8}
     >
       <View style={[styles.createButton, { backgroundColor: theme.brandPrimary }]}>
-        <Feather name="plus" size={24} color={theme.brandPrimaryText} />
+        <Ionicons name="add" size={28} color={theme.brandPrimaryText} />
       </View>
     </Pressable>
   );
@@ -342,6 +342,7 @@ export default function MainTabNavigator() {
       <Tab.Navigator
         initialRouteName="DiscoverTab"
         screenOptions={{
+          // Color pass step 1 (Legend 2026-11-10): filled icons; gold stays as the active-tab hint.
           tabBarActiveTintColor: theme.brandGold,
           tabBarInactiveTintColor: theme.tabIconDefault,
           headerShown: false,
@@ -372,7 +373,7 @@ export default function MainTabNavigator() {
           options={{
             title: "Home",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="home" size={size} color={color} />
+              <Ionicons name="home" size={size} color={color} />
             ),
           }}
         />
@@ -384,7 +385,7 @@ export default function MainTabNavigator() {
           options={{
             title: "Search",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="search" size={size} color={color} />
+              <Ionicons name="search" size={size} color={color} />
             ),
           }}
         />
@@ -412,7 +413,7 @@ export default function MainTabNavigator() {
           options={{
             title: "Inbox",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="message-circle" size={size} color={color} />
+              <Ionicons name="chatbubble" size={size} color={color} />
             ),
             tabBarBadge: combinedUnread > 0 ? combinedUnread : undefined,
           }}
@@ -425,7 +426,7 @@ export default function MainTabNavigator() {
           options={{
             title: "Account",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="user" size={size} color={color} />
+              <Ionicons name="person" size={size} color={color} />
             ),
           }}
           listeners={{

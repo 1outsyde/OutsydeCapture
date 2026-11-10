@@ -12,6 +12,7 @@ interface InboxToggleProps {
 }
 
 // Activity redesign step 2 (Legend 2026-11-10): filled pills instead of underlined text.
+// Color pass step 1: the selected pill is neutral (white on black / black on white), not gold.
 // Used only by InboxScreen.
 export function InboxToggle({ mode, onModeChange }: InboxToggleProps) {
   const { theme } = useTheme();
@@ -23,7 +24,7 @@ export function InboxToggle({ mode, onModeChange }: InboxToggleProps) {
         onPress={() => onModeChange(value)}
         style={[
           styles.pill,
-          { backgroundColor: on ? theme.brandGold : theme.brandChip },
+          { backgroundColor: on ? theme.text : theme.brandChip },
         ]}
         accessibilityRole="tab"
         accessibilityState={{ selected: on }}
@@ -32,7 +33,7 @@ export function InboxToggle({ mode, onModeChange }: InboxToggleProps) {
           style={[
             styles.pillText,
             {
-              color: on ? theme.brandScreen : theme.text,
+              color: on ? theme.backgroundDefault : theme.text,
               fontWeight: on ? "700" : "600",
             },
           ]}

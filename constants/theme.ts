@@ -45,12 +45,13 @@ export const Colors = {
     brandGoldDim:       "#8A6600",
     brandCream:         "#0A0A0A",
     brandTextDim:       "#555555",
-    // Activity redesign (2026-11-10): screen, card, chip and unread-row surfaces. Dark = semi black + green
-    // tones instead of pitch black (Legend). Used by Activity + Notification settings first, dashboard next.
-    brandScreen:        "#F8F8F8",
+    // Color pass step 1 (Legend 2026-11-10): neutral black / white that follows the phone, with only hints
+    // of green and gold (the unread row is the gold hint). Used by Activity, Notification settings, Inbox
+    // and the menu; dashboard next.
+    brandScreen:        "#F2F2F7",
     brandCard:          "#FFFFFF",
-    brandChip:          "#ECEAE4",
-    brandCardUnread:    "#F6F0DF",
+    brandChip:          "#E5E5EA",
+    brandCardUnread:    "#FBF6E8",
     brandSuccess:       "#34C759",
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",
@@ -104,11 +105,11 @@ export const Colors = {
     brandGoldDim:       "#C9A84C",
     brandCream:         "#F0EAD6",
     brandTextDim:       "rgba(200,191,168,0.6)",
-    // Activity redesign (2026-11-10): see the light block.
-    brandScreen:        "#171717",
-    brandCard:          "#1F2522",
-    brandChip:          "#262C29",
-    brandCardUnread:    "#1D2622",
+    // Color pass step 1 (2026-11-10): see the light block. Near black, not pitch black.
+    brandScreen:        "#121212",
+    brandCard:          "#1E1E20",
+    brandChip:          "#2E2E31",
+    brandCardUnread:    "#22201A",
     brandSuccess:       "#34C759",
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",
