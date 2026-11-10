@@ -43,7 +43,9 @@ const CATEGORY_ICONS: Record<
 type Permission = "on" | "off" | "unknown";
 
 export default function NotificationSettingsScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  // Color pass step 1: neutral surfaces; gold accents in dark mode, green in light (gold is faint on white).
+  const accent = isDark ? theme.brandGold : theme.brandPrimary;
   const insets = useSafeAreaInsets();
   const { user, getToken } = useAuth();
   const { isEnabled, enableNotifications, disableNotifications } =
@@ -146,13 +148,13 @@ export default function NotificationSettingsScreen() {
   };
 
   const switchColors = (on: boolean) => ({
-    trackColor: { false: theme.brandChip, true: theme.brandGold },
-    thumbColor: on ? theme.brandPrimaryText : theme.textSecondary,
+    trackColor: { false: theme.brandChip, true: theme.brandPrimary },
+    thumbColor: on ? "#FFFFFF" : theme.textSecondary,
   });
 
   const iconBox = (name: keyof typeof Ionicons.glyphMap) => (
-    <View style={[styles.iconBox, { backgroundColor: theme.brandPrimary }]}>
-      <Ionicons name={name} size={20} color={theme.brandGold} />
+    <View style={[styles.iconBox, { backgroundColor: theme.brandChip }]}>
+      <Ionicons name={name} size={20} color={accent} />
     </View>
   );
 
@@ -177,27 +179,19 @@ export default function NotificationSettingsScreen() {
           style={[
             styles.card,
             styles.rowCard,
-            { backgroundColor: theme.brandPrimary },
+            { backgroundColor: theme.brandCard },
           ]}
           accessibilityRole="button"
           accessibilityHint="Opens your phone's settings"
         >
-          <View
-            style={[styles.iconBox, { backgroundColor: theme.brandScreen }]}
-          >
-            <Ionicons name="notifications" size={20} color={theme.brandGold} />
+          <View style={[styles.iconBox, { backgroundColor: theme.brandChip }]}>
+            <Ionicons name="notifications" size={20} color={accent} />
           </View>
           <View style={styles.rowText}>
-            <ThemedText
-              type="body"
-              style={[styles.rowTitle, { color: theme.brandPrimaryText }]}
-            >
+            <ThemedText type="body" style={styles.rowTitle}>
               Push notifications
             </ThemedText>
-            <ThemedText
-              type="caption"
-              style={{ color: theme.brandPrimaryText, opacity: 0.85 }}
-            >
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
               {permission === "on"
                 ? "On for this phone. Turn them off in your phone's settings."
                 : permission === "off"
@@ -207,14 +201,14 @@ export default function NotificationSettingsScreen() {
           </View>
           <View style={styles.statusWrap}>
             {permission !== "unknown" ? (
-              <ThemedText style={[styles.status, { color: theme.brandGold }]}>
+              <ThemedText style={[styles.status, { color: accent }]}>
                 {permission === "on" ? "On" : "Off"}
               </ThemedText>
             ) : null}
             <Ionicons
               name="chevron-forward"
               size={18}
-              color={theme.brandPrimaryText}
+              color={theme.textMuted}
             />
           </View>
         </Pressable>
@@ -255,10 +249,7 @@ export default function NotificationSettingsScreen() {
                       : row.description}
                   </ThemedText>
                   {row.note && !categories[row.key] ? (
-                    <ThemedText
-                      type="caption"
-                      style={{ color: theme.brandGold }}
-                    >
+                    <ThemedText type="caption" style={{ color: accent }}>
                       {row.note}
                     </ThemedText>
                   ) : null}

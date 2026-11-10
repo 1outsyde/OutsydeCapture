@@ -38,7 +38,6 @@ import { openAnnouncement } from "@/services/announcementPush";
 import { api } from "@/services/api";
 import {
   activityAction,
-  activityCategory,
   activityChips,
   activityIcon,
   activityTime,
@@ -75,7 +74,7 @@ function resolveNotificationInitial(
 }
 
 export default function NotificationsScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { user, getToken } = useAuth();
   const insets = useSafeAreaInsets();
@@ -236,12 +235,9 @@ export default function NotificationsScreen() {
     // All other backend types: mark-read-only for now, no confirmed target screen yet.
   };
 
-  const iconBackground = (n: Notification): string => {
-    const cat = activityCategory(n);
-    return cat === "bookings" || cat === "events"
-      ? theme.brandPrimary
-      : theme.brandChip;
-  };
+  // Color pass step 1: neutral circles; the icon carries the hint (gold in dark mode, green in light).
+  const iconBackground = (_n: Notification): string => theme.brandChip;
+  const accentIcon = isDark ? theme.brandGold : theme.brandPrimary;
 
   const renderAvatar = (notification: Notification) => {
     const resolvedAvatarUrl = resolveNotificationAvatar(
@@ -268,7 +264,7 @@ export default function NotificationsScreen() {
           },
         ]}
       >
-        <Ionicons name={icon} size={10} color={theme.brandGold} />
+        <Ionicons name={icon} size={10} color={accentIcon} />
       </View>
     );
 
@@ -312,7 +308,7 @@ export default function NotificationsScreen() {
           { backgroundColor: iconBackground(notification) },
         ]}
       >
-        <Ionicons name={icon} size={20} color={theme.brandGold} />
+        <Ionicons name={icon} size={20} color={accentIcon} />
       </View>
     );
   };
@@ -377,7 +373,7 @@ export default function NotificationsScreen() {
               onPress={() => setChip(c.key)}
               style={[
                 styles.chip,
-                { backgroundColor: on ? theme.brandCream : theme.brandChip },
+                { backgroundColor: on ? theme.text : theme.brandChip },
               ]}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
@@ -385,7 +381,7 @@ export default function NotificationsScreen() {
               <ThemedText
                 style={[
                   styles.chipText,
-                  { color: on ? theme.brandScreen : theme.text },
+                  { color: on ? theme.backgroundDefault : theme.text },
                 ]}
               >
                 {c.label}
@@ -400,7 +396,7 @@ export default function NotificationsScreen() {
           <View
             style={[styles.emptyIcon, { backgroundColor: theme.brandCard }]}
           >
-            <Ionicons name="notifications" size={28} color={theme.brandGold} />
+            <Ionicons name="notifications" size={28} color={accentIcon} />
           </View>
           <ThemedText type="h4">
             {chip === "all" ? "No notifications yet" : "You're all caught up"}
