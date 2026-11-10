@@ -249,6 +249,8 @@ export type RootStackParamList = {
   PrivacyPolicy: undefined;
   BlockedUsers: undefined;
   Notifications: undefined;
+  /** Activity redesign step 2: push permission, local reminders, news and offers. */
+  NotificationSettings: undefined;
   ProfileFeed: {
     profileId: string;
     profileName?: string;

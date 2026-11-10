@@ -1,38 +1,63 @@
-import React, { useCallback, useEffect, useState } from "react";
+// Activity (Inbox › Activity, the Notifications screen and Account › Notifications).
+// Redesign step 2 (Legend 2026-11-10): chips, Today / This week / Earlier, filled icons and buttons,
+// settings moved to NotificationSettingsScreen (gear), Clear all removed. Logic: utils/activityLogic.ts.
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { activityTarget } from "@/utils/ticketCheckoutLogic";
 import { activityQuoteId } from "@/utils/requestLogic";
 import { openTicketTarget } from "@/hooks/useTicketPushLinks";
-import {
-  View,
-  StyleSheet,
-  Pressable,
-  Platform,
-  Switch,
-  ScrollView,
-} from "react-native";
+import { View, StyleSheet, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import Card from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/context/AuthContext";
-import { useNotifications, Notification, NotificationTriggeringUser } from "@/context/NotificationContext";
-import { Spacing, FontSizes, BorderRadius } from "@/constants/theme";
+import {
+  useNotifications,
+  Notification,
+  NotificationTriggeringUser,
+} from "@/context/NotificationContext";
+import { Spacing } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/types";
-import { bookingPushTarget, isBookingPushType, openBookingPushTarget } from "@/services/bookingPush";
+import {
+  bookingPushTarget,
+  isBookingPushType,
+  openBookingPushTarget,
+} from "@/services/bookingPush";
 import { openPlanOffer } from "@/utils/planOfferNav";
 import { openPointsFromReward } from "@/utils/friendReferral";
 import { openAnnouncement } from "@/services/announcementPush";
 import { api } from "@/services/api";
+import {
+  activityAction,
+  activityCategory,
+  activityChips,
+  activityIcon,
+  activityTime,
+  filterByChip,
+  groupByWhen,
+  type ActivityChip,
+} from "@/utils/activityLogic";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+// CartOrders switches tab when _ts changes, so each tap needs a new one.
+const ordersTabParams = () => ({ openTab: "orders" as const, _ts: Date.now() });
+
+// Follow back: checked once per follower, at most this many per screen visit.
+const FOLLOW_CHECK_LIMIT = 30;
+type FollowState = "following" | "not_following" | "saving";
+
 function resolveNotificationAvatar(
-  triggeringUser?: NotificationTriggeringUser | null
+  triggeringUser?: NotificationTriggeringUser | null,
 ): string | null {
   if (!triggeringUser) return null;
   const url = triggeringUser.profilePhotoUrl || triggeringUser.profileImageUrl;
@@ -41,7 +66,7 @@ function resolveNotificationAvatar(
 }
 
 function resolveNotificationInitial(
-  triggeringUser?: NotificationTriggeringUser | null
+  triggeringUser?: NotificationTriggeringUser | null,
 ): string {
   if (!triggeringUser) return "?";
   // Array.from splits by code point, so astral characters stay whole.
@@ -49,46 +74,15 @@ function resolveNotificationInitial(
   return first ? first.toUpperCase() : "?";
 }
 
-function getNotificationBadgeColor(
-  type: Notification["type"],
-  theme: any
-): string {
-  switch (type) {
-    case "new_order":
-    case "order_shipped":
-      return theme.brandGold;
-    case "payment_succeeded":
-    case "addon_charged":
-      return theme.success;
-    case "new_follower":
-      return "#3b82f6";
-    case "booking_confirmed":
-    case "booking_canceled":
-      return theme.primary;
-    case "subscription_activated":
-    case "subscription_tier_changed":
-    case "plan_offer":
-      return theme.brandGold;
-    default:
-      return theme.surfaceSecondary;
-  }
-}
-
 export default function NotificationsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
   const { user, getToken } = useAuth();
   const insets = useSafeAreaInsets();
-  const {
-    isEnabled,
-    notifications,
-    unreadCount,
-    enableNotifications,
-    disableNotifications,
-    markAsRead,
-    markAllAsRead,
-    clearNotifications,
-  } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+    useNotifications();
+  const isAdmin = !!user?.isAdmin;
+  const [chip, setChip] = useState<ActivityChip>("all");
 
   // Notification id -> the avatar URL that failed to load for that row. Keyed
   // by URL too so a row retries if its actor's image later changes.
@@ -107,53 +101,72 @@ export default function NotificationsScreen() {
     [],
   );
 
-  // "Outsyde news and offers" (backend /api/push/preferences). Only admin announcements check it;
-  // booking and message pushes always come through. null = not loaded (row hidden), so a failed
-  // load never shows a wrong value.
-  const [news, setNews] = useState<boolean | null>(null);
-  const [newsSaving, setNewsSaving] = useState(false);
-  const [newsError, setNewsError] = useState<string | null>(null);
-  const signedIn = !!user && !user.isGuest;
+  const chips = useMemo(() => activityChips(isAdmin), [isAdmin]);
+  const sections = useMemo(
+    () => groupByWhen(filterByChip(notifications, chip)),
+    [notifications, chip],
+  );
+
+  // ── Follow back ────────────────────────────────────────────────────────────
+  // userId -> state. No entry = not checked yet; the button shows only for "not_following".
+  const [follow, setFollow] = useState<Record<string, FollowState>>({});
+  // Followers already asked about for the signed-in user, so each is checked once per visit.
+  const requestedRef = useRef<{ userId: string | null; ids: Set<string> }>({
+    userId: null,
+    ids: new Set(),
+  });
 
   useEffect(() => {
-    if (!signedIn) return;
-    let off = false;
+    if (!user || user.isGuest) return;
+    if (requestedRef.current.userId !== user.id) {
+      requestedRef.current = { userId: user.id, ids: new Set() };
+    }
+    const asked = requestedRef.current.ids;
+    const ids: string[] = [];
+    for (const n of notifications) {
+      if (asked.size + ids.length >= FOLLOW_CHECK_LIMIT) break;
+      const a = activityAction(n, isAdmin);
+      if (
+        a?.kind === "follow" &&
+        a.userId !== user.id &&
+        !asked.has(a.userId) &&
+        !ids.includes(a.userId)
+      ) {
+        ids.push(a.userId);
+      }
+    }
+    if (!ids.length) return;
+    for (const id of ids) asked.add(id);
     (async () => {
       const token = await getToken();
-      if (!token || off) return;
-      const r = await api.getPushPreferences(token);
-      if (!off && r) setNews(r.news);
+      const results = await Promise.all(
+        ids.map(
+          async (id) =>
+            [id, (await api.checkFollowStatus(id, token)).isFollowing] as const,
+        ),
+      );
+      setFollow((prev) => {
+        const next = { ...prev };
+        for (const [id, isFollowing] of results)
+          next[id] = isFollowing ? "following" : "not_following";
+        return next;
+      });
     })();
-    return () => {
-      off = true;
-    };
-  }, [signedIn, getToken]);
+  }, [notifications, user, isAdmin, getToken]);
 
-  const handleToggleNews = async (value: boolean) => {
-    if (newsSaving) return;
-    const before = news;
-    setNews(value);
-    setNewsSaving(true);
-    setNewsError(null);
-    const token = await getToken();
-    const r = token ? await api.setPushPreferences(token, value) : null;
-    setNewsSaving(false);
-    if (!r) {
-      setNews(before);
-      setNewsError("Couldn't save. Try again.");
-      return;
-    }
-    setNews(r.news);
-  };
-
-  const handleToggleNotifications = async (value: boolean) => {
-    if (value) {
-      const success = await enableNotifications();
-      if (!success && Platform.OS !== "web") {
-        console.log("Failed to enable notifications");
-      }
-    } else {
-      disableNotifications();
+  const handleFollowBack = async (
+    notification: Notification,
+    userId: string,
+  ) => {
+    if (follow[userId] !== "not_following") return;
+    markAsRead(notification.id);
+    setFollow((prev) => ({ ...prev, [userId]: "saving" }));
+    try {
+      const token = await getToken();
+      await api.followUser(userId, "user", token);
+      setFollow((prev) => ({ ...prev, [userId]: "following" }));
+    } catch {
+      setFollow((prev) => ({ ...prev, [userId]: "not_following" }));
     }
   };
 
@@ -161,10 +174,15 @@ export default function NotificationsScreen() {
     markAsRead(notification.id);
     // Booking request types: same screen a tap on the push opens.
     const bookingTarget = isBookingPushType(notification.type)
-      ? bookingPushTarget({ type: notification.type, screen: notification.metadata?.screen })
+      ? bookingPushTarget({
+          type: notification.type,
+          screen: notification.metadata?.screen,
+        })
       : null;
     // Quotes 6c-2b (call 5): every quote row opens its quote.
-    const quoteId = activityQuoteId(notification as { type: string; metadata?: Record<string, unknown> });
+    const quoteId = activityQuoteId(
+      notification as { type: string; metadata?: Record<string, unknown> },
+    );
     if (quoteId) {
       navigation.navigate("Quote", { quoteId });
     } else if (bookingTarget) {
@@ -188,545 +206,366 @@ export default function NotificationsScreen() {
       // Event team, ticket and host items (invites, team pay, reminders, sales, payouts; p4-team 9c-2, calls 60,
       // 73, 78): the same screen their push opens. A team message opens their event.
       openTicketTarget(navigation, activityTarget(notification as any)!);
-    } else if (notification.type === "business_pending" && notification.metadata?.businessId) {
+    } else if (
+      notification.type === "business_pending" &&
+      notification.metadata?.businessId
+    ) {
       navigation.navigate("AdminDashboard", { section: "businesses" });
     } else if (notification.metadata?.sessionId) {
       navigation.navigate("SessionDetail", {
         sessionId: notification.metadata.sessionId as string,
       });
-    } else if (notification.type === "new_follower" && notification.metadata?.referenceId) {
+    } else if (
+      notification.type === "new_follower" &&
+      notification.metadata?.referenceId
+    ) {
       navigation.navigate("UserProfile", {
         userId: notification.metadata.referenceId,
       });
+    } else if (
+      notification.type === "order_confirmed" ||
+      notification.type === "order_shipped"
+    ) {
+      // Activity step 2 (Legend 2026-11-10): a customer's order rows open the Orders tab.
+      navigation.navigate("CartOrders", ordersTabParams());
+    } else if (notification.type === "new_order") {
+      // A business's new order opens its Orders screen; the announcement map checks the role
+      // (business only, anyone else lands back on Activity).
+      openAnnouncement(navigation, user, { screen: "business_orders" });
     }
     // All other backend types: mark-read-only for now, no confirmed target screen yet.
   };
 
-  const formatTimestamp = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - new Date(date).getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(date).toLocaleDateString();
+  const iconBackground = (n: Notification): string => {
+    const cat = activityCategory(n);
+    return cat === "bookings" || cat === "events"
+      ? theme.brandPrimary
+      : theme.brandChip;
   };
 
-  const getNotificationIcon = (
-    type: Notification["type"]
-  ): keyof typeof Feather.glyphMap => {
-    switch (type) {
-      case "booking":
-        return "check-circle";
-      case "reminder":
-        return "clock";
-      case "promotion":
-        return "tag";
-      case "admin":
-        return "shield";
-      case "follow":
-        return "user-plus";
-      case "referral_reward":
-        return "gift";
-      case "business_referral_reward":
-        return "dollar-sign";
-      case "announcement":
-        return "volume-2";
-      case "business_pending":
-        return "briefcase";
-      case "booking_confirmed":
-        return "check-circle";
-      case "booking_canceled":
-        return "x-circle";
-      case "order_shipped":
-        return "truck";
-      case "new_order":
-        return "shopping-bag";
-      case "new_follower":
-        return "user-plus";
-      case "refund_issued":
-        return "rotate-ccw";
-      case "payment_succeeded":
-        return "credit-card";
-      case "payment_failed":
-        return "alert-circle";
-      case "subscription_activated":
-        return "star";
-      case "subscription_canceled":
-        return "x-circle";
-      case "subscription_tier_changed":
-        return "trending-up";
-      case "addon_charged":
-        return "plus-circle";
-      case "photographer_assigned":
-        return "camera";
-      case "stripe_onboarding_complete":
-        return "check-square";
-      case "new_vendor_application":
-        return "briefcase";
-      case "new_photographer_application":
-        return "camera";
-      case "new_influencer_application":
-        return "trending-up";
-      case "vendor_approved":
-        return "check-circle";
-      case "vendor_rejected":
-        return "x-circle";
-      case "booking_request":
-      case "booking_request_sent":
-      case "booking_request_reminder":
-      case "booking_expired":
-        return "calendar";
-      case "plan_offer":
-        return "gift";
-      case "system":
-      default:
-        return "bell";
+  const renderAvatar = (notification: Notification) => {
+    const resolvedAvatarUrl = resolveNotificationAvatar(
+      notification.triggeringUser,
+    );
+    const avatarUrl =
+      resolvedAvatarUrl &&
+      failedAvatarUrls[notification.id] !== resolvedAvatarUrl
+        ? resolvedAvatarUrl
+        : null;
+    const initial = notification.triggeringUser
+      ? resolveNotificationInitial(notification.triggeringUser)
+      : null;
+    // resolveNotificationInitial returns "?" when there is no displayName.
+    const hasInitial = !!initial && initial.trim() !== "" && initial !== "?";
+    const icon = activityIcon(notification);
+    const badge = (
+      <View
+        style={[
+          styles.badge,
+          {
+            backgroundColor: iconBackground(notification),
+            borderColor: theme.brandScreen,
+          },
+        ]}
+      >
+        <Ionicons name={icon} size={10} color={theme.brandGold} />
+      </View>
+    );
+
+    if (avatarUrl) {
+      return (
+        <View style={styles.avatarWrap}>
+          <Image
+            source={{ uri: avatarUrl }}
+            style={styles.avatar}
+            contentFit="cover"
+            transition={200}
+            onError={() => markAvatarFailed(notification.id, avatarUrl)}
+          />
+          {badge}
+        </View>
+      );
     }
+    if (hasInitial) {
+      return (
+        <View style={styles.avatarWrap}>
+          <View
+            style={[
+              styles.avatar,
+              styles.center,
+              { backgroundColor: theme.brandGold },
+            ]}
+          >
+            <ThemedText style={[styles.initial, { color: theme.brandScreen }]}>
+              {initial}
+            </ThemedText>
+          </View>
+          {badge}
+        </View>
+      );
+    }
+    return (
+      <View
+        style={[
+          styles.avatar,
+          styles.center,
+          { backgroundColor: iconBackground(notification) },
+        ]}
+      >
+        <Ionicons name={icon} size={20} color={theme.brandGold} />
+      </View>
+    );
   };
 
-  const styles = StyleSheet.create({
-    container: {
-      padding: Spacing.md,
-      gap: Spacing.lg,
-    },
-    section: {
-      gap: Spacing.sm,
-    },
-    sectionTitle: {
-      marginBottom: Spacing.xs,
-    },
-    settingCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: Spacing.md,
-    },
-    settingLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: Spacing.md,
-      flex: 1,
-    },
-    settingIconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: BorderRadius.md,
-      backgroundColor: theme.primaryTransparent,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    settingContent: {
-      flex: 1,
-    },
-    headerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: Spacing.xs,
-    },
-    actionButtons: {
-      flexDirection: "row",
-      gap: Spacing.sm,
-    },
-    actionButton: {
-      paddingVertical: Spacing.xs,
-      paddingHorizontal: Spacing.sm,
-      backgroundColor: "transparent",
-      borderWidth: 1,
-      borderRadius: BorderRadius.round,
-    },
-    actionButtonText: {
-      fontSize: FontSizes.xs,
-    },
-    notificationList: {
-      gap: Spacing.sm,
-    },
-    notificationCard: {
-      padding: Spacing.md,
-      borderLeftWidth: 3,
-      borderTopLeftRadius: 0,
-      borderBottomLeftRadius: 0,
-    },
-    notificationPressable: {
-      flexDirection: "row",
-      gap: Spacing.md,
-    },
-    notificationIconContainer: {
-      width: 44,
-      height: 44,
-      borderRadius: BorderRadius.round,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    notificationContent: {
-      flex: 1,
-    },
-    notificationHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: Spacing.xxs,
-    },
-    notificationTitle: {
-      flex: 1,
-      marginRight: Spacing.sm,
-    },
-    notificationTime: {
-      fontSize: FontSizes.xs,
-    },
-    unreadDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: theme.brandGold,
-      marginLeft: Spacing.xs,
-    },
-    emptyState: {
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: Spacing["3xl"],
-      gap: Spacing.md,
-    },
-    emptyIconContainer: {
-      width: 80,
-      height: 80,
-      borderRadius: BorderRadius.round,
-      backgroundColor: theme.surfaceSecondary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    webNotice: {
-      padding: Spacing.md,
-      backgroundColor: theme.warningBackground,
-      borderRadius: BorderRadius.md,
-      marginBottom: Spacing.md,
-    },
-    notificationAvatarWrap: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      position: "relative",
-      flexShrink: 0,
-    },
-    notificationAvatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-    },
-    notificationInitialFallback: {
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    notificationInitial: {
-      color: "#000000",
-      fontSize: 16,
-      fontWeight: "bold",
-    },
-    notificationBadge: {
-      position: "absolute",
-      bottom: -2,
-      right: -2,
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      borderWidth: 2,
-      borderColor: theme.background,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  });
+  const renderAction = (notification: Notification) => {
+    const action = activityAction(notification, isAdmin);
+    if (!action) return null;
+    if (action.kind === "follow") {
+      const state = follow[action.userId];
+      if (
+        action.userId === user?.id ||
+        (state !== "not_following" && state !== "saving")
+      )
+        return null;
+      return (
+        <Pressable
+          onPress={() => handleFollowBack(notification, action.userId)}
+          disabled={state === "saving"}
+          style={[
+            styles.actionButton,
+            {
+              backgroundColor: theme.brandGold,
+              opacity: state === "saving" ? 0.6 : 1,
+            },
+          ]}
+          accessibilityRole="button"
+        >
+          <ThemedText style={[styles.actionText, { color: theme.brandScreen }]}>
+            Follow back
+          </ThemedText>
+        </Pressable>
+      );
+    }
+    return (
+      <Pressable
+        onPress={() => handleNotificationPress(notification)}
+        style={[styles.actionButton, { backgroundColor: theme.brandGold }]}
+        accessibilityRole="button"
+      >
+        <ThemedText style={[styles.actionText, { color: theme.brandScreen }]}>
+          {action.label}
+        </ThemedText>
+      </Pressable>
+    );
+  };
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
-      contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + Spacing.xl }]}
+      style={{ flex: 1, backgroundColor: theme.brandScreen }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
     >
-      <View style={styles.section}>
-        <ThemedText type="h3" style={styles.sectionTitle}>
-          Settings
-        </ThemedText>
-        <Card style={styles.settingCard}>
-          <View style={styles.settingLeft}>
-            <View style={styles.settingIconContainer}>
-              <Feather name="bell" size={20} color={theme.primary} />
-            </View>
-            <View style={styles.settingContent}>
-              <ThemedText type="body" style={{ fontWeight: "600" }}>Push Notifications</ThemedText>
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {Platform.OS === "web"
-                  ? "In-app notifications only"
-                  : isEnabled
-                    ? "Receive booking reminders"
-                    : "Enable to receive reminders"}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+      >
+        {chips.map((c) => {
+          const on = c.key === chip;
+          return (
+            <Pressable
+              key={c.key}
+              onPress={() => setChip(c.key)}
+              style={[
+                styles.chip,
+                { backgroundColor: on ? theme.brandCream : theme.brandChip },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+            >
+              <ThemedText
+                style={[
+                  styles.chipText,
+                  { color: on ? theme.brandScreen : theme.text },
+                ]}
+              >
+                {c.label}
               </ThemedText>
-            </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {sections.length === 0 ? (
+        <View style={styles.empty}>
+          <View
+            style={[styles.emptyIcon, { backgroundColor: theme.brandCard }]}
+          >
+            <Ionicons name="notifications" size={28} color={theme.brandGold} />
           </View>
-          <Switch
-            value={isEnabled}
-            onValueChange={handleToggleNotifications}
-            trackColor={{
-              false: theme.surfaceSecondary,
-              true: theme.brandGold,
-            }}
-            thumbColor={isEnabled ? theme.brandPrimaryText : theme.textSecondary}
-          />
-        </Card>
-
-        {Platform.OS !== "web" && news !== null ? (
-          <View style={{ marginTop: Spacing.md }}>
-            <Card style={styles.settingCard}>
-              <View style={styles.settingLeft}>
-                <View style={styles.settingIconContainer}>
-                  <Feather name="volume-2" size={20} color={theme.primary} />
-                </View>
-                <View style={styles.settingContent}>
-                  <ThemedText type="body" style={{ fontWeight: "600" }}>
-                    Outsyde news and offers
-                  </ThemedText>
-                  <ThemedText
-                    type="caption"
-                    style={{
-                      color: newsError ? theme.error : theme.textSecondary,
-                    }}
-                  >
-                    {newsError ??
-                      "Updates and offers from Outsyde. Booking and message alerts still come through."}
-                  </ThemedText>
-                </View>
-              </View>
-              <Switch
-                value={news}
-                onValueChange={handleToggleNews}
-                disabled={newsSaving}
-                trackColor={{
-                  false: theme.surfaceSecondary,
-                  true: theme.brandGold,
-                }}
-                thumbColor={news ? theme.brandPrimaryText : theme.textSecondary}
-                accessibilityLabel="Outsyde news and offers"
-              />
-            </Card>
-          </View>
-        ) : null}
-
-        {Platform.OS === "web" ? (
-          <ThemedView style={styles.webNotice}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Push notifications are not available on web. Use Expo Go on your
-              mobile device to receive push notifications.
-            </ThemedText>
-          </ThemedView>
-        ) : null}
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.headerRow}>
-          <ThemedText type="h3">
-            Notifications{" "}
-            {unreadCount > 0 ? (
-              <ThemedText type="body" style={{ color: theme.textSecondary }}>
-                ({unreadCount} unread)
-              </ThemedText>
-            ) : null}
+          <ThemedText type="h4">
+            {chip === "all" ? "No notifications yet" : "You're all caught up"}
           </ThemedText>
-          {notifications.length > 0 ? (
-            <View style={styles.actionButtons}>
-              {unreadCount > 0 ? (
+          <ThemedText
+            type="caption"
+            style={{ color: theme.textSecondary, textAlign: "center" }}
+          >
+            {chip === "all"
+              ? "Bookings, orders, follows and updates from Outsyde will show up here."
+              : "Updates in this category will show up here."}
+          </ThemedText>
+        </View>
+      ) : (
+        sections.map((section, i) => (
+          <View key={section.key} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <ThemedText
+                style={[styles.sectionTitle, { color: theme.textSecondary }]}
+              >
+                {section.title.toUpperCase()}
+              </ThemedText>
+              {i === 0 && unreadCount > 0 ? (
                 <Pressable
-                  style={[styles.actionButton, { borderColor: theme.brandGold }]}
                   onPress={markAllAsRead}
+                  hitSlop={8}
+                  accessibilityRole="button"
                 >
                   <ThemedText
-                    type="caption"
-                    style={[styles.actionButtonText, { color: theme.brandGold }]}
+                    style={[styles.markAll, { color: theme.brandGold }]}
                   >
                     Mark all read
                   </ThemedText>
                 </Pressable>
               ) : null}
-              <Pressable
-                style={[styles.actionButton, { borderColor: theme.textSecondary }]}
-                onPress={clearNotifications}
-              >
-                <ThemedText
-                  type="caption"
-                  style={[styles.actionButtonText, { color: theme.textSecondary }]}
-                >
-                  Clear all
-                </ThemedText>
-              </Pressable>
             </View>
-          ) : null}
-        </View>
-
-        {notifications.length === 0 ? (
-          <Card>
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconContainer}>
-                <Feather name="bell-off" size={32} color={theme.textSecondary} />
-              </View>
-              <ThemedText type="body" style={{ color: theme.textSecondary }}>
-                No notifications yet
-              </ThemedText>
-              <ThemedText
-                type="caption"
-                style={{ textAlign: "center", color: theme.textSecondary }}
-              >
-                {isEnabled
-                  ? "You'll receive notifications about your upcoming sessions here"
-                  : "Enable notifications to receive booking reminders"}
-              </ThemedText>
-            </View>
-          </Card>
-        ) : (
-          <View style={styles.notificationList}>
-            {notifications.map((notification) => (
-              <Card
+            {section.rows.map((notification) => (
+              <View
                 key={notification.id}
-                style={
-                  [
-                    styles.notificationCard,
-                    {
-                      borderLeftColor: notification.read
-                        ? "transparent"
-                        : theme.brandGold,
-                      backgroundColor: notification.read
-                        ? undefined
-                        : theme.primaryTransparent,
-                    },
-                  ] as any
-                }
+                style={[
+                  styles.row,
+                  {
+                    backgroundColor: notification.read
+                      ? "transparent"
+                      : theme.brandCardUnread,
+                    borderBottomColor: theme.brandChip,
+                  },
+                ]}
               >
-                <Pressable
-                  style={styles.notificationPressable}
-                  onPress={() => handleNotificationPress(notification)}
-                >
-                  {(() => {
-                    const resolvedAvatarUrl = resolveNotificationAvatar(notification.triggeringUser);
-                    const avatarUrl =
-                      resolvedAvatarUrl &&
-                      failedAvatarUrls[notification.id] !== resolvedAvatarUrl
-                        ? resolvedAvatarUrl
-                        : null;
-                    const initial = notification.triggeringUser
-                      ? resolveNotificationInitial(notification.triggeringUser)
-                      : null;
-                    // resolveNotificationInitial returns "?" when there is no displayName.
-                    const hasInitial =
-                      !!initial && initial.trim() !== "" && initial !== "?";
-                    const badge = (
-                      <View
-                        style={[
-                          styles.notificationBadge,
-                          { backgroundColor: getNotificationBadgeColor(notification.type, theme) },
-                        ]}
-                      >
-                        <Feather
-                          name={getNotificationIcon(notification.type)}
-                          size={10}
-                          color={theme.background}
-                        />
-                      </View>
-                    );
-
-                    if (avatarUrl) {
-                      return (
-                        <View style={styles.notificationAvatarWrap}>
-                          <Image
-                            source={{ uri: avatarUrl }}
-                            style={styles.notificationAvatar}
-                            contentFit="cover"
-                            transition={200}
-                            onError={() =>
-                              markAvatarFailed(notification.id, avatarUrl)
-                            }
-                          />
-                          {badge}
-                        </View>
-                      );
-                    }
-
-                    if (hasInitial) {
-                      return (
-                        <View style={styles.notificationAvatarWrap}>
-                          <View
-                            style={[
-                              styles.notificationAvatar,
-                              styles.notificationInitialFallback,
-                              { backgroundColor: theme.primary },
-                            ]}
-                          >
-                            <ThemedText style={styles.notificationInitial}>
-                              {initial}
-                            </ThemedText>
-                          </View>
-                          {badge}
-                        </View>
-                      );
-                    }
-
-                    return (
-                      <View
-                        style={[
-                          styles.notificationIconContainer,
-                          {
-                            backgroundColor: notification.read
-                              ? theme.surfaceSecondary
-                              : theme.primaryTransparent,
-                          },
-                        ]}
-                      >
-                        <Feather
-                          name={getNotificationIcon(notification.type)}
-                          size={20}
-                          color={notification.read ? theme.textSecondary : theme.brandGold}
-                        />
-                      </View>
-                    );
-                  })()}
-                  <View style={styles.notificationContent}>
-                    <View style={styles.notificationHeader}>
-                      <ThemedText
-                        type="body"
-                        style={[
-                          styles.notificationTitle,
-                          !notification.read && { fontWeight: "600" }
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {notification.title}
-                      </ThemedText>
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <ThemedText
-                          type="caption"
-                          style={[styles.notificationTime, { color: theme.textSecondary }]}
-                        >
-                          {formatTimestamp(new Date(notification.date))}
-                        </ThemedText>
-                        {!notification.read ? (
-                          <View style={styles.unreadDot} />
-                        ) : null}
-                      </View>
-                    </View>
+                {renderAvatar(notification)}
+                <View style={styles.rowMiddle}>
+                  <Pressable
+                    onPress={() => handleNotificationPress(notification)}
+                    accessibilityRole="button"
+                  >
+                    <ThemedText
+                      type="body"
+                      style={{ fontWeight: notification.read ? "500" : "700" }}
+                      numberOfLines={2}
+                    >
+                      {notification.title}
+                    </ThemedText>
                     <ThemedText
                       type="caption"
-                      style={{ color: theme.textSecondary }}
-                      numberOfLines={2}
+                      style={{ color: theme.textSecondary, marginTop: 2 }}
+                      numberOfLines={3}
                     >
                       {notification.body}
                     </ThemedText>
-                  </View>
-                </Pressable>
-              </Card>
+                  </Pressable>
+                  {renderAction(notification)}
+                </View>
+                <View style={styles.rowRight}>
+                  <ThemedText
+                    type="caption"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    {activityTime(notification.date)}
+                  </ThemedText>
+                  {!notification.read ? (
+                    <View
+                      style={[
+                        styles.unreadDot,
+                        { backgroundColor: theme.brandGold },
+                      ]}
+                    />
+                  ) : null}
+                </View>
+              </View>
             ))}
           </View>
-        )}
-      </View>
+        ))
+      )}
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  chipRow: {
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  chip: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    justifyContent: "center",
+  },
+  chipText: { fontSize: 14, fontWeight: "600" },
+  section: { paddingTop: Spacing.md },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    minHeight: 36,
+  },
+  sectionTitle: { fontSize: 13, fontWeight: "700", letterSpacing: 0.8 },
+  markAll: { fontSize: 14, fontWeight: "600" },
+  row: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowMiddle: { flex: 1, minWidth: 0, gap: 8 },
+  rowRight: { alignItems: "flex-end", gap: 8, paddingTop: 2 },
+  center: { alignItems: "center", justifyContent: "center" },
+  avatarWrap: { width: 44, height: 44, position: "relative", flexShrink: 0 },
+  avatar: { width: 44, height: 44, borderRadius: 22, flexShrink: 0 },
+  initial: { fontSize: 16, fontWeight: "700" },
+  badge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionButton: {
+    alignSelf: "flex-start",
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    justifyContent: "center",
+  },
+  actionText: { fontSize: 14, fontWeight: "700" },
+  unreadDot: { width: 9, height: 9, borderRadius: 5 },
+  empty: {
+    alignItems: "center",
+    paddingVertical: 80,
+    paddingHorizontal: 32,
+    gap: 10,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

@@ -406,10 +406,8 @@ export function PersonalSettingsMenu({
                 label="Notifications"
                 onPress={() => {
                   onClose();
-                  navigation.navigate("Main", {
-                    screen: "AccountTab",
-                    params: { screen: "Notifications" },
-                  } as any);
+                  // Activity redesign step 2 (Legend 2026-11-10): opens the settings, not the list.
+                  navigation.navigate("NotificationSettings" as any);
                 }}
               />
 

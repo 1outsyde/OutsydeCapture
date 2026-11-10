@@ -4,7 +4,7 @@ import {
   createNativeStackNavigator,
   type NativeStackNavigationOptions,
 } from "@react-navigation/native-stack";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import AuthScreen from "@/screens/AuthScreen";
@@ -74,6 +74,7 @@ import TermsOfServiceScreen from "@/screens/TermsOfServiceScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import BlockedUsersScreen from "@/screens/BlockedUsersScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
+import NotificationSettingsScreen from "@/screens/NotificationSettingsScreen";
 import QuoteScreen from "@/screens/QuoteScreen";
 import RequestQuoteScreen from "@/screens/RequestQuoteScreen";
 import QuoteComposeScreen from "@/screens/QuoteComposeScreen";
@@ -1332,13 +1333,38 @@ export default function RootNavigator() {
           headerTitle: "Notifications",
           headerTitleAlign: "center",
           headerTintColor: theme.text,
-          headerStyle: { backgroundColor: theme.backgroundRoot },
-          headerLeft: () => null,
+          headerStyle: { backgroundColor: theme.brandScreen },
+          // Activity redesign step 2: settings moved off the list to their own screen.
+          headerLeft: () => (
+            <Pressable
+              onPress={() => navigation.navigate("NotificationSettings")}
+              hitSlop={16}
+              accessibilityRole="button"
+              accessibilityLabel="Notification settings"
+            >
+              <Ionicons name="settings" size={22} color={theme.text} />
+            </Pressable>
+          ),
           headerRight: () => (
             <Pressable onPress={() => navigation.goBack()} hitSlop={16}>
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
           ),
+        })}
+      />
+
+      <Stack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={stackAware({
+          presentation: "card",
+          animation: "slide_from_right",
+          headerShown: true,
+          headerTitle: "Notification settings",
+          headerTitleAlign: "center",
+          headerTintColor: theme.text,
+          headerStyle: { backgroundColor: theme.brandScreen },
+          headerBackTitle: "Back",
         })}
       />
 
