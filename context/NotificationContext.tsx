@@ -2,6 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { registerWhile } from "@/utils/modalCoordinator";
+import {
+  isServerNotificationId,
+  mergeServerNotifications,
+  markOneRead,
+  markEveryRead,
+} from "@/utils/notificationReadSync";
 import * as Notifications from "expo-notifications";
 import { useAuth } from "./AuthContext";
 import api from "@/services/api";
@@ -109,17 +115,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const userPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notificationListenerRef = useRef<any>(null);
   const responseListenerRef = useRef<any>(null);
+  // Activity read fix (2026-11-10): the 30 second refresh runs a copy of fetchUserNotifications made
+  // when polling started, so it must read the list from this ref, never from its own closure.
+  const notificationsRef = useRef<Notification[]>([]);
+  // Resolves once the stored list for the signed in user is loaded, so the first refresh can't
+  // replace it with an empty list.
+  const storedLoadRef = useRef<Promise<void> | null>(null);
+
+  const commitNotifications = (updated: Notification[]) => {
+    notificationsRef.current = updated;
+    setNotifications(updated);
+  };
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      loadNotificationData();
+      storedLoadRef.current = loadNotificationData();
       initializePushNotifications();
       if (user.isAdmin) {
         startAdminPolling();
       }
       startUserPolling();
     } else {
-      setNotifications([]);
+      storedLoadRef.current = null;
+      commitNotifications([]);
       setSettings(DEFAULT_SETTINGS);
       setIsEnabled(true);
       setPendingBusinessCount(0);
@@ -224,7 +242,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem(getEnabledKey(user.id)),
         AsyncStorage.getItem(getSeenBusinessesKey(user.id)),
       ]);
-      if (storedNotifications) setNotifications(JSON.parse(storedNotifications));
+      if (storedNotifications) commitNotifications(JSON.parse(storedNotifications));
       if (storedSettings) setSettings(JSON.parse(storedSettings));
       if (storedEnabled !== null) setIsEnabled(storedEnabled === "true");
       if (storedSeenBusinesses) setSeenBusinessIds(JSON.parse(storedSeenBusinesses));
@@ -279,13 +297,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }));
 
       if (newNotifications.length > 0) {
-        const existingIds = new Set(notifications.map(n => n.id));
+        const existingIds = new Set(notificationsRef.current.map(n => n.id));
         const uniqueNewNotifications = newNotifications.filter(n => !existingIds.has(n.id));
         
         if (uniqueNewNotifications.length > 0) {
-          const updated = [...uniqueNewNotifications, ...notifications];
+          const updated = [...uniqueNewNotifications, ...notificationsRef.current];
           await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(updated));
-          setNotifications(updated);
+          commitNotifications(updated);
 
           const newSeenIds = [...seenBusinessIds, ...newNotifications.map(n => n.metadata?.businessId || n.id)];
           await AsyncStorage.setItem(getSeenBusinessesKey(user.id), JSON.stringify(newSeenIds));
@@ -367,14 +385,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const { notifications: raw } = await api.getUserNotifications(token);
       const server = raw.map(normalizeServerNotification);
 
-      const readById = new Map(notifications.map(n => [n.id, n.read]));
-      const local = notifications.filter(n => n.id.startsWith("notif_"));
-      const merged = [
-        ...local,
-        ...server.map(n => (readById.get(n.id) === true ? { ...n, read: true } : n)),
-      ];
+      // Wait for the stored list (it holds read status set before this build), then merge with the
+      // latest list, not the copy this callback was created with.
+      if (storedLoadRef.current) await storedLoadRef.current;
+      const merged = mergeServerNotifications(notificationsRef.current, server);
 
-      setNotifications(merged);
+      commitNotifications(merged);
       await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(merged));
     } catch (error) {
       console.log("Failed to fetch user notifications (non-critical):", error);
@@ -393,23 +409,35 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       date: new Date().toISOString(),
       read: false,
     };
-    const updated = [newNotification, ...notifications];
+    const updated = [newNotification, ...notificationsRef.current];
     await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(updated));
-    setNotifications(updated);
+    commitNotifications(updated);
   };
 
+  // Read status now also goes to the server (PATCH /api/notifications/:id/read and
+  // POST /api/notifications/mark-all-read, Bearer since backend #417). The phone marks it read first;
+  // a failed call is only logged, and the merge keeps it read until a later tap or refresh catches up.
   const markAsRead = async (id: string) => {
     if (!user) return;
-    const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n));
+    const { rows: updated, changed } = markOneRead(notificationsRef.current, id);
+    if (!changed) return;
+    commitNotifications(updated);
     await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(updated));
-    setNotifications(updated);
+    if (isServerNotificationId(id)) {
+      const token = await getToken();
+      if (token) void api.markNotificationRead(token, id);
+    }
   };
 
   const markAllAsRead = async () => {
     if (!user) return;
-    const updated = notifications.map((n) => ({ ...n, read: true }));
+    const { rows: updated, serverChanged } = markEveryRead(notificationsRef.current);
+    commitNotifications(updated);
     await AsyncStorage.setItem(getNotificationsKey(user.id), JSON.stringify(updated));
-    setNotifications(updated);
+    if (serverChanged) {
+      const token = await getToken();
+      if (token) void api.markAllNotificationsRead(token);
+    }
   };
 
   const updateSettings = async (updates: Partial<NotificationSettings>) => {
@@ -422,7 +450,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const clearNotifications = async () => {
     if (!user) return;
     await AsyncStorage.removeItem(getNotificationsKey(user.id));
-    setNotifications([]);
+    commitNotifications([]);
   };
 
   const enableNotifications = async (): Promise<boolean> => {
