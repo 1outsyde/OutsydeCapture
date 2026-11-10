@@ -5046,6 +5046,34 @@ class ApiService {
     }
   }
 
+  // Activity read status (2026-11-10). Both routes take the Bearer token since backend #417.
+  // false on any failure: the phone keeps the row read either way.
+  async markNotificationRead(authToken: string, id: string): Promise<boolean> {
+    try {
+      await this.request(`/api/notifications/${encodeURIComponent(id)}/read`, {
+        method: "PATCH",
+        headers: { "Authorization": `Bearer ${authToken}` },
+      });
+      return true;
+    } catch (error) {
+      console.log("Failed to mark notification read (non-critical):", error);
+      return false;
+    }
+  }
+
+  async markAllNotificationsRead(authToken: string): Promise<boolean> {
+    try {
+      await this.request("/api/notifications/mark-all-read", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${authToken}` },
+      });
+      return true;
+    } catch (error) {
+      console.log("Failed to mark all notifications read (non-critical):", error);
+      return false;
+    }
+  }
+
   async getNotifications(authToken: string): Promise<Array<{
     id: string;
     type: string;
