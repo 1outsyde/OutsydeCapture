@@ -1,4 +1,9 @@
 import { BASE_URL } from "@/constants/config";
+import {
+  parsePushPreferences,
+  type PushPreferences,
+  type PushPreferenceChange,
+} from "@/utils/pushPreferencesLogic";
 import type { AdminSubscriptionSummary, AdminOfferSummary, OfferPlan } from "@/utils/adminPlans";
 import type { PushAudience, PushCounts, PushLimits, PushPerson, PushRecipientRow, PushScreensData, PushSendRow } from "@/utils/adminPush";
 import type { EmailBudget, EmailPerson, EmailPersonInfo, EmailRecipientRow, EmailSendRow, PersonEmailRow } from "@/utils/adminEmail";
@@ -6526,38 +6531,32 @@ class ApiService {
     return this.normalizeVendorEligibility(response);
   }
 
-  /** "Outsyde news and offers" switch (backend /api/push/preferences). null when it couldn't be read. */
-  async getPushPreferences(
-    authToken: string,
-  ): Promise<{ news: boolean } | null> {
+  /** Push switches (backend /api/push/preferences): "Outsyde news and offers" plus the per-category
+   *  switches (#438, Activity step 3b). null when it couldn't be read; categories null on an older backend. */
+  async getPushPreferences(authToken: string): Promise<PushPreferences | null> {
     try {
-      const r = await this.request<{ news?: unknown }>(
-        "/api/push/preferences",
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
-        },
-      );
-      return typeof r?.news === "boolean" ? { news: r.news } : null;
+      const r = await this.request<unknown>("/api/push/preferences", {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      return parsePushPreferences(r);
     } catch {
       return null;
     }
   }
 
-  /** Saves the switch. Answers the saved value, or null when the save failed (the caller flips the switch back). */
+  /** Saves only the switches given. Answers everything as saved, or null when the save failed
+   *  (the caller flips the switch back). */
   async setPushPreferences(
     authToken: string,
-    news: boolean,
-  ): Promise<{ news: boolean } | null> {
+    change: PushPreferenceChange,
+  ): Promise<PushPreferences | null> {
     try {
-      const r = await this.request<{ news?: unknown }>(
-        "/api/push/preferences",
-        {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${authToken}` },
-          body: JSON.stringify({ news }),
-        },
-      );
-      return typeof r?.news === "boolean" ? { news: r.news } : null;
+      const r = await this.request<unknown>("/api/push/preferences", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(change),
+      });
+      return parsePushPreferences(r);
     } catch {
       return null;
     }

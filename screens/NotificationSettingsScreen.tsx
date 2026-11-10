@@ -1,8 +1,9 @@
 // Notification settings (Activity redesign step 2, Legend 2026-11-10): opened by the gear in Inbox,
 // on the Notifications screen and from Account › Notifications. Full screen, not a sheet.
 // Only switches that really work today: the phone's push permission, reminders this phone schedules
-// (BookingFlow) and "Outsyde news and offers" (backend /api/push/preferences). Per-category push
-// switches come in step 3 (they need the backend).
+// (BookingFlow) and "Outsyde news and offers" (backend /api/push/preferences).
+// Step 3b (2026-11-10): per-category switches (Bookings, Messages, Orders, Events) from the same route
+// (backend #438). Hidden on an older backend that only answers news.
 import React, { useCallback, useEffect, useState } from "react";
 import {
   AppState,
@@ -23,6 +24,21 @@ import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { Spacing } from "@/constants/theme";
 import { api } from "@/services/api";
+import {
+  pushCategoryRows,
+  type PushCategories,
+  type PushCategoryKey,
+} from "@/utils/pushPreferencesLogic";
+
+const CATEGORY_ICONS: Record<
+  PushCategoryKey,
+  React.ComponentProps<typeof Ionicons>["name"]
+> = {
+  bookings: "calendar",
+  messages: "chatbubble",
+  orders: "bag-handle",
+  events: "ticket",
+};
 
 type Permission = "on" | "off" | "unknown";
 
@@ -58,6 +74,14 @@ export default function NotificationSettingsScreen() {
   const [news, setNews] = useState<boolean | null>(null);
   const [newsSaving, setNewsSaving] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
+  // Category switches: null = not loaded or older backend (rows hidden).
+  const [categories, setCategories] = useState<PushCategories | null>(null);
+  const [categorySaving, setCategorySaving] = useState<PushCategoryKey | null>(
+    null,
+  );
+  const [categoryError, setCategoryError] = useState<PushCategoryKey | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!signedIn || isWeb) return;
@@ -66,7 +90,10 @@ export default function NotificationSettingsScreen() {
       const token = await getToken();
       if (!token || off) return;
       const r = await api.getPushPreferences(token);
-      if (!off && r) setNews(r.news);
+      if (!off && r) {
+        setNews(r.news);
+        setCategories(r.categories);
+      }
     })();
     return () => {
       off = true;
@@ -80,13 +107,36 @@ export default function NotificationSettingsScreen() {
     setNewsSaving(true);
     setNewsError(null);
     const token = await getToken();
-    const r = token ? await api.setPushPreferences(token, value) : null;
+    const r = token
+      ? await api.setPushPreferences(token, { news: value })
+      : null;
     setNewsSaving(false);
     if (!r) {
       setNews(before);
       setNewsError("Couldn't save. Try again.");
       return;
     }
+    setNews(r.news);
+    if (r.categories) setCategories(r.categories);
+  };
+
+  const handleToggleCategory = async (key: PushCategoryKey, value: boolean) => {
+    if (categorySaving || !categories) return;
+    const before = categories;
+    setCategories({ ...categories, [key]: value });
+    setCategorySaving(key);
+    setCategoryError(null);
+    const token = await getToken();
+    const r = token
+      ? await api.setPushPreferences(token, { [key]: value })
+      : null;
+    setCategorySaving(null);
+    if (!r || !r.categories) {
+      setCategories(before);
+      setCategoryError(key);
+      return;
+    }
+    setCategories(r.categories);
     setNews(r.news);
   };
 
@@ -180,6 +230,50 @@ export default function NotificationSettingsScreen() {
           { backgroundColor: theme.brandCard },
         ]}
       >
+        {!isWeb && categories
+          ? pushCategoryRows(user?.role).map((row) => (
+              <View
+                key={row.key}
+                style={[styles.listRow, { borderBottomColor: theme.brandChip }]}
+              >
+                {iconBox(CATEGORY_ICONS[row.key])}
+                <View style={styles.rowText}>
+                  <ThemedText type="body" style={styles.rowTitle}>
+                    {row.label}
+                  </ThemedText>
+                  <ThemedText
+                    type="caption"
+                    style={{
+                      color:
+                        categoryError === row.key
+                          ? theme.error
+                          : theme.textSecondary,
+                    }}
+                  >
+                    {categoryError === row.key
+                      ? "Couldn't save. Try again."
+                      : row.description}
+                  </ThemedText>
+                  {row.note && !categories[row.key] ? (
+                    <ThemedText
+                      type="caption"
+                      style={{ color: theme.brandGold }}
+                    >
+                      {row.note}
+                    </ThemedText>
+                  ) : null}
+                </View>
+                <Switch
+                  value={categories[row.key]}
+                  onValueChange={(v) => handleToggleCategory(row.key, v)}
+                  disabled={categorySaving !== null}
+                  accessibilityLabel={row.label}
+                  {...switchColors(categories[row.key])}
+                />
+              </View>
+            ))
+          : null}
+
         {!isWeb ? (
           <View
             style={[styles.listRow, { borderBottomColor: theme.brandChip }]}
@@ -214,7 +308,9 @@ export default function NotificationSettingsScreen() {
                 style={{ color: newsError ? theme.error : theme.textSecondary }}
               >
                 {newsError ??
-                  "Updates and offers from Outsyde. Booking and message alerts still come through."}
+                  (categories
+                    ? "Updates and offers from Outsyde."
+                    : "Updates and offers from Outsyde. Booking and message alerts still come through.")}
               </ThemedText>
             </View>
             <Switch
@@ -233,7 +329,8 @@ export default function NotificationSettingsScreen() {
         style={[styles.footer, { color: theme.textSecondary }]}
       >
         Everything still shows up in your Activity tab, whatever you turn off
-        here.
+        here. Alerts about payments, payouts and your account always come
+        through.
       </ThemedText>
     </ScrollView>
   );
