@@ -1,5 +1,9 @@
 import React, { useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "@/navigation/types";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,6 +23,8 @@ export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const [mode, setMode] = useState<InboxMode>("activity");
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const storiesBarHeight = useSharedValue(96);
 
@@ -32,9 +38,20 @@ export default function InboxScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView
+      style={[styles.container, { backgroundColor: theme.brandScreen }]}
+    >
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <ThemedText type="h2">Inbox</ThemedText>
+        {/* Activity redesign step 2: notification settings moved off the Activity list. */}
+        <Pressable
+          onPress={() => navigation.navigate("NotificationSettings")}
+          style={[styles.gear, { backgroundColor: theme.brandCard }]}
+          accessibilityRole="button"
+          accessibilityLabel="Notification settings"
+        >
+          <Ionicons name="settings" size={22} color={theme.text} />
+        </Pressable>
       </View>
       <Animated.View style={storiesBarAnimatedStyle}>
         <StoriesBar onVisibilityChange={handleStoriesVisibilityChange} />
@@ -55,6 +72,16 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  gear: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
   },
   divider: { height: StyleSheet.hairlineWidth },
   content: {

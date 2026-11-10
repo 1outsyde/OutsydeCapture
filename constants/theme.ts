@@ -45,6 +45,12 @@ export const Colors = {
     brandGoldDim:       "#8A6600",
     brandCream:         "#0A0A0A",
     brandTextDim:       "#555555",
+    // Activity redesign (2026-11-10): screen, card, chip and unread-row surfaces. Dark = semi black + green
+    // tones instead of pitch black (Legend). Used by Activity + Notification settings first, dashboard next.
+    brandScreen:        "#F8F8F8",
+    brandCard:          "#FFFFFF",
+    brandChip:          "#ECEAE4",
+    brandCardUnread:    "#F6F0DF",
     brandSuccess:       "#34C759",
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",
@@ -98,6 +104,11 @@ export const Colors = {
     brandGoldDim:       "#C9A84C",
     brandCream:         "#F0EAD6",
     brandTextDim:       "rgba(200,191,168,0.6)",
+    // Activity redesign (2026-11-10): see the light block.
+    brandScreen:        "#171717",
+    brandCard:          "#1F2522",
+    brandChip:          "#262C29",
+    brandCardUnread:    "#1D2622",
     brandSuccess:       "#34C759",
     brandPending:       "#FF9500",
     brandError:         "#FF3B30",

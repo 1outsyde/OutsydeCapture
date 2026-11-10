@@ -1,4 +1,6 @@
 import React from "react";
+import { Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import AccountScreen from "@/screens/AccountScreen";
@@ -36,9 +38,25 @@ export default function AccountStackNavigator() {
       <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}
-        options={{
+        options={({ navigation }) => ({
           title: "Notifications",
-        }}
+          headerStyle: { backgroundColor: theme.brandScreen },
+          // Activity redesign step 2: settings live on their own (root) screen.
+          headerRight: () => (
+            <Pressable
+              onPress={() =>
+                (navigation.navigate as (name: string) => void)(
+                  "NotificationSettings",
+                )
+              }
+              hitSlop={16}
+              accessibilityRole="button"
+              accessibilityLabel="Notification settings"
+            >
+              <Ionicons name="settings" size={22} color={theme.text} />
+            </Pressable>
+          ),
+        })}
       />
       <Stack.Screen
         name="OutsydePoints"
@@ -65,7 +83,10 @@ export default function AccountStackNavigator() {
         name="AddressForm"
         component={AddressFormScreen}
         options={({ route }) => ({
-          title: route.params.mode === "shipping" ? "Shipping Address" : "Billing Address",
+          title:
+            route.params.mode === "shipping"
+              ? "Shipping Address"
+              : "Billing Address",
         })}
       />
     </Stack.Navigator>

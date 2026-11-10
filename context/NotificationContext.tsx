@@ -52,7 +52,9 @@ export interface Notification {
     // Business referral $25 (backend referrals/businessReferrals.ts, kinds qualified | setup_payouts | paid); a tap opens Points.
     | "business_referral_reward"
     // Admin announcement (backend server/push/pushBroadcasts.ts); a tap opens metadata.screen (utils/announcementPush.ts).
-    | "announcement";
+    | "announcement"
+    // Written by the backend but missing here until the Activity redesign (2026-11-10).
+    | "order_confirmed" | "new_consumer_signup";
   date: string;
   read: boolean;
   metadata?: Record<string, string>;
