@@ -40,6 +40,7 @@ import { cropPhotoToFile } from "@/components/crop/cropFile";
 import { useStoryEditor } from "@/components/crop/StoryEditor";
 import { cameraFrameFraction, openAreaFrame, type FracRect } from "@/utils/crop/cropMath";
 import { VideoFitPicker } from "@/components/video/VideoFitPicker";
+import { RecordedVideoPreview } from "@/components/video/RecordedVideoPreview";
 import { defaultVideoFit, type VideoFit } from "@/utils/videoFit";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -204,6 +205,8 @@ export default function CreatePostScreen() {
 
   // Horizontal swipe on Step 1 only — left = story, right = post
   const modeSwipeGesture = Gesture.Pan()
+    // Off while a recorded video plays back on step 1: switching modes would throw the clip away.
+    .enabled(!(postImage && postLayout === "pulse"))
     .activeOffsetX([-50, 50])
     .onEnd((e) => {
       if (e.translationX < -50) runOnJS(switchMode)("story");
@@ -561,30 +564,35 @@ export default function CreatePostScreen() {
       recordingRef.current = false;
       setIsRecording(false);
     }, limit * 1000);
-    const result = await cameraRef.current?.recordAsync({ maxDuration: limit });
+    let result: { uri: string } | undefined;
+    let failed = false;
+    try {
+      result = await cameraRef.current?.recordAsync({ maxDuration: limit });
+    } catch (e) {
+      // e.g. the camera has no video output yet. Without this the timer pill kept counting
+      // with nothing being recorded, and the stop saved nothing.
+      console.warn("[CreatePost] recordAsync failed", e);
+      failed = true;
+    }
     recordingRef.current = false;
     tapRecordingRef.current = false;
     if (recordingTimerRef.current) {
       clearTimeout(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
+    setIsRecording(false);
     if (!result?.uri) {
-      setIsRecording(false);
+      if (failed) {
+        Alert.alert("Couldn't record", "Something went wrong with the camera. Try again.");
+      }
       return;
     }
-    setIsRecording(false);
-    // Camera recordings are full screen and tall: start on Fill.
-    if (mode === "post") {
-      clearPostPhotos();
-      setPostImage(result.uri);
-      setPostLayout("pulse");
-      setStep(2);
-    } else {
-      setVideoFit("fill");
-      setPostImage(result.uri);
-      setPostLayout("pulse");
-      setStep(2);
-    }
+    // Camera recordings are full screen and tall: start on Fill. The clip plays back full screen
+    // on the camera screen first (Retake or Next), TikTok style, instead of jumping to step 2.
+    if (mode === "post") clearPostPhotos();
+    setVideoFit("fill");
+    setPostImage(result.uri);
+    setPostLayout("pulse");
   };
 
   const handleCameraReady = () => {
@@ -911,6 +919,13 @@ export default function CreatePostScreen() {
 
   const recordClock = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
   const showingPick = !!postImage;
+  // A video (just recorded, or picked and come back to) playing full screen on step 1.
+  const previewingVideo = showingPick && postLayout === "pulse";
+  const retake = () => {
+    setPostImage("");
+    clearPostPhotos();
+    setPostLayout(null);
+  };
 
   return (
     <ThemedView
@@ -955,17 +970,7 @@ export default function CreatePostScreen() {
             >
               {showingPick ? (
                 postLayout === "pulse" ? (
-                  <View
-                    style={[StyleSheet.absoluteFill, styles.videoPlaceholder]}
-                  >
-                    <Feather name="video" size={48} color="#fff" />
-                    <ThemedText
-                      type="body"
-                      style={{ color: "#fff", marginTop: 12 }}
-                    >
-                      Video selected
-                    </ThemedText>
-                  </View>
+                  <RecordedVideoPreview uri={postImage} />
                 ) : (
                   <Image
                     source={{ uri: postImage }}
@@ -980,10 +985,12 @@ export default function CreatePostScreen() {
                       ref={cameraRef}
                       style={StyleSheet.absoluteFill}
                       facing={facing}
+                      // iOS: expo-camera 58 only has a video output in "video" mode (photos still
+                      // work in it), so a hold records at once. Android switches per recording.
                       mode={
                         Platform.OS === "android"
                           ? androidCameraMode
-                          : undefined
+                          : "video"
                       }
                       // TikTok posts at 1080p; without this iPhones record at their highest (often 4K).
                       videoQuality="1080p"
@@ -1132,11 +1139,7 @@ export default function CreatePostScreen() {
                 {showingPick ? (
                   // A photo or video picked earlier is showing: X clears it, back to the camera.
                   <Pressable
-                    onPress={() => {
-                      setPostImage("");
-                      clearPostPhotos();
-                      setPostLayout(null);
-                    }}
+                    onPress={retake}
                     hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel="Remove this and go back to the camera"
@@ -1180,6 +1183,38 @@ export default function CreatePostScreen() {
             )}
 
             {/* ── Bottom: gallery | shutter | (space), then POST · STORY · EVENT ── */}
+            {/* ── Video playback (TikTok style): Retake back to the camera, Next to the caption. ── */}
+            {previewingVideo ? (
+              <View
+                style={[styles.cameraBottom, { paddingBottom: cameraBottomPad }]}
+              >
+                <View style={styles.previewBar}>
+                  <Pressable
+                    onPress={retake}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retake"
+                    style={styles.previewRetake}
+                    testID="preview-retake"
+                  >
+                    <Feather name="rotate-ccw" size={18} color="#fff" />
+                    <ThemedText style={styles.previewRetakeText}>Retake</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setStep(2)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Next"
+                    style={styles.previewNext}
+                    testID="preview-next"
+                  >
+                    <ThemedText style={styles.previewNextText}>Next</ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {!previewingVideo && (
             <View
               style={[styles.cameraBottom, { paddingBottom: cameraBottomPad }]}
             >
@@ -1345,6 +1380,7 @@ export default function CreatePostScreen() {
                 </Pressable>
               </View>
             </View>
+            )}
           </View>
         </GestureDetector>
       )}
@@ -1759,10 +1795,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  videoPlaceholder: {
+  previewBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  previewRetake: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 48,
+    paddingHorizontal: 18,
+    borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  previewRetakeText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  previewNext: {
+    height: 48,
+    minWidth: 120,
+    paddingHorizontal: 28,
+    borderRadius: 24,
+    backgroundColor: "#E8B930",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0a0a0a",
+  },
+  previewNextText: {
+    color: "#111",
+    fontSize: 16,
+    fontWeight: "700",
   },
   cameraScreen: {
     backgroundColor: "#000",
